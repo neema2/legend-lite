@@ -27,11 +27,15 @@ class RootLoopsRejectionTest {
     private static final TestPlan.Verdict SECOND = new TestPlan.Verdict(2, "assertEquals@2", "equals", List.of(), null,
             null);
 
+    /** A typed row's report (item 3's S4: every database row is typed). */
+    private static final RootLoop.Report CONDITION = new RootLoop.Report(RootLoop.Family.CONDITION, true, null, null,
+            null, -1);
+
     private static RootLoops.Run run() {
         return new RootLoops.Run(new RootLoop(List.of(
-                new RootLoop.Root("assertEquals@1", List.of(new RootLoop.Row("assertEquals@1", 1)),
+                new RootLoop.Root("assertEquals@1", List.of(new RootLoop.Row("assertEquals@1", 1, CONDITION)),
                         null),
-                new RootLoop.Root("assertEquals@2", List.of(new RootLoop.Row("assertEquals@2", 2)),
+                new RootLoop.Root("assertEquals@2", List.of(new RootLoop.Row("assertEquals@2", 2, CONDITION)),
                         null)), Map.of()));
     }
 

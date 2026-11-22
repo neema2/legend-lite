@@ -50,72 +50,19 @@ public final class VerdictSql {
     }
 
     public static final String VERDICT = "__verdict";
-    public static final String EXPECTED = "__expected";
-    public static final String ACTUAL = "__actual";
-    public static final String UNJUDGED = "__unjudged";
-    /** True when the verdict held ONLY through the declared 2-ULP Float
-     * leniency (the harness counts it, as host mode counts its own). */
-    public static final String LENIENT = "__lenient";
-    /** The verdict under the assert's polarity (the test-is-the-product plan's M8b, MV2/MV3, 2026-11-01): what the
-     *  judge raises on when false. */
-    public static final String HOLDS = "__holds";
     /** The failure text the judge raises with, composed in the statement (M8b): the family's name and the two
      *  canons each on its line, or the negated families' one sentence; computed on every row, read where the row does
      *  not hold. */
     public static final String MESSAGE = "__message";
-    /** A planning-time hint the frame reads and drops: the sides were compared as MULTISETS, so lite's sentence is
-     *  {@code AssertKind.SAME_ELEMENTS} ("in any order") whatever the assert's name. */
-    private static final String MULTISET_HINT = "__multiset";
-    /** A planning-time hint the frame reads and drops: the negated assert is {@code assertIsNot} (#28), its sentence
-     *  {@code AssertKind.IS_NOT} (legend-pure's 'Should not be identical to: %r'), not the not-equal one. */
-    private static final String IS_NOT_HINT = "__isnot";
-    /** A planning-time hint the frame reads and drops: the two sides are JSON documents, the sentence
-     *  {@code AssertKind.JSON_EQUALS}. */
-    private static final String JSON_HINT = "__json";
-    /** Each side's kind as lite's sentence names it where the two texts tie: the frame's, dropped there. */
-    private static final String EXPECTED_KIND = "__ekind";
-    private static final String ACTUAL_KIND = "__akind";
 
-    /** {@code message} inside the AT_INDEX frame (item 3, 2026-11-21: a frame of the record, no longer a sentence of
-     *  its own): the message, then the frame's text with the index last, as {@link com.legend.error.FrameKind#wrap}
-     *  words it. Until item 3's S4, which carries the database judge's values to the record and deletes this SQL. */
-    public static SqlExpr atIndexFrame(SqlExpr message, SqlExpr index) {
-        return new SqlExpr.Call(SqlFn.CONCAT, List.of(message,
-                new SqlExpr.StringLit(com.legend.error.FrameKind.AT_INDEX.wrap(List.of(""), "")), index));
-    }
-
-    /** {@code row}'s sentence as SQL: its text pieces as literals and each slot the expression {@code slots} names, one
-     *  concatenation -- the database judge's twin of the host's {@code AssertKind.fill} (the user's judge model,
-     *  2026-11-17: one table for both judges). */
-    public static SqlExpr sentence(com.legend.error.AssertKind row, java.util.Map<String, SqlExpr> slots) {
-        if (!slots.keySet().equals(new java.util.HashSet<>(row.slots()))) {
-            throw new IllegalArgumentException(row.name() + ": slots " + row.slots() + ", given " + slots.keySet());
-        }
-        List<SqlExpr> parts = new ArrayList<>();
-        for (com.legend.error.AssertKind.Piece p : row.pieces()) {
-            parts.add(switch (p) {
-                case com.legend.error.AssertKind.Text t -> new SqlExpr.StringLit(t.text());
-                case com.legend.error.AssertKind.Slot slot -> slots.get(slot.name());
-            });
-        }
-        return parts.size() == 1 ? parts.get(0) : new SqlExpr.Call(SqlFn.CONCAT, parts);
-    }
-
-    /** {@code row}'s sentence with no slot, as a literal. */
-    public static String sentence(com.legend.error.AssertKind row) {
-        return row.fill(java.util.Map.of());
-    }
-
-    /** One canon-wrapped side: the wrapped plan, the name of the canon
-     * column that decides (one of {@code __canon<i>}), whether the side
-     * is a collection, and whether its elements order by canon text (the
-     * multiset forms) or by arrival (an ordered assert). */
-    /** {@code decimalByValue}: a Decimal side compared by its value, the scale dropped from its canon (register S139,
-     *  lite's own rules); compatibility mode compares the canon as written, scale and all. */
+    /** One canon-wrapped side: the wrapped plan, the name of the canon column that decides (one of
+     *  {@code __canon<i>}), whether the side is a collection, and whether its elements order by canon text (the
+     *  multiset forms) or by arrival (an ordered assert). {@code decimalByValue}: a Decimal side compared by its value,
+     *  the scale dropped from its canon (register S139). */
     public record Side(SqlQuery wrapped, String canonColumn, boolean many,
-            boolean byCanonText, boolean isFloat, @com.legend.base.Nullable Message message, boolean decimalByValue) {
+            boolean byCanonText, boolean isFloat, boolean decimalByValue) {
         public Side(SqlQuery wrapped, String canonColumn, boolean many, boolean byCanonText, boolean isFloat) {
-            this(wrapped, canonColumn, many, byCanonText, isFloat, null, false);
+            this(wrapped, canonColumn, many, byCanonText, isFloat, false);
         }
     }
 
@@ -134,69 +81,6 @@ public final class VerdictSql {
         return s.decimalByValue() ? decimalValue(canon) : canon;
     }
 
-    /**
-     * How a side is WRITTEN in the failure message, where its elements are of one known primitive {@code kind}
-     * (2026-11-04, the assert bar): each element by lite's own rules ({@link LiteText}: a String quoted JSON-style,
-     * every other value its product text), never the canon the comparison reads; each side's elements in its own order
-     * (the orchestrator's ruling, 2026-11-17). {@code sorted}: assertSameElements' form, read by the frame (item 3's
-     * S0, 2026-11-21: legend-pure's sorted {@code toRepresentation} list went with the lite flag, and its style).
-     */
-    public record Message(Type kind, boolean sorted, @com.legend.base.Nullable String literal, boolean canon,
-            @com.legend.base.Nullable String kindText, @com.legend.base.Nullable String canonClass) {
-        // (the lite flag, the listed flag and the five-argument constructor whose default was legend-pure's words --
-        // an invariant-4 default every caller overrode -- gone 2026-11-21, item 3's S0: the database judge plans for
-        // lite's flow alone since A4, so a side is written by lite's own rules, LiteText)
-
-        /** The side's own kind (its style went with the legend-pure branch, item 3's S0: lite's text asks none). */
-        public Message(Type kind, boolean sorted, @com.legend.base.Nullable String literal) {
-            this(kind, sorted, literal, false, null, null);
-        }
-
-        /** This message with the side's KIND as lite's sentence names it where two texts tie
-         *  ({@code AssertKind.EQUALS_KINDS}). */
-        public Message withKindText(String kindText) {
-            return new Message(kind, sorted, literal, canon, kindText, canonClass);
-        }
-
-        /** A side of no one primitive kind (a mixed-kind collection, a literal channel), written by lite's own rules
-         *  from each element's CANON ({@link #liteOfCanon}: its runtime kind read off the canon's mark), in the side's
-         *  own order (the orchestrator's ruling, 2026-11-17); {@code classFqn}: the side's declared class, prefixed to
-         *  an element whose canon is its JSON object (an instance as the product writes it), or null. */
-        public static Message fromCanon(boolean sorted, @com.legend.base.Nullable String classFqn) {
-            return new Message(Type.Primitive.STRING, sorted, null, true, null, classFqn);
-        }
-
-        public Message(Type kind, boolean sorted) {
-            this(kind, sorted, null);
-        }
-
-        /** A LITERAL side (one value the planner holds): {@code text}, its lite text spelled at planning. */
-        public static Message literal(Type kind, String text) {
-            return new Message(kind, false, text);
-        }
-
-        /** {@code kind}'s message for a side, or null where its elements' text is no one primitive's. */
-        public static @com.legend.base.Nullable Message of(@com.legend.base.Nullable Type kind, boolean sorted) {
-            if (kind == null) {
-                return null;
-            }
-            // Nil: an empty side, written [] whatever the other's kind (it has no element to write)
-            boolean spelled = kind instanceof Type.PrecisionDecimal || kind == Type.Primitive.INTEGER
-                    || PlatformTypes.isNil(kind)
-                    || kind == Type.Primitive.FLOAT || kind == Type.Primitive.DECIMAL || kind == Type.Primitive.STRING
-                    || kind == Type.Primitive.BOOLEAN || kind == Type.Primitive.DATE
-                    || kind == Type.Primitive.STRICT_DATE || kind == Type.Primitive.DATE_TIME;
-            return spelled ? new Message(kind, sorted) : null;
-        }
-
-        /** Instances of a GENERIC class (a {@code Pair}) carried as structs of primitive fields -- the caller has seen
-         *  the side's plan answer such a struct: each written by lite's own rules, its class then its properties
-         *  ({@link #instanceLite}). */
-        public static Message instances(Type.GenericType kind, boolean sorted) {
-            return new Message(kind, sorted);
-        }
-    }
-
     private static final String C = "__c";
     private static final String RN = "__rn";
     /** The NAMED wrapped grid(s) a grid verdict reads (see {@link #over}). */
@@ -208,32 +92,6 @@ public final class VerdictSql {
      *  sorted form ordered by, unread since item 3's S0 (2026-11-21; its projection goes with the message SQL, S4). */
     private static final String W = "__w";
     private static final String O = "__o";
-
-    /** Whether the database judge compares two values of {@code kind} by their value, not their text: a Decimal, a
-     *  declared-precision Decimal (lite's rule, the two-form kind VerdictNumbers' product form until A4). */
-    public static boolean decimalByValue(Type kind) {
-        return kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal;
-    }
-
-    /** The equality verdict statement over two framed sides; a Float compares exactly, as lite's rule has it (A4 of
-     *  the compatibility program, stage A ratified by the user 2026-11-19: the database judge plans for the product
-     *  alone, rule 4 of the rules of record, so compiled legend-pure's Float tolerance, S15/S132, and its two-form kind
-     *  VerdictNumbers left it). */
-    public static SqlQuery equality(Side e, Side a) {
-        // THE SIDE'S SHAPE FOLLOWS ITS DECLARED MULTIPLICITY (lean ladder rung
-        // 3): a side declared exactly one spells its facts straight over its
-        // plan — no rows CTE, no aggregate (count is one, first is the value);
-        // an optional or many side is a rows CTE folded once.
-        Folded ef = fold("__e", e, false);
-        Folded af = fold("__a", a, false);
-        SqlQuery row = statementOf(ef, af, List.of(), List.of());
-        if (e.message() == null || a.message() == null) {
-            return row;
-        }
-        SqlQuery written = withWrittenSides(row, e.message().sorted(), e.byCanonText());
-        return e.message().kindText() != null && a.message().kindText() != null
-                ? withKinds(written, e.message().kindText(), a.message().kindText()) : written;
-    }
 
     /** A TYPED verdict row and the schema of its columns (item 3's S4, 2026-11-21): what the database judge defers. */
     public record TypedRow(SqlQuery row, Type.RelationType schema) {
@@ -461,21 +319,12 @@ public final class VerdictSql {
                 || !(aRows.outputs().get(0).type() instanceof SqlType.Struct as)) {
             return null;
         }
-        List<Leaf> eLeaves = new ArrayList<>();
-        List<Leaf> aLeaves = new ArrayList<>();
-        if (!leaves(es, keys, List.of(), eLeaves) || !leaves(as, keys, List.of(), aLeaves)
-                || eLeaves.size() != aLeaves.size() || eLeaves.isEmpty()) {
+        List<List<Leaf>> both = pairedLeaves(es, as, keys);
+        if (both == null) {
             return null;
         }
-        for (int i = 0; i < eLeaves.size(); i++) {
-            Leaf el = eLeaves.get(i);
-            Leaf al = aLeaves.get(i);
-            if (!el.path().equals(al.path()) || !java.util.Objects.equals(leafClass(el.type()), leafClass(al.type()))) {
-                return null;
-            }
-        }
-        SqlQuery ce = leafRows("__ie", eRows, eLeaves);
-        SqlQuery ca = leafRows("__ia", aRows, aLeaves);
+        SqlQuery ce = leafRows("__ie", eRows, both.get(0));
+        SqlQuery ca = leafRows("__ia", aRows, both.get(1));
         SqlQuery eCmp = listed("__ke", structRows(rowsOf("__ce", ce)));
         SqlQuery aCmp = listed("__ka", structRows(rowsOf("__ca", ca)));
         // the record's instances as the host's reads them: a keyed class restricted to its classifier and its keys
@@ -496,6 +345,75 @@ public final class VerdictSql {
                         new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a", null)),
                 wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
                         listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
+    }
+
+    /** Two layouts' leaves as the host restricts them, path by path of one kind ({@link #leaves}); null where a leaf
+     *  has no typed reading or the two differ. */
+    private static @com.legend.base.Nullable List<List<Leaf>> pairedLeaves(SqlType.Struct es, SqlType.Struct as,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
+        List<Leaf> eLeaves = new ArrayList<>();
+        List<Leaf> aLeaves = new ArrayList<>();
+        if (!leaves(es, keys, List.of(), eLeaves) || !leaves(as, keys, List.of(), aLeaves)
+                || eLeaves.size() != aLeaves.size() || eLeaves.isEmpty()) {
+            return null;
+        }
+        for (int i = 0; i < eLeaves.size(); i++) {
+            Leaf el = eLeaves.get(i);
+            Leaf al = aLeaves.get(i);
+            if (!el.path().equals(al.path()) || !java.util.Objects.equals(leafClass(el.type()), leafClass(al.type()))) {
+                return null;
+            }
+        }
+        return List.of(eLeaves, aLeaves);
+    }
+
+    /**
+     * {@code assertContains}' TYPED member over instances of one class -- a model class's or a Pair's, each a struct
+     * (item 3's S4, the last families): the collection's instances and the value's as rows of their typed leaves, as
+     * {@link #typedInstances} reads them (the host's {@code Equality}: the classifier, then the keys or the identity);
+     * the verdict whether some instance's leaves are each {@code IS NOT DISTINCT FROM} the value's, under {@code want};
+     * both sides' instances ride the failure whole, as the host's record writes them. Null where {@link
+     * #typedInstances} has no reading.
+     */
+    public static @com.legend.base.Nullable TypedRow typedContainsInstances(SqlQuery collWrapped, Type collKind,
+            SqlQuery valWrapped, Type valKind, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys,
+            boolean want) {
+        SqlQuery cRows = valueRows(collWrapped);
+        SqlQuery vRows = valueRows(valWrapped);
+        if (cRows == null || vRows == null || !(cRows.outputs().get(0).type() instanceof SqlType.Struct cs)
+                || !(vRows.outputs().get(0).type() instanceof SqlType.Struct vs)) {
+            return null;
+        }
+        List<List<Leaf>> both = pairedLeaves(cs, vs, keys);
+        if (both == null) {
+            return null;
+        }
+        SqlQuery cl = leafRows("__xc", cRows, both.get(0));
+        SqlQuery vl = leafRows("__xv", vRows, both.get(1));
+        SqlExpr on = null;
+        for (int i = 0; i < both.get(0).size(); i++) {
+            SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("__c", cl.outputs(), "c" + i),
+                    SqlExpr.Column.of("__v", vl.outputs(), "c" + i));
+            on = on == null ? same : SqlExpr.Call.of(SqlFn.AND, on, same);
+        }
+        OutputCol mOut = new OutputCol("__m", SqlType.Scalar.BIGINT, false);
+        SqlSource matched = new SqlSource.Join(
+                new SqlSource.Table("__c", "__c", cl.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
+                new SqlSource.Table("__v", "__v", vl.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
+                SqlSource.Join.Kind.INNER, java.util.Objects.requireNonNull(on));
+        SqlSelect m = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
+                false, List.of()), "__m", mOut)), false, matched, null, List.of(), null, null, List.of(), null, null,
+                List.of(mOut));
+        SqlExpr some = SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Column.of("m", m.outputs(), "__m"),
+                new SqlExpr.IntLit(0));
+        SqlQuery cList = listed("__xc", cRows);
+        SqlQuery vList = listed("__xv", vRows);
+        return typedRow(List.of(new SqlWith.Cte("__xc", cRows), new SqlWith.Cte("__xv", vRows),
+                        new SqlWith.Cte("__c", cl), new SqlWith.Cte("__v", vl)),
+                cross(cross(new SqlSource.Subselect(m, "m", null), new SqlSource.Subselect(cList, "c", null)),
+                        new SqlSource.Subselect(vList, "v", null)),
+                want ? some : SqlExpr.Call.of(SqlFn.NOT, some), List.of(
+                        listValue(TYPED_EXPECTED, "c", cList, collKind), listValue(TYPED_ACTUAL, "v", vList, valKind)));
     }
 
     /** A side's keyed instances ({@code rows}, read as {@code cte}) each restricted to its classifier and its keys, a
@@ -1125,6 +1043,114 @@ public final class VerdictSql {
                         new Valued(TYPED_ACTUAL, count, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false)));
     }
 
+    /** {@code assertSize} / {@code assertNotSize} over a graph side, TYPED (item 3's S4, the last families): the
+     *  graph's count of root objects against the size side's one Integer, both riding the failure, as
+     *  {@link #typedSize}'s. Null where the size side has no typed value column. */
+    public static @com.legend.base.Nullable TypedRow typedSizeOfGraph(SqlQuery graphPlan, SqlQuery nWrapped,
+            boolean wantSize) {
+        SqlQuery nRows = valueRows(nWrapped);
+        if (nRows == null) {
+            return null;
+        }
+        SqlQuery size = single("__n", nRows);
+        SqlExpr wanted = new SqlExpr.Cast(SqlExpr.Column.of("n", size.outputs(), SINGLE), SqlType.Scalar.BIGINT,
+                SqlExpr.Reason.JUDGE);
+        SqlExpr count = graphCount(graphPlan);
+        SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, wanted);
+        return typedRow(List.of(new SqlWith.Cte("__n", nRows)), new SqlSource.Subselect(size, "n", null),
+                wantSize ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
+                        new Valued(TYPED_EXPECTED, wanted, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false),
+                        new Valued(TYPED_ACTUAL, count, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false)));
+    }
+
+    /** {@code assertEmpty} over a graph side, TYPED (item 3's S4, the last families): its count of root objects zero;
+     *  its documents ride the failure as JSON, their root objects read as instances where the record is built, as the
+     *  host reads a graph side ({@code Family.EMPTY_GRAPH}; no row per element, which every database spells). Null where
+     *  the graph's plan has no value column. */
+    public static @com.legend.base.Nullable TypedRow typedEmptyGraph(SqlQuery graphPlan, Type kind) {
+        SqlQuery raw = documentTexts(graphPlan);
+        SqlQuery rows = raw == null ? null : valueRows(raw);
+        if (rows == null) {
+            return null;
+        }
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.JSON, false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        SqlQuery docs = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t",
+                rows.outputs(), O), SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(
+                SqlExpr.Column.of("t", rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table("__xg", "t",
+                rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null,
+                List.of(), null, null, List.of(oOut, rnOut));
+        SqlQuery list = listed("__dg", docs);
+        return typedRow(List.of(new SqlWith.Cte("__xg", rows), new SqlWith.Cte("__dg", docs)),
+                new SqlSource.Subselect(list, "a", null), SqlExpr.Call.of(SqlFn.EQUAL, graphCount(graphPlan),
+                        new SqlExpr.IntLit(0)), List.of(listValue(TYPED_ACTUAL, "a", list, kind)));
+    }
+
+    /** {@code assertNotEmpty} over a graph side, TYPED (item 3's S4): its count of root objects not zero -- a failure
+     *  names no value, the side being empty. */
+    public static TypedRow typedNotEmptyGraph(SqlQuery graphPlan) {
+        return typedRow(List.of(), new SqlSource.Dual(), SqlExpr.Call.of(SqlFn.GREATER, graphCount(graphPlan),
+                new SqlExpr.IntLit(0)), List.of(new Valued(TYPED_ACTUAL, nullOf(new SqlType.Array(SqlType.Scalar.VARCHAR)),
+                new SqlType.Array(SqlType.Scalar.VARCHAR), Type.Primitive.STRING, true)));
+    }
+
+    /** A graph side's count of root objects, as a scalar subquery over the fold (item 3's S4: a graph's size, typed). */
+    private static SqlExpr graphCount(SqlQuery graphPlan) {
+        // the canon wrap over a graph side is a pass-through select (the
+        // document column beside its canon) around the fold: descend to it
+        SqlQuery fold = graphPlan;
+        for (int depth = 0; depth < 4 && fold instanceof SqlSelect w
+                && !w.projections().isEmpty()
+                && w.projections().get(0).expr() instanceof SqlExpr.Column
+                && w.from() instanceof SqlSource.Subselect inner; depth++) {
+            fold = inner.inner();
+        }
+        if (!(fold instanceof SqlSelect ps) || ps.projections().size() != 1
+                || !ps.groupBy().isEmpty()) {
+            throw new IllegalStateException("graph side: not the fold's one-projection select: "
+                    + fold.getClass().getSimpleName()
+                    + (fold instanceof SqlSelect gs ? " projections=" + gs.projections().stream()
+                            .map(pr -> pr.alias() + ":" + pr.expr().getClass().getSimpleName()).toList()
+                            + " groupBy=" + gs.groupBy().size() + " from=" + gs.from().getClass().getSimpleName()
+                            : ""));
+        }
+        SqlExpr top = ps.projections().get(0).expr();
+        while (true) {
+            if (top instanceof SqlExpr.Cast c) {
+                top = c.value();
+            } else if (top instanceof SqlExpr.Call k && k.fn() == SqlFn.COALESCE
+                    && !k.args().isEmpty()) {
+                top = k.args().get(0);
+            } else {
+                break;
+            }
+        }
+        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
+        SqlSelect.Projection countStar = new SqlSelect.Projection(
+                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__n", n);
+        // a value that aggregates its rows into an array (the array itself, or any form a style writes over it -- the
+        // edge's one-object-bare choice among them): the same rows, counted the same way (one object bare is one, the
+        // host rule's 1). Read by the value's own structure, never by the edge's shape (L-A.foldedAggregate, the
+        // lens audit, 2026-11-18)
+        if (aggregatesRowsIntoAnArray(top)) {
+            return new SqlExpr.ScalarSubquery(ps.withProjections(List.of(countStar)));
+        }
+        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
+        SqlSelect first = new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
+                ps.distinct(), ps.from(), ps.where(), ps.groupBy(), ps.having(), ps.qualify(),
+                ps.orderBy(), 1L, ps.offset(), List.of(one));
+        return new SqlExpr.ScalarSubquery(new SqlSelect(List.of(countStar), false,
+                new SqlSource.Subselect(first, "w", null), null, List.of(), null, null,
+                List.of(), null, null, List.of(n)));
+    }
+
+    /** Whether {@code e} holds the array aggregate of its select's rows outside any subquery. */
+    private static boolean aggregatesRowsIntoAnArray(SqlExpr e) {
+        return e instanceof SqlExpr.JsonArrayAgg
+                || e.children().stream().anyMatch(VerdictSql::aggregatesRowsIntoAnArray);
+    }
+
     /** {@code assertEmpty} / {@code assertNotEmpty}'s TYPED member (item 3's S4): the side's values as one list (an empty
      *  side's NULL); the verdict its emptiness under {@code wantEmpty}; the list rides the failure. */
     public static @com.legend.base.Nullable TypedRow typedEmpty(SqlQuery wrapped, Type kind, boolean wantEmpty) {
@@ -1151,12 +1177,203 @@ public final class VerdictSql {
     public static @com.legend.base.Nullable TypedRow typedInstanceOf(SqlQuery wrapped, Type kind, boolean holds,
             String type) {
         SqlQuery rows = valueRows(wrapped);
-        if (rows == null) {
+        if (rows == null || !(kind instanceof Type.Primitive) && !(rows.outputs().get(0).type() instanceof SqlType.Struct)) {
+            // an instance's value rides as its struct, the host's reading; carried another way, no typed reading here
             return null;
         }
         SqlQuery list = listed("__a", rows);
         return typedRow(List.of(new SqlWith.Cte("__a", rows)), new SqlSource.Subselect(list, "a", null),
                 new SqlExpr.BoolLit(holds), List.of(listValue(TYPED_ACTUAL, "a", list, kind), new Valued("__t",
+                        new SqlExpr.StringLit(type), SqlType.Scalar.VARCHAR, Type.Primitive.STRING, false)));
+    }
+
+    /** Two sides of Variant values (item 3's S4, the audit of 2026-11-22), each its JSON document's text as the
+     *  database writes it -- the host reads a Variant so -- compared as typed Strings ({@link #typedEquals}). Null where
+     *  a side has no value column. */
+    public static @com.legend.base.Nullable TypedRow typedVariantTexts(SqlQuery eWrapped, SqlQuery aWrapped,
+            boolean multiset, boolean wantEqual) {
+        SqlQuery e = documentTexts(eWrapped);
+        SqlQuery a = documentTexts(aWrapped);
+        return e == null || a == null ? null
+                : typedEquals(e, Type.Primitive.STRING, a, Type.Primitive.STRING, multiset, wantEqual, false);
+    }
+
+    /** Two sides of instances of one class carried as JSON documents' text (item 3's S4, the last families: a
+     *  metamodel's SetImplementation, a Table -- a graph's array of its root objects), each side its documents' root
+     *  elements, as the host reads a graph side ({@code Verdicts.decodeSideValues}): their texts compared -- one
+     *  serializer writes both, so one instance is one text -- in order or as a multiset; each side's elements ride the
+     *  failure as JSON, read as instances, as the host's record writes them. Null where a side has no value column. */
+    public static @com.legend.base.Nullable TypedRow typedInstanceTexts(SqlQuery eWrapped, Type eKind,
+            SqlQuery aWrapped, Type aKind, boolean multiset, boolean wantEqual) {
+        SqlQuery eRaw = documentTexts(eWrapped);
+        SqlQuery aRaw = documentTexts(aWrapped);
+        SqlQuery eRows = eRaw == null ? null : valueRows(eRaw);
+        SqlQuery aRows = aRaw == null ? null : valueRows(aRaw);
+        if (eRows == null || aRows == null) {
+            return null;
+        }
+        SqlQuery eEl = rootElements("__xe", eRows);
+        SqlQuery aEl = rootElements("__xa", aRows);
+        SqlQuery eTexts = elementTexts("__ee", eEl);
+        SqlQuery aTexts = elementTexts("__ea", aEl);
+        SqlQuery eList = listed("__te", eTexts);
+        SqlQuery aList = listed("__ta", aTexts);
+        SqlQuery eDocs = listed("__ee", eEl);
+        SqlQuery aDocs = listed("__ea", aEl);
+        SqlExpr same = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
+                SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
+                new SqlExpr.ScalarSubquery(rowsOf("__te", eTexts)), new SqlExpr.ScalarSubquery(rowsOf("__ta", aTexts)));
+        return typedRow(List.of(new SqlWith.Cte("__xe", eRows), new SqlWith.Cte("__xa", aRows),
+                        new SqlWith.Cte("__ee", eEl), new SqlWith.Cte("__ea", aEl),
+                        new SqlWith.Cte("__te", eTexts), new SqlWith.Cte("__ta", aTexts)),
+                cross(cross(cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a", null)),
+                        new SqlSource.Subselect(eDocs, "de", null)), new SqlSource.Subselect(aDocs, "da", null)),
+                wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
+                        listValue(TYPED_EXPECTED, "de", eDocs, eKind), listValue(TYPED_ACTUAL, "da", aDocs, aKind)));
+    }
+
+    /** A side's documents ({@code rows}, read as {@code cte}) as their root arrays' elements, each JSON, in order. */
+    private static SqlQuery rootElements(String cte, SqlQuery rows) {
+        OutputCol vOut = new OutputCol("value", SqlType.Scalar.JSON, true);
+        SqlSelect elements = CollectionRelations.rows(SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, new SqlExpr.Cast(
+                SqlExpr.Column.of("t", rows.outputs(), O), SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE)), "value", vOut,
+                List.of(vOut), new SqlSource.Table(cte, "t", rows.outputs(), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE));
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.JSON, false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("w", List.of(vOut), "value"), O, oOut),
+                new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                        List.of(), List.of(), null), RN, rnOut)), false, new SqlSource.Subselect(elements, "w", null),
+                null, List.of(), null, null, List.of(), null, null, List.of(oOut, rnOut));
+    }
+
+    /** Elements' rows ({@code rows}, read as {@code cte}) each as its JSON text, in order. */
+    private static SqlQuery elementTexts(String cte, SqlQuery rows) {
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.VARCHAR, false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", rows.outputs(), O),
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
+                rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, "t", rows.outputs(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
+                List.of(oOut, rnOut));
+    }
+
+    /** A grid's column {@code column} as a side of its values, in the grid's own order (item 3's S4: a one-column grid
+     *  against a list). */
+    public static SqlQuery gridColumn(SqlQuery grid, String column) {
+        SqlExpr v = SqlExpr.Column.of("w", grid.outputs(), column);
+        OutputCol out = new OutputCol("value", v.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type()
+                : SqlType.Scalar.VARCHAR, true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(v, "value", out)), false,
+                new SqlSource.Subselect(grid, "w", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(out));
+    }
+
+    /** {@code wrapped}'s first column as its text, in the side's own order. */
+    private static @com.legend.base.Nullable SqlQuery documentTexts(SqlQuery wrapped) {
+        if (wrapped.outputs().isEmpty()) {
+            return null;
+        }
+        OutputCol out = new OutputCol("value", SqlType.Scalar.VARCHAR, true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("w", wrapped.outputs(),
+                wrapped.outputs().get(0).name()), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), "value", out)), false,
+                new SqlSource.Subselect(wrapped, "w", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(out));
+    }
+
+    /**
+     * {@code assertJsonStringsEqual}'s TYPED member (item 3's S4, the last families): the golden's canonical text
+     * ({@code goldenCanon}: compact, its keys sorted) against the document's ({@code actualCanon}, built with its keys
+     * sorted) as two Strings the database compares -- or, where the document's root has no defined order
+     * ({@code goldenElements}: the golden root's elements), the two roots' elements as a multiset of texts; the
+     * golden's text and the document's as its plan writes it ({@code actualRaw}) ride the failure, the host's record
+     * ({@code AssertRecords.jsonDiffers}). Null where a side has no typed value column.
+     */
+    public static @com.legend.base.Nullable TypedRow typedJson(SqlQuery goldenCanon, SqlQuery actualCanon,
+            SqlQuery actualRaw, String golden, @com.legend.base.Nullable SqlQuery goldenElements) {
+        SqlQuery aCan = valueRows(actualCanon);
+        SqlQuery aRaw = valueRows(actualRaw);
+        SqlQuery eCan = goldenElements == null ? valueRows(goldenCanon) : valueRows(goldenElements);
+        if (aCan == null || aRaw == null || eCan == null) {
+            return null;
+        }
+        List<SqlWith.Cte> ctes = new ArrayList<>(List.of(new SqlWith.Cte("__a", aCan), new SqlWith.Cte("__r", aRaw),
+                new SqlWith.Cte("__e", eCan)));
+        SqlQuery rawList = listed("__r", aRaw);
+        SqlExpr holds;
+        SqlSource from;
+        if (goldenElements == null) {
+            SqlQuery e1 = single("__e", eCan);
+            SqlQuery a1 = single("__a", aCan);
+            holds = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
+                    new SqlExpr.Cast(SqlExpr.Column.of("e", e1.outputs(), SINGLE), SqlType.Scalar.VARCHAR,
+                            SqlExpr.Reason.JUDGE),
+                    new SqlExpr.Cast(SqlExpr.Column.of("a", a1.outputs(), SINGLE), SqlType.Scalar.VARCHAR,
+                            SqlExpr.Reason.JUDGE));
+            from = cross(new SqlSource.Subselect(e1, "e", null), new SqlSource.Subselect(a1, "a", null));
+        } else {
+            // the document's root elements, each its canonical text, in the document's order
+            OutputCol vOut = new OutputCol("value", SqlType.Scalar.JSON, true);
+            SqlExpr doc = new SqlExpr.Cast(SqlExpr.Column.of("d", aCan.outputs(), O), SqlType.Scalar.JSON,
+                    SqlExpr.Reason.JUDGE);
+            SqlSelect elements = CollectionRelations.rows(SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, doc), "value", vOut,
+                    List.of(vOut), new SqlSource.Table("__a", "d", aCan.outputs(), false, java.util.Map.of(),
+                            com.legend.sql.NameQuoting.BARE));
+            OutputCol oOut = new OutputCol(O, SqlType.Scalar.VARCHAR, false);
+            OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+            SqlQuery aEl = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("w",
+                    List.of(vOut), "value"), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), O, oOut),
+                    new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
+                            List.of()), List.of(), List.of(), null), RN, rnOut)), false,
+                    new SqlSource.Subselect(elements, "w", null), null, List.of(), null, null, List.of(), null, null,
+                    List.of(oOut, rnOut));
+            ctes.add(new SqlWith.Cte("__ae", aEl));
+            SqlQuery eList = listed("__e", eCan);
+            SqlQuery aList = listed("__ae", aEl);
+            holds = SqlExpr.Call.of(SqlFn.SAME_IN_ANY_ORDER, SqlExpr.Column.of("e", eList.outputs(), LISTED),
+                    SqlExpr.Column.of("a", aList.outputs(), LISTED), new SqlExpr.ScalarSubquery(rowsOf("__e", eCan)),
+                    new SqlExpr.ScalarSubquery(rowsOf("__ae", aEl)));
+            from = cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a", null));
+        }
+        return typedRow(ctes, cross(from, new SqlSource.Subselect(rawList, "r", null)), holds, List.of(
+                new Valued(TYPED_EXPECTED, new SqlExpr.StringLit(golden), SqlType.Scalar.VARCHAR, Type.Primitive.STRING,
+                        false),
+                listValue(TYPED_ACTUAL, "r", rawList, Type.Primitive.STRING)));
+    }
+
+    /** {@code assertInstanceOf}'s TYPED member where the database decides it (item 3's S4, the last families): the
+     *  condition's one Boolean ({@code instanceOf}'s native, planned as a side) the verdict, the value's list and the
+     *  type's name riding its failure, as {@link #typedInstanceOf}'s -- a tagged value (a Number among candidates) as
+     *  its {@code {k, v0, ...}} struct ({@code Family.INSTANCE_OF_TAGGED}). Null where either has no typed reading. */
+    public static @com.legend.base.Nullable TypedRow typedInstanceOfHeld(SqlQuery condWrapped, SqlQuery valWrapped,
+            Type kind, String type) {
+        SqlQuery cRows = valueRows(condWrapped);
+        if (cRows == null || valWrapped.outputs().isEmpty()) {
+            return null;
+        }
+        List<SqlWith.Cte> ctes = new ArrayList<>(List.of(new SqlWith.Cte("__c", cRows)));
+        SqlQuery vList;
+        if (valWrapped.outputs().get(0).type() instanceof SqlType.Tagged) {
+            java.util.TreeMap<String, SqlType> held = new java.util.TreeMap<>();
+            SqlQuery h = kindsOf(valWrapped, kind, held, true) ? kindedRows(valWrapped, kind, held, true) : null;
+            if (h == null) {
+                return null;
+            }
+            ctes.add(new SqlWith.Cte("__gv", h));
+            ctes.add(new SqlWith.Cte("__hv", structRows(rowsOf("__gv", h))));
+            vList = listed("__hv", structRows(rowsOf("__gv", h)));
+        } else {
+            SqlQuery vRows = valueRows(valWrapped);
+            if (vRows == null) {
+                return null;
+            }
+            ctes.add(new SqlWith.Cte("__v", vRows));
+            vList = listed("__v", vRows);
+        }
+        SqlQuery one = single("__c", cRows);
+        return typedRow(ctes, cross(new SqlSource.Subselect(one, "c", null), new SqlSource.Subselect(vList, "v", null)),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("c", one.outputs(), SINGLE),
+                        new SqlExpr.BoolLit(true)), List.of(listValue(TYPED_ACTUAL, "v", vList, kind), new Valued("__t",
                         new SqlExpr.StringLit(type), SqlType.Scalar.VARCHAR, Type.Primitive.STRING, false)));
     }
 
@@ -1580,65 +1797,6 @@ public final class VerdictSql {
                 null, List.of(), null, null, all);
     }
 
-    /** {@code row} carrying each side's kind for the frame (lite's sentence where the two texts tie). */
-    private static SqlQuery withKinds(SqlQuery row, String expectedKind, String actualKind) {
-        SqlWith w = (SqlWith) row;
-        SqlSelect body = (SqlSelect) w.body();
-        List<SqlSelect.Projection> ps = new ArrayList<>(body.projections());
-        ps.add(new SqlSelect.Projection(new SqlExpr.StringLit(expectedKind), EXPECTED_KIND,
-                new OutputCol(EXPECTED_KIND, SqlType.Scalar.VARCHAR, false)));
-        ps.add(new SqlSelect.Projection(new SqlExpr.StringLit(actualKind), ACTUAL_KIND,
-                new OutputCol(ACTUAL_KIND, SqlType.Scalar.VARCHAR, false)));
-        return new SqlWith(w.ctes(), body.withProjections(ps));
-    }
-
-    /** {@code row} with the two sides as the failure message writes them ({@link Message}), read off the facts rows'
-     *  written columns: the message's two texts, which {@link #selfContained} prefers to the canons. */
-    private static SqlQuery withWrittenSides(SqlQuery row, boolean sorted) {
-        return withWrittenSides(row, sorted, false);
-    }
-
-    /** {@code multiset}: the sides were compared as multisets: the frame's lite sentence says "in any order". */
-    private static SqlQuery withWrittenSides(SqlQuery row, boolean sorted, boolean multiset) {
-        SqlWith w = (SqlWith) row;
-        SqlSelect body = (SqlSelect) w.body();
-        List<OutputCol> outs = writtenFactOutputs();
-        java.util.function.Function<String, SqlExpr> written = alias -> {
-            SqlExpr list = SqlExpr.Column.of(alias, outs, F_LIST_W);
-            if (sorted) {
-                return list;
-            }
-            SqlExpr bothOne = SqlExpr.Call.of(SqlFn.AND,
-                    SqlExpr.Call.of(SqlFn.EQUAL, factCol("e", F_N), new SqlExpr.IntLit(1)),
-                    SqlExpr.Call.of(SqlFn.EQUAL, factCol("a", F_N), new SqlExpr.IntLit(1)));
-            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(bothOne, SqlExpr.Column.of(alias, outs, F_ONE_W))),
-                    list, SqlExpr.Reason.JUDGE);
-        };
-        List<SqlSelect.Projection> ps = new ArrayList<>(body.projections());
-        ps.add(new SqlSelect.Projection(written.apply("e"), EXPECTED_WRITTEN,
-                new OutputCol(EXPECTED_WRITTEN, SqlType.Scalar.VARCHAR, true)));
-        ps.add(new SqlSelect.Projection(written.apply("a"), ACTUAL_WRITTEN,
-                new OutputCol(ACTUAL_WRITTEN, SqlType.Scalar.VARCHAR, true)));
-        if (multiset) {
-            ps.add(new SqlSelect.Projection(new SqlExpr.BoolLit(true), MULTISET_HINT,
-                    new OutputCol(MULTISET_HINT, SqlType.Scalar.BOOLEAN, false)));
-        }
-        return new SqlWith(w.ctes(), new SqlSelect(ps, body.distinct(), body.from(), body.where(), body.groupBy(),
-                body.having(), body.qualify(), body.orderBy(), body.limit(), body.offset(), body.outputs()));
-    }
-
-    /** A side folded to its facts row: {@code rows} is the rows CTE's query
-     * (null when the facts are spelled inline over the plan). */
-    private record Folded(String name, @com.legend.base.Nullable SqlQuery rows, SqlQuery facts) {
-    }
-
-    private static Folded fold(String name, Side s, boolean keepRows) {
-        if (!s.many() && !keepRows && s.wrapped() instanceof SqlSelect ws && plainProjection(ws)) {
-            return new Folded(name, null, inlineFacts(s));
-        }
-        return new Folded(name, canonRows(s, keepRows), sideFacts(name, s.many(), s.byCanonText(), s.message()));
-    }
-
     // ── the GRID forms (leg 3.1b): a TABULAR side rides the grid wrap
     // (CanonicalRenderSql.wrapTdsCanon: __rowcanon + __cell<i>); its value
     // PEER (a literal list) is framed into rows of the grid's width, or
@@ -1662,55 +1820,6 @@ public final class VerdictSql {
         }
     }
 
-    /** A value peer of a grid: its wrapped plan, the literal-channel canon
-     * column, and whether it is the EXPECTED side (the golden's
-     * {@code 'TDSNull'} string cells spell the bare sentinel there only —
-     * a real 'TDSNull' string on OUR wire stays quoted). */
-    public record PeerSide(SqlQuery wrapped, String canonColumn, boolean expected,
-            boolean isFloat) {
-    }
-
-    /** {@code assertEquals} over rows: the grid's row canons against the peer's cells chunked by the grid's width;
-     * ordered by arrival, or as a row multiset when {@code multiset}. {@code gridIsExpected} says which side the grid
-     * is; {@code words} what the frame reads (lite's: each side written, the grid's cells flattened as the peer's
-     * are). */
-    public static SqlQuery gridRows(GridSide grid, PeerSide peer,
-            boolean gridIsExpected, boolean multiset, VerdictWords words) {
-        // each side WRITTEN, as lite's words read it (legend-pure's canon reading, VerdictReads.CANONS, left with A4 of
-        // the compatibility program, stage A ratified by the user 2026-11-19: the database judge plans for the product
-        // alone, rule 4 of the rules of record)
-        SqlQuery g = gridRowCanons(grid, GRID, RowWriting.FLAT);
-        SqlQuery p = peerRowCanons(peer, grid.width(), true);
-        SqlExpr divisible = SqlExpr.Call.of(SqlFn.NOT_EQUAL,
-                SqlExpr.Call.of(SqlFn.MOD,
-                        scalarOver("__peer", new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
-                                List.of(col("__peer", RN)), false, List.of()),
-                                "__n", SqlType.Scalar.BIGINT, null),
-                        new SqlExpr.IntLit(grid.width())),
-                new SqlExpr.IntLit(0));
-        List<SqlWith.Cte> extra = List.of(new SqlWith.Cte(GRID, grid.wrapped()),
-                new SqlWith.Cte("__peer", peerCells(peer)));
-        List<SqlExpr.Case.When> more = List.of(new SqlExpr.Case.When(divisible,
-                new SqlExpr.StringLit("tds-peer: cells not divisible by width "
-                        + grid.width())));
-        // a Float compares exactly, as the host's grid compare does (census C1's J11, 2026-11-17; the tolerance's
-        // positional cells left with A4)
-        return gridIsExpected ? writtenStatement(g, p, multiset, more, extra, multiset)
-                : writtenStatement(p, g, multiset, more, extra, multiset);
-    }
-
-    /** {@code assertSameElements} over a grid: the loose CELL pool (every cell of every row) against the peer's
-     * cells, as a multiset; {@code words} what the frame reads (lite's: each side's cells written, as a list). */
-    public static SqlQuery gridCells(GridSide grid, PeerSide peer,
-            boolean gridIsExpected, VerdictWords words) {
-        // each side's cells WRITTEN, as lite's words read them (the canon reading left with A4)
-        SqlQuery g = gridCellCanons(grid, GRID, true);
-        SqlQuery p = peerCells(peer, true);
-        List<SqlWith.Cte> named = List.of(new SqlWith.Cte(GRID, grid.wrapped()));
-        return gridIsExpected ? writtenStatement(g, p, true, List.of(), named, true)
-                : writtenStatement(p, g, true, List.of(), named, true);
-    }
-
     // ── the ONE-LINE families (leg 3.1c): size / empty / contains / a boolean
     // condition / the tolerance assert / the forAll-contains subset — each a
     // predicate over the same row sources, returned in the same verdict row.
@@ -1718,23 +1827,6 @@ public final class VerdictSql {
     /** {@code assertSize}: the side's row count against {@code n} (the size
      * side's one canon text as a BIGINT); {@code envelope} = the read is a
      * relation-rooted execute's {@code .values}, which holds ONE TDS. */
-    /** {@code negated}: {@code assertNotSize} (#28): the same verdict row, its failure the negated sentence -- lite's
-     *  {@code NOT_SIZE}, or legend-pure's 'size should not equal: %s' -- the caller planning it with the polarity
-     *  flipped. */
-    public static SqlQuery size(SqlQuery sideRows, SqlQuery nScalar, boolean envelope, VerdictWords words,
-            boolean negated) {
-        OneRow c = envelope ? constantOf("c", new SqlExpr.IntLit(1), "__n", SqlType.Scalar.BIGINT)
-                : countOf("c", "__a");
-        OneRow n = rowOf("n", nScalar);
-        SqlExpr count = c.col("__n");
-        SqlExpr want = new SqlExpr.Cast(n.col(C), SqlType.Scalar.BIGINT, SqlExpr.Reason.JUDGE);
-        SqlExpr wantText = new SqlExpr.Cast(want, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
-        SqlExpr countText = new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
-        // upstream's own words (assertSize.pure: 'expected size: %s, actual size: %s'), the host's (PureAsserts)
-        return predicateOver(envelope ? List.of() : List.of(new SqlWith.Cte("__a", sideRows)),
-                List.of(c, n), SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, want), wantText, countText,
-                new SqlExpr.NullLit(), negated ? words.sizeEquals(wantText) : words.sizeDiffers(wantText, countText));
-    }
 
     /** A GRAPH-shaped side (a class collection serialized as ONE JSON
      * document): its size is the number of ROOT ROWS the fold aggregates —
@@ -1775,203 +1867,12 @@ public final class VerdictSql {
                 ps.qualify(), ps.orderBy(), ps.limit(), ps.offset(), root.outputs());
     }
 
-    public static SqlExpr graphCount(SqlQuery graphPlan) {
-        // the canon wrap over a graph side is a pass-through select (the
-        // document column beside its canon) around the fold: descend to it
-        SqlQuery fold = graphPlan;
-        for (int depth = 0; depth < 4 && fold instanceof SqlSelect w
-                && !w.projections().isEmpty()
-                && w.projections().get(0).expr() instanceof SqlExpr.Column
-                && w.from() instanceof SqlSource.Subselect inner; depth++) {
-            fold = inner.inner();
-        }
-        if (!(fold instanceof SqlSelect ps) || ps.projections().size() != 1
-                || !ps.groupBy().isEmpty()) {
-            throw new IllegalStateException("graph side: not the fold's one-projection select: "
-                    + fold.getClass().getSimpleName()
-                    + (fold instanceof SqlSelect gs ? " projections=" + gs.projections().stream()
-                            .map(pr -> pr.alias() + ":" + pr.expr().getClass().getSimpleName()).toList()
-                            + " groupBy=" + gs.groupBy().size() + " from=" + gs.from().getClass().getSimpleName()
-                            : ""));
-        }
-        SqlExpr top = ps.projections().get(0).expr();
-        while (true) {
-            if (top instanceof SqlExpr.Cast c) {
-                top = c.value();
-            } else if (top instanceof SqlExpr.Call k && k.fn() == SqlFn.COALESCE
-                    && !k.args().isEmpty()) {
-                top = k.args().get(0);
-            } else {
-                break;
-            }
-        }
-        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
-        SqlSelect.Projection countStar = new SqlSelect.Projection(
-                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__n", n);
-        // a value that aggregates its rows into an array (the array itself, or any form a style writes over it -- the
-        // edge's one-object-bare choice among them): the same rows, counted the same way (one object bare is one, the
-        // host rule's 1). Read by the value's own structure, never by the edge's shape (L-A.foldedAggregate, the
-        // lens audit, 2026-11-18)
-        if (aggregatesRowsIntoAnArray(top)) {
-            return new SqlExpr.ScalarSubquery(ps.withProjections(List.of(countStar)));
-        }
-        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
-        SqlSelect first = new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
-                ps.distinct(), ps.from(), ps.where(), ps.groupBy(), ps.having(), ps.qualify(),
-                ps.orderBy(), 1L, ps.offset(), List.of(one));
-        return new SqlExpr.ScalarSubquery(new SqlSelect(List.of(countStar), false,
-                new SqlSource.Subselect(first, "w", null), null, List.of(), null, null,
-                List.of(), null, null, List.of(n)));
-    }
-
-    /** Whether {@code e} holds the array aggregate of its select's rows outside any subquery. */
-    private static boolean aggregatesRowsIntoAnArray(SqlExpr e) {
-        return e instanceof SqlExpr.JsonArrayAgg
-                || e.children().stream().anyMatch(VerdictSql::aggregatesRowsIntoAnArray);
-    }
-
-    /** {@code assertSize} over a graph side. */
-    public static SqlQuery sizeOfGraph(SqlQuery graphPlan, SqlQuery nScalar) {
-        OneRow c = rowOf("c", ((SqlExpr.ScalarSubquery) graphCount(graphPlan)).subquery());
-        OneRow n = rowOf("n", nScalar);
-        SqlExpr count = c.col("__n");
-        SqlExpr want = new SqlExpr.Cast(n.col(C), SqlType.Scalar.BIGINT, SqlExpr.Reason.JUDGE);
-        return predicateOver(List.of(), List.of(c, n),
-                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, want),
-                new SqlExpr.Cast(want, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE),
-                new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), new SqlExpr.NullLit());
-    }
-
-    /** {@code assertEmpty} / {@code assertNotEmpty} over a graph side. */
-    public static SqlQuery emptyOfGraph(SqlQuery graphPlan, boolean wantEmpty) {
-        OneRow c = rowOf("c", ((SqlExpr.ScalarSubquery) graphCount(graphPlan)).subquery());
-        SqlExpr count = c.col("__n");
-        SqlExpr isEmpty = SqlExpr.Call.of(SqlFn.EQUAL, count, new SqlExpr.IntLit(0));
-        return predicateOver(List.of(), List.of(c),
-                wantEmpty ? isEmpty : SqlExpr.Call.of(SqlFn.NOT, isEmpty),
-                new SqlExpr.StringLit(wantEmpty ? "empty" : "not empty"),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE),
-                        new SqlExpr.StringLit(" element(s)")), new SqlExpr.NullLit());
-    }
-
     /** {@code assertEmpty} / {@code assertNotEmpty}: the side's row count. {@code written}: the rows carry each element
      *  as the failure message writes it ({@link #writtenRows}), else the message names the count alone. */
-    /** {@code words}: the failure's words (lite's sentences, or the edge's). */
-    public static SqlQuery empty(SqlQuery sideRows, boolean wantEmpty, boolean written, VerdictWords words) {
-        OneRow c = countOf("c", "__a");
-        SqlExpr count = c.col("__n");
-        SqlExpr isEmpty = SqlExpr.Call.of(SqlFn.EQUAL, count, new SqlExpr.IntLit(0));
-        List<OneRow> ops = new ArrayList<>(List.of(c));
-        // upstream's own words (2026-11-04, the assert bar; the host's PureAsserts): assertNotEmpty.pure's 'Expected
-        // non-empty collection'; assertEmpty.pure's '%s is not empty' over the collection as a List, where its
-        // elements are written
-        SqlExpr message = wantEmpty ? null : words.notEmpty();
-        if (wantEmpty && written) {
-            OneRow l = writtenListOf("l", "__a");
-            ops.add(l);
-            message = words.notEmptyWritten(l.col(F_LIST_W));
-        }
-        return predicateOver(List.of(new SqlWith.Cte("__a", sideRows)), ops,
-                wantEmpty ? isEmpty : SqlExpr.Call.of(SqlFn.NOT, isEmpty),
-                new SqlExpr.StringLit(wantEmpty ? "empty" : "not empty"),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE),
-                        new SqlExpr.StringLit(" element(s)")), new SqlExpr.NullLit(), message);
-    }
-
-    /** A rows CTE's written elements ({@link #writtenRows}) as one bracketed list in the rows' order: {@code F_LIST_W}. */
-    private static OneRow writtenListOf(String alias, String rowsCte) {
-        OutputCol o = new OutputCol(F_LIST_W, SqlType.Scalar.VARCHAR, true);
-        SqlExpr joined = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(col(rowsCte, W), new SqlExpr.StringLit(", ")),
-                false, List.of(new SqlSelect.SortKey(col(rowsCte, RN), true, null, null)));
-        SqlExpr list = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("["),
-                SqlExpr.Call.of(SqlFn.COALESCE, joined, new SqlExpr.StringLit("")), new SqlExpr.StringLit("]"));
-        return new OneRow(alias, new SqlSelect(List.of(new SqlSelect.Projection(list, F_LIST_W, o)),
-                false, cte(rowsCte), null, List.of(), null, null, List.of(), null, null, List.of(o)), List.of(o));
-    }
 
     /** {@code assertContains}: some element's canon equals the value's. {@code valueWritten}: the value's message
      *  (its kind and the planning style), where the collection's rows are {@link #writtenRows} and the message writes
      *  both; null, the canons'. */
-    /** {@code negated}: {@code assertNotContains} (#28): the same verdict row over the written collection, its failure
-     *  the negated sentence -- lite's {@code NOT_CONTAINS}, or legend-pure's '%s should not contain %r'. */
-    public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar,
-            @com.legend.base.Nullable Message valueWritten, boolean negated, VerdictWords words) {
-        OutputCol vc = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
-        SqlSource v0 = new SqlSource.Table("__v0", "__v0", valScalar.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
-        OneRow v = new OneRow("v", new SqlSelect(List.of(new SqlSelect.Projection(
-                SqlExpr.Column.of("__v0", valScalar.outputs(), C), C, vc)),
-                false, v0, null, List.of(), null, null, List.of(), null, null, List.of(vc)), List.of(vc));
-        OutputCol mOut = new OutputCol("__m", SqlType.Scalar.BIGINT, false);
-        SqlSource matched = new SqlSource.Join(cte("__a"),
-                new SqlSource.Table("__v0", "__v0", valScalar.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), SqlSource.Join.Kind.INNER,
-                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__a", C), SqlExpr.Column.of("__v0", valScalar.outputs(), C)));
-        OneRow m = new OneRow("m", new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__m", mOut)),
-                false, matched, null, List.of(), null, null, List.of(), null, null, List.of(mOut)), List.of(mOut));
-        OneRow t = textAndCountOf("t", "__sa");
-        // upstream's own words (assertContains.pure: '%s does not contain %r', the collection its representations
-        // joined '[', ', ', ']' in its own order), the host's (PureAsserts.containsMessage): one element bracketed too
-        SqlExpr list = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, t.col(F_N), new SqlExpr.IntLit(1)),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("["), t.col(F_TEXT), new SqlExpr.StringLit("]")))),
-                t.col(F_TEXT), SqlExpr.Reason.JUDGE);
-        List<OneRow> ops = new ArrayList<>(List.of(v, m, t));
-        SqlExpr message = words.notContainedCanons(list, SqlExpr.Call.of(SqlFn.COALESCE, v.col(C),
-                new SqlExpr.StringLit("[]")));
-        if (valueWritten != null) {
-            OneRow l = writtenListOf("l", "__a");
-            OutputCol wo = new OutputCol(W, SqlType.Scalar.VARCHAR, true);
-            OneRow vw = new OneRow("vw", new SqlSelect(List.of(new SqlSelect.Projection(
-                    written(new Message(valueWritten.kind(), false),
-                            SqlExpr.Column.of("__v0", valScalar.outputs(), "value")), W, wo)),
-                    false, v0, null, List.of(), null, null, List.of(), null, null, List.of(wo)), List.of(wo));
-            ops.add(l);
-            ops.add(vw);
-            SqlExpr valueText = SqlExpr.Call.of(SqlFn.COALESCE, vw.col(W), new SqlExpr.StringLit("[]"));
-            message = negated ? words.contained(l.col(F_LIST_W), valueText)
-                    : words.notContained(l.col(F_LIST_W), valueText);
-        }
-        return predicateOver(List.of(new SqlWith.Cte("__a", collRows), new SqlWith.Cte("__v0", valScalar),
-                        new SqlWith.Cte("__sa", sideFacts("__a", true, false))),
-                ops, SqlExpr.Call.of(SqlFn.GREATER, m.col("__m"), new SqlExpr.IntLit(0)),
-                v.col(C), t.col(F_TEXT), new SqlExpr.NullLit(), message);
-    }
-
-    /** {@code assert(cond)} / {@code assertFalse(cond)}: the condition's one
-     * canon text is {@code true} / {@code false}; a failure raises {@code message}, the assert's own (upstream's
-     * {@code assert(condition, message)}, "Assert failed" with none), never the two canons (2026-11-03, the core
-     * parity program: the host's words); null, the canons' frame (a condition another assert is judged by). */
-    public static SqlQuery condition(SqlQuery condScalar, boolean wantTrue,
-            @com.legend.base.Nullable String message) {
-        OneRow a = rowOf("a", condScalar);
-        SqlExpr c = a.col(C);
-        return predicateOver(List.of(), List.of(a),
-                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, c, new SqlExpr.StringLit(wantTrue ? "true" : "false")),
-                new SqlExpr.StringLit(wantTrue ? "true" : "false"),
-                SqlExpr.Call.of(SqlFn.COALESCE, c, new SqlExpr.StringLit("[]")), new SqlExpr.NullLit(), message);
-    }
-
-    /** {@code coll->map(x | assert(pred))} — the quantified assert (task #14 leg 2,
-     * 2026-09-21): every element's condition canon is {@code true} / {@code false};
-     * the verdict is that NO row says otherwise (a NULL condition is otherwise); a failure raises {@code message}, the
-     * assert's own at its first failing element, as upstream's map raises it. */
-    public static SqlQuery allOf(SqlQuery condRows, boolean wantTrue,
-            @com.legend.base.Nullable String message) {
-        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
-        SqlExpr wanted = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__a", C),
-                new SqlExpr.StringLit(wantTrue ? "true" : "false"));
-        OneRow otherwise = new OneRow("b", new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col("__a", RN)), false, List.of()), "__n", n)),
-                false, cte("__a"), SqlExpr.Call.of(SqlFn.NOT, wanted), List.of(), null, null, List.of(),
-                null, null, List.of(n)), List.of(n));
-        return predicateOver(List.of(new SqlWith.Cte("__a", condRows)), List.of(otherwise),
-                SqlExpr.Call.of(SqlFn.EQUAL, otherwise.col("__n"), new SqlExpr.IntLit(0)),
-                new SqlExpr.StringLit("every element " + (wantTrue ? "true" : "false")),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(otherwise.col("__n"), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE),
-                        new SqlExpr.StringLit(" element(s) otherwise")),
-                new SqlExpr.NullLit(), message);
-    }
 
     /**
      * A quantified EQUALITY judged element by element (the asserts-as-plan-nodes program, step 5, 2026-11-04):
@@ -1984,127 +1885,11 @@ public final class VerdictSql {
      * Floats, two finite doubles within 2 ULP equal too (S15, as the scalar equality's leniency). Null where a kind has no
      * spelling (the caller declines by name). One statement: the pairs read once, numbered in their own select.
      */
-    /** {@code words}: each element written as they write it, and the failure theirs (lite's naming the first failing
-     *  element by its zero-based index), or the frame's. */
-    public static @com.legend.base.Nullable SqlQuery perElement(SqlQuery pairs, Type expectedKind, Type actualKind,
-            boolean neverEqual, boolean decimalByValue, VerdictWords words, Styled styled) {
-        SqlQuery numbered = SideOrdinal.withOrdinal(pairs);
-        OutputCol valueOut = pairs.outputs().get(0);
-        SqlExpr value = SqlExpr.Column.of("__s", numbered.outputs(), valueOut.name());
-        SqlExpr first = SqlExpr.StructGet.of(value, "first");
-        SqlExpr second = SqlExpr.StructGet.of(value, "second");
-        SqlExpr ce = LiteralSpelling.leaf(first, expectedKind);
-        SqlExpr ca = LiteralSpelling.leaf(second, actualKind);
-        if (ce == null || ca == null) {
-            return null;
-        }
-        if (decimalByValue) {
-            ce = decimalValue(ce);
-            ca = decimalValue(ca);
-        }
-        SqlExpr ok;
-        if (neverEqual) {
-            ok = new SqlExpr.BoolLit(false);
-        } else {
-            ok = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, asText(ce), asText(ca));
-        }
-        OutputCol okOut = new OutputCol("__ok", SqlType.Scalar.BOOLEAN, false);
-        OutputCol reOut = new OutputCol("__re", SqlType.Scalar.VARCHAR, true);
-        OutputCol raOut = new OutputCol("__ra", SqlType.Scalar.VARCHAR, true);
-        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        SqlQuery rows = new SqlSelect(List.of(
-                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, ok, new SqlExpr.BoolLit(false)), "__ok", okOut),
-                new SqlSelect.Projection(words.elementText(expectedKind, first, styled), "__re", reOut),
-                new SqlSelect.Projection(words.elementText(actualKind, second, styled), "__ra", raOut),
-                new SqlSelect.Projection(SqlExpr.Column.of("__s", numbered.outputs(), SideOrdinal.ORD), RN, rnOut)),
-                false, new SqlSource.Subselect(numbered, "__s", null), null, List.of(), null, null, List.of(), null,
-                null, List.of(okOut, reOut, raOut, rnOut));
-        List<OutputCol> pe = List.of(okOut, reOut, raOut, rnOut);
-        SqlExpr failingAt = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Column.of("__pe", pe, "__ok")),
-                SqlExpr.Column.of("__pe", pe, RN))), null, SqlExpr.Reason.JUDGE);
-        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
-        OutputCol fe = new OutputCol("__fe", SqlType.Scalar.VARCHAR, true);
-        OutputCol fa = new OutputCol("__fa", SqlType.Scalar.VARCHAR, true);
-        OutputCol fi = new OutputCol("__fi", SqlType.Scalar.BIGINT, true);
-        OneRow b = new OneRow("b", new SqlSelect(List.of(
-                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.MIN, List.of(failingAt), false, List.of()),
-                        "__fi", fi),
-                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(failingAt), false, List.of()),
-                        "__n", n),
-                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.ARG_MIN,
-                        List.of(SqlExpr.Column.of("__pe", pe, "__re"), failingAt), false, List.of()), "__fe", fe),
-                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.ARG_MIN,
-                        List.of(SqlExpr.Column.of("__pe", pe, "__ra"), failingAt), false, List.of()), "__fa", fa)),
-                false, new SqlSource.Table("__pe", "__pe", pe, false, java.util.Map.of(),
-                        com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
-                List.of(fi, n, fe, fa)),
-                List.of(fi, n, fe, fa));
-        // the first failing element's zero-based index: its 1-based ordinal less one
-        SqlExpr index = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.MINUS, b.col("__fi"), new SqlExpr.IntLit(1)),
-                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
-        SqlExpr feText = SqlExpr.Call.of(SqlFn.COALESCE, b.col("__fe"), new SqlExpr.StringLit("[]"));
-        SqlExpr faText = SqlExpr.Call.of(SqlFn.COALESCE, b.col("__fa"), new SqlExpr.StringLit("[]"));
-        SqlExpr message = words.elementFailure(feText, faText, kindText(expectedKind), kindText(actualKind), index);
-        return predicateOver(List.of(new SqlWith.Cte("__pe", rows)), List.of(b),
-                SqlExpr.Call.of(SqlFn.EQUAL, b.col("__n"), new SqlExpr.IntLit(0)), b.col("__fe"), b.col("__fa"),
-                new SqlExpr.NullLit(), message);
-    }
 
     /** {@code assertEqWithinTolerance(e, a, tol)}: {@code |e − a| ≤ tol} over the three sides' canon texts, computed
      *  in {@code arithmetic} -- the sides' own kind (the user's ruling, 2026-11-03: never more lenient than upstream's
      *  exact {@code abs($e-$a) <= abs($delta)}): BIGINT for Integers, DECIMAL for Decimals, DOUBLE where a side is a
      *  Float (the database's Float). */
-    /** {@code words}: the failure's words, each number of the arithmetic's kind; null from them, the frame's. */
-    public static SqlQuery tolerance(SqlQuery eScalar, SqlQuery aScalar, SqlQuery tolScalar, SqlType arithmetic,
-            VerdictWords words) {
-        OneRow eo = rowOf("e", eScalar);
-        OneRow ao = rowOf("a", aScalar);
-        OneRow to = rowOf("t", tolScalar);
-        SqlExpr e = new SqlExpr.Cast(eo.col(C), arithmetic, SqlExpr.Reason.JUDGE);
-        SqlExpr a = new SqlExpr.Cast(ao.col(C), arithmetic, SqlExpr.Reason.JUDGE);
-        SqlExpr t = new SqlExpr.Cast(to.col(C), arithmetic, SqlExpr.Reason.JUDGE);
-        SqlExpr within = SqlExpr.Call.of(SqlFn.LESS_EQUAL,
-                SqlExpr.Call.of(SqlFn.ABS, SqlExpr.Call.of(SqlFn.MINUS, e, a)), t);
-        return predicateOver(List.of(), List.of(eo, ao, to),
-                SqlExpr.Call.of(SqlFn.COALESCE, within, new SqlExpr.BoolLit(false)),
-                new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE),
-                new SqlExpr.NullLit(), words.notWithin(e, t, a, numberKind(arithmetic)));
-    }
-
-    /** A number's kind by its arithmetic's SQL kind: a Float, a Decimal, else an Integer. */
-    private static Type numberKind(SqlType arithmetic) {
-        return arithmetic == SqlType.Scalar.DOUBLE ? Type.Primitive.FLOAT
-                : arithmetic instanceof SqlType.Decimal ? Type.Primitive.DECIMAL : Type.Primitive.INTEGER;
-    }
-
-    /** The {@code $need->forAll(n | $have->contains($n))} subset idiom:
-     * no needed canon is absent from the haves; a failure raises {@code message}, its condition's (null, the frame). */
-    public static SqlQuery subset(SqlQuery needRows, SqlQuery haveRows, boolean wantTrue,
-            @com.legend.base.Nullable String message) {
-        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
-        SqlExpr present = new SqlExpr.Exists(new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
-                false, cte("__h"),
-                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__h", C), col("__n", C)),
-                List.of(), null, null, List.of(), null, null, List.of(one)));
-        SqlExpr missing = new SqlExpr.Exists(new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
-                false, cte("__n"), SqlExpr.Call.of(SqlFn.NOT, present),
-                List.of(), null, null, List.of(), null, null, List.of(one)));
-        OutputCol miss = new OutputCol("__missing", SqlType.Scalar.BIGINT, false);
-        OneRow m = new OneRow("m", new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__missing", miss)),
-                false, cte("__n"), SqlExpr.Call.of(SqlFn.NOT, present),
-                List.of(), null, null, List.of(), null, null, List.of(miss)), List.of(miss));
-        OneRow t = textOf("t", "__sn");
-        SqlExpr anyMissing = SqlExpr.Call.of(SqlFn.GREATER, m.col("__missing"), new SqlExpr.IntLit(0));
-        return predicateOver(List.of(new SqlWith.Cte("__n", needRows), new SqlWith.Cte("__h", haveRows),
-                        new SqlWith.Cte("__sn", sideFacts("__n", true, true))),
-                List.of(m, t), wantTrue ? SqlExpr.Call.of(SqlFn.NOT, anyMissing) : anyMissing,
-                new SqlExpr.StringLit(wantTrue ? "subset" : "not a subset"), t.col(F_TEXT), new SqlExpr.NullLit(),
-                message);
-    }
 
     /**
      * {@code assertTdsEquivalent}'s TYPED member (item 3's S4, tables): the verdict the database computes over each
@@ -2377,58 +2162,6 @@ public final class VerdictSql {
                         || o.type() == SqlType.Scalar.DATE));
     }
 
-    /** The JSON verdict (bucket 3): the document the database built (its
-     * objects' keys sorted by {@link com.legend.sql.JsonKeyOrder}) against
-     * the golden's canonical text (compact, keys sorted, the engine's
-     * root {@code [x] ≡ x} applied at compile time) — byte-equal is the
-     * verdict; a differing pair is unjudged with its evidence. */
-    public static SqlQuery jsonText(SqlQuery eRows, SqlQuery aRows) {
-        OneRow eo = firstOf("e", "__e");
-        OneRow ao = firstOf("a", "__a");
-        SqlExpr equal = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, eo.col(C), ao.col(C));
-        SqlExpr unjudged = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.NOT, equal),
-                new SqlExpr.StringLit("json: not byte-equal (keys sorted, compact)"))),
-                null, SqlExpr.Reason.JUDGE);
-        return withHint(predicateOver(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
-                List.of(eo, ao), equal, eo.col(C), ao.col(C), unjudged), JSON_HINT);
-    }
-
-    /** {@code assertJsonStringsEqual} over a document whose root array has
-     * no defined order: the golden's element texts against the document's
-     * root elements, as a multiset. */
-    public static SqlQuery jsonRootMultiset(SqlQuery eElementRows, SqlQuery aDocRows) {
-        OutputCol vOut = new OutputCol("value", SqlType.Scalar.JSON, true);
-        SqlExpr doc = new SqlExpr.Cast(SqlExpr.Column.of("d", aDocRows.outputs(), C), SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE);
-        SqlSelect elements = CollectionRelations.rows(SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, doc),
-                "value", vOut, List.of(vOut), new SqlSource.Subselect(aDocRows, "d", null));
-        SqlQuery aRows = rowsOf(new SqlExpr.Cast(SqlExpr.Column.of("w", List.of(vOut), "value"),
-                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), elements);
-        return withHint(statement(eElementRows, aRows, true, true, true, List.of()), JSON_HINT);
-    }
-
-    /** One verdict row from a predicate: {@code __verdict} never NULL, the
-     * two evidence texts, no unjudged, no leniency. */
-    // ── the ONE-LINE families: operands as ONE-ROW relations, cross-joined
-    // ONCE into the __p facts row; the verdict row reads its columns — every
-    // operand computed once, no scalar subquery (lean ladder rung 4) ───────
-    private record OneRow(String alias, SqlQuery query, List<OutputCol> outs) {
-        SqlExpr col(String name) {
-            return SqlExpr.Column.of("p", pOuts(), pName(alias, name));
-        }
-        private List<OutputCol> pOuts() {
-            List<OutputCol> out = new ArrayList<>();
-            for (OutputCol o : outs) {
-                out.add(new OutputCol(pName(alias, o.name()), o.type(), o.nullable()));
-            }
-            return out;
-        }
-        /** {@code __<alias>_<col>}: the facts row's column for an operand's column. */
-        static String pName(String alias, String col) {
-            return "__" + alias + "_" + col.replaceFirst("^_+", "");
-        }
-    }
-
     private static final String P = "__p";
 
     /** A TEXT assert's verdict row whose OUR text is a side the database computes (2026-11-04, the core program): the
@@ -2450,150 +2183,11 @@ public final class VerdictSql {
                 "value", vOut)), false, from, null, List.of(), null, null, List.of(), null, null, List.of(vOut));
     }
 
-    private static SqlQuery predicateOver(List<SqlWith.Cte> ctes, List<OneRow> ops,
-            SqlExpr verdict, SqlExpr expected, SqlExpr actual, SqlExpr unjudged) {
-        return predicateOver(ctes, ops, verdict, expected, actual, unjudged, (SqlExpr) null);
-    }
-
-    /** {@code message}: the failure's fixed text (an assert's own message), carried as the row's message column, which
-     *  {@link #selfContained} keeps in place of the two canons' frame; null, the frame. */
-    private static SqlQuery predicateOver(List<SqlWith.Cte> ctes, List<OneRow> ops,
-            SqlExpr verdict, SqlExpr expected, SqlExpr actual, SqlExpr unjudged,
-            @com.legend.base.Nullable String message) {
-        return predicateOver(ctes, ops, verdict, expected, actual, unjudged,
-                message == null ? null : new SqlExpr.StringLit(message));
-    }
-
-    private static SqlQuery predicateOver(List<SqlWith.Cte> ctes, List<OneRow> ops,
-            SqlExpr verdict, SqlExpr expected, SqlExpr actual, SqlExpr unjudged,
-            @com.legend.base.Nullable SqlExpr message) {
-        List<SqlSelect.Projection> pps = new ArrayList<>();
-        List<OutputCol> pOuts = new ArrayList<>();
-        SqlSource from = null;
-        for (OneRow op : ops) {
-            for (OutputCol o : op.outs()) {
-                OutputCol po = new OutputCol(OneRow.pName(op.alias(), o.name()), o.type(), o.nullable());
-                pps.add(new SqlSelect.Projection(SqlExpr.Column.of(op.alias(), op.outs(), o.name()),
-                        po.name(), po));
-                pOuts.add(po);
-            }
-            SqlSource src = new SqlSource.Subselect(op.query(), op.alias(), null);
-            from = from == null ? src : new SqlSource.Join(from, src, SqlSource.Join.Kind.CROSS, null);
-        }
-        List<SqlWith.Cte> all = new ArrayList<>(ctes);
-        all.add(new SqlWith.Cte(P, new SqlSelect(pps, false, java.util.Objects.requireNonNull(from),
-                null, List.of(), null, null, List.of(), null, null, pOuts)));
-        List<SqlSelect.Projection> ps = List.of(
-                new SqlSelect.Projection(
-                        SqlExpr.Call.of(SqlFn.COALESCE, verdict, new SqlExpr.BoolLit(false)), VERDICT,
-                        new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(expected, EXPECTED,
-                        new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(actual, ACTUAL,
-                        new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(unjudged, UNJUDGED,
-                        new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
-                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));
-        if (message != null) {
-            ps = new ArrayList<>(ps);
-            ps.add(new SqlSelect.Projection(message, MESSAGE,
-                    new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
-        }
-        SqlSelect body = new SqlSelect(ps, false, new SqlSource.Table(P, "p", pOuts, false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null,
-                List.of(), null, null, List.of(), null, null, List.of());
-        return new SqlWith(all, body);
-    }
-
-    private static OneRow countOf(String alias, String rowsCte) {
-        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
-        return new OneRow(alias, new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col(rowsCte, RN)), false, List.of()), "__n", n)),
-                false, cte(rowsCte), null, List.of(), null, null, List.of(), null, null, List.of(n)), List.of(n));
-    }
-
-    private static OneRow constantOf(String alias, SqlExpr value, String name, SqlType type) {
-        OutputCol o = new OutputCol(name, type, false);
-        return new OneRow(alias, new SqlSelect(List.of(new SqlSelect.Projection(value, name, o)),
-                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of(o)),
-                List.of(o));
-    }
-
-    private static OneRow textOf(String alias, String factsCte) {
-        return new OneRow(alias, new SqlSelect(List.of(
-                new SqlSelect.Projection(SqlExpr.Column.of(factsCte, factOutputs(), F_TEXT), F_TEXT, factOutputs().get(0))),
-                false, new SqlSource.Table(factsCte, factsCte, factOutputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null,
-                List.of(), null, null, List.of(factOutputs().get(0))), List.of(factOutputs().get(0)));
-    }
-
-    /** {@link #textOf} with the side's count beside its text ({@code F_N}): a message that brackets one element. */
-    private static OneRow textAndCountOf(String alias, String factsCte) {
-        List<OutputCol> outs = List.of(factOutputs().get(0), factOutputs().get(3));
-        return new OneRow(alias, new SqlSelect(List.of(
-                new SqlSelect.Projection(SqlExpr.Column.of(factsCte, factOutputs(), F_TEXT), F_TEXT, outs.get(0)),
-                new SqlSelect.Projection(SqlExpr.Column.of(factsCte, factOutputs(), F_N), F_N, outs.get(1))),
-                false, new SqlSource.Table(factsCte, factsCte, factOutputs(), false, java.util.Map.of(),
-                        com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, outs),
-                outs);
-    }
-
-    /** The first row of a rows CTE as a one-row relation ({@code __c}). */
-    private static OneRow firstOf(String alias, String rowsCte) {
-        OutputCol c = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
-        return new OneRow(alias, new SqlSelect(List.of(new SqlSelect.Projection(col(rowsCte, C), C, c)),
-                false, cte(rowsCte), null, List.of(), null, null,
-                List.of(new SqlSelect.SortKey(col(rowsCte, RN), true, null, null)), 1L, null, List.of(c)),
-                List.of(c));
-    }
-
-    private static OneRow rowOf(String alias, SqlQuery oneRow) {
-        return new OneRow(alias, oneRow, oneRow.outputs());
-    }
-
-    /** A side DECLARED exactly one as a one-row relation {@code (__c, value)}:
-     * its canon text and value straight over its plan (a one-row seed LEFT
-     * JOINed to the plan, so an empty plan is one NULL row), or over the
-     * trimmed wrap when the wrap is not a plain projection. */
-    public static SqlQuery scalarRow(SqlQuery wrapped, String canonColumn) {
-        SqlSelect ws = (SqlSelect) wrapped;
-        SqlSelect.Projection value = ws.projections().get(0);
-        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
-        OutputCol vOut = new OutputCol("value", value.out() != null ? value.out().type() : SqlType.Scalar.VARCHAR, true);
-        if (plainProjection(ws)) {
-            SqlExpr canon = asText(java.util.Objects.requireNonNull(projectionOf(ws, canonColumn), "canon column").expr());
-            OutputCol seedOut = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
-            SqlSource seed = new SqlSource.Subselect(new SqlSelect(
-                    List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", seedOut)),
-                    false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null,
-                    List.of(seedOut)), "__one", null);
-            SqlSource from = new SqlSource.Join(seed, ws.from(), SqlSource.Join.Kind.LEFT, new SqlExpr.BoolLit(true));
-            return new SqlSelect(List.of(new SqlSelect.Projection(canon, C, cOut),
-                    new SqlSelect.Projection(value.expr(), "value", vOut)),
-                    false, from, null, List.of(), null, null, List.of(), null, null, List.of(cOut, vOut));
-        }
-        SqlSelect.Projection chosen = java.util.Objects.requireNonNull(projectionOf(ws, canonColumn), "canon column");
-        List<SqlSelect.Projection> kept = chosen == value ? List.of(value) : List.of(value, chosen);
-        List<OutputCol> keptOuts = kept.stream().map(SqlSelect.Projection::out).filter(java.util.Objects::nonNull).toList();
-        SqlSelect trimmed = new SqlSelect(kept, ws.distinct(), ws.from(), ws.where(), ws.groupBy(),
-                ws.having(), ws.qualify(), List.of(), ws.limit(), ws.offset(), keptOuts);
-        return new SqlSelect(List.of(
-                new SqlSelect.Projection(asText(SqlExpr.Column.of("w", keptOuts, canonColumn)), C, cOut),
-                new SqlSelect.Projection(SqlExpr.Column.of("w", keptOuts, java.util.Objects.requireNonNull(value.alias())), "value", vOut)),
-                false, new SqlSource.Subselect(trimmed, "w", null), null, List.of(), null, null, List.of(), null, null,
-                List.of(cOut, vOut));
-    }
-
     /** A side's rows for the predicate forms: a grid's row canons, or a
      * scalar / collection side's canons (NULL values dropped). */
     public static SqlQuery sideRows(SqlQuery wrapped, boolean grid, String canonColumn, boolean many) {
         return grid ? gridRowCanons(wrapped)
                 : canonRows(new Side(wrapped, canonColumn, many, false, false));
-    }
-
-    /** A scalar / collection side's canon rows, each element also written as {@code message} writes it ({@link
-     *  Message}): the rows a membership or emptiness verdict's failure message reads. */
-    public static SqlQuery writtenRows(SqlQuery wrapped, String canonColumn, boolean many, Message message) {
-        return canonRows(new Side(wrapped, canonColumn, many, false, false, message, false));
     }
 
     /** A side's rows for COUNTING only (size / emptiness): no canon needed —
@@ -2617,227 +2211,7 @@ public final class VerdictSql {
                 CanonicalRenderSql.unwrapTdsCanon(wrapped), null);
     }
 
-    /** Two grids: row canons against row canons. */
-    public static SqlQuery gridPair(SqlQuery e, SqlQuery a, boolean multiset) {
-        return statement(gridRowCanons(e), gridRowCanons(a), true, true, multiset, List.of());
-    }
 
-    /** Two grids of ONE schema: row canons against row canons, a Float compared exactly (A4 of the compatibility
-     * program: the database judge plans for the product alone), each side's empty-is-NULL columns read as the
-     * sentinel, each side written as lite's words read it, its rows as bracketed cells, {@code [[30], [41]]}. */
-    public static SqlQuery gridPair(GridSide e, GridSide a, boolean multiset, VerdictWords words) {
-        return writtenStatement(gridRowCanons(e, GRID_E, RowWriting.BRACKETED),
-                gridRowCanons(a, GRID_A, RowWriting.BRACKETED), multiset, List.of(),
-                List.of(new SqlWith.Cte(GRID_E, e.wrapped()), new SqlWith.Cte(GRID_A, a.wrapped())), true);
-    }
-
-    private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
-            boolean eMany, boolean aMany, boolean byCanonText,
-            List<SqlExpr.Case.When> moreUnjudged) {
-        return statement(eRows, aRows, eMany, aMany, byCanonText, moreUnjudged, List.of());
-    }
-
-    /** The statement over two ROW SOURCES (each {@code (__c, __rn[, __v])}). */
-    private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
-            boolean eMany, boolean aMany, boolean byCanonText,
-            List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes) {
-        return statementOf(new Folded("__e", eRows, sideFacts("__e", eMany, byCanonText)),
-                new Folded("__a", aRows, sideFacts("__a", aMany, byCanonText)),
-                moreUnjudged, extraCtes);
-    }
-
-    /** {@link #statement} over two rows relations that carry their WRITTEN column (lite's own rules): the facts read
-     *  it, and the frame's sentence writes each side from it -- always as a list ({@code alwaysList}: rows of rows,
-     *  a multiset's elements), else bare where both sides hold one. */
-    private static SqlQuery writtenStatement(SqlQuery eRows, SqlQuery aRows, boolean byCanonText,
-            List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes, boolean alwaysList) {
-        // lite's own text, written from each canon's mark (liteOfCanon): the product's, so the product's style
-        Message written = Message.fromCanon(false, null);
-        return withWrittenSides(statementOf(new Folded("__e", eRows, sideFacts("__e", true, byCanonText, written)),
-                new Folded("__a", aRows, sideFacts("__a", true, byCanonText, written)),
-                moreUnjudged, extraCtes), alwaysList, byCanonText);
-    }
-
-    private static SqlQuery statementOf(Folded e, Folded a,
-            List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes) {
-        SqlQuery eRows = e.rows();
-        SqlQuery aRows = a.rows();
-        // THE GENERAL SHAPE (lean ladder, 2026-09-20): each side is a rows
-        // relation (__c, __rn[, __v]) folded to ONE aggregate row (count, first,
-        // joined, null count, tree count); the verdict row reads the two one-row
-        // CTEs. No scalar subqueries, every side spelled once. The 2-ULP
-        // leniency block exists only when a cell side carries a Float value —
-        // a compile-time fact of the sides, not a special case — and folds to
-        // one aggregate over the positional join.
-        List<SqlWith.Cte> ctes = new ArrayList<>(extraCtes);
-        if (eRows != null) {
-            ctes.add(new SqlWith.Cte("__e", eRows));
-        }
-        if (aRows != null) {
-            ctes.add(new SqlWith.Cte("__a", aRows));
-        }
-        ctes.add(new SqlWith.Cte("__se", e.facts()));
-        ctes.add(new SqlWith.Cte("__sa", a.facts()));
-        // (the 2-ULP Float leniency's positional pair facts left with A4: a Float compares exactly)
-        // the actual side's facts joined to the expected's, which a database builds first: the expected side read before
-        // the actual, as the host's side batch reads them, so where both raise the two judges raise one error (G2, G10:
-        // PCT's testAdjustBy*BigNumber on DuckDB, whose test sessions run single-threaded, 2026-11-19; the compatibility
-        // owner's option 2 -- the literal stays in the database). The verdict row reads each fact by its alias.
-        SqlSource from = new SqlSource.Join(facts("__sa", "a"), facts("__se", "e"),
-                SqlSource.Join.Kind.CROSS, null);
-        SqlExpr ex = factCol("e", F_TEXT);
-        SqlExpr ax = factCol("a", F_TEXT);
-        SqlExpr exact = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, ex, ax);
-        SqlExpr verdict = exact;
-        // the verdict row keeps its lenient column, false: no tolerance decides a database verdict (A4)
-        SqlExpr lenientOnly = new SqlExpr.BoolLit(false);
-        List<SqlExpr.Case.When> whens = new ArrayList<>(moreUnjudged);
-        whens.add(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.OR,
-                        SqlExpr.Call.of(SqlFn.GREATER, factCol("e", F_NULLS), new SqlExpr.IntLit(0)),
-                        SqlExpr.Call.of(SqlFn.GREATER, factCol("a", F_NULLS), new SqlExpr.IntLit(0))),
-                new SqlExpr.StringLit("null-canon-cell")));
-        whens.add(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.OR,
-                        SqlExpr.Call.of(SqlFn.GREATER, factCol("e", F_TREES), new SqlExpr.IntLit(0)),
-                        SqlExpr.Call.of(SqlFn.GREATER, factCol("a", F_TREES), new SqlExpr.IntLit(0))),
-                new SqlExpr.StringLit("unclaimable tree cell")));
-        SqlExpr unjudged = new SqlExpr.Case(whens, null, SqlExpr.Reason.JUDGE);
-        List<SqlSelect.Projection> ps = List.of(
-                new SqlSelect.Projection(verdict, VERDICT,
-                        new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(ex, EXPECTED,
-                        new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false)),
-                new SqlSelect.Projection(ax, ACTUAL,
-                        new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false)),
-                new SqlSelect.Projection(unjudged, UNJUDGED,
-                        new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(lenientOnly, LENIENT,
-                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));
-        SqlSelect body = new SqlSelect(ps, false, from, null,
-                List.of(), null, null, List.of(), null, null, List.of());
-        return new SqlWith(ctes, body);
-    }
-
-    // ── the side FACTS row: one aggregate over a rows CTE ──────────────────
-    private static final String F_TEXT = "__text";
-    private static final String F_NULLS = "__nulls";
-    private static final String F_TREES = "__trees";
-    private static final String F_N = "__n";
-
-    /** A side's one element as the failure message writes it, and its elements' bracketed list ({@link Message}). */
-    private static final String F_ONE_W = "__onew";
-    private static final String F_LIST_W = "__listw";
-    /** The verdict row's two sides as the message writes them, read by {@link #selfContained} and dropped there. */
-    private static final String EXPECTED_WRITTEN = "__expectedw";
-    private static final String ACTUAL_WRITTEN = "__actualw";
-
-    private static List<OutputCol> factOutputs() {
-        return List.of(new OutputCol(F_TEXT, SqlType.Scalar.VARCHAR, true),
-                new OutputCol(F_NULLS, SqlType.Scalar.BIGINT, false),
-                new OutputCol(F_TREES, SqlType.Scalar.BIGINT, false),
-                new OutputCol(F_N, SqlType.Scalar.BIGINT, false));
-    }
-
-    /** {@link #factOutputs} with the side's written columns ({@link Message}). */
-    private static List<OutputCol> writtenFactOutputs() {
-        List<OutputCol> outs = new ArrayList<>(factOutputs());
-        outs.add(new OutputCol(F_ONE_W, SqlType.Scalar.VARCHAR, true));
-        outs.add(new OutputCol(F_LIST_W, SqlType.Scalar.VARCHAR, true));
-        return List.copyOf(outs);
-    }
-
-    private static SqlSource facts(String cteName, String alias) {
-        return new SqlSource.Table(cteName, alias, factOutputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
-    }
-
-    private static SqlExpr factCol(String alias, String col) {
-        return SqlExpr.Column.of(alias, factOutputs(), col);
-    }
-
-    /** {@code SELECT <framed text>, nulls, trees FROM (SELECT COUNT, first,
-     * STRING_AGG, null count, tree count FROM <rows>) AS s} — the side's
-     * verdict facts, one row, the rows scanned once. */
-    private static SqlQuery sideFacts(String rowsCte, boolean many, boolean byCanonText) {
-        return sideFacts(rowsCte, many, byCanonText, null);
-    }
-
-    /** {@code message}: the side's elements also WRITTEN as the failure message writes them ({@link Message}), two
-     *  more columns of the facts row -- the one element's text, and the elements' bracketed list in the side's own
-     *  order. */
-    private static SqlQuery sideFacts(String rowsCte, boolean many, boolean byCanonText,
-            @com.legend.base.Nullable Message message) {
-        OutputCol nOut = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
-        OutputCol oneOut = new OutputCol("__one", SqlType.Scalar.VARCHAR, true);
-        OutputCol joinedOut = new OutputCol("__joined", SqlType.Scalar.VARCHAR, true);
-        OutputCol nullsOut = new OutputCol(F_NULLS, SqlType.Scalar.BIGINT, false);
-        OutputCol treesOut = new OutputCol(F_TREES, SqlType.Scalar.BIGINT, false);
-        OutputCol oneWOut = new OutputCol(F_ONE_W, SqlType.Scalar.VARCHAR, true);
-        OutputCol joinedWOut = new OutputCol("__joinedw", SqlType.Scalar.VARCHAR, true);
-        List<OutputCol> aggOuts = message == null ? List.of(nOut, oneOut, joinedOut, nullsOut, treesOut)
-                : List.of(nOut, oneOut, joinedOut, nullsOut, treesOut, oneWOut, joinedWOut);
-        SqlExpr c = col(rowsCte, C);
-        SqlExpr rn = col(rowsCte, RN);
-        SqlExpr key = byCanonText ? c : rn;
-        SqlExpr one = new SqlAgg.Reducer(SqlAgg.Fn.MIN, List.of(new SqlExpr.Case(
-                List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.EQUAL, rn, new SqlExpr.IntLit(1)), c)), null, SqlExpr.Reason.JUDGE)),
-                false, List.of());
-        List<SqlSelect.Projection> aggs = new ArrayList<>(List.of(
-                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(rn), false, List.of()), "__n", nOut),
-                new SqlSelect.Projection(one, "__one", oneOut),
-                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(c, new SqlExpr.StringLit(", ")), false,
-                        List.of(new SqlSelect.SortKey(key, true, null, null))), "__joined", joinedOut),
-                new SqlSelect.Projection(countWhere(SqlExpr.Call.of(SqlFn.IS_NULL, c)), F_NULLS, nullsOut),
-                new SqlSelect.Projection(countWhere(SqlExpr.Call.of(SqlFn.GREATER,
-                        SqlExpr.Call.of(SqlFn.STRPOS, c, new SqlExpr.StringLit(CanonicalRenderSql.TREE_MARKER)),
-                        new SqlExpr.IntLit(0))), F_TREES, treesOut)));
-        if (message != null) {
-            SqlExpr w = col(rowsCte, W);
-            aggs.add(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.MIN, List.of(new SqlExpr.Case(
-                    List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, rn, new SqlExpr.IntLit(1)), w)), null, SqlExpr.Reason.JUDGE)),
-                    false, List.of()), F_ONE_W, oneWOut));
-            aggs.add(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                    List.of(w, new SqlExpr.StringLit(", ")), false,
-                    // lite's sentence lists a side in its own order (the orchestrator's ruling, 2026-11-17)
-                    List.of(new SqlSelect.SortKey(rn, true,
-                            null, null))),
-                    "__joinedw", joinedWOut));
-        }
-        SqlSelect agg = new SqlSelect(aggs,
-                false, cte(rowsCte), null, List.of(), null, null, List.of(), null, null, aggOuts);
-        SqlExpr n = SqlExpr.Column.of("s", aggOuts, "__n");
-        SqlExpr first = SqlExpr.Column.of("s", aggOuts, "__one");
-        SqlExpr joined = SqlExpr.Column.of("s", aggOuts, "__joined");
-        SqlExpr empty = new SqlExpr.StringLit("[]");
-        SqlExpr text = many
-                ? new SqlExpr.Case(List.of(
-                        new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, n, new SqlExpr.IntLit(0)), empty),
-                        new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, n, new SqlExpr.IntLit(1)), first)),
-                        SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("["), joined, new SqlExpr.StringLit("]")), SqlExpr.Reason.JUDGE)
-                : SqlExpr.Call.of(SqlFn.COALESCE, first, empty);
-        List<OutputCol> outs = message == null ? factOutputs() : writtenFactOutputs();
-        List<SqlSelect.Projection> ps = new ArrayList<>(List.of(
-                new SqlSelect.Projection(text, F_TEXT, outs.get(0)),
-                new SqlSelect.Projection(SqlExpr.Column.of("s", aggOuts, F_NULLS), F_NULLS, outs.get(1)),
-                new SqlSelect.Projection(SqlExpr.Column.of("s", aggOuts, F_TREES), F_TREES, outs.get(2)),
-                new SqlSelect.Projection(n, F_N, outs.get(3))));
-        if (message != null) {
-            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("s", aggOuts, F_ONE_W), F_ONE_W, outs.get(4)));
-            ps.add(new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("["),
-                    SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Column.of("s", aggOuts, "__joinedw"),
-                            new SqlExpr.StringLit("")), new SqlExpr.StringLit("]")), F_LIST_W, outs.get(5)));
-        }
-        return new SqlSelect(ps, false, new SqlSource.Subselect(agg, "s", null), null, List.of(), null, null,
-                List.of(), null, null, outs);
-    }
-
-    /** {@code COUNT(CASE WHEN <cond> THEN 1 END)} — portable filtered count. */
-    private static SqlExpr countWhere(SqlExpr cond) {
-        return new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(new SqlExpr.Case(
-                List.of(new SqlExpr.Case.When(cond, new SqlExpr.IntLit(1))), null, SqlExpr.Reason.JUDGE)), false, List.of());
-    }
 
     /** A HOST-CONSTANT side (a compile-time fact the pipeline answered
      * without SQL — a generated seed-data string, a rendered DDL text, a
@@ -3108,16 +2482,17 @@ public final class VerdictSql {
     }
 
     /**
-     * ASSERTERROR'S VERDICT ROW (the user's ruling S135, 2026-11-05: the host catches, the database judges): what the
-     * function raised ({@code raised}, read once through a one-row derived table) compared with the expected message,
-     * line and column BY THE DATABASE, and upstream's own failure texts written here -- interpreted AssertError.java's
-     * "No error was thrown", then the assertError/4 body's (assertError.pure:24-26), message first, then line, then
-     * column, each only where it is expected; an expected position over a raise that carried none fails by name, as
-     * upstream's {@code si.line->toOne()} raises on an empty source info. The row is the verdict schema's
-     * ({@link #schema}): its polarity and its message the statement's own.
+     * ASSERTERROR'S VERDICT ROW, TYPED (the user's ruling S135, 2026-11-05: the host catches, the database judges; item
+     * 3's S4, the last families): what the function raised ({@code raised}, read once through a one-row derived table)
+     * compared with the expected message, line and column BY THE DATABASE -- nothing raised holds only where the assert
+     * expects upstream's own "nothing was raised" text ({@code passesUnraised}, decided at planning; item 3's S8, Q-B);
+     * else the message, then the line, then the column, each only where it is expected, an expected position over a
+     * raise that carried none failing, as upstream's {@code si.line->toOne()} does -- the row its verdict and the three
+     * raised values ({@link #errorSchema}), the run's record the host's builders' ({@code AssertErrorRuns}). No word is
+     * in the statement.
      */
     public static SqlQuery assertError(String expected, @com.legend.base.Nullable Long line,
-            @com.legend.base.Nullable Long column, Raised raised, VerdictWords words, boolean passesUnraised) {
+            @com.legend.base.Nullable Long column, Raised raised, boolean passesUnraised) {
         OutputCol mOut = new OutputCol("m", SqlType.Scalar.VARCHAR, true);
         OutputCol lOut = new OutputCol("l", SqlType.Scalar.BIGINT, true);
         OutputCol cOut = new OutputCol("c", SqlType.Scalar.BIGINT, true);
@@ -3128,129 +2503,40 @@ public final class VerdictSql {
         SqlExpr m = SqlExpr.Column.of("o", mOut);
         SqlExpr l = SqlExpr.Column.of("o", lOut);
         SqlExpr c = SqlExpr.Column.of("o", cOut);
-        SqlExpr exp = new SqlExpr.StringLit(expected);
-        List<SqlExpr.Case.When> failures = new ArrayList<>();
-        if (!passesUnraised) {
-            // a function that raised nothing fails, but where the assert expects legend-pure's own "nothing was raised"
-            // text (passesUnraised: decided at planning by comparing the two constants; item 3's S8, Q-B)
-            failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, m), words.noError(expected)));
-        }
-        failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, m, exp), words.errorDiffers(expected, m)));
+        SqlExpr matched = SqlExpr.Call.of(SqlFn.EQUAL, m, new SqlExpr.StringLit(expected));
         if (line != null || column != null) {
-            failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, l),
-                    sentence(com.legend.error.AssertKind.ERROR_NO_POSITION, java.util.Map.of())));
+            matched = SqlExpr.Call.of(SqlFn.AND, matched, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, l));
         }
         if (line != null) {
-            failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, l, new SqlExpr.IntLit(line)),
-                    words.lineDiffers(line, new SqlExpr.Cast(l, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE))));
+            matched = SqlExpr.Call.of(SqlFn.AND, matched, SqlExpr.Call.of(SqlFn.EQUAL, l, new SqlExpr.IntLit(line)));
         }
         if (column != null) {
-            failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, c, new SqlExpr.IntLit(column)),
-                    words.columnDiffers(column, new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE))));
+            matched = SqlExpr.Call.of(SqlFn.AND, matched, SqlExpr.Call.of(SqlFn.EQUAL, c, new SqlExpr.IntLit(column)));
         }
-        SqlExpr message = new SqlExpr.Case(failures, new SqlExpr.NullLit(com.legend.sql.SqlTyping.typed(
-                SqlType.Scalar.VARCHAR)), SqlExpr.Reason.JUDGE);
-        SqlExpr holds = SqlExpr.Call.of(SqlFn.IS_NULL, message);
+        SqlExpr holds = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, m),
+                new SqlExpr.BoolLit(passesUnraised))), SqlExpr.Call.of(SqlFn.COALESCE, matched,
+                new SqlExpr.BoolLit(false)), SqlExpr.Reason.JUDGE);
         List<SqlSelect.Projection> ps = List.of(
                 new SqlSelect.Projection(holds, VERDICT, new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(exp, EXPECTED, new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false)),
-                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, m, new SqlExpr.StringLit("")), ACTUAL,
-                        new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false)),
-                new SqlSelect.Projection(new SqlExpr.NullLit(com.legend.sql.SqlTyping.typed(SqlType.Scalar.VARCHAR)),
-                        UNJUDGED, new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
-                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
+                new SqlSelect.Projection(m, "m", mOut), new SqlSelect.Projection(l, "l", lOut),
+                new SqlSelect.Projection(c, "c", cOut));
         return new SqlSelect(ps, false, new SqlSource.Subselect(outcome, "o", null), null, List.of(), null, null,
                 List.of(), null, null, ps.stream().map(SqlSelect.Projection::out).toList());
     }
 
-    /** {@code row}, a verdict row ({@link #schema}'s columns), as a statement that RAISES its failure (the user's
-     *  ruling S135, 2026-11-05: an assert inside assertError fails as upstream's does, by raising): one Boolean value,
-     *  true where the row holds, the row's message raised where it does not. */
-    public static SqlQuery raisingRow(SqlQuery row) {
-        if (row instanceof SqlWith w) {
-            return w.with(w.ctes(), raisingRow(w.body()));
-        }
-        OutputCol holdsOut = new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false);
-        OutputCol messageOut = new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true);
-        SqlExpr raise = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Column.of("i", holdsOut),
-                new SqlExpr.BoolLit(true))), SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.Column.of("i", messageOut)), SqlExpr.Reason.JUDGE);
-        OutputCol value = new OutputCol("value", SqlType.Scalar.BOOLEAN, false);
-        return new SqlSelect(List.of(new SqlSelect.Projection(raise, "value", value)), false,
-                new SqlSource.Subselect(row, "i", null), null, List.of(), null, null, List.of(), null, null,
-                List.of(value));
-    }
-
-    public static SqlQuery decidedFalse(SqlQuery row) {
-        java.util.function.UnaryOperator<SqlSelect> f = sel -> sel.withProjections(sel.projections().stream()
-                .map(p -> VERDICT.equals(p.alias()) ? new SqlSelect.Projection(new SqlExpr.BoolLit(false), p.alias(),
-                        p.out()) : p).toList());
-        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
-            return new SqlWith(w.ctes(), f.apply(body));
-        }
-        if (row instanceof SqlSelect sel) {
-            return f.apply(sel);
-        }
-        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
-    }
-
-    /** The struct of primitive fields {@code plan}'s value is (a generic class's instance), or null. */
-    public static SqlType.@com.legend.base.Nullable Struct primitiveStruct(SqlSelect plan) {
-        if (plan.projections().isEmpty()
-                || !(plan.projections().get(0).expr().type() instanceof com.legend.sql.TypeFact.Typed ty)
-                || !(ty.type() instanceof SqlType.Struct st) || st.fields().isEmpty()) {
-            return null;
-        }
-        for (SqlType.Struct.Field f : st.fields()) {
-            if (f.type() instanceof SqlType.Struct || f.type() instanceof SqlType.Array
-                    || f.type() == SqlType.Scalar.JSON) {
-                return null;
-            }
-        }
-        return st;
-    }
-
-    /** {@code value}, a struct of primitive fields, written by lite's own rules (the orchestrator's ruling, 2026-11-17):
-     *  its class, then its properties as the product's compact JSON object, each value its lite text ({@link LiteText#of};
-     *  an empty one {@code null}) -- {@code meta::pure::functions::collection::Pair {"first":1,"second":"a"}}. */
-    private static SqlExpr instanceLite(SqlExpr value, String typeFqn) {
-        SqlType.Struct st = (SqlType.Struct) ((com.legend.sql.TypeFact.Typed) value.type()).type();
-        List<SqlExpr> parts = new ArrayList<>();
-        parts.add(new SqlExpr.StringLit(typeFqn + " {"));
-        boolean first = true;
-        for (SqlType.Struct.Field f : st.fields()) {
-            parts.add(new SqlExpr.StringLit((first ? "" : ",") + "\"" + f.name() + "\":"));
-            first = false;
-            SqlExpr v = new SqlExpr.StructGet(value, f.name());
-            parts.add(SqlExpr.Call.of(SqlFn.COALESCE, LiteText.of(pureKind(f.type()), v), new SqlExpr.StringLit("null")));
-        }
-        parts.add(new SqlExpr.StringLit("}"));
-        return new SqlExpr.Call(SqlFn.CONCAT, parts);
-    }
-
-    /** The Pure kind a struct field of SQL type {@code t} carries, for its lite text. */
-    private static Type pureKind(SqlType t) {
-        if (t == SqlType.Scalar.VARCHAR) {
-            return Type.Primitive.STRING;
-        }
-        if (t == SqlType.Scalar.BOOLEAN) {
-            return Type.Primitive.BOOLEAN;
-        }
-        if (t == SqlType.Scalar.DOUBLE) {
-            return Type.Primitive.FLOAT;
-        }
-        if (t instanceof SqlType.Decimal) {
-            return Type.Primitive.DECIMAL;
-        }
-        if (t == SqlType.Scalar.DATE) {
-            return Type.Primitive.STRICT_DATE;
-        }
-        if (t == SqlType.Scalar.TIMESTAMP || t == SqlType.Scalar.TIMESTAMPTZ) {
-            return Type.Primitive.DATE_TIME;
-        }
-        return Type.Primitive.INTEGER;
+    /** {@link #assertError}'s row: its verdict, then the raised message, line and column (each absent where none). */
+    public static com.legend.compiler.element.type.Type.RelationType errorSchema() {
+        var one = new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1);
+        var opt = new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1);
+        return new com.legend.compiler.element.type.Type.RelationType(List.of(
+                new com.legend.compiler.element.type.Type.RelationType.Column(VERDICT,
+                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one),
+                new com.legend.compiler.element.type.Type.RelationType.Column("m",
+                        com.legend.compiler.element.type.Type.Primitive.STRING, opt),
+                new com.legend.compiler.element.type.Type.RelationType.Column("l",
+                        com.legend.compiler.element.type.Type.Primitive.INTEGER, opt),
+                new com.legend.compiler.element.type.Type.RelationType.Column("c",
+                        com.legend.compiler.element.type.Type.Primitive.INTEGER, opt)));
     }
 
     /** A caller's failure message for an assert (the asserts-as-plan-nodes program, step 2, 2026-11-04): a constant the
@@ -3268,213 +2554,29 @@ public final class VerdictSql {
      *  value, as a self-contained verdict row that holds nothing and whose message is that value -- the statement the
      *  database judge's batch sends at the failing assert's place alone, so a message that would raise where the assert
      *  holds is never sent (upstream evaluates it only where the assert fails). */
-    public static SqlQuery messageRow(SqlQuery textRow, String name, VerdictWords words) {
+    public static SqlQuery messageRow(SqlQuery textRow) {
+        // the caller's message, a value the program computed: its text alone (item 3's S4: until then a seven-column
+        // verdict row whose message column carried it), JSON null spelled null as upstream's toString writes it
         SqlExpr text = SqlExpr.Call.of(SqlFn.COALESCE, asText(SqlExpr.Column.of("rm", textRow.outputs(), "value")),
                 new SqlExpr.StringLit("null"));
-        SqlSelect row = new SqlSelect(List.of(
-                new SqlSelect.Projection(new SqlExpr.BoolLit(false), VERDICT,
-                        new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(new SqlExpr.StringLit(""), EXPECTED,
-                        new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false)),
-                new SqlSelect.Projection(new SqlExpr.StringLit(""), ACTUAL,
-                        new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false)),
-                new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), UNJUDGED,
-                        new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
-                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(text, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true))),
-                false, new SqlSource.Subselect(textRow, "rm", null), null, List.of(), null, null, List.of(), null, null,
-                List.of());
-        return selfContained(row, name, true, words);
+        OutputCol out = new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(text, MESSAGE, out)), false,
+                new SqlSource.Subselect(textRow, "rm", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(out));
     }
 
-    /** {@code row}, a verdict row, failing with {@code message}: its MESSAGE column the caller's text, replacing any the
-     *  family composed -- upstream's {@code assert(condition, | message)}; the comparison the row's own. */
-    public static SqlQuery withFailureMessage(SqlQuery row, FailureMessage message) {
-        java.util.function.UnaryOperator<SqlSelect> f = sel -> {
-            SqlSource from = sel.from();
-            SqlExpr text;
-            if (message.row() != null) {
-                SqlQuery m = message.row();
-                from = new SqlSource.Join(from, new SqlSource.Subselect(m, "rm", null), SqlSource.Join.Kind.CROSS,
-                        null);
-                text = SqlExpr.Call.of(SqlFn.COALESCE, asText(SqlExpr.Column.of("rm", m.outputs(), "value")),
-                        new SqlExpr.StringLit("null"));
-            } else {
-                text = new SqlExpr.StringLit(java.util.Objects.requireNonNull(message.literal()));
-            }
-            List<SqlSelect.Projection> ps = new ArrayList<>();
-            for (SqlSelect.Projection p : sel.projections()) {
-                if (!MESSAGE.equals(p.alias())) {
-                    ps.add(p);
-                }
-            }
-            ps.add(new SqlSelect.Projection(text, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
-            return new SqlSelect(ps, sel.distinct(), from, sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
-                    sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
-        };
-        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
-            return new SqlWith(w.ctes(), f.apply(body));
-        }
-        if (row instanceof SqlSelect sel) {
-            return f.apply(sel);
-        }
-        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
-    }
-
-    /** {@code words}: the frame's sentence, lite's (the database judge plans for lite's flow alone). */
-    public static SqlQuery selfContained(SqlQuery row, String name, boolean wantEqual, VerdictWords words) {
-        boolean cells = joinsCells(row);
-        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
-            return new SqlWith(w.ctes(), withHoldsAndMessage(body, name, wantEqual, cells, words));
-        }
-        if (row instanceof SqlSelect sel) {
-            return withHoldsAndMessage(sel, name, wantEqual, cells, words);
-        }
-        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
-    }
-
-    /** Whether {@code row} joins a row's cells by the canon's separator anywhere (a grid's row canons): the one case
-     *  its message must write the cells as a list ({@link #cellsAsList}); every other verdict's message carries no
-     *  such step (core's statements small: the user's order, 2026-11-03). */
-    private static boolean joinsCells(SqlQuery row) {
-        boolean[] found = new boolean[1];
-        new com.legend.sql.SqlRewriter() {
-            @Override
-            protected SqlExpr expr(SqlExpr e) {
-                if (e instanceof SqlExpr.StringLit lit && CanonicalRenderSql.TDS_CELL_SEP.equals(lit.value())) {
-                    found[0] = true;
-                }
-                return e;
-            }
-        }.rewrite(row);
-        return found[0];
-    }
-
-    private static SqlSelect withHoldsAndMessage(SqlSelect sel, String name, boolean wantEqual, boolean cells,
-            VerdictWords words) {
-        if (projectionOf(sel, HOLDS) != null) {
-            throw new IllegalStateException("a verdict row is made self-contained once: " + name);
-        }
-        SqlExpr verdict = java.util.Objects.requireNonNull(projectionOf(sel, VERDICT), "the verdict column").expr();
-        SqlExpr expected = java.util.Objects.requireNonNull(projectionOf(sel, EXPECTED), "the expected column").expr();
-        SqlExpr actual = java.util.Objects.requireNonNull(projectionOf(sel, ACTUAL), "the actual column").expr();
-        SqlExpr holds = wantEqual ? verdict : SqlExpr.Call.of(SqlFn.NOT, verdict);
-        // upstream's own text (essential/tests/assertEquals.pure: '\nexpected: %r\nactual:   %r'; assertNotEquals.pure:
-        // '%r should not equal %r'), the host judge's (PureAsserts): no family name before it, and a newline inside a
-        // spelled value written as %r writes it, \n (2026-11-03: the database judge's failures read 'assertEquals
-        // \nexpected: ...' on every lane, so a lane's ledger, built from the host's text, did not match them)
-        java.util.function.UnaryOperator<SqlExpr> list = t -> cells ? cellsAsList(t) : t;
-        SqlExpr e = words.frameSide(asText(expected), list);
-        SqlExpr a = words.frameSide(asText(actual), list);
-        SqlSelect.Projection ew = projectionOf(sel, EXPECTED_WRITTEN);
-        SqlSelect.Projection aw = projectionOf(sel, ACTUAL_WRITTEN);
-        if (ew != null && aw != null) {
-            // the two sides as upstream's message writes them (Message): the canons decide, these are read
-            e = ew.expr();
-            a = aw.expr();
-        }
-        SqlSelect.Projection fixed = projectionOf(sel, MESSAGE);
-        SqlSelect.Projection multiset = projectionOf(sel, MULTISET_HINT);
-        SqlSelect.Projection isNot = projectionOf(sel, IS_NOT_HINT);
-        SqlSelect.Projection json = projectionOf(sel, JSON_HINT);
-        SqlSelect.Projection ek = projectionOf(sel, EXPECTED_KIND);
-        SqlSelect.Projection ak = projectionOf(sel, ACTUAL_KIND);
-        SqlExpr message = fixed != null ? fixed.expr()
-                : isNot != null && !wantEqual ? words.identical(a)
-                : words.frame(json != null, multiset != null, wantEqual, e, a, ek == null ? null : ek.expr(),
-                        ak == null ? null : ak.expr());
-        List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
-        ps.remove(fixed);   // a fixed message (an assert's own) moves after the polarity, the schema's order
-        ps.remove(ew);      // the written sides are the message's, no column of the verdict's schema
-        ps.remove(aw);
-        ps.remove(multiset);   // the hint is the frame's, no column of the verdict's schema
-        ps.remove(ek);
-        ps.remove(ak);
-        ps.remove(isNot);
-        ps.remove(json);
-        ps.add(new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)));
-        ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
-        // the select's outputs are rebuilt from its projections by its constructor
-        return new SqlSelect(ps, sel.distinct(), sel.from(), sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
-                sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
-    }
-
-    /** {@code row}, a verdict row before it is made self-contained, marked {@code assertIsNot}'s (#28): the frame writes
-     *  that sentence where it fails. */
-    public static SqlQuery withIsNotHint(SqlQuery row) {
-        return withHint(row, IS_NOT_HINT);
-    }
-
-    /** {@code row} carrying the frame's hint {@code alias}, a Boolean column the frame reads and drops. */
-    private static SqlQuery withHint(SqlQuery row, String alias) {
-        java.util.function.UnaryOperator<SqlSelect> mark = sel -> {
-            List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
-            ps.add(new SqlSelect.Projection(new SqlExpr.BoolLit(true), alias,
-                    new OutputCol(alias, SqlType.Scalar.BOOLEAN, false)));
-            return sel.withProjections(ps);
-        };
-        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
-            return new SqlWith(w.ctes(), mark.apply(body));
-        }
-        if (row instanceof SqlSelect sel) {
-            return mark.apply(sel);
-        }
-        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
+    /** {@link #messageRow}'s row: the caller's message, one String. */
+    public static com.legend.compiler.element.type.Type.RelationType messageSchema() {
+        return new com.legend.compiler.element.type.Type.RelationType(List.of(
+                new com.legend.compiler.element.type.Type.RelationType.Column(MESSAGE,
+                        com.legend.compiler.element.type.Type.Primitive.STRING,
+                        new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1))));
     }
 
     /** A kind's name as lite's sentence writes it where two texts tie: a primitive's short name (a Decimal of a declared
      *  precision a Decimal), any other type its own name. */
     public static String kindText(Type t) {
         return t instanceof Type.PrecisionDecimal ? "Decimal" : t.typeName();
-    }
-
-    /** {@code row}, a self-contained verdict row, its message as {@code words} name an unrolled quantifier's element
-     *  {@code index} (the {@code FrameKind.AT_INDEX} frame: the row's message, then the zero-based index). */
-    public static SqlQuery atIndex(SqlQuery row, int index, VerdictWords words) {
-        java.util.function.UnaryOperator<SqlSelect> at = sel -> {
-            List<SqlSelect.Projection> ps = new ArrayList<>();
-            for (SqlSelect.Projection p : sel.projections()) {
-                ps.add(MESSAGE.equals(p.alias()) ? new SqlSelect.Projection(words.atIndex(p.expr(), index), p.alias(),
-                        p.out()) : p);
-            }
-            return sel.withProjections(ps);
-        };
-        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
-            return new SqlWith(w.ctes(), at.apply(body));
-        }
-        if (row instanceof SqlSelect sel) {
-            return at.apply(sel);
-        }
-        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
-    }
-
-    /** {@code plain} where the two written texts differ, else {@code EQUALS_KINDS}. */
-    static SqlExpr equalsOrKinds(SqlExpr e, SqlExpr a, SqlExpr expectedKind, SqlExpr actualKind,
-            SqlExpr plain) {
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, e, a),
-                sentence(com.legend.error.AssertKind.EQUALS_KINDS, java.util.Map.of("expected", e,
-                        "expectedKind", expectedKind, "actual", a, "actualKind", actualKind)))),
-                plain, SqlExpr.Reason.JUDGE);
-    }
-
-    /** The relation the verdict statement returns (the executor's
-     * TABULAR decode needs the declared schema). */
-    public static com.legend.compiler.element.type.Type.RelationType schema() {
-        var one = new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1);
-        var opt = new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1);
-        var t = com.legend.compiler.element.type.Type.Primitive.STRING;
-        return new com.legend.compiler.element.type.Type.RelationType(List.of(
-                new com.legend.compiler.element.type.Type.RelationType.Column(VERDICT,
-                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one),
-                new com.legend.compiler.element.type.Type.RelationType.Column(EXPECTED, t, one),
-                new com.legend.compiler.element.type.Type.RelationType.Column(ACTUAL, t, one),
-                new com.legend.compiler.element.type.Type.RelationType.Column(UNJUDGED, t, opt),
-                new com.legend.compiler.element.type.Type.RelationType.Column(LENIENT,
-                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one),
-                new com.legend.compiler.element.type.Type.RelationType.Column(HOLDS,
-                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one),
-                new com.legend.compiler.element.type.Type.RelationType.Column(MESSAGE, t, opt)));
     }
 
     /** {@code SELECT canon AS __c, row_number() OVER () AS __rn FROM (wrapped) w}
@@ -3490,81 +2592,12 @@ public final class VerdictSql {
     }
 
     /** TEXT by contract: a cast to VARCHAR unless the expression is one already. */
-    /** A row canon's cells written as the list %r writes them: the canon joins a row's cells by its own separator
-     *  ({@link CanonicalRenderSql#TDS_CELL_SEP}, row cohesion), which a message never shows (2026-11-03, the core parity
-     *  program: {@code ['p1'<GS>40, ...]} under the database judge, upstream's {@code ['p1', 40, ...]}). */
-    private static SqlExpr cellsAsList(SqlExpr text) {
-        return SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit(CanonicalRenderSql.TDS_CELL_SEP),
-                new SqlExpr.StringLit(", "));
-    }
 
     private static SqlExpr asText(SqlExpr e) {
         return e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.VARCHAR ? e
                 : new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
     }
 
-    /** A side declared exactly one: its facts row spelled straight over the
-     * plan (ONE row by construction — a one-row seed LEFT JOINed to the plan,
-     * so an empty plan still frames {@code []} exactly as the rows form does). */
-    /** E-5b's one-row layer under a single-value side's facts: its canon and its value, each computed once. */
-    private static final String ONCE_ALIAS = "__once";
-    private static final String CANON_ONCE = "__oc";
-    private static final String VALUE_ONCE = "__ov";
-
-    private static SqlQuery inlineFacts(Side s) {
-        SqlSelect ws = (SqlSelect) s.wrapped();
-        SqlExpr valueRef = ws.projections().get(0).expr();
-        SqlExpr canon = canonOf(s, asText(java.util.Objects.requireNonNull(
-                projectionOf(ws, s.canonColumn()), "canon column").expr()));
-        List<OutputCol> outs = factOutputs();
-        OutputCol seedOut = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
-        SqlSource seed = new SqlSource.Subselect(new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", seedOut)),
-                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null,
-                List.of(seedOut)), "__one", null);
-        SqlSource joined = new SqlSource.Join(seed, ws.from(), SqlSource.Join.Kind.LEFT,
-                new SqlExpr.BoolLit(true));
-        // E-5b (the user's ruling, 2026-11-13; docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md §5.9): the side's canon and
-        // its value computed ONCE, in a one-row layer over the side's own source, and read by column -- the canon was
-        // written three times here (the text, the null flag, the tree test), each a copy of its whole spelling
-        OutputCol canonOut = new OutputCol(CANON_ONCE, SqlType.Scalar.VARCHAR, true);
-        OutputCol valueOut = new OutputCol(VALUE_ONCE, java.util.Objects.requireNonNull(ws.projections().get(0).out(),
-                "a single-value side's value projection declares its column").type(), true);
-        SqlSelect once = new SqlSelect(List.of(new SqlSelect.Projection(canon, CANON_ONCE, canonOut),
-                new SqlSelect.Projection(valueRef, VALUE_ONCE, valueOut)), false, joined, null, List.of(), null, null,
-                List.of(), null, null, List.of(canonOut, valueOut));
-        SqlSource from = new SqlSource.Subselect(once, ONCE_ALIAS, null);
-        canon = SqlExpr.Column.of(ONCE_ALIAS, CANON_ONCE, SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED);
-        valueRef = SqlExpr.Column.of(ONCE_ALIAS, VALUE_ONCE, valueOut.type(), true, OutputCol.Origin.DERIVED);
-        SqlExpr flag = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), SqlExpr.Call.of(SqlFn.IS_NULL, canon));
-        List<SqlSelect.Projection> ps = new ArrayList<>(List.of(
-                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, canon,
-                        new SqlExpr.StringLit("[]")), F_TEXT, outs.get(0)),
-                new SqlSelect.Projection(flagCount(flag), F_NULLS, outs.get(1)),
-                new SqlSelect.Projection(flagCount(SqlExpr.Call.of(SqlFn.GREATER,
-                        SqlExpr.Call.of(SqlFn.STRPOS, canon, new SqlExpr.StringLit(CanonicalRenderSql.TREE_MARKER)),
-                        new SqlExpr.IntLit(0))), F_TREES, outs.get(2)),
-                new SqlSelect.Projection(flagCount(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef)), F_N, outs.get(3))));
-        if (s.message() != null) {
-            // the one element as the message writes it, and as a list of one (or none: [])
-            List<OutputCol> wouts = writtenFactOutputs();
-            SqlExpr w = written(s.message(), valueRef, canon);
-            ps.add(new SqlSelect.Projection(w, F_ONE_W, wouts.get(4)));
-            ps.add(new SqlSelect.Projection(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                    SqlExpr.Call.of(SqlFn.IS_NULL, valueRef), new SqlExpr.StringLit("[]"))),
-                    SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("["), w, new SqlExpr.StringLit("]")), SqlExpr.Reason.JUDGE),
-                    F_LIST_W, wouts.get(5)));
-            outs = wouts;
-        }
-        return new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null, outs);
-    }
-
-    /** {@code CASE WHEN <cond> THEN 1 ELSE 0 END}. */
-    private static SqlExpr flagCount(SqlExpr cond) {
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond, new SqlExpr.IntLit(1))),
-                new SqlExpr.IntLit(0), SqlExpr.Reason.JUDGE);
-    }
 
     /** A many or optional side as rows {@code (__c, __rn[, __v])} at ONE
      * level: the chosen canon expression spliced over the plan; the wrap's
@@ -3589,7 +2622,7 @@ public final class VerdictSql {
                 if (e instanceof SqlAgg || e instanceof SqlExpr.WindowCall
                         || e instanceof SqlExpr.JsonArrayAgg || e instanceof SqlExpr.ScalarSubquery
                         || e instanceof SqlExpr.Exists
-                        || e instanceof SqlExpr.Call c && c.fn() == SqlFn.UNNEST) {
+                        || SqlExpr.expandsRows(e)) {
                     // a value that changes the rows (an aggregate, a window, a subquery, an UNNEST's row per element):
                     // the wrap stays a layer, its values read from outside it
                     aggregate[0] = true;
@@ -3647,118 +2680,8 @@ public final class VerdictSql {
             ps.add(new SqlSelect.Projection(valueColumn(valueRef, s.isFloat()), V, vOut));
             outs.add(vOut);
         }
-        written(s, valueRef, canon, ws.projections().get(0).out(), ps, outs);
         return new SqlSelect(ps, false, from, where, List.of(), null, null, List.of(),
                 null, null, List.copyOf(outs));
-    }
-
-    /** {@code value} as the failure message writes it: its kind's representation; an empty side's (Nil) none, as it
-     *  holds no element. */
-    private static SqlExpr written(Message m, SqlExpr value, SqlExpr canon) {
-        return m.canon() ? liteOfCanon(canon, m.canonClass()) : written(m, value);
-    }
-
-    /** An element's lite text from its CANON (legend-pure's print, the mixed-kind canon's spelling): a String
-     *  ({@code 'a'}, backslash-escaped) quoted JSON-style, a date's {@code %} dropped, a Decimal's {@code D} dropped,
-     *  every other element as written -- each element's runtime kind read off its canon's mark, per row, in a CASE
-     *  (the orchestrator's ruling, 2026-11-17). */
-    static SqlExpr liteOfCanon(SqlExpr canon) {
-        return liteOfCanon(canon, null);
-    }
-
-    /** {@code classFqn}: an element whose canon is a JSON object (an instance) is written class-prefixed. */
-    static SqlExpr liteOfCanon(SqlExpr canon, @com.legend.base.Nullable String classFqn) {
-        SqlExpr c = asText(canon);
-        SqlExpr len = SqlExpr.Call.of(SqlFn.LENGTH, c);
-        SqlExpr inner = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2),
-                SqlExpr.Call.of(SqlFn.MINUS, len, new SqlExpr.IntLit(2)));
-        // inside legend-pure's quotes: \' a quote, \\ a backslash, \n a newline; JSON keeps \\ and \n, escapes a
-        // double quote, a tab and a carriage return
-        SqlExpr json = inner;
-        String[][] pairs = {{"\"", "\\\""}, {"\\'", "'"}, {"\t", "\\t"}, {"\r", "\\r"}};
-        for (String[] p : pairs) {
-            json = SqlExpr.Call.of(SqlFn.REPLACE, json, new SqlExpr.StringLit(p[0]), new SqlExpr.StringLit(p[1]));
-        }
-        SqlExpr first = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(1), new SqlExpr.IntLit(1));
-        SqlExpr last = SqlExpr.Call.of(SqlFn.SUBSTRING, c, len, new SqlExpr.IntLit(1));
-        SqlExpr rest = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2),
-                SqlExpr.Call.of(SqlFn.MINUS, len, new SqlExpr.IntLit(1)));
-        SqlExpr butLast = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(1),
-                SqlExpr.Call.of(SqlFn.MINUS, len, new SqlExpr.IntLit(1)));
-        // an instance's identity canon, <id instanceOf T>: T (instance id)
-        SqlExpr marker = SqlExpr.Call.of(SqlFn.STRPOS, c, new SqlExpr.StringLit(" instanceOf "));
-        SqlExpr identity = SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.SUBSTRING, c, SqlExpr.Call.of(SqlFn.PLUS, marker, new SqlExpr.IntLit(12)),
-                        SqlExpr.Call.of(SqlFn.MINUS, len, SqlExpr.Call.of(SqlFn.PLUS, marker, new SqlExpr.IntLit(12)))),
-                new SqlExpr.StringLit(" (instance "),
-                SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2),
-                        SqlExpr.Call.of(SqlFn.MINUS, marker, new SqlExpr.IntLit(2))),
-                new SqlExpr.StringLit(")"));
-        List<SqlExpr.Case.When> instance = new ArrayList<>();
-        if (classFqn != null) {
-            // an instance's JSON object, class-prefixed
-            instance.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("{")),
-                    SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(classFqn + " "), c)));
-            // a side carried as one JSON array of instances: one written bare, several each prefixed, in brackets
-            SqlExpr second = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2), new SqlExpr.IntLit(1));
-            SqlExpr objects = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2),
-                    SqlExpr.Call.of(SqlFn.MINUS, len, new SqlExpr.IntLit(2)));
-            SqlExpr several = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("[" + classFqn + " "),
-                    SqlExpr.Call.of(SqlFn.REPLACE, objects, new SqlExpr.StringLit("},{"),
-                            new SqlExpr.StringLit("}, " + classFqn + " {")), new SqlExpr.StringLit("]"));
-            SqlExpr one = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(classFqn + " "), objects);
-            instance.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.AND,
-                    SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("[")),
-                    SqlExpr.Call.of(SqlFn.EQUAL, second, new SqlExpr.StringLit("{"))),
-                    SqlExpr.Call.of(SqlFn.EQUAL, last, new SqlExpr.StringLit("]"))),
-                    new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL,
-                            SqlExpr.Call.of(SqlFn.STRPOS, objects, new SqlExpr.StringLit("},{")), new SqlExpr.IntLit(0)),
-                            one)), several, SqlExpr.Reason.JUDGE)));
-        }
-        List<SqlExpr.Case.When> whens = new ArrayList<>(instance);
-        whens.addAll(List.of(
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.AND,
-                        SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("<")),
-                        SqlExpr.Call.of(SqlFn.EQUAL, last, new SqlExpr.StringLit(">"))),
-                        SqlExpr.Call.of(SqlFn.GREATER, marker, new SqlExpr.IntLit(0))), identity),
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND,
-                        SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("'")),
-                        SqlExpr.Call.of(SqlFn.GREATER_EQUAL, len, new SqlExpr.IntLit(2))),
-                        SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("\""), json, new SqlExpr.StringLit("\""))),
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("%")), rest),
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND,
-                        SqlExpr.Call.of(SqlFn.EQUAL, last, new SqlExpr.StringLit("D")),
-                        SqlExpr.Call.of(SqlFn.GREATER, len, new SqlExpr.IntLit(1))), butLast)));
-        return new SqlExpr.Case(whens, c, SqlExpr.Reason.JUDGE);
-    }
-
-    private static SqlExpr written(Message m, SqlExpr value) {
-        if (m.literal() != null) {
-            return new SqlExpr.StringLit(m.literal());
-        }
-        if (m.kind() instanceof Type.GenericType g) {
-            return instanceLite(value, g.rawFqn());
-        }
-        return PlatformTypes.isNil(m.kind())
-                ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                : LiteText.of(m.kind(), value);
-    }
-
-    /** A row's element as the failure message writes it ({@link Message}), and {@code __o} (unread since item 3's S0;
-     *  goes at S4): two more columns of a side's rows, where the side is written. */
-    private static void written(Side s, SqlExpr valueRef, SqlExpr canon, @com.legend.base.Nullable OutputCol valueOut,
-            List<SqlSelect.Projection> ps, List<OutputCol> outs) {
-        if (s.message() == null) {
-            return;
-        }
-        OutputCol wOut = new OutputCol(W, SqlType.Scalar.VARCHAR, true);
-        ps.add(new SqlSelect.Projection(written(s.message(), valueRef, canon), W, wOut));
-        outs.add(wOut);
-        if (s.message().sorted()) {
-            OutputCol oOut = new OutputCol(O, valueOut != null ? valueOut.type() : SqlType.Scalar.VARCHAR, true);
-            ps.add(new SqlSelect.Projection(valueRef, O, oOut));
-            outs.add(oOut);
-        }
     }
 
     /** A wrap that must stay a layer (an aggregate value, a filtered or
@@ -3803,7 +2726,6 @@ public final class VerdictSql {
             ps.add(new SqlSelect.Projection(valueColumn(valueRef, s.isFloat()), V, vOut));
             outs.add(vOut);
         }
-        written(s, valueRef, canon, value.out(), ps, outs);
         return new SqlSelect(ps, false, new SqlSource.Subselect(read, "w", null),
                 SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), List.of(), null, null, List.of(),
                 null, null, List.copyOf(outs));
@@ -3820,38 +2742,12 @@ public final class VerdictSql {
     /** A grid's row canons; under a column's empty-is-NULL equivalence the
      * row canon is rebuilt from the cell canons ({@code __cell<i>} joined by
      * the cell separator, as the wrap builds {@code __rowcanon}). */
+
     private static SqlQuery gridRowCanons(GridSide grid, String named) {
-        return gridRowCanons(grid, named, null);
-    }
-
-    /** How a grid's row is WRITTEN in lite's sentence: its cells in brackets (a row of rows), or its cells alone (a
-     *  grid's cells flattened against a peer's); null, not written. */
-    private enum RowWriting { BRACKETED, FLAT }
-
-    /** A grid row's lite text: each cell from its canon ({@link #liteOfCanon}), comma-joined, bracketed or not. */
-    private static SqlExpr writtenRow(GridSide grid, RowWriting writing) {
-        List<SqlExpr> parts = new ArrayList<>();
-        if (writing == RowWriting.BRACKETED) {
-            parts.add(new SqlExpr.StringLit("["));
-        }
-        for (int i = 0; i < grid.width(); i++) {
-            if (i > 0) {
-                parts.add(new SqlExpr.StringLit(", "));
-            }
-            parts.add(liteOfCanon(gridCell(grid, i)));
-        }
-        if (writing == RowWriting.BRACKETED) {
-            parts.add(new SqlExpr.StringLit("]"));
-        }
-        return parts.size() == 1 ? parts.get(0) : new SqlExpr.Call(SqlFn.CONCAT, parts);
-    }
-
-    private static SqlQuery gridRowCanons(GridSide grid, String named, @com.legend.base.Nullable RowWriting writing) {
-        SqlExpr w = writing == null ? null : writtenRow(grid, writing);
         if (grid.emptyIsNull().stream().noneMatch(b -> b)) {
             return rowsOf(new SqlExpr.Cast(
                     SqlExpr.Column.of("w", grid.wrapped().outputs(), CanonicalRenderSql.ROW_CANON),
-                    SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), new SqlExpr.NullLit(), w, over(grid, named), null);
+                    SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), new SqlExpr.NullLit(), over(grid, named), null);
         }
         SqlExpr row = null;
         for (int i = 0; i < grid.width(); i++) {
@@ -3860,7 +2756,7 @@ public final class VerdictSql {
                     SqlExpr.Call.of(SqlFn.CONCAT, row,
                             new SqlExpr.StringLit(CanonicalRenderSql.TDS_CELL_SEP)), cell);
         }
-        return rowsOf(java.util.Objects.requireNonNull(row), new SqlExpr.NullLit(), w, over(grid, named), null);
+        return rowsOf(java.util.Objects.requireNonNull(row), new SqlExpr.NullLit(), over(grid, named), null);
     }
 
     /** One cell canon of a grid, the empty String canon ({@code ''}) read as
@@ -3874,108 +2770,6 @@ public final class VerdictSql {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("''")),
                 new SqlExpr.StringLit(CanonicalRenderSql.NULL_CELL))), cell, SqlExpr.Reason.JUDGE);
-    }
-
-    /** A grid side's loose CELL pool: one row per cell of every row, the
-     * per-cell canons the wrap projected ({@code __cell<i>}), stacked. */
-    private static SqlQuery gridCellCanons(GridSide grid, String named) {
-        return gridCellCanons(grid, named, false);
-    }
-
-    /** {@code lite}: each cell also written, its lite text from its canon. */
-    private static SqlQuery gridCellCanons(GridSide grid, String named, boolean lite) {
-        if (lite) {
-            // lite's sentence lists the pool's cells in the grid's own order, row by row (as the host reads them):
-            // the row-major cells, each also written from its canon
-            SqlSelect rowMajor = (SqlSelect) gridCellsRowMajor(grid, named);
-            OutputCol wOut = new OutputCol(W, SqlType.Scalar.VARCHAR, true);
-            List<SqlSelect.Projection> ps = new ArrayList<>(rowMajor.projections());
-            ps.add(new SqlSelect.Projection(liteOfCanon(rowMajor.projections().get(0).expr()), W, wOut));
-            return rowMajor.withProjections(ps);
-        }
-        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
-        List<SqlExpr> cells = new ArrayList<>();
-        for (int i = 0; i < grid.width(); i++) {
-            cells.add(new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
-                    CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE));
-        }
-        SqlQuery stacked = new SqlSelect(List.of(new SqlSelect.Projection(pick(cells), C, cOut)),
-                false, unpivot(grid, named), null,
-                List.of(), null, null, List.of(), null, null, List.of(cOut));
-        // the pool's arrival order is meaningless (a multiset by definition);
-        // __rn exists for the frame's count and the LIMIT 1 read only
-        SqlExpr cell = SqlExpr.Column.of("w", List.of(cOut), C);
-        return rowsOf(cell, new SqlExpr.NullLit(), lite ? liteOfCanon(cell) : null,
-                new SqlSource.Subselect(stacked, "w", null), null);
-    }
-
-    /** The peer's element canons as cells: the literal-channel canon,
-     * the golden's quoted {@code 'TDSNull'} cell spelled as the bare
-     * sentinel on the expected side. */
-    private static SqlQuery peerCells(PeerSide peer) {
-        return peerCells(peer, false);
-    }
-
-    /** {@code lite}: each cell also written, its lite text from its canon. */
-    private static SqlQuery peerCells(PeerSide peer, boolean lite) {
-        SqlExpr c = new SqlExpr.Cast(
-                SqlExpr.Column.of("w", peer.wrapped().outputs(), peer.canonColumn()),
-                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
-        if (peer.expected()) {
-            c = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                    SqlExpr.Call.of(SqlFn.EQUAL, c,
-                            new SqlExpr.StringLit("'" + CanonicalRenderSql.NULL_CELL_WIRE + "'")),
-                    new SqlExpr.StringLit(CanonicalRenderSql.NULL_CELL))), c, SqlExpr.Reason.JUDGE);
-        }
-        SqlExpr value = peer.wrapped() instanceof SqlSelect ps && !ps.projections().isEmpty()
-                ? doubleValue(ps.projections().get(0), "w", peer.isFloat()) : new SqlExpr.NullLit();
-        // pure has no null VALUE: the peer drops a NULL-value row like every
-        // other side (an empty [] peer is one NULL row → zero cells)
-        SqlExpr where = peer.wrapped() instanceof SqlSelect vs && !vs.projections().isEmpty()
-                && vs.projections().get(0).alias() != null
-                ? SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
-                        SqlExpr.Column.of("w", vs.projections().get(0).alias(),
-                                SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED))
-                : null;
-        return rowsOf(c, value, lite ? liteOfCanon(c) : null, new SqlSource.Subselect(peer.wrapped(), "w", null),
-                where);
-    }
-
-    /** The peer's cells chunked into rows of {@code width}: cells in
-     * arrival order, grouped by {@code (rn - 1) - ((rn - 1) MOD width)}
-     * (integer arithmetic on every dialect), each group joined by the
-     * cell separator in cell order — the same framing
-     * {@code TdsCompare.peerRowCanons} writes in Java. Reads the
-     * {@code __peer} CTE ({@link #peerCells}). */
-    private static SqlQuery peerRowCanons(PeerSide peer, int width) {
-        return peerRowCanons(peer, width, false);
-    }
-
-    /** {@code lite}: each row also written, its cells' lite texts comma-joined (a grid's cells flattened). */
-    private static SqlQuery peerRowCanons(PeerSide peer, int width, boolean lite) {
-        SqlExpr rn = col("__peer", RN);
-        SqlExpr rn0 = SqlExpr.Call.of(SqlFn.MINUS, rn, new SqlExpr.IntLit(1));
-        SqlExpr group = SqlExpr.Call.of(SqlFn.MINUS, rn0,
-                SqlExpr.Call.of(SqlFn.MOD, rn0, new SqlExpr.IntLit(width)));
-        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
-        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        SqlExpr joined = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                List.of(col("__peer", C), new SqlExpr.StringLit(CanonicalRenderSql.TDS_CELL_SEP)),
-                false, List.of(new SqlSelect.SortKey(rn, true, null, null)));
-        SqlExpr first = new SqlAgg.Reducer(SqlAgg.Fn.MIN, List.of(rn), false, List.of());
-        List<SqlSelect.Projection> ps = new ArrayList<>(List.of(
-                new SqlSelect.Projection(joined, C, cOut),
-                new SqlSelect.Projection(first, RN, rnOut)));
-        List<OutputCol> outs = new ArrayList<>(List.of(cOut, rnOut));
-        if (lite) {
-            OutputCol wOut = new OutputCol(W, SqlType.Scalar.VARCHAR, true);
-            ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                    List.of(liteOfCanon(col("__peer", C)), new SqlExpr.StringLit(", ")), false,
-                    List.of(new SqlSelect.SortKey(rn, true, null, null))), W, wOut));
-            outs.add(wOut);
-        }
-        return new SqlSelect(ps, false, cte("__peer"), null, List.of(group), null, null,
-                List.of(), null, null, outs);
     }
 
     /** {@code SELECT <canon> AS __c, row_number() OVER () AS __rn, <value> AS __v
@@ -4001,21 +2795,6 @@ public final class VerdictSql {
         return new SqlSource.Table(named, "w", grid.wrapped().outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
     }
 
-    /** {@link #rowsOf} with each row also WRITTEN ({@code w}, the message's text of it), or none. */
-    private static SqlQuery rowsOf(SqlExpr canon, SqlExpr value, @com.legend.base.Nullable SqlExpr w, SqlSource source,
-            @com.legend.base.Nullable SqlExpr where) {
-        SqlSelect rows = (SqlSelect) rowsOf(canon, value, source, where);
-        if (w == null) {
-            return rows;
-        }
-        OutputCol wOut = new OutputCol(W, SqlType.Scalar.VARCHAR, true);
-        List<SqlSelect.Projection> ps = new ArrayList<>(rows.projections());
-        ps.add(new SqlSelect.Projection(w, W, wOut));
-        List<OutputCol> outs = new ArrayList<>(rows.outputs());
-        outs.add(wOut);
-        return new SqlSelect(ps, false, source, where, List.of(), null, null, List.of(), null, null, outs);
-    }
-
     private static SqlQuery rowsOf(SqlExpr canon, SqlExpr value, SqlSource source,
             @com.legend.base.Nullable SqlExpr where) {
         SqlExpr rn = rowNumber(source.outputs());
@@ -4039,41 +2818,6 @@ public final class VerdictSql {
                 ? List.of(new SqlSelect.SortKey(SqlExpr.Column.of("w", outs, SideOrdinal.ORD), true, null, null))
                 : List.of();
         return new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), by, null);
-    }
-
-    /** The DOUBLE value of a projection when its type fact says DOUBLE,
-     * else NULL (only Float pairs take the leniency). */
-    private static SqlExpr doubleValue(SqlSelect.Projection p, String table, boolean isFloat) {
-        return isFloat && p.alias() != null
-                ? new SqlExpr.Cast(SqlExpr.Column.of(table, p.alias(), SqlType.Scalar.DOUBLE,
-                        true, OutputCol.Origin.DERIVED), SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE)
-                : new SqlExpr.NullLit();
-    }
-
-    /** A grid's cells ROW-MAJOR with their Float values: one row per cell,
-     * {@code __rn = (row - 1) * width + i + 1} — the positional sequence
-     * the leniency walks against the peer's cells. */
-    private static SqlQuery gridCellsRowMajor(GridSide grid, String named) {
-        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
-        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        OutputCol vOut = new OutputCol(V, SqlType.Scalar.DOUBLE, true);
-        List<SqlSelect.Projection> values = grid.wrapped() instanceof SqlSelect ws
-                ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size()))
-                : List.of();
-        List<SqlExpr> cells = new ArrayList<>();
-        List<SqlExpr> vs = new ArrayList<>();
-        for (int i = 0; i < grid.width(); i++) {
-            cells.add(gridCell(grid, i));
-            boolean isFloat = i < grid.floatColumns().size() && grid.floatColumns().get(i);
-            vs.add(i < values.size() ? doubleValue(values.get(i), "w", isFloat)
-                    : new SqlExpr.NullLit());
-        }
-        return new SqlSelect(List.of(
-                        new SqlSelect.Projection(pick(cells), C, cOut),
-                        new SqlSelect.Projection(position(grid.width()), RN, rnOut),
-                        new SqlSelect.Projection(pick(vs), V, vOut)),
-                false, unpivot(grid, named), null,
-                List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, vOut));
     }
 
     // ── THE UNPIVOT (2026-09-23): a grid as one row per cell, reading the grid

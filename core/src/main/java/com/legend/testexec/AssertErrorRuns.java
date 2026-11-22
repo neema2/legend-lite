@@ -72,39 +72,17 @@ final class AssertErrorRuns {
     private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
             @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
             @com.legend.base.Nullable Throwable caughtCause, BodyRun run) {
-        // f raised nothing: upstream's matcher reads UNRAISED, so an assertError that expects it passes (item 3's S8,
-        // Q-B; a position beside it is refused at planning, AssertErrorNative), any other fails
-        if (caughtMessage == null && !HostJudgment.AssertError.expectsUnraised(expected)) {
-            throw new com.legend.error.AssertFailed(AssertRecords.noError(expected));
-        }
-        // B7 (RaisedErrors): messages arrive ALREADY clean — the
-        // Executor funnel unwraps the transport envelope from
-        // platform-raised text (provenance-sentinel scoped); a native
-        // error keeps its class and envelope, and a mismatch against
-        // pure's expectation is then an HONEST failure, never a strip
-        // coincidence. The old broad prefix regex is deleted.
-        if (caughtMessage != null && !caughtMessage.equals(expected)) {
-            throw new com.legend.error.AssertFailed(AssertRecords.errorDiffers(expected, caughtMessage));
-        }
-        // POSITION adjudication (leg 2, assertError.pure:25-26 — message
-        // first, then line, then column, each only when expected): the
-        // raise emission threads the raising call's source span through
-        // the provenance envelope (PureSql.raise -> RaisedErrors
-        // .Positioned). Interpreted pure's matcher receives the raising
-        // expression's source info the same way (AssertError.java:68).
-        // An expectation over an error WITHOUT a captured span is LOUD —
-        // interpreted si.line->toOne() on empty raises too, and a quiet
-        // pass here would launder a native error's missing provenance.
-        if (expectedLine != null || expectedColumn != null) {
-            if (!(caughtCause instanceof com.legend.exec.RaisedErrors.Positioned p)) {
-                throw new com.legend.error.AssertFailed(com.legend.error.AssertKind.ERROR_NO_POSITION.record());
-            }
-            if (expectedLine != null && p.line() != expectedLine) {
-                throw new com.legend.error.AssertFailed(AssertRecords.lineDiffers(expectedLine, p.line()));
-            }
-            if (expectedColumn != null && p.column() != expectedColumn) {
-                throw new com.legend.error.AssertFailed(AssertRecords.columnDiffers(expectedColumn, p.column()));
-            }
+        // B7 (RaisedErrors): messages arrive ALREADY clean -- the Executor funnel unwraps the transport envelope from
+        // platform-raised text (provenance-sentinel scoped); a native error keeps its class and envelope, and a mismatch
+        // against pure's expectation is then an HONEST failure, never a strip coincidence. The raise emission threads
+        // the raising call's source span through the provenance envelope (PureSql.raise -> RaisedErrors.Positioned), as
+        // interpreted pure's matcher receives the raising expression's source info (AssertError.java:68).
+        com.legend.error.ErrorRecord failure = caughtCause instanceof com.legend.exec.RaisedErrors.Positioned p
+                ? AssertRecords.errorFailure(expected, expectedLine, expectedColumn, caughtMessage, (long) p.line(),
+                        (long) p.column())
+                : AssertRecords.errorFailure(expected, expectedLine, expectedColumn, caughtMessage, null, null);
+        if (failure != null) {
+            throw new com.legend.error.AssertFailed(failure);
         }
         return new TypedSide.Scalar(Boolean.TRUE, "Boolean");
     }

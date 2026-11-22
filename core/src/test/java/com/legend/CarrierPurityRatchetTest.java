@@ -217,7 +217,9 @@ class   CarrierPurityRatchetTest {
             // 171 -> 170 (track L's L2, 2026-10-29): the spelling carrier's sites went with it; 170 -> 173 (the L1
             // audit's fixes, D53): the present positions of a literal list with an element that may be empty
             // (TaggedLists.presentPositions) and membership of a tagged value (containsElement).
-            "SqlFn\\.LIST_", 173,
+            // 173 -> 172 (2026-11-22, item 3's S4 step 4, a shrink under the user's standing word for cleanups: the
+            // database judge's sentence rows deleted)
+            "SqlFn\\.LIST_", 172,
             // 12→13 (disagree-9 burn 2026-08-31): staticTemporalText
             // SEE-THROUGH pattern-MATCHES the existing literal-list
             // egress (UNNEST/LIST_FILTER wrappers) to restore written

@@ -7,7 +7,7 @@ import com.legend.sql.SqlExpr;
 
 /**
  * A DATETIME'S TEXT IN A MESSAGE, A TWO-FORM HOOK ({@code PlanStyle.twoForm}, census B9, the orchestrator's ruling of
- * 2026-11-17): the product's form is lite's canonical DateTime text, {@code DATETIME_TO_TEXT} (ISO 8601 in UTC, six
+ * 2026-11-17): the product's form is lite's canonical DateTime text, {@code DATETIME_TO_TEXT} (ISO 8601 in UTC, nine (S312, amended 2026-11-22)
  * fraction digits and {@code Z}: measured equal to lite's writers' text at microsecond precision,
  * {@code result.CellText.productTime}; {@link Styled#LITE_DATE_TIMES}); the compatibility edge's is legend-pure's
  * print form, its override alone. A signature only.

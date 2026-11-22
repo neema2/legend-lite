@@ -2135,6 +2135,37 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  in its call arms and never lets one reach here). */
     protected abstract String formatText(SqlExpr.FormatLit fl);
 
+    /** A Java-style date pattern (DateTimeFormatter's, Joda's): each part as {@code letters} spells it, a nanosecond
+     *  part's micro letters then {@code 000}, and each run of text quoted ONCE, a quote inside it doubled -- adjacent
+     *  texts merged, since two quoted runs that touch read as one escaped quote (the audit of 2026-11-22: a nanosecond's
+     *  quoted {@code 000} beside the zone's {@code 'Z'} printed a stray apostrophe). */
+    protected static String javaPattern(List<com.legend.sql.DateFmt> parts,
+            java.util.function.Function<com.legend.sql.DateFmt.Part, String> letters) {
+        StringBuilder out = new StringBuilder();
+        StringBuilder text = new StringBuilder();
+        for (com.legend.sql.DateFmt p : parts) {
+            if (p instanceof com.legend.sql.DateFmt.Text t) {
+                text.append(t.s());
+                continue;
+            }
+            com.legend.sql.DateFmt.Part part = (com.legend.sql.DateFmt.Part) p;
+            quoted(out, text);
+            out.append(letters.apply(part));
+            if (part == com.legend.sql.DateFmt.Part.SUBSEC_NANO) {
+                text.append("000");
+            }
+        }
+        quoted(out, text);
+        return out.toString();
+    }
+
+    private static void quoted(StringBuilder out, StringBuilder text) {
+        if (!text.isEmpty()) {
+            out.append('\'').append(text.toString().replace("'", "''")).append('\'');
+            text.setLength(0);
+        }
+    }
+
     /** A date format in strftime codes (DuckDB's; SQLite's and MariaDB's strftime helpers read them too), for a
      *  dialect's {@link #formatText}. EXHAUSTIVE: a new part is a compile error. */
     protected final String strftimeText(SqlExpr.FormatLit fl) {

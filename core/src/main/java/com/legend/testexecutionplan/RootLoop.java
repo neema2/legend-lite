@@ -30,16 +30,10 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      *  row names none since A4 of the compatibility program, stage A ratified by the user 2026-11-19). */
     public static final int NO_APPEAL = 0;
 
-    /** The verdict row's columns, by position, as the verdict statement selects them ({@code VerdictSql.schema}:
-     *  verdict, expected, actual, unjudged, lenient, holds, message; its order pinned by {@code VerdictRowOrderTest}):
-     *  the run reads a row by these, never by the compiler's schema (slice 5, 2026-11-09). */
+    /** A typed verdict row's verdict, by position: its first column, as every typed member selects it (pinned by
+     *  {@code VerdictRowOrderTest}); the run reads a row by position, never by the compiler's schema (slice 5,
+     *  2026-11-09; item 3's S4: the seven-column row and its sentence gone). */
     public static final int VERDICT_COLUMN = 0;
-    public static final int EXPECTED_COLUMN = 1;
-    public static final int ACTUAL_COLUMN = 2;
-    public static final int UNJUDGED_COLUMN = 3;
-    public static final int LENIENT_COLUMN = 4;
-    public static final int HOLDS_COLUMN = 5;
-    public static final int MESSAGE_COLUMN = 6;
 
     public RootLoop {
         roots = List.copyOf(roots);
@@ -114,29 +108,22 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      * engine-text arm's reason decided before its texts were compared. The host judge is the only judge in
      * compatibility, so no database row carries any of them.)
      */
-    public record Row(String name, int verdict, @Nullable Report report, @Nullable Message message,
+    public record Row(String name, int verdict, Report report, @Nullable Message message,
             @Nullable Failure unplanned) implements Step {
         public Row {
             Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(report, "report");
             if (verdict < 0) {
                 throw new IllegalArgumentException(name + ": a row's verdict is an id of the plan's: " + verdict);
             }
             if (message != null && unplanned != null) {
                 throw new IllegalArgumentException(name + ": a row's message that planned and one that did not");
             }
-            if ((message != null || unplanned != null) && report == null) {
-                throw new IllegalArgumentException(name + ": a row's own message is a typed row's");
-            }
         }
 
         /** A typed row whose failure is its report's, or the root's message. */
-        public Row(String name, int verdict, @Nullable Report report) {
+        public Row(String name, int verdict, Report report) {
             this(name, verdict, report, null, null);
-        }
-
-        /** A row of the verdict schema's seven columns, its failure the row's own message (until S4 converts it). */
-        public Row(String name, int verdict) {
-            this(name, verdict, null, null, null);
         }
     }
 
@@ -218,7 +205,18 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
         /** {@link #SAME_ELEMENTS} over tagged values, as {@link #EQUALS_TAGGED}. */
         SAME_ELEMENTS_TAGGED,
         /** {@link #IS_NOT} over tagged values, as {@link #EQUALS_TAGGED}. */
-        IS_NOT_TAGGED;
+        IS_NOT_TAGGED,
+        /** {@link #INSTANCE_OF} over a tagged value (a Number the database decides among candidates): its value one
+         *  {@code {k, v0, ...}} struct, as {@link #EQUALS_TAGGED}'s (item 3's S4, the last families). */
+        INSTANCE_OF_TAGGED,
+        /** {@code assertJsonStringsEqual}: {@code [verdict, golden text, document text]}, the document's text a list of
+         *  its one value (item 3's S4, the last families). */
+        JSON,
+        /** {@link #JSON} where the document's root has no defined order: its root's elements compared as a multiset. */
+        JSON_UNORDERED_ROOT,
+        /** {@link #EMPTY} over a graph side: {@code [verdict, documents]}, each document's root objects the side's values,
+         *  as the host reads a graph side (item 3's S4, the last families). */
+        EMPTY_GRAPH;
 
         /** The equality family: in any order or in order, over tagged values or typed ones. */
         public static Family equality(boolean multiset, boolean tagged) {

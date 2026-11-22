@@ -1914,31 +1914,26 @@ public class Databricks extends AnsiSqlRenderer {
 
     @Override
     protected String formatText(SqlExpr.FormatLit fl) {
-        StringBuilder out = new StringBuilder();
-        for (com.legend.sql.DateFmt p : fl.parts()) {
-            out.append(switch (p) {
-                case com.legend.sql.DateFmt.Text t -> t.s().isEmpty() ? "" : "'" + t.s().replace("'", "''") + "'";
-                case com.legend.sql.DateFmt.Part part -> switch (part) {
-                    case YEAR4 -> "yyyy";
-                    case MONTH2 -> "MM";
-                    case DAY2 -> "dd";
-                    case HOUR2 -> "HH";
-                    case MIN2 -> "mm";
-                    case SEC2 -> "ss";
-                    case SUBSEC_MICRO -> "SSSSSS";
-                    case SUBSEC_NANO -> "SSSSSS'000'";
-                    // DuckDB's %g: milliseconds, three digits
-                    case SUBSEC_MIN -> "SSS";
-                    case MONTH_ABBREV -> "MMM";
-                    case MONTH_NAME -> "MMMM";
-                    case WEEKDAY_NAME -> "EEEE";
-                    case HOUR12 -> "hh";
-                    case HOUR12_NOPAD -> "h";
-                    case AMPM -> "a";
-                };
-            });
-        }
-        return out.toString();
+        // a Java-style pattern, its texts quoted once per run (AnsiSqlRenderer.javaPattern: the audit of 2026-11-22, a
+        // nanosecond's "000" quoted beside a 'Z' read as one escaped quote)
+        return javaPattern(fl.parts(), part -> switch (part) {
+            case YEAR4 -> "yyyy";
+            case MONTH2 -> "MM";
+            case DAY2 -> "dd";
+            case HOUR2 -> "HH";
+            case MIN2 -> "mm";
+            case SEC2 -> "ss";
+            case SUBSEC_MICRO -> "SSSSSS";
+            case SUBSEC_NANO -> "SSSSSS";
+            // DuckDB's %g: milliseconds, three digits
+            case SUBSEC_MIN -> "SSS";
+            case MONTH_ABBREV -> "MMM";
+            case MONTH_NAME -> "MMMM";
+            case WEEKDAY_NAME -> "EEEE";
+            case HOUR12 -> "hh";
+            case HOUR12_NOPAD -> "h";
+            case AMPM -> "a";
+        });
     }
 
     // ==================================================================

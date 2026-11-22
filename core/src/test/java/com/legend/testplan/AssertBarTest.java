@@ -777,17 +777,33 @@ class AssertBarTest {
         want.put("{|assertEquals([1, 'a'], [1, 'a']->cast(@Any))}", "pass");
         want.put("{|assertEquals([1, 'a'], [1, 'b']->cast(@Any))}", "AssertFailed");
         want.put("{|assertEquals([1, 'a'], [1.0, 'a']->cast(@Any))}", "AssertFailed");
+        // a variant's scalar (the audit of 2026-11-22: H2's JSON read as a number by its text; SQLite's tagged record)
+        want.put("{|assertEquals('1'->fromJson(), '1'->fromJson())}", "pass");
+        want.put("{|assertEquals('1'->fromJson(), '2'->fromJson())}", "AssertFailed");
+        want.put("{|assertEquals(1->toVariant(), 1->toVariant())}", "pass");
+        want.put("{|assertEquals(1.0, (0.5 + 0.5)->cast(@Any))}", "pass");
+        want.put("{|assertEquals(true, 'true'->fromJson()->to(@Boolean))}", "pass");
+        // a graph's size and emptiness (its root objects): typed, its failures the host's records
+        want.put("{|assertSize(execute(|p::P.all(), p::M, p::RT.runtimeValue, []).values, 1)}", "pass");
+        want.put("{|assertSize(execute(|p::P.all(), p::M, p::RT.runtimeValue, []).values, 2)}", "AssertFailed");
+        want.put("{|assertNotEmpty(execute(|p::P.all(), p::M, p::RT.runtimeValue, []).values)}", "pass");
+        want.put("{|assertEmpty(execute(|p::P.all()->filter(x | $x.id > 5), p::M, p::RT.runtimeValue, []).values)}",
+                "pass");
+        want.put("{|assertEmpty(execute(|p::P.all(), p::M, p::RT.runtimeValue, []).values)}", "AssertFailed");
+        // eq over a Map is identity, never its values (the audit's M6): refused by name, as the host refuses it
+        want.put("{|assertEq(newMap([pair('a', 1)]), newMap([pair('a', 1)]))}",
+                "NotImplementedException|H2/HOST=DataError");
         // nested lists and maps
-        want.put("{|assertEquals(list([1, 2]), list([1, 2]))}", "pass|H2=|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertEquals(list([1, 2]), list([1, 2]))}", "pass|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|H2=DataError|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
         want.put("{|assertEquals(list([1, 2]), list([2, 1]))}",
-                "AssertFailed|H2=|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+                "AssertFailed|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|H2=DataError|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
         want.put("{|assertEquals(newMap([pair('a', 1), pair('b', 2)]), newMap([pair('b', 2), pair('a', 1)]))}",
-                "pass|H2=|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+                "pass|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|H2=DataError|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
         want.put("{|assertEquals(newMap([pair('a', 1)]), newMap([pair('a', 2)]))}",
-                "AssertFailed|H2=|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+                "AssertFailed|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|H2=DataError|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
         // a list literal's nanoseconds (the instances audit's H-A) and a tenth digit refused when planned
         want.put("{|assertEquals([%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00], [%2020-01-01T10:00:00.123456789,"
-                + " %2020-01-01T10:00:00.000])}", "pass|H2=|SQLite=DialectCapability");
+                + " %2020-01-01T10:00:00.000])}", "pass|H2=DialectCapability|SQLite=DialectCapability");
         want.put("{|assertContains([%2020-01-01T10:00:00.123456789], %2020-01-01T10:00:00.123456789)}", "pass");
         want.put("{|assertEquals([%2020-01-01T10:00:00.0000000001, %2020-01-01T10:00:00],"
                 + " [%2020-01-01T10:00:00.0000000002, %2020-01-01T10:00:00])}", "DialectCapability");

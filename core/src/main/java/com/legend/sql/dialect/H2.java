@@ -1384,7 +1384,11 @@ public class H2 extends AnsiSqlRenderer {
         // with them). H2 has no JSON_VALUE. A number or a boolean is its text; a JSON null is SQL's NULL (its text the
         // word null, where a JSON string "null" is quoted); a decimal target takes the text as a scalar one does (the
         // lane round 33's stress finding, 2026-11-10)
-        if (navigation(c.value()) && (c.target() instanceof com.legend.sql.SqlType.Scalar
+        // (a value typed JSON -- a variant, an Any's carrier -- read as a number, a decimal or a Boolean the same way:
+        // H2 refuses the direct cast, the audit of 2026-11-22; its VARCHAR cast stays the JSON text, the variant's)
+        boolean jsonValue = c.value().type() instanceof com.legend.sql.TypeFact.Typed jt
+                && jt.type() == com.legend.sql.SqlType.Scalar.JSON && c.target() != com.legend.sql.SqlType.Scalar.VARCHAR;
+        if ((navigation(c.value()) || jsonValue) && (c.target() instanceof com.legend.sql.SqlType.Scalar
                 || c.target() instanceof com.legend.sql.SqlType.Decimal)) {
             writer.append("CAST(CASE WHEN CAST(").expr(c.value(), 0).append(" AS VARCHAR) LIKE '\"%' THEN STRINGDECODE(")
                     .append("SUBSTRING(CAST(").expr(c.value(), 0).append(" AS VARCHAR), 2, LENGTH(CAST(")

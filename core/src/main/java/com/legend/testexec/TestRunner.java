@@ -248,7 +248,9 @@ public final class TestRunner {
             if (hostStep != null && verdict.wrapper() != null) {
                 // an assertError's verdict the database judges (S135): its row is its statement's, judged alone at its
                 // step -- the host's facts name the assert it reports under
-                com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(), java.util.Objects.requireNonNull(row,
+                com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(),
+                        (com.legend.testexecutionplan.HostJudgment.AssertError) com.legend.testexecutionplan.HostJudgment
+                                .core(hostStep.judgment()), java.util.Objects.requireNonNull(row,
                         "an assertError's verdict statement answered no row"), listener);
                 lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
                 return;
@@ -275,13 +277,8 @@ public final class TestRunner {
         }
 
         /** The database judge's verdict arm over one root's row: a typed row by its report (item 3's S4). */
-        private void databaseVerdict(String name, List<Object> row,
-                com.legend.testexecutionplan.RootLoop.@Nullable Report report) {
-            if (report != null) {
-                com.legend.testexec.DatabaseVerdicts.typedVerdictOf(name, row, report);
-            } else {
-                com.legend.testexec.DatabaseVerdicts.verdictOf(name, row);
-            }
+        private void databaseVerdict(String name, List<Object> row, com.legend.testexecutionplan.RootLoop.Report report) {
+            com.legend.testexec.DatabaseVerdicts.typedVerdictOf(name, row, report);
         }
 
         /** A fused statement's word, counted; a rejected one's segment judged at once on the rejection, handed to the

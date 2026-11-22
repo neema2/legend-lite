@@ -61,14 +61,6 @@ public final class VerdictBatch {
     // deleted with the ruled comparison, A4 of the compatibility program, stage A ratified by the user 2026-11-19: its
     // one caller, the rendered-text rule's rows fallback, left the database judge with legend-pure's comparison rules)
 
-    /** The lowering's self-contained form of a verdict row (M8b): the assert's polarity and its failure message
-     *  composed in the statement, so the judge reads holds and message and the plan carries nothing about the
-     *  assert. */
-    @FunctionalInterface
-    public interface SelfContained {
-        SqlQuery wrap(SqlQuery row, String name, boolean wantEqual);
-    }
-
     /** The plan side's PLANNER for a verdict statement (the planner-driver seam program's S2e, 2026-10-30; until then
      *  its runner): {@code statement} as a typed-rows plan of the verdict schema ({@code fused}: the batch schema, an
      *  index column first), rendered for the body's session. The batch runs the plans itself, as a verdict group
@@ -130,7 +122,7 @@ public final class VerdictBatch {
     /** A deferred verdict row: its statement, its columns' schema (the seven-column verdict schema, or a typed
      *  member's own), and a typed member's report (item 3's S4; null for a seven-column row). */
     private record Pending(int ix, String name, SqlQuery query, ExecutionPlan.Target on,
-            com.legend.compiler.element.type.Type.RelationType schema, RootLoop.@com.legend.base.Nullable Report report,
+            com.legend.compiler.element.type.Type.RelationType schema, RootLoop.Report report,
             @com.legend.base.Nullable SqlQuery message, ExecutionPlan.@com.legend.base.Nullable Target messageOn,
             com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned)
             implements Step {
@@ -179,7 +171,6 @@ public final class VerdictBatch {
     private final Fusion fusion;
     /** The body's verdict ids: each verdict this batch plans takes the next. */
     private final VerdictIds ids;
-    private final SelfContained selfContained;
     private final Runner runner;
     private final List<Root> roots = new ArrayList<>();
     /** The sentence frame the rows deferred now are planned under (lite's own rules): an unrolled quantifier's element
@@ -250,15 +241,9 @@ public final class VerdictBatch {
     private final Map<String, SqlQuery> frames = new LinkedHashMap<>();
 
 
-    /** The batch's words of a failure (census J29): an unrolled element named as they name it. */
-    private final com.legend.lowering.VerdictWords words;
-
-    public VerdictBatch(Fusion fusion, SelfContained selfContained, Runner runner,
-            VerdictIds ids, com.legend.lowering.VerdictWords words) {
+    public VerdictBatch(Fusion fusion, Runner runner, VerdictIds ids) {
         this.ids = ids;
-        this.words = words;
         this.fusion = fusion;
-        this.selfContained = selfContained;
         this.runner = runner;
     }
 
@@ -333,43 +318,6 @@ public final class VerdictBatch {
                 + " assert: " + r.listenerName + "'s elements each have a message that reads or raises");
     }
 
-    /** {@code query}, the open root's verdict row. (Its overload with an appeal and a decline, the edge's engine-text
-     *  rows', went with A4 of the compatibility program, stage A ratified by the user 2026-11-19.) */
-    public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on) {
-        defer(name, wantEqual, query, on, false);
-    }
-
-    /** {@link #defer}; {@code callersMessage}: the row's message is its caller's own literal (the env's failure
-     *  message), which an unrolled element raises whole, unframed, as upstream raises it and as the host's records do
-     *  ({@code AssertRecords.atIndex}; the S4 step 3 audit's HIGH, 2026-11-22: until then framed "at index n" here,
-     *  where the host wrote the message alone). */
-    public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on,
-            boolean callersMessage) {
-        Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
-        int ix = 0;
-        for (Root x : roots) {
-            for (Step s : x.steps) {
-                if (s instanceof Pending) {
-                    ix++;
-                }
-            }
-        }
-        // the row self-contained (M8b): its polarity and its message in the statement, nothing of the assert kept
-        SqlQuery row = selfContained.wrap(scope.isNot() ? com.legend.lowering.VerdictSql.withIsNotHint(query) : query, name,
-                wantEqual);
-        if (scope.elementIndex() >= 0 && !callersMessage) {
-            // an unrolled quantifier's element, named as the words name it (lite's: by its zero-based index)
-            row = com.legend.lowering.VerdictSql.atIndex(row, scope.elementIndex(), words);
-        }
-        if (scope.pending()) {
-            // a seven-column row reads no element message (its words are in its statement): not planned
-            scope = scope.taken();
-            throw new com.legend.error.NotImplementedException(name + ": an unrolled element's caller's message that"
-                    + " reads or raises, over a row S4 has not typed: not planned");
-        }
-        r.steps.add(new Pending(ix, name, row, on, com.legend.lowering.VerdictSql.schema(), null, null, null, null));
-    }
-
     /**
      * A TYPED verdict member (item 3's S4, 2026-11-21, the user's Q-A): {@code row}, one row of the columns
      * {@code schema} declares -- its verdict, under the assert's polarity, then the typed values its {@code report}'s
@@ -435,9 +383,9 @@ public final class VerdictBatch {
 
     /** {@link #sole}'s answer: a verdict row the database computes, or a failure decided at planning. */
     public sealed interface Sole permits Sole.Row, Sole.Decided {
-        /** The verdict row ({@code VerdictSql.schema}'s columns) and the session it reads. */
+        /** The typed verdict row, its schema and report, and the session it reads. */
         record Row(SqlQuery query, ExecutionPlan.Target on, com.legend.compiler.element.type.Type.RelationType schema,
-                RootLoop.@com.legend.base.Nullable Report report) implements Sole {
+                RootLoop.Report report) implements Sole {
         }
 
         /** The assert's failure, decided at planning. */
@@ -538,7 +486,7 @@ public final class VerdictBatch {
             if (r.message == null) {
                 continue;
             }
-            Ahead a = planAhead(r.listenerName, r.message, com.legend.lowering.VerdictSql.schema(),
+            Ahead a = planAhead(r.listenerName, r.message, com.legend.lowering.VerdictSql.messageSchema(),
                     java.util.Objects.requireNonNull(r.messageOn));
             if (a.refused() != null) {
                 throw a.refused();
@@ -617,7 +565,7 @@ public final class VerdictBatch {
         for (Root r : batch) {
             for (Step st : r.steps) {
                 if (st instanceof Pending p && p.message() != null) {
-                    Ahead a = planAhead(p.name(), p.message(), com.legend.lowering.VerdictSql.schema(),
+                    Ahead a = planAhead(p.name(), p.message(), com.legend.lowering.VerdictSql.messageSchema(),
                             java.util.Objects.requireNonNull(p.messageOn()));
                     if (a.refused() != null) {
                         throw a.refused();

@@ -37,6 +37,10 @@ import org.junit.jupiter.api.Test;
  */
 class TestPlanJsonRoundTripTest {
 
+    /** A typed row's report (item 3's S4: every database row is typed). */
+    private static final RootLoop.Report CONDITION = new RootLoop.Report(RootLoop.Family.CONDITION, true, null, null,
+            null, -1);
+
     private static final ExecutionPlan.Multiplicity ONE = new ExecutionPlan.Multiplicity(1, 1);
     private static final Failure FAILURE = new Failure(Failure.Kind.NOT_IMPLEMENTED, "refused", null, null, null);
 
@@ -120,12 +124,12 @@ class TestPlanJsonRoundTripTest {
         RootLoop roots = new RootLoop(List.of(
                 // (a refused row and a refused message went 2026-11-21, stage B's BE: a dialect's refusal refuses the
                 // body at planning, D)
-                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1), new RootLoop.Row("second", 2)),
+                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, CONDITION), new RootLoop.Row("second", 2, CONDITION)),
                         new RootLoop.Message(constant(), true)),
                 new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
                         new RootLoop.Message(constant(), false)),
                 // a caller's message whose computing raises: its error rides the root, no message (item 3, 2026-11-21)
-                new RootLoop.Root("assertSize", List.of(new RootLoop.Row("third", 3)), null, FILE_FAILURE)),
+                new RootLoop.Root("assertSize", List.of(new RootLoop.Row("third", 3, CONDITION)), null, FILE_FAILURE)),
                 Map.of("fragment", "reason"));
         TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots, null);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());

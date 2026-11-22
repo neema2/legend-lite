@@ -142,7 +142,13 @@ public interface PlanStyle {
         String seconds = hms.length > 2 ? hms[2] : "00";
         int dot = seconds.indexOf('.');
         String whole = dot < 0 ? seconds : seconds.substring(0, dot);
-        String fraction = ((dot < 0 ? "" : seconds.substring(dot + 1)) + "000000000").substring(0, 9);
+        String written9 = dot < 0 ? "" : seconds.substring(dot + 1);
+        if (written9.length() > 9 && !written9.substring(9).matches("0*")) {
+            // a digit past the ninth is never cut (the audit of 2026-11-22): refused, as the literal's lowering refuses it
+            throw new com.legend.error.NotImplementedException("a date-time's text holds nine fraction digits: "
+                    + written + " has a nonzero digit past the ninth");
+        }
+        String fraction = (written9 + "000000000").substring(0, 9);
         return written.substring(0, t) + "T" + hms[0] + ":" + (hms.length > 1 ? hms[1] : "00") + ":" + whole + "."
                 + fraction + "Z";
     }

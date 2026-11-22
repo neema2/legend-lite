@@ -31,17 +31,13 @@ import java.util.Set;
  */
 public final class RootLoops {
 
-    /** The verdict arm's reading of one row ({@code verdict, expected,
-     * actual, unjudged, lenient, holds, message}): returns where the row
-     * holds, raises the row's own message otherwise (the test-is-the-product
-     * plan's M8b: the polarity and the message are the statement's). A plain
-     * function the run hands {@link RootLoops} (the plan-as-data design's step
-     * 5, 2026-11-08: the batch no longer holds it; here since slice 5, 2026-11-09). */
+    /** The verdict arm's reading of one TYPED row (item 3's S4: its verdict and the values its report's family
+     *  reads): returns where the row holds, raises the record its report names otherwise. A plain function the run
+     *  hands {@link RootLoops} (the plan-as-data design's step 5, 2026-11-08: the batch no longer holds it; here since
+     *  slice 5, 2026-11-09). */
     @FunctionalInterface
     public interface Judge {
-        /** {@code row} judged: a typed row by its {@code report} (item 3's S4), else the seven-column row by its own
-         *  message. */
-        void judge(String name, List<Object> row, RootLoop.@com.legend.base.Nullable Report report);
+        void judge(String name, List<Object> row, RootLoop.Report report);
     }
 
     // (RowAppeal, a verdict row's APPEAL -- block-compiler rung 2a, consulted when the row failed: deleted with the
@@ -267,8 +263,7 @@ public final class RootLoops {
                 judge.judge(p.name(), row, p.report());
             } catch (com.legend.error.AssertFailed failed) {
                 RootLoop.Report report = p.report();
-                if (failed.unjudgedReason() != null || report == null
-                        || (p.unplanned() == null && (p.message() == null || !messages))) {
+                if (failed.unjudgedReason() != null || (p.unplanned() == null && (p.message() == null || !messages))) {
                     throw failed;
                 }
                 // an unrolled element's own caller's message (the user's decision 4, item 3's S4 step 3), as the host's
@@ -313,7 +308,7 @@ public final class RootLoops {
             // the caller's own message, a value the program computed: the catalog's MESSAGE record, as the host's
             // HostJudgments.messagedOf (item 3's S4 step 3)
             return new com.legend.error.AssertFailed(com.legend.error.AssertKind.MESSAGE.record(
-                    java.util.Map.of("message", String.valueOf(rows.rows().get(0).get(6)))));
+                    java.util.Map.of("message", String.valueOf(rows.rows().get(0).get(0)))));
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             return e;
         } catch (java.io.IOException e) {

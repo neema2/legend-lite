@@ -44,6 +44,12 @@ public sealed interface SqlExpr
     public static final String SYNTHETIC_ID = "__id";
     public static final String SYNTHETIC_TYPE = "__type";
 
+    /** Whether {@code e} is a call that makes a row per element (UNNEST): a projection of it changes its select's rows,
+     *  so its value is read from outside the select, never in place (item 3's S4, the judge's typed side rows). */
+    static boolean expandsRows(SqlExpr e) {
+        return e instanceof Call c && c.fn() == SqlFn.UNNEST;
+    }
+
     /**
      * Whether {@code e}'s value is its operands' alone, evaluating it raises nothing and it keeps its select's rows, so
      * a pass may drop it unread or move where it is evaluated (2026-11-04): no raising function ({@link SqlFn#RAISING}),

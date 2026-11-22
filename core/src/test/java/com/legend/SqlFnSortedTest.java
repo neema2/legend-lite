@@ -156,6 +156,10 @@ class SqlFnSortedTest {
 
     /** The functions both sides write, measured 2026-11-17: a function the edge writes and a product class only
      *  compares lands here as a new entry (the review of C.13: a comparison reads as a write). */
+    // (2026-11-22, item 3's S4 step 4, shrinks under the user's standing word for cleanups: lowering.LiteText and
+    // lowering.LiteVerdictWords deleted with the database judge's sentence rows -- out of AND, COALESCE, CONCAT,
+    // DATETIME_TO_TEXT, EQUAL, FLOAT_SHORTEST_TEXT, GREATER, LENGTH, LOWER, MINUS, REPLACE, STRPOS, SUBSTRING; and
+    // VerdictSql writes no GREATER_EQUAL, NOT_EQUAL or STRING_AGG now)
     static final Map<String, Set<String>> BOTH_WRITERS = Map.ofEntries(
             // the product's lowering and the edge's compositions (upstream's texts, its plans, its renderings) each
             // build calls of these, each with its product writers' top classes (the review of f788dd3230: names alone
@@ -177,7 +181,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.CollectionLanes", "com.legend.sql.ExistsJoins",
                     "com.legend.lowering.Fold", "com.legend.lowering.GraphAggDecorrelate",
-                    "com.legend.lowering.KeyedCounts", "com.legend.lowering.LiteText", "com.legend.lowering.Lowerer",
+                    "com.legend.lowering.KeyedCounts", "com.legend.lowering.Lowerer",
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.RelationPredicates",
                     "com.legend.lowering.Scalars", "com.legend.lowering.SqlPostProcessors",
                     "com.legend.lowering.TaggedLists", "com.legend.lowering.VerdictSql",
@@ -191,9 +195,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Coercions", "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.CellTexts")),
             Map.entry("COALESCE", Set.of(
-                    // census J29 (train 14's 21a9734475): lite's verdict sentences, lowering.LiteVerdictWords (re-measured
-                    // 2026-11-18 on train 15 1931d419b1 by the GUARD stream's re-cut)
-                    "com.legend.lowering.LiteVerdictWords",
+                    // (lowering.LiteVerdictWords, census J29's lite verdict sentences: gone 2026-11-22, item 3's S4 step 4)
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",
                     "com.legend.lowering.Dedup", "com.legend.lowering.GraphAggDecorrelate",
                     "com.legend.lowering.InstanceEquality", "com.legend.lowering.JsonEmission",
@@ -205,8 +207,7 @@ class SqlFnSortedTest {
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("CONCAT", Set.of(
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CanonicalRenderSql",
-                    "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts",
-                    "com.legend.lowering.LiteText", "com.legend.lowering.LiteralSpelling",
+                    "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.LiteralSpelling",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.Pivots", "com.legend.lowering.RegexpRules",
                     "com.legend.lowering.Render", "com.legend.lowering.Scalars",
                     "com.legend.lowering.SnapshotEnvelope", "com.legend.lowering.ValueCollections",
@@ -215,7 +216,7 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("DATETIME_TO_TEXT", Set.of(
-                    "com.legend.lowering.LiteText", "com.legend.lowering.Styled",
+                    "com.legend.lowering.Styled",
                     "com.legend.sql.dialect.DateTimeText", "com.legend.testdatagen.LitePrinting")),
             Map.entry("ENDS_WITH", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
@@ -232,7 +233,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Fold", "com.legend.lowering.GraphAggDecorrelate",
                     "com.legend.lowering.InstanceEquality", "com.legend.lowering.KeyedCounts",
                     "com.legend.lowering.KeyedPivot", "com.legend.lowering.ListEncodings",
-                    "com.legend.lowering.ListRules", "com.legend.lowering.LiteText",
+                    "com.legend.lowering.ListRules",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Lowerer",
                     "com.legend.lowering.MixedEncoding", "com.legend.lowering.NullSemantics",
                     "com.legend.lowering.RelationPredicates", "com.legend.lowering.Scalars",
@@ -246,13 +247,13 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.OuterJoinResidualsAsMatches", "com.legend.sql.dialect.PivotAsGroupBy",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("FLOAT_SHORTEST_TEXT", Set.of(
-                    "com.legend.lowering.LiteText", "com.legend.sql.dialect.FloatShortestText")),
+                    "com.legend.sql.dialect.FloatShortestText")),
             Map.entry("FLOAT_TO_TEXT", Set.of("com.legend.lowering.LiteralSpelling")),
             Map.entry("GREATER", Set.of(
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.CollectionLanes", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.DateShifts", "com.legend.lowering.Dedup", "com.legend.lowering.KeyedCounts",
-                    "com.legend.lowering.ListEncodings", "com.legend.lowering.LiteText",
+                    "com.legend.lowering.ListEncodings",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Lowerer",
                     "com.legend.lowering.MixedEncoding", "com.legend.lowering.RelationPredicates",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
@@ -263,8 +264,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.DateShifts", "com.legend.lowering.KeyedCounts",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
-                    "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
-                    "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("IN", Set.of(
@@ -290,7 +290,7 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.FrameGuard", "com.legend.sql.dialect.LateralExplodeToUnion",
                     "com.legend.testdatagen.LitePrinting", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("LENGTH", Set.of(
-                    "com.legend.lowering.AsorReaders", "com.legend.lowering.LiteText", "com.legend.lowering.Scalars",
+                    "com.legend.lowering.AsorReaders", "com.legend.lowering.Scalars",
                     "com.legend.lowering.SnapshotEnvelope", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CellTexts",
                     "com.legend.testdatagen.TestDataPlanner")),
@@ -320,7 +320,7 @@ class SqlFnSortedTest {
             // LOWER and UPPER join 2026-11-18 on d-int11 18208beaa6 (J20, 222d136808, train 11): legend-engine's H2
             // isNumeric, lower(x) = upper(x), is the edge's (EdgeLoweringForms); the product's writers keep theirs
             Map.entry("LOWER", Set.of(
-                    "com.legend.lowering.LiteText", "com.legend.lowering.Scalars",
+                    "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.FloatShortestText", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("LPAD", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
@@ -329,7 +329,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CalendarAgg",
                     "com.legend.lowering.Comparators", "com.legend.lowering.DateShifts",
                     "com.legend.lowering.FeatureRules", "com.legend.lowering.InstanceEquality",
-                    "com.legend.lowering.ListEncodings", "com.legend.lowering.LiteText",
+                    "com.legend.lowering.ListEncodings",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.MixedEncoding",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql",
@@ -349,8 +349,7 @@ class SqlFnSortedTest {
             Map.entry("NOT_EQUAL", Set.of(
                     "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.CollectionLanes", "com.legend.lowering.DateCtorRule",
-                    "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars",
-                    "com.legend.lowering.VerdictSql", "com.legend.sql.EnumValueTables",
+                    "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars", "com.legend.sql.EnumValueTables",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("OR", Set.of(
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.DateCtorRule",
@@ -366,7 +365,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CommonSubexpressions")),
             Map.entry("REPLACE", Set.of(
-                    "com.legend.lowering.LiteText", "com.legend.lowering.LiteralSpelling",
+                    "com.legend.lowering.LiteralSpelling",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.testdatagen.TestDataPlanner")),
@@ -379,13 +378,12 @@ class SqlFnSortedTest {
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText")),
             Map.entry("STRPOS", Set.of(
-                    "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.LiteText",
+                    "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("SUBSTRING", Set.of(
-                    "com.legend.lowering.AsorReaders", "com.legend.lowering.FeatureRules",
-                    "com.legend.lowering.LiteText", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
+                    "com.legend.lowering.AsorReaders", "com.legend.lowering.FeatureRules", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.StringCountsAsInt",
                     "com.legend.sql.dialect.SubstringClamp", "com.legend.testdatagen.TestDataPlanner")),
             // (DIVIDE, FLOOR, GREATEST, LN, POW and TIMES: both sides' no more -- compiled legend-pure's 2-ULP Float
@@ -690,7 +688,7 @@ class SqlFnSortedTest {
             Map.entry("STRING_AGG", Set.of(
                     "com.legend.lowering.Aggregates", "com.legend.lowering.Fold", "com.legend.lowering.Lowerer",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
-                    "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql",
+                    "com.legend.lowering.ValueCollections",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CellTexts",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated", "com.legend.testdatagen.TestDataPlanner")));
 

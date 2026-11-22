@@ -142,7 +142,8 @@ final class IsolatedRun {
     }
 
     /** The first difference between the two runs, both texts quoted, or null where they agree: on every verdict, its
-     *  message, and the run's ending's text; both judge every assert. (The compatibility rules' comparison -- the
+     *  message, the failure each run ended on as a record (item 3's S4: the two judges build one record, compared as
+     *  data), and the run's ending's text; both judge every assert. (The compatibility rules' comparison -- the
      *  verdicts alone, an assert one judge declined not compared -- went with A4 of the compatibility program, stage A
      *  ratified by the user 2026-11-19.) */
     static @Nullable String difference(Recording host, Recording database) {
@@ -161,11 +162,21 @@ final class IsolatedRun {
                         + (d == null ? " (database's run " + quote(database.ending()) + ")" : "");
             }
         }
+        if (!Objects.equals(record(host.failure), record(database.failure))) {
+            // the failure each run ended on, as a record: the two judges build one record (item 3's S4), compared as
+            // data before its text -- a run stops at its first failure, so its ending's record is its failing verdict's
+            return "the judges' failures differ: host " + quote(host.ending()) + "; database "
+                    + quote(database.ending());
+        }
         if (!host.ending().equals(database.ending())) {
             return "the judges' runs ended differently: host " + quote(host.ending()) + "; database "
                     + quote(database.ending());
         }
         return null;
+    }
+
+    private static com.legend.error.@Nullable ErrorRecord record(@Nullable RuntimeException failure) {
+        return failure instanceof com.legend.error.AssertFailed f ? f.record() : null;
     }
 
     private static String describe(@Nullable Heard h) {

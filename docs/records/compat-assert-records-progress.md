@@ -470,3 +470,45 @@ it (scratchpad/research/next-phase-design.md). Step 1 (the wide row) at 545fa65a
 - Guards held without a pin moving up: AssertVerdicts at its pin (classKind reads EqualityKeys.fqnOf); the map
   entries read through CanonicalRenderSql.sortedEntries, shared with the map canon (the carrier ratchet and the
   function census unchanged); the JSON tree's refusal a raise kind, JUDGED_TREE_NOT_TYPED (the catalogs regenerated).
+
+## S4 step 4: the sentence rows deleted (2026-11-22)
+- Every assert the database judge plans is a TYPED row (its verdict, then the values its family's record reads) or a
+  refusal by name; no statement composes a sentence. Measured first on the DuckDB judge lanes, the SQLite lanes and
+  H2's relation lane (24 lanes): the sentence path reached 65 asserts on DuckDB, none on SQLite or H2; the wide round
+  then found the rest (a graph's size in the ladder, a one-column grid against a list on the edge's router).
+- Typed here: a Nil side's emptiness (decided by its type); a literal pair whose two plans hold one scalar SQL type; a
+  packageable element's path; instances of one class carried as their JSON text (a metamodel's SetImplementation, a
+  Table: the texts compared, recorded as documents); a Variant's values as their JSON text (as the host reads them);
+  instances in assertContains (by their keyed leaves, as equality); assertInstanceOf over an instance or a value whose
+  kind the database decides (its Boolean the verdict; a tagged value's record, Family.INSTANCE_OF_TAGGED);
+  assertError's row (the raised message, line and column; the record AssertRecords.errorFailure names -- one chooser
+  for both judges); assertJsonStringsEqual (the canonical documents as Strings, or the root's elements as a multiset;
+  Family.JSON / JSON_UNORDERED_ROOT); a one-column grid against a list (the column's values); a graph's size and its
+  emptiness (its root count; assertEmpty's failure its documents, their root objects read where the record is built,
+  Family.EMPTY_GRAPH -- no row per element, so H2 spells it too).
+- Refused by name where no lane reaches them: a grid of another width against a list, a tolerance or a quantifier over sides that are no one number or Boolean, assertEq over a Map or a List
+  (eq is identity; the host's own refusal and words).
+- Deleted: DatabaseJudge.runVerdict and every fallback it served; VerdictBatch's seven-column defer, its self-contained
+  wrap and its words; DatabaseVerdicts.verdictOf; RootLoop.Row's report-less form and the seven column constants;
+  DatabaseAsserts' raising inner row; VerdictSql's sentence members (equality, gridPair, gridRows, gridCells, size,
+  empty, contains, subset, condition, tolerance, allOf, perElement, jsonText, statement, predicateOver, the Message
+  writer, the hints, the schema; 4,241 -> about 2,800 lines); VerdictWords, LiteVerdictWords, LiteText (and
+  LiteFloatTextTest, which tested LiteText). The caller's message row is one String column.
+- Pins moved down (shrinks, dated): JavaEvalLedgerTest DatabaseJudge 912 -> 811, AssertRuns 142 -> 128,
+  AssertErrorRuns 66 -> 56, DatabaseVerdicts 36 -> 23, BodyDriver 544 -> 542; the carrier ratchet's LIST_ 173 -> 172;
+  RaiseTextGuardTest's VerdictSql exemption 1 -> 0; lanes/h2.txt loses testNullableComparisonWithVariantTo (H2 reads
+  a JSON value as a number now).
+- IsolatedRun compares the two judges' failure RECORDS: a run stops at its first failure, so the record of the
+  failure it ended on is its failing verdict's (no new listener method: ArchitectureTest pins the four reports).
+- The lean ladder re-pinned leaner (M1): r04, r05, r10, r12 (a graph's size), the typed row in place of the seven
+  columns (82 lines out, 48 in). SqlFnSortedTest's writer census loses LiteText, LiteVerdictWords and three of
+  VerdictSql's functions (shrinks, dated).
+- The audit of b67362fe and 9c3e7f81 (adf0da167df019d6e): H1 fixed (H2 reads a JSON value as a number or a Boolean by
+  its text, as its navigation did; a product fix too); H2 fixed (a Variant pair is compared as JSON text, never read by
+  its JSON kinds); H3 fixed (Databricks' and Trino's patterns quote each run of text once,
+  AnsiSqlRenderer.javaPattern); M6 fixed (assertEq over a Map or a List refused under both judges); M9 fixed (the
+  warehouse corpus's recorded history answer is the server's six digits again: an input, never re-pinned); the graph
+  key's date refuses a nonzero tenth digit; the stale six-digit comments. Open, to the user: M4 (a Decimal cast to Any
+  reads back a Float: the JSON carrier holds no Decimal), M5 for an Any's tree (refused at run), M7 (a Date-typed
+  value's toString, a tagged DateTime's record, a mapped instance's date: S312 forms), M8 (SQLite's REAL decimals), the
+  class reference against its path.

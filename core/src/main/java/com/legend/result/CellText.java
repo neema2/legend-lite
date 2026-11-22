@@ -279,8 +279,9 @@ public final class CellText {
      *  value with no time of day (a year, a month, a day, a StrictDate) or a column that holds days
      *  ({@link ExecutionPlan.Precision#DAY}) as its day; every time-bearing value -- a relation's timestamp cell, a value
      *  carried at the precision it was written, a value root's instant, a mixed column's winner, a nested value -- as
-     *  S312's six fraction digits and Z ({@link #productTime}), the one form the SQL's {@code DATETIME_TO_TEXT} writes
-     *  too (the orchestrator's W4 audit, 2026-11-16: "six digits and Z for every time-bearing product cell"; a value's
+     *  S312's nine fraction digits and Z ({@link #productTime}; amended 2026-11-22, the user: "always pretty print to
+     *  iso nanos"), the one form the SQL's {@code DATETIME_TO_TEXT} writes too (the orchestrator's W4 audit, 2026-11-16,
+     *  then six digits and Z for every time-bearing product cell; a value's
      *  written precision is the edge's, legend-pure's print form, the plan's decision log). */
     private static String productDate(PureDateLiteral d, String type, ExecutionPlan.Column c) {
         boolean own = type.equals(c.type());

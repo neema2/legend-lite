@@ -452,7 +452,7 @@ public final class AssertVerdicts {
             if (message != null && read != null && batch != null && batch.active()) {
                 // a message that READS: the batch sends its row at the assert's place only where the assert fails
                 // (upstream evaluates it only there), the verdict row failing with the family's own text until then
-                batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName(), DatabaseJudge.words(env)), message.on());
+                batch.message(com.legend.lowering.VerdictSql.messageRow(read), message.on());
             } else if (message != null) {
                 env = env.withFailureMessage(message.message());
             }

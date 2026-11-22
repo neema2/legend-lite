@@ -862,7 +862,7 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("verdict", x.verdict());
-        o.put("report", x.report() == null ? null : wRsReport(x.report()));
+        o.put("report", wRsReport(x.report()));
         o.put("message", x.message() == null ? null : wRlMessage(x.message()));
         o.put("unplanned", x.unplanned() == null ? null : wFailure(x.unplanned()));
         return o;
@@ -871,7 +871,7 @@ final class HostJson {
     static RootLoop.Row rRsRow(Json.Obj o) {
         String v_name = str(field(o, "name", "Row"));
         int v_verdict = Math.toIntExact(num(field(o, "verdict", "Row")));
-        RootLoop.@Nullable Report v_report = absent(o, "report", "Row") ? null : rRsReport(obj(o.get("report")));
+        RootLoop.Report v_report = rRsReport(obj(field(o, "report", "Row")));
         RootLoop.@Nullable Message v_message = absent(o, "message", "Row") ? null : rRlMessage(obj(o.get("message")));
         @Nullable Failure v_unplanned = absent(o, "unplanned", "Row") ? null : rFailure(obj(o.get("unplanned")));
         return new RootLoop.Row(v_name, v_verdict, v_report, v_message, v_unplanned);

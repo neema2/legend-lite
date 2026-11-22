@@ -220,10 +220,8 @@ public final class BodyDriver {
     /** The body's verdict batch: the fusion (flat WITH + UNION ALL), the judge, and the runner that sends each
      * statement as a plan (JudgePlans, step 6). */
     static com.legend.testplan.VerdictBatch newVerdictBatch(ExecEnv env) {
-        return new com.legend.testplan.VerdictBatch(com.legend.lowering.VerdictSql::batch,
-                (row, name, wantEqual) -> com.legend.lowering.VerdictSql.selfContained(row, name, wantEqual,
-                        DatabaseJudge.words(env)), JudgePlans.runner(env),
-                env.verdictIds(), DatabaseJudge.words(env));
+        return new com.legend.testplan.VerdictBatch(com.legend.lowering.VerdictSql::batch, JudgePlans.runner(env),
+                env.verdictIds());
     }
 
     /** Whether {@code nc} is a native of the asserts package, asked by its declaration: the verdict family's members

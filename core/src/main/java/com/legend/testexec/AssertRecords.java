@@ -85,6 +85,7 @@ final class AssertRecords {
             case SIZE -> report.want() ? size(row.get(1), ((Number) row.get(2)).longValue())
                     : negated("NOT_SIZE", e, a);
             case EMPTY -> emptiness(report.want(), null, e);
+            case EMPTY_GRAPH -> emptiness(report.want(), null, rootObjects(e));
             case CONTAINS -> report.want() ? notContained(e, a.isEmpty() ? null : a.get(0), eClass, aClass)
                     : negated("NOT_CONTAINS", e, a);
             case TOLERANCE -> notWithin((Number) row.get(1), (Number) row.get(2), (Number) row.get(3));
@@ -98,6 +99,10 @@ final class AssertRecords {
             case SAME_ELEMENTS_TAGGED -> equality(true, report.want(), untagged(e), untagged(a), List.of(), List.of(),
                     report.e(), report.a());
             case IS_NOT_TAGGED -> negated("IS_NOT", untagged(e), untagged(a));
+            case INSTANCE_OF_TAGGED -> notInstanceOf(e.isEmpty() ? null : untagged(e).get(0), (String) row.get(2));
+            case JSON, JSON_UNORDERED_ROOT -> jsonDiffers(String.valueOf(e.isEmpty() ? "" : e.get(0)),
+                    String.valueOf(a.isEmpty() ? "" : a.get(0)), report.family() == com.legend.testexecutionplan.RootLoop
+                            .Family.JSON_UNORDERED_ROOT);
         };
         return report.index() >= 0 ? atIndex(failure, report.index()) : failure;
     }
@@ -142,6 +147,20 @@ final class AssertRecords {
             out.add(LiteWords.values(r, null));
         }
         return "[" + String.join(", ", out) + "]";
+    }
+
+    /** A graph side's documents' root objects: an array document its elements, any other itself -- the host's reading
+     *  of a graph side ({@code Verdicts.decodeSideValues}). */
+    private static List<Object> rootObjects(List<Object> documents) {
+        List<Object> out = new java.util.ArrayList<>();
+        for (Object d : documents) {
+            if (d instanceof List<?> l) {
+                out.addAll(l);
+            } else {
+                out.add(d);
+            }
+        }
+        return out;
     }
 
     /** A tagged side's values ({@code VerdictSql.typedTagged}): each struct's value, the column its kind's index
@@ -303,6 +322,37 @@ final class AssertRecords {
     static ErrorRecord jsonDiffers(String expected, String actual, boolean incidentalRoot) {
         return record(AssertKind.JSON_EQUALS, "expected", LiteWords.canonJson(expected, incidentalRoot),
                 "actual", LiteWords.canonJson(actual, incidentalRoot));
+    }
+
+    /**
+     * The record of an assertError's failure, or null where it holds -- upstream's order (assertError.pure:24-26):
+     * f raised nothing, which fails unless the assert expects upstream's own "nothing was raised" text (item 3's S8,
+     * Q-B; a position beside it is refused at planning, AssertErrorNative); then the message; then, each only where it
+     * is expected, the position -- an expectation over an error without one fails by name, as interpreted
+     * {@code si.line->toOne()} raises on an empty source info, never a quiet pass -- the line, the column. The host's
+     * choice and the database judge's record ({@code DatabaseVerdicts.errorOfRow}) are this one function.
+     */
+    static @Nullable ErrorRecord errorFailure(String expected,
+            @Nullable Long expectedLine, @Nullable Long expectedColumn,
+            @Nullable String caughtMessage, @Nullable Long line,
+            @Nullable Long column) {
+        if (caughtMessage == null) {
+            return com.legend.testexecutionplan.HostJudgment.AssertError.expectsUnraised(expected) ? null : noError(expected);
+        }
+        if (!caughtMessage.equals(expected)) {
+            return errorDiffers(expected, caughtMessage);
+        }
+        if (expectedLine == null && expectedColumn == null) {
+            return null;
+        }
+        if (line == null || column == null) {
+            return com.legend.error.AssertKind.ERROR_NO_POSITION.record();
+        }
+        if (expectedLine != null && !line.equals(expectedLine)) {
+            return lineDiffers(expectedLine, line);
+        }
+        return expectedColumn != null && !column.equals(expectedColumn)
+                ? columnDiffers(expectedColumn, column) : null;
     }
 
     static ErrorRecord noError(String expected) {

@@ -37,20 +37,28 @@ final class JudgmentFacts {
         /** How the pair's values compare: as typed values, dates (by kind and instant), the same only where both are
          *  empty (an empty side, Nil), tagged values (each its kind and its value), instances of one class (each a row
          *  of its typed leaves: its keys, {@code keys}, or its identity where it has none; item 3's S4, instances). */
-        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES, COLLECTIONS }
+        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES, COLLECTIONS, VARIANTS, INSTANCE_TEXTS }
 
         TypedPair(Type e, Type a, Form form) {
             this(e, a, form, null);
         }
 
         /** Whether both sides carry their values in ONE scalar SQL type (the literal channel's Any-stamped or mixed
-         *  side whose plan holds one typed column: compared as typed values all the same). */
-        boolean oneScalar(com.legend.sql.SqlQuery ePlan, com.legend.sql.SqlQuery aPlan) {
-            // never an instance's kind: an instance carried as its text is not a value of that type (its own member)
-            return form == Form.VALUES && !(e instanceof Type.ClassType) && !(a instanceof Type.ClassType)
-                    && !ePlan.outputs().isEmpty() && !aPlan.outputs().isEmpty()
-                    && ePlan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Scalar t
+         *  side whose plan holds one typed column: compared as typed values all the same) -- never an instance's kind
+         *  but a packageable element's, carried by its path (an instance carried as its text is its own member). */
+        boolean oneScalar(TypedSpec eSpec, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec, com.legend.sql.SqlQuery aPlan,
+                ModelContext ctx) {
+            // (each side's declared type too: a rider's kind is no proof -- the audit of 2026-11-22's metamodel pair, a
+            // SetImplementation carried as its JSON text under a rider naming a Mapping)
+            return form == Form.VALUES && byValue(e, ctx) && byValue(a, ctx) && byValue(eSpec.info().type(), ctx)
+                    && byValue(aSpec.info().type(), ctx) && !ePlan.outputs().isEmpty()
+                    && !aPlan.outputs().isEmpty() && ePlan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Scalar t
                     && t != com.legend.sql.SqlType.Scalar.JSON && t.equals(aPlan.outputs().get(0).type());
+        }
+
+        private static boolean byValue(Type k, ModelContext ctx) {
+            return EqualityKeys.fqnOf(k) instanceof String c && !PlatformTypes.isAny(k) && !PlatformTypes.isNil(k)
+                    ? ctx.isSubtype(c, PACKAGEABLE) : true;
         }
 
         /** The family whose record the host's builders write: an instance's identity assert ({@code assertEq},
@@ -80,12 +88,23 @@ final class JudgmentFacts {
                         wantEqual);
                 case VALUES, DATES, EMPTY_ONLY -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e, aPlan, a,
                         multiset, wantEqual, form == Form.EMPTY_ONLY);
+                case VARIANTS -> com.legend.lowering.VerdictSql.typedVariantTexts(ePlan, aPlan, multiset, wantEqual);
+                case INSTANCE_TEXTS -> com.legend.lowering.VerdictSql.typedInstanceTexts(ePlan, e, aPlan, a, multiset,
+                        wantEqual);
             };
         }
     }
 
+    private static final String PACKAGEABLE = "meta::pure::metamodel::PackageableElement";
+
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
             Type aKind, com.legend.sql.SqlQuery aPlan, ModelContext ctx) {
+        if ((PlatformTypes.isVariant(eKind) || PlatformTypes.isVariant(aKind)) && (jsonCarried(ePlan) || named(ePlan))
+                && (jsonCarried(aPlan) || named(aPlan))) {
+            // a Variant's values: each its JSON document's text, as the host reads a Variant (the audit of 2026-11-22:
+            // read by its JSON kinds, the record named a number the host names a document)
+            return new TypedPair(Type.Primitive.STRING, Type.Primitive.STRING, TypedPair.Form.VARIANTS);
+        }
         boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan) || jsonCarried(ePlan);
         boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan) || jsonCarried(aPlan);
         if (eMixed || aMixed) {
@@ -116,6 +135,13 @@ final class JudgmentFacts {
         if (e != null && a != null) {
             return new TypedPair(e, a, TypedPair.Form.VALUES);
         }
+        String ef = EqualityKeys.fqnOf(eSpec.info().type());
+        if (named(ePlan) && named(aPlan) && ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
+                && !PlatformTypes.isAny(eSpec.info().type()) && !ctx.isSubtype(ef, PACKAGEABLE)) {
+            // instances of one class carried as their JSON documents' text (a metamodel's SetImplementation, a Table):
+            // the documents compared as texts, recorded as documents (item 3's S4, the last families)
+            return new TypedPair(eSpec.info().type(), aSpec.info().type(), TypedPair.Form.INSTANCE_TEXTS);
+        }
         if (eKind.equals(aKind) && named(ePlan) && named(aPlan)) {
             // a packageable element carried by its path (a Mapping): its path compared, a String
             return new TypedPair(eKind, aKind, TypedPair.Form.VALUES);
@@ -126,7 +152,6 @@ final class JudgmentFacts {
         }
         // instances of ONE class -- a model class's or a Pair's -- its keys read here, at planning (a subtype pair
         // restricts by the classifiers its run carries, which the host reads)
-        String ef = EqualityKeys.fqnOf(eSpec.info().type());
         return ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
                 ? new TypedPair(eKind, aKind, TypedPair.Form.INSTANCES, EqualityKeys.resolve(ctx, eSpec.info().type()))
                 : null;

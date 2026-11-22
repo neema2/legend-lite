@@ -370,17 +370,16 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         boolean raises;
         com.legend.testexecutionplan.RootLoop.@Nullable Report inner = null;
         if (ae.inner() != null) {
-            // f IS one assert: its own verdict row, planned by the database judge, as a statement that RAISES its failure
-            // (VerdictSql.raisingRow) -- the base the runner reads and catches as any f's; a failure decided at planning
-            // is the outcome as a constant
+            // f IS one assert: its own typed verdict row, planned by the database judge -- the base the runner reads,
+            // its failure (recorded from its values) what f raised; a failure decided at planning is the outcome as a
+            // constant
             com.legend.testplan.VerdictBatch.Sole sole = innerSole.get();
             if (sole instanceof com.legend.testplan.VerdictBatch.Sole.Decided d) {
                 raised = com.legend.lowering.VerdictSql.Raised.raised(String.valueOf(d.failure().message()), null,
                         null);
                 base = List.of();
                 raises = false;
-            } else if (sole instanceof com.legend.testplan.VerdictBatch.Sole.Row r && r.on().equals(env.target())
-                    && r.report() != null) {
+            } else if (sole instanceof com.legend.testplan.VerdictBatch.Sole.Row r && r.on().equals(env.target())) {
                 // a TYPED row (item 3's S4): the base is the row itself, read as any typed result; where its verdict
                 // fails, the run records its failure from its values (the verdict's inner report) and that is what f
                 // raised -- the database decides, the record is the host's builders', no sentence in the statement
@@ -389,16 +388,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                         TestPlan.Verdict.RAISED_LINE, TestPlan.Verdict.RAISED_COLUMN);
                 raises = true;
                 inner = r.report();
-            } else if (sole instanceof com.legend.testplan.VerdictBatch.Sole.Row r && r.on().equals(env.target())) {
-                var one = new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1);
-                var schema = new com.legend.compiler.element.type.Type.RelationType(List.of(
-                        new com.legend.compiler.element.type.Type.RelationType.Column("value",
-                                com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one)));
-                base = List.of(JudgePlans.sideOf(JudgePlans.rowsPlan(
-                        com.legend.lowering.VerdictSql.raisingRow(r.query()), schema, env)));
-                raised = com.legend.lowering.VerdictSql.Raised.bound(TestPlan.Verdict.RAISED_MESSAGE,
-                        TestPlan.Verdict.RAISED_LINE, TestPlan.Verdict.RAISED_COLUMN);
-                raises = true;
             } else {
                 return null;
             }
@@ -415,8 +404,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             raises = true;
         }
         ExecutionPlan.Node wrapper = JudgePlans.rowsPlan(com.legend.lowering.VerdictSql.assertError(ae.expected(),
-                ae.line(), ae.column(), raised, DatabaseJudge.words(env), HostJudgment.AssertError
-                        .expectsUnraised(ae.expected())), com.legend.lowering.VerdictSql.schema(), env);
+                ae.line(), ae.column(), raised, HostJudgment.AssertError.expectsUnraised(ae.expected())),
+                com.legend.lowering.VerdictSql.errorSchema(), env);
         // the host's verdict rebuilt as the raising one: the same verdict, so the same id
         TestPlan.Verdict v = new TestPlan.Verdict(step.verdict().id(), step.verdict().name(),
                 step.verdict().arm(), base, wrapper,
