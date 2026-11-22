@@ -67,13 +67,4 @@ final class SqliteConnector implements DatabaseConnector {
     public boolean takesTransactions() {
         return true;
     }
-
-    /** {@inheritDoc} SQLite holds a DECIMAL as a REAL or an INTEGER (its type affinity), so the driver hands a
-     *  decimal with its trailing zeros dropped (a {@code DECIMAL(3,2)} 1.50 reads 1.5): the column's declared scale is
-     *  the value's own, and the reader pads the digits back, never rounding, as BigQuery's (item 3's S4, 2026-11-22:
-     *  a Decimal literal's typed member). */
-    @Override
-    public DatabaseConnector.Decoding decoding() {
-        return new DatabaseConnector.Decoding(true, true, false, false, true);
-    }
 }

@@ -250,6 +250,9 @@ class AssertBarTest {
                     "expected [], got [2]"),
             new Probe("empty-against-strings", "{|assertEquals([], ['a', 'b']->filter(x | $x == 'c'))}", null),
             new Probe("empty-against-dates", "{|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))}", null),
+            // a side the types say holds nothing (Nil), its emptiness typed (item 3's S4)
+            new Probe("nil-side-empty", "{|assertEmpty([]->limit(2))}", null),
+            new Probe("nil-side-not-empty", "{|assertNotEmpty([]->drop(1))}", "expected at least one value, got none"),
             // assertInstanceOf decided by the value's static type: the value and the type ride the failure, the
             // host's record (item 3's S4)
             new Probe("instanceOf-decided-holds", "{|assertInstanceOf(1 + 1, Integer)}", null),
@@ -502,6 +505,67 @@ class AssertBarTest {
             }
         }
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** Each body one outcome under every judge on each database the platform runs in-process, the host's there the
+     *  reference (item 3's S4, batch 2's audit, 2026-11-22: an empty side on SQLite, whose list of no rows is
+     *  {@code []}; Decimal literals' digits on SQLite, a REAL there; the cross-kind pairs a carrier check declined). The
+     *  databases may answer apart (SQLite's REAL keeps fifteen digits; DuckDB's and SQLite's list of Decimals is one
+     *  scale): the product's facts, not the judges'. */
+    @Test
+    void eachBodyIsOneOutcomeUnderEveryJudgeOnEachDatabase() throws Exception {
+        List<String> bodies = List.of(
+                "{|assertEquals([], [])}",
+                "{|assertEquals([], [1, 2]->filter(x | $x > 5))}",
+                "{|assertEquals([], [1, 2]->filter(x | $x > 1))}",
+                "{|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))}",
+                "{|assertNotEquals([], [1, 2]->filter(x | $x > 5))}",
+                "{|assertEmpty([1, 2]->filter(x | $x > 5))}",
+                "{|assertEmpty([1, 2]->filter(x | $x > 1))}",
+                "{|assertEquals([1, 2]->filter(x | $x > 5), [1.5]->filter(x | $x > 5.0))}",
+                "{|assertEquals(2.5D, 1D)}",
+                "{|assertEquals(1D, 2D)}",
+                "{|assertEquals(1D, 1)}",
+                "{|assertEquals(123456789012345.67D, 1D)}",
+                "{|assertEquals([0.1234567890123456789D], [1D])}",
+                "{|assertEquals([1.0D, 10.125D], [1.0D, 10.125D])}",
+                "{|assertEquals([1.0D, 10.125D], [1.0D])}",
+                "{|assertEquals(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}",
+                "{|assertEquals(2.5, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}",
+                // tagged values (a Number's max, a mixed list): each value its kind and its value (item 3's S4)
+                "{|assertEquals(2.5, max([1, 2.5]))}",
+                "{|assertEquals(1, max([1, 0.5]))}",
+                "{|assertEquals(1.0, max([1, 0.5]))}",
+                "{|assertEquals(0.5, min([1, 0.5]))}",
+                "{|assertNotEquals(1, max([1, 0.5]))}");
+        List<String> wrong = new ArrayList<>();
+        for (String body : bodies) {
+            for (var backend : TestBackends.inProcess()) {
+                String reference = null;
+                var database = backend.type();
+                String on = MAPPED_ON.formatted(database);
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, body, "p::RT", database, ExecuteOptions.NONE.withJudgeMode(mode),
+                                com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (reference == null) {
+                        reference = got;
+                    } else if (!reference.equals(got)) {
+                        wrong.add(database + " " + mode + " " + body + " -> " + oneLine(got) + " (reference: "
+                                + oneLine(reference) + ")");
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one outcome under every judge on each database:\n  " + String.join("\n  ",
+                wrong));
     }
 
     /** A Decimal literal's typed member on every database the platform runs in-process (item 3's S4, 2026-11-22): its

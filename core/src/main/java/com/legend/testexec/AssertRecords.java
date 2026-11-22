@@ -91,6 +91,10 @@ final class AssertRecords {
             case TDS_EQUIVALENT -> notEquivalent(gridRows(row.get(1)), gridRows(row.get(2)), row.get(3));
             case GRIDS -> grids(gridRows(row.get(1)), gridRows(row.get(2)), report.want());
             case INSTANCE_OF -> notInstanceOf(e.isEmpty() ? null : e.get(0), (String) row.get(2));
+            case EQUALS_TAGGED -> equality(false, report.want(), untagged(e), untagged(a), List.of(), List.of(),
+                    report.e(), report.a());
+            case SAME_ELEMENTS_TAGGED -> equality(true, report.want(), untagged(e), untagged(a), List.of(), List.of(),
+                    report.e(), report.a());
         };
         return report.index() >= 0 ? atIndex(failure, report.index()) : failure;
     }
@@ -135,6 +139,17 @@ final class AssertRecords {
             out.add(LiteWords.values(r, null));
         }
         return "[" + String.join(", ", out) + "]";
+    }
+
+    /** A tagged side's values ({@code VerdictSql.typedTagged}): each struct's value, the column its kind's index
+     *  ({@code k}) names. */
+    private static List<Object> untagged(List<Object> structs) {
+        List<Object> out = new java.util.ArrayList<>(structs.size());
+        for (Object s : structs) {
+            java.util.Map<?, ?> m = (java.util.Map<?, ?>) s;
+            out.add(m.get("v" + m.get("k")));
+        }
+        return out;
     }
 
     /** A typed row's grid: its list of row structs (each a map of its cells in order), as rows of cells; none where

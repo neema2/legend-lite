@@ -207,7 +207,17 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
         GRIDS,
         /** {@code assertInstanceOf} where the value's static type decided it: {@code [verdict, value, type]}, the value a
          *  list (item 3's S4). */
-        INSTANCE_OF
+        INSTANCE_OF,
+        /** {@link #EQUALS} over tagged values: each side a list of {@code {k, v0, ...}} structs, its value the column
+         *  {@code k} names (item 3's S4). */
+        EQUALS_TAGGED,
+        /** {@link #SAME_ELEMENTS} over tagged values, as {@link #EQUALS_TAGGED}. */
+        SAME_ELEMENTS_TAGGED;
+
+        /** The equality family: in any order or in order, over tagged values or typed ones. */
+        public static Family equality(boolean multiset, boolean tagged) {
+            return tagged ? multiset ? SAME_ELEMENTS_TAGGED : EQUALS_TAGGED : multiset ? SAME_ELEMENTS : EQUALS;
+        }
     }
 
     /**

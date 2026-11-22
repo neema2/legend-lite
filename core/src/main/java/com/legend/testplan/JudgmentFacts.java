@@ -33,28 +33,41 @@ final class JudgmentFacts {
      *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair stays the seven-column row:
      *  a side with no typed class, or a partial date's literal. A Decimal literal is typed: its written scale rides its
      *  SQL type, which the reader restores where a driver drops it (SQLite's, as BigQuery's). */
-    record TypedPair(Type e, Type a, boolean dates, boolean emptyOnly) {
+    record TypedPair(Type e, Type a, boolean dates, boolean emptyOnly, boolean tagged) {
     }
 
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
             Type aKind, com.legend.sql.SqlQuery aPlan) {
+        if (tagged(ePlan) || tagged(aPlan)) {
+            // a value whose kind the database decides among candidates (a Number's max, a mixed list): each value its
+            // kind and its value, against a side of one typed class or another tagged one (VerdictSql.typedTagged)
+            return (tagged(ePlan) || sideKind(eSpec, eKind, ePlan) != null)
+                    && (tagged(aPlan) || sideKind(aSpec, aKind, aPlan) != null)
+                    ? new TypedPair(eKind, aKind, false, false, true) : null;
+        }
         if (PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind)) {
             // an empty side (Nil, the empty collection's kind): the two the same only where both are empty, the other
             // side's values typed by its own kind for the record
             Type e = PlatformTypes.isNil(eKind) ? eKind : sideKind(eSpec, eKind, ePlan);
             Type a = PlatformTypes.isNil(aKind) ? aKind : sideKind(aSpec, aKind, aPlan);
-            return e == null || a == null ? null : new TypedPair(e, a, false, true);
+            return e == null || a == null ? null : new TypedPair(e, a, false, true, false);
         }
         Type e = dateKind(eSpec, eKind, ePlan);
         Type a = dateKind(aSpec, aKind, aPlan);
         if (e != null && a != null) {
             // a date literal's side rides the literal channel (its written text), its value column still the
             // database's DATE or TIMESTAMP, which the pair compares (S399)
-            return new TypedPair(e, a, true, false);
+            return new TypedPair(e, a, true, false, false);
         }
         e = com.legend.lowering.VerdictSql.typedClass(eKind);
         a = com.legend.lowering.VerdictSql.typedClass(aKind);
-        return e == null || a == null ? null : new TypedPair(e, a, false, false);
+        return e == null || a == null ? null : new TypedPair(e, a, false, false, false);
+    }
+
+    /** Whether a side's plan carries a tagged value (its first column a {@code SqlType.Tagged}: the kind the
+     *  database decided among candidates). */
+    private static boolean tagged(com.legend.sql.SqlQuery plan) {
+        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Tagged;
     }
 
     /** A side's typed kind: its date kind ({@link #dateKind}), else its typed class; null where it has neither. */

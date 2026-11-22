@@ -893,6 +893,13 @@ public class SQLite extends AnsiSqlRenderer {
         if (t == SqlType.Scalar.DOUBLE && x instanceof SqlExpr.FloatLit) {
             return w -> w.expr(x, 0);
         }
+        // a Decimal as a JSON number of the text its cell is written with (deliveredValue: its scale's digits, the
+        // database's printf), never the REAL's fifteen-digit JSON, which wrote 1D as 1.0 and lost digits past fifteen
+        // (item 3's S4, batch 2's audit, HIGH 2: until then a list's decimals read back otherwise than its cells)
+        if (t instanceof SqlType.Decimal d) {
+            SqlExpr text = deliveredValue(x, d);
+            return w -> w.append("json(").expr(text, 0).append(")");
+        }
         return jsonOf(w -> w.expr(x, 0), t);
     }
 

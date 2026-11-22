@@ -344,3 +344,15 @@ it (scratchpad/research/next-phase-design.md). Step 1 (the wide row) at 545fa65a
   sentence "expected the elements 1.50 in any order, got -2" against the host's "[1.50] ... [-2]" -- BOTH disagrees
   on DuckDB, H2 and SQLite. The typed member declines the pair (VerdictSql.oneCarrier: a DECIMAL_TEXT side against a
   DECIMAL one); it needs a compare value (the text parsed by the database) beside the record's value (the carrier).
+
+## Batch 2's audit (25d2c75c) and batch 3 (2026-11-22)
+- HIGH 1 (fixed): emptiness by rows (noRows), SQLite's list of no rows being '[]'. HIGH 2 + MEDIUM 5 (fixed): SQLite's
+  dialect writes a Decimal list element's text as its cell's (deliveredValue); exec's Java padding reverted. HIGH 3
+  (fixed): carriers compared only where values are. LOW 3 (fixed): TIMESTAMPTZ an instant as it is.
+- Open from it: MEDIUM 4 (a store-read Decimal column in a grid rides DECIMAL_TEXT: the record writes 1.5, the host
+  1.50; toleranceCells' DOUBLE cast of '1.5D' fails), LOW 1 (instanceOf's undecided paths: the CONDITION record), LOW 2
+  (Byte's name), LOW 3's 5-digit and BC years, LOW 4 (a Decimal literal against a store-read Decimal).
+- Found, the product's own (one answer under every judge): SQLite's REAL keeps fifteen significant digits; DuckDB's and
+  SQLite's list of Decimals is one scale ([1.0D, 10.125D] reads [1.000, 10.125]; H2 and Pure [1.0, 10.125]) -- a
+  difference from Pure with no register row yet, to bring to the user.
+- Typed: tagged values (typedTagged), Nil emptiness. Measured before batch 3: 4,970 typed vs 313 seven-column.

@@ -286,7 +286,7 @@ class ConnectorsTest {
         Map<DatabaseType, DatabaseConnector.Decoding> expected = new LinkedHashMap<>();
         // (ClickHouse's no transaction is takesTransactions's, its decoding the default: the correctness audit of PR
         // #81, 2026-11-13, removed the field that repeated it)
-        for (DatabaseType t : List.of(DatabaseType.H2, DatabaseType.Postgres, DatabaseType.MariaDB,
+        for (DatabaseType t : List.of(DatabaseType.H2, DatabaseType.SQLite, DatabaseType.Postgres, DatabaseType.MariaDB,
                 DatabaseType.MySQL, DatabaseType.ClickHouse)) {
             expected.put(t, dflt);
         }
@@ -295,9 +295,6 @@ class ConnectorsTest {
         expected.put(DatabaseType.Snowflake, new DatabaseConnector.Decoding(false, false, false, false, false));
         // a decimal's trailing zeros dropped by the driver (BIGNUMERIC '3.0' reads 3), padded back to the slot's scale
         expected.put(DatabaseType.BigQuery, new DatabaseConnector.Decoding(true, true, false, false, true));
-        // a DECIMAL held as a REAL (SQLite's type affinity: a DECIMAL(3,2) 1.50 reads 1.5), padded back to the slot's
-        // scale as BigQuery's (item 3's S4, 2026-11-22: a Decimal literal's typed member)
-        expected.put(DatabaseType.SQLite, new DatabaseConnector.Decoding(true, true, false, false, true));
         // JSON spells a non-finite double as a bare token
         expected.put(DatabaseType.DuckDB, new DatabaseConnector.Decoding(true, false, false, true, true));
         // a failed statement's result opens with no columns, its error on the first read

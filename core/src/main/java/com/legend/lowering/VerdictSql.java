@@ -257,7 +257,9 @@ public final class VerdictSql {
             Type aKind, boolean multiset, boolean wantEqual, boolean emptyOnly) {
         SqlQuery eRows = instants(valueRows(eWrapped), eKind);
         SqlQuery aRows = instants(valueRows(aWrapped), aKind);
-        if (eRows == null || aRows == null || !oneCarrier(eRows, aRows)) {
+        boolean bothEmptyOnly = emptyOnly || !eKind.equals(aKind);
+        // the carriers matter only where the values are compared: two kinds lite never calls equal compare no value
+        if (eRows == null || aRows == null || !bothEmptyOnly && !oneCarrier(eRows, aRows)) {
             return null;
         }
         SqlQuery eList = listed("__e", eRows);
@@ -270,8 +272,8 @@ public final class VerdictSql {
         // two kinds lite never calls equal (register S127: an Integer and a Decimal, the type part of the value), or an
         // empty side's (Nil, {@code emptyOnly}): the sides are the same only where both are empty, an empty side's list
         // NULL
-        SqlExpr holds = emptyOnly || !eKind.equals(aKind)
-                ? SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.IS_NULL, eL), SqlExpr.Call.of(SqlFn.IS_NULL, aL))
+        SqlExpr holds = bothEmptyOnly
+                ? SqlExpr.Call.of(SqlFn.AND, noRows("__e", eRows), noRows("__a", aRows))
                 : SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER, eL, aL,
                         new SqlExpr.ScalarSubquery(rowsOf("__e", eRows)), new SqlExpr.ScalarSubquery(rowsOf("__a", aRows)));
         return typedRow(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
@@ -280,16 +282,139 @@ public final class VerdictSql {
                         listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
     }
 
+    /**
+     * {@code assertEquals}' and {@code assertSameElements}' TYPED member over a TAGGED side (item 3's S4, 2026-11-22):
+     * a value whose kind the database decided among candidates (a Number's max, a mixed list's elements; the plan's
+     * {@link SqlType.Tagged}: its tag and one slot per kind), against another tagged side or one of a typed class. Each
+     * value is a row of its kind's index ({@code k}, into the kinds of both sides, one order) and one typed column per
+     * kind ({@code v0, v1, ...}, the value in its kind's column, NULL in the others), compared by the one list node --
+     * two values the same only where their kinds and their values are (register S127: an Integer is never a Float;
+     * S139 a Decimal by its value; S399 a DateTime of any written precision one kind). Each side's rows ride the failure
+     * as structs, the record un-tagging each to its kind's value. Null where a side carries no tagged or typed value,
+     * or a kind (an enumeration's) no column holds.
+     */
+    public static @com.legend.base.Nullable TypedRow typedTagged(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
+            Type aKind, boolean multiset, boolean wantEqual) {
+        java.util.TreeMap<String, SqlType> kinds = new java.util.TreeMap<>();
+        if (!kindsOf(eWrapped, eKind, kinds) || !kindsOf(aWrapped, aKind, kinds)) {
+            return null;
+        }
+        List<String> order = new ArrayList<>(kinds.keySet());
+        SqlQuery eCells = kindedRows(eWrapped, eKind, order, kinds);
+        SqlQuery aCells = kindedRows(aWrapped, aKind, order, kinds);
+        if (eCells == null || aCells == null) {
+            return null;
+        }
+        SqlQuery eList = listed("__ke", structRows(rowsOf("__ce", eCells)));
+        SqlQuery aList = listed("__ka", structRows(rowsOf("__ca", aCells)));
+        SqlExpr same = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
+                SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
+                new SqlExpr.ScalarSubquery(rowsOf("__ce", eCells)), new SqlExpr.ScalarSubquery(rowsOf("__ca", aCells)));
+        return typedRow(List.of(new SqlWith.Cte("__ce", eCells), new SqlWith.Cte("__ca", aCells),
+                        new SqlWith.Cte("__ke", structRows(rowsOf("__ce", eCells))),
+                        new SqlWith.Cte("__ka", structRows(rowsOf("__ca", aCells)))),
+                cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a", null)),
+                wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
+                        listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
+    }
+
+    /** Whether a tagged side ({@code wrapped}'s first column a {@link SqlType.Tagged}) or a side of one typed class
+     *  states its kinds, each with the SQL type that holds it, into {@code into}. */
+    private static boolean kindsOf(SqlQuery wrapped, Type kind, java.util.Map<String, SqlType> into) {
+        if (wrapped.outputs().isEmpty()) {
+            return false;
+        }
+        if (wrapped.outputs().get(0).type() instanceof SqlType.Tagged tg) {
+            for (SqlType.Tagged.Slot slot : tg.slots()) {
+                if (MixedEncoding.enumerationKind(slot.kind()) != null) {
+                    return false;
+                }
+                into.putIfAbsent(kindName(slot.kind()), slot.type());
+            }
+            return true;
+        }
+        Type t = typedClass(kind);
+        if (t == null || t instanceof Type.EnumType || PlatformTypes.isNil(t)) {
+            return false;
+        }
+        into.putIfAbsent(kindText(t), t == Type.Primitive.DATE_TIME ? SqlType.Scalar.TIMESTAMP
+                : t == Type.Primitive.STRICT_DATE ? SqlType.Scalar.DATE : wrapped.outputs().get(0).type());
+        return true;
+    }
+
+    /** A slot's kind as the comparison names it: a DateTime of any written precision one kind (register S399). */
+    private static String kindName(String slotKind) {
+        return MixedEncoding.writtenDigits(slotKind) != null ? "DateTime" : slotKind;
+    }
+
+    /** A side's values as kinded rows ({@link #typedTagged}): {@code k}, then {@code v0..vn} in {@code order}, then
+     *  {@code __rn}. A tagged side's tag names its slot; a typed side's every value is its one kind's. */
+    private static @com.legend.base.Nullable SqlQuery kindedRows(SqlQuery wrapped, Type kind, List<String> order,
+            java.util.Map<String, SqlType> types) {
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        List<OutputCol> outs = new ArrayList<>();
+        OutputCol kOut = new OutputCol("k", SqlType.Scalar.BIGINT, false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        if (wrapped.outputs().get(0).type() instanceof SqlType.Tagged tg) {
+            OutputCol tagCol = wrapped.outputs().get(0);
+            SqlExpr tag = SqlExpr.Column.of("w", wrapped.outputs(), tagCol.name());
+            List<SqlExpr.Case.When> ks = new ArrayList<>();
+            for (int i = 0; i < tg.slots().size(); i++) {
+                ks.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
+                        new SqlExpr.IntLit(order.indexOf(kindName(tg.slots().get(i).kind())))));
+            }
+            ps.add(new SqlSelect.Projection(new SqlExpr.Case(ks, null, SqlExpr.Reason.JUDGE), "k", kOut));
+            outs.add(kOut);
+            for (int j = 0; j < order.size(); j++) {
+                List<SqlExpr.Case.When> vs = new ArrayList<>();
+                for (int i = 0; i < tg.slots().size(); i++) {
+                    if (kindName(tg.slots().get(i).kind()).equals(order.get(j))) {
+                        vs.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
+                                SqlExpr.Column.of("w", wrapped.outputs(), SqlType.Tagged.slotColumn(tagCol.name(), i))));
+                    }
+                }
+                SqlType t = java.util.Objects.requireNonNull(types.get(order.get(j)), "a kind's SQL type");
+                OutputCol out = new OutputCol("v" + j, t, true);
+                ps.add(new SqlSelect.Projection(vs.isEmpty() ? nullOf(t) : new SqlExpr.Case(vs, nullOf(t),
+                        SqlExpr.Reason.JUDGE), out.name(), out));
+                outs.add(out);
+            }
+            ps.add(new SqlSelect.Projection(rowNumber(wrapped.outputs()), RN, rnOut));
+            outs.add(rnOut);
+            return new SqlSelect(ps, false, new SqlSource.Subselect(wrapped, "w", null),
+                    SqlExpr.Call.of(SqlFn.IS_NOT_NULL, tag), List.of(), null, null, List.of(), null, null, outs);
+        }
+        Type t = java.util.Objects.requireNonNull(typedClass(kind), "a typed side's class");
+        SqlQuery rows = instants(valueRows(wrapped), t);
+        if (rows == null) {
+            return null;
+        }
+        int at = order.indexOf(kindText(t));
+        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(at), "k", kOut));
+        outs.add(kOut);
+        for (int j = 0; j < order.size(); j++) {
+            SqlType vt = java.util.Objects.requireNonNull(types.get(order.get(j)), "a kind's SQL type");
+            OutputCol out = new OutputCol("v" + j, vt, true);
+            ps.add(new SqlSelect.Projection(j == at ? SqlExpr.Column.of("r", rows.outputs(), O) : nullOf(vt),
+                    out.name(), out));
+            outs.add(out);
+        }
+        ps.add(new SqlSelect.Projection(SqlExpr.Column.of("r", rows.outputs(), RN), RN, rnOut));
+        outs.add(rnOut);
+        return new SqlSelect(ps, false, new SqlSource.Subselect(rows, "r", null), null, List.of(), null, null,
+                List.of(), null, null, outs);
+    }
+
     /** The kind the database judge compares {@code kind}'s values as, typed (item 3's S4), or null where it does not
      *  yet: a String, an Integer, a Float, a Boolean as itself; every Decimal, a declared precision's too, as a Decimal
      *  (compared by value, register S139); an enumeration as itself (its values' names); a StrictDate and a DateTime as
      *  themselves, compared by their instant (register S399; a {@code Date} side's kind is its column's,
-     *  {@code JudgmentFacts.typedPair}). An instance, a generic type and a table stay the seven-column row until S4
-     *  converts them. */
+     *  {@code JudgmentFacts.typedPair}); an empty side's kind (Nil, a side the types say holds nothing) as itself.
+     *  An instance, a generic type and a table stay the seven-column row until S4 converts them. */
     public static @com.legend.base.Nullable Type typedClass(@com.legend.base.Nullable Type kind) {
         if (kind == Type.Primitive.STRING || kind == Type.Primitive.INTEGER || kind == Type.Primitive.FLOAT
                 || kind == Type.Primitive.BOOLEAN || kind instanceof Type.EnumType || kind == Type.Primitive.STRICT_DATE
-                || kind == Type.Primitive.DATE_TIME) {
+                || kind == Type.Primitive.DATE_TIME || kind != null && PlatformTypes.isNil(kind)) {
             return kind;
         }
         return kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal ? Type.Primitive.DECIMAL : null;
@@ -307,7 +432,8 @@ public final class VerdictSql {
             return rows;
         }
         SqlType carried = rows.outputs().get(0).type();
-        if (carried == SqlType.Scalar.DATE || carried == SqlType.Scalar.TIMESTAMP) {
+        if (carried == SqlType.Scalar.DATE || carried == SqlType.Scalar.TIMESTAMP
+                || carried == SqlType.Scalar.TIMESTAMPTZ) {
             return rows;
         }
         if (carried != SqlType.Scalar.TEMPORAL_TEXT && carried != SqlType.Scalar.VARCHAR) {
@@ -338,6 +464,16 @@ public final class VerdictSql {
                 SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t", rows.outputs(), RN), RN,
                 rnOut)), false, new SqlSource.Subselect(rows, "t", null), null, List.of(), null, null, List.of(), null,
                 null, List.of(oOut, rnOut));
+    }
+
+    /** Whether a side's typed rows CTE ({@code cte}) holds no row: emptiness by the rows, never by the list (a database's
+     *  list of no rows is NULL on one and {@code []} on another: SQLite's json_group_array; batch 2's audit, HIGH 1). */
+    private static SqlExpr noRows(String cte, SqlQuery rows) {
+        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
+        return SqlExpr.Call.of(SqlFn.NOT, new SqlExpr.Exists(new SqlSelect(List.of(new SqlSelect.Projection(
+                new SqlExpr.IntLit(1), "__one", one)), false, new SqlSource.Table(cte, cte, rows.outputs(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null,
+                null, List.of(one))));
     }
 
     /** Whether two sides' typed rows carry their values alike: a Decimal the root writes as its text (a store-read
@@ -413,7 +549,7 @@ public final class VerdictSql {
             return null;
         }
         SqlQuery list = listed("__a", rows);
-        SqlExpr empty = SqlExpr.Call.of(SqlFn.IS_NULL, SqlExpr.Column.of("a", list.outputs(), LISTED));
+        SqlExpr empty = noRows("__a", rows);
         return typedRow(List.of(new SqlWith.Cte("__a", rows)), new SqlSource.Subselect(list, "a", null),
                 wantEmpty ? empty : SqlExpr.Call.of(SqlFn.NOT, empty),
                 List.of(listValue(TYPED_ACTUAL, "a", list, kind)));
@@ -694,7 +830,7 @@ public final class VerdictSql {
 
     /** A side's typed rows ({@code cte}: {@code __o}, {@code __rn}) folded to one row: {@code __l}, its values in its own
      *  order -- the LIST reducer, which each database carries as it carries a list (H2: a JSON array) and exec decodes
-     *  as any list result. An empty side's list is NULL. The list rides the failure's record; no verdict reads it. */
+     *  as any list result. The list rides the failure's record; no verdict reads it (emptiness is the rows', noRows). */
     private static SqlQuery listed(String cte, SqlQuery rows) {
         OutputCol o = rows.outputs().get(0);
         OutputCol l = new OutputCol(LISTED, new SqlType.Array(o.type()), true);

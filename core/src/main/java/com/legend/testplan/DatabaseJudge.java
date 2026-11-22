@@ -230,13 +230,13 @@ public final class DatabaseJudge {
         // kind and its instant, S399)
         JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, re.kinds().get(ie), java.util.Objects.requireNonNull(we)
                 .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan());
-        if (tp != null && (tp.dates() || !literal(re, ra, anyNil, anyAny))) {
-            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEquals(we.plan(),
-                    tp.e(), wa.plan(), tp.a(), canonicalOrder, wantEqual, tp.emptyOnly());
+        if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny))) {
+            com.legend.lowering.VerdictSql.TypedRow typed = tp.tagged() ? com.legend.lowering.VerdictSql.typedTagged(
+                    we.plan(), tp.e(), wa.plan(), tp.a(), canonicalOrder, wantEqual) : com.legend.lowering.VerdictSql
+                    .typedEquals(we.plan(), tp.e(), wa.plan(), tp.a(), canonicalOrder, wantEqual, tp.emptyOnly());
             if (typed != null) {
-                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(canonicalOrder
-                        ? com.legend.testexecutionplan.RootLoop.Family.SAME_ELEMENTS
-                        : com.legend.testexecutionplan.RootLoop.Family.EQUALS, wantEqual,
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(com.legend
+                        .testexecutionplan.RootLoop.Family.equality(canonicalOrder, tp.tagged()), wantEqual,
                         JudgmentFacts.sideFacts(eSpec), JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
             }
         }
