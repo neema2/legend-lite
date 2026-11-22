@@ -609,6 +609,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case DATE_TRUNC -> dateTruncArm(writer, c);
             case CURRENT_USER_FN -> writer.append("current_user");
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameLists(writer, c, "list_sort");   // its own list equality (item 3's S4: probed on 1.5.6 to agree with the portable form)
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");

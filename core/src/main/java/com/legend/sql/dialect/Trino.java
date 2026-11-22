@@ -935,6 +935,7 @@ public class Trino extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameValues(writer, c);
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)

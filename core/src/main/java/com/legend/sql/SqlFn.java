@@ -135,6 +135,15 @@ public enum SqlFn {
     REPEAT_VALUE,
     LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
     NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
+    /** Two sides' typed values the same, IN ORDER (item 3's S4, 2026-11-22, the user: "Yes on list compare"): the
+     *  arguments are each side's values as a list (its {@code LIST} in its order, NULL where it has none), then each
+     *  side's rows {@code (__o, __rn)} as a subquery; a Boolean, never NULL. A database that compares lists writes the
+     *  two lists' {@code IS NOT DISTINCT FROM}; every other the portable form over the rows ({@code dialect
+     *  .SameValuesForm}). Each side's values are of ONE declared kind: a mixed-kind side never reaches it (register
+     *  S127: a database's list equality coerces an Integer to a Float). */
+    SAME_IN_ORDER,
+    /** {@link #SAME_IN_ORDER} in any order: the two sides as multisets. */
+    SAME_IN_ANY_ORDER,
     STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
     ROUND_HALF_UP, ERROR, FLOOR_RAW,
     // Variant construction

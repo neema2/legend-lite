@@ -262,83 +262,30 @@ public final class VerdictSql {
         }
         SqlQuery eList = listed("__e", eRows);
         SqlQuery aList = listed("__a", aRows);
-        // the comparison over the typed values themselves, portable (H2 has no list equality, no EXCEPT ALL, no FULL
-        // OUTER JOIN; M1): in order, the same count and every place's values IS NOT DISTINCT FROM; in any order, no
-        // value whose signed count differs
-        SqlQuery same = multiset ? multisetSame(eRows, aRows) : orderedSame(eRows, aRows);
-        SqlExpr holds = SqlExpr.Column.of("q", same.outputs(), SAME);
+        // the comparison over the typed values themselves, ONE node each dialect writes (the user, 2026-11-22: "Yes on
+        // list compare"): over the two lists where its database compares lists, else the portable form over the rows
+        // (H2 has no list equality, no EXCEPT ALL, no FULL OUTER JOIN; M1). Until then the portable form on every
+        // database, written here
+        SqlExpr holds = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
+                SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
+                new SqlExpr.ScalarSubquery(rowsOf("__e", eRows)), new SqlExpr.ScalarSubquery(rowsOf("__a", aRows)));
         return typedRow(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
-                cross(cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null)),
-                        new SqlSource.Subselect(same, "q", null)),
+                cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null)),
                 wantEqual ? holds : SqlExpr.Call.of(SqlFn.NOT, holds), List.of(
                         listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
     }
 
-    private static final String SAME = "__same";
+    /** A typed rows CTE read whole: its {@code __o} and {@code __rn}, the rows the portable comparison reads. */
+    private static SqlQuery rowsOf(String cte, SqlQuery rows) {
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (OutputCol o : rows.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of(cte, rows.outputs(), o.name()), o.name(), o));
+        }
+        return new SqlSelect(ps, false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
+                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, rows.outputs());
+    }
+
     private static final String K = "__k";
-
-    /** Two typed rows CTEs ({@code __e}, {@code __a}) the same in order: one row, {@link #SAME}, true where they count
-     *  alike and every place's two values are not distinct. */
-    private static SqlQuery orderedSame(SqlQuery eRows, SqlQuery aRows) {
-        SqlQuery ce = counted("__e", eRows);
-        SqlQuery ca = counted("__a", aRows);
-        SqlSource pairs = new SqlSource.Join(
-                new SqlSource.Table("__e", "x", eRows.outputs(), false, java.util.Map.of(),
-                        com.legend.sql.NameQuoting.BARE),
-                new SqlSource.Table("__a", "y", aRows.outputs(), false, java.util.Map.of(),
-                        com.legend.sql.NameQuoting.BARE), SqlSource.Join.Kind.INNER,
-                SqlExpr.Call.of(SqlFn.AND,
-                        SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of("x", eRows.outputs(), RN),
-                                SqlExpr.Column.of("y", aRows.outputs(), RN)),
-                        SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("x", eRows.outputs(), O),
-                                SqlExpr.Column.of("y", aRows.outputs(), O))));
-        OutputCol kOut = new OutputCol(K, SqlType.Scalar.BIGINT, false);
-        SqlSelect cm = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
-                List.of(SqlExpr.Column.of("x", eRows.outputs(), RN)), false, List.of()), K, kOut)), false, pairs, null,
-                List.of(), null, null, List.of(), null, null, List.of(kOut));
-        SqlExpr kE = SqlExpr.Column.of("ce", ce.outputs(), K);
-        SqlExpr sameFlag = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.EQUAL, kE, SqlExpr.Column.of("ca", ca.outputs(), K)),
-                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of("cm", cm.outputs(), K), kE));
-        OutputCol sOut = new OutputCol(SAME, SqlType.Scalar.BOOLEAN, false);
-        return new SqlSelect(List.of(new SqlSelect.Projection(sameFlag, SAME, sOut)), false,
-                cross(cross(new SqlSource.Subselect(ce, "ce", null), new SqlSource.Subselect(ca, "ca", null)),
-                        new SqlSource.Subselect(cm, "cm", null)),
-                null, List.of(), null, null, List.of(), null, null, List.of(sOut));
-    }
-
-    /** Two typed rows CTEs the same in any order: one row, {@link #SAME}, true where no value's count on one side
-     *  differs from the other's -- one signed {@code UNION ALL} grouped by value (M1's portable form). */
-    private static SqlQuery multisetSame(SqlQuery eRows, SqlQuery aRows) {
-        OutputCol oOut = eRows.outputs().get(0);
-        OutputCol sgn = new OutputCol("__g", SqlType.Scalar.BIGINT, false);
-        java.util.function.BiFunction<String, Long, SqlSelect> signed = (cte, sign) -> {
-            SqlQuery rows = cte.equals("__e") ? eRows : aRows;
-            return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of(cte, rows.outputs(), O), O,
-                    new OutputCol(O, oOut.type(), true)), new SqlSelect.Projection(new SqlExpr.IntLit(sign), "__g",
-                    sgn)), false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
-                    com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
-                    List.of(new OutputCol(O, oOut.type(), true), sgn));
-        };
-        List<OutputCol> uOuts = List.of(new OutputCol(O, oOut.type(), true), sgn);
-        SqlUnion u = new SqlUnion(List.of(signed.apply("__e", 1L), signed.apply("__a", -1L)), true, uOuts);
-        SqlExpr g = SqlExpr.Column.of("u", uOuts, O);
-        OutputCol gOut = new OutputCol(O, oOut.type(), true);
-        SqlSelect differing = new SqlSelect(List.of(new SqlSelect.Projection(g, O, gOut)), false,
-                new SqlSource.Subselect(u, "u", null), null, List.of(g),
-                SqlExpr.Call.of(SqlFn.NOT_EQUAL, new SqlAgg.Reducer(SqlAgg.Fn.SUM,
-                        List.of(SqlExpr.Column.of("u", uOuts, "__g")), false, List.of()), new SqlExpr.IntLit(0)),
-                null, List.of(), null, null, List.of(gOut));
-        OutputCol kOut = new OutputCol(K, SqlType.Scalar.BIGINT, false);
-        SqlSelect d = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
-                false, List.of()), K, kOut)), false, new SqlSource.Subselect(differing, "h", null), null, List.of(),
-                null, null, List.of(), null, null, List.of(kOut));
-        OutputCol sOut = new OutputCol(SAME, SqlType.Scalar.BOOLEAN, false);
-        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.EQUAL,
-                SqlExpr.Column.of("d", d.outputs(), K), new SqlExpr.IntLit(0)), SAME, sOut)), false,
-                new SqlSource.Subselect(d, "d", null), null, List.of(), null, null, List.of(), null, null,
-                List.of(sOut));
-    }
 
     /** A typed rows CTE's count ({@link #K}): its rows. */
     private static SqlQuery counted(String cte, SqlQuery rows) {
@@ -586,6 +533,30 @@ public final class VerdictSql {
      * the verdict fails -- one row over {@code from}, the members' CTEs at its head -- and the schema of its columns.
      */
     private static TypedRow typedRow(List<SqlWith.Cte> ctes, SqlSource from, SqlExpr holds, List<Valued> values) {
+        if (comparesSides(holds)) {
+            // the comparison node is computed ONCE, beneath the row that writes the values only where it fails (its
+            // portable form is a subquery a database would run once per reference)
+            List<SqlSelect.Projection> ips = new ArrayList<>();
+            List<OutputCol> iOuts = new ArrayList<>();
+            OutputCol hOut = new OutputCol("__h", SqlType.Scalar.BOOLEAN, false);
+            ips.add(new SqlSelect.Projection(holds, "__h", hOut));
+            iOuts.add(hOut);
+            for (int i = 0; i < values.size(); i++) {
+                OutputCol x = new OutputCol("__x" + i, values.get(i).type(), true);
+                ips.add(new SqlSelect.Projection(values.get(i).expr(), x.name(), x));
+                iOuts.add(x);
+            }
+            SqlSelect inner = new SqlSelect(ips, false, from, null, List.of(), null, null, List.of(), null, null,
+                    iOuts);
+            List<Valued> lifted = new ArrayList<>(values.size());
+            for (int i = 0; i < values.size(); i++) {
+                Valued v = values.get(i);
+                lifted.add(new Valued(v.name(), SqlExpr.Column.of("w", iOuts, "__x" + i), v.type(), v.kind(), v.many()));
+            }
+            from = new SqlSource.Subselect(inner, "w", null);
+            holds = SqlExpr.Column.of("w", iOuts, "__h");
+            values = lifted;
+        }
         OutputCol vOut = new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false);
         List<SqlSelect.Projection> ps = new ArrayList<>(List.of(new SqlSelect.Projection(holds, VERDICT, vOut)));
         List<OutputCol> outs = new ArrayList<>(List.of(vOut));
@@ -601,6 +572,12 @@ public final class VerdictSql {
         }
         SqlSelect row = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null, outs);
         return new TypedRow(ctes.isEmpty() ? row : new SqlWith(ctes, row), new Type.RelationType(cols));
+    }
+
+    /** Whether {@code holds} is the sides' comparison node, or its negation. */
+    private static boolean comparesSides(SqlExpr holds) {
+        SqlExpr h = holds instanceof SqlExpr.Call n && n.fn() == SqlFn.NOT ? n.args().get(0) : holds;
+        return h instanceof SqlExpr.Call c && (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER);
     }
 
     private static SqlSource cross(SqlSource left, SqlSource right) {

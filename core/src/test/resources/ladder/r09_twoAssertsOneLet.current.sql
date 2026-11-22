@@ -27,13 +27,12 @@ WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.ID AS id, frame_r__t0.NAME AS n
     SELECT (SELECT t1.name FROM ( SELECT frame_r_t0.id AS id, frame_r_t0.name AS name FROM frame_r AS frame_r_t0 ORDER BY frame_r_t0.id NULLS LAST LIMIT 1 ) AS t1) AS value
   ) AS side
   WHERE value IS NOT NULL)
-SELECT m0.__verdict AS m0__verdict, m0.__expected AS m0__expected, m0.__actual AS m0__actual, m0.__unjudged AS m0__unjudged, m0.__lenient AS m0__lenient, m0.__holds AS m0__holds, m0.__message AS m0__message, m1.__verdict AS m1__verdict, m1.__e AS m1__e, m1.__a AS m1__a
+SELECT 0 AS __m, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __s0, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __s1, CAST(p.__c_n AS VARCHAR) AS __s2, CAST(NULL AS VARCHAR) AS __s3, FALSE AS __s4, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __s5, concat('expected size ', CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), ', got ', CAST(p.__c_n AS VARCHAR)) AS __s6, NULL AS __s7, NULL AS __s8
+FROM __p_0 AS p
+UNION ALL
+SELECT 1 AS __m, w.__h AS __s0, CAST(NULL AS VARCHAR) AS __s1, CAST(NULL AS VARCHAR) AS __s2, CAST(NULL AS VARCHAR) AS __s3, CAST(NULL AS BOOLEAN) AS __s4, CAST(NULL AS BOOLEAN) AS __s5, CAST(NULL AS VARCHAR) AS __s6, CASE WHEN w.__h THEN NULL ELSE w.__x0 END AS __s7, CASE WHEN w.__h THEN NULL ELSE w.__x1 END AS __s8
 FROM (
-  SELECT coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('expected size ', CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), ', got ', CAST(p.__c_n AS VARCHAR)) AS __message
-  FROM __p_0 AS p
-) AS m0
-CROSS JOIN (
-  SELECT q.__same AS __verdict, CASE WHEN q.__same THEN NULL ELSE e.__l END AS __e, CASE WHEN q.__same THEN NULL ELSE a.__l END AS __a
+  SELECT (list_sort(e.__l) IS NOT DISTINCT FROM list_sort(a.__l)) AS __h, e.__l AS __x0, a.__l AS __x1
   FROM (
     SELECT LIST(__a.__o ORDER BY __a.__rn ASC) AS __l
     FROM __a_1 AS __a
@@ -42,22 +41,4 @@ CROSS JOIN (
     SELECT LIST(__e.__o ORDER BY __e.__rn ASC) AS __l
     FROM __e_1 AS __e
   ) AS e
-  CROSS JOIN (
-    SELECT d.__k = 0 AS __same
-    FROM (
-      SELECT COUNT(*) AS __k
-      FROM (
-        SELECT u.__o AS __o
-        FROM (
-          SELECT __e.__o AS __o, 1 AS __g
-          FROM __e_1 AS __e
-          UNION ALL
-          SELECT __a.__o AS __o, -1 AS __g
-          FROM __a_1 AS __a
-        ) AS u
-        GROUP BY u.__o
-        HAVING SUM(u.__g) <> 0
-      ) AS h
-    ) AS d
-  ) AS q
-) AS m1
+) AS w

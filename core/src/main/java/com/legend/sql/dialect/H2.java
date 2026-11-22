@@ -693,6 +693,7 @@ public class H2 extends AnsiSqlRenderer {
                     ? "iso_week" : datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
             case CURRENT_USER_FN -> writer.append("current_user");
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameValues(writer, c);
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");

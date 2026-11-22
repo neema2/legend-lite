@@ -56,7 +56,10 @@ class SqlFnSortedTest {
     /** Every other function, the product's: 189, sorted 2026-11-17 by the measured list (a new one is sorted here; IS_NUMERIC
      *  2026-11-18, J20; SUBSTRING_AS_GIVEN 2026-11-19, A3 of the compatibility program, the user's ruling ~21:10 "Yes to
      *  all three for substring": written by Scalars, the product's, and rendered by every dialect -- not EDGE_ONLY, which
-     *  is the product's dialects refusing it by name). */
+     *  is the product's dialects refusing it by name; SAME_IN_ORDER and SAME_IN_ANY_ORDER 2026-11-22, item 3's S4, by the
+     *  user's word that day ("Yes on list compare", then "Yes, add both entries"): two sides' typed values the same,
+     *  written by VerdictSql, each dialect writing its database's own form -- DuckDB's list equality, every other the
+     *  portable one, MongoDB refusing it by name). */
     static final Set<String> PRODUCT = Set.of(
             "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
@@ -82,7 +85,8 @@ class SqlFnSortedTest {
             "MONTHNAME", "NEGATE", "NOT", "NOT_EQUAL", "NOW", "NULL_SAFE_EQUAL", "NULL_SAFE_NOT_EQUAL", "OR",
             "PARSE_DATE", "PARSE_INT", "PI", "PLUS", "POW", "PURE_SPLIT_PART", "RADIANS", "RANDOM", "RANGE_FN",
             "REGEXP_EXTRACT", "REGEXP_EXTRACT_ALL", "REGEXP_FULL_MATCH", "REGEXP_REPLACE", "REM", "REPEAT_STR",
-            "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP", "RPAD", "RTRIM", "SHA1",
+            "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP", "RPAD", "RTRIM",
+            "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1",
             "SHA256", "SIGN", "SIN", "SINH", "SPLIT", "SPLIT_PART", "SQRT", "STARTS_WITH", "STRFTIME", "STRPOS",
             "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "SUBSTRING_AS_GIVEN", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",
             "TO_VARIANT", "TRANSLATE", "TRIM", "TYPEOF", "UC_FIRST", "UNNEST", "UPPER", "VARIANT_ELEMENTS",
@@ -166,7 +170,10 @@ class SqlFnSortedTest {
             // lowering.ExistsJoinForm (F's J19, a3b8f3f3: ClickHouse decomposes the EXISTS it cannot correlate at render)
             // in AND, EQUAL, IS_NOT_NULL, IS_NULL and NOT; REGEXP_REPLACE joins (E-SQL's J2, train 9: the goldens' '}{'
             // tolerance is the edge's own REGEXP_REPLACE, EdgeLoweringForms; the product's writers keep theirs)
+            // AND: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
+            // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
             Map.entry("AND", Set.of(
+                    "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.CollectionLanes", "com.legend.sql.ExistsJoins",
                     "com.legend.lowering.Fold", "com.legend.lowering.GraphAggDecorrelate",
@@ -213,7 +220,10 @@ class SqlFnSortedTest {
             Map.entry("ENDS_WITH", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.FloatShortestText")),
+            // EQUAL: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
+            // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
             Map.entry("EQUAL", Set.of(
+                    "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CalendarAgg",
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",
                     "com.legend.lowering.CollectionRelations", "com.legend.lowering.DateShifts",
@@ -334,7 +344,10 @@ class SqlFnSortedTest {
                     "com.legend.sql.EnumValueTables", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.FloatShortestText", "com.legend.sql.dialect.WholePartitionOrderedSets",
                     "com.legend.testdatagen.TestDataPlanner")),
+            // NOT_EQUAL: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
+            // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
             Map.entry("NOT_EQUAL", Set.of(
+                    "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.CollectionLanes", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.EnumValueTables",
@@ -648,6 +661,9 @@ class SqlFnSortedTest {
             // COUNT and MIN: the edge writes them too since 2026-11-18 (E-SQL, the orchestrator's ruling on L6: legend-engine's
             // one-object-bare fold, SnapshotEnvelope.fold, moved to edge.EdgeLoweringForms.oneBare) -- the product's
             // writers as measured that day, SnapshotEnvelope no longer among them
+            // COUNT: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list
+            // compare", then "Yes, add both entries"): the portable form of two sides' values the same, moved from
+            // VerdictSql into the dialect, which owns it)
             Map.entry("COUNT", Set.of(
                     "com.legend.lowering.Aggregates", "com.legend.lowering.CollectionLanes",
                     "com.legend.lowering.GraphAggDecorrelate", "com.legend.lowering.HostSideBatch",
@@ -657,7 +673,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.ToOneGuard", "com.legend.lowering.ValueCollections",
                     "com.legend.lowering.VerdictSql", "com.legend.planner.PlanMaker",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
-                    "com.legend.testdatagen.TestDataPlanner")),
+                    "com.legend.sql.dialect.SameValuesForm", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("MIN", Set.of(
                     "com.legend.lowering.Aggregates", "com.legend.lowering.Scalars",
                     "com.legend.lowering.VerdictSql", "com.legend.planner.DataSources",

@@ -1364,6 +1364,36 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append("(").expr(a.get(0), 4).append(" IS DISTINCT FROM ").expr(a.get(1), 4).append(")");
     }
 
+    /** {@link SqlFn#SAME_IN_ORDER} / {@link SqlFn#SAME_IN_ANY_ORDER} in the PORTABLE form: the Boolean select over the
+     *  two sides' rows (its third and fourth arguments), as a scalar subquery ({@link SameValuesForm}). */
+    protected final SqlWriter sameValues(SqlWriter writer, SqlExpr.Call c) {
+        if (!(c.args().get(2) instanceof SqlExpr.ScalarSubquery e) || !(c.args().get(3) instanceof SqlExpr.ScalarSubquery a)) {
+            throw new IllegalStateException(c.fn() + ": its third and fourth arguments are the sides' rows");
+        }
+        writer.append("(");
+        inline(writer, SameValuesForm.of(e.subquery(), a.subquery(), c.fn() == SqlFn.SAME_IN_ORDER));
+        return writer.append(")");
+    }
+
+    /** {@link SqlFn#SAME_IN_ORDER} / {@link SqlFn#SAME_IN_ANY_ORDER} over two LISTS a database compares itself:
+     *  {@code (e IS NOT DISTINCT FROM a)}, in any order each list sorted by {@code sort} (its name for a list's sort). */
+    protected final SqlWriter sameLists(SqlWriter writer, SqlExpr.Call c, String sort) {
+        boolean ordered = c.fn() == SqlFn.SAME_IN_ORDER;
+        writer.append("(");
+        if (ordered) {
+            writer.expr(c.args().get(0), 4);
+        } else {
+            writer.append(sort).append("(").expr(c.args().get(0), 0).append(")");
+        }
+        writer.append(" IS NOT DISTINCT FROM ");
+        if (ordered) {
+            writer.expr(c.args().get(1), 4);
+        } else {
+            writer.append(sort).append("(").expr(c.args().get(1), 0).append(")");
+        }
+        return writer.append(")");
+    }
+
     /** {@code (x IS NOT DISTINCT FROM y)}: the null-safe equality (the engine's nullSafeEqual DynaFunction). */
     protected final SqlWriter notDistinctFrom(SqlWriter writer, List<SqlExpr> a) {
         return writer.append("(").expr(a.get(0), 4).append(" IS NOT DISTINCT FROM ").expr(a.get(1), 4).append(")");
