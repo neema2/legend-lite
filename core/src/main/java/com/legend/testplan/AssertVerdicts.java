@@ -1550,10 +1550,11 @@ public final class AssertVerdicts {
                     + "assertFalse(pred[, message])) is modeled — got '"
                     + fqn + "'/" + aargs.size());
         }
-        String msg = aargs.size() >= 2
-                && aargs.get(1) instanceof
-                        com.legend.compiler.spec.typed.TypedCString cs
-                ? cs.value() : defaultConditionMessage(qfn == NativeFn.Verdict.ASSERT);
+        // the failure's record, fixed here: the caller's literal message, else the condition's (item 3's S4: a record,
+        // the host's vector judgment's too)
+        com.legend.error.ErrorRecord failure = com.legend.error.AssertKind.condition(qfn == NativeFn.Verdict.ASSERT,
+                aargs.size() >= 2 && aargs.get(1) instanceof com.legend.compiler.spec.typed.TypedCString cs
+                        ? cs.value() : null);
         if (aargs.size() >= 2 && !(aargs.get(1) instanceof
                 com.legend.compiler.spec.typed.TypedCString)) {
             throw new com.legend.error.NotImplementedException(
@@ -1565,7 +1566,8 @@ public final class AssertVerdicts {
         // below stays host-side (Clause 2c)
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
-        return arm(env).quantified(fqn, predMap, qfn == NativeFn.Verdict.ASSERT, msg, letPrefix, specs, env, hook);
+        return arm(env).quantified(fqn, predMap, qfn == NativeFn.Verdict.ASSERT, failure, letPrefix, specs, env,
+                hook);
     }
 
     /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the

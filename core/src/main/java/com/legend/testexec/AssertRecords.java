@@ -72,6 +72,9 @@ final class AssertRecords {
             case EMPTY -> emptiness(report.want(), null, e);
             case CONTAINS -> report.want() ? notContained(e, a.isEmpty() ? null : a.get(0), eClass, aClass)
                     : negated("NOT_CONTAINS", e, a);
+            case TOLERANCE -> notWithin((Number) row.get(1), (Number) row.get(2), (Number) row.get(3));
+            case PER_ELEMENT -> atIndex(rowNotEqual(row.get(1), row.get(2), eClass, aClass),
+                    ((Number) row.get(3)).intValue());
         };
         return report.index() >= 0 ? atIndex(failure, report.index()) : failure;
     }

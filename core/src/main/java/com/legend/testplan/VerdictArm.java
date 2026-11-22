@@ -57,8 +57,9 @@ interface VerdictArm {
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** A quantified assert's predicate VECTOR ({@code xs->map(x | pred)}): every element true / false. */
-    TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
+    TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, com.legend.error.ErrorRecord failure,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** A quantified assert that meets THE VECTOR CONTRACT (VerdictQueries.vectorContract): the
      * per-element assert is the predicate it means over a row source. The database arm plans the

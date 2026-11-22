@@ -458,6 +458,18 @@ public final class DatabaseJudge {
         throw new IllegalStateException(name + ": a verdict statement outside its body's verdict batch");
     }
 
+    /** A side's one number kind where it states one (an Integer, a Float, a Decimal), else null. */
+    private static com.legend.compiler.element.type.@com.legend.base.Nullable Type numberKind(SideRows s) {
+        com.legend.lowering.CanonRider r = s.rider();
+        if (r == null || r.literalOnly() || r.kinds().size() != 1 || s.side() == null) {
+            return null;
+        }
+        com.legend.compiler.element.type.Type k = r.kinds().get(0);
+        return k == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || k == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                || k == com.legend.compiler.element.type.Type.Primitive.DECIMAL ? k : null;
+    }
+
     /** Whether the database judge compares {@code kind}'s values as typed values today (item 3's S4, phase 1: the
      *  scalar kinds whose value the database answers as the host reads it; a date's written precision, an enum, an
      *  instance and a table stay the seven-column row until S4 converts them). */
@@ -735,6 +747,17 @@ public final class DatabaseJudge {
             if (literal && (nr.literalIndex() < 0 || hr.literalIndex() < 0)) {
                 return unjudged(name, "forAll-contains: no literal channel");
             }
+            if (!literal && failure != null && nr.kinds().size() == 1 && typedKind(nr.kinds().get(0))
+                    && nr.kinds().equals(hr.kinds()) && need.side() != null && have.side() != null) {
+                // TYPED (item 3's S4): no needed value without a have not distinct from it; the condition's record
+                com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedSubset(
+                        need.side().plan(), have.side().plan(), wantTrue);
+                if (typed != null) {
+                    return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                            com.legend.testexecutionplan.RootLoop.Family.CONDITION, wantTrue, null, null, failure, -1),
+                            need.on(env));
+                }
+            }
             // the condition's own failure (its message), as the host's subset judges it (the S2+S3 fixes' audit)
             return runVerdict(name, true, com.legend.lowering.VerdictSql.subset(need.rows(literal), have.rows(literal),
                     wantTrue, message), need.on(env));
@@ -768,6 +791,20 @@ public final class DatabaseJudge {
         String why = e.why() != null ? e.why() : a.why() != null ? a.why() : t.why();
         if (why != null) {
             return unjudged(name, why);
+        }
+        com.legend.compiler.element.type.Type ek = numberKind(e);
+        com.legend.compiler.element.type.Type ak = numberKind(a);
+        com.legend.compiler.element.type.Type tk = numberKind(t);
+        if (ek != null && ak != null && tk != null) {
+            // TYPED (item 3's S4): the three numbers as their plans type them, the arithmetic the database's
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedTolerance(
+                    java.util.Objects.requireNonNull(e.side()).plan(), ek, java.util.Objects.requireNonNull(a.side())
+                            .plan(), ak, java.util.Objects.requireNonNull(t.side()).plan(), tk,
+                    toleranceArithmetic(args));
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.TOLERANCE, true, null, null, null, -1), a.on(env));
+            }
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false),
                 t.scalarRow(false), toleranceArithmetic(args), words(env)), a.on(env));
@@ -923,8 +960,9 @@ public final class DatabaseJudge {
             return databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env, hook, !sorted,
                     false, false, false, true);
         }
-        @Override public TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue,
+                com.legend.error.ErrorRecord failure, List<TypedSpec> letPrefix, SpecCompiler specs,
+                BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // task #14 leg 2 (2026-09-21): the predicate vector is planned and the
             // database returns the one verdict row — no element true/false is read
             // in Java
@@ -932,8 +970,21 @@ public final class DatabaseJudge {
             if (vector.why() != null) {
                 return unjudged(fqn, vector.why());
             }
+            com.legend.lowering.CanonRider vr = vector.rider();
+            if (vr != null && !vr.literalOnly() && vr.kinds().size() == 1
+                    && vr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
+                    && vector.side() != null) {
+                // TYPED (item 3's S4): the vector's Booleans, its record the one fixed at planning
+                com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedAllOf(
+                        vector.side().plan(), wantTrue);
+                if (typed != null) {
+                    return runTyped(fqn, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                            com.legend.testexecutionplan.RootLoop.Family.CONDITION, wantTrue, null, null, failure, -1),
+                            vector.on(env));
+                }
+            }
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
-                    wantTrue, message), vector.on(env));
+                    wantTrue, failure.sentence()), vector.on(env));
         }
         @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
                 com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
@@ -961,6 +1012,20 @@ public final class DatabaseJudge {
             // message or the run's words of a condition's failure; another family's rows keep the count's frame
             boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT
                     || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
+            com.legend.lowering.CanonRider vr = vector.rider();
+            if (assertFamily && vr != null && !vr.literalOnly() && vr.kinds().size() == 1
+                    && vr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
+                    && vector.side() != null) {
+                // TYPED (item 3's S4): the vector already carries the polarity; its record the host's vector judgment's
+                com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedAllOf(
+                        vector.side().plan(), true);
+                if (typed != null) {
+                    return runTyped(fqn, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                            com.legend.testexecutionplan.RootLoop.Family.CONDITION, true, null, null,
+                            com.legend.error.AssertKind.condition(family == com.legend.builtin.NativeFn.Verdict.ASSERT,
+                                    com.legend.compiler.spec.VerdictQueries.callerMessage(root)), -1), vector.on(env));
+                }
+            }
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true,
                     assertFamily ? com.legend.compiler.spec.VerdictQueries.assertMessage(root,
                             AssertVerdicts.defaultConditionMessage(family == com.legend.builtin.NativeFn.Verdict.ASSERT))
@@ -984,6 +1049,17 @@ public final class DatabaseJudge {
             }
             com.legend.compiler.element.type.Type ek = expected.type();
             com.legend.compiler.element.type.Type ak = actual.type();
+            if (typedKind(ek) && typedKind(ak)) {
+                // TYPED (item 3's S4): each element's two operands as their kinds type them, the first failing one's
+                // index and operands riding the failure; its record the host's row arm's
+                com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedPerElement(
+                        vector.side().plan(), ek, ak, crossNumberKinds(ek, ak) || !ek.equals(ak));
+                if (typed != null) {
+                    return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                            com.legend.testexecutionplan.RootLoop.Family.PER_ELEMENT, true, null, null, null, -1),
+                            vector.on(env));
+                }
+            }
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
                     crossNumberKinds(ek, ak), com.legend.lowering.VerdictSql.decimalByValue(ek), words(env),
                     env.plan().styled());

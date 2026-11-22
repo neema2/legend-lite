@@ -1217,9 +1217,15 @@ public class H2 extends AnsiSqlRenderer {
                 .append(desc ? " DESC" : "").append(")");
     }
 
-    /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}. */
+    /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}; the null clause written only
+     *  where a NULL can arrive -- a value the typing proves never NULL needs none (ABSENT and NULL ON NULL agree on it),
+     *  and H2 2.5.252 rewrites a derived table's {@code JSON_ARRAYAGG} with its null clause BEFORE its {@code ORDER BY}
+     *  and then refuses its own text ("expected )"; measured 2026-11-22, item 3's S4: the database judge's typed lists,
+     *  each in a member's derived table). */
     private SqlWriter listOfValues(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
-        writer.append("JSON_ARRAYAGG(").expr(r.args().get(0), 0);
+        SqlExpr value = r.args().get(0);
+        boolean neverNull = value.type() instanceof com.legend.sql.TypeFact.Typed t && !t.nullable();
+        writer.append("JSON_ARRAYAGG(").expr(value, 0);
         if (!r.orderBy().isEmpty()) {
             writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
                     .append(k.ascending() ? " ASC" : " DESC")
@@ -1227,7 +1233,7 @@ public class H2 extends AnsiSqlRenderer {
                             : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
                                     ? " NULLS FIRST" : " NULLS LAST"));
         }
-        return writer.append(" NULL ON NULL)");
+        return writer.append(neverNull ? ")" : " NULL ON NULL)");
     }
 
     /** Banker's ROUND (probed on 2.1.214 against DuckDB ROUND_EVEN over

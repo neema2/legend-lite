@@ -179,7 +179,12 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
         /** {@code assertEmpty} / {@code assertNotEmpty}: {@code [verdict, values]}. */
         EMPTY,
         /** {@code assertContains} / {@code assertNotContains}: {@code [verdict, collection, value]}. */
-        CONTAINS
+        CONTAINS,
+        /** {@code assertEqWithinTolerance}: {@code [verdict, expected, actual, delta]}. */
+        TOLERANCE,
+        /** A quantified equality element by element: {@code [verdict, expected, actual, index]}, the first failing
+         *  element's operands and its zero-based index. */
+        PER_ELEMENT
     }
 
     /**
