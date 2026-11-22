@@ -814,13 +814,13 @@ duckdb-lite	Standard	meta::pure::functions::math::tests::wavg::testSimpleGroupBy
 # database now raises it -- testAtError, testSliceError, testNewDateError, the four date-part errors, testRemError,
 # testSquareRootError, testRangeStepError, the four window-frame boundaries, the two 62-bit shifts; a down move)
 # toString and format of a Float or a DateTime: the product's own text, ruled -- a Float's six decimals, trimmed (S311, the user's ruling of 2026-11-10: 17.0 is 17, 1.3421e-8 is 0), a DateTime ISO 8601 in UTC with six fraction digits and Z (S312) -- where legend-pure's is 17.0 or 2014-01-01T00:00:00.000+0000 (2026-11-19; 7 rows)
-duckdb-lite	Essential	meta::pure::functions::string::tests::format::testSimpleFormatDate	AssertFailed: expected "the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000+0000", got "the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000000Z"
+duckdb-lite	Essential	meta::pure::functions::string::tests::format::testSimpleFormatDate	AssertFailed: expected "the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000+0000", got "the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000000000Z"
 duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testFloatToStringWithExcessTrailingZeros	AssertFailed: expected "17.0", got "17"
 duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testFloatToStringWithPositiveExponent	AssertFailed: expected "134210000.0", got "134210000"
 duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent	AssertFailed: expected "0.000000013421", got "0"
-duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testSimpleDateToString	AssertFailed: expected "2014-01-02T01:54:27.352+0000", got "2014-01-02T01:54:27.352000Z"
-duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString	AssertFailed: expected "2014-01-01T00:00:00.0000+0000", got "2014-01-01T00:00:00.000000Z"
-duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testDateTimeToString	AssertFailed: expected "2014-01-01T00:00:00.000+0000", got "2014-01-01T00:00:00.000000Z"
+duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testSimpleDateToString	AssertFailed: expected "2014-01-02T01:54:27.352+0000", got "2014-01-02T01:54:27.352000000Z"
+duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString	AssertFailed: expected "2014-01-01T00:00:00.0000+0000", got "2014-01-01T00:00:00.000000000Z"
+duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testDateTimeToString	AssertFailed: expected "2014-01-01T00:00:00.000+0000", got "2014-01-01T00:00:00.000000000Z"
 # format's %05d and %r and an instance's toString refused by name as legend-pure's text; under rule 1 of the rules of record (2026-11-19) format and toString are the database's -- a product gap, as a relation's (2026-11-19; 3 rows)
 duckdb-lite	Essential	meta::pure::functions::string::tests::format::testFormatIntegerWithZeroPadding	ModelException: format's %05d is legend-pure's text, the compatibility edge's: the product's format writes %s, %d, %f and %t{}
 duckdb-lite	Essential	meta::pure::functions::string::tests::format::testFormatRepr	ModelException: format's %r is legend-pure's text, the compatibility edge's: the product's format writes %s, %d, %f and %t{}

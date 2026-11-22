@@ -19,11 +19,11 @@ class GraphKeyTextTest {
 
     @Test
     void theProductSpellsEachArgumentAsItsTypesText() {
-        assertEquals("2023-10-15T00:00:00.000000Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T00:00:00"));
-        assertEquals("2023-10-15T10:30:00.000000Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T10:30"));
-        assertEquals("2023-10-15T10:00:00.000000Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T10"));
-        assertEquals("2023-10-15T10:30:01.500000Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T10:30:01.5"));
-        assertEquals("2023-10-15T10:30:01.123456Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T10:30:01.123456789"));
+        assertEquals("2023-10-15T00:00:00.000000000Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T00:00:00"));
+        assertEquals("2023-10-15T10:30:00.000000000Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T10:30"));
+        assertEquals("2023-10-15T10:00:00.000000000Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T10"));
+        assertEquals("2023-10-15T10:30:01.500000000Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T10:30:01.5"));
+        assertEquals("2023-10-15T10:30:01.123456789Z", PlanStyle.PRODUCT.graphKeyDate("2023-10-15T10:30:01.123456789"));
         assertEquals("2023-10-15", PlanStyle.PRODUCT.graphKeyDate("2023-10-15"));
         assertEquals("abc", PlanStyle.PRODUCT.graphKeyString("abc"));
     }

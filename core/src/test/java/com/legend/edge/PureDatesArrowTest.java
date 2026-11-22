@@ -59,8 +59,8 @@ class PureDatesArrowTest {
     @Test
     void theProductWritesSixDigitsAndZ() throws Exception {
         String product = arrow(CellText.PRODUCT);
-        assertTrue(product.contains("2024-01-02T10:30:00.000000Z"), "S312's text");
-        assertTrue(product.contains("{\"at\":\"2024-01-02T10:30:00.000000Z\"}"), "a nested date, S312's text");
+        assertTrue(product.contains("2024-01-02T10:30:00.000000000Z"), "S312's text");
+        assertTrue(product.contains("{\"at\":\"2024-01-02T10:30:00.000000000Z\"}"), "a nested date, S312's text");
         assertFalse(product.contains("+0000"), "no legend-pure zone in the product's answer");
     }
 }

@@ -84,20 +84,10 @@ public sealed interface PureDateLiteral
     /** A date value AT NINE FRACTION DIGITS, with no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16): a
      * date-only value its literal body; a time-bearing value its seconds and NINE fractional digits whatever
      * precision was written -- {@code 2024-06-03T09:07:00.000000000}. Each writer adds its own zone: the product
-     * S312's {@code Z} at six digits ({@code result.CellText}), legend-engine's JSON (its ServiceTestRunner /
+     * S312's {@code Z} at nine digits ({@code result.CellText}; its carried six-or-nine, toCarriedDigits, went with
+     * S312's amendment, 2026-11-22), legend-engine's JSON (its ServiceTestRunner /
      * PURE_TDSOBJECT value transformer, witnessed 2026-09-16 on the stress corpus) the GMT {@code +0000}
      * ({@code edge.Presenter}). One owner beside {@link #canonicalText} (the literal body). */
-    /** A time-bearing value's digits as CARRIED (the user's §10 rulings 3 and 5, 2026-11-16: "The value itself is
-     *  carried exactly"): six fraction digits, or all nine where it is finer than a microsecond -- the value's own
-     *  digits, which a carrier writes without deciding (the writers are carriage only, R3). A date-only value its
-     *  literal body. */
-    default String toCarriedDigits() {
-        String nine = toNineDigits();
-        int dot = nine.lastIndexOf('.');
-        return dot >= 0 && nine.length() - dot == 10 && nine.endsWith("000") ? nine.substring(0, nine.length() - 3)
-                : nine;
-    }
-
     default String toNineDigits() {
         return switch (this) {
             case Year y -> y.canonicalText();

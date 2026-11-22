@@ -562,8 +562,8 @@
      {
       "statementId": "s1",
       "state": "succeeded",
-      "submittedAt": "2026-10-13T10:00:00.000000Z",
-      "finishedAt": "2026-10-13T10:00:01.000000Z",
+      "submittedAt": "2026-10-13T10:00:00.000000000Z",
+      "finishedAt": "2026-10-13T10:00:01.000000000Z",
       "rowCount": 3
      }
     ]
@@ -586,14 +586,14 @@
      },
      "answer": {
       "status": 200,
-      "body": "[{\"statementId\":\"s1\",\"catalog\":\"main\",\"sql\":\"SELECT 1\",\"state\":\"succeeded\",\"submittedAt\":\"2026-10-13T10:00:00.000000Z\",\"finishedAt\":\"2026-10-13T10:00:01.000000Z\",\"rowCount\":\"3\"}]"
+      "body": "[{\"statementId\":\"s1\",\"catalog\":\"main\",\"sql\":\"SELECT 1\",\"state\":\"succeeded\",\"submittedAt\":\"2026-10-13T10:00:00.000000000Z\",\"finishedAt\":\"2026-10-13T10:00:01.000000000Z\",\"rowCount\":\"3\"}]"
      },
      "read": [
       {
        "statementId": "s1",
        "state": "succeeded",
-       "submittedAt": "2026-10-13T10:00:00.000000Z",
-       "finishedAt": "2026-10-13T10:00:01.000000Z",
+       "submittedAt": "2026-10-13T10:00:00.000000000Z",
+       "finishedAt": "2026-10-13T10:00:01.000000000Z",
        "rowCount": 3
       }
      ]

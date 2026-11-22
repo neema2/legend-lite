@@ -177,7 +177,7 @@ class ProductRaiseProbeTest {
         // 6. a DateTime's text (D1.2, register S312): ISO 8601 in UTC, six fraction digits and Z
         Object dt = run(backend, "a DateTime's text", "|#TDS\n  x:DateTime\n  2014-01-01T10:20:30.5\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
-        if (!(dt instanceof String t6) || !t6.replace(" ", "").equals("[{\"t\":\"2014-01-01T10:20:30.500000Z\"}]")) {
+        if (!(dt instanceof String t6) || !t6.replace(" ", "").equals("[{\"t\":\"2014-01-01T10:20:30.500000000Z\"}]")) {
             wrong.add("a DateTime's text: " + describe(dt));
         }
         // 7. the parse family (Phase 8, 2026-11-16; round 71's gap: the external lanes run this probe alone): each

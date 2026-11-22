@@ -296,14 +296,12 @@ public final class CellText {
         return d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? productTime(d) : dayText(d);
     }
 
-    /** The product's text of a relation's timestamp cell (register S312, the user's ruling of 2026-11-10: "ISO 8601
-     *  in UTC, six fraction digits and Z"; W4, 2026-11-16): what the SQL's {@code DATETIME_TO_TEXT} writes, so a cell
-     *  and a computed text agree. */
+    /** The product's text of a relation's timestamp cell (register S312, the user's ruling of 2026-11-10, amended
+     *  2026-11-22: "Yes always pretty print to iso nanos"): ISO 8601 in UTC, nine fraction digits and Z -- what the
+     *  SQL's {@code DATETIME_TO_TEXT} writes, so a cell and a computed text agree, and a cell carries its value exactly
+     *  (until 2026-11-22 six digits, or nine where the value was finer than a microsecond). */
     static String productTime(PureDateLiteral d) {
-        // the value's own spelling at nine fraction digits: six and Z (S312), or all nine where the value is finer than
-        // a microsecond -- a cell CARRIES its value, read back exactly (the orchestrator's MUST of 2026-11-16, the first
-        // full CI's Cypher parity: S312 cut every cell to six digits, and a Neo4j value's nanoseconds were lost)
-        return d.toCarriedDigits() + "Z";
+        return d.toNineDigits() + "Z";
     }
 
     /** A date's day ({@code yyyy-MM-dd}), or its own text where it is coarser than a day. */

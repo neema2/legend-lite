@@ -688,10 +688,10 @@ class TestDataPlannerTest {
             assertFalse(big.equals("100000000000000000000.0") || small.equals("0.00001"), big + " " + small);
             // lite's own: the timestamp in full, lite's writers' canonical text, on every database
             assertEquals("default\nEVENT\nAMOUNT,ID,ON_DAY,STAMP\n"
-                    + small + ",5,2020-01-02,2020-01-02T03:04:05.500000Z\n"
-                    + "3.14,1,2020-01-02,2020-01-02T03:04:05.123000Z\n"
-                    + "17.0,2,2021-02-03,2020-01-02T03:04:05.000000Z\n"
-                    + big + ",4,2020-01-02,2020-01-02T03:04:05.123456Z\n"
+                    + small + ",5,2020-01-02,2020-01-02T03:04:05.500000000Z\n"
+                    + "3.14,1,2020-01-02,2020-01-02T03:04:05.123000000Z\n"
+                    + "17.0,2,2021-02-03,2020-01-02T03:04:05.000000000Z\n"
+                    + big + ",4,2020-01-02,2020-01-02T03:04:05.123456000Z\n"
                     + "---null---,3,---null---,---null---\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, q, "t::M", ids, null, false, PlannerViews.of(ctx),
                             LitePrinting.INSTANCE).csv()), type.name());
@@ -708,8 +708,8 @@ class TestDataPlannerTest {
                     "t::M", false, PlannerViews.queries(ctx, "t::M", "t::RT"));
             assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"STAMPS\",\"schema\":\"default\",\"database\":"
                     + "\"t::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
-                    + "\"2020-01-02T03:04:05.123000Z\"}]},{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
-                    + "\"2020-01-03T00:00:00.000000Z\"}]}]}", text(c, dialect, com.legend.edge.TestDataRoutes.seedJson(TestDataPlanner.seedFacts(ctx, stamps),
+                    + "\"2020-01-02T03:04:05.123000000Z\"}]},{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
+                    + "\"2020-01-03T00:00:00.000000000Z\"}]}]}", text(c, dialect, com.legend.edge.TestDataRoutes.seedJson(TestDataPlanner.seedFacts(ctx, stamps),
                     x -> com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x))),
                     type.name());
         }

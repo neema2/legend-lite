@@ -6502,7 +6502,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // DateTime wins — VARIANT preserves original TIMESTAMP type
         var result = Lean.run(getCompletePureModelWithRuntime(), "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::greatest()", "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
-        assertEquals("2025-02-10T20:10:20.000000", val.toString(),
+        assertEquals("2025-02-10T20:10:20.000000000", val.toString(),
                 "greatest where DateTime wins keeps the DateTime print form");
     }
 

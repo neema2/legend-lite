@@ -110,6 +110,21 @@ final class JudgmentFacts {
                 : null;
     }
 
+    /** The kind an emptiness assert's typed member lists a side's values as (item 3's S4): its typed class, or, where
+     *  its values are carried as a struct, a map, a list or a JSON document (an instance, a Pair, a Map, a nested
+     *  list, an Any), its own kind -- whether a side is empty is a fact of its rows whatever their type, its values
+     *  riding the failure as the host's reader reads them; null where its plan types no value column (a tagged value
+     *  lists its kinds' values: its own member). */
+    static @Nullable Type emptyKind(@Nullable Type kind, com.legend.sql.SqlQuery plan) {
+        Type typed = com.legend.lowering.VerdictSql.typedClass(kind);
+        if (typed != null || kind == null || plan.outputs().isEmpty()) {
+            return typed;
+        }
+        com.legend.sql.SqlType t = plan.outputs().get(0).type();
+        return t instanceof com.legend.sql.SqlType.Struct || t instanceof com.legend.sql.SqlType.Map
+                || t instanceof com.legend.sql.SqlType.Array || t == com.legend.sql.SqlType.Scalar.JSON ? kind : null;
+    }
+
     /** Whether a side's plan carries a tagged value (its first column a {@code SqlType.Tagged}: the kind the
      *  database decided among candidates). */
     private static boolean tagged(com.legend.sql.SqlQuery plan) {

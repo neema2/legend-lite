@@ -374,14 +374,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // writes a time-bearing value as register S312's six digits and Z (W4, 2026-11-16), so it
                 // reads back at microseconds (legend-pure's own form is the edge's)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:00:00.000000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:00:00.000000000", result.rows().get(0).get(0).toString());
         }
 
         @Test
         void testDateFromMinutePrecision() throws SQLException {
                 // PCT: date(1973, 11, 13, 23, 9) → %1973-11-13T23:09 (minute precision)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23, 9)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:09:00.000000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:09:00.000000000", result.rows().get(0).get(0).toString());
         }
 
         @Test
@@ -389,7 +389,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // PCT: date(1973, 11, 13, 23, 9, 11.0) → %1973-11-13T23:09:11.0 (subsecond
                 // precision)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23, 9, 11.0)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:09:11.000000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:09:11.000000000", result.rows().get(0).get(0).toString());
         }
 
         @Test
@@ -755,7 +755,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // PCT G6 receipt, disagree-9 burn: the nine-digit
                 // decode is a STORE-READ fact, never a computed one)
                 assertEquals(com.legend.values.PureDateLiteral.parse(
-                                "2024-01-31T00:00:00.000000"), value);
+                                "2024-01-31T00:00:00.000000000"), value);
                 // Verify nanosecond precision is preserved (TIMESTAMP_NS)
                 assertInstanceOf(com.legend.values.PureDateLiteral.class, value);
                 assertEquals(0, ((com.legend.values.PureDateLiteral) value).toInstantFloor().getNano(),
@@ -775,7 +775,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // timeBucket(2, WEEKS) on DateTime should return Monday of that week
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|%2024-01-31T00:32:34+0000->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)", "test::TestRuntime", connection);
                 assertEquals(com.legend.values.PureDateLiteral.parse(
-                                "2024-01-29T00:00:00.000000"),
+                                "2024-01-29T00:00:00.000000000"),
                                 result.rows().get(0).get(0));
         }
 
@@ -1132,7 +1132,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                         "test::TestRuntime", backend(), com.legend.edge.PureText.UPSTREAM);
                 assertEquals("2014-01-01T00:00:00.000+0000", result.rows().get(0).get(0));
                 // the product's text (the user's ruling of 2026-11-10): ISO 8601 in UTC, six fraction digits and Z
-                assertEquals("2014-01-01T00:00:00.000000Z", Lean.run(getCompletePureModelWithRuntime(),
+                assertEquals("2014-01-01T00:00:00.000000000Z", Lean.run(getCompletePureModelWithRuntime(),
                         "|%2014-01-01T00:00:00.000+0000->toString()", "test::TestRuntime", connection)
                         .rows().get(0).get(0));
         }

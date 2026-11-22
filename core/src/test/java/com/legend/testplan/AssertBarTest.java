@@ -213,7 +213,7 @@ class AssertBarTest {
             // a DateTime written as upstream's toRepresentation writes it, '%' + its toString: a value with a minute
             // carries +0000, a written fraction its digits (the engine runner, 2026-11-04)
             new Probe("assertEquals-datetimes-message", "{|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:01)}",
-                    "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T10:00:01.000000Z"),
+                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T10:00:01.000000000Z"),
             // register S399 (the user's ruling of 2026-11-22): lite's product compares a date by its kind and its
             // instant, so two date-times at one instant are equal whatever their written precision (legend-pure: not
             // equal, AbstractPureDate.java:30-59; the compatibility routes keep Pure's answer, CompiledPureHostForms)
@@ -227,14 +227,14 @@ class AssertBarTest {
                     null),
             new Probe("datetime-literal-against-computed-fails",
                     "{|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:01]->at(0))}",
-                    "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T10:00:01.000000Z"),
+                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T10:00:01.000000000Z"),
             // the kinds stay apart (S399, as legend-pure): a day is no date-time, a year no year-month
             new Probe("strictdate-is-no-datetime", "{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}",
-                    "expected 2020-01-01, got 2020-01-01T00:00:00.000000Z"),
+                    "expected 2020-01-01, got 2020-01-01T00:00:00.000000000Z"),
             new Probe("strictdate-against-computed", "{|assertEquals(%2020-01-02, [%2020-01-01, %2020-01-02]->at(1))}",
                     null),
             new Probe("assertEquals-datetime-hour-message", "{|assertEquals(%2020-01-01T10, %2020-01-01T11)}",
-                    "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T11:00:00.000000Z"),
+                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T11:00:00.000000000Z"),
             // contains and the subset fold compare a date-time by its instant too (the dates audit's HIGH 1, 2026-11-22:
             // they compared the written texts on the database judge)
             new Probe("contains-datetime-by-instant", "{|assertContains([%2020-01-01T10:00:00.5,"
@@ -613,6 +613,9 @@ class AssertBarTest {
         want.put("{|assertEquals(1.50D, 1.5D)}", "pass");
         want.put("{|assertEquals([1.50D], [2.50D])}", "AssertFailed: expected 1.50, got 2.50");
         want.put("{|assertEquals([1.50D, 2.25D], [1.50D])}", "AssertFailed: expected [1.50, 2.25], got [1.50]");
+        // a list of Decimals at one scale, the widest, on every database (S400, the user's ruling of 2026-11-22)
+        want.put("{|assertEquals([1.0D, 10.125D], [1.0D])}", "AssertFailed: expected [1.000, 10.125], got [1.0]");
+        want.put("{|assertEquals([1.0D, 10.125D], [1.000D, 10.125D])}", "pass");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             var database = backend.type();
@@ -826,24 +829,24 @@ class AssertBarTest {
         want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 14))}", "pass");
         want.put("{|assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))}", "pass");
         want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 15))}",
-                "AssertFailed: expected 2015-04-16T14:00:00.000000Z, got 2015-04-16T15:00:00.000000Z");
+                "AssertFailed: expected 2015-04-16T14:00:00.000000000Z, got 2015-04-16T15:00:00.000000000Z");
         want.put("{|assertEquals(%2015-04-16T14:30, date(2015, 4, 16, 14, 31))}",
-                "AssertFailed: expected 2015-04-16T14:30:00.000000Z, got 2015-04-16T14:31:00.000000Z");
+                "AssertFailed: expected 2015-04-16T14:30:00.000000000Z, got 2015-04-16T14:31:00.000000000Z");
         // register S399 (the user's ruling of 2026-11-22, superseding in the product the orchestrator's ruling 3 of
         // 2026-11-19): lite's product compares a date-time by its instant, so an hour equals its minute at one instant,
         // under every judge (legend-pure: not equal, DateWithHour.getMinute() is -1 where a minute's is 0; the
         // compatibility routes keep that answer, CompiledPureHostForms.equalDates)
         want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
         want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}",
-                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000Z");
+                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z");
         want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}",
-                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000Z");
+                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z");
         // no text carrier holds a zone for the message's read to its minute to trip on (PR #127's review, 2026-11-19):
         // a zoned minute is normalised to GMT at parse (PureDateLiteral, as legend-pure's DateFormat.parsePureDate),
         // and a zone on an hour is refused at parse
         want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 13, 30))}", "pass");
         want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 14, 30))}",
-                "AssertFailed: expected 2015-04-16T13:30:00.000000Z, got 2015-04-16T14:30:00.000000Z");
+                "AssertFailed: expected 2015-04-16T13:30:00.000000000Z, got 2015-04-16T14:30:00.000000000Z");
         want.put("{|assertEquals(%2015-04-16T14+0100, date(2015, 4, 16, 13))}", "ParseException: [1:16] invalid date"
                 + " literal '%2015-04-16T14+0100': expected ':' after hour at position 13 in '2015-04-16T14+0100'");
         List<String> wrong = new ArrayList<>();

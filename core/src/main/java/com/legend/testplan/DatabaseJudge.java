@@ -303,7 +303,7 @@ public final class DatabaseJudge {
     }
 
     /** A date's lite text (the host's {@code LiteWords.dateText}): its day where it has no time of day (its own text
-     *  where coarser than a day), else ISO 8601 in UTC with six fraction digits and Z. */
+     *  where coarser than a day), else ISO 8601 in UTC with nine fraction digits and Z (S312, amended 2026-11-22). */
     static String liteDate(com.legend.values.PureDateLiteral d) {
         java.time.LocalDateTime t = d.toInstantFloor();
         if (!d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.HOUR)) {
@@ -312,8 +312,8 @@ public final class DatabaseJudge {
                             t.getDayOfMonth())
                     : d.canonicalText();
         }
-        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ", t.getYear(),
-                t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano() / 1000);
+        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%09dZ", t.getYear(),
+                t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano());
     }
 
     /** The database judge's words of a failure, lite's: it plans for lite's flow alone (A4 of the compatibility
@@ -567,7 +567,7 @@ public final class DatabaseJudge {
         // the elements written as lite's sentence writes them where the side's canon names one primitive kind
         com.legend.lowering.CanonRider r = side.rider();
         if (sw.shape() != com.legend.plan.ResultShape.GRAPH && r != null && r.declined() == null && !r.tdsWrapped()
-                && com.legend.lowering.VerdictSql.typedClass(oneKind(r)) instanceof com.legend.compiler.element.type.Type rk) {
+                && JudgmentFacts.emptyKind(oneKind(r), sw.plan()) instanceof com.legend.compiler.element.type.Type rk) {
             // TYPED (item 3's S4): the side's values as one list, its emptiness the verdict, the list its failure's
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEmpty(sw.plan(),
                     rk, wantEmpty);

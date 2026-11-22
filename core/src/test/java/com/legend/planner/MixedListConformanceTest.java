@@ -42,7 +42,7 @@ class MixedListConformanceTest {
         CASES.put("|[1, 2.0]->at(0)->type()", "[{\"value\":\"Integer\"}]");
         // E-R3: a StrictDate and its midnight DateTime are two elements
         CASES.put("|[%2025-02-10, %2025-02-10T00:00:00]->removeDuplicates()",
-                "[{\"value\":\"2025-02-10\"},{\"value\":\"2025-02-10T00:00:00.000000Z\"}]");
+                "[{\"value\":\"2025-02-10\"},{\"value\":\"2025-02-10T00:00:00.000000000Z\"}]");
         // E-R5: a date read back from a mixed list is the StrictDate
         CASES.put("|[1, %2025-02-10]->at(1)", "[{\"value\":\"2025-02-10\"}]");
         // E-R4: across kinds, number < date < boolean < string, then the value
@@ -52,9 +52,9 @@ class MixedListConformanceTest {
                 "[{\"value\":1},{\"value\":2},{\"value\":3},{\"value\":\"1\"},{\"value\":\"3\"}]");
         // D1: at one instant, the coarser date first
         CASES.put("|[%2025-02-10T00:00:00, %2025-02-10]->sort()",
-                "[{\"value\":\"2025-02-10\"},{\"value\":\"2025-02-10T00:00:00.000000Z\"}]");
+                "[{\"value\":\"2025-02-10\"},{\"value\":\"2025-02-10T00:00:00.000000000Z\"}]");
         CASES.put("|['a', %2025-02-10T00:00:00, 1, %2025-02-10]->sort()",
-                "[{\"value\":1},{\"value\":\"2025-02-10\"},{\"value\":\"2025-02-10T00:00:00.000000Z\"},{\"value\":\"a\"}]");
+                "[{\"value\":1},{\"value\":\"2025-02-10\"},{\"value\":\"2025-02-10T00:00:00.000000000Z\"},{\"value\":\"a\"}]");
         CASES.put("|[%2025-02, %2025-02-01, %2025]->sort()",
                 "[{\"value\":\"2025\"},{\"value\":\"2025-02\"},{\"value\":\"2025-02-01\"}]");
         // D2: the extremes across kinds, by the same order

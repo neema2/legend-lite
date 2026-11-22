@@ -174,14 +174,14 @@ public final class LiteWords {
     }
 
     /** A date's product text: its day where it has no time of day ({@code yyyy-MM-dd}, or its own text where coarser
-     *  than a day), else ISO 8601 in UTC with six fraction digits and {@code Z} (S312). */
+     *  than a day), else ISO 8601 in UTC with nine fraction digits and {@code Z} (S312, amended 2026-11-22). */
     public static String dateText(PureDateLiteral d) {
         if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
             return com.legend.result.CellText.dayText(d);
         }
         java.time.LocalDateTime t = d.toInstantFloor();
-        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ", t.getYear(),
-                t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano() / 1000);
+        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%09dZ", t.getYear(),
+                t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano());
     }
 
     /** A JSON document as the database judge's canon writes it in a message (the orchestrator's ruling, 2026-11-17:

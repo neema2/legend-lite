@@ -264,7 +264,7 @@ class PostgresDialectTest {
         // digits and Z, one call (legend-pure's trimmed form, to_char's US and three written zeros, is the edge's and
         // the judges')
         String toString = plan("->extend(~[s: r|$r.ts->toOne()->toString()])->select(~[id, s])");
-        assertTrue(toString.contains("to_char(\"t0\".ts, 'YYYY\"-\"MM\"-\"DD\"T\"HH24\":\"MI\":\"SS\".\"US\"Z\"')"),
+        assertTrue(toString.contains("to_char(\"t0\".ts, 'YYYY\"-\"MM\"-\"DD\"T\"HH24\":\"MI\":\"SS\".\"US\"000\"\"Z\"')"),
                 toString);
     }
 

@@ -436,3 +436,16 @@ it (scratchpad/research/next-phase-design.md). Step 1 (the wide row) at 545fa65a
 - Measured (DuckDB lanes): 5,499 typed members, 108 seven-column (175 before).
 - Probe: AssertBarTest.instancesAreComparedByTheirKeysOrTheirIdentity (keyed, nested keyed, keyless, Pairs, nested
   Pairs, multisets; H2 refuses a model class's construction today, under every judge -- a dialect gap).
+
+## Two rulings built, and emptiness typed (2026-11-22)
+- S312 amended (the user, 2026-11-22: "Yes always pretty print to iso nanos"): the product's DateTime text is ISO 8601
+  in UTC with NINE fraction digits and Z -- DateFmt.ISO_NANO_Z (each dialect's SUBSEC_NANO; a database holding
+  microseconds writes three zeros), a relation's cell (CellText.productTime), a record's value (LiteWords.dateText), a
+  graph key's date (PlanStyle.graphKeyDate: it cut a finer fraction to six). PureDateLiteral.toCarriedDigits (six, or
+  nine past the microsecond) deleted. 81 expectations re-pinned (the openCypher TCK's spec files untouched).
+- S400 (the user, 2026-11-22: "I think the right way in product is that they all widen to max one"): a list of
+  Decimals has ONE type, its elements' union, on every database (dialect/DecimalLists.Widening: each element cast to
+  the list's type at render; past 38 digits refused by name). The compatibility edge's written-scale print: open.
+- Emptiness typed for every value kind (JudgmentFacts.emptyKind): a side carried as a struct, a map, a list or JSON
+  is listed as carried, its emptiness a fact of its rows.
+- Not run here: //warehouse:postgres_live and postgres_live_native (initdb refuses root in this container).
