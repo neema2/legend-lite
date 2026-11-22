@@ -106,14 +106,14 @@ class AssertBarTest {
             // index 1")
             new Probe("forAll-element-message-reads",
                     "{|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", "10"),
-            // a String whose text starts with a bracket is a String, written quoted, never read as a JSON carrier (the
-            // S4 audit's HIGH 1, 2026-11-22: written as minified JSON until then, assertEq's differently per judge)
             // a mixed-kind list keeps each element's kind (register S127, the user's ruling of 2026-11-04): an Integer
             // and a Float are never equal, whatever a database's own list equality coerces (DuckDB types both
             // literals DOUBLE[]; the user, 2026-11-22)
             new Probe("mixed-kind-lists-differ", "{|assertEquals([1, 2.5, 3], [1.0, 2.5, 3])}",
                     "expected [1, 2.5, 3], got [1.0, 2.5, 3]"),
             new Probe("mixed-kind-lists-equal", "{|assertEquals([1, 2.5, 3], [1, 2.5, 3])}", null),
+            // a String whose text starts with a bracket is a String, written quoted, never read as a JSON carrier (the
+            // S4 audit's HIGH 1, 2026-11-22: written as minified JSON until then, assertEq's differently per judge)
             new Probe("string-with-a-bracket", "{|assertEquals('[a b]', '[c]')}", "expected \"[a b]\", got \"[c]\""),
             new Probe("eq-string-with-a-brace", "{|assertEq('{a}', '{b}')}", "expected \"{a}\", got \"{b}\""),
             new Probe("forAll-element-literal-message", "{|[1, 2]->forAll(i | assertEquals(1, $i, 'mine'))}", "mine"),
@@ -126,6 +126,15 @@ class AssertBarTest {
                     "{|[%2020-01-01, %2020-01-02]->forAll(d | assertEquals(%2020-01-02, $d, 'mine'))}", "mine"),
             new Probe("forAll-element-message-holds",
                     "{|let l = [10]; [1, 1]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", null),
+            // a rendered text is a String, compared as one under every judge (item 3's S4, phase 2, the user's Q-A):
+            // the golden computed by the database too, never joined in Java
+            new Probe("rendered-join-holds", "{|assertEquals('a,b', ['a', 'b']->joinStrings(','))}", null),
+            new Probe("rendered-join-golden-folded", "{|assertEquals('a' + ',' + 'b', ['a', 'b']->joinStrings(','))}",
+                    null),
+            new Probe("rendered-join-fails", "{|assertEquals('a;b', ['a', 'b']->joinStrings(','))}",
+                    "expected \"a;b\", got \"a,b\""),
+            new Probe("rendered-makeString-fails", "{|assertEquals('[1|2]', [1, 2]->makeString('[', '|', ']') + '!')}",
+                    "expected \"[1|2]\", got \"[1|2]!\""),
             new Probe("forAll-zip-computed-arguments",
                     "{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}", null),
             new Probe("assertInstanceOf-custom-message", "{|assertInstanceOf(1, Integer, 'msg')}", null),

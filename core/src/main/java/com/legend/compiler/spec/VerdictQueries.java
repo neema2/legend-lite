@@ -587,39 +587,13 @@ public final class VerdictQueries {
     }
 
 
-    // ── bucket 8 (homework §4s): the rendered-text LAW — a render function's
-    // text equals a golden iff the rendered VALUE equals the golden parsed by
-    // that function's own grammar. The golden is a compile-time constant and
-    // is brought to ROWS here, typed by the rendered relation's declared
-    // column kinds (the peer of the grid verdict) or a flat join's element
-    // kind. Nothing about the text is judged at run time.
+    // ── a rendered side (item 3's S4, phase 2, 2026-11-22): the database judge compares a rendered text as the String it
+    // is (Q-A); what is read of the render is the VALUE it renders and whether that is a relation (AssertVerdicts
+    // .renderedStatic). The render grammars that brought a golden to rows, and the golden's reader, went with the rows
+    // comparison.
 
-    /** The grammar a rendered side was produced by. */
-    public sealed interface RenderGrammar {
-        /** {@code toCSV}: a header line, data lines, a trailing newline
-         * ({@code rowSep} is the newline, or the replacement of a
-         * {@code ->replace('\n', sep)}); RFC4180 cells. */
-        record Csv(String rowSep) implements RenderGrammar {
-        }
-        /** {@code toString} over a relation: the {@code #TDS} frame, a
-         * three-space-prefixed header line and rows, {@code #}. */
-        record Tds() implements RenderGrammar {
-        }
-        /** {@code rows->map(r | $r.values->makeString(cellSep))->makeString(rowSep)}. */
-        record Rows(String rowSep, String cellSep) implements RenderGrammar {
-        }
-        /** {@code collection->makeString(sep)} over a primitive collection. */
-        record Flat(String sep) implements RenderGrammar {
-        }
-    }
-
-    /** A rendered side: the VALUE that was rendered and the grammar that
-     * rendered it. {@code grid} = the value is a relation. */
-    public record RenderedSide(TypedSpec value, RenderGrammar grammar, boolean grid,
-            @com.legend.base.Nullable String restrictTo) {
-        public RenderedSide(TypedSpec value, RenderGrammar grammar, boolean grid) {
-            this(value, grammar, grid, null);
-        }
+    /** A rendered side: the VALUE that was rendered; {@code grid}, whether it is a relation. */
+    public record RenderedSide(TypedSpec value, boolean grid) {
     }
 
     /** The rendered value of a side, or null when the side is not a render
@@ -635,21 +609,21 @@ public final class VerdictQueries {
                 && PlatformTypes.TO_CSV.equals(csv.callee().qualifiedName())
                 && csv.args().size() == 1
                 && rep.args().get(1) instanceof TypedCString from && "\n".equals(from.value())
-                && rep.args().get(2) instanceof TypedCString to) {
-            return new RenderedSide(csv.args().get(0), new RenderGrammar.Csv(to.value()), true);
+                && rep.args().get(2) instanceof TypedCString) {
+            return new RenderedSide(csv.args().get(0), true);
         }
         if (s instanceof TypedNativeCall csv2
                 && PlatformTypes.TO_CSV.equals(csv2.callee().qualifiedName())
                 && csv2.args().size() == 1) {
-            return new RenderedSide(csv2.args().get(0), new RenderGrammar.Csv("\n"), true);
+            return new RenderedSide(csv2.args().get(0), true);
         }
         if (s instanceof TypedNativeCall ts
                 && PlatformTypes.TO_STRING.equals(ts.callee().qualifiedName())
                 && ts.args().size() == 1 && Type.isRelation(ts.args().get(0).info().type())) {
-            return new RenderedSide(ts.args().get(0), new RenderGrammar.Tds(), true);
+            return new RenderedSide(ts.args().get(0), true);
         }
         if (s instanceof TypedNativeCall j && isJoin(j) && j.args().size() == 2
-                && j.args().get(1) instanceof TypedCString sep) {
+                && j.args().get(1) instanceof TypedCString) {
             TypedSpec coll = chase.apply(j.args().get(0));
             // rows->map(r | $r.values->makeString(cs)) — the grid itself; or
             // rows->map(r | $r.values) — the cells flattened row-major
@@ -662,8 +636,7 @@ public final class VerdictQueries {
                     body = one.args().get(0);   // the Typer's one-value read wrap
                 }
                 if (rowCellsRead(body)) {
-                    return new RenderedSide(relation,
-                            new RenderGrammar.Rows(sep.value(), sep.value()), true);
+                    return new RenderedSide(relation, true);
                 }
                 // rows->map(r | $r.<col>) (columnValues): the relation
                 // restricted to that one column — a null cell is a NULL cell
@@ -671,19 +644,17 @@ public final class VerdictQueries {
                 if (body instanceof TypedPropertyAccess pa
                         && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable pv
                         && lam.parameters().size() == 1 && lam.parameters().get(0).equals(pv.name())) {
-                    return new RenderedSide(relation,
-                            new RenderGrammar.Rows(sep.value(), sep.value()), true, pa.property());
+                    return new RenderedSide(relation, true);
                 }
                 if (body instanceof TypedNativeCall inner && isJoin(inner) && inner.args().size() == 2
-                        && inner.args().get(1) instanceof TypedCString cs
+                        && inner.args().get(1) instanceof TypedCString
                         && rowCellsRead(inner.args().get(0))) {
-                    return new RenderedSide(relation,
-                            new RenderGrammar.Rows(sep.value(), cs.value()), true);
+                    return new RenderedSide(relation, true);
                 }
             }
             if (coll.info().type() instanceof Type.Primitive
                     || coll.info().type() instanceof Type.EnumType) {
-                return new RenderedSide(coll, new RenderGrammar.Flat(sep.value()), false);
+                return new RenderedSide(coll, false);
             }
         }
         return null;
@@ -726,17 +697,6 @@ public final class VerdictQueries {
                 && lam.body().get(0) instanceof TypedNativeCall ts
                 && PlatformTypes.TO_STRING.equals(ts.callee().qualifiedName())
                 && rowCellsRead(m.source());
-    }
-
-    /** The golden text of a side: a string constant, a one-element list of
-     * one, or a folded {@code +} chain of constants. */
-    public static @com.legend.base.Nullable String goldenText(TypedSpec s0,
-            java.util.function.UnaryOperator<TypedSpec> chase) {
-        TypedSpec s = chase.apply(s0);
-        if (s instanceof TypedCollection c && c.elements().size() == 1) {
-            s = chase.apply(c.elements().get(0));
-        }
-        return foldedStringLiteral(s);
     }
 
     /** The declared schema with its WIRE-DECIDED columns (String / unrefined

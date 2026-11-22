@@ -276,7 +276,7 @@ public final class AssertVerdicts {
     }
 
     /** Whether a RENDERED-TEXT pair's database arm plans without a read: a rendered grid is a {@link #staticGrid}, or a
-     *  RAW grid -- its text a keyed statement ({@code renderedValueVerdict}'s raw-grid branch, {@code Render.gridCsv}),
+     *  RAW grid -- its text a keyed statement ({@code Render.gridCsv}),
      *  which the program road places as a verdict's keyed wrapper since the seam program's S3c (the walk deletion,
      *  2026-11-06: testExecuteInDbToTDS); a rendered value is any. */
     static boolean renderedStatic(List<TypedSpec> args, List<TypedSpec> letPrefix) {
@@ -1741,58 +1741,17 @@ public final class AssertVerdicts {
                         letPrefix, specs, env, hook);
     }
 
-    /** Database mode's rendered-text road (bucket 8): both sides rendered →
-     * the two values as a multiset (two executions of one query); one side
-     * rendered → its value against the golden brought to rows, ordered only
-     * when the chain ends in a sort and the assert is ordered. */
+    /** The database judge's rendered-text road: a rendered text is a String (Q-A, the user's ruling of 2026-11-21: a
+     *  value's type is its expression's, so where the program's last call renders, the value is a String and is
+     *  compared as one), so the pair is the generic equality's -- each side planned and computed by the database, the
+     *  golden too, compared as typed Strings by the typed member, its failure the host's record (item 3's S4, phase 2,
+     *  2026-11-22: until then a text comparison of its own, its golden joined in Java, {@code foldedStringLiteral}). A
+     *  relation's text is refused at lowering on lite's flow (B2 makes it a String the database computes). */
     static TypedSide renderedValueVerdict(String name, boolean wantEqual,
             List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env, @com.legend.base.Nullable SpliceHook hook,
-            boolean orderedForm) {
-        java.util.function.UnaryOperator<TypedSpec> chase = s -> chaseLets(s, letPrefix);
-        var re = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(0), chase);
-        var ra = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(1), chase);
-        if (re != null && ra != null) {
-            com.legend.sql.SqlQuery et = DatabaseJudge.textRow(args.get(0), letPrefix, specs, env, hook);
-            com.legend.sql.SqlQuery at = DatabaseJudge.textRow(args.get(1), letPrefix, specs, env, hook);
-            return textFirst(name, wantEqual, et != null && at != null
-                    ? com.legend.lowering.VerdictSql.textEquals(et, at) : null, env);
-        }
-        boolean goldenIsExpected = ra != null;
-        var r = goldenIsExpected ? ra : re;
-        if (r == null) {
-            return DatabaseJudge.unjudged(name, "rendered-text: no side is a render the grammar names");
-        }
-        if (r.grid() && com.legend.compiler.element.type.Type.schemaView(r.value().info().type())
-                instanceof com.legend.compiler.element.type.Type.RelationType late && late.isLateBound()) {
-            // a RAW GRID's text: its columns exist only when the plan runs (the planner-driver seam program's S3c,
-            // 2026-10-30), so the golden is not brought to rows; the two texts are compared as the strings they are,
-            // as legend-pure's assertEquals compares them (the render a keyed statement, Render.gridCsv)
-            return DatabaseJudge.databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env,
-                    hook, false, false);
-        }
-        String text = com.legend.compiler.spec.VerdictQueries.goldenText(
-                goldenIsExpected ? args.get(0) : args.get(1), chase);
-        if (text == null) {
-            return DatabaseJudge.unjudged(name, "rendered-text: the golden is not a string constant");
-        }
-        com.legend.sql.SqlQuery rendered = DatabaseJudge.textRow(goldenIsExpected ? args.get(1) : args.get(0),
-                letPrefix, specs, env, hook);
-        return textFirst(name, wantEqual, rendered != null
-                ? com.legend.lowering.VerdictSql.textEquals(text, rendered) : null, env);
-    }
-
-    /** GENERIC FIRST (2026-11-04, the core program: every assert on its own merit generically): a rendered text's
-     *  equality is its two strings' ({@code textRow}, the database computing the render). The ruled line and row
-     *  comparison where they differ (S131, S132) was the edge's style's here until A4 of the compatibility program
-     *  (stage A ratified by the user 2026-11-19): the database judge plans for the product alone (rule 4 of the rules
-     *  of record), and that comparison is the host judge's at the edge ({@code edge.UpstreamRenderedTexts}). */
-    private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
-            BodyDriver.ExecEnv env) {
-        // the two strings are the verdict (the user, 2026-11-05: after a verdict the harness may only explain)
-        return textRow == null
-                ? DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String")
-                : DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable SpliceHook hook) {
+        return DatabaseJudge.databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env, hook,
+                false, false);
     }
 
     /** The RENDERED-TEXT form of a side, or null: toCSV → CSVTEXT,

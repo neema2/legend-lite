@@ -1199,12 +1199,6 @@ public final class VerdictSql {
                 message);
     }
 
-    /** {@code text} framed as a Pure String's {@code %r}, the canon's own literal (null stays null). */
-    public static SqlExpr quoted(SqlExpr text) {
-        return java.util.Objects.requireNonNull(LiteralSpelling.literal(text,
-                com.legend.compiler.element.type.Type.Primitive.STRING), "a String's literal");
-    }
-
     /** {@code assertTdsEquivalent(one, two, delta[, timeDelta])} (bucket 5): the
      * two grids' cells ROW-MAJOR, aligned by position; a numeric pair within
      * {@code delta}, a temporal pair within {@code timeDelta} seconds, any
@@ -1419,24 +1413,6 @@ public final class VerdictSql {
                 new SqlExpr.BoolLit(true));
         return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("w", plan.outputs(), first.name()),
                 "value", vOut)), false, from, null, List.of(), null, null, List.of(), null, null, List.of(vOut));
-    }
-
-    /** Two rendered texts the database computes ({@code eRow}, {@code aRow}: {@link #scalarRow}'s {@code value}),
-     *  string equality (2026-11-04, the core program: a rendered text's generic comparison, its rows the fallback). */
-    public static SqlQuery textEquals(SqlQuery eRow, SqlQuery aRow) {
-        OneRow e = rowOf("e", eRow);
-        OneRow a = rowOf("a", aRow);
-        return predicateOver(List.of(), List.of(e, a),
-                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, e.col("value"), a.col("value")),
-                e.col("value"), a.col("value"), new SqlExpr.NullLit());
-    }
-
-    public static SqlQuery textEquals(String golden, SqlQuery oursRow) {
-        OneRow e = constantOf("e", new SqlExpr.StringLit(golden), "__t", SqlType.Scalar.VARCHAR);
-        OneRow a = rowOf("a", oursRow);
-        return predicateOver(List.of(), List.of(e, a),
-                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, e.col("__t"), a.col("value")),
-                e.col("__t"), a.col("value"), new SqlExpr.NullLit());
     }
 
     private static SqlQuery predicateOver(List<SqlWith.Cte> ctes, List<OneRow> ops,
@@ -2321,25 +2297,6 @@ public final class VerdictSql {
             return f.apply(sel);
         }
         throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
-    }
-
-    public static SqlQuery messageAsStrings(SqlQuery row) {
-        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
-            return new SqlWith(w.ctes(), sidesAsStrings(body));
-        }
-        if (row instanceof SqlSelect sel) {
-            return sidesAsStrings(sel);
-        }
-        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
-    }
-
-    private static SqlSelect sidesAsStrings(SqlSelect sel) {
-        List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections().size());
-        for (SqlSelect.Projection p : sel.projections()) {
-            ps.add(EXPECTED.equals(p.alias()) || ACTUAL.equals(p.alias())
-                    ? new SqlSelect.Projection(quoted(asText(p.expr())), p.alias(), p.out()) : p);
-        }
-        return sel.withProjections(ps);
     }
 
     /** {@code words}: the frame's sentence, lite's (the database judge plans for lite's flow alone). */
