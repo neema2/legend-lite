@@ -130,6 +130,9 @@ export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
     { arity: 2, emptySlot: -1, template: 'a date-time an assert compares has more fraction digits than %1$s reads in it (%2$s): refused, never cut (S181)', slots: [], shape: 'TEMPLATE' },
     { arity: 3, emptySlot: -1, template: 'a date-time an assert compares to the nanosecond is outside the days %1$s holds to the nanosecond (%2$s to %3$s): refused (S181)', slots: [], shape: 'TEMPLATE' },
   ],
+  JUDGED_TREE_NOT_TYPED: [
+    { arity: 0, emptySlot: -1, template: 'an Any value an assert compares holds a JSON object or array, which the database judge compares by no typed value: refused', slots: [], shape: 'TEMPLATE' },
+  ],
   CSV_TOO_WIDE: [
     { arity: 1, emptySlot: -1, template: 'a record of the CSV file has more cells than its table\'s %1$s column(s)', slots: [], shape: 'TEMPLATE' },
   ],

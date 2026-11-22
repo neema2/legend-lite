@@ -449,3 +449,24 @@ it (scratchpad/research/next-phase-design.md). Step 1 (the wide row) at 545fa65a
 - Emptiness typed for every value kind (JudgmentFacts.emptyKind): a side carried as a struct, a map, a list or JSON
   is listed as carried, its emptiness a fact of its rows.
 - Not run here: //warehouse:postgres_live and postgres_live_native (initdb refuses root in this container).
+
+## The instances audit (e513c72f) fixed; the last families typed (2026-11-22)
+- The audit (scratchpad findings, audit-inst): H1-H3, M1, M2, M4 of the precision audit verified fixed; instances and
+  Pairs agree on all three databases. Fixed here: H-A (a list literal's nanoseconds and a tenth digit: its
+  TEMPORAL_TEXT carrier wraps the whole list -- VerdictSql.digitsPastMicros reads inside it; LiteralSpelling.keptNine
+  refuses a tenth digit); H-B (assertEq over two Pairs compared their values: a generic class's instance is a class
+  value, AssertVerdicts.classKind, so eq stays identity); M-a in part (a nanosecond adjust, FROM_EPOCH_NS, is a
+  nanosecond fact; a stored TIMESTAMP_NS column in an assert with no nanosecond literal is still refused by name);
+  M-b (a NULL nested keyed instance records NULL). Open, recorded: M-c (an enum leaf against a String leaf in a Pair,
+  equal under both judges: the host's own rule compares an enum's name; S169 says false), M-d (SQLite: a day and a
+  year in one written list, pre-existing), the LOWs.
+- Typed: values carried as JSON (an Any) by their JSON kind and value, read as the product reads a Variant
+  (CastPolicy), an object or array refused by name; nested lists and maps as their database holds them
+  (VerdictSql.typedCollections: a map as its entries sorted by key), DuckDB natively -- a database carrying them as
+  JSON refuses them by name under the database judge (SameValuesForm), never compares their text; a packageable
+  element by its path (a Mapping); an empty side against any typed carrier (JudgmentFacts.emptyKind). H2 reads a JSON
+  value's root as itself.
+- Probe: AssertBarTest.theLastFamiliesAreTypedOrRefusedByName (per database and judge).
+- Guards held without a pin moving up: AssertVerdicts at its pin (classKind reads EqualityKeys.fqnOf); the map
+  entries read through CanonicalRenderSql.sortedEntries, shared with the map canon (the carrier ratchet and the
+  function census unchanged); the JSON tree's refusal a raise kind, JUDGED_TREE_NOT_TYPED (the catalogs regenerated).

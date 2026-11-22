@@ -335,7 +335,9 @@ public final class AssertVerdicts {
     }
 
     static boolean classKind(TypedSpec s) {
-        return s.info().type() instanceof com.legend.compiler.element.type.Type.ClassType;
+        // a class's instance, a generic class's too (a Pair, a List, a Map): eq is its identity, never its keys (the
+        // instances audit's H-B, 2026-11-22: assertEq over two equal Pairs passed by their values)
+        return com.legend.compiler.element.EqualityKeys.fqnOf(s.info().type()) != null;
     }
 
     private static @com.legend.base.Nullable TypedSide adjudicate(TypedSpec bare,

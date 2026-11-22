@@ -307,6 +307,68 @@ public final class VerdictSql {
                 listValue(TYPED_EXPECTED, eAt, eHeld, eKind), listValue(TYPED_ACTUAL, aAt, aHeld, aKind)));
     }
 
+    /**
+     * {@code assertEquals}' and {@code assertSameElements}' TYPED member over two sides of lists or maps (a nested
+     * {@code List<T>}, a {@code Map<K, V>}; item 3's S4, 2026-11-22): each value compared as its database holds it -- a
+     * list as itself, in order; a map as its entries sorted by key ({@code [{k, v}, ...]}: a map has no order, the host
+     * compares its keys as a set) -- by the one list node, typed; where the database carries the collection as JSON the
+     * node is refused by name ({@code SameValuesForm}: typed values only). Each side's values ride the failure as
+     * carried. Null where a side carries no list or map, the two carry different types, or an element is no scalar.
+     */
+    public static @com.legend.base.Nullable TypedRow typedCollections(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
+            Type aKind, boolean multiset, boolean wantEqual) {
+        SqlQuery eRaw = valueRows(eWrapped);
+        SqlQuery aRaw = valueRows(aWrapped);
+        if (eRaw == null || aRaw == null || !eRaw.outputs().get(0).type().equals(aRaw.outputs().get(0).type())) {
+            return null;
+        }
+        SqlType t = eRaw.outputs().get(0).type();
+        boolean list = t instanceof SqlType.Array ar && scalar(ar.element());
+        boolean map = t instanceof SqlType.Map mp && scalar(mp.key()) && scalar(mp.value());
+        if (!list && !map) {
+            return null;
+        }
+        SqlQuery eRows = map ? entryRows("__xe", eRaw, (SqlType.Map) t) : cteRows("__xe", eRaw);
+        SqlQuery aRows = map ? entryRows("__xa", aRaw, (SqlType.Map) t) : cteRows("__xa", aRaw);
+        SqlQuery eList = listed("__e", eRows);
+        SqlQuery aList = listed("__a", aRows);
+        SqlQuery eHeld = listed("__xe", eRaw);
+        SqlQuery aHeld = listed("__xa", aRaw);
+        SqlExpr same = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
+                SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
+                new SqlExpr.ScalarSubquery(rowsOf("__e", eRows)), new SqlExpr.ScalarSubquery(rowsOf("__a", aRows)));
+        return typedRow(List.of(new SqlWith.Cte("__xe", eRaw), new SqlWith.Cte("__xa", aRaw),
+                        new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
+                cross(cross(cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a",
+                        null)), new SqlSource.Subselect(eHeld, "xe", null)), new SqlSource.Subselect(aHeld, "xa",
+                        null)),
+                wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
+                        listValue(TYPED_EXPECTED, "xe", eHeld, eKind), listValue(TYPED_ACTUAL, "xa", aHeld, aKind)));
+    }
+
+    /** Whether {@code t} is a scalar value's type (a collection's element a typed member compares as it is). */
+    private static boolean scalar(SqlType t) {
+        return t instanceof SqlType.Scalar sc && sc != SqlType.Scalar.JSON || t instanceof SqlType.Decimal;
+    }
+
+    /** A side's maps ({@code rows}, read as {@code cte}) as their entries sorted by key, each a {@code {k, v}} struct:
+     *  the value a map is compared as (the order its entries were written in no part of it). */
+    private static SqlQuery entryRows(String cte, SqlQuery rows, SqlType.Map t) {
+        SqlExpr m = SqlExpr.Column.of(cte, rows.outputs(), O);
+        SqlExpr k = SqlExpr.Column.derived(null, "__k");
+        SqlExpr entry = new SqlExpr.StructLit(List.of(new SqlExpr.StructLit.Field("k", k, t.key()),
+                new SqlExpr.StructLit.Field("v", CanonicalRenderSql.valueAtKey(m), t.value())));
+        SqlExpr entries = CanonicalRenderSql.sortedEntries(m, entry);
+        SqlType et = new SqlType.Array(new SqlType.Struct(List.of(new SqlType.Struct.Field("k", t.key()),
+                new SqlType.Struct.Field("v", t.value()))));
+        OutputCol oOut = new OutputCol(O, et, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(entries, O, oOut), new SqlSelect.Projection(
+                SqlExpr.Column.of(cte, rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, cte,
+                rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null,
+                null, List.of(), null, null, List.of(oOut, rnOut));
+    }
+
     /** {@code raw}, a side's typed rows, as the values compared: itself, or, where {@link #instants} reads them as
      *  the judge's instants, those instants over the rows' table {@code cte} (which the caller defines and the record
      *  lists), so the side's plan is computed once (the precision fix's round: a second copy made the database compute
@@ -462,8 +524,10 @@ public final class VerdictSql {
         for (com.legend.compiler.element.EqualityKeys.Key k : keys.keys()) {
             SqlType ft = java.util.Objects.requireNonNull(fieldType(st, k.name()), "a key's field (leaves read it)");
             SqlExpr field = new SqlExpr.StructGet(v, k.name());
+            // a nested keyed instance restricted in its place, an absent one NULL (the instances audit's M-b)
             SqlExpr value = ft instanceof SqlType.Struct nested && k.nested() != null
-                    ? restricted(field, nested, k.nested()) : field;
+                    ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, field),
+                            nullOf(nested))), restricted(field, nested, k.nested()), SqlExpr.Reason.JUDGE) : field;
             SqlType vt = value.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : ft;
             fields.add(new SqlExpr.StructLit.Field(k.name(), value, vt));
         }
@@ -597,6 +661,16 @@ public final class VerdictSql {
             }
             return true;
         }
+        if (wrapped.outputs().get(0).type() == SqlType.Scalar.JSON) {
+            // a value carried as JSON (an Any): each value its JSON kind's -- a String, an Integer, a Float, a Boolean --
+            // as the product reads a Variant (CastPolicy), compared as that kind's value; recorded as carried
+            if (byType) {
+                into.putIfAbsent(kindKey("Any", SqlType.Scalar.JSON, true), SqlType.Scalar.JSON);
+            } else {
+                JSON_KINDS.forEach((k, t) -> into.putIfAbsent(kindKey(k, t, false), t));
+            }
+            return true;
+        }
         if (writtenDate(kind, wrapped)) {
             // a Date written as its text: each value one of the four date kinds, as its text says (S399), compared as
             // its kind's value and recorded as it is written
@@ -621,6 +695,34 @@ public final class VerdictSql {
      *  year's and a year-month's text were compared as text). */
     private static final java.util.Map<String, SqlType> DATE_KINDS = java.util.Map.of("Year", SqlType.Scalar.BIGINT,
             "YearMonth", SqlType.Scalar.BIGINT, "StrictDate", SqlType.Scalar.DATE, "DateTime", SqlType.Scalar.TIMESTAMP);
+
+    /** The kinds a value carried as JSON may be, each with the SQL type its value is compared in. */
+    private static final java.util.Map<String, SqlType> JSON_KINDS = java.util.Map.of("String", SqlType.Scalar.VARCHAR,
+            "Integer", SqlType.Scalar.BIGINT, "Float", SqlType.Scalar.DOUBLE, "Boolean", SqlType.Scalar.BOOLEAN);
+
+    /** A JSON value's kind's name ({@link #JSON_KINDS}) where {@code jsonType} (its JSON_TYPE) answers it. */
+    private static SqlExpr jsonKindIs(String kind, SqlExpr jsonType) {
+        return switch (kind) {
+            case "String" -> SqlExpr.Call.of(SqlFn.EQUAL, jsonType, new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.STRING));
+            case "Integer" -> SqlExpr.Call.of(SqlFn.OR,
+                    SqlExpr.Call.of(SqlFn.EQUAL, jsonType, new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.INTEGER)),
+                    SqlExpr.Call.of(SqlFn.EQUAL, jsonType,
+                            new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.UNSIGNED_INTEGER)));
+            case "Float" -> SqlExpr.Call.of(SqlFn.EQUAL, jsonType, new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.FLOAT));
+            case "Boolean" -> SqlExpr.Call.of(SqlFn.EQUAL, jsonType,
+                    new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.BOOLEAN));
+            default -> throw new IllegalArgumentException("no JSON kind is " + kind);
+        };
+    }
+
+    /** A JSON value of {@code kind} read as that kind's value, as the product reads a Variant ({@code CastPolicy}): a
+     *  String its root's text, a number or a Boolean its cast. */
+    private static SqlExpr jsonValue(String kind, SqlExpr v) {
+        return kind.equals("String")
+                ? new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, v, new SqlExpr.StringLit("$")),
+                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
+                : new SqlExpr.Cast(v, java.util.Objects.requireNonNull(JSON_KINDS.get(kind)), SqlExpr.Reason.JUDGE);
+    }
 
     /** Whether a side is a {@code Date} carried as its written text ({@code JudgmentFacts}' the same rule). */
     private static boolean writtenDate(Type kind, SqlQuery wrapped) {
@@ -798,6 +900,40 @@ public final class VerdictSql {
                 return vs.isEmpty() ? null : new SqlExpr.Case(vs, nullOf(java.util.Objects.requireNonNull(
                         columns.get(key), "a kind's SQL type")), SqlExpr.Reason.JUDGE);
             };
+        } else if (wrapped.outputs().get(0).type() == SqlType.Scalar.JSON) {
+            rows = valueRows(wrapped);
+            if (rows == null) {
+                return null;
+            }
+            SqlQuery r = rows;
+            SqlExpr v = SqlExpr.Column.of("r", r.outputs(), O);
+            if (byType) {
+                // recorded as carried: the JSON value itself
+                kOf = new SqlExpr.IntLit(order.indexOf(kindKey("Any", SqlType.Scalar.JSON, true)));
+                valueOf = key -> key.equals(kindKey("Any", SqlType.Scalar.JSON, true)) ? v : null;
+            } else {
+                SqlExpr jt = SqlExpr.Call.of(SqlFn.JSON_TYPE, v);
+                List<SqlExpr.Case.When> ks = new ArrayList<>();
+                ks.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, jt,
+                        new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.NULL)), new SqlExpr.NullLit()));
+                for (String k : JSON_KINDS.keySet()) {
+                    ks.add(new SqlExpr.Case.When(jsonKindIs(k, jt), new SqlExpr.IntLit(order.indexOf(kindKey(k,
+                            java.util.Objects.requireNonNull(JSON_KINDS.get(k)), false)))));
+                }
+                // an object or an array: no typed value here, refused by name
+                kOf = new SqlExpr.Case(ks, SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.JUDGED_TREE_NOT_TYPED, List.of())), SqlExpr.Reason.JUDGE);
+                valueOf = key -> {
+                    for (String k : JSON_KINDS.keySet()) {
+                        if (kindKey(k, java.util.Objects.requireNonNull(JSON_KINDS.get(k)), false).equals(key)) {
+                            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(jsonKindIs(k, jt), jsonValue(k, v))),
+                                    nullOf(java.util.Objects.requireNonNull(columns.get(key), "a kind's SQL type")),
+                                    SqlExpr.Reason.JUDGE);
+                        }
+                    }
+                    return null;
+                };
+            }
         } else if (writtenDate(kind, wrapped)) {
             rows = valueRows(wrapped);
             if (rows == null) {
@@ -1284,11 +1420,37 @@ public final class VerdictSql {
      *  written precision: RootLiterals) -- with a nonzero digit of a second past the sixth. A String literal is none,
      *  whatever it spells (the precision audit's M2, 2026-11-22: a filter's text switched an assert to nanoseconds). */
     private static boolean digitsPastMicros(SqlExpr e) {
+        if (e instanceof SqlExpr.Call ns && ns.fn() == SqlFn.FROM_EPOCH_NS) {
+            // a date-time computed to the nanosecond (an adjust by nanoseconds: DateShifts' epoch count): a fact of the
+            // plan too (the instances audit's M-a, 2026-11-22: its value, a TIMESTAMP_NS, was refused where DuckDB
+            // compares it)
+            return true;
+        }
+        if (e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.TEMPORAL_TEXT
+                && !(c.value() instanceof SqlExpr.StringLit)) {
+            // a literal collection's carrier: its elements' texts inside (LiteralSpelling.staticTemporalText; the
+            // instances audit's H-A, 2026-11-22: a list of nanosecond literals was read to the microsecond)
+            boolean[] found = {false};
+            new com.legend.sql.SqlRewriter() {
+                @Override
+                protected SqlExpr expr(SqlExpr x) {
+                    found[0] |= x instanceof SqlExpr.StringLit sl && fractionDigits(sl.value()) > 6;
+                    return x;
+                }
+            }.rewrite(SqlSelect.starOf(new SqlSource.Dual()).withProjections(List.of(
+                    new SqlSelect.Projection(c.value(), "v", null))));
+            return found[0];
+        }
         String text = e instanceof SqlExpr.TimestampLit t ? t.iso()
                 : e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.TEMPORAL_TEXT
                         && c.value() instanceof SqlExpr.StringLit s ? s.value() : null;
-        if (text == null || text.indexOf('.') < 0) {
-            return false;
+        return text != null && fractionDigits(text) > 6;
+    }
+
+    /** The significant digits of a second a date-time's text writes (its trailing zeros no digit). */
+    private static int fractionDigits(String text) {
+        if (text.indexOf('.') < 0) {
+            return 0;
         }
         int at = text.indexOf('.') + 1;
         int end = at;
@@ -1300,7 +1462,7 @@ public final class VerdictSql {
         while (significant > 0 && digits.charAt(significant - 1) == '0') {
             significant--;
         }
-        return significant > 6;
+        return significant;
     }
 
     /** Whether {@code holds} is the sides' comparison node, or its negation. */

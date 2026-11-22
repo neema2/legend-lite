@@ -109,6 +109,9 @@ public enum ErrorKind implements ErrorCode {
     JUDGED_INSTANT_NOT_HELD(Form.of(2, "a date-time an assert compares has more fraction digits than %1$s reads in it"
             + " (%2$s): refused, never cut (S181)"), Form.of(3, "a date-time an assert compares to the nanosecond is"
             + " outside the days %1$s holds to the nanosecond (%2$s to %3$s): refused (S181)")),
+    /** []: lite's own, an Any value an assert compares that holds a JSON object or array. */
+    JUDGED_TREE_NOT_TYPED(Form.of(0, "an Any value an assert compares holds a JSON object or array, which the database"
+            + " judge compares by no typed value: refused")),
     /** [the table's column count]: lite's own, a CSV record wider than its table (a load). */
     CSV_TOO_WIDE(Form.of(1, "a record of the CSV file has more cells than its table's %1$s column(s)")),
     /** legend-engine's rows()/_range() assert, verbatim (#81's frame guard). */

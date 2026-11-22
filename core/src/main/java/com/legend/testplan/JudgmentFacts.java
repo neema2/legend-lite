@@ -37,7 +37,7 @@ final class JudgmentFacts {
         /** How the pair's values compare: as typed values, dates (by kind and instant), the same only where both are
          *  empty (an empty side, Nil), tagged values (each its kind and its value), instances of one class (each a row
          *  of its typed leaves: its keys, {@code keys}, or its identity where it has none; item 3's S4, instances). */
-        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES }
+        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES, COLLECTIONS }
 
         TypedPair(Type e, Type a, Form form) {
             this(e, a, form, null);
@@ -66,6 +66,8 @@ final class JudgmentFacts {
                 case TAGGED -> com.legend.lowering.VerdictSql.typedTagged(ePlan, e, aPlan, a, multiset, wantEqual);
                 case INSTANCES -> com.legend.lowering.VerdictSql.typedInstances(ePlan, e, aPlan, a, keys, multiset,
                         wantEqual);
+                case COLLECTIONS -> com.legend.lowering.VerdictSql.typedCollections(ePlan, e, aPlan, a, multiset,
+                        wantEqual);
                 case VALUES, DATES, EMPTY_ONLY -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e, aPlan, a,
                         multiset, wantEqual, form == Form.EMPTY_ONLY);
             };
@@ -74,8 +76,8 @@ final class JudgmentFacts {
 
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
             Type aKind, com.legend.sql.SqlQuery aPlan, ModelContext ctx) {
-        boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan);
-        boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan);
+        boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan) || jsonCarried(ePlan);
+        boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan) || jsonCarried(aPlan);
         if (eMixed || aMixed) {
             // a value whose kind the database decides among candidates (a Number's max, a mixed list), or a Date
             // written as its text (a partial date, a Date the egress writes): each value its kind and its value,
@@ -86,8 +88,10 @@ final class JudgmentFacts {
         if (PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind)) {
             // an empty side (Nil, the empty collection's kind): the two the same only where both are empty, the other
             // side's values typed by its own kind for the record
-            Type e = PlatformTypes.isNil(eKind) ? eKind : sideKind(eSpec, eKind, ePlan);
-            Type a = PlatformTypes.isNil(aKind) ? aKind : sideKind(aSpec, aKind, aPlan);
+            Type e = PlatformTypes.isNil(eKind) ? eKind : emptyKind(eKind, ePlan) != null ? eKind
+                    : sideKind(eSpec, eKind, ePlan);
+            Type a = PlatformTypes.isNil(aKind) ? aKind : emptyKind(aKind, aPlan) != null ? aKind
+                    : sideKind(aSpec, aKind, aPlan);
             return e == null || a == null ? null : new TypedPair(e, a, TypedPair.Form.EMPTY_ONLY);
         }
         Type e = dateKind(eSpec, eKind, ePlan);
@@ -101,6 +105,14 @@ final class JudgmentFacts {
         a = com.legend.lowering.VerdictSql.typedClass(aKind);
         if (e != null && a != null) {
             return new TypedPair(e, a, TypedPair.Form.VALUES);
+        }
+        if (eKind.equals(aKind) && named(ePlan) && named(aPlan)) {
+            // a packageable element carried by its path (a Mapping): its path compared, a String
+            return new TypedPair(eKind, aKind, TypedPair.Form.VALUES);
+        }
+        if (collection(ePlan) && collection(aPlan)) {
+            // nested lists and maps: each value as its database holds it (VerdictSql.typedCollections)
+            return new TypedPair(eKind, aKind, TypedPair.Form.COLLECTIONS);
         }
         // instances of ONE class -- a model class's or a Pair's -- its keys read here, at planning (a subtype pair
         // restricts by the classifiers its run carries, which the host reads)
@@ -123,6 +135,22 @@ final class JudgmentFacts {
         com.legend.sql.SqlType t = plan.outputs().get(0).type();
         return t instanceof com.legend.sql.SqlType.Struct || t instanceof com.legend.sql.SqlType.Map
                 || t instanceof com.legend.sql.SqlType.Array || t == com.legend.sql.SqlType.Scalar.JSON ? kind : null;
+    }
+
+    /** Whether a side of a class's kind carries each value as a text (a packageable element by its path). */
+    private static boolean named(com.legend.sql.SqlQuery plan) {
+        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() == com.legend.sql.SqlType.Scalar.VARCHAR;
+    }
+
+    /** Whether a side's values are lists or maps (a nested List, a Map). */
+    private static boolean collection(com.legend.sql.SqlQuery plan) {
+        return !plan.outputs().isEmpty() && (plan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Array
+                || plan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Map);
+    }
+
+    /** Whether a side's values are carried as JSON (an Any): each its JSON kind's value (VerdictSql.typedTagged). */
+    private static boolean jsonCarried(com.legend.sql.SqlQuery plan) {
+        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() == com.legend.sql.SqlType.Scalar.JSON;
     }
 
     /** Whether a side's plan carries a tagged value (its first column a {@code SqlType.Tagged}: the kind the

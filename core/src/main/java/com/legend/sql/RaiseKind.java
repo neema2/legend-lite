@@ -55,6 +55,9 @@ public enum RaiseKind {
      *  cannot -- never cut, never rounded): its text has a nonzero digit of a second past the ones the database reads,
      *  or, compared to the nanosecond, it is outside the days the database's nanosecond timestamp holds. */
     JUDGED_INSTANT_NOT_HELD,
+    /** A value typed Any an assert compares holding a JSON object or array, which the database judge reads by no typed
+     *  value (item 3's S4, 2026-11-22: its JSON text is never compared). */
+    JUDGED_TREE_NOT_TYPED,
     CSV_TOO_WIDE,
     /** A window frame whose computed start comes after its end (merged with #81's frame guard, 2026-11-14). */
     WINDOW_FRAME_INVERTED,

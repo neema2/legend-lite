@@ -766,6 +766,73 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "instances by keys or identity:\n  " + String.join("\n  ", wrong));
     }
 
+    /** The last families typed (item 3's S4, 2026-11-22): values typed Any compared by their JSON kind and value; nested
+     *  lists and maps as their database holds them (DuckDB natively; a database carrying them as JSON refuses by name
+     *  under the database judge, never compares their text); a list literal's nanoseconds read to the nanosecond; an
+     *  identity assert over two Pairs no value comparison. Each body's outcome per database and judge. */
+    @Test
+    void theLastFamiliesAreTypedOrRefusedByName() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        // Any: a JSON-carried side against a typed or a tagged one
+        want.put("{|assertEquals([1, 'a'], [1, 'a']->cast(@Any))}", "pass");
+        want.put("{|assertEquals([1, 'a'], [1, 'b']->cast(@Any))}", "AssertFailed");
+        want.put("{|assertEquals([1, 'a'], [1.0, 'a']->cast(@Any))}", "AssertFailed");
+        // nested lists and maps
+        want.put("{|assertEquals(list([1, 2]), list([1, 2]))}", "pass|H2=|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertEquals(list([1, 2]), list([2, 1]))}",
+                "AssertFailed|H2=|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertEquals(newMap([pair('a', 1), pair('b', 2)]), newMap([pair('b', 2), pair('a', 1)]))}",
+                "pass|H2=|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertEquals(newMap([pair('a', 1)]), newMap([pair('a', 2)]))}",
+                "AssertFailed|H2=|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        // a list literal's nanoseconds (the instances audit's H-A) and a tenth digit refused when planned
+        want.put("{|assertEquals([%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00], [%2020-01-01T10:00:00.123456789,"
+                + " %2020-01-01T10:00:00.000])}", "pass|H2=|SQLite=DialectCapability");
+        want.put("{|assertContains([%2020-01-01T10:00:00.123456789], %2020-01-01T10:00:00.123456789)}", "pass");
+        want.put("{|assertEquals([%2020-01-01T10:00:00.0000000001, %2020-01-01T10:00:00],"
+                + " [%2020-01-01T10:00:00.0000000002, %2020-01-01T10:00:00])}", "DialectCapability");
+        // a nanosecond adjust is a nanosecond assert (the instances audit's M-a)
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456, %2020-01-01T10:00:00.123456->adjust(789,"
+                + " DurationUnit.NANOSECONDS))}", "AssertFailed|H2=DialectCapability|SQLite=DialectCapability");
+        List<String> wrong = new ArrayList<>();
+        List<String> seen = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    seen.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    String expected = e.getValue();
+                    int byMode = expected.indexOf("|" + database + "/" + mode + "=");
+                    if (byMode >= 0) {
+                        expected = expected.substring(byMode + database.toString().length() + mode.toString().length()
+                                + 3);
+                    }
+                    int other = byMode >= 0 ? -1 : expected.indexOf("|" + database + "=");
+                    expected = other >= 0 ? expected.substring(other + database.toString().length() + 2)
+                            : expected.contains("|") ? expected.substring(0, expected.indexOf('|')) : expected;
+                    if (expected.contains("|")) {
+                        expected = expected.substring(0, expected.indexOf('|'));
+                    }
+                    if (!got.startsWith(expected)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "the last families:\n  " + String.join("\n  ", wrong));
+    }
+
     /** Two tables compared (assertTdsEquivalent, assertEquals, assertNotEquals) on every database the platform runs
      *  in-process (item 3's S4, tables, 2026-11-22): the database's verdict over the typed cells, each grid's rows riding
      *  a failure as its database carries a list of rows (DuckDB's LIST of STRUCT; H2's and SQLite's JSON) for the host's

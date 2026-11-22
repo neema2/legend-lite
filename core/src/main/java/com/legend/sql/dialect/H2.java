@@ -1456,6 +1456,11 @@ public class H2 extends AnsiSqlRenderer {
      *  the base renderer's wall. */
     @Override
     protected SqlWriter variantGet(SqlWriter writer, List<SqlExpr> args) {
+        if (args.get(1) instanceof SqlExpr.StringLit root && root.value().equals("$")) {
+            // the root is the value itself (a Variant read as its text: CastPolicy; item 3's S4: until 2026-11-22 the
+            // field "$", which H2 reads as no member)
+            return writer.append("(").expr(args.get(0), 0).append(")");
+        }
         if (args.get(1) instanceof SqlExpr.StringLit key) {
             return writer.append("(").expr(args.get(0), 7).append(").\"")
                     .append(key.value().replace("\"", "\"\"")).append("\"");

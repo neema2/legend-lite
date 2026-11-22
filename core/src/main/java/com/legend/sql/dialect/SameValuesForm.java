@@ -34,8 +34,16 @@ final class SameValuesForm {
     private SameValuesForm() {
     }
 
-    /** The Boolean select comparing {@code eRows} and {@code aRows}. */
+    /** The Boolean select comparing {@code eRows} and {@code aRows}. A value column holding a list or a map is refused
+     *  by name: this form compares scalar columns, and a database without the collection type carries one as its JSON
+     *  text, whose comparison would be of texts, not values (item 3's S4, 2026-11-22: typed values only). */
     static SqlQuery of(SqlQuery eRows, SqlQuery aRows, boolean ordered) {
+        for (OutputCol c : values(eRows)) {
+            if (c.type() instanceof SqlType.Array || c.type() instanceof SqlType.Map) {
+                throw new com.legend.sql.DialectCapability("an assert comparing lists or maps of values has no typed"
+                        + " form on a database that carries them as JSON: refused (item 3's S4)");
+            }
+        }
         return ordered ? inOrder(eRows, aRows) : anyOrder(eRows, aRows);
     }
 
