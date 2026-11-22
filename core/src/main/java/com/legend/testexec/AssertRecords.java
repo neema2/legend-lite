@@ -35,6 +35,52 @@ final class AssertRecords {
                         LiteWords.pairSide(a, e, null));
     }
 
+    /** THE ONE CHOICE of an equality's failure record (item 3's S4, 2026-11-22, the user: "exactly one translation
+     *  from error to English"): both judges call it, the host over the values it read and the database judge's run over
+     *  the values the database returned. {@code incidental}: the order did not count ("in any order"); the carried
+     *  sides are the values as they arrived (a class side's JSON carrier). */
+    static ErrorRecord equality(boolean incidental, boolean wantEqual, List<Object> e, List<Object> a,
+            List<Object> eCarried, List<Object> aCarried, @Nullable String eClass, @Nullable String aClass) {
+        if (!wantEqual) {
+            return notEqual(e, a, aClass);
+        }
+        return incidental ? sameElements(e, a, eClass, aClass)
+                : sidesNotEqual(e, a, eCarried, aCarried, eClass, aClass);
+    }
+
+    /**
+     * A failed TYPED verdict row's record (item 3's S4, 2026-11-21, the user's Q-A): {@code row} as the database
+     * returned it, {@code [verdict, expected, actual]}, each side a list in its own order (an empty side's NULL); its
+     * {@code report} names the family, whose record is chosen here as the host judge chooses it -- a caller's literal
+     * message in its place, an unrolled element framed at its index.
+     */
+    static ErrorRecord ofTypedRow(com.legend.testexecutionplan.RootLoop.Report report, List<Object> row) {
+        if (!Boolean.FALSE.equals(row.get(0))) {
+            throw new IllegalStateException("a failed typed row's verdict is false, not " + row.get(0));
+        }
+        List<Object> e = typedSide(row.get(1));
+        List<Object> a = typedSide(row.get(2));
+        @Nullable String eClass = report.e() == null ? null : report.e().classFqn();
+        @Nullable String aClass = report.a() == null ? null : report.a().classFqn();
+        ErrorRecord failure = report.fixed() != null ? report.fixed() : switch (report.family()) {
+            case EQUALS -> equality(false, report.want(), e, a, e, a, eClass, aClass);
+            case SAME_ELEMENTS -> equality(true, report.want(), e, a, e, a, eClass, aClass);
+            case IS_NOT -> negated("IS_NOT", e, a);
+        };
+        return report.index() >= 0 ? atIndex(failure, report.index()) : failure;
+    }
+
+    /** A typed row's side: the list the database wrote (an empty side's none, written NULL). */
+    private static List<Object> typedSide(@Nullable Object v) {
+        if (v == null) {
+            return List.of();
+        }
+        if (!(v instanceof List<?> l)) {
+            throw new IllegalStateException("a typed row's side is a list, not " + v.getClass().getSimpleName());
+        }
+        return java.util.Collections.unmodifiableList(new java.util.ArrayList<>(l));
+    }
+
     static ErrorRecord notEqual(List<Object> e, List<Object> a, @Nullable String aClass) {
         return record(AssertKind.NOT_EQUALS, "actual", LiteWords.pairSide(a, e, aClass));
     }

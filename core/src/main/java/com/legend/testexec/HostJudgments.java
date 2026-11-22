@@ -623,7 +623,7 @@ final class HostJudgments {
                 typedSide(e, j.e()), typedSide(a, j.a()), rules)
                 // the failed TYPED comparison's message, never a second, untyped one (the ledger audit's D4, 2026-11-16:
                 // an untyped re-compare that held here returned null, and the failed assert passed)
-                ? null : sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn());
+                ? null : AssertRecords.equality(true, true, e, a, e, a, j.e().classFqn(), j.a().classFqn());
         com.legend.testexec.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -817,17 +817,12 @@ final class HostJudgments {
                 name, e, a, equal, incidental);
         // the message is the failed verdict's own sides, spelled -- no second, untyped comparison that could hold
         // where the typed one failed (the ledger audit's D4, 2026-11-16)
+        // the record the one choice makes (AssertRecords.equality), as the database judge's run makes it
         return finish(name, wantEqual, equal,
-                () -> incidental
-                        ? sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn())
-                        : AssertRecords.sidesNotEqual(e, a, ef.values(), af.values(), j.e().classFqn(), j.a().classFqn()),
-                () -> AssertRecords.notEqual(e, a, j.a().classFqn()));
-    }
-
-    /** assertSameElements' failure over two sides a verdict has failed, each side's values in its own order. */
-    private static com.legend.error.ErrorRecord sameElementsWords(List<Object> e, List<Object> a,
-            @com.legend.base.Nullable String eClass, @com.legend.base.Nullable String aClass) {
-        return AssertRecords.sameElements(e, a, eClass, aClass);
+                () -> AssertRecords.equality(incidental, true, e, a, ef.values(), af.values(), j.e().classFqn(),
+                        j.a().classFqn()),
+                () -> AssertRecords.equality(incidental, false, e, a, ef.values(), af.values(), j.e().classFqn(),
+                        j.a().classFqn()));
     }
 
     private static @com.legend.base.Nullable TypedSide jsonOf(HostJudgment.Json j, List<TypedSide> pair,

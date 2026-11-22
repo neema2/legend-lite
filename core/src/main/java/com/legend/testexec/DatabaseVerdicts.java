@@ -7,6 +7,7 @@ import com.legend.testexecutionplan.RootLoop;
 
 
 import com.legend.testexecutionplan.TypedSide;
+import com.legend.testexecutionplan.Verdicts;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,61 +43,21 @@ final class DatabaseVerdicts {
             throw new IllegalStateException(name + ": the holds column is not a boolean: " + row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN));
         }
         com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
-        if (Boolean.TRUE.equals(row.get(com.legend.testexecutionplan.RootLoop.LENIENT_COLUMN))) {
-            // the declared 2-ULP Float leniency decided it — counted as
-            // host mode counts its own firings
-            com.legend.testexec.CanonicalDivergence.sqlUlpPolicy("database " + name);
-            com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "database " + name);
-        }
-        if (holds) {
-            return com.legend.testexecutionplan.Verdicts.ok();
-        }
-        return com.legend.testexecutionplan.Verdicts.fail(String.valueOf(row.get(com.legend.testexecutionplan.RootLoop.MESSAGE_COLUMN)));
+        // (the 2-ULP leniency's census, read off the row's lenient column: deleted 2026-11-22, item 3's S4 -- every
+        // verdict row plans the column false since A4 of the compatibility program, stage A ratified by the user
+        // 2026-11-19, so it never fired)
+        return holds ? Verdicts.ok() : Verdicts.fail(String.valueOf(row.get(RootLoop.MESSAGE_COLUMN)));
     }
 
     /**
      * The verdict of one TYPED row (item 3's S4, 2026-11-21, the user's Q-A): {@code [verdict, expected, actual]}, the
-     * verdict the database's over the typed values, each side a list in its own order, written where the verdict
-     * fails. Where it holds, nothing; where it fails, the failure is recorded by the HOST judge's own builders
-     * ({@link AssertRecords}) over the values the database computed -- one record for one failure on both judges.
+     * verdict the database's over the typed values. Where it holds, nothing; where it fails, the failure is the record
+     * {@link AssertRecords#ofTypedRow} chooses from the values the database returned -- the one choice the host judge
+     * makes over the values it read (the user, 2026-11-22: one translation from a failure to its words).
      */
     static TypedSide typedVerdictOf(String name, List<Object> row, RootLoop.Report report) {
-        if (!(row.get(0) instanceof Boolean holds)) {
-            throw new IllegalStateException(name + ": a typed row's verdict is not a boolean: " + row.get(0));
-        }
         com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
-        if (holds) {
-            return com.legend.testexecutionplan.Verdicts.ok();
-        }
-        com.legend.error.ErrorRecord failure = report.fixed() != null ? report.fixed() : switch (report.family()) {
-            case EQUALS -> report.want()
-                    ? AssertRecords.sidesNotEqual(side(row, 1), side(row, 2), side(row, 1), side(row, 2),
-                            classOf(report.e()), classOf(report.a()))
-                    : AssertRecords.notEqual(side(row, 1), side(row, 2), classOf(report.a()));
-            case SAME_ELEMENTS -> report.want()
-                    ? AssertRecords.sameElements(side(row, 1), side(row, 2), classOf(report.e()), classOf(report.a()))
-                    : AssertRecords.notEqual(side(row, 1), side(row, 2), classOf(report.a()));
-            case IS_NOT -> AssertRecords.negated("IS_NOT", side(row, 1), side(row, 2));
-        };
-        return com.legend.testexecutionplan.Verdicts.fail(report.index() >= 0
-                ? AssertRecords.atIndex(failure, report.index()) : failure);
-    }
-
-    /** A typed row's side at {@code column}: the list the database wrote (an empty side's none, written NULL). */
-    private static List<Object> side(List<Object> row, int column) {
-        Object v = row.get(column);
-        if (v == null) {
-            return List.of();
-        }
-        if (!(v instanceof List<?> l)) {
-            throw new IllegalStateException("a typed row's side is a list, not " + v.getClass().getSimpleName());
-        }
-        return java.util.Collections.unmodifiableList(new java.util.ArrayList<>(l));
-    }
-
-    private static @com.legend.base.Nullable String classOf(
-            com.legend.testexecutionplan.HostJudgment.@com.legend.base.Nullable SideFacts f) {
-        return f == null ? null : f.classFqn();
+        return Boolean.TRUE.equals(row.get(0)) ? Verdicts.ok() : Verdicts.fail(AssertRecords.ofTypedRow(report, row));
     }
 
     /** A verdict row's UNJUDGED reason raised as the assert's failure, its evidence in the message (the run's copy of
