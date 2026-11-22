@@ -43,6 +43,16 @@ final class JudgmentFacts {
             this(e, a, form, null);
         }
 
+        /** Whether both sides carry their values in ONE scalar SQL type (the literal channel's Any-stamped or mixed
+         *  side whose plan holds one typed column: compared as typed values all the same). */
+        boolean oneScalar(com.legend.sql.SqlQuery ePlan, com.legend.sql.SqlQuery aPlan) {
+            // never an instance's kind: an instance carried as its text is not a value of that type (its own member)
+            return form == Form.VALUES && !(e instanceof Type.ClassType) && !(a instanceof Type.ClassType)
+                    && !ePlan.outputs().isEmpty() && !aPlan.outputs().isEmpty()
+                    && ePlan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Scalar t
+                    && t != com.legend.sql.SqlType.Scalar.JSON && t.equals(aPlan.outputs().get(0).type());
+        }
+
         /** The family whose record the host's builders write: an instance's identity assert ({@code assertEq},
          *  {@code assertIs}) names it by its class and identity, as the host's does; else the equality's. */
         com.legend.testexecutionplan.RootLoop.Family family(boolean multiset, String name) {
@@ -132,9 +142,10 @@ final class JudgmentFacts {
         if (typed != null || kind == null || plan.outputs().isEmpty()) {
             return typed;
         }
+        // any carrier the plan types: a struct, a map, a list, JSON, or a scalar of a kind of its own (an Any-typed side
+        // whose values one SQL type holds); never a tagged value's tag (its kinds' values: its own member)
         com.legend.sql.SqlType t = plan.outputs().get(0).type();
-        return t instanceof com.legend.sql.SqlType.Struct || t instanceof com.legend.sql.SqlType.Map
-                || t instanceof com.legend.sql.SqlType.Array || t == com.legend.sql.SqlType.Scalar.JSON ? kind : null;
+        return t instanceof com.legend.sql.SqlType.Tagged ? null : kind;
     }
 
     /** Whether a side of a class's kind carries each value as a text (a packageable element by its path). */

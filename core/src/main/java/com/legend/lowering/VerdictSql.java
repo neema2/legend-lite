@@ -1128,6 +1128,12 @@ public final class VerdictSql {
     /** {@code assertEmpty} / {@code assertNotEmpty}'s TYPED member (item 3's S4): the side's values as one list (an empty
      *  side's NULL); the verdict its emptiness under {@code wantEmpty}; the list rides the failure. */
     public static @com.legend.base.Nullable TypedRow typedEmpty(SqlQuery wrapped, Type kind, boolean wantEmpty) {
+        if (PlatformTypes.isNil(kind)) {
+            // a side the types say holds nothing (Nil): empty, a fact of its type -- decided, as the host decides it
+            return typedRow(List.of(), new SqlSource.Dual(), new SqlExpr.BoolLit(wantEmpty), List.of(new Valued(
+                    TYPED_ACTUAL, nullOf(new SqlType.Array(SqlType.Scalar.VARCHAR)),
+                    new SqlType.Array(SqlType.Scalar.VARCHAR), kind, true)));
+        }
         SqlQuery rows = valueRows(wrapped);
         if (rows == null) {
             return null;
@@ -3582,7 +3588,10 @@ public final class VerdictSql {
             protected SqlExpr expr(SqlExpr e) {
                 if (e instanceof SqlAgg || e instanceof SqlExpr.WindowCall
                         || e instanceof SqlExpr.JsonArrayAgg || e instanceof SqlExpr.ScalarSubquery
-                        || e instanceof SqlExpr.Exists) {
+                        || e instanceof SqlExpr.Exists
+                        || e instanceof SqlExpr.Call c && c.fn() == SqlFn.UNNEST) {
+                    // a value that changes the rows (an aggregate, a window, a subquery, an UNNEST's row per element):
+                    // the wrap stays a layer, its values read from outside it
                     aggregate[0] = true;
                 }
                 return e;

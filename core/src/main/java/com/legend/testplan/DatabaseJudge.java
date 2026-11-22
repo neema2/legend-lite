@@ -230,7 +230,7 @@ public final class DatabaseJudge {
         // kind and its instant, S399)
         JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, re.kinds().get(ie), java.util.Objects.requireNonNull(we)
                 .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan(), env.ctx());
-        if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny))) {
+        if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny) || tp.oneScalar(we.plan(), wa.plan()))) {
             com.legend.lowering.VerdictSql.TypedRow typed = tp.row(we.plan(), wa.plan(), canonicalOrder, wantEqual);
             if (typed != null) {
                 return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(tp.family(canonicalOrder,
@@ -566,8 +566,8 @@ public final class DatabaseJudge {
         var sw = java.util.Objects.requireNonNull(side.side());
         // the elements written as lite's sentence writes them where the side's canon names one primitive kind
         com.legend.lowering.CanonRider r = side.rider();
-        if (sw.shape() != com.legend.plan.ResultShape.GRAPH && r != null && r.declined() == null && !r.tdsWrapped()
-                && JudgmentFacts.emptyKind(oneKind(r), sw.plan()) instanceof com.legend.compiler.element.type.Type rk) {
+        if (sw.shape() != com.legend.plan.ResultShape.GRAPH && r != null && !r.tdsWrapped() && JudgmentFacts.emptyKind(
+                r.kinds().isEmpty() ? arg.info().type() : oneKind(r), sw.plan()) instanceof com.legend.compiler.element.type.Type rk) {
             // TYPED (item 3's S4): the side's values as one list, its emptiness the verdict, the list its failure's
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEmpty(sw.plan(),
                     rk, wantEmpty);
