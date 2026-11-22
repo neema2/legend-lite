@@ -2271,7 +2271,7 @@ public final class VerdictSql {
      * ({@link #schema}): its polarity and its message the statement's own.
      */
     public static SqlQuery assertError(String expected, @com.legend.base.Nullable Long line,
-            @com.legend.base.Nullable Long column, Raised raised, VerdictWords words) {
+            @com.legend.base.Nullable Long column, Raised raised, VerdictWords words, boolean passesUnraised) {
         OutputCol mOut = new OutputCol("m", SqlType.Scalar.VARCHAR, true);
         OutputCol lOut = new OutputCol("l", SqlType.Scalar.BIGINT, true);
         OutputCol cOut = new OutputCol("c", SqlType.Scalar.BIGINT, true);
@@ -2284,7 +2284,11 @@ public final class VerdictSql {
         SqlExpr c = SqlExpr.Column.of("o", cOut);
         SqlExpr exp = new SqlExpr.StringLit(expected);
         List<SqlExpr.Case.When> failures = new ArrayList<>();
-        failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, m), words.noError(expected)));
+        if (!passesUnraised) {
+            // a function that raised nothing fails, but where the assert expects legend-pure's own "nothing was raised"
+            // text (passesUnraised: decided at planning by comparing the two constants; item 3's S8, Q-B)
+            failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, m), words.noError(expected)));
+        }
         failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, m, exp), words.errorDiffers(expected, m)));
         if (line != null || column != null) {
             failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, l),

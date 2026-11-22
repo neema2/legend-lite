@@ -72,7 +72,9 @@ final class AssertErrorRuns {
     private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
             @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
             @com.legend.base.Nullable Throwable caughtCause, BodyRun run) {
-        if (caughtMessage == null) {
+        // f raised nothing: upstream's matcher reads UNRAISED, so an assertError that expects it passes (item 3's S8,
+        // Q-B; a position beside it is refused at planning, AssertErrorNative), any other fails
+        if (caughtMessage == null && !HostJudgment.AssertError.expectsUnraised(expected)) {
             throw new com.legend.error.AssertFailed(AssertRecords.noError(expected));
         }
         // B7 (RaisedErrors): messages arrive ALREADY clean — the
@@ -81,9 +83,8 @@ final class AssertErrorRuns {
         // error keeps its class and envelope, and a mismatch against
         // pure's expectation is then an HONEST failure, never a strip
         // coincidence. The old broad prefix regex is deleted.
-        String actual = caughtMessage;
-        if (!actual.equals(expected)) {
-            throw new com.legend.error.AssertFailed(AssertRecords.errorDiffers(expected, actual));
+        if (caughtMessage != null && !caughtMessage.equals(expected)) {
+            throw new com.legend.error.AssertFailed(AssertRecords.errorDiffers(expected, caughtMessage));
         }
         // POSITION adjudication (leg 2, assertError.pure:25-26 — message
         // first, then line, then column, each only when expected): the
@@ -105,7 +106,6 @@ final class AssertErrorRuns {
                 throw new com.legend.error.AssertFailed(AssertRecords.columnDiffers(expectedColumn, p.column()));
             }
         }
-        return new TypedSide.Scalar(Boolean.TRUE,
-                "Boolean");
+        return new TypedSide.Scalar(Boolean.TRUE, "Boolean");
     }
 }

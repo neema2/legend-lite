@@ -62,13 +62,28 @@ final class AssertErrorNative {
                     "assertError whose function argument is not a"
                     + " zero-parameter lambda literal");
         }
+        if (ae.args().get(1) instanceof TypedLambda) {
+            // upstream's matcher form, assertError(f, {message, sourceInformation | ...}): no matcher is planned (8
+            // calls upstream, all in legend-pure's own tests; item 3's S8: until then refused as a computed message)
+            throw new com.legend.error.NotImplementedException("assertError with a matcher function: not planned");
+        }
         Object expected = ae.args().get(1) instanceof TypedCString exp ? exp.value()
                 : com.legend.compiler.spec.typed.Literals.fold(ae.args().get(1), lets);
         if (!(expected instanceof String message)) {
             throw new com.legend.error.NotImplementedException(
                     "assertError whose message argument is computed at run time (not a String the compiler folds)");
         }
-        return new Args(f, message, optionalInt(ae, 2), optionalInt(ae, 3));
+        Long line = optionalInt(ae, 2);
+        Long column = optionalInt(ae, 3);
+        if (com.legend.testexecutionplan.HostJudgment.AssertError.expectsUnraised(message)
+                && (line != null || column != null)) {
+            // upstream compares the assertError call's own position there (assertError.pure:73), which no plan reads
+            // (item 3's S8, Q-B: refused by name; no use upstream)
+            throw new com.legend.error.NotImplementedException("assertError expecting \"" + message
+                    + "\" at a line or column: upstream compares the assertError call's own position"
+                    + " (assertError.pure:73); not planned");
+        }
+        return new Args(f, message, line, column);
     }
 
     /** The error {@code f} raised, as the arm catches it: an error upstream raises when {@code f} runs

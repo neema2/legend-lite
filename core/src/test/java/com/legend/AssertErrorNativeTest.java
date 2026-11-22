@@ -98,6 +98,26 @@ class AssertErrorNativeTest {
         assertEquals("expected the error \"anything\", got none", e.getMessage());
     }
 
+    @Test
+    @DisplayName("expecting legend-pure's unraised text passes where nothing is raised (item 3's S8, Q-B)")
+    void expectingTheUnraisedTextPasses() throws Exception {
+        assertEquals(Boolean.TRUE, run("{|assertError(|1 + 2, 'No error was thrown')}").one());
+        assertEquals(Boolean.TRUE, compat("{|assertError(|1 + 2, 'No error was thrown')}").one());
+    }
+
+    @Test
+    @DisplayName("the unraised text at a position, and the matcher form, are refused by name (item 3's S8, Q-B)")
+    void theUnraisedTextAtAPositionAndTheMatcherAreRefused() {
+        com.legend.error.NotImplementedException at = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> run("{|assertError(|1 + 2, 'No error was thrown', 1, 3)}"));
+        org.junit.jupiter.api.Assertions.assertTrue(at.getMessage().contains("at a line or column"), at.getMessage());
+        com.legend.error.NotImplementedException matcher = assertThrows(
+                com.legend.error.NotImplementedException.class,
+                () -> run("{|assertError(|1 + 2, {m: String[1], s: Any[0..1] | true})}"));
+        org.junit.jupiter.api.Assertions.assertTrue(matcher.getMessage().contains("with a matcher function"),
+                matcher.getMessage());
+    }
+
     // leg 2 (assertError positions): the raise emission threads the
     // raising call's NAME-token span through the provenance envelope
     // (PureSql.raise -> U+001E -> RaisedErrors.Positioned) — interpreted

@@ -35,6 +35,9 @@ class TerminalRowsFrozenTest {
     static final Map<String, String> TERMINAL = Map.ofEntries(
             // the one catalog: upstream's compile sentences in error/CompileKind.java (stage B's BE)
             // (5 -> 6, 2026-11-21, the BE audit 2's S2: MAIN_TABLE_DATABASES_INCONSISTENT; for the user's word)
+            // item 3's S8: assertError's "nothing was raised" text, Pure's semantics (the user's Q-B, 2026-11-22)
+            Map.entry("testexecutionplan/HostJudgment.java | No error was thrown | 1 | RULED", "Q-B, the user's ruling of"
+                    + " 2026-11-22 (\"Q-S8 okay\"): an assertError expecting legend-pure's unraised text passes, as upstream"),
             Map.entry("error/CompileKind.java | Can't find | 6 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Default values are supported only | 1 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Duplicated class mappings | 1 | RULED", ONE_CATALOG),

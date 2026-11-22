@@ -201,6 +201,10 @@ class CompatSpellingGuardTest {
             // assertEmpty, assertNotEmpty) keep these words on both roads: their lite wording is queued for the user's
             // ruling after the merge, so this row stays STAYS until then
             "compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
+            // item 3's S8 (2026-11-22): assertError's "nothing was raised" text, legend-pure's native's own message, which
+            // its matcher reads (AssertError.java:62, CoreGen.java:350, assertError.pure:74): an assertError expecting it
+            // passes, as upstream -- Pure's semantics, not a word; RULED by the user, Q-B ("Q-S8 okay", 2026-11-22)
+            "testexecutionplan/HostJudgment.java | No error was thrown | 1 | RULED",
             // (compiler/spec/VerdictQueries.java | Assert failed | STAYS: gone 2026-11-18, PR #118's fix round, N2 -- the
             // user's R1, "For 118 r1-r3 are fine": the product's default is lite's own sentence; a vector assert with no
             // message fails in the run's words, legend-pure's "Assert failed" the edge's alone)

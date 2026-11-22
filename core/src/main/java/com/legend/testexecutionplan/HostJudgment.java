@@ -267,6 +267,18 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
      *  error was thrown". */
     record AssertError(String expected, @Nullable Long line, @Nullable Long column, @Nullable Failure caught,
             @Nullable Part inner) implements HostJudgment {
+        /** What {@code assertError}'s function hands its matcher where it raised nothing: legend-pure's native throws
+         *  this message and catches it (interpreted {@code AssertError.java:62}, compiled {@code CoreGen.java:350},
+         *  matched by {@code assertError.pure:74}), so an assertError that expects it passes. Pure's semantics, the text
+         *  the matcher reads, not a word (item 3's S8; Q-B, the user's ruling of 2026-11-22, "Q-S8 okay"). */
+        private static final String UNRAISED = "No error was thrown";
+
+        /** Whether {@code message} is {@link #UNRAISED}: read through here, never as a constant another class inlines
+         *  into its own pool (CompatConstantPoolTest). */
+        public static boolean expectsUnraised(String message) {
+            return UNRAISED.equals(message);
+        }
+
         /** f's body a value: the error a side raises is the answer. */
         public AssertError(String expected, @Nullable Long line, @Nullable Long column, @Nullable Failure caught) {
             this(expected, line, column, caught, null);

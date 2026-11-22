@@ -305,6 +305,13 @@ class AssertBarTest {
             new Probe("branch-true-side-last", "{|if(1 == 2, |assertEquals(1, 1), |true);}", null),
             new Probe("branch-true-side-last-fails", "{|if(1 == 1, |assertEquals(1, 2), |true);}",
                     "expected 1, got 2"),
+            // assertError when nothing is raised (item 3's S8, Q-B): legend-pure's matcher reads its own "nothing was
+            // raised" text, so expecting it passes, the inner-assert form too; any other expected text fails NO_ERROR
+            new Probe("assertError-expects-unraised", "{|assertError(|1, 'No error was thrown')}", null),
+            new Probe("assertError-inner-assert-unraised",
+                    "{|assertError(|assertEquals(1, 1), 'No error was thrown')}", null),
+            new Probe("assertError-nothing-raised", "{|assertError(|1, 'boom')}",
+                    "expected the error \"boom\", got none"),
             // the table member (item 3's S4, 2026-11-22): the database's verdict over the typed cells, each grid's rows
             // riding its failure as typed row structs for the host's record -- one record under every judge, the
             // grids whose columns differ included (until then the database judge's sentence of its own)
