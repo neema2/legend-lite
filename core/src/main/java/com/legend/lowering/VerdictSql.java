@@ -295,32 +295,43 @@ public final class VerdictSql {
      */
     public static @com.legend.base.Nullable TypedRow typedTagged(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
             Type aKind, boolean multiset, boolean wantEqual) {
+        // the values compared by KIND (a Decimal of any scale by its value, S139); the values recorded by kind AND SQL
+        // type, each Decimal in a column of its own scale, so none is rescaled in the record (batch 3's audit, H1)
         java.util.TreeMap<String, SqlType> kinds = new java.util.TreeMap<>();
-        if (!kindsOf(eWrapped, eKind, kinds) || !kindsOf(aWrapped, aKind, kinds)) {
+        java.util.TreeMap<String, SqlType> held = new java.util.TreeMap<>();
+        if (!kindsOf(eWrapped, eKind, kinds, false) || !kindsOf(aWrapped, aKind, kinds, false)
+                || !kindsOf(eWrapped, eKind, held, true) || !kindsOf(aWrapped, aKind, held, true)) {
             return null;
         }
-        List<String> order = new ArrayList<>(kinds.keySet());
-        SqlQuery eCells = kindedRows(eWrapped, eKind, order, kinds);
-        SqlQuery aCells = kindedRows(aWrapped, aKind, order, kinds);
-        if (eCells == null || aCells == null) {
+        SqlQuery eCells = kindedRows(eWrapped, eKind, kinds, false);
+        SqlQuery aCells = kindedRows(aWrapped, aKind, kinds, false);
+        SqlQuery eHeld = kindedRows(eWrapped, eKind, held, true);
+        SqlQuery aHeld = kindedRows(aWrapped, aKind, held, true);
+        if (eCells == null || aCells == null || eHeld == null || aHeld == null) {
             return null;
         }
-        SqlQuery eList = listed("__ke", structRows(rowsOf("__ce", eCells)));
-        SqlQuery aList = listed("__ka", structRows(rowsOf("__ca", aCells)));
+        SqlQuery eCmp = listed("__ke", structRows(rowsOf("__ce", eCells)));
+        SqlQuery aCmp = listed("__ka", structRows(rowsOf("__ca", aCells)));
+        SqlQuery eList = listed("__he", structRows(rowsOf("__ge", eHeld)));
+        SqlQuery aList = listed("__ha", structRows(rowsOf("__ga", aHeld)));
         SqlExpr same = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
-                SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
+                SqlExpr.Column.of("ke", eCmp.outputs(), LISTED), SqlExpr.Column.of("ka", aCmp.outputs(), LISTED),
                 new SqlExpr.ScalarSubquery(rowsOf("__ce", eCells)), new SqlExpr.ScalarSubquery(rowsOf("__ca", aCells)));
         return typedRow(List.of(new SqlWith.Cte("__ce", eCells), new SqlWith.Cte("__ca", aCells),
                         new SqlWith.Cte("__ke", structRows(rowsOf("__ce", eCells))),
-                        new SqlWith.Cte("__ka", structRows(rowsOf("__ca", aCells)))),
-                cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a", null)),
+                        new SqlWith.Cte("__ka", structRows(rowsOf("__ca", aCells))),
+                        new SqlWith.Cte("__ge", eHeld), new SqlWith.Cte("__ga", aHeld),
+                        new SqlWith.Cte("__he", structRows(rowsOf("__ge", eHeld))),
+                        new SqlWith.Cte("__ha", structRows(rowsOf("__ga", aHeld)))),
+                cross(cross(cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null)),
+                        new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a", null)),
                 wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
                         listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
     }
 
     /** Whether a tagged side ({@code wrapped}'s first column a {@link SqlType.Tagged}) or a side of one typed class
-     *  states its kinds, each with the SQL type that holds it, into {@code into}. */
-    private static boolean kindsOf(SqlQuery wrapped, Type kind, java.util.Map<String, SqlType> into) {
+     *  states its kinds, each with the SQL type that holds it, into {@code into}, keyed by {@link #kindKey}. */
+    private static boolean kindsOf(SqlQuery wrapped, Type kind, java.util.Map<String, SqlType> into, boolean byType) {
         if (wrapped.outputs().isEmpty()) {
             return false;
         }
@@ -329,7 +340,7 @@ public final class VerdictSql {
                 if (MixedEncoding.enumerationKind(slot.kind()) != null) {
                     return false;
                 }
-                into.putIfAbsent(kindName(slot.kind()), slot.type());
+                into.putIfAbsent(kindKey(slot.kind(), slot.type(), byType), slot.type());
             }
             return true;
         }
@@ -337,72 +348,97 @@ public final class VerdictSql {
         if (t == null || t instanceof Type.EnumType || PlatformTypes.isNil(t)) {
             return false;
         }
-        into.putIfAbsent(kindText(t), t == Type.Primitive.DATE_TIME ? SqlType.Scalar.TIMESTAMP
-                : t == Type.Primitive.STRICT_DATE ? SqlType.Scalar.DATE : wrapped.outputs().get(0).type());
+        SqlType held = heldType(wrapped, t);
+        into.putIfAbsent(kindKey(kindText(t), held, byType), held);
         return true;
     }
 
-    /** A slot's kind as the comparison names it: a DateTime of any written precision one kind (register S399). */
-    private static String kindName(String slotKind) {
-        return MixedEncoding.writtenDigits(slotKind) != null ? "DateTime" : slotKind;
+    /** The SQL type a typed side's values are compared in: a date's the database's DATE or TIMESTAMP ({@link #instants}
+     *  reads a written one), any other its column's. */
+    private static SqlType heldType(SqlQuery wrapped, Type t) {
+        return t == Type.Primitive.DATE_TIME ? SqlType.Scalar.TIMESTAMP
+                : t == Type.Primitive.STRICT_DATE ? SqlType.Scalar.DATE : wrapped.outputs().get(0).type();
     }
 
-    /** A side's values as kinded rows ({@link #typedTagged}): {@code k}, then {@code v0..vn} in {@code order}, then
-     *  {@code __rn}. A tagged side's tag names its slot; a typed side's every value is its one kind's. */
-    private static @com.legend.base.Nullable SqlQuery kindedRows(SqlQuery wrapped, Type kind, List<String> order,
-            java.util.Map<String, SqlType> types) {
+    /** A kind's column key: its name (a DateTime of any written precision one kind, register S399), and where the
+     *  column is the record's ({@code byType}) its SQL type too. */
+    private static String kindKey(String slotKind, SqlType type, boolean byType) {
+        String kind = MixedEncoding.writtenDigits(slotKind) != null ? "DateTime" : slotKind;
+        return byType ? kind + "|" + type : kind;
+    }
+
+    /** A side's values as kinded rows ({@link #typedTagged}): {@code k}, the index of its kind's key in
+     *  {@code columns}, then {@code v0..vn} one per key, then {@code __rn}, numbered in the side's own order. A tagged
+     *  side's tag names its slot; a typed side's every value is its one kind's. */
+    private static @com.legend.base.Nullable SqlQuery kindedRows(SqlQuery wrapped, Type kind,
+            java.util.SortedMap<String, SqlType> columns, boolean byType) {
+        List<String> order = new ArrayList<>(columns.keySet());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         List<OutputCol> outs = new ArrayList<>();
         OutputCol kOut = new OutputCol("k", SqlType.Scalar.BIGINT, false);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        SqlQuery rows;
+        java.util.function.IntFunction<SqlExpr> kOf;
+        java.util.function.BiFunction<Integer, String, @com.legend.base.Nullable SqlExpr> valueOf;
         if (wrapped.outputs().get(0).type() instanceof SqlType.Tagged tg) {
-            OutputCol tagCol = wrapped.outputs().get(0);
-            SqlExpr tag = SqlExpr.Column.of("w", wrapped.outputs(), tagCol.name());
+            // the tag and its slots, in the side's own order (valueRows: a wrap's ORDER BY numbered, never lost)
+            rows = valueRows(wrapped, 1 + tg.slots().size());
+            if (rows == null) {
+                return null;
+            }
+            SqlQuery r = rows;
+            SqlExpr tag = SqlExpr.Column.of("r", r.outputs(), O);
             List<SqlExpr.Case.When> ks = new ArrayList<>();
             for (int i = 0; i < tg.slots().size(); i++) {
+                SqlType.Tagged.Slot slot = tg.slots().get(i);
                 ks.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
-                        new SqlExpr.IntLit(order.indexOf(kindName(tg.slots().get(i).kind())))));
+                        new SqlExpr.IntLit(order.indexOf(kindKey(slot.kind(), slot.type(), byType)))));
             }
-            ps.add(new SqlSelect.Projection(new SqlExpr.Case(ks, null, SqlExpr.Reason.JUDGE), "k", kOut));
-            outs.add(kOut);
-            for (int j = 0; j < order.size(); j++) {
+            kOf = j -> new SqlExpr.Case(ks, null, SqlExpr.Reason.JUDGE);
+            valueOf = (j, key) -> {
                 List<SqlExpr.Case.When> vs = new ArrayList<>();
                 for (int i = 0; i < tg.slots().size(); i++) {
-                    if (kindName(tg.slots().get(i).kind()).equals(order.get(j))) {
+                    SqlType.Tagged.Slot slot = tg.slots().get(i);
+                    if (kindKey(slot.kind(), slot.type(), byType).equals(key)) {
                         vs.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
-                                SqlExpr.Column.of("w", wrapped.outputs(), SqlType.Tagged.slotColumn(tagCol.name(), i))));
+                                SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1))));
                     }
                 }
-                SqlType t = java.util.Objects.requireNonNull(types.get(order.get(j)), "a kind's SQL type");
-                OutputCol out = new OutputCol("v" + j, t, true);
-                ps.add(new SqlSelect.Projection(vs.isEmpty() ? nullOf(t) : new SqlExpr.Case(vs, nullOf(t),
-                        SqlExpr.Reason.JUDGE), out.name(), out));
-                outs.add(out);
+                return vs.isEmpty() ? null : new SqlExpr.Case(vs, nullOf(java.util.Objects.requireNonNull(
+                        columns.get(key), "a kind's SQL type")), SqlExpr.Reason.JUDGE);
+            };
+        } else {
+            Type t = java.util.Objects.requireNonNull(typedClass(kind), "a typed side's class");
+            rows = instants(valueRows(wrapped), t);
+            if (rows == null) {
+                return null;
             }
-            ps.add(new SqlSelect.Projection(rowNumber(wrapped.outputs()), RN, rnOut));
-            outs.add(rnOut);
-            return new SqlSelect(ps, false, new SqlSource.Subselect(wrapped, "w", null),
-                    SqlExpr.Call.of(SqlFn.IS_NOT_NULL, tag), List.of(), null, null, List.of(), null, null, outs);
+            SqlQuery r = rows;
+            String own = kindKey(kindText(t), heldType(wrapped, t), byType);
+            kOf = j -> new SqlExpr.IntLit(order.indexOf(own));
+            valueOf = (j, key) -> key.equals(own) ? SqlExpr.Column.of("r", r.outputs(), O) : null;
         }
-        Type t = java.util.Objects.requireNonNull(typedClass(kind), "a typed side's class");
-        SqlQuery rows = instants(valueRows(wrapped), t);
-        if (rows == null) {
-            return null;
-        }
-        int at = order.indexOf(kindText(t));
-        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(at), "k", kOut));
+        ps.add(new SqlSelect.Projection(kOf.apply(0), "k", kOut));
         outs.add(kOut);
         for (int j = 0; j < order.size(); j++) {
-            SqlType vt = java.util.Objects.requireNonNull(types.get(order.get(j)), "a kind's SQL type");
+            SqlType vt = java.util.Objects.requireNonNull(columns.get(order.get(j)), "a kind's SQL type");
+            SqlExpr v = valueOf.apply(j, order.get(j));
             OutputCol out = new OutputCol("v" + j, vt, true);
-            ps.add(new SqlSelect.Projection(j == at ? SqlExpr.Column.of("r", rows.outputs(), O) : nullOf(vt),
-                    out.name(), out));
+            ps.add(new SqlSelect.Projection(v == null ? nullOf(vt) : v, out.name(), out));
             outs.add(out);
         }
         ps.add(new SqlSelect.Projection(SqlExpr.Column.of("r", rows.outputs(), RN), RN, rnOut));
         outs.add(rnOut);
         return new SqlSelect(ps, false, new SqlSource.Subselect(rows, "r", null), null, List.of(), null, null,
                 List.of(), null, null, outs);
+    }
+
+    /** Whether a side's plan carries instances of a GENERIC class (a Pair) as structs whose fields are each a
+     *  primitive: the database compares them by their fields (item 3's S4; a class's instance, compared by its key or
+     *  its identity, stays the seven-column row). */
+    public static boolean instances(SqlQuery plan) {
+        return plan instanceof SqlSelect ps && primitiveStruct(ps) != null && plan.outputs().get(0).type()
+                instanceof SqlType.Struct st && st.fields().stream().noneMatch(f -> f.name().startsWith("__"));
     }
 
     /** The kind the database judge compares {@code kind}'s values as, typed (item 3's S4), or null where it does not
@@ -545,6 +581,13 @@ public final class VerdictSql {
      *  side's NULL); the verdict its emptiness under {@code wantEmpty}; the list rides the failure. */
     public static @com.legend.base.Nullable TypedRow typedEmpty(SqlQuery wrapped, Type kind, boolean wantEmpty) {
         SqlQuery rows = valueRows(wrapped);
+        if (rows == null && PlatformTypes.isNil(kind)) {
+            // a side the types say holds nothing (Nil) and whose plan carries no value: empty, a fact of the types --
+            // the verdict decided at planning, no value to ride its failure
+            return typedRow(List.of(), new SqlSource.Dual(), new SqlExpr.BoolLit(wantEmpty), List.of(new Valued(
+                    TYPED_ACTUAL, nullOf(new SqlType.Array(SqlType.Scalar.VARCHAR)), new SqlType.Array(
+                            SqlType.Scalar.VARCHAR), kind, true)));
+        }
         if (rows == null) {
             return null;
         }
@@ -849,28 +892,46 @@ public final class VerdictSql {
      * has no null value). Null where the value's column states no type.
      */
     private static @com.legend.base.Nullable SqlQuery valueRows(SqlQuery wrapped) {
-        if (!(wrapped instanceof SqlSelect ws) || ws.projections().isEmpty()) {
+        return valueRows(wrapped, 1);
+    }
+
+    /** {@link #valueRows} carrying the side's first {@code width} columns: {@code __o}, then {@code __s1, __s2, ...}
+     *  (a tagged value's slots beside its tag), then {@code __rn}; the rows those whose first column is not NULL. */
+    private static @com.legend.base.Nullable SqlQuery valueRows(SqlQuery wrapped, int width) {
+        if (!(wrapped instanceof SqlSelect ws) || ws.projections().size() < width) {
             return null;
         }
-        SqlSelect.Projection value = ws.projections().get(0);
-        OutputCol valueOut = value.out();
-        if (valueOut == null || value.alias() == null) {
-            return null;
+        List<SqlSelect.Projection> cols = ws.projections().subList(0, width);
+        for (SqlSelect.Projection p : cols) {
+            if (p.out() == null || p.alias() == null) {
+                return null;
+            }
         }
-        OutputCol oOut = new OutputCol(O, valueOut.type(), false);
+        List<OutputCol> outs = new ArrayList<>();
+        for (int i = 0; i < width; i++) {
+            outs.add(new OutputCol(i == 0 ? O : "__s" + i, java.util.Objects.requireNonNull(cols.get(i).out()).type(),
+                    i > 0));
+        }
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        List<OutputCol> all = new ArrayList<>(outs);
+        all.add(rnOut);
         if (!plainProjection(ws)) {
-            // a wrap that stays a layer (an aggregate value, a filtered or capped wrap): its value, its own order
-            SqlSelect trimmed = new SqlSelect(List.of(value), ws.distinct(), ws.from(), ws.where(), ws.groupBy(),
-                    ws.having(), ws.qualify(), ws.orderBy(), ws.limit(), ws.offset(), List.of(valueOut));
+            // a wrap that stays a layer (an aggregate value, a filtered or capped wrap): its values, its own order
+            List<OutputCol> kept = cols.stream().map(p -> java.util.Objects.requireNonNull(p.out())).toList();
+            SqlSelect trimmed = new SqlSelect(cols, ws.distinct(), ws.from(), ws.where(), ws.groupBy(),
+                    ws.having(), ws.qualify(), ws.orderBy(), ws.limit(), ws.offset(), kept);
             SqlQuery read = ws.orderBy().isEmpty() ? trimmed : SideOrdinal.withOrdinal(trimmed);
-            SqlExpr valueRef = SqlExpr.Column.of("w", read.outputs(), value.alias());
-            return new SqlSelect(List.of(new SqlSelect.Projection(valueRef, O, oOut),
-                    new SqlSelect.Projection(rowNumber(read.outputs()), RN, rnOut)), false,
-                    new SqlSource.Subselect(read, "w", null), SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef),
-                    List.of(), null, null, List.of(), null, null, List.of(oOut, rnOut));
+            List<SqlSelect.Projection> ps = new ArrayList<>();
+            for (int i = 0; i < width; i++) {
+                ps.add(new SqlSelect.Projection(SqlExpr.Column.of("w", read.outputs(),
+                        java.util.Objects.requireNonNull(cols.get(i).alias())), outs.get(i).name(), outs.get(i)));
+            }
+            ps.add(new SqlSelect.Projection(rowNumber(read.outputs()), RN, rnOut));
+            return new SqlSelect(ps, false, new SqlSource.Subselect(read, "w", null), SqlExpr.Call.of(
+                    SqlFn.IS_NOT_NULL, SqlExpr.Column.of("w", read.outputs(), java.util.Objects.requireNonNull(
+                            cols.get(0).alias()))), List.of(), null,
+                    null, List.of(), null, null, all);
         }
-        SqlExpr valueRef = value.expr();
         List<SqlSelect.SortKey> order = ws.orderBy();
         SqlSource from = ws.from();
         if (order.isEmpty() && from instanceof SqlSource.Subselect sub
@@ -882,9 +943,13 @@ public final class VerdictSql {
         }
         SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), order,
                 null);
-        return new SqlSelect(List.of(new SqlSelect.Projection(valueRef, O, oOut), new SqlSelect.Projection(rn, RN,
-                rnOut)), false, from, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), List.of(), null, null, List.of(),
-                null, null, List.of(oOut, rnOut));
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (int i = 0; i < width; i++) {
+            ps.add(new SqlSelect.Projection(cols.get(i).expr(), outs.get(i).name(), outs.get(i)));
+        }
+        ps.add(new SqlSelect.Projection(rn, RN, rnOut));
+        return new SqlSelect(ps, false, from, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, cols.get(0).expr()), List.of(), null,
+                null, List.of(), null, null, all);
     }
 
     /** {@code row} carrying each side's kind for the frame (lite's sentence where the two texts tie). */

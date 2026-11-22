@@ -33,7 +33,29 @@ final class JudgmentFacts {
      *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair stays the seven-column row:
      *  a side with no typed class, or a partial date's literal. A Decimal literal is typed: its written scale rides its
      *  SQL type, which the reader restores where a driver drops it (SQLite's, as BigQuery's). */
-    record TypedPair(Type e, Type a, boolean dates, boolean emptyOnly, boolean tagged) {
+    record TypedPair(Type e, Type a, Form form) {
+        /** How the pair's values compare: as typed values, dates (by kind and instant), the same only where both are
+         *  empty (an empty side, Nil), tagged values (each its kind and its value), a generic class's instances (each by
+         *  its fields, the struct the database compares). */
+        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES }
+
+        boolean dates() {
+            return form == Form.DATES;
+        }
+
+        boolean tagged() {
+            return form == Form.TAGGED;
+        }
+
+        /** The pair's typed member over the two sides' plans, or null where its values have no typed column. */
+        com.legend.lowering.VerdictSql.@Nullable TypedRow row(com.legend.sql.SqlQuery ePlan,
+                com.legend.sql.SqlQuery aPlan, boolean multiset, boolean wantEqual) {
+            return switch (form) {
+                case TAGGED -> com.legend.lowering.VerdictSql.typedTagged(ePlan, e, aPlan, a, multiset, wantEqual);
+                case VALUES, DATES, EMPTY_ONLY, INSTANCES -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e,
+                        aPlan, a, multiset, wantEqual, form == Form.EMPTY_ONLY);
+            };
+        }
     }
 
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
@@ -43,25 +65,31 @@ final class JudgmentFacts {
             // kind and its value, against a side of one typed class or another tagged one (VerdictSql.typedTagged)
             return (tagged(ePlan) || sideKind(eSpec, eKind, ePlan) != null)
                     && (tagged(aPlan) || sideKind(aSpec, aKind, aPlan) != null)
-                    ? new TypedPair(eKind, aKind, false, false, true) : null;
+                    ? new TypedPair(eKind, aKind, TypedPair.Form.TAGGED) : null;
         }
         if (PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind)) {
             // an empty side (Nil, the empty collection's kind): the two the same only where both are empty, the other
             // side's values typed by its own kind for the record
             Type e = PlatformTypes.isNil(eKind) ? eKind : sideKind(eSpec, eKind, ePlan);
             Type a = PlatformTypes.isNil(aKind) ? aKind : sideKind(aSpec, aKind, aPlan);
-            return e == null || a == null ? null : new TypedPair(e, a, false, true, false);
+            return e == null || a == null ? null : new TypedPair(e, a, TypedPair.Form.EMPTY_ONLY);
         }
         Type e = dateKind(eSpec, eKind, ePlan);
         Type a = dateKind(aSpec, aKind, aPlan);
         if (e != null && a != null) {
             // a date literal's side rides the literal channel (its written text), its value column still the
             // database's DATE or TIMESTAMP, which the pair compares (S399)
-            return new TypedPair(e, a, true, false, false);
+            return new TypedPair(e, a, TypedPair.Form.DATES);
+        }
+        if (eKind.equals(aKind) && com.legend.lowering.VerdictSql.instances(ePlan)
+                && com.legend.lowering.VerdictSql.instances(aPlan)) {
+            // two sides of one generic class carried as structs (a Pair): each instance by its fields, the database
+            // comparing the structs (VerdictSql.instances)
+            return new TypedPair(eKind, aKind, TypedPair.Form.INSTANCES);
         }
         e = com.legend.lowering.VerdictSql.typedClass(eKind);
         a = com.legend.lowering.VerdictSql.typedClass(aKind);
-        return e == null || a == null ? null : new TypedPair(e, a, false, false, false);
+        return e == null || a == null ? null : new TypedPair(e, a, TypedPair.Form.VALUES);
     }
 
     /** Whether a side's plan carries a tagged value (its first column a {@code SqlType.Tagged}: the kind the

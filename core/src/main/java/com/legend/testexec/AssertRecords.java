@@ -95,6 +95,7 @@ final class AssertRecords {
                     report.e(), report.a());
             case SAME_ELEMENTS_TAGGED -> equality(true, report.want(), untagged(e), untagged(a), List.of(), List.of(),
                     report.e(), report.a());
+            case IS_NOT_TAGGED -> negated("IS_NOT", untagged(e), untagged(a));
         };
         return report.index() >= 0 ? atIndex(failure, report.index()) : failure;
     }

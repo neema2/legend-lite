@@ -212,7 +212,9 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
          *  {@code k} names (item 3's S4). */
         EQUALS_TAGGED,
         /** {@link #SAME_ELEMENTS} over tagged values, as {@link #EQUALS_TAGGED}. */
-        SAME_ELEMENTS_TAGGED;
+        SAME_ELEMENTS_TAGGED,
+        /** {@link #IS_NOT} over tagged values, as {@link #EQUALS_TAGGED}. */
+        IS_NOT_TAGGED;
 
         /** The equality family: in any order or in order, over tagged values or typed ones. */
         public static Family equality(boolean multiset, boolean tagged) {

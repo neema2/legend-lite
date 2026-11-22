@@ -382,8 +382,9 @@ public final class VerdictBatch {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         if (scope.isNot()) {
             // assertIsNot's (#28): its failure the IS_NOT record of the actual side, as the host's negated judgment's
-            report = new RootLoop.Report(RootLoop.Family.IS_NOT, report.want(), report.e(), report.a(), report.fixed(),
-                    report.index());
+            report = new RootLoop.Report(report.family() == RootLoop.Family.EQUALS_TAGGED
+                    || report.family() == RootLoop.Family.SAME_ELEMENTS_TAGGED ? RootLoop.Family.IS_NOT_TAGGED
+                    : RootLoop.Family.IS_NOT, report.want(), report.e(), report.a(), report.fixed(), report.index());
         }
         int ix = 0;
         for (Root x : roots) {

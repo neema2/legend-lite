@@ -537,7 +537,23 @@ class AssertBarTest {
                 "{|assertEquals(1, max([1, 0.5]))}",
                 "{|assertEquals(1.0, max([1, 0.5]))}",
                 "{|assertEquals(0.5, min([1, 0.5]))}",
-                "{|assertNotEquals(1, max([1, 0.5]))}");
+                "{|assertNotEquals(1, max([1, 0.5]))}",
+                // a side the types say holds nothing, its plan no value: decided at planning
+                "{|assertEmpty([]->limit(2))}",
+                "{|assertNotEmpty([]->drop(1))}",
+                // instances carried as structs: a generic one by its fields, a class's by its equality canon
+                "{|assertEquals(pair(1, 'a'), pair(1, 'a'))}",
+                "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
+                "{|assertEquals([pair(1, 'a'), pair(2, 'b')], [pair(1, 'b'), pair(2, 'b')])}",
+                "{|assertSameElements([pair(1, 'a'), pair(2, 'b')], [pair(2, 'b'), pair(1, 'a')])}",
+                // Decimals of several scales in a tagged list: each recorded at its own scale (batch 3's audit, H1)
+                "{|assertEquals([1, 3.50D], [2, 3.5D])}",
+                "{|assertEquals([2, 10.125D], [1, 1.5D])}",
+                "{|assertEquals([1, 1.5D, 10.125D], [1, 1.5D, 10.12D])}",
+                "{|assertEquals([3, 1.0, 2]->sort(), [1.0, 2, 3])}",
+                // assertIsNot over a tagged value: its record un-tagged (batch 3's audit, H2)
+                "{|assertIsNot(3, [1, 2.0, 3]->max())}",
+                "{|assertIsNot(4, [1, 2.0, 3]->max())}");
         List<String> wrong = new ArrayList<>();
         for (String body : bodies) {
             for (var backend : TestBackends.inProcess()) {
