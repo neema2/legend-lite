@@ -214,9 +214,25 @@ class AssertBarTest {
             // carries +0000, a written fraction its digits (the engine runner, 2026-11-04)
             new Probe("assertEquals-datetimes-message", "{|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:01)}",
                     "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T10:00:01.000000Z"),
-            new Probe("assertEquals-datetime-precision-message",
-                    "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}",
-                    "expected 2020-01-01T10:00:00.000000Z (DateTime, subsecond), got 2020-01-01T10:00:00.000000Z (DateTime, second)"),
+            // register S399 (the user's ruling of 2026-11-22): lite's product compares a date by its kind and its
+            // instant, so two date-times at one instant are equal whatever their written precision (legend-pure: not
+            // equal, AbstractPureDate.java:30-59; the compatibility routes keep Pure's answer, CompiledPureHostForms)
+            new Probe("assertEquals-datetime-precision-is-no-value",
+                    "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}", null),
+            new Probe("datetime-trailing-zeros-equal", "{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}",
+                    null),
+            new Probe("datetime-hour-equals-its-instant", "{|assertEquals(%2020-01-01T10, %2020-01-01T10:00:00)}", null),
+            new Probe("datetime-literal-against-computed",
+                    "{|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:00.000, %2020-01-01T11:00:00]->at(0))}",
+                    null),
+            new Probe("datetime-literal-against-computed-fails",
+                    "{|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:01]->at(0))}",
+                    "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T10:00:01.000000Z"),
+            // the kinds stay apart (S399, as legend-pure): a day is no date-time, a year no year-month
+            new Probe("strictdate-is-no-datetime", "{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}",
+                    "expected 2020-01-01, got 2020-01-01T00:00:00.000000Z"),
+            new Probe("strictdate-against-computed", "{|assertEquals(%2020-01-02, [%2020-01-01, %2020-01-02]->at(1))}",
+                    null),
             new Probe("assertEquals-datetime-hour-message", "{|assertEquals(%2020-01-01T10, %2020-01-01T11)}",
                     "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T11:00:00.000000Z"),
             // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
@@ -460,14 +476,15 @@ class AssertBarTest {
                 "AssertFailed: expected 2015-04-16T14:00:00.000000Z, got 2015-04-16T15:00:00.000000Z");
         want.put("{|assertEquals(%2015-04-16T14:30, date(2015, 4, 16, 14, 31))}",
                 "AssertFailed: expected 2015-04-16T14:30:00.000000Z, got 2015-04-16T14:31:00.000000Z");
-        // Pure keeps a DateTime's precision (the orchestrator's ruling 3, 2026-11-19): an hour is not its minute --
-        // legend-pure's DateWithHour.getMinute() is -1 where a minute's is 0 (m4 PureDate.equals, the pinned jar), so
-        // %2015-04-16T14 == %2015-04-16T14:00 is false, under every judge (the text read to its minute is the message's
-        // alone, never the comparison's)
-        want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "AssertFailed: expected"
-                + " 2015-04-16T14:00:00.000000Z (DateTime, hour), got 2015-04-16T14:00:00.000000Z (DateTime, minute)");
-        want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
-        want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}", "pass");
+        // register S399 (the user's ruling of 2026-11-22, superseding in the product the orchestrator's ruling 3 of
+        // 2026-11-19): lite's product compares a date-time by its instant, so an hour equals its minute at one instant,
+        // under every judge (legend-pure: not equal, DateWithHour.getMinute() is -1 where a minute's is 0; the
+        // compatibility routes keep that answer, CompiledPureHostForms.equalDates)
+        want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
+        want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}",
+                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000Z");
+        want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}",
+                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000Z");
         // no text carrier holds a zone for the message's read to its minute to trip on (PR #127's review, 2026-11-19):
         // a zoned minute is normalised to GMT at parse (PureDateLiteral, as legend-pure's DateFormat.parsePureDate),
         // and a zone on an hour is refused at parse

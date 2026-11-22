@@ -21,6 +21,14 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
         return integerAndDecimal && String.valueOf(e).equals(String.valueOf(a));
     }
 
+    /** Legend-pure's date equality: a date is its components and its subsecond as written
+     *  ({@code AbstractPureDate.equals}, AbstractPureDate.java:30-59), so a written precision is part of its value
+     *  (register S399: the compatibility routes answer Pure's way; until then the host's one rule). */
+    @Override
+    public boolean equalDates(Object e, Object a) {
+        return e.equals(a);
+    }
+
     /** The units in the last place two Floats may differ by and be equal: compiled legend-pure's 2 (S15/S132). */
     public static final int FLOAT_ULPS = 2;
 

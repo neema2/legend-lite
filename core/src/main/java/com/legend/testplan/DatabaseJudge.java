@@ -216,13 +216,13 @@ public final class DatabaseJudge {
         }
         // TYPED (item 3's S4, 2026-11-21, the user's Q-A): two sides of one scalar kind the database answers as the
         // host reads it are compared as typed values, their failure recorded by the host's builders from the values
-        com.legend.compiler.element.type.Type tke = com.legend.lowering.VerdictSql.typedClass(re.kinds().get(ie));
-        com.legend.compiler.element.type.Type tka = com.legend.lowering.VerdictSql.typedClass(ra.kinds().get(ia));   // two number kinds: unequal unless empty
-        if (!literal(re, ra, anyNil, anyAny) && tke != null && tka != null
-                && !JudgmentFacts.writtenForm(eSpec) && !JudgmentFacts.writtenForm(aSpec)) {
-            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEquals(
-                    java.util.Objects.requireNonNull(we).plan(), tke, java.util.Objects.requireNonNull(wa).plan(),
-                    tka, canonicalOrder, wantEqual);
+        // the pair's typed kinds (JudgmentFacts.typedPair: two number kinds unequal unless empty, S127; a date by its
+        // kind and its instant, S399)
+        JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, re.kinds().get(ie), java.util.Objects.requireNonNull(we)
+                .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan());
+        if (tp != null && (tp.dates() || !literal(re, ra, anyNil, anyAny))) {
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEquals(we.plan(),
+                    tp.e(), wa.plan(), tp.a(), canonicalOrder, wantEqual);
             if (typed != null) {
                 return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(canonicalOrder
                         ? com.legend.testexecutionplan.RootLoop.Family.SAME_ELEMENTS

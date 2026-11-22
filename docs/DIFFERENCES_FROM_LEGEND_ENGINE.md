@@ -286,6 +286,17 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:** count pending; the nested cases are counted before B2 is built.
 - **Register:** a row comes with B2.
 
+### 15. Two date-times at the same instant are equal, whatever their written precision (item 3, stage B)
+- **You write** `assertEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)`, or compare a literal written to the
+  second with a timestamp column's value.
+- **legend-pure** says not equal: a date's written precision is part of its value (`AbstractPureDate.equals`).
+  **legend-engine** reads every timestamp back at nine subsecond digits, so a literal written to the second fails
+  against its own column (73 expected failures in its relational PCT manifests). **read**
+- **Lite's product** compares a date by its kind and its instant, as the database does: equal. A day is never a
+  date-time, and a year never a year-month, as in Pure. **measured** (`AssertBarTest`)
+- **On legend-engine's and legend-pure's doors** lite keeps Pure's answer (the host judge's compatibility forms).
+- Register S399.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,

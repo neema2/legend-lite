@@ -23,6 +23,24 @@ public enum LiteHostForms implements HostForms {
         return e.compareTo(a) == 0;
     }
 
+    /** Lite compares two dates by their kind and their instant (register S399, the user's ruling of 2026-11-22: a
+     *  year, a year-month, a day and a date-time are kinds never equal across; two date-times at one instant are equal
+     *  whatever their written precision, as {@code ==} compares them in the database). */
+    @Override
+    public boolean equalDates(Object e, Object a) {
+        if (e instanceof com.legend.values.PureDateLiteral ed && a instanceof com.legend.values.PureDateLiteral ad) {
+            return kind(ed) == kind(ad) && ed.toInstantFloor().equals(ad.toInstantFloor());
+        }
+        return e.equals(a);
+    }
+
+    /** A date's kind under S399: its precision below the hour; every date-time one kind. */
+    private static com.legend.values.PureDateLiteral.Precision kind(com.legend.values.PureDateLiteral d) {
+        com.legend.values.PureDateLiteral.Precision p = d.precision();
+        return p.atLeast(com.legend.values.PureDateLiteral.Precision.HOUR)
+                ? com.legend.values.PureDateLiteral.Precision.HOUR : p;
+    }
+
     /** Lite compares a Float exactly (S15/S132, the user's ruling of 2026-11-05: "I like our clean float"). */
     @Override
     public boolean equalFloatsApart(double e, double a) {

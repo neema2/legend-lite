@@ -215,7 +215,7 @@ public final class Equality {
         if (ek == Kind.BOOLEAN) {
             return e.equals(a);
         }
-        return e.equals(a);   // dates: the literal's own equality
+        return rules.forms().equalDates(e, a);   // dates: the run hook's form (register S399)
     }
 
     private static boolean structural(Object e, Object a, HostRules rules) {

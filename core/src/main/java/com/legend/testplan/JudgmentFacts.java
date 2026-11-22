@@ -30,12 +30,53 @@ final class JudgmentFacts {
 
     /** {@code s}'s static facts: the keyed class it declares, its kind class, whether it is Any-stamped, Nil-typed, a
      *  map carrier; its type's name for the census and the declared type's name its values are judged by. */
-    /** Whether {@code s} is a literal whose WRITTEN form is part of how it prints and that a database round trip may
-     *  not keep -- a date's written precision and kind, a Decimal's written scale (SQLite keeps no Decimal: the S4
-     *  kinds round, 2026-11-22) -- so its pair stays the seven-column row until S4 gives a literal's written form its
-     *  own typed carriage. */
-    static boolean writtenForm(TypedSpec s) {
-        return s instanceof com.legend.compiler.spec.typed.TypedCDate || s instanceof com.legend.compiler.spec.typed.TypedCDecimal;
+    /** An equality pair's TYPED kinds (item 3's S4): the kinds the database judge compares its two sides as -- each
+     *  side's typed class ({@code VerdictSql.typedClass}; two number kinds then the same only where both are empty,
+     *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair stays the seven-column row:
+     *  a side with no typed class, a partial date's literal, or a Decimal LITERAL, whose written scale is part of how it
+     *  prints and a database round trip may not keep (SQLite keeps no Decimal: the S4 kinds round, 2026-11-22). */
+    record TypedPair(Type e, Type a, boolean dates) {
+    }
+
+    static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
+            Type aKind, com.legend.sql.SqlQuery aPlan) {
+        if (eSpec instanceof com.legend.compiler.spec.typed.TypedCDecimal
+                || aSpec instanceof com.legend.compiler.spec.typed.TypedCDecimal) {
+            return null;
+        }
+        Type e = dateKind(eSpec, eKind, ePlan);
+        Type a = dateKind(aSpec, aKind, aPlan);
+        if (e != null && a != null) {
+            // a date literal's side rides the literal channel (its written text), its value column still the
+            // database's DATE or TIMESTAMP, which the pair compares (S399)
+            return new TypedPair(e, a, true);
+        }
+        e = com.legend.lowering.VerdictSql.typedClass(eKind);
+        a = com.legend.lowering.VerdictSql.typedClass(aKind);
+        return e == null || a == null ? null : new TypedPair(e, a, false);
+    }
+
+    /** A date side's kind under register S399 (the user's ruling of 2026-11-22: the product compares a date by its
+     *  kind and its instant, the database comparing): a literal's own -- a day a StrictDate, a date-time of any written
+     *  precision a DateTime, a partial date none (it stays the seven-column row) --, a StrictDate's or DateTime's side
+     *  its own, a {@code Date} side's by its column's SQL type (a DATE holds days, a TIMESTAMP date-times); null for any
+     *  other side. A fact of the types, fixed at planning. */
+    private static @Nullable Type dateKind(TypedSpec spec, Type kind, com.legend.sql.SqlQuery plan) {
+        if (spec instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+            return d.value() instanceof com.legend.values.PureDateLiteral.StrictDate ? Type.Primitive.STRICT_DATE
+                    : d.value().precision().atLeast(com.legend.values.PureDateLiteral.Precision.HOUR)
+                            ? Type.Primitive.DATE_TIME : null;
+        }
+        if (kind == Type.Primitive.STRICT_DATE || kind == Type.Primitive.DATE_TIME) {
+            return kind;
+        }
+        if (kind != Type.Primitive.DATE || plan.outputs().isEmpty()) {
+            return null;
+        }
+        com.legend.sql.SqlType sql = plan.outputs().get(0).type();
+        return sql == com.legend.sql.SqlType.Scalar.DATE ? Type.Primitive.STRICT_DATE
+                : sql == com.legend.sql.SqlType.Scalar.TIMESTAMP || sql == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ
+                        ? Type.Primitive.DATE_TIME : null;
     }
 
     static HostJudgment.SideFacts sideFacts(TypedSpec s) {

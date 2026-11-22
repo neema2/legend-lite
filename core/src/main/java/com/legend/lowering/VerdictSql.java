@@ -255,8 +255,8 @@ public final class VerdictSql {
      */
     public static @com.legend.base.Nullable TypedRow typedEquals(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
             Type aKind, boolean multiset, boolean wantEqual) {
-        SqlQuery eRows = valueRows(eWrapped);
-        SqlQuery aRows = valueRows(aWrapped);
+        SqlQuery eRows = instants(valueRows(eWrapped), eKind);
+        SqlQuery aRows = instants(valueRows(aWrapped), aKind);
         if (eRows == null || aRows == null) {
             return null;
         }
@@ -281,14 +281,41 @@ public final class VerdictSql {
 
     /** The kind the database judge compares {@code kind}'s values as, typed (item 3's S4), or null where it does not
      *  yet: a String, an Integer, a Float, a Boolean as itself; every Decimal, a declared precision's too, as a Decimal
-     *  (compared by value, register S139); an enumeration as itself (its values' names). A date's written precision, an
-     *  instance, a generic type and a table stay the seven-column row until S4 converts them. */
+     *  (compared by value, register S139); an enumeration as itself (its values' names); a StrictDate and a DateTime as
+     *  themselves, compared by their instant (register S399; a {@code Date} side's kind is its column's,
+     *  {@code JudgmentFacts.typedPair}). An instance, a generic type and a table stay the seven-column row until S4
+     *  converts them. */
     public static @com.legend.base.Nullable Type typedClass(@com.legend.base.Nullable Type kind) {
         if (kind == Type.Primitive.STRING || kind == Type.Primitive.INTEGER || kind == Type.Primitive.FLOAT
-                || kind == Type.Primitive.BOOLEAN || kind instanceof Type.EnumType) {
+                || kind == Type.Primitive.BOOLEAN || kind instanceof Type.EnumType || kind == Type.Primitive.STRICT_DATE
+                || kind == Type.Primitive.DATE_TIME) {
             return kind;
         }
         return kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal ? Type.Primitive.DECIMAL : null;
+    }
+
+    /**
+     * A date-time side's typed rows as the database's TIMESTAMPs (register S399, the user's ruling of 2026-11-22: the
+     * product compares a date-time by its instant, the database comparing). A side carried as its written text (a
+     * literal's TEMPORAL_TEXT, which keeps how it was written for its print) is parsed by the database: every written
+     * precision parses as an instant but an hour's, which no database parses, so it is read at its minute (probed on
+     * DuckDB 1.5.6 and H2 2.5.252, 2026-11-22). Any other side's rows as they are; null stays null.
+     */
+    private static @com.legend.base.Nullable SqlQuery instants(@com.legend.base.Nullable SqlQuery rows, Type kind) {
+        if (rows == null || kind != Type.Primitive.DATE_TIME || rows.outputs().get(0).type() != SqlType.Scalar.TEMPORAL_TEXT
+                && rows.outputs().get(0).type() != SqlType.Scalar.VARCHAR) {
+            return rows;
+        }
+        SqlExpr v = SqlExpr.Column.of("t", rows.outputs(), O);
+        SqlExpr written = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL,
+                SqlExpr.Call.of(SqlFn.STRPOS, v, new SqlExpr.StringLit(":")), new SqlExpr.IntLit(0)),
+                SqlExpr.Call.of(SqlFn.CONCAT, v, new SqlExpr.StringLit(":00")))), v, SqlExpr.Reason.JUDGE);
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.TIMESTAMP, false);
+        OutputCol rnOut = rows.outputs().get(1);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(written, SqlType.Scalar.TIMESTAMP,
+                SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t", rows.outputs(), RN), RN,
+                rnOut)), false, new SqlSource.Subselect(rows, "t", null), null, List.of(), null, null, List.of(), null,
+                null, List.of(oOut, rnOut));
     }
 
     /** A typed rows CTE read whole: its {@code __o} and {@code __rn}, the rows the portable comparison reads. */
