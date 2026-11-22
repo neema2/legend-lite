@@ -435,12 +435,20 @@ public final class DatabaseJudge {
     }
 
     /** A side's one number kind where it states one (an Integer, a Float, a Decimal), else null. */
+    /** A side's one kind, its literal channel aside (a rider lists its kinds, then its literal channel's where it has
+     *  one), or null where it has another count or rides the literal channel alone (S4's measurement, 2026-11-22:
+     *  until then the typed gates asked for one kind in all, and every side carrying a literal channel -- most of the
+     *  conditions, tolerances and subsets -- declined to the seven-column row). */
+    private static com.legend.compiler.element.type.@com.legend.base.Nullable Type oneKind(com.legend.lowering.CanonRider r) {
+        return !r.literalOnly() && r.kinds().size() - (r.literalIndex() >= 0 ? 1 : 0) == 1 ? r.kinds().get(0) : null;
+    }
+
     private static com.legend.compiler.element.type.@com.legend.base.Nullable Type numberKind(SideRows s) {
         com.legend.lowering.CanonRider r = s.rider();
-        if (r == null || r.literalOnly() || r.kinds().size() != 1 || s.side() == null) {
+        com.legend.compiler.element.type.@com.legend.base.Nullable Type k = r == null ? null : oneKind(r);
+        if (k == null || s.side() == null) {
             return null;
         }
-        com.legend.compiler.element.type.Type k = r.kinds().get(0);
         return k == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 || k == com.legend.compiler.element.type.Type.Primitive.FLOAT
                 || k == com.legend.compiler.element.type.Type.Primitive.DECIMAL ? k : null;
@@ -545,7 +553,7 @@ public final class DatabaseJudge {
         }
         com.legend.lowering.CanonRider nr = n.rider();
         if (cw.shape() != com.legend.plan.ResultShape.GRAPH && !envelope && nr != null && !nr.literalOnly()
-                && nr.kinds().size() == 1 && nr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                && oneKind(nr) == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 && n.side() != null) {
             // TYPED (item 3's S4): the collection's count against the size's one Integer, both riding the failure
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedSize(coll.countRows(),
@@ -573,7 +581,7 @@ public final class DatabaseJudge {
         // the elements written as lite's sentence writes them where the side's canon names one primitive kind
         com.legend.lowering.CanonRider r = side.rider();
         if (sw.shape() != com.legend.plan.ResultShape.GRAPH && r != null && r.declined() == null && !r.tdsWrapped()
-                && !r.literalOnly() && r.kinds().size() == 1 && typedKind(r.kinds().get(0))) {
+                && oneKind(r) instanceof com.legend.compiler.element.type.Type rk && typedKind(rk)) {
             // TYPED (item 3's S4): the side's values as one list, its emptiness the verdict, the list its failure's
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEmpty(sw.plan(),
                     r.kinds().get(0), wantEmpty);
@@ -619,8 +627,8 @@ public final class DatabaseJudge {
         if (literal && (cr.literalIndex() < 0 || vr.literalIndex() < 0)) {
             return unjudged(name, "no literal channel");
         }
-        if (!literal && !cr.tdsWrapped() && cr.kinds().size() == 1 && typedKind(cr.kinds().get(0))
-                && cr.kinds().equals(vr.kinds())) {
+        if (!literal && !cr.tdsWrapped() && oneKind(cr) instanceof com.legend.compiler.element.type.Type ck && typedKind(ck)
+                && ck.equals(oneKind(vr))) {
             // TYPED (item 3's S4): some element of the collection IS NOT DISTINCT FROM the value, both of one kind
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedContains(
                     java.util.Objects.requireNonNull(c.side()).plan(), cr.kinds().get(0),
@@ -723,8 +731,8 @@ public final class DatabaseJudge {
             if (literal && (nr.literalIndex() < 0 || hr.literalIndex() < 0)) {
                 return unjudged(name, "forAll-contains: no literal channel");
             }
-            if (!literal && failure != null && nr.kinds().size() == 1 && typedKind(nr.kinds().get(0))
-                    && nr.kinds().equals(hr.kinds()) && need.side() != null && have.side() != null) {
+            if (!literal && failure != null && oneKind(nr) instanceof com.legend.compiler.element.type.Type nk && typedKind(nk)
+                    && nk.equals(oneKind(hr)) && need.side() != null && have.side() != null) {
                 // TYPED (item 3's S4): no needed value without a have not distinct from it; the condition's record
                 com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedSubset(
                         need.side().plan(), have.side().plan(), wantTrue);
@@ -743,8 +751,7 @@ public final class DatabaseJudge {
             return unjudged(name, side.why());
         }
         com.legend.lowering.CanonRider cr = side.rider();
-        if (failure != null && cr != null && !cr.literalOnly() && cr.kinds().size() == 1
-                && cr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN && side.side() != null) {
+        if (failure != null && cr != null && oneKind(cr) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN && side.side() != null) {
             // TYPED (item 3's S4): the condition's one Boolean, its failure the record fixed here
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedCondition(
                     side.side().plan(), wantTrue);
@@ -943,8 +950,7 @@ public final class DatabaseJudge {
                 return unjudged(fqn, vector.why());
             }
             com.legend.lowering.CanonRider vr = vector.rider();
-            if (vr != null && !vr.literalOnly() && vr.kinds().size() == 1
-                    && vr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
+            if (vr != null && oneKind(vr) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                     && vector.side() != null) {
                 // TYPED (item 3's S4): the vector's Booleans, its record the one fixed at planning
                 com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedAllOf(
@@ -985,8 +991,7 @@ public final class DatabaseJudge {
             boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT
                     || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
             com.legend.lowering.CanonRider vr = vector.rider();
-            if (assertFamily && vr != null && !vr.literalOnly() && vr.kinds().size() == 1
-                    && vr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
+            if (assertFamily && vr != null && oneKind(vr) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                     && vector.side() != null) {
                 // TYPED (item 3's S4): the vector already carries the polarity; its record the host's vector judgment's
                 com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedAllOf(
