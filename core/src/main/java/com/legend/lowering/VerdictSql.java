@@ -265,13 +265,30 @@ public final class VerdictSql {
         // the comparison over the typed values themselves, ONE node each dialect writes (the user, 2026-11-22: "Yes on
         // list compare"): over the two lists where its database compares lists, else the portable form over the rows
         // (H2 has no list equality, no EXCEPT ALL, no FULL OUTER JOIN; M1), the dialect's (SameValuesForm)
-        SqlExpr holds = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
-                SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
-                new SqlExpr.ScalarSubquery(rowsOf("__e", eRows)), new SqlExpr.ScalarSubquery(rowsOf("__a", aRows)));
+        SqlExpr eL = SqlExpr.Column.of("e", eList.outputs(), LISTED);
+        SqlExpr aL = SqlExpr.Column.of("a", aList.outputs(), LISTED);
+        // two kinds lite never calls equal (register S127: an Integer and a Decimal, the type part of the value): the
+        // sides are the same only where both are empty, an empty side's list NULL
+        SqlExpr holds = !eKind.equals(aKind)
+                ? SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.IS_NULL, eL), SqlExpr.Call.of(SqlFn.IS_NULL, aL))
+                : SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER, eL, aL,
+                        new SqlExpr.ScalarSubquery(rowsOf("__e", eRows)), new SqlExpr.ScalarSubquery(rowsOf("__a", aRows)));
         return typedRow(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
                 cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null)),
                 wantEqual ? holds : SqlExpr.Call.of(SqlFn.NOT, holds), List.of(
                         listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
+    }
+
+    /** The kind the database judge compares {@code kind}'s values as, typed (item 3's S4), or null where it does not
+     *  yet: a String, an Integer, a Float, a Boolean as itself; every Decimal, a declared precision's too, as a Decimal
+     *  (compared by value, register S139); an enumeration as itself (its values' names). A date's written precision, an
+     *  instance, a generic type and a table stay the seven-column row until S4 converts them. */
+    public static @com.legend.base.Nullable Type typedClass(@com.legend.base.Nullable Type kind) {
+        if (kind == Type.Primitive.STRING || kind == Type.Primitive.INTEGER || kind == Type.Primitive.FLOAT
+                || kind == Type.Primitive.BOOLEAN || kind instanceof Type.EnumType) {
+            return kind;
+        }
+        return kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal ? Type.Primitive.DECIMAL : null;
     }
 
     /** A typed rows CTE read whole: its {@code __o} and {@code __rn}, the rows the portable comparison reads. */
