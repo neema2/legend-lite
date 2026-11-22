@@ -319,6 +319,7 @@ public final class TestRunner {
         @Override
         public void reader(com.legend.testexec.@Nullable SideReader reader) {
             this.reader = reader;
+            run.reader(reader);
         }
 
         /** {@code verdict}'s caller's message read on demand (the judge asks only where it fails), or null where the

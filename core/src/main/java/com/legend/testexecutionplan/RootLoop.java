@@ -103,7 +103,9 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      * A verdict row the database computes.
      *
      * @param name    the row's assert name (the row's own message names it)
-     * @param verdict the id of the plan's verdict whose row this is (a row the dialect cannot spell refuses the body at
+     * @param verdict the id of the plan's verdict whose row this is; {@code message} / {@code unplanned}: an unrolled
+     *                element's own caller's message that reads, or its error, used where THIS row fails (item 3's S4
+     *                step 3, the user's decision 4) (a row the dialect cannot spell refuses the body at
      *                planning, D: its refusal slot and NO_VERDICT went 2026-11-21, stage B's BE, always empty since D)
      *
      * <p>(Three fields went with A4 of the compatibility program, stage A ratified by the user 2026-11-19, the test
@@ -112,17 +114,29 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      * engine-text arm's reason decided before its texts were compared. The host judge is the only judge in
      * compatibility, so no database row carries any of them.)
      */
-    public record Row(String name, int verdict, @Nullable Report report) implements Step {
+    public record Row(String name, int verdict, @Nullable Report report, @Nullable Message message,
+            @Nullable Failure unplanned) implements Step {
         public Row {
             Objects.requireNonNull(name, "name");
             if (verdict < 0) {
                 throw new IllegalArgumentException(name + ": a row's verdict is an id of the plan's: " + verdict);
             }
+            if (message != null && unplanned != null) {
+                throw new IllegalArgumentException(name + ": a row's message that planned and one that did not");
+            }
+            if ((message != null || unplanned != null) && report == null) {
+                throw new IllegalArgumentException(name + ": a row's own message is a typed row's");
+            }
+        }
+
+        /** A typed row whose failure is its report's, or the root's message. */
+        public Row(String name, int verdict, @Nullable Report report) {
+            this(name, verdict, report, null, null);
         }
 
         /** A row of the verdict schema's seven columns, its failure the row's own message (until S4 converts it). */
         public Row(String name, int verdict) {
-            this(name, verdict, null);
+            this(name, verdict, null, null, null);
         }
     }
 

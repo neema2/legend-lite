@@ -353,19 +353,11 @@ public final class VerdictQueries {
         List<TypedSpec> reduced = new java.util.ArrayList<>(inliner.inlineBody(seq));
         int last = reduced.size() - 1;
         TypedSpec stmt = reduced.get(last);
-        TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
-        if (bare instanceof TypedNativeCall an
-                && an.callee().qualifiedName().startsWith(com.legend.compiler.element.type.PlatformTypes.ASSERTS_PACKAGE)) {
-            // the MESSAGE arguments drop; the value arity is the assert's
-            // own (assertEqWithinTolerance carries its delta as a third
-            // VALUE — assertEqWithinTolerance.pure:22)
-            int keep = "meta::pure::functions::asserts::assertEqWithinTolerance"
-                    .equals(an.callee().qualifiedName()) ? 3 : 2;
-            if (an.args().size() > keep) {
-                bare = new TypedNativeCall(an.callee(), an.args().subList(0, keep), an.info(), an.pos());
-            }
-        }
-        reduced.set(last, bare);
+        // the element's assert as written, its caller's MESSAGE kept: each judge plans it as any assert's and reads it
+        // only where that element fails (item 3's S4 step 3, the user's decision 4, 2026-11-22: until then the message
+        // arguments dropped, both judges failing an element with the family's default where upstream raises the
+        // element's own message)
+        reduced.set(last, com.legend.compiler.spec.typed.Lets.bare(stmt));
         return reduced;
     }
 

@@ -123,7 +123,9 @@ public final class VerdictBatch {
     /** A deferred verdict row: its statement, its columns' schema (the seven-column verdict schema, or a typed
      *  member's own), and a typed member's report (item 3's S4; null for a seven-column row). */
     private record Pending(int ix, String name, SqlQuery query, ExecutionPlan.Target on,
-            com.legend.compiler.element.type.Type.RelationType schema, RootLoop.@com.legend.base.Nullable Report report)
+            com.legend.compiler.element.type.Type.RelationType schema, RootLoop.@com.legend.base.Nullable Report report,
+            @com.legend.base.Nullable SqlQuery message, ExecutionPlan.@com.legend.base.Nullable Target messageOn,
+            com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned)
             implements Step {
     }
 
@@ -192,8 +194,24 @@ public final class VerdictBatch {
     public Runnable atElement(int index) {
         Scope before = scope;
         scope = new Scope(index, before.isNot());
-        return () -> scope = before;
+        return () -> {
+            scope = before;
+            if (elementMessage != null || elementUnplanned != null) {
+                // an element whose message no row of it carried (decided at planning, or a row S4 has not typed)
+                elementMessage = null;
+                elementUnplanned = null;
+                throw new com.legend.error.NotImplementedException("an unrolled element's caller's message that reads"
+                        + " or raises, over an element no typed row judges: not planned");
+            }
+        };
     }
+
+    /** The element in scope's caller's message where it READS (its row, its session), or where computing it raises
+     *  (its error): carried by the element's own row, read or raised only where THAT element fails (item 3's S4 step 3,
+     *  the user's decision 4, 2026-11-22). */
+    private @com.legend.base.Nullable SqlQuery elementMessage;
+    private ExecutionPlan.@com.legend.base.Nullable Target elementMessageOn;
+    private com.legend.testexecutionplan.@com.legend.base.Nullable Failure elementUnplanned;
     private @com.legend.base.Nullable Root current;
     /** The frames the body's asserts read by reference: name → the frame's
      * plan (leg 3.4 step 2), defined once per body. */
@@ -245,6 +263,12 @@ public final class VerdictBatch {
      *  where the assert fails, and its evaluation's error is the test's; the assert bar, 2026-11-04). */
     public void message(SqlQuery row, ExecutionPlan.Target on) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        if (scope.elementIndex() >= 0) {
+            // an unrolled element's own message, its row's (decision 4)
+            elementMessage = row;
+            elementMessageOn = on;
+            return;
+        }
         if (r.unplanned != null || r.message != null && !r.message.equals(row)) {
             // a root carries ONE caller's message: an unrolled quantifier's elements whose messages differ, or one that
             // raises beside one that reads, are each element's own (S4 carries a message per step; the S2+S3 fixes'
@@ -260,10 +284,13 @@ public final class VerdictBatch {
      *  rule; until then lite's sentence around the error's text as the verdict row's message). */
     public void unplanned(com.legend.testexecutionplan.Failure error) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
-        if (scope.elementIndex() >= 0 || r.unplanned != null || r.message != null) {
-            // an unrolled quantifier's element: its message's error is raised only where THAT element fails, and the
-            // root holds one for all its elements (S4 carries it per step; the S2+S3 fixes' audit, 2026-11-21: until
-            // then a passing element's error replaced a later element's failure)
+        if (scope.elementIndex() >= 0) {
+            // an unrolled element's message's error: raised only where THAT element fails, by its own row (decision 4;
+            // the S2+S3 fixes' audit, 2026-11-21: one slot per root replaced a later element's failure)
+            elementUnplanned = error;
+            return;
+        }
+        if (r.unplanned != null || r.message != null) {
             throw oneMessagePerRoot(r);
         }
         r.unplanned = error;
@@ -294,7 +321,14 @@ public final class VerdictBatch {
             // an unrolled quantifier's element, named as the words name it (lite's: by its zero-based index)
             row = com.legend.lowering.VerdictSql.atIndex(row, scope.elementIndex(), words);
         }
-        r.steps.add(new Pending(ix, name, row, on, com.legend.lowering.VerdictSql.schema(), null));
+        if (elementMessage != null || elementUnplanned != null) {
+            // a seven-column row reads no element message (its words are in its statement): not planned
+            elementMessage = null;
+            elementUnplanned = null;
+            throw new com.legend.error.NotImplementedException(name + ": an unrolled element's caller's message that"
+                    + " reads or raises, over a row S4 has not typed: not planned");
+        }
+        r.steps.add(new Pending(ix, name, row, on, com.legend.lowering.VerdictSql.schema(), null, null, null, null));
     }
 
     /**
@@ -321,7 +355,11 @@ public final class VerdictBatch {
             }
         }
         r.steps.add(new Pending(ix, name, row, on, schema,
-                scope.elementIndex() >= 0 ? report.atElement(scope.elementIndex()) : report));
+                scope.elementIndex() >= 0 ? report.atElement(scope.elementIndex()) : report, elementMessage,
+                elementMessageOn, elementUnplanned));
+        elementMessage = null;
+        elementMessageOn = null;
+        elementUnplanned = null;
     }
 
     /** The batch's one root as ONE statement (the user's ruling S135, 2026-11-05: an assert inside assertError is a
@@ -343,7 +381,8 @@ public final class VerdictBatch {
             // a row whose failure is its message's error raises that error where it fails, which a raising row cannot
             // spell: no one row decides it, so the assertError is refused by name (the S2+S3 fixes' audit, HIGH,
             // 2026-11-21: until then the row raised its own failure and the error was dropped)
-            return unplanned != null ? null
+            // (an unrolled element's own message, decision 4, is likewise no one row's: refused the same way)
+            return unplanned != null || p.message() != null || p.unplanned() != null ? null
                     : new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on(), p.schema(),
                             p.report());
         }
@@ -536,15 +575,29 @@ public final class VerdictBatch {
             }
             throw refused;
         }
-        List<Group> placed = carried(batch, out, members, messages);
-        return new Planned(placed, loop(batch, placed, members, messages));
+        // an unrolled element's own message that READS (decision 4): planned as its row's side, carried on its verdict
+        Map<Integer, TestPlan.Side> rowMessages = new HashMap<>();   // by the member's ix
+        for (Root r : batch) {
+            for (Step st : r.steps) {
+                if (st instanceof Pending p && p.message() != null) {
+                    Ahead a = planAhead(p.name(), p.message(), com.legend.lowering.VerdictSql.schema(),
+                            java.util.Objects.requireNonNull(p.messageOn()));
+                    if (a.refused() != null) {
+                        throw a.refused();
+                    }
+                    rowMessages.put(p.ix(), sideOf(java.util.Objects.requireNonNull(a.plan())));
+                }
+            }
+        }
+        List<Group> placed = carried(batch, out, members, messages, rowMessages);
+        return new Planned(placed, loop(batch, placed, members, messages, rowMessages));
     }
 
     /** The segment's roots as the plan's data (the plan-as-data design's step 5, 2026-11-08): each root's rows by the
      *  verdict that reads them, its decided outcomes, its caller's message -- what {@link RootLoops} judges at run. A
      *  row's and a message's refusal slots are empty since D (a dialect's refusal refuses the body at planning). */
     private RootLoop loop(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
-            Map<Integer, TestPlan.Side> messages) {
+            Map<Integer, TestPlan.Side> messages, Map<Integer, TestPlan.Side> rowMessages) {
         Map<Integer, Integer> verdictOf = new HashMap<>();   // a member's ix -> the id of the verdict reading its row
         members.forEach((id, p) -> verdictOf.put(p.ix(), id));
         List<RootLoop.Root> roots = new ArrayList<>(batch.size());
@@ -555,8 +608,12 @@ public final class VerdictBatch {
                 steps.add(switch (s) {
                     case Pending p -> {
                         Integer id = verdictOf.get(p.ix());
+                        TestPlan.Side own = rowMessages.get(p.ix());
                         yield new RootLoop.Row(p.name(), java.util.Objects.requireNonNull(id,
-                                () -> p.name() + ": a member with no verdict reading its row"), p.report());
+                                () -> p.name() + ": a member with no verdict reading its row"), p.report(),
+                                own == null ? null : new RootLoop.Message(own, groups.stream()
+                                        .flatMap(g -> g.step().verdicts().stream())
+                                        .anyMatch(v -> own.equals(v.message()))), p.unplanned());
                     }
                     case Resolved rv -> new RootLoop.Decided(rv.failure(), rv.reported());
                     case Judged j -> new RootLoop.Judged();
@@ -578,12 +635,18 @@ public final class VerdictBatch {
      *  2026-11-07: until then the message rode the root's first pending member, which a refused member or a root
      *  decided at planning left in no group); {@code members} keyed by the verdicts as rebuilt. */
     private static List<Group> carried(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
-            Map<Integer, TestPlan.Side> messages) {
+            Map<Integer, TestPlan.Side> messages, Map<Integer, TestPlan.Side> rowMessages) {
         Map<Integer, TestPlan.Side> carry = new HashMap<>();   // by the member's ix
         java.util.Set<Integer> grouped = new java.util.HashSet<>();
         for (Pending p : members.values()) {
             grouped.add(p.ix());
         }
+        // an element's own message rides its own verdict (decision 4)
+        rowMessages.forEach((ix, side) -> {
+            if (grouped.contains(ix)) {
+                carry.put(ix, side);
+            }
+        });
         for (int k = 0; k < batch.size(); k++) {
             TestPlan.Side side = messages.get(k);
             if (side == null) {
@@ -591,6 +654,12 @@ public final class VerdictBatch {
             }
             for (Step step : batch.get(k).steps) {
                 if (step instanceof Pending p && grouped.contains(p.ix())) {
+                    if (carry.containsKey(p.ix())) {
+                        // a verdict carries one message: the root's and its first element's own, refused by name
+                        throw new com.legend.error.NotImplementedException(batch.get(k).listenerName
+                                + ": an assert's caller's message and its first element's own message, both reading"
+                                + " the database, on one verdict");
+                    }
                     carry.put(p.ix(), side);
                     break;
                 }
@@ -722,13 +791,18 @@ public final class VerdictBatch {
     }
 
     /** A fused statement's plan: one typed result (a member that reads a raw grid's report never joins one). */
+    /** The most members one fused statement joins: its wide row joins one derived table per member, and SQLite joins at
+     *  most 64 tables, MariaDB and MySQL 61 (the S4 audit's MEDIUM 2, 2026-11-22: the row's width, which the
+     *  character budget does not see); a larger group is halved as an over-budget one is. */
+    static final int FUSED_MEMBERS = 60;
+
     /** {@code ps}'s fused statement {@code fused}, or -- where its text passes the database's budget
      *  ({@link Runner#fusedBudget}) -- {@code ps} halved, each half fused and halved again until it fits or is one
      *  member: the same members in their order, each part a fused group of its own, all planned here (2026-11-05, PCT
      *  round 22: ClickHouse's analyzer over 50 asserts of nested instances, 1.3M characters). */
     private List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> withinBudget(List<Pending> ps,
             ExecutionPlan.TdsResult fused, ExecutionPlan.Target on) {
-        if (ps.size() == 1 || fused.sql().statement().length() <= runner.fusedBudget()) {
+        if (ps.size() == 1 || ps.size() <= FUSED_MEMBERS && fused.sql().statement().length() <= runner.fusedBudget()) {
             return List.of(Map.entry(ps, fused));
         }
         List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> out = new ArrayList<>();

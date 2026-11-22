@@ -100,6 +100,19 @@ class AssertBarTest {
             new Probe("forAll-decimal-vs-integer", "{|range(1, 3)->forAll(i | assertEquals(1D, $i))}",
                     "expected 1 (Decimal), got 1 (Integer) at index 0"),
             new Probe("forAll-over-nothing", "{|[1, 2]->filter(x | $x > 5)->forAll(i | assertEquals($i, 99))}", null),
+            // an element's own caller's message (item 3's S4 step 3, the user's decision 4, 2026-11-22): read only where
+            // THAT element fails, the failure whole as upstream raises it -- the element 1 holds, so its message, which
+            // reads past the list's end, is never read (until then both judges dropped it: "expected 1, got 0 at
+            // index 1")
+            new Probe("forAll-element-message-reads",
+                    "{|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", "10"),
+            // a String whose text starts with a bracket is a String, written quoted, never read as a JSON carrier (the
+            // S4 audit's HIGH 1, 2026-11-22: written as minified JSON until then, assertEq's differently per judge)
+            new Probe("string-with-a-bracket", "{|assertEquals('[a b]', '[c]')}", "expected \"[a b]\", got \"[c]\""),
+            new Probe("eq-string-with-a-brace", "{|assertEq('{a}', '{b}')}", "expected \"{a}\", got \"{b}\""),
+            new Probe("forAll-element-literal-message", "{|[1, 2]->forAll(i | assertEquals(1, $i, 'mine'))}", "mine"),
+            new Probe("forAll-element-message-holds",
+                    "{|let l = [10]; [1, 1]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", null),
             new Probe("forAll-zip-computed-arguments",
                     "{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}", null),
             new Probe("assertInstanceOf-custom-message", "{|assertInstanceOf(1, Integer, 'msg')}", null),

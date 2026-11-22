@@ -799,6 +799,8 @@ final class HostJson {
         o.put("assertion", wAssertion(x.assertion()));
         o.put("judgment", wHostJudgment(x.judgment()));
         o.put("asks", x.asks());
+        o.put("message", x.message() == null ? null : TestPlanJson.side(x.message()));
+        o.put("messageShape", x.messageShape() == null ? null : wSideShape(x.messageShape()));
         return o;
     }
 
@@ -806,7 +808,11 @@ final class HostJson {
         Assertion v_assertion = rAssertion(obj(field(o, "assertion", "Part")));
         HostJudgment v_judgment = rHostJudgment(obj(field(o, "judgment", "Part")));
         int v_asks = Math.toIntExact(num(field(o, "asks", "Part")));
-        return new HostJudgment.Part(v_assertion, v_judgment, v_asks);
+        TestPlan.@Nullable Side v_message = absent(o, "message", "Part") ? null
+                : TestPlanJson.readSide(obj(o.get("message")));
+        @Nullable SideShape v_shape = absent(o, "messageShape", "Part") ? null
+                : rSideShape(obj(o.get("messageShape")));
+        return new HostJudgment.Part(v_assertion, v_judgment, v_asks, v_message, v_shape);
     }
 
     static Map<String, Object> wRootLoop(RootLoop x) {
@@ -857,6 +863,8 @@ final class HostJson {
         o.put("name", x.name());
         o.put("verdict", x.verdict());
         o.put("report", x.report() == null ? null : wRsReport(x.report()));
+        o.put("message", x.message() == null ? null : wRlMessage(x.message()));
+        o.put("unplanned", x.unplanned() == null ? null : wFailure(x.unplanned()));
         return o;
     }
 
@@ -864,7 +872,9 @@ final class HostJson {
         String v_name = str(field(o, "name", "Row"));
         int v_verdict = Math.toIntExact(num(field(o, "verdict", "Row")));
         RootLoop.@Nullable Report v_report = absent(o, "report", "Row") ? null : rRsReport(obj(o.get("report")));
-        return new RootLoop.Row(v_name, v_verdict, v_report);
+        RootLoop.@Nullable Message v_message = absent(o, "message", "Row") ? null : rRlMessage(obj(o.get("message")));
+        @Nullable Failure v_unplanned = absent(o, "unplanned", "Row") ? null : rFailure(obj(o.get("unplanned")));
+        return new RootLoop.Row(v_name, v_verdict, v_report, v_message, v_unplanned);
     }
 
     static Map<String, Object> wRsReport(RootLoop.Report x) {

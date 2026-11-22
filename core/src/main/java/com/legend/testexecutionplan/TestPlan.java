@@ -253,6 +253,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                     if (each.message() != null) {
                         sideStatement(each.message(), out);
                     }
+                    elementMessages(each, out);
                 }
             }
             case Branch b -> {
@@ -297,6 +298,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                     if (each.message() != null) {
                         sideStatement(each.message(), out);
                     }
+                    elementMessages(each, out);
                 }
             }
             case Branch b -> {
@@ -319,6 +321,18 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
     private static void sentInBranch(TestStep step, List<Node> out) {
         if (!(step instanceof Run) && !(step instanceof FrameRun)) {
             sentOf(step, out);
+        }
+    }
+
+    /** An unrolled host verdict's elements' own caller's messages (item 3's S4 step 3, the user's decision 4): each a
+     *  side of the plan, read only where its element fails. */
+    private static void elementMessages(Verdict each, List<Node> out) {
+        if (each.host() != null && each.host().judgment() instanceof HostJudgment.Unrolled u) {
+            for (HostJudgment.Part part : u.parts()) {
+                if (part.message() != null) {
+                    sideStatement(part.message(), out);
+                }
+            }
         }
     }
 

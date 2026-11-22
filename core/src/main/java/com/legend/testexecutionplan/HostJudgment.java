@@ -141,8 +141,22 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     }
 
     /** One element's planned assert inside an unrolled quantifier, or the assert inside an {@code assertError}: its
-     *  facts, its judgment, and how many of the step's sides it reads. */
-    record Part(Assertion assertion, HostJudgment judgment, int asks) {
+     *  facts, its judgment, and how many of the step's sides it reads; {@code message}, its caller's message where it
+     *  READS -- a side the runner never reads on its own, read through the run's reader only where this part fails
+     *  (item 3's S4 step 3, the user's decision 4: upstream evaluates an element's message only where that element
+     *  fails), shaped by {@code messageShape}. */
+    record Part(Assertion assertion, HostJudgment judgment, int asks, TestPlan.@Nullable Side message,
+            @Nullable SideShape messageShape) {
+        public Part {
+            if ((message == null) != (messageShape == null)) {
+                throw new IllegalArgumentException("a part's message and its shape come together");
+            }
+        }
+
+        /** A part whose caller's message, if any, is one of its asks. */
+        public Part(Assertion assertion, HostJudgment judgment, int asks) {
+            this(assertion, judgment, asks, null, null);
+        }
     }
 
     /** {@code assert(cond)} / {@code assertFalse(cond)} on the identity lane. */

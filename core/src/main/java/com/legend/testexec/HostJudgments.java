@@ -623,7 +623,7 @@ final class HostJudgments {
                 typedSide(e, j.e()), typedSide(a, j.a()), rules)
                 // the failed TYPED comparison's message, never a second, untyped one (the ledger audit's D4, 2026-11-16:
                 // an untyped re-compare that held here returned null, and the failed assert passed)
-                ? null : AssertRecords.equality(true, true, e, a, e, a, j.e().classFqn(), j.a().classFqn());
+                ? null : AssertRecords.equality(true, true, e, a, e, a, j.e(), j.a());
         com.legend.testexec.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -653,16 +653,14 @@ final class HostJudgments {
             com.legend.testexec.AssertRuns.enter(part.assertion());
             TypedSide v;
             try {
-                v = com.legend.testexec.AssertRuns.judge(part.assertion(), part.judgment(), () -> slice, null, run);
+                // its caller's message, where it reads, read only if the element fails (decision 4)
+                v = com.legend.testexec.AssertRuns.judge(part.assertion(), part.judgment(), () -> slice,
+                        run.message(part.message(), part.messageShape()), run);
             } catch (com.legend.error.AssertFailed failed) {
                 // the element named by Pure's zero-based index (the user's direction, 2026-11-17): its own record
                 // inside the AT_INDEX frame, on every route (item 3, 2026-11-21). A decline (refused at planning since
                 // D) or the edge's appeal words (B3's, not yet a record) is raised as it is.
-                com.legend.error.ErrorRecord element = failed.record();
-                if (failed.unjudgedReason() != null || element == null) {
-                    throw failed;
-                }
-                throw new com.legend.error.AssertFailed(AssertRecords.atIndex(element, i));
+                throw AssertRecords.atIndex(failed, i);
             }
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(
@@ -819,10 +817,10 @@ final class HostJudgments {
         // where the typed one failed (the ledger audit's D4, 2026-11-16)
         // the record the one choice makes (AssertRecords.equality), as the database judge's run makes it
         return finish(name, wantEqual, equal,
-                () -> AssertRecords.equality(incidental, true, e, a, ef.values(), af.values(), j.e().classFqn(),
-                        j.a().classFqn()),
-                () -> AssertRecords.equality(incidental, false, e, a, ef.values(), af.values(), j.e().classFqn(),
-                        j.a().classFqn()));
+                () -> AssertRecords.equality(incidental, true, e, a, ef.values(), af.values(), j.e(),
+                        j.a()),
+                () -> AssertRecords.equality(incidental, false, e, a, ef.values(), af.values(), j.e(),
+                        j.a()));
     }
 
     private static @com.legend.base.Nullable TypedSide jsonOf(HostJudgment.Json j, List<TypedSide> pair,

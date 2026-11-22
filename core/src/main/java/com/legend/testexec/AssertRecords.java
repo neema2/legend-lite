@@ -38,14 +38,26 @@ final class AssertRecords {
     /** THE ONE CHOICE of an equality's failure record (item 3's S4, 2026-11-22, the user: "exactly one translation
      *  from error to English"): both judges call it, the host over the values it read and the database judge's run over
      *  the values the database returned. {@code incidental}: the order did not count ("in any order"); the carried
-     *  sides are the values as they arrived (a class side's JSON carrier). */
+     *  sides are the values as they arrived (a class side's JSON carrier); {@code ef}, {@code af}: each side's facts,
+     *  its class, and its kind -- a primitive side's values are never a JSON carrier, so a String whose text starts
+     *  with a bracket is written as the String it is (the S4 audit's HIGH 1, 2026-11-22: until then any String text
+     *  starting '[' or '{' was written as minified JSON, on both judges). */
     static ErrorRecord equality(boolean incidental, boolean wantEqual, List<Object> e, List<Object> a,
-            List<Object> eCarried, List<Object> aCarried, @Nullable String eClass, @Nullable String aClass) {
+            List<Object> eCarried, List<Object> aCarried, com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts ef,
+            com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts af) {
+        @Nullable String eClass = ef == null ? null : ef.classFqn();
+        @Nullable String aClass = af == null ? null : af.classFqn();
         if (!wantEqual) {
             return notEqual(e, a, aClass);
         }
         return incidental ? sameElements(e, a, eClass, aClass)
-                : sidesNotEqual(e, a, eCarried, aCarried, eClass, aClass);
+                : sidesNotEqual(e, a, carrier(ef, eCarried), carrier(af, aCarried), eClass, aClass);
+    }
+
+    /** A side's values as a JSON carrier may have brought them: none for a side of a primitive kind. */
+    private static List<Object> carrier(com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts f,
+            List<Object> carried) {
+        return f != null && f.kind() instanceof com.legend.testexecutionplan.KindClass.Primitive ? List.of() : carried;
     }
 
     /**
@@ -63,8 +75,9 @@ final class AssertRecords {
         @Nullable String eClass = report.e() == null ? null : report.e().classFqn();
         @Nullable String aClass = report.a() == null ? null : report.a().classFqn();
         ErrorRecord failure = report.fixed() != null ? report.fixed() : switch (report.family()) {
-            case EQUALS -> equality(false, report.want(), e, a, e, a, eClass, aClass);
-            case SAME_ELEMENTS -> equality(true, report.want(), e, a, e, a, eClass, aClass);
+            // a typed row's values are typed, never a JSON carrier's
+            case EQUALS -> equality(false, report.want(), e, a, List.of(), List.of(), report.e(), report.a());
+            case SAME_ELEMENTS -> equality(true, report.want(), e, a, List.of(), List.of(), report.e(), report.a());
             case IS_NOT -> negated("IS_NOT", e, a);
             case CONDITION -> condition(report.want());
             case SIZE -> report.want() ? size(row.get(1), ((Number) row.get(2)).longValue())
@@ -186,8 +199,24 @@ final class AssertRecords {
     }
 
     /** An element's failure inside the frame naming it by Pure's zero-based index (the user's direction,
-     *  2026-11-17): a record of its own, framed, never a sentence inside a sentence. */
+     *  2026-11-17): a record of its own, framed, never a sentence inside a sentence. A caller's own message is the
+     *  failure whole, unframed, as upstream raises it (the element's {@code assert} raises the message it was given;
+     *  item 3's S4 step 3, decision 4, 2026-11-22). */
+    /** {@code failed}, an unrolled element's failure, framed at the element {@code index} names (both judges: the
+     *  host's {@code HostJudgments.unrolledOf}, the database judge's {@code RootLoops}): its record in the frame; a
+     *  decline, a failure with no record (the edge's appeal words) or another error, as it is. */
+    static RuntimeException atIndex(RuntimeException failed, int index) {
+        if (failed instanceof com.legend.error.AssertFailed af && af.unjudgedReason() == null && af.record() != null
+                && index >= 0) {
+            return new com.legend.error.AssertFailed(atIndex(af.record(), index));
+        }
+        return failed;
+    }
+
     static ErrorRecord atIndex(ErrorRecord element, int index) {
+        if (element.code() == AssertKind.MESSAGE) {
+            return element;
+        }
         return element.framed(new ErrorRecord.Frame(FrameKind.AT_INDEX, List.of(Integer.toString(index))));
     }
 

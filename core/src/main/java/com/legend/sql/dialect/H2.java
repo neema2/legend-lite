@@ -1217,14 +1217,17 @@ public class H2 extends AnsiSqlRenderer {
                 .append(desc ? " DESC" : "").append(")");
     }
 
-    /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}; the null clause written only
-     *  where a NULL can arrive -- a value the typing proves never NULL needs none (ABSENT and NULL ON NULL agree on it),
-     *  and H2 2.5.252 rewrites a derived table's {@code JSON_ARRAYAGG} with its null clause BEFORE its {@code ORDER BY}
-     *  and then refuses its own text ("expected )"; measured 2026-11-22, item 3's S4: the database judge's typed lists,
-     *  each in a member's derived table). */
+    /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}. H2 2.5.252 rewrites an
+     *  ORDERED {@code JSON_ARRAYAGG} nested anywhere in a derived table with its null clause BEFORE its {@code ORDER BY}
+     *  and then refuses its own text ("expected )"; probed 2026-11-22, item 3's S4, on a derived table, a scalar
+     *  subquery inside one, and a grouped one: every form fails, a top-level one passes). So an ordered list of a value
+     *  the typing proves never NULL is written with no null clause (ABSENT and NULL ON NULL agree where no NULL
+     *  arrives: the database judge's typed lists, which drop their NULLs); every other list keeps NULL ON NULL, its
+     *  [null] element DuckDB's (the S4 audit's MEDIUM 3: the omission scoped to the ordered form H2 cannot spell). */
     private SqlWriter listOfValues(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
         SqlExpr value = r.args().get(0);
-        boolean neverNull = value.type() instanceof com.legend.sql.TypeFact.Typed t && !t.nullable();
+        boolean neverNull = !r.orderBy().isEmpty() && value.type() instanceof com.legend.sql.TypeFact.Typed t
+                && !t.nullable();
         writer.append("JSON_ARRAYAGG(").expr(value, 0);
         if (!r.orderBy().isEmpty()) {
             writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)

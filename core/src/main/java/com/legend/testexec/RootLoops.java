@@ -186,7 +186,7 @@ public final class RootLoops {
                             // the row's turn since hole 5 of 2026-11-08: deleted with the row's field, A4 of the
                             // compatibility program, stage A ratified by the user 2026-11-19)
                             spoke = true;
-                            row(p, judge, rejected);
+                            row(p, judge, rejected, messages, reader);
                         }
                         case RootLoop.Judged j -> {
                             // a verdict decided at planning, counted at its turn as a row is at its judgment
@@ -251,7 +251,8 @@ public final class RootLoops {
         /** {@code p} judged: its row (a member the dialect cannot spell refuses the body at planning, D).
          *  (A row's ruled comparison decided at planning raised here where the generic row failed until A4 of the
          *  compatibility program, stage A ratified by the user 2026-11-19.) */
-        private void row(RootLoop.Row p, Judge judge, com.legend.error.@com.legend.base.Nullable DataError rejected) {
+        private void row(RootLoop.Row p, Judge judge, com.legend.error.@com.legend.base.Nullable DataError rejected,
+                boolean messages, @com.legend.base.Nullable SideReader reader) {
             List<Object> row = rows.get(p.verdict());
             if (row == null && rejected != null) {
                 // the segment's fused statement was rejected: its database error is this root's failure, raised at its
@@ -262,7 +263,21 @@ public final class RootLoops {
                 // an absent row is the runner's defect (a member the dialect cannot spell refuses the body at planning)
                 throw new IllegalStateException(p.name() + ": the runner answered no row for a verdict of the plan");
             }
-            judge.judge(p.name(), row, p.report());
+            try {
+                judge.judge(p.name(), row, p.report());
+            } catch (com.legend.error.AssertFailed failed) {
+                RootLoop.Report report = p.report();
+                if (failed.unjudgedReason() != null || report == null
+                        || (p.unplanned() == null && (p.message() == null || !messages))) {
+                    throw failed;
+                }
+                // an unrolled element's own caller's message (the user's decision 4, item 3's S4 step 3), as the host's
+                // HostJudgments.unrolledOf: its error raised, or its text read now, the element having failed -- the
+                // catalog's MESSAGE record, whole as upstream raises it (AssertRecords.atIndex frames any other
+                // record). A DataError reading it is raised as it is.
+                throw AssertRecords.atIndex(p.unplanned() != null ? Failures.raised(p.unplanned())
+                        : messaged(p.name(), java.util.Objects.requireNonNull(p.message()), reader), report.index());
+            }
         }
     }
 
@@ -295,7 +310,10 @@ public final class RootLoops {
                 return new IllegalStateException(listenerName + ": the message's statement answered "
                         + rows.rows().size() + " rows");
             }
-            return new com.legend.error.AssertFailed(String.valueOf(rows.rows().get(0).get(6)));
+            // the caller's own message, a value the program computed: the catalog's MESSAGE record, as the host's
+            // HostJudgments.messagedOf (item 3's S4 step 3)
+            return new com.legend.error.AssertFailed(com.legend.error.AssertKind.MESSAGE.record(
+                    java.util.Map.of("message", String.valueOf(rows.rows().get(0).get(6)))));
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             return e;
         } catch (java.io.IOException e) {

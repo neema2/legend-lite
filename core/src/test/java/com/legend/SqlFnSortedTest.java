@@ -663,9 +663,12 @@ class SqlFnSortedTest {
                     "com.legend.lowering.VerdictSql", "com.legend.planner.DataSources",
                     "com.legend.sql.dialect.AsOfAsPick", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.ExplosionMarkers")),
+            // LIST: + VerdictSql (2026-11-22, item 3's S4 step 2, by the user's word, "Yes, add it": the database
+            // judge's typed members carry each side's failing values as a typed LIST, decoded by exec, where they
+            // carried a sentence's STRING_AGG; VerdictSql leaves STRING_AGG with step 4's deletion of the sentence SQL)
             Map.entry("LIST", Set.of(
                     "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars", "com.legend.lowering.StampCensus",
-                    "com.legend.lowering.ValueCollections", "com.legend.sql.SqlExpr",
+                    "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql", "com.legend.sql.SqlExpr",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated")),
             Map.entry("STRING_AGG", Set.of(
