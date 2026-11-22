@@ -1075,9 +1075,7 @@ public class Databricks extends AnsiSqlRenderer {
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
-            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameValues(writer, c);
-            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never CAST_INVALID_INPUT (Phase 8)

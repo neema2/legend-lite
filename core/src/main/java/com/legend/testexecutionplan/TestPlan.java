@@ -386,6 +386,10 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                     throw new IllegalArgumentException("a fused layout of " + layout.size() + " members for "
                             + verdicts.size() + " verdicts" + (fused == null ? " and no fused statement" : ""));
                 }
+                if (fused.columns().isEmpty() || !"__m".equals(fused.columns().get(0).name())) {
+                    throw new IllegalArgumentException("a fused layout over a statement whose first column is not the"
+                            + " member's number (__m)");
+                }
                 for (List<Integer> member : layout) {
                     for (int c : member) {
                         if (c < 1 || c >= fused.columns().size()) {

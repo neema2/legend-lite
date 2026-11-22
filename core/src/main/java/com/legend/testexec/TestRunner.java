@@ -98,8 +98,6 @@ public final class TestRunner {
             EdgeHearing appeals = edgeRun.open(plan, callers, execution);
             // (the plan's words against the run hook's, census C1's check: gone with item 3, 2026-11-21 -- one catalog
             // words every assert failure, so a run has no words of its own to match)
-            // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
-            BodyRun run = new BodyRun(appeals);
             AssertListener listener = appeals.listener();
             ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.writerFor(plan.answerShape())
                     : null;
@@ -109,7 +107,7 @@ public final class TestRunner {
             // one, leased for the run), opened when a step first asks
             try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 SystemDatabase.Leases systemSessions = leases;
-                Moved moved = new Moved(plan, edge, answer, early, listener, run);
+                Moved moved = new Moved(plan, edge, answer, early, listener, appeals);
                 PlanSessions.Source sessions = PlanSessions.marked(PlanSessions.of(session, systemSessions), origin);
                 try {
                     TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved, execution);
@@ -176,7 +174,7 @@ public final class TestRunner {
 
         Moved(TestPlan planned, com.legend.testexecutionplan.Edge edge,
                 @Nullable Output answer, @Nullable ResultSink early, @Nullable AssertListener listener,
-                BodyRun run) {
+                EdgeHearing appeals) {
             if (!edge.records() && !planned.extensionsByStep().isEmpty()) {
                 // records planned for the edge (the compatibility rules' ledger texts, a raise site's words) with no
                 // edge to hand them: the plan was made for another run, refused by name, never run with its records
@@ -185,7 +183,9 @@ public final class TestRunner {
                         + planned.extensionsByStep().keySet() + " run with no edge");
             }
             this.planned = planned;
-            this.run = run;
+            // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each
+            // explicitly; it reads the program's reader as this sink holds it
+            this.run = new BodyRun(appeals, () -> reader);
             this.edge = edge;
             this.answer = answer;
             this.early = early;
@@ -319,7 +319,6 @@ public final class TestRunner {
         @Override
         public void reader(com.legend.testexec.@Nullable SideReader reader) {
             this.reader = reader;
-            run.reader(reader);
         }
 
         /** {@code verdict}'s caller's message read on demand (the judge asks only where it fails), or null where the

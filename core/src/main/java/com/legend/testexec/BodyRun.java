@@ -21,12 +21,14 @@ final class BodyRun {
     private final EdgeHearing hearing;
     /** How many messaged asserts are being judged (nested: an assert inside a messaged one's helper). */
     private int messaged;
-    /** The program's reader while it runs (an unrolled element's caller's message read through it where that
-     *  element fails: item 3's S4 step 3). */
-    private @Nullable SideReader reader;
+    /** The program's reader while it runs, as its sink holds it (an unrolled element's caller's message read through
+     *  it where that element fails: item 3's S4 step 3); a final view of the sink's own field, never a second copy (the
+     *  code-shape guard's explicit mutable state). */
+    private final java.util.function.Supplier<@Nullable SideReader> reader;
 
-    BodyRun(EdgeHearing hearing) {
+    BodyRun(EdgeHearing hearing, java.util.function.Supplier<@Nullable SideReader> reader) {
         this.hearing = hearing;
+        this.reader = reader;
     }
 
     EdgeHearing hearing() {
@@ -47,11 +49,6 @@ final class BodyRun {
         return hearing.listener();
     }
 
-    /** The program's reader, while it runs (PlanRunner.ProgramSink#reader). */
-    void reader(@Nullable SideReader r) {
-        this.reader = r;
-    }
-
     /** An unrolled element's caller's message (item 3's S4 step 3, the user's decision 4): {@code side} read through
      *  the program's reader and shaped only when the judge asks, its element having failed; null where it has none. */
     java.util.function.@Nullable Supplier<TypedSide> message(
@@ -62,7 +59,7 @@ final class BodyRun {
 
     /** {@code side} read now, through the program's reader: a part's caller's message, its element having failed. */
     com.legend.exec.PlanRunner.Rows read(com.legend.testexecutionplan.TestPlan.Side side) {
-        SideReader r = java.util.Objects.requireNonNull(reader, "a side read on demand with no program running");
+        SideReader r = java.util.Objects.requireNonNull(reader.get(), "a side read on demand with no program running");
         try {
             return r.read(side);
         } catch (java.io.IOException e) {

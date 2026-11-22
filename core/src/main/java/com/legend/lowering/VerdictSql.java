@@ -264,8 +264,7 @@ public final class VerdictSql {
         SqlQuery aList = listed("__a", aRows);
         // the comparison over the typed values themselves, ONE node each dialect writes (the user, 2026-11-22: "Yes on
         // list compare"): over the two lists where its database compares lists, else the portable form over the rows
-        // (H2 has no list equality, no EXCEPT ALL, no FULL OUTER JOIN; M1). Until then the portable form on every
-        // database, written here
+        // (H2 has no list equality, no EXCEPT ALL, no FULL OUTER JOIN; M1), the dialect's (SameValuesForm)
         SqlExpr holds = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
                 SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
                 new SqlExpr.ScalarSubquery(rowsOf("__e", eRows)), new SqlExpr.ScalarSubquery(rowsOf("__a", aRows)));
@@ -2002,7 +2001,11 @@ public final class VerdictSql {
         for (int k = 0; k < slots.size(); k++) {
             Slot slot = slots.get(k);
             outs.add(new OutputCol("__s" + k, slot.sql(), true));
-            schema.add(new Type.RelationType.Column("__s" + k, slot.kind(), slot.many()));
+            // a slot holds NULL in every branch that writes none: at most one value, or a list (the tall-row audit's
+            // LOW 3: until then the member's own multiplicity, [1] for a column another member leaves NULL)
+            schema.add(new Type.RelationType.Column("__s" + k, slot.kind(), slot.many().isMany()
+                    ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY
+                    : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE));
         }
         List<SqlQuery> branches = new ArrayList<>(bodies.size());
         for (int i = 0; i < bodies.size(); i++) {
@@ -2015,7 +2018,7 @@ public final class VerdictSql {
             ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), MEMBER, outs.get(0)));
             for (int c = 1; c < outs.size(); c++) {
                 OutputCol own = byColumn.get(c);
-                ps.add(new SqlSelect.Projection(own == null ? new SqlExpr.NullLit()
+                ps.add(new SqlSelect.Projection(own == null ? nullOf(outs.get(c).type())
                         : SqlExpr.Column.of("v", body.outputs(), own.name()), outs.get(c).name(), outs.get(c)));
             }
             branches.add(new SqlSelect(ps, false, new SqlSource.Subselect(body, "v", null), null, List.of(), null,
@@ -2023,6 +2026,16 @@ public final class VerdictSql {
         }
         SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
         return new Batch(ctes.isEmpty() ? union : new SqlWith(ctes, union), new Type.RelationType(schema), layout);
+    }
+
+    /** A slot's NULL where a member writes none: typed where the renderer leaves a typed slot's NULL bare -- a Decimal,
+     *  a TIME -- since Postgres types a UNION's column pairwise from its left, and two bare NULL branches first make it
+     *  text, which a numeric branch then fails to match (the S4 tall-row audit's MEDIUM, 2026-11-22). The renderer
+     *  types every other scalar slot's NULL itself; a list's, a struct's and a label carrier's stay bare, as it writes
+     *  them. */
+    private static SqlExpr nullOf(SqlType slot) {
+        return slot instanceof SqlType.Decimal || slot == SqlType.Scalar.TIME
+                ? new SqlExpr.Cast(new SqlExpr.NullLit(), slot, SqlExpr.Reason.JUDGE) : new SqlExpr.NullLit();
     }
 
     /** CTE references renamed (a table source named after a CTE; the

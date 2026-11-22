@@ -117,6 +117,13 @@ class AssertBarTest {
             new Probe("string-with-a-bracket", "{|assertEquals('[a b]', '[c]')}", "expected \"[a b]\", got \"[c]\""),
             new Probe("eq-string-with-a-brace", "{|assertEq('{a}', '{b}')}", "expected \"{a}\", got \"{b}\""),
             new Probe("forAll-element-literal-message", "{|[1, 2]->forAll(i | assertEquals(1, $i, 'mine'))}", "mine"),
+            // the same over a row the database judge has not typed (a Decimal against an Integer, decided false at
+            // planning; dates): the caller's message whole on every judge (the S4 step 3 audit's HIGH, 2026-11-22:
+            // "mine at index 0" on the database judge until then)
+            new Probe("forAll-element-message-cross-kinds", "{|[1, 2]->forAll(i | assertEquals(1D, $i, 'mine'))}",
+                    "mine"),
+            new Probe("forAll-element-message-dates",
+                    "{|[%2020-01-01, %2020-01-02]->forAll(d | assertEquals(%2020-01-02, $d, 'mine'))}", "mine"),
             new Probe("forAll-element-message-holds",
                     "{|let l = [10]; [1, 1]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", null),
             new Probe("forAll-zip-computed-arguments",

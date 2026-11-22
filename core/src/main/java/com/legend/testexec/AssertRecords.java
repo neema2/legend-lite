@@ -198,10 +198,6 @@ final class AssertRecords {
         return AssertKind.SAME_INSTANCE.record();
     }
 
-    /** An element's failure inside the frame naming it by Pure's zero-based index (the user's direction,
-     *  2026-11-17): a record of its own, framed, never a sentence inside a sentence. A caller's own message is the
-     *  failure whole, unframed, as upstream raises it (the element's {@code assert} raises the message it was given;
-     *  item 3's S4 step 3, decision 4, 2026-11-22). */
     /** {@code failed}, an unrolled element's failure, framed at the element {@code index} names (both judges: the
      *  host's {@code HostJudgments.unrolledOf}, the database judge's {@code RootLoops}): its record in the frame; a
      *  decline, a failure with no record (the edge's appeal words) or another error, as it is. */
@@ -213,6 +209,10 @@ final class AssertRecords {
         return failed;
     }
 
+    /** An element's failure inside the frame naming it by Pure's zero-based index (the user's direction,
+     *  2026-11-17): a record of its own, framed, never a sentence inside a sentence. A caller's own message is the
+     *  failure whole, unframed, as upstream raises it (the element's {@code assert} raises the message it was given;
+     *  item 3's S4 step 3, decision 4, 2026-11-22). */
     static ErrorRecord atIndex(ErrorRecord element, int index) {
         if (element.code() == AssertKind.MESSAGE) {
             return element;

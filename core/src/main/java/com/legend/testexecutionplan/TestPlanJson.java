@@ -432,7 +432,6 @@ public final class TestPlanJson {
         return t;
     }
 
-    /** A verdict's side, or a branch's condition ({@code side}'s inverse). */
     /** A database judge's fused group's layout: each member's fused columns, or null where the group has none. */
     private static @com.legend.base.Nullable List<List<Integer>> readLayout(Json.Obj o) {
         if (!(o.getArrOr("layout", null) instanceof Json.Arr members)) {
@@ -449,6 +448,7 @@ public final class TestPlanJson {
         return out;
     }
 
+    /** A verdict's side, or a branch's condition ({@code side}'s inverse). */
     static TestPlan.Side readSide(Json.Obj so) {
         return switch (tag(SideTag.class, so, "verdict side")) {
             case rows -> new TestPlan.Side.Rows(typedResult(so.getObj("result"), "a rows side"));

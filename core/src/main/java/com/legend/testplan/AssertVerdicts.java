@@ -1361,11 +1361,9 @@ public final class AssertVerdicts {
             TypedSpec bareStmt = reduced.get(reduced.size() - 1);
             TypedSide v;
             // lite's sentence names the element by its zero-based index, as the host judge's does
-            Runnable restore = batch == null ? () -> { } : batch.atElement(index);
-            try {
+            try (VerdictBatch.ElementScope scope = batch == null ? VerdictBatch.ElementScope.NONE
+                    : batch.atElement(index)) {
                 v = adjudicate(bareStmt, lets, specs, env, rawHook);
-            } finally {
-                restore.run();
             }
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(

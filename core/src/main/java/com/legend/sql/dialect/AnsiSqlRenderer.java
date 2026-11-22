@@ -1364,6 +1364,21 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append("(").expr(a.get(0), 4).append(" IS DISTINCT FROM ").expr(a.get(1), 4).append(")");
     }
 
+    /** The null-safe comparisons as ANSI spells them, one arm for the dialects that do (item 3's S4, 2026-11-22):
+     *  {@code IS [NOT] DISTINCT FROM}, and two sides' values the same in the portable form ({@link #sameValues}). */
+    protected final SqlWriter nullSafe(SqlWriter writer, SqlExpr.Call c) {
+        if (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER) {
+            return sameValues(writer, c);
+        }
+        if (c.fn() == SqlFn.NULL_SAFE_EQUAL) {
+            return notDistinctFrom(writer, c.args());
+        }
+        if (c.fn() == SqlFn.IS_DISTINCT_FROM || c.fn() == SqlFn.NULL_SAFE_NOT_EQUAL) {
+            return distinctFrom(writer, c.args());
+        }
+        throw new IllegalStateException("not a null-safe comparison: " + c.fn());
+    }
+
     /** {@link SqlFn#SAME_IN_ORDER} / {@link SqlFn#SAME_IN_ANY_ORDER} in the PORTABLE form: the Boolean select over the
      *  two sides' rows (its third and fourth arguments), as a scalar subquery ({@link SameValuesForm}). */
     protected final SqlWriter sameValues(SqlWriter writer, SqlExpr.Call c) {

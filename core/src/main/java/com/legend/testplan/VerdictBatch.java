@@ -184,7 +184,25 @@ public final class VerdictBatch {
     private final List<Root> roots = new ArrayList<>();
     /** The sentence frame the rows deferred now are planned under (lite's own rules): an unrolled quantifier's element
      *  index (-1 for none) and whether they are {@code assertIsNot}'s (#28). One field, set and restored by scope. */
-    private record Scope(int elementIndex, boolean isNot) {
+    private record Scope(int elementIndex, boolean isNot, @com.legend.base.Nullable SqlQuery message,
+            ExecutionPlan.@com.legend.base.Nullable Target messageOn,
+            com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned) {
+        /** The element in scope's caller's message where it READS (its row, its session), or where computing it
+         *  raises (its error): carried by the element's own row, read or raised only where THAT element fails (item
+         *  3's S4 step 3, the user's decision 4, 2026-11-22); none outside an element. */
+        Scope(int elementIndex, boolean isNot) {
+            this(elementIndex, isNot, null, null, null);
+        }
+
+        /** Whether an element's message waits for the element's row. */
+        boolean pending() {
+            return message != null || unplanned != null;
+        }
+
+        /** The same scope, its element's message taken. */
+        Scope taken() {
+            return new Scope(elementIndex, isNot);
+        }
     }
 
     private Scope scope = new Scope(-1, false);
@@ -192,33 +210,40 @@ public final class VerdictBatch {
     /** Rows deferred until the returned restore runs are {@code assertIsNot}'s. */
     public Runnable asIsNot() {
         Scope before = scope;
-        scope = new Scope(before.elementIndex(), true);
-        return () -> scope = before;
+        scope = new Scope(before.elementIndex(), true, before.message(), before.messageOn(), before.unplanned());
+        // an element's message still waiting is carried back out, for its element's scope to take or refuse
+        return () -> scope = new Scope(before.elementIndex(), before.isNot(), scope.message(), scope.messageOn(),
+                scope.unplanned());
     }
 
     /** Rows deferred until the returned scope closes are an unrolled quantifier's element {@code index}: lite's
      *  sentence names it ({@code FrameKind.AT_INDEX}). */
-    public Runnable atElement(int index) {
+    public ElementScope atElement(int index) {
         Scope before = scope;
         scope = new Scope(index, before.isNot());
         return () -> {
+            boolean pending = scope.pending();
             scope = before;
-            if (elementMessage != null || elementUnplanned != null) {
+            if (pending) {
                 // an element whose message no row of it carried (decided at planning, or a row S4 has not typed)
-                elementMessage = null;
-                elementUnplanned = null;
                 throw new com.legend.error.NotImplementedException("an unrolled element's caller's message that reads"
                         + " or raises, over an element no typed row judges: not planned");
             }
         };
     }
 
-    /** The element in scope's caller's message where it READS (its row, its session), or where computing it raises
-     *  (its error): carried by the element's own row, read or raised only where THAT element fails (item 3's S4 step 3,
-     *  the user's decision 4, 2026-11-22). */
-    private @com.legend.base.Nullable SqlQuery elementMessage;
-    private ExecutionPlan.@com.legend.base.Nullable Target elementMessageOn;
-    private com.legend.testexecutionplan.@com.legend.base.Nullable Failure elementUnplanned;
+    /** An unrolled element's scope ({@link #atElement}), closed by a try-with-resources: where the element's planning
+     *  raised, its own error stands and the scope's refusal rides it suppressed (the S4 step 3 audit's LOW 4,
+     *  2026-11-22: a {@code finally} replaced the element's error with the refusal). */
+    @FunctionalInterface
+    public interface ElementScope extends AutoCloseable {
+        /** No batch: nothing to restore. */
+        ElementScope NONE = () -> { };
+
+        @Override
+        void close();
+    }
+
     private @com.legend.base.Nullable Root current;
     /** The frames the body's asserts read by reference: name → the frame's
      * plan (leg 3.4 step 2), defined once per body. */
@@ -272,8 +297,7 @@ public final class VerdictBatch {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         if (scope.elementIndex() >= 0) {
             // an unrolled element's own message, its row's (decision 4)
-            elementMessage = row;
-            elementMessageOn = on;
+            scope = new Scope(scope.elementIndex(), scope.isNot(), row, on, scope.unplanned());
             return;
         }
         if (r.unplanned != null || r.message != null && !r.message.equals(row)) {
@@ -294,7 +318,7 @@ public final class VerdictBatch {
         if (scope.elementIndex() >= 0) {
             // an unrolled element's message's error: raised only where THAT element fails, by its own row (decision 4;
             // the S2+S3 fixes' audit, 2026-11-21: one slot per root replaced a later element's failure)
-            elementUnplanned = error;
+            scope = new Scope(scope.elementIndex(), scope.isNot(), scope.message(), scope.messageOn(), error);
             return;
         }
         if (r.unplanned != null || r.message != null) {
@@ -312,6 +336,15 @@ public final class VerdictBatch {
     /** {@code query}, the open root's verdict row. (Its overload with an appeal and a decline, the edge's engine-text
      *  rows', went with A4 of the compatibility program, stage A ratified by the user 2026-11-19.) */
     public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on) {
+        defer(name, wantEqual, query, on, false);
+    }
+
+    /** {@link #defer}; {@code callersMessage}: the row's message is its caller's own literal (the env's failure
+     *  message), which an unrolled element raises whole, unframed, as upstream raises it and as the host's records do
+     *  ({@code AssertRecords.atIndex}; the S4 step 3 audit's HIGH, 2026-11-22: until then framed "at index n" here,
+     *  where the host wrote the message alone). */
+    public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on,
+            boolean callersMessage) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         int ix = 0;
         for (Root x : roots) {
@@ -324,14 +357,13 @@ public final class VerdictBatch {
         // the row self-contained (M8b): its polarity and its message in the statement, nothing of the assert kept
         SqlQuery row = selfContained.wrap(scope.isNot() ? com.legend.lowering.VerdictSql.withIsNotHint(query) : query, name,
                 wantEqual);
-        if (scope.elementIndex() >= 0) {
+        if (scope.elementIndex() >= 0 && !callersMessage) {
             // an unrolled quantifier's element, named as the words name it (lite's: by its zero-based index)
             row = com.legend.lowering.VerdictSql.atIndex(row, scope.elementIndex(), words);
         }
-        if (elementMessage != null || elementUnplanned != null) {
+        if (scope.pending()) {
             // a seven-column row reads no element message (its words are in its statement): not planned
-            elementMessage = null;
-            elementUnplanned = null;
+            scope = scope.taken();
             throw new com.legend.error.NotImplementedException(name + ": an unrolled element's caller's message that"
                     + " reads or raises, over a row S4 has not typed: not planned");
         }
@@ -362,11 +394,9 @@ public final class VerdictBatch {
             }
         }
         r.steps.add(new Pending(ix, name, row, on, schema,
-                scope.elementIndex() >= 0 ? report.atElement(scope.elementIndex()) : report, elementMessage,
-                elementMessageOn, elementUnplanned));
-        elementMessage = null;
-        elementMessageOn = null;
-        elementUnplanned = null;
+                scope.elementIndex() >= 0 ? report.atElement(scope.elementIndex()) : report, scope.message(),
+                scope.messageOn(), scope.unplanned()));
+        scope = scope.taken();
     }
 
     /** The batch's one root as ONE statement (the user's ruling S135, 2026-11-05: an assert inside assertError is a

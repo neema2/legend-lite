@@ -429,7 +429,8 @@ public final class DatabaseJudge {
         }
         com.legend.testplan.VerdictBatch batch = runOn.verdictBatch();
         if (batch != null && batch.active()) {
-            batch.defer(name, wantEqual, vq, runOn.target());   // leg 3.4: judged at the flush
+            // leg 3.4: judged at the flush; a caller's own message is the failure whole
+            batch.defer(name, wantEqual, vq, runOn.target(), runOn.failureMessage() != null);
             return com.legend.testexecutionplan.Verdicts.ok();
         }
         // a verdict statement is a step of its body's plan, deferred on the body's batch and judged at its verdict step
