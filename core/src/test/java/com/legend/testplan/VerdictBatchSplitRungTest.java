@@ -53,7 +53,7 @@ class VerdictBatchSplitRungTest {
         @Override
         public ExecutionPlan.Node plan(SqlQuery statement,
                 com.legend.compiler.element.type.Type.RelationType schema, ExecutionPlan.Target on) {
-            if (schema.columns().stream().anyMatch(c -> c.name().startsWith("m0"))) {
+            if (schema.columns().stream().anyMatch(c -> c.name().equals(com.legend.lowering.VerdictSql.MEMBER))) {
                 throw new DialectCapability("no fused statement on this dialect");
             }
             if (literal(statement) == 3) {
@@ -80,7 +80,15 @@ class VerdictBatchSplitRungTest {
     };
 
     private static VerdictBatch batch() {
-        return new VerdictBatch((members, columns, frames) -> members.get(0), (row, name, wantEqual) -> row, RUNNER,
+        // the fused statement stands in as the first member's under the fused schema's member column, which the runner
+        // refuses (each member its own statement)
+        return new VerdictBatch((members, schemas, frames) -> new com.legend.lowering.VerdictSql.Batch(members.get(0),
+                new com.legend.compiler.element.type.Type.RelationType(List.of(
+                        new com.legend.compiler.element.type.Type.RelationType.Column(
+                                com.legend.lowering.VerdictSql.MEMBER,
+                                com.legend.compiler.element.type.Type.Primitive.INTEGER,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE))),
+                members.stream().map(m -> List.<Integer>of()).toList()), (row, name, wantEqual) -> row, RUNNER,
                 new VerdictIds(), com.legend.lowering.LiteVerdictWords.INSTANCE);
     }
 

@@ -108,6 +108,12 @@ class AssertBarTest {
                     "{|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", "10"),
             // a String whose text starts with a bracket is a String, written quoted, never read as a JSON carrier (the
             // S4 audit's HIGH 1, 2026-11-22: written as minified JSON until then, assertEq's differently per judge)
+            // a mixed-kind list keeps each element's kind (register S127, the user's ruling of 2026-11-04): an Integer
+            // and a Float are never equal, whatever a database's own list equality coerces (DuckDB types both
+            // literals DOUBLE[]; the user, 2026-11-22)
+            new Probe("mixed-kind-lists-differ", "{|assertEquals([1, 2.5, 3], [1.0, 2.5, 3])}",
+                    "expected [1, 2.5, 3], got [1.0, 2.5, 3]"),
+            new Probe("mixed-kind-lists-equal", "{|assertEquals([1, 2.5, 3], [1, 2.5, 3])}", null),
             new Probe("string-with-a-bracket", "{|assertEquals('[a b]', '[c]')}", "expected \"[a b]\", got \"[c]\""),
             new Probe("eq-string-with-a-brace", "{|assertEq('{a}', '{b}')}", "expected \"{a}\", got \"{b}\""),
             new Probe("forAll-element-literal-message", "{|[1, 2]->forAll(i | assertEquals(1, $i, 'mine'))}", "mine"),

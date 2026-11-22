@@ -1924,22 +1924,35 @@ public final class VerdictSql {
                 false, src, null, List.of(), null, null, List.of(), null, null, List.of(out));
     }
 
-    /** A member's column of a fused statement: its own column under the member's prefix ({@code m3__verdict}). */
-    public static String memberColumn(int member, String column) {
-        return "m" + member + column;
+    /** A fused statement's column naming the member a row is ({@link #batch}). */
+    public static final String MEMBER = "__m";
+
+    /** A fused verdict statement ({@link #batch}): the statement, its columns' schema, and each member's row as the
+     *  fused columns that hold it, in the member's own order. */
+    public record Batch(SqlQuery query, Type.RelationType schema, List<List<Integer>> layout) {
+        public Batch {
+            layout = layout.stream().map(List::copyOf).toList();
+        }
     }
 
-    /** LEG 3.4: several verdict statements as ONE. Every statement's CTEs
-     * are hoisted to ONE top-level {@code WITH} under per-statement names
-     * ({@code __e} of statement 3 is {@code __e_3}; the CTE's own alias is
-     * unchanged, so its column references stand), and the statement is ONE ROW: each member's verdict row a one-row
-     * derived table, CROSS JOINed, its columns under the member's prefix ({@link #memberColumn}) -- so each member's
-     * columns are its own and typed as its own (item 3's S4, 2026-11-21: until then each verdict row was a branch of a
-     * {@code UNION ALL} carrying its index, every member's columns one shared schema of text). (A {@code WITH} inside a
-     * derived table is NOT this shape: H2 blew its heap on one such branch, a metamodel read with JSON aggregation --
-     * the Linux-independent catch of 2026-09-20; the members' CTEs are hoisted.) The caller reads each member's columns
-     * by their prefix. */
-    public static SqlQuery batch(List<SqlQuery> statements, List<List<String>> columns,
+    /** A fused statement's shared column: the members' values at {@code position} of one SQL type and one Pure type
+     *  share it. */
+    private record Slot(int position, SqlType sql, Type kind, com.legend.compiler.element.type.Multiplicity many) {
+    }
+
+    /** LEG 3.4: several verdict statements as ONE. Every statement's CTEs are hoisted to ONE top-level {@code WITH}
+     * under per-statement names ({@code __e} of statement 3 is {@code __e_3}; the CTE's own alias is unchanged, so its
+     * column references stand). The statement is TALL (item 3's S4, 2026-11-22, the user: "Don't we just need 1 column
+     * per type that each assert reuses?"): a row per member, a {@code UNION ALL} branch, its {@link #MEMBER} number
+     * first; then ONE column per value position and type that some member writes -- each member's value at position
+     * {@code j} of SQL type {@code T} and Pure type {@code P} in the column all such values share, NULL in the columns
+     * it does not write. So the row's width is the types the statement uses, never its asserts' count, and no
+     * database's join limit applies (until then one wide row, a derived table per member CROSS JOINed: SQLite joins at
+     * most 64 tables, MariaDB and MySQL 61 -- the S4 audit's MEDIUM 2). Each member's columns are the {@code layout}
+     * the plan carries. (A {@code WITH} inside a derived table is NOT this shape: H2 blew its heap on one such branch,
+     * a metamodel read with JSON aggregation -- the Linux-independent catch of 2026-09-20; the members' CTEs are
+     * hoisted.) */
+    public static Batch batch(List<SqlQuery> statements, List<Type.RelationType> schemas,
             java.util.Map<String, SqlQuery> frames) {
         // leg 3.4 step 2: the frames the sides reference, DEFINED once at the
         // head (MATERIALIZED: every side sees the same rows), ahead of all
@@ -1960,9 +1973,10 @@ public final class VerdictSql {
         // order makes it compound: once two grids are one, the cell stacks over
         // them are identical too. Frames stay as they are (named, materialized).
         java.util.Map<SqlQuery, String> hoisted = new java.util.HashMap<>();
-        List<SqlSelect.Projection> ps = new ArrayList<>();
-        List<OutputCol> outs = new ArrayList<>();
-        SqlSource from = null;
+        List<SqlQuery> bodies = new ArrayList<>(statements.size());
+        List<Slot> slots = new ArrayList<>();
+        List<List<OutputCol>> owned = new ArrayList<>(statements.size());
+        List<List<Integer>> layout = new ArrayList<>(statements.size());
         for (int i = 0; i < statements.size(); i++) {
             SqlQuery st = statements.get(i);
             SqlQuery body = st;
@@ -1983,21 +1997,55 @@ public final class VerdictSql {
                 }
                 body = rename.rewriteRoot(w.body());
             }
-            String alias = "m" + i;
-            // the member's own columns, in its schema's order, by name (a seven-column row may carry more: its hints)
-            for (String c : columns.get(i)) {
-                OutputCol o = body.outputs().stream().filter(x -> x.name().equals(c)).findFirst()
-                        .orElseThrow(() -> new IllegalStateException("a verdict row without its " + c));
-                OutputCol out = new OutputCol(memberColumn(i, o.name()), o.type(), o.nullable());
-                ps.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, body.outputs(), o.name()), out.name(), out));
-                outs.add(out);
+            bodies.add(body);
+            // the member's own columns, in its schema's order, by name (a seven-column row may carry more: its hints),
+            // each in the shared column of its position and types
+            List<OutputCol> mine = new ArrayList<>();
+            List<Integer> at = new ArrayList<>();
+            List<Type.RelationType.Column> cols = schemas.get(i).columns();
+            for (int j = 0; j < cols.size(); j++) {
+                Type.RelationType.Column c = cols.get(j);
+                OutputCol o = body.outputs().stream().filter(x -> x.name().equals(c.name())).findFirst()
+                        .orElseThrow(() -> new IllegalStateException("a verdict row without its " + c.name()));
+                Slot slot = new Slot(j, o.type(), c.type(), c.multiplicity());
+                int k = slots.indexOf(slot);
+                if (k < 0) {
+                    slots.add(slot);
+                    k = slots.size() - 1;
+                }
+                mine.add(o);
+                at.add(k + 1);   // the fused columns: the member's number first
             }
-            SqlSource member = new SqlSource.Subselect(body, alias, null);
-            from = from == null ? member : new SqlSource.Join(from, member, SqlSource.Join.Kind.CROSS, null);
+            owned.add(mine);
+            layout.add(at);
         }
-        SqlQuery row = new SqlSelect(ps, false, java.util.Objects.requireNonNull(from, "a fused statement of no member"),
-                null, List.of(), null, null, List.of(), null, null, outs);
-        return ctes.isEmpty() ? row : new SqlWith(ctes, row);
+        List<OutputCol> outs = new ArrayList<>(List.of(new OutputCol(MEMBER, SqlType.Scalar.BIGINT, false)));
+        List<Type.RelationType.Column> schema = new ArrayList<>(List.of(new Type.RelationType.Column(MEMBER,
+                Type.Primitive.INTEGER, com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+        for (int k = 0; k < slots.size(); k++) {
+            Slot slot = slots.get(k);
+            outs.add(new OutputCol("__s" + k, slot.sql(), true));
+            schema.add(new Type.RelationType.Column("__s" + k, slot.kind(), slot.many()));
+        }
+        List<SqlQuery> branches = new ArrayList<>(bodies.size());
+        for (int i = 0; i < bodies.size(); i++) {
+            SqlQuery body = bodies.get(i);
+            java.util.Map<Integer, OutputCol> byColumn = new java.util.HashMap<>();
+            for (int j = 0; j < owned.get(i).size(); j++) {
+                byColumn.put(layout.get(i).get(j), owned.get(i).get(j));
+            }
+            List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
+            ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), MEMBER, outs.get(0)));
+            for (int c = 1; c < outs.size(); c++) {
+                OutputCol own = byColumn.get(c);
+                ps.add(new SqlSelect.Projection(own == null ? new SqlExpr.NullLit()
+                        : SqlExpr.Column.of("v", body.outputs(), own.name()), outs.get(c).name(), outs.get(c)));
+            }
+            branches.add(new SqlSelect(ps, false, new SqlSource.Subselect(body, "v", null), null, List.of(), null,
+                    null, List.of(), null, null, outs));
+        }
+        SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
+        return new Batch(ctes.isEmpty() ? union : new SqlWith(ctes, union), new Type.RelationType(schema), layout);
     }
 
     /** CTE references renamed (a table source named after a CTE; the
@@ -2438,20 +2486,6 @@ public final class VerdictSql {
                 sentence(com.legend.error.AssertKind.EQUALS_KINDS, java.util.Map.of("expected", e,
                         "expectedKind", expectedKind, "actual", a, "actualKind", actualKind)))),
                 plain, SqlExpr.Reason.JUDGE);
-    }
-
-    /** The relation a fused batch statement returns: one row, each member's columns ({@code members}' schemas, in
-     *  order) under its prefix ({@link #memberColumn}). */
-    public static com.legend.compiler.element.type.Type.RelationType batchSchema(
-            List<com.legend.compiler.element.type.Type.RelationType> members) {
-        List<com.legend.compiler.element.type.Type.RelationType.Column> cols = new ArrayList<>();
-        for (int i = 0; i < members.size(); i++) {
-            for (var c : members.get(i).columns()) {
-                cols.add(new com.legend.compiler.element.type.Type.RelationType.Column(memberColumn(i, c.name()),
-                        c.type(), c.multiplicity()));
-            }
-        }
-        return new com.legend.compiler.element.type.Type.RelationType(cols);
     }
 
     /** The relation the verdict statement returns (the executor's

@@ -140,6 +140,11 @@ public final class JudgePlans {
             public int fusedBudget() {
                 return env.dialect().fusedStatementBudget();
             }
+
+            @Override
+            public int fusedMembers() {
+                return env.dialect().fusedMembers();
+            }
         };
     }
 

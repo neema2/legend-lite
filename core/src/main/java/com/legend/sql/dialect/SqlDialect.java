@@ -421,6 +421,13 @@ public interface SqlDialect {
         return Integer.MAX_VALUE;
     }
 
+    /** The most members a FUSED verdict statement may hold on this database: each member a branch of its
+     *  {@code UNION ALL} (item 3's S4, 2026-11-22), so a database with a cap on a compound statement's terms says so;
+     *  unbounded elsewhere. A larger group is planned as several fused statements, halved as an over-budget one is. */
+    default int fusedMembers() {
+        return Integer.MAX_VALUE;
+    }
+
     /** {@link #verdictSavepoint}'s three texts. */
     record VerdictSavepoint(String set, String rollbackTo, String release) {
     }

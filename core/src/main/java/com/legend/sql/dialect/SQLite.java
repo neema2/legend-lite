@@ -82,6 +82,12 @@ public class SQLite extends AnsiSqlRenderer {
         return 500_000;
     }
 
+    /** {@inheritDoc} -- SQLite: SQLITE_MAX_COMPOUND_SELECT, 500 terms of a compound SELECT by default. */
+    @Override
+    public int fusedMembers() {
+        return 500;
+    }
+
     /**
      * SQLite (<a href="https://sqlite.org/lang_keywords.html">lang_keywords</a>)
      * &mdash; the ANSI baseline rendering with SQLite's reserved-word list.

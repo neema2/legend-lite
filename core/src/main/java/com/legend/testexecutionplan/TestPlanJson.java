@@ -77,8 +77,12 @@ public final class TestPlanJson {
      *  and the plan names no audience's words ({@code words} gone: one catalog); 39 (item 3's S4, 2026-11-21, the
      *  database judge over typed values): a database root's row carries its typed report ({@code RootLoop.Row.report},
      *  required, null for a seven-column row), and a fused verdict statement is one row, each member's columns under its
-     *  prefix. */
-    public static final int VERSION = 39;
+     *  prefix; 40 (item 3's S4, 2026-11-22, the user: one column per type each assert reuses): the fused verdict
+     *  statement is a row per member, its number first, its columns shared by position and type, and the group carries
+     *  each member's columns ({@code Verdicts.layout}, absent where none); a database root's row carries its unrolled
+     *  element's own message or error ({@code RootLoop.Row.message}, {@code unplanned}) and an unrolled host part its
+     *  own message side ({@code HostJudgment.Part.message}, {@code messageShape}), the user's decision 4. */
+    public static final int VERSION = 40;
 
     private TestPlanJson() {
     }
@@ -214,6 +218,9 @@ public final class TestPlanJson {
                 }
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
+                }
+                if (v.layout() != null) {
+                    o.put("layout", new ArrayList<Object>(v.layout()));
                 }
             }
             case TestPlan.Branch b -> {
@@ -411,7 +418,7 @@ public final class TestPlanJson {
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
                                 sp.getString("rollbackTo"), sp.getString("release")),
-                        roots == null ? null : HostJson.rRootLoop(roots));
+                        roots == null ? null : HostJson.rRootLoop(roots), readLayout(o));
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));
@@ -426,6 +433,22 @@ public final class TestPlanJson {
     }
 
     /** A verdict's side, or a branch's condition ({@code side}'s inverse). */
+    /** A database judge's fused group's layout: each member's fused columns, or null where the group has none. */
+    private static @com.legend.base.Nullable List<List<Integer>> readLayout(Json.Obj o) {
+        if (!(o.getArrOr("layout", null) instanceof Json.Arr members)) {
+            return null;
+        }
+        List<List<Integer>> out = new ArrayList<>(members.items().size());
+        for (Json.Node m : members.items()) {
+            List<Integer> columns = new ArrayList<>();
+            for (Json.Node c : ((Json.Arr) m).items()) {
+                columns.add((int) ((Json.Num) c).longValue());
+            }
+            out.add(columns);
+        }
+        return out;
+    }
+
     static TestPlan.Side readSide(Json.Obj so) {
         return switch (tag(SideTag.class, so, "verdict side")) {
             case rows -> new TestPlan.Side.Rows(typedResult(so.getObj("result"), "a rows side"));

@@ -51,9 +51,10 @@ public final class VerdictBatch {
      * the frame definitions the sides reference at its head. */
     @FunctionalInterface
     public interface Fusion {
-        /** {@code members}' rows as one statement, {@code frames} at its head; each member's {@code columns} its own,
-         *  under its prefix (item 3's S4: one row). */
-        SqlQuery fuse(List<SqlQuery> members, List<List<String>> columns, Map<String, SqlQuery> frames);
+        /** {@code members}' rows as one statement, {@code frames} at its head: a row per member, its columns shared by
+         *  position and type with the others', each member's {@code schemas} its own (item 3's S4, 2026-11-22). */
+        com.legend.lowering.VerdictSql.Batch fuse(List<SqlQuery> members,
+                List<com.legend.compiler.element.type.Type.RelationType> schemas, Map<String, SqlQuery> frames);
     }
 
     // (Either, the lowering's one row over a generic verdict row and its ruled row -- 2026-11-06, VerdictSql.either --
@@ -90,6 +91,12 @@ public final class VerdictBatch {
         /** The most characters a fused statement may have on the body's database ({@code SqlDialect
          *  .fusedStatementBudget}); a longer group is planned as several fused statements. */
         default int fusedBudget() {
+            return Integer.MAX_VALUE;
+        }
+
+        /** The most members one fused statement may hold on the body's database ({@code SqlDialect.fusedMembers}): a
+         *  member is a branch of its {@code UNION ALL}; a larger group is halved as an over-budget one is. */
+        default int fusedMembers() {
             return Integer.MAX_VALUE;
         }
 
@@ -534,7 +541,7 @@ public final class VerdictBatch {
             // statement held every member, and Postgres's refusal of testAdjustByMinutesBigNumber's second expected
             // literal was blamed on the first assert, which the host held
             for (List<Pending> run : raisingRuns(ps)) {
-                ExecutionPlan.TdsResult fusedPlan;
+                Fused fusedPlan;
                 try {
                     fusedPlan = fusedOf(run, g.getKey());
                 } catch (com.legend.sql.DialectCapability e) {
@@ -550,8 +557,7 @@ public final class VerdictBatch {
                     }
                     continue;
                 }
-                for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(run, fusedPlan,
-                        g.getKey())) {
+                for (Map.Entry<List<Pending>, Fused> part : withinBudget(run, fusedPlan, g.getKey())) {
                     List<TestPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
                     for (Pending p : part.getKey()) {
                         TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
@@ -559,8 +565,8 @@ public final class VerdictBatch {
                         verdicts.add(v);
                         members.put(v.id(), p);
                     }
-                    out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue(), runner.savepoint()),
-                            g.getKey(), false));
+                    out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue().plan(), runner.savepoint(),
+                            null, part.getValue().layout()), g.getKey(), false));
                 }
             }
         }
@@ -683,8 +689,8 @@ public final class VerdictBatch {
                 // the same verdict with its message: the same id, so its member stands
                 verdicts.add(withMessage);
             }
-            out.add(new Group(new TestPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint()),
-                    g.on(), g.keyed()));
+            out.add(new Group(new TestPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint(), null,
+                    g.step().layout()), g.on(), g.keyed()));
         }
         return out;
     }
@@ -791,21 +797,17 @@ public final class VerdictBatch {
     }
 
     /** A fused statement's plan: one typed result (a member that reads a raw grid's report never joins one). */
-    /** The most members one fused statement joins: its wide row joins one derived table per member, and SQLite joins at
-     *  most 64 tables, MariaDB and MySQL 61 (the S4 audit's MEDIUM 2, 2026-11-22: the row's width, which the
-     *  character budget does not see); a larger group is halved as an over-budget one is. */
-    static final int FUSED_MEMBERS = 60;
-
     /** {@code ps}'s fused statement {@code fused}, or -- where its text passes the database's budget
      *  ({@link Runner#fusedBudget}) -- {@code ps} halved, each half fused and halved again until it fits or is one
      *  member: the same members in their order, each part a fused group of its own, all planned here (2026-11-05, PCT
      *  round 22: ClickHouse's analyzer over 50 asserts of nested instances, 1.3M characters). */
-    private List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> withinBudget(List<Pending> ps,
-            ExecutionPlan.TdsResult fused, ExecutionPlan.Target on) {
-        if (ps.size() == 1 || ps.size() <= FUSED_MEMBERS && fused.sql().statement().length() <= runner.fusedBudget()) {
+    private List<Map.Entry<List<Pending>, Fused>> withinBudget(List<Pending> ps,
+            Fused fused, ExecutionPlan.Target on) {
+        if (ps.size() == 1 || ps.size() <= runner.fusedMembers()
+                && fused.plan().sql().statement().length() <= runner.fusedBudget()) {
             return List.of(Map.entry(ps, fused));
         }
-        List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> out = new ArrayList<>();
+        List<Map.Entry<List<Pending>, Fused>> out = new ArrayList<>();
         int half = ps.size() / 2;
         for (List<Pending> part : List.of(ps.subList(0, half), ps.subList(half, ps.size()))) {
             out.addAll(withinBudget(part, fusedOf(part, on), on));
@@ -813,19 +815,20 @@ public final class VerdictBatch {
         return out;
     }
 
+    /** A fused statement as planned, and each member's columns in it. */
+    private record Fused(ExecutionPlan.TdsResult plan, List<List<Integer>> layout) {
+    }
+
     /** {@code ps}'s fused statement. */
-    private ExecutionPlan.TdsResult fusedOf(List<Pending> ps, ExecutionPlan.Target on) {
+    private Fused fusedOf(List<Pending> ps, ExecutionPlan.Target on) {
         List<SqlQuery> ms = new ArrayList<>(ps.size());
-        List<List<String>> columns = new ArrayList<>(ps.size());
         List<com.legend.compiler.element.type.Type.RelationType> schemas = new ArrayList<>(ps.size());
         for (Pending p : ps) {
             ms.add(p.query());
-            columns.add(p.schema().columns().stream()
-                    .map(com.legend.compiler.element.type.Type.RelationType.Column::name).toList());
             schemas.add(p.schema());
         }
-        return typed(runner.plan(fusion.fuse(ms, columns, frames), com.legend.lowering.VerdictSql.batchSchema(schemas),
-                on));
+        com.legend.lowering.VerdictSql.Batch batch = fusion.fuse(ms, schemas, frames);
+        return new Fused(typed(runner.plan(batch.query(), batch.schema(), on)), batch.layout());
     }
 
     private static ExecutionPlan.TdsResult typed(ExecutionPlan.Node plan) {

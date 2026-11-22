@@ -358,7 +358,9 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * plan-as-data design's step 3, 2026-11-08). Each {@link Verdict} is one assert.
      * {@code fused}: the group's wrapper over its verdicts' wrappers -- the verdict statements as ONE statement
      * answering one row per verdict, the verdict's index in the group first (the lowering's fusion, composed when the
-     * plan was made); null where the planner made none, and then each verdict's own wrapper runs. The test run sends
+     * plan was made); null where the planner made none, and then each verdict's own wrapper runs. {@code layout}: the
+     * database judge's fused statement's columns that hold each verdict's row, in its order (its columns shared by type
+     * across the members, item 3's S4, 2026-11-22); null on every other group. The test run sends
      * what the plan's judge asks ({@link Judge}) through the runner's open program; the runner judges nothing: the comparison rules and the messages are the judges' own code, reading the plan's
      * facts (the agreement's pairing among them, {@code agreement}). {@code roots}: the database judge's root loop of the segment this group closes (the plan-as-data
      * design's step 5, 2026-11-08), judged once the group's last verdict is in -- under the agreement judge, the
@@ -368,12 +370,30 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * assert of a group with no loop (a raising assert's, or one the database judge declines); empty otherwise.
      */
     public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-            @com.legend.base.Nullable Savepoint savepoint, @com.legend.base.Nullable RootLoop roots)
+            @com.legend.base.Nullable Savepoint savepoint, @com.legend.base.Nullable RootLoop roots,
+            @com.legend.base.Nullable List<List<Integer>> layout)
             implements TestStep {
         public Verdicts {
             verdicts = List.copyOf(verdicts);
             if (verdicts.isEmpty()) {
                 throw new IllegalArgumentException("a verdict group holds at least one verdict");
+            }
+            if (layout != null) {
+                // the database judge's fused statement (item 3's S4, 2026-11-22): a row per verdict, its member's
+                // number first; each verdict's row the fused columns its layout names, in its own order
+                layout = layout.stream().map(List::copyOf).toList();
+                if (fused == null || layout.size() != verdicts.size()) {
+                    throw new IllegalArgumentException("a fused layout of " + layout.size() + " members for "
+                            + verdicts.size() + " verdicts" + (fused == null ? " and no fused statement" : ""));
+                }
+                for (List<Integer> member : layout) {
+                    for (int c : member) {
+                        if (c < 1 || c >= fused.columns().size()) {
+                            throw new IllegalArgumentException("a member's row reads fused column " + c + " of "
+                                    + fused.columns().size() + " (the first is the member's number)");
+                        }
+                    }
+                }
             }
             if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
@@ -403,18 +423,18 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
          *  outside any transaction, or no failure of its statements is one the program survives but the fused
          *  statement's. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) {
-            this(verdicts, fused, null, null);
+            this(verdicts, fused, null, null, null);
         }
 
         /** A group that closes no database segment and pairs no assert. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
                 @com.legend.base.Nullable Savepoint savepoint) {
-            this(verdicts, fused, savepoint, null);
+            this(verdicts, fused, savepoint, null, null);
         }
 
         /** The same group closing a database segment, judged by {@code r} once its last verdict is in. */
         public Verdicts withRoots(@com.legend.base.Nullable RootLoop r) {
-            return new Verdicts(verdicts, fused, savepoint, r);
+            return new Verdicts(verdicts, fused, savepoint, r, layout);
         }
 
         /**

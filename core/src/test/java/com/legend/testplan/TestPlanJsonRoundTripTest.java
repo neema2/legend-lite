@@ -127,7 +127,7 @@ class TestPlanJsonRoundTripTest {
                 // a caller's message whose computing raises: its error rides the root, no message (item 3, 2026-11-21)
                 new RootLoop.Root("assertSize", List.of(new RootLoop.Row("third", 3)), null, FILE_FAILURE)),
                 Map.of("fragment", "reason"));
-        TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots);
+        TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots, null);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
         Map<Integer, List<Extension>> byStep = new LinkedHashMap<>();
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),
