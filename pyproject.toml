@@ -42,3 +42,30 @@ package = false
 # The notebook tests do not run on Windows (datacube/BUILD.bazel, _NOTEBOOK_PLATFORMS), and pip-compile's lock,
 # resolved on macOS, never held it.
 exclude-dependencies = ["pywinpty"]
+
+# RUFF, the linter and the formatter (bazel run //tools/format; bazel build --config=lint //python/...), on Ruff's own
+# default rules: no `select`, so the set is the release's (413 rules since Ruff 0.16.0).
+[tool.ruff]
+target-version = "py312"
+# the width the repository is written to (its Java, its BUILD files, this package before Ruff); Ruff's own is 88
+line-length = 120
+extend-exclude = [
+    # GENERATED, each held to its generator by a diff test (//python:update_generated)
+    "python/legend_lite/_commands.py",
+    "python/legend_lite/_ts_words.py",
+    "python/legend_lite/_type_facts.py",
+    # NOT YET HELD (2026-11-23): Ruff and ty start on python/, legend-lite's package. A directory joins by leaving
+    # this list (and its targets by joining a ruff_test and a ty_test, tools/lint/linters.bzl).
+    "core",
+    "datacube",
+    "docs",
+    "experiments",
+    "projects",
+    "scripts",
+    "tools",
+    "warehouse",
+]
+
+# TY, the type checker (bazel build --config=typecheck //python/...)
+[tool.ty.environment]
+python-version = "3.12"

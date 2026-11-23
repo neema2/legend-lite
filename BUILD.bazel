@@ -25,7 +25,8 @@ exports_files(
         "pyproject.toml",
         "uv.lock",
     ],
-    visibility = ["//tools/python:__pkg__"],
+    # pyproject.toml is also Ruff's and ty's settings, read by their aspects on any Python target (tools/lint)
+    visibility = ["//visibility:public"],
 )
 
 # the project's licence, its notice (Apache-2.0; legend-pure, legend-engine and legend-studio credited) and the

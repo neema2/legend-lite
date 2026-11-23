@@ -1,0 +1,12 @@
+load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# THE FORMATTER (2026-11-23): `bazel run //tools/format` rewrites the Python files Ruff holds (//:pyproject.toml says
+# which: python/ so far) in place; `bazel run //tools/format:format.check` only says what it would change. Python
+# alone: no other language is given a formatter here, so no other file is touched.
+format_multirun(
+    name = "format",
+    python = "@aspect_rules_lint//format:ruff",
+)
+
+guards_package()

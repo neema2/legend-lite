@@ -627,3 +627,9 @@ use_repo(pip, "pypi")
 # the lock
 uv = use_extension("@rules_python//python/uv:uv.bzl", "uv", dev_dependency = True)
 uv.configure(version = "0.13.6")
+
+# PYTHON'S LINTER, FORMATTER AND TYPE CHECKER (2026-11-23): Ruff and ty, each a pinned binary rules_lint brings (ruff
+# 0.16.8, ty 0.0.81 at this release: they move with it), run as aspects over the Python targets (tools/lint) and as
+# `bazel run //tools/format`; their settings are //:pyproject.toml's. Not on Windows (rules_lint's actions are bash;
+# aspect-build/rules_lint#1029).
+bazel_dep(name = "aspect_rules_lint", version = "2.9.1", dev_dependency = True)

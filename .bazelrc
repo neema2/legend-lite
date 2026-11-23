@@ -155,3 +155,17 @@ build:bazel10 --incompatible_resolve_select_keys_eagerly
 build:bazel10 --incompatible_disable_starlark_host_transitions
 build:bazel10 --incompatible_check_external_repo_source_dir_package_boundary
 build:bazel10 --incompatible_disable_non_executable_java_binary
+
+# PYTHON'S LINTER AND TYPE CHECKER (2026-11-23; tools/lint/linters.bzl): `bazel build --config=lint //python/...` is
+# Ruff, `--config=typecheck` is ty; a finding fails the build, and every target is still read (keep_going).
+build:lint --aspects=//tools/lint:linters.bzl%ruff
+build:lint --output_groups=rules_lint_human
+build:lint --@aspect_rules_lint//lint:fail_on_violation
+build:lint --keep_going
+build:typecheck --aspects=//tools/lint:linters.bzl%ty
+# ty finds a wheel's modules by the import path its target declares, which a wheel has only outside the venv layout
+# above (venvs_site_packages): off for this analysis alone, which runs no Python
+build:typecheck --@rules_python//python/config_settings:venvs_site_packages=no
+build:typecheck --output_groups=rules_lint_human
+build:typecheck --@aspect_rules_lint//lint:fail_on_violation
+build:typecheck --keep_going
