@@ -48,10 +48,26 @@ public final class LiteWords {
             case Boolean b -> b.toString();
             case PureDateLiteral d -> dateText(d);
             case List<?> l -> values(l, instanceClass);
-            case JsonDocument j -> j.text();
+            case VariantText vt -> vt.json();
             default -> throw new com.legend.error.NotImplementedException(
                     "lite's message text for " + v.getClass().getName() + " is not modeled");
         };
+    }
+
+    /** A Variant's value in a record: its JSON text, written as JSON (never a quoted String). */
+    public record VariantText(String json) {
+    }
+
+    /** A Variant side's values as both judges carry them, each its JSON text; a NULL there is JSON {@code null} (a
+     *  Variant side holds no absent value: an empty side has no row; the audit of 8477c703, H2 and SQLite read JSON
+     *  null back as NULL). */
+    public static List<Object> variantTexts(List<Object> carried) {
+        List<Object> out = new java.util.ArrayList<>(carried.size());
+        for (Object v : carried) {
+            out.add(new VariantText(v == null ? "null" : v instanceof String s ? canonJson(s, false)
+                    : com.legend.sql.Json.canonical(v)));
+        }
+        return out;
     }
 
     /** One value's text, no instance class. */
@@ -137,7 +153,7 @@ public final class LiteWords {
             case Boolean b -> "Boolean";
             case PureDateLiteral d -> d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? "DateTime"
                     : d.precision().atLeast(PureDateLiteral.Precision.DAY) ? "StrictDate" : "Date";
-            case JsonDocument j -> "Variant";
+            case VariantText vt -> "Variant";
             case Map<?, ?> m -> m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE) instanceof String t ? t
                     : instanceClass == null ? "Any" : instanceClass;
             case List<?> l -> {

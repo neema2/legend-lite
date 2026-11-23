@@ -306,15 +306,17 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **On legend-engine's and legend-pure's doors** lite keeps Pure's answer (the host judge's compatibility forms).
 - Register S399.
 
-### 16. Two Variants are equal when their documents are (item 3)
-- **You write** `fromJson('{"a": 1}') == fromJson('{"a":1}')`, or `assertEquals` over two Variants.
+### 16. Two whole Variants are not compared (item 3)
+- **You write** `fromJson('{"a": 1}') == fromJson('{"a":1}')`, `assertEquals` over two Variants, or `contains`, `in`,
+  `indexOf` or `removeDuplicates` over a list of Variants.
 - **legend-pure** compares two Variants by identity: two documents built apart are never equal, whatever they hold.
-  **legend-engine** compares a Variant column with its database's own `=`. **read**
-- **Lite** compares the two documents, each parsed and printed again: spacing never counts, an object's keys keep
-  their order, `1` is not `1.0` but `1.50` is `1.5`, `true` is never `1`, and JSON `null` is a value of its own. On
-  DuckDB it is one `json()` per value; on Postgres it is jsonb's own answer, where key order does not count and `1`
-  equals `1.0`; other databases refuse it by name. **measured** (`AssertBarTest`, the audit's probes)
-- Register S401 (provisional).
+  A Variant is never equal to a number or a String. **read** **asked** (legend-pure's compiled runtime)
+  **legend-engine** compares a Variant column with its database's own `=`, and refuses `fromJson` when it plans. **read**
+- **Lite** refuses the comparison by name: a database cannot compute identity. Compare a path (`get`), a typed value
+  (`to(@T)`), or the JSON text (`toJson()`) instead. A Variant against a value of another type is not equal, as in
+  Pure. The one difference from legend-pure: the same Variant compared with itself, which Pure answers true and lite
+  refuses. **measured** (`AssertBarTest`)
+- Register S401.
 
 ## Gaps lite has today (not differences by design)
 

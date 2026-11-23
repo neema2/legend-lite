@@ -1699,7 +1699,7 @@ public class SQLite extends AnsiSqlRenderer {
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER, JSON_EQUAL -> nullSafe(writer, c);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
@@ -1790,9 +1790,8 @@ public class SQLite extends AnsiSqlRenderer {
 
             // ---- strings
             // NULL-skipping, as DuckDB's concat (SQLite's concat, 3.44)
-            case CONCAT -> writer.append("concat(").join(flattenConcat(a), ", ", (w, x) -> w.piece(asText(x)))
-                    .append(")");
-            case CONCAT_JOIN -> writer.append("concat(").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
+            case CONCAT -> writer.piece(concatParts(flattenConcat(a)));
+            case CONCAT_JOIN -> writer.piece(concatParts(a));
             // the product's join of a row's cells: concat_ws skips a NULL part with its separator (SQLite 3.44 on;
             // measured on 3.47, Phase 3)
             // each part is already a text: written as it is (asText would cast it again, round 75's lean note)
@@ -2340,6 +2339,21 @@ public class SQLite extends AnsiSqlRenderer {
             case TYPEOF -> throw wall(c.fn(), "its type names are SQLite's storage classes");
             default -> throw new IllegalStateException("not a list call: " + c.fn());
         };
+    }
+
+    /** SQLite's {@code concat} over {@code parts}, NULL-skipping as DuckDB's: at most 100 arguments to one call (SQLite's
+     *  limit on a function's arguments; the audit of 8477c703: a join of 101 literals refused), more nested in calls of
+     *  100 -- a concat of concats is the same text. */
+    private SqlWriter.Piece concatParts(List<SqlExpr> parts) {
+        int limit = 100;
+        if (parts.size() <= limit) {
+            return w -> w.append("concat(").join(parts, ", ", (x, p) -> x.piece(asText(p))).append(")");
+        }
+        List<SqlWriter.Piece> chunks = new java.util.ArrayList<>();
+        for (int at = 0; at < parts.size(); at += limit) {
+            chunks.add(concatParts(parts.subList(at, Math.min(parts.size(), at + limit))));
+        }
+        return w -> w.append("concat(").join(chunks, ", ", SqlWriter::piece).append(")");
     }
 
     /** The lists concatenated, NULL ones as empty, each element re-held as its type. */

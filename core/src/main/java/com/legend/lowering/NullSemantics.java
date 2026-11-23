@@ -123,14 +123,9 @@ final class NullSemantics {
                 && (ops.get(0) instanceof SqlExpr.NullLit || ops.get(1) instanceof SqlExpr.NullLit)) {
             return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
         }
-        if (ops.size() == 2 && n.args().size() == 2
-                && com.legend.compiler.element.type.PlatformTypes.isVariant(n.args().get(0).info().type())
-                && com.legend.compiler.element.type.PlatformTypes.isVariant(n.args().get(1).info().type())) {
-            // two Variants, by their Pure types: the database's JSON equality, never their texts (the user's ruling of
-            // 2026-11-22; a database with none refuses by name) -- each operand read as JSON where its carrier is not
-            // (a Variant held as text in a list's element: the audit of c2217801, 2026-11-23). An Any carried as JSON
-            // keeps its own rule (S127: an Integer is never a Float)
-            return new SqlExpr.Call(SqlFn.JSON_EQUAL, List.of(asJson(ops.get(0)), asJson(ops.get(1))));
+        if (n.args().size() == 2) {
+            // two whole Variants, or a Variant and an Any the plan cannot see: only identity decides (register S401)
+            refuseIdentityOnly(n.args().get(0).info().type(), n.args().get(1).info().type());
         }
         if (ops.size() == 2
                 && ops.get(0) instanceof SqlExpr.Column
@@ -152,14 +147,14 @@ final class NullSemantics {
         return new SqlExpr.Call(SqlFn.EQUAL, ops);
     }
 
-    /** Whether {@code e} is carried as JSON (a Variant, an Any's carrier). */
-    private static boolean json(SqlExpr e) {
-        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == com.legend.sql.SqlType.Scalar.JSON;
-    }
-
-    /** {@code e}, a Variant's value, as JSON: itself where its carrier is JSON, else read as JSON (its carrier's). */
-    private static SqlExpr asJson(SqlExpr e) {
-        return json(e) ? e : new SqlExpr.Cast(e, com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
+    /** Register S401 (ruled by the user 2026-11-23): an equality only identity decides -- two whole Variants, or a
+     *  Variant and an Any the plan cannot see -- is refused by name, the product's equality and its membership alike
+     *  (legend-pure's identity is not computed in a database; {@code PlatformTypes.identityOnly}). */
+    static void refuseIdentityOnly(com.legend.compiler.element.type.Type a, com.legend.compiler.element.type.Type b) {
+        if (com.legend.compiler.element.type.PlatformTypes.identityOnly(a, b)) {
+            throw new com.legend.error.NotImplementedException(
+                    com.legend.compiler.element.type.PlatformTypes.VARIANT_EQUALITY_REFUSED);
+        }
     }
 
     /** Engine pureToSQLQuery: an enum-referencing comparison routes the

@@ -36,13 +36,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * </ul>
  * A compared side takes the program's tokens ({@code Literals.tokens}, {@code HostSides.Fold.TOKENS}) or is planned
  * for the database. A new site grows a count and fails: it is a ruling first. A site gone asks for its pin to move
- * down, with a dated note. The fold itself is private ({@code Literals.fold}), so no other caller exists.
+ * down, with a dated note. {@code Literals.fold} itself is private; the one other join of literals,
+ * {@code ContextReading}'s folds of a connection's URL and its test-data setup texts, is counted here too.
  */
 @Tag("census")
 class LiteralJoinCensusTest {
 
     private static final Pattern SITE = Pattern.compile(
-            "Literals\\.joined\\(|Fold\\.MESSAGE\\b|Fold\\.EDGE_TEXT\\b");
+            "Literals\\.joined\\(|Literals::joined|Fold\\.MESSAGE\\b|Fold\\.EDGE_TEXT\\b"
+                    // (the audit of 8477c703) the edge's calls of its fold doors, whose true is EDGE_TEXT; and
+                    // ContextReading's own literal folds, a connection's URL and its test-data setup texts
+                    + "|EngineTextPlanning\\.(?:ask|evalSide|plannedSide)\\(|\\bfold(?:Raw)?Literal\\(");
 
     /** The pins, measured 2026-11-23 at item 3's S7 (a file absent holds none). */
     private static final Map<String, Integer> PINS = Map.ofEntries(
@@ -53,7 +57,13 @@ class LiteralJoinCensusTest {
             Map.entry("core/src/main/java/com/legend/compiler/spec/GeneratorSplice.java", 2),
             Map.entry("core/src/main/java/com/legend/testplan/DatabaseJudge.java", 1),
             Map.entry("core/src/main/java/com/legend/testplan/HostJudge.java", 1),
-            Map.entry("core/src/main/java/com/legend/testplan/EngineTextPlanning.java", 4));
+            Map.entry("core/src/main/java/com/legend/testplan/EngineTextPlanning.java", 4),
+            // (the audit of 8477c703, 2026-11-23) the edge's five calls of the fold doors (four with true, the edge's
+            // text sides; one passing the collector's flag on), and ContextReading's literal folds of a connection's
+            // URL and its test-data setup SQL and CSV -- seed and setup texts, Q-D's carve-outs (13: the two folds'
+            // definitions, their recursion and their calls)
+            Map.entry("core/src/main/java/com/legend/edge/SqlTextVerdicts.java", 5),
+            Map.entry("core/src/main/java/com/legend/compiler/spec/typed/ContextReading.java", 13));
 
     /** {@code src} with its comments and its string literals' contents (text blocks included) removed: a scan, never
      *  a backtracking pattern (a pattern's repetition overflows the stack on a long literal). */

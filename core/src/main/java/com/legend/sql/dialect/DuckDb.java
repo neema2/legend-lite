@@ -159,18 +159,6 @@ public class DuckDb extends AnsiSqlRenderer {
         return writer.function("strftime", args);
     }
 
-    /** {@inheritDoc} DuckDB's {@code json()}: each document parsed and printed again, so spacing never counts, an
-     *  object's keys keep their order, an integer prints as written and a number with a fraction or an exponent as its
-     *  double ({@code 1.50} is {@code 1.5}, {@code 1e2} is {@code 100.0}, {@code 1} is not {@code 1.0}) -- register
-     *  S401, probed on 1.5.6. Nothing is caught: a document that does not parse raises. (DuckDB's VARIANT equality,
-     *  until 2026-11-23, raised on an empty object, took a JSON null for an absent value, a null-valued key for
-     *  another's, and {@code true} for {@code 1}: the audit of c2217801.) */
-    @Override
-    protected SqlWriter jsonEqual(SqlWriter writer, SqlExpr.Call c) {
-        return writer.append("(json(").expr(c.args().get(0), 0).append(") IS NOT DISTINCT FROM json(")
-                .expr(c.args().get(1), 0).append("))");
-    }
-
     /** {@inheritDoc} Yes: an embedded engine. */
     @Override
     public boolean inProcess() {
@@ -620,13 +608,9 @@ public class DuckDb extends AnsiSqlRenderer {
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case DATE_TRUNC -> dateTruncArm(writer, c);
             case CURRENT_USER_FN -> writer.append("current_user");
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, JSON_EQUAL -> nullSafe(writer, c);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL -> nullSafe(writer, c);
             // its own list equality (item 3's S4: probed on 1.5.6 to agree with the portable form)
-            // (two lists of JSON values -- Variants -- by the typed JSON equality, position by position: a list of
-            // JSON compares their texts)
-            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> c.args().size() == 4
-                    && c.args().get(2) instanceof SqlExpr.ScalarSubquery rows && SameValuesForm.json(rows.subquery())
-                    ? sameValues(writer, c) : sameLists(writer, c, "list_sort");
+            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameLists(writer, c, "list_sort");
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)

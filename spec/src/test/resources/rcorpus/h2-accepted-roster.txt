@@ -6,26 +6,26 @@ meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithAppliedFun
 meta::relational::testDataGeneration::tests::alloy::testViewRootWithDefaultSeed_Alloy ||| not-offered:alloy-shell-body-class(S305) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByChild_Alloy ||| not-offered:alloy-shell-body-class(S305) ||| no class admits the body
 meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByRoot_Alloy ||| not-offered:alloy-shell-body-class(S305) ||| no class admits the body
-meta::relational::testDataGeneration::tests::testConstant ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
+meta::relational::testDataGeneration::tests::testConstant ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
 meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates ||| by-design:read-only-reload(S192) ||| after the test-data generator's slice was reloaded
-meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testQualifier ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testSelfJoin ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testSimpleSingleTable ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testSimpleTwoTable ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testTableToTDSSimple ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testUnion ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testUnionToUnion ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
+meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testQualifier ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testSelfJoin ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testSimpleSingleTable ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testSimpleTwoTable ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testTableToTDSSimple ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testUnion ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
+meta::relational::testDataGeneration::tests::testUnionToUnion ||| by-design:test-data-generator-fetch-text(S193) ||| expected "select top 20
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WaValue ||| engine-store-arithmetic:h2-decfloat-divide ||| golden-only [Campus|0.383333333333
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP52WaValue ||| engine-store-arithmetic:h2-decfloat-divide ||| golden-only [Campus|0.131538461538
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValueOnStartYear ||| engine-store-arithmetic:h2-decfloat-divide ||| 0.236666666667
@@ -37,7 +37,7 @@ meta::relational::tests::functions::sqlstring::testHashFunctions ||| engine-gold
 meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin ||| engine-golden-defect:joinStrings-literal-collection ||| Anthony Allen[,]
 meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek ||| engine-golden-defect:firstDayOfWeek-h2-week-start ||| 2014-11-30
 meta::relational::tests::map::testSubAggregationMultiLevel ||| engine-store-arithmetic:h2-decfloat-avg ||| golden-only [25.71428571429
-meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery ||| engine-golden-defect:h2-literal-coercion ||| (2 rows) | is not equivalent to: | [settlementDateTime] (1 rows)
+meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery ||| engine-golden-defect:h2-literal-coercion ||| within 0.0, got [[2014-12-04T21:00:00.000000000Z]]
 meta::relational::tests::mapping::relation::testSimpleMappingQueryWithFilterInProject ||| engine-golden-defect:filter-lambda-binds-outer-row ||| Oliver,Fabrice
 meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_ManyColumnProject ||| engine-golden-defect:empty-string-as-null ||| Anand,null
 meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion ||| engine-golden-defect:empty-string-as-null ||| Anand,null

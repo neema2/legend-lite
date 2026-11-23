@@ -686,3 +686,72 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
   lane: the corpus is judged by the host alone, A4).
 - Guard: `LiteralJoinCensusTest` pins every join site per file (Q-D's carve-outs, Q-S7a's temporary edge entry); the
   2026-10-30 ruling's citations carry dated notes (JavaEvalLedgerTest, LiteralsParityTest, TestPlan.Side.Constant).
+
+## The audit of S5 and 8477c703 fixed (2026-11-23)
+
+- **The user's words this round:** "Yes approved, bump them" (2026-11-23, the three pin raises of 8477c703: Equality
+  322 -> 324, HostJudgments 659 -> 662, DatabaseJudge 840 -> 844); "Keep the class but it's only used in host judge
+  right? Have to make sure not used in database" (2026-11-23, testexec.JsonDocument registered, its reach guarded).
+- HIGH: a value declared Any is a Variant only where the plan sees one under its casts (`JudgmentFacts.sideType`), read
+  so by both judges; a Variant against an Any the plan cannot see is refused by name (its JSON carrier cannot tell a
+  Variant from its value). HostJudgments' own Any reading went (662 -> 659).
+- The host reads a Variant's JSON as DuckDB's `json()` does (`JsonDocument`'s reader): members in order with a
+  duplicate kept, `-0` as `0` but `-0.0` as itself, a number no double holds as written. A Variant's values in a
+  record are written as JSON (`expected 1 (Integer), got 1 (Variant)`), a NULL among them JSON null.
+- SQLite's `concat` nests at 100 arguments (SQLite's limit; a join of 101 literals had been refused).
+- Guards: the value-text census scans character literals right and counts `Double.toString(x)` and kin,
+  `String.join` and `toPlainString()` (re-measured: sites that were there, now seen); the join census counts the
+  edge's fold doors, method references and ContextReading's folds; R1 is transitive and bans asking a style for a
+  facet or a two-form table; the no-prose check reads the EQUALS sentence's joint; both catalog checks have floors;
+  `VerdictSql.gridColumn` refuses an undeclared column.
+- Recorded, product follow-ups: membership over Variants in the product (`contains`, `in`, `indexOf`,
+  `removeDuplicates`) does not follow S401's `==` yet; DuckDB reads a duplicate key back over JDBC as the last one
+  while its `json()` keeps both, so the two judges differ on a document with a duplicate key; H2's JSON array
+  aggregate drops a JSON null, so its database judge's record of a lone JSON null Variant lists none; under the
+  database judge `assertInstanceOf(x->toOne(), C)` over several rows passes where Pure's toOne raises (pre-existing).
+- The fast round caught the reader's position held in a mutable field (`CodeShapeGuardrailTest`); the reader now
+  passes each step its place and gets the place after it back, so it holds none (no allowlist entry).
+- **S401's DuckDB form, probed against VARIANT (the user, 2026-11-23: "Are we sure we can't make variant equal work
+  good enough").** DuckDB's VARIANT `=`, guarded (null by null, the documents' shapes first with numbers one kind,
+  a raise read as false), matched the semantic rule on 18 of 20 pairs. Both misses say *equal* for documents that
+  differ, a null-valued key's name inside an array of objects (`[{"a":null},{"b":null}]` against
+  `[{"b":null},{"a":null}]`; `{"a":[1,{"b":null}]}` against `{"a":[1,{"c":null}]}`): `json_structure` merges an
+  array's element shapes and VARIANT ignores a null-valued key's name. It costs six to eight functions, a `CASE` and a
+  `TRY` per comparison, and `TRY` refuses to bind over an operand carrying lite's raise guard (a volatile function),
+  so the operands would move into a subquery. `json()` stays: one function per value, its misses only ever *different*
+  (key order, `1` against `1.0`, `-0.0` against `0.0`, `1e2` against `100`, a duplicate key). Postgres's form (jsonb,
+  recorded, or refused by name) is the user's to rule. The probe's script: the scratchpad's `vguard.sh`; the six
+  databases' answers: the warm sessions' JSON probe of 2026-11-23.
+- `testToSqlGenerationFirstDayOfWeek`'s row (named for the final audit) bisected to e2877f87 (S4 step 3: an unrolled
+  element keeps its caller's message): the edge's held SQL-text appeal refuses by name a failure whose message it cannot
+  read after the run. A fix that handed the edge the assert's failure as a function across the hook passed its lanes but
+  tripped `ProductFormsUseTheirArgumentsTest` (the product handed a function it never calls); the user's word
+  (2026-11-23): "Revert function passing, isn't the right way what substring/indexof do?" -- reverted. Proposed instead:
+  the edge, where it plans a SQL-text `assertEquals`, plans it without the caller's message (which prints SQL text, never
+  promised at the edge, CP-4), so its failure is the appeal's row evidence; pending the user's word.
+
+## S401 ruled: two whole Variants refused by name (2026-11-23)
+
+- **The user's word:** "Okay" (2026-11-23), on the row posted after the measurement ("Measure variant, and then I think
+  we refuse if measurement makes sense"; then "What's the right version, not just bc I asked").
+- **The measurement:** tripwires at the three places that compared two Variants (the product's `==`, the database judge's
+  typed Variant pair, the host judge's document comparison), then 142 targets: core under every judge, PCT channels A
+  and B on DuckDB, SQLite and H2 under lite's and the compatibility rules, the corpus on DuckDB and H2. Only item 3's own
+  two `AssertBarTest` methods tripped. Upstream's Variant tests compare `toString`/`toJson`, `to(@T)` and `get`.
+- **Pure's answer, re-read:** identity -- `VariantInstanceImpl.equals` asks the wrapped instance's identity first; asked
+  of the compiled runtime earlier, two separately built Variants are never equal. A Variant against a number or a String
+  is false (`CompiledSupport.equal`).
+- **Built:** `PlatformTypes.identityOnly` (two whole Variants, or a Variant and an Any the plan cannot see) and its
+  refusal text; the product refuses in `NullSemantics.equalNullArms`, `in`, `contains`, `indexOf` and `removeDuplicates`
+  by equality, and folds a Variant against any other type to false (`InstanceEquality.staticallyDisjoint`); both judges
+  refuse at planning through `JudgmentFacts.refuseIdentityOnly` (the host's comparison families via `keys`, the database
+  judge's typed pair and its membership), and answer a Variant against another type by the empty-only form.
+- **Deleted:** `SqlFn.JSON_EQUAL` and every dialect's form (DuckDB `json()`, Postgres jsonb, the refusals),
+  `VerdictSql.typedVariants`, the typed pair's `VARIANTS` form, `testexec.JsonDocument` and its architecture rule,
+  `AssertRecords`' two-Variant record; `SameValuesForm` restored to its form before c2217801. Guards moved down with
+  dated notes: `SqlFnSortedTest`, `JavaEvalLedgerTest`'s testexec register, `ArchitectureTest`.
+- **The one difference from Pure, recorded:** the same Variant compared with itself, which Pure answers true and lite
+  refuses.
+- **Not covered, recorded:** `removeDuplicates` over a one-column relation rewritten to a relation `distinct`
+  (`ValueCollectionOps.relationSpaceRewrite`) keeps the relation's own distinct; under the database judge a Variant's
+  membership in a list of another type stays refused by name (no typed form) where the host answers not contained.

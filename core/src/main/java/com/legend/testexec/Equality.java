@@ -142,10 +142,11 @@ public final class Equality {
     public static boolean same(Typed et, Typed at, HostRules rules) {
         Object e = et.value();
         Object a = at.value();
-        // a Variant is the same as a Variant alone, never a String, a number or a Boolean of the same text (Pure's
-        // classifier is part of the value; the audit of c2217801, 2026-11-23)
-        if (e == null || a == null || e instanceof JsonDocument || a instanceof JsonDocument) {
-            return e == a || e instanceof JsonDocument je && a instanceof JsonDocument ja && je.sameAs(ja);
+        // a Variant is never the same as a String, a number or a Boolean of the same text (Pure's classifier is part of
+        // the value; the audit of c2217801, 2026-11-23); two Variants are refused at planning (register S401, ruled by
+        // the user 2026-11-23: legend-pure's identity), so two Variant values never meet here
+        if (e == null || a == null || e instanceof LiteWords.VariantText || a instanceof LiteWords.VariantText) {
+            return e == null && a == null;
         }
         if ((e instanceof Map<?, ?> || e instanceof List<?>)
                 && (a instanceof Map<?, ?> || a instanceof List<?>)) {
@@ -310,7 +311,7 @@ public final class Equality {
             case Boolean b -> 3;
             case com.legend.values.PureDateLiteral d -> 4;
             case Map<?, ?> m -> 5;
-            case JsonDocument j -> 6;
+            case LiteWords.VariantText j -> 6;
             default -> throw new Unjudged("sort over " + v.getClass().getName());
         };
     }
@@ -323,7 +324,7 @@ public final class Equality {
             case String s -> s;
             case Boolean b -> b;
             case com.legend.values.PureDateLiteral d -> d.toInstantFloor();
-            case JsonDocument j -> j.text();
+            case LiteWords.VariantText j -> j.json();
             default -> "";   // instances and maps: no order of their own (sameElements matches them)
         };
     }

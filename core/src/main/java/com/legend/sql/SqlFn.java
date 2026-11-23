@@ -145,12 +145,6 @@ public enum SqlFn {
     SAME_IN_ORDER,
     /** {@link #SAME_IN_ORDER} in any order: the two sides as multisets. */
     SAME_IN_ANY_ORDER,
-    /** Two JSON values (two Variants) the same document, register S401: each parsed and compared as the database
-     *  compares parsed JSON -- DuckDB its {@code json()} text (spacing aside; keys in their order; an integer never a
-     *  fraction, a fraction as its double), Postgres its jsonb (recorded: keys in any order, numbers by value);
-     *  null-safe (two absent values the same, an absent value unequal to any present one, JSON null a value); a Boolean.
-     *  A database with no JSON parse of its own refuses it by name, never compares the raw texts. */
-    JSON_EQUAL,
     STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
     ROUND_HALF_UP, ERROR, FLOOR_RAW,
     // Variant construction

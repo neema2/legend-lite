@@ -173,7 +173,6 @@ H2	H2	call	NULL_SAFE_EQUAL	emulated	nullSafe		3
 H2	H2	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafe		10
 H2	H2	call	SAME_IN_ORDER	emulated	nullSafe		0
 H2	H2	call	SAME_IN_ANY_ORDER	emulated	nullSafe		0
-H2	H2	call	JSON_EQUAL	emulated	nullSafe		0
 H2	H2	call	STRFTIME	spelled	formatdatetime		193
 H2	H2	call	STRPTIME	spelled	parsedatetime		0
 H2	H2	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
@@ -406,7 +405,6 @@ Postgres	Postgres	call	NULL_SAFE_EQUAL	emulated	nullSafe		3
 Postgres	Postgres	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafe		10
 Postgres	Postgres	call	SAME_IN_ORDER	emulated	nullSafe		0
 Postgres	Postgres	call	SAME_IN_ANY_ORDER	emulated	nullSafe		0
-Postgres	Postgres	call	JSON_EQUAL	emulated	nullSafe		0
 Postgres	Postgres	call	STRFTIME	emulated	strftime		193
 Postgres	Postgres	call	STRPTIME	refused	to_timestamp(text, fmt) is lenient and zone-bound; not yet probed against the reference reached Postgres:		0
 Postgres	Postgres	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
@@ -639,7 +637,6 @@ Snowflake	Snowflake	call	NULL_SAFE_EQUAL	emulated	nullSafe		3
 Snowflake	Snowflake	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafe		10
 Snowflake	Snowflake	call	SAME_IN_ORDER	emulated	nullSafe		0
 Snowflake	Snowflake	call	SAME_IN_ANY_ORDER	emulated	nullSafe		0
-Snowflake	Snowflake	call	JSON_EQUAL	emulated	nullSafe		0
 Snowflake	Snowflake	call	STRFTIME	emulated	strftimeArm		193
 Snowflake	Snowflake	call	STRPTIME	emulated	strptime		0
 Snowflake	Snowflake	call	PARSE_DATE	emulated	CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(…)) AS TIMESTAMP_NTZ)		4
@@ -872,7 +869,6 @@ Trino	Trino	call	NULL_SAFE_EQUAL	emulated	nullSafe		3
 Trino	Trino	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafe		10
 Trino	Trino	call	SAME_IN_ORDER	emulated	nullSafe		0
 Trino	Trino	call	SAME_IN_ANY_ORDER	emulated	nullSafe		0
-Trino	Trino	call	JSON_EQUAL	emulated	nullSafe		0
 Trino	Trino	call	STRFTIME	emulated	strftime		193
 Trino	Trino	call	STRPTIME	emulated	strptime		0
 Trino	Trino	call	PARSE_DATE	emulated	CAST(… AS TIMESTAMP(9))		4
@@ -1105,7 +1101,6 @@ BigQuery	BigQuery	call	NULL_SAFE_EQUAL	emulated	nullSafeArm		3
 BigQuery	BigQuery	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafeArm		10
 BigQuery	BigQuery	call	SAME_IN_ORDER	emulated	nullSafeArm		0
 BigQuery	BigQuery	call	SAME_IN_ANY_ORDER	emulated	nullSafeArm		0
-BigQuery	BigQuery	call	JSON_EQUAL	emulated	nullSafeArm		0
 BigQuery	BigQuery	call	STRFTIME	emulated	strftimeArm		193
 BigQuery	BigQuery	call	STRPTIME	emulated	strptime		0
 BigQuery	BigQuery	call	PARSE_DATE	emulated	DATETIME(CAST(… AS TIMESTAMP))		4
@@ -1338,7 +1333,6 @@ Databricks	Databricks	call	NULL_SAFE_EQUAL	emulated	nullSafe		3
 Databricks	Databricks	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafe		10
 Databricks	Databricks	call	SAME_IN_ORDER	emulated	nullSafe		0
 Databricks	Databricks	call	SAME_IN_ANY_ORDER	emulated	nullSafe		0
-Databricks	Databricks	call	JSON_EQUAL	emulated	nullSafe		0
 Databricks	Databricks	call	STRFTIME	emulated	strftime		193
 Databricks	Databricks	call	STRPTIME	emulated	strptime		0
 Databricks	Databricks	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
@@ -1569,9 +1563,8 @@ DuckDb	DuckDB	call	IS_DISTINCT_FROM	emulated	nullSafe		0
 DuckDb	DuckDB	call	ALL_DISTINCT	emulated	allDistinct		0
 DuckDb	DuckDB	call	NULL_SAFE_EQUAL	emulated	nullSafe		3
 DuckDb	DuckDB	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafe		10
-DuckDb	DuckDB	call	SAME_IN_ORDER	emulated	by its operands: composed / …list_sort		0
-DuckDb	DuckDB	call	SAME_IN_ANY_ORDER	emulated	by its operands: composed / …list_sort		0
-DuckDb	DuckDB	call	JSON_EQUAL	emulated	nullSafe		0
+DuckDb	DuckDB	call	SAME_IN_ORDER	emulated	sameLists: list_sort		0
+DuckDb	DuckDB	call	SAME_IN_ANY_ORDER	emulated	sameLists: list_sort		0
 DuckDb	DuckDB	call	STRFTIME	emulated	strftime		193
 DuckDb	DuckDB	call	STRPTIME	spelled	strptime		0
 DuckDb	DuckDB	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
@@ -1804,7 +1797,6 @@ ClickHouse	ClickHouse	call	NULL_SAFE_EQUAL	emulated	coalesce(… = …, isNull(�
 ClickHouse	ClickHouse	call	NULL_SAFE_NOT_EQUAL	emulated	NOT coalesce(… = …, isNull(…) AND isNull(…))		10
 ClickHouse	ClickHouse	call	SAME_IN_ORDER	emulated	sameValues		0
 ClickHouse	ClickHouse	call	SAME_IN_ANY_ORDER	emulated	sameValues		0
-ClickHouse	ClickHouse	call	JSON_EQUAL	refused	two Variants compared on a database with no typed JSON equality: their texts are not their values, so the comparison is refused by name	via AnsiSqlRenderer.jsonEqual	0
 ClickHouse	ClickHouse	call	STRFTIME	emulated	composed in a block	via ClickHouse.temporal	193
 ClickHouse	ClickHouse	call	STRPTIME	emulated	composed in a block	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	PARSE_DATE	emulated	parseDateTime64BestEffort(…, 6, 'UTC')	via ClickHouse.temporal	4
@@ -1888,13 +1880,13 @@ SQLite	SQLite	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 SQLite	SQLite	call	IN	emulated	in		6
 SQLite	SQLite	call	COALESCE	emulated	by its operands: composed / …coalesce		552
 SQLite	SQLite	call	PARSE_INT	emulated	parseInt		11
-SQLite	SQLite	call	CONCAT	emulated	flattenConcat, asText: concat(, …)		756
+SQLite	SQLite	call	CONCAT	emulated	concatParts, flattenConcat		756
 SQLite	SQLite	call	LENGTH	emulated	asText: length(…)		73
 SQLite	SQLite	call	UPPER	spelled	upper		2
 SQLite	SQLite	call	LOWER	spelled	lower		3
 SQLite	SQLite	call	GREATEST	emulated	nullSkipping: …max		52
 SQLite	SQLite	call	LEAST	emulated	nullSkipping: …min		8
-SQLite	SQLite	call	CONCAT_JOIN	emulated	asText: concat(, …)		0
+SQLite	SQLite	call	CONCAT_JOIN	emulated	concatParts		0
 SQLite	SQLite	call	CONCAT_WS	spelled	concat_ws		0
 SQLite	SQLite	call	LIST_FILTER	emulated	composed in a block	via SQLite.lists	23
 SQLite	SQLite	call	LIST_TRANSFORM	emulated	composed in a block	via SQLite.lists	31
@@ -2037,7 +2029,6 @@ SQLite	SQLite	call	NULL_SAFE_EQUAL	emulated	nullSafe		3
 SQLite	SQLite	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafe		10
 SQLite	SQLite	call	SAME_IN_ORDER	emulated	nullSafe		0
 SQLite	SQLite	call	SAME_IN_ANY_ORDER	emulated	nullSafe		0
-SQLite	SQLite	call	JSON_EQUAL	emulated	nullSafe		0
 SQLite	SQLite	call	STRFTIME	emulated	strftimeArm		193
 SQLite	SQLite	call	STRPTIME	refused	SQLite parses ISO text only reached SQLite:		0
 SQLite	SQLite	call	PARSE_DATE	emulated	parsedDate		4
@@ -2270,7 +2261,6 @@ MariaDb	MariaDB	call	NULL_SAFE_EQUAL	spelled	an operator (<=>)		3
 MariaDb	MariaDB	call	NULL_SAFE_NOT_EQUAL	emulated	(NOT (… <=> …))		10
 MariaDb	MariaDB	call	SAME_IN_ORDER	emulated	sameValues		0
 MariaDb	MariaDB	call	SAME_IN_ANY_ORDER	emulated	sameValues		0
-MariaDb	MariaDB	call	JSON_EQUAL	refused	two Variants compared on a database with no typed JSON equality: their texts are not their values, so the comparison is refused by name	via AnsiSqlRenderer.jsonEqual	0
 MariaDb	MariaDB	call	STRFTIME	emulated	strftimeArm		193
 MariaDb	MariaDB	call	STRPTIME	refused	a date parsed by a DuckDB format has no measured spelling reached :		0
 MariaDb	MariaDB	call	PARSE_DATE	emulated	parsedDate		4
@@ -2503,7 +2493,6 @@ MySql	MySQL	call	NULL_SAFE_EQUAL	spelled	an operator (<=>)	as MariaDb	3
 MySql	MySQL	call	NULL_SAFE_NOT_EQUAL	emulated	(NOT (… <=> …))	as MariaDb	10
 MySql	MySQL	call	SAME_IN_ORDER	emulated	sameValues	as MariaDb	0
 MySql	MySQL	call	SAME_IN_ANY_ORDER	emulated	sameValues	as MariaDb	0
-MySql	MySQL	call	JSON_EQUAL	refused	two Variants compared on a database with no typed JSON equality: their texts are not their values, so the comparison is refused by name	as MariaDb, via AnsiSqlRenderer.jsonEqual	0
 MySql	MySQL	call	STRFTIME	emulated	strftimeArm	as MariaDb	193
 MySql	MySQL	call	STRPTIME	refused	a date parsed by a DuckDB format has no measured spelling reached :	as MariaDb	0
 MySql	MySQL	call	PARSE_DATE	emulated	parsedDate	as MariaDb	4
@@ -2736,7 +2725,6 @@ MongoDb	MongoDB	call	NULL_SAFE_EQUAL	emulated	$eq		0
 MongoDb	MongoDB	call	NULL_SAFE_NOT_EQUAL	emulated	$ne		0
 MongoDb	MongoDB	call	SAME_IN_ORDER	refused	a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert		0
 MongoDb	MongoDB	call	SAME_IN_ANY_ORDER	refused	a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert		0
-MongoDb	MongoDB	call	JSON_EQUAL	refused	two Variants compared: MongoDB's pipeline has no typed JSON equality written here		0
 MongoDb	MongoDB	call	STRFTIME	emulated	strftime		0
 MongoDb	MongoDB	call	STRPTIME	emulated	{"$dateFromString": {"dateString": …, "format": …}}		0
 MongoDb	MongoDB	call	PARSE_DATE	emulated	{"$dateFromString": {"dateString": …}}		0

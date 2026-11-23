@@ -407,6 +407,12 @@ final class InstanceEquality {
         }
         Type a = args.get(0).info().type();
         Type b = args.get(1).info().type();
+        if (PlatformTypes.isVariant(a) != PlatformTypes.isVariant(b)) {
+            // a Variant is never equal to a value of another type, as in Pure (register S401, ruled by the user
+            // 2026-11-23): only an Any or an empty value may hold one
+            Type other = PlatformTypes.isVariant(a) ? b : a;
+            return !PlatformTypes.isAny(other) && !PlatformTypes.isNil(other);
+        }
         boolean ae = a instanceof Type.EnumType;
         boolean be = b instanceof Type.EnumType;
         if (ae && be) {

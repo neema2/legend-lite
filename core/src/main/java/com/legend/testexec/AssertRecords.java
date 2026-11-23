@@ -44,23 +44,12 @@ final class AssertRecords {
     static ErrorRecord equality(boolean incidental, boolean wantEqual, List<Object> e, List<Object> a,
             List<Object> eCarried, List<Object> aCarried, com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts ef,
             com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts af) {
-        if (variant(ef) && variant(af)) {
-            // two Variants written as their JSON documents, minified, whichever judge read them (each carries them as
-            // their JSON texts): one record on both judges
-            List<String> et = eCarried.stream().map(v -> LiteWords.canonJson(String.valueOf(v), false)).toList();
-            List<String> at = aCarried.stream().map(v -> LiteWords.canonJson(String.valueOf(v), false)).toList();
-            boolean bare = et.size() == 1 && at.size() == 1;
-            String eb = "[" + String.join(", ", et) + "]";
-            String ab = "[" + String.join(", ", at) + "]";
-            return !wantEqual ? record(AssertKind.NOT_EQUALS, "actual", bare ? at.get(0) : ab)
-                    : incidental ? record(AssertKind.SAME_ELEMENTS, "expected", eb, "actual", ab)
-                    : LiteWords.equalsRecord(bare ? et.get(0) : eb, bare ? at.get(0) : ab, () -> "", () -> "", null, null);
-        }
+        // (two Variants' record went 2026-11-23: register S401, ruled by the user, refuses two whole Variants at planning)
         if (variant(ef) || variant(af)) {
             // one Variant side: written as the JSON texts it was carried as, which the database judge's run reads too
             // (the audit of c2217801, 2026-11-23: the host wrote a JSON null as the empty value) -- one record
-            e = variant(ef) ? eCarried : e;
-            a = variant(af) ? aCarried : a;
+            e = variant(ef) ? LiteWords.variantTexts(eCarried) : e;
+            a = variant(af) ? LiteWords.variantTexts(aCarried) : a;
         }
         @Nullable String eClass = ef == null ? null : ef.classFqn();
         @Nullable String aClass = af == null ? null : af.classFqn();

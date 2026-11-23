@@ -614,7 +614,7 @@ class AssertBarTest {
             "{|assertFalse(1 == 1)}", "{|assertInstanceOf(1, String)}", "{|assert(1 == 2, | 'my message')}",
             "{|assertEquals([1, 'a'], [1, 'b'])}", "{|assertJsonStringsEqual('{\"a\":1}', '{\"a\":2}')}",
             "{|[1, 2]->forAll(i | assertEquals(1, $i))}",
-            "{|assertEquals('1'->fromJson(), '2'->fromJson())}",
+            "{|assertEquals('1'->fromJson(), 2)}",
             "{|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue,"
                     + " []).values, [1, 3])}");
 
@@ -625,6 +625,7 @@ class AssertBarTest {
     @Test
     void everyFailureIsItsRecordsSentence() throws Exception {
         List<String> wrong = new ArrayList<>();
+        int checked = 0;
         for (var backend : TestBackends.inProcess()) {
             var database = backend.type();
             for (String body : FAILING) {
@@ -637,6 +638,7 @@ class AssertBarTest {
                         if (f.unjudgedReason() != null) {
                             continue;
                         }
+                        checked++;
                         if (f.record() == null) {
                             wrong.add(database + " " + mode + " " + body + " -> no record: " + oneLine(f.getMessage()));
                         } else if (!f.getMessage().equals(f.record().sentence())) {
@@ -652,6 +654,9 @@ class AssertBarTest {
             }
         }
         assertTrue(wrong.isEmpty(), "one catalog:\n  " + String.join("\n  ", wrong));
+        // a floor: most runs fail with a record (measured 188 of 198, 2026-11-23, the audit of 8477c703), so the check
+        // reads records, never passes on refusals alone
+        assertTrue(checked >= 150, "records checked: " + checked);
     }
 
     /** NO PROSE IN A STATEMENT (item 3's S5): the database judge plans no catalog sentence -- no template's fixed text
@@ -662,22 +667,27 @@ class AssertBarTest {
         List<String> fragments = new ArrayList<>();
         for (com.legend.error.AssertKind k : com.legend.error.AssertKind.values()) {
             for (String part : k.template().split("\\{[^}]*\\}")) {
-                // (two words at least: a slot's name -- "expected" -- is a record's data in the plan, never prose)
-                if (part.strip().length() >= 8 && part.strip().contains(" ")) {
-                    fragments.add(part.strip());
+                // a template's fixed text with its spaces, of two words or a joint (", got "): a lone word -- a slot's
+                // name, "expected" -- is a record's data in the plan, never prose (the audit of 8477c703: the EQUALS
+                // sentence's joint had gone unchecked)
+                if (part.strip().length() >= 4 && part.contains(" ") && !part.strip().matches("[a-z]+")) {
+                    fragments.add(part);
                 }
             }
         }
         List<String> wrong = new ArrayList<>();
+        int read = 0;
         for (var backend : TestBackends.inProcess()) {
             var database = backend.type();
             for (String body : FAILING) {
                 String plan;
+                read++;
                 try {
                     plan = com.legend.testexecutionplan.TestPlanJson.write(Program.plan(MAPPED_ON.formatted(database),
                             body, "p::RT", ExecuteOptions.NONE.withJudgeMode(
                                     com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)));
                 } catch (RuntimeException refused) {
+                    read--;
                     continue;   // refused at planning, by name: nothing planned
                 }
                 for (String f : fragments) {
@@ -688,6 +698,8 @@ class AssertBarTest {
             }
         }
         assertTrue(!fragments.isEmpty() && wrong.isEmpty(), "no prose in a statement:\n  " + String.join("\n  ", wrong));
+        // a floor: most bodies plan (measured 61 of 66, 2026-11-23), so the check reads plans, never passes on none
+        assertTrue(read >= 50, "plans read: " + read);
     }
 
     /** Two sides of several set implementations (a metamodel's documents gathered into one JSON array), in order, under
@@ -922,39 +934,37 @@ class AssertBarTest {
         want.put("{|assertEquals([1, 'a'], [1, 'a']->cast(@Any))}", "pass");
         want.put("{|assertEquals([1, 'a'], [1, 'b']->cast(@Any))}", "AssertFailed");
         want.put("{|assertEquals([1, 'a'], [1.0, 'a']->cast(@Any))}", "AssertFailed");
-        // a variant's scalar (the audit of 2026-11-22: H2's JSON read as a number by its text; SQLite's tagged record)
-        // two Variants: the same document, parsed (register S401: DuckDB's json(); H2 and SQLite hold no JSON parse of
-        // their own, so the database judge refuses by name) -- spacing aside, keys in their order, an integer never a
-        // fraction, a fraction as its double, a Boolean never a number, JSON null a value; the host the same rule
-        String byDb = "|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|SQLite/DATABASE=DialectCapability"
-                + "|SQLite/BOTH=DialectCapability";
-        want.put("{|assertEquals('1'->fromJson(), '1'->fromJson())}", "pass" + byDb);
-        want.put("{|assertEquals('1'->fromJson(), '2'->fromJson())}", "AssertFailed: expected 1, got 2" + byDb);
-        want.put("{|assertEquals(1->toVariant(), 1->toVariant())}", "pass" + byDb);
-        want.put("{|assertEquals('{\"a\":1,\"b\":[1, 2]}'->fromJson(), '{ \"a\" : 1, \"b\":[1,2]}'->fromJson())}",
-                "pass" + byDb);
-        want.put("{|assertEquals('{\"a\":1,\"b\":2}'->fromJson(), '{\"b\":2,\"a\":1}'->fromJson())}",
-                "AssertFailed" + byDb);
-        want.put("{|assertEquals('{\"a\":1.50}'->fromJson(), '{\"a\":1.5}'->fromJson())}", "pass" + byDb);
-        want.put("{|assertEquals('1'->fromJson(), '1.0'->fromJson())}", "AssertFailed" + byDb);
-        want.put("{|assertEquals('true'->fromJson(), '1'->fromJson())}", "AssertFailed" + byDb);
-        want.put("{|assertEquals('{}'->fromJson(), '{\"a\":1}'->fromJson())}", "AssertFailed" + byDb);
-        want.put("{|assertEquals('{\"a\":null}'->fromJson(), '{\"b\":null}'->fromJson())}", "AssertFailed" + byDb);
-        want.put("{|assertEquals('[]'->fromJson(), '{}'->fromJson())}", "AssertFailed" + byDb);
-        // (recorded, a product follow-up: H2 and SQLite read a Variant's JSON null back as an absent value, so the
-        // database judge's record writes no value where the host writes "null" -- the verdict the same)
-        want.put("{|assertEquals([], 'null'->fromJson())}", "AssertFailed: expected [], got [\"null\"]"
-                + "|H2/DATABASE=AssertFailed|H2/BOTH=JudgesDisagree|SQLite/DATABASE=AssertFailed|SQLite/BOTH=JudgesDisagree");
-        want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected [], got [\"1\"]");
-        // a Variant is never a String of its text, and a Variant cast to Any is still that Variant (the audit of
-        // c2217801)
+        // register S401 (ruled by the user 2026-11-23, "Okay"): legend-pure compares two Variants by identity, which a
+        // database cannot compute, so an equality between two whole Variants -- or a Variant and an Any the plan cannot
+        // see -- is refused by name, under every judge and in the product's == and membership alike; a Variant against a
+        // value of another type is not equal, as in Pure, decided by the types
+        String refused = "NotImplementedException: an equality between two whole Variants is not computed";
+        for (String two : List.of("{|assertEquals('1'->fromJson(), '1'->fromJson())}",
+                "{|assertEquals('1'->fromJson(), '2'->fromJson())}", "{|assertEquals(1->toVariant(), 1->toVariant())}",
+                "{|assertEquals('{\"a\":1,\"b\":2}'->fromJson(), '{\"b\":2,\"a\":1}'->fromJson())}",
+                "{|assertNotEquals('\"1\"'->fromJson(), '1'->fromJson())}",
+                "{|assertSameElements(['1'->fromJson()], ['1'->fromJson()])}",
+                "{|assertContains(['1'->fromJson()], '1'->fromJson())}",
+                // two Variants cast to Any are Variants; a value cast to Any the plan cannot see may be one
+                "{|assertEquals('{\"a\":1}'->fromJson()->cast(@Any), '{\"a\":1}'->fromJson())}",
+                "{|assertEquals(1->cast(@Any), '1'->fromJson())}",
+                // the product's equality and membership
+                "{|assert('1'->fromJson() == '1'->fromJson())}", "{|assert('1'->fromJson() != '2'->fromJson())}",
+                "{|assert(['1'->fromJson()]->contains('1'->fromJson()))}",
+                "{|assert('1'->fromJson()->in(['1'->fromJson()]))}")) {
+            want.put(two, refused);
+        }
+        // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
+        // the record, a NULL among them JSON null (the audit of 8477c703); H2's JSON array aggregate drops a JSON null,
+        // so its database judge's record lists none there -- recorded, the verdict the same
+        want.put("{|assertEquals([], 'null'->fromJson())}", "AssertFailed: expected [], got [null]"
+                + "|H2/DATABASE=AssertFailed|H2/BOTH=JudgesDisagree");
+        want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected [], got [1]");
+        // a Variant is never a value of another type, its text's included (the audit of c2217801; S401)
         want.put("{|assertEquals('\"abc\"'->fromJson(), 'abc')}", "AssertFailed");
-        want.put("{|assertEquals('{\"a\":1}'->fromJson()->cast(@Any), '{\"a\":1}'->fromJson())}", "pass" + byDb);
-        want.put("{|assertEquals('{\"a\":1}'->fromJson(), '{\"a\":2}'->fromJson())}",
-                "AssertFailed: expected {\"a\":1}, got {\"a\":2}" + byDb);
-        want.put("{|assertNotEquals('\"1\"'->fromJson(), '1'->fromJson())}", "pass" + byDb);
-        want.put("{|assertEquals('\"abc\"'->fromJson(), '\"abd\"'->fromJson())}",
-                "AssertFailed: expected \"abc\", got \"abd\"" + byDb);
+        want.put("{|assertEquals('1'->fromJson(), 1)}", "AssertFailed");
+        want.put("{|assert('1'->fromJson() == 1)}", "AssertFailed");
+        want.put("{|assertFalse('\"a\"'->fromJson() == 'a')}", "pass");
         want.put("{|assertEquals(1.0, (0.5 + 0.5)->cast(@Any))}", "pass");
         want.put("{|assertEquals(true, 'true'->fromJson()->to(@Boolean))}", "pass");
         // a graph's size and emptiness (its root objects): typed, its failures the host's records

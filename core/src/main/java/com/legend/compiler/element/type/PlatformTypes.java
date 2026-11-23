@@ -708,6 +708,20 @@ public final class PlatformTypes {
                 && (c.fqn().equals(VARIANT) || JSON_FAMILY.contains(c.fqn()));
     }
 
+    /** REGISTER S401 (ruled by the user 2026-11-23, "Okay"): whether only identity decides an equality between values
+     *  of {@code a} and {@code b} -- two whole Variants, or a Variant and an Any whose type the plan cannot see.
+     *  legend-pure compares Variants by identity (two separately built Variants are never equal, checked against its
+     *  compiled runtime), which a database cannot compute, so lite refuses it by name ({@link #VARIANT_EQUALITY_REFUSED});
+     *  a Variant against a value of any other type is not equal, as in Pure, decided by the types. */
+    public static boolean identityOnly(Type a, Type b) {
+        return isVariant(a) && (isVariant(b) || isAny(b)) || isVariant(b) && isAny(a);
+    }
+
+    /** The refusal of an equality {@link #identityOnly} names: what to compare instead. */
+    public static final String VARIANT_EQUALITY_REFUSED = "an equality between two whole Variants is not computed:"
+            + " legend-pure compares Variants by identity, which a database cannot compute (register S401); compare a"
+            + " path (get), a typed value (to(@T)) or the JSON text (toJson())";
+
     public static final String JSON_ELEMENT = "meta::json::JSONElement";
     public static final String JSON_OBJECT = "meta::json::JSONObject";
     public static final String JSON_ARRAY = "meta::json::JSONArray";

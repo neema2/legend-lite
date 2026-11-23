@@ -5189,9 +5189,16 @@ final class ArchitectureTest {
 
     static com.tngtech.archunit.lang.ArchRule theDatabaseJudgeReachesNoEdgeRule(
             com.tngtech.archunit.lang.syntax.elements.GivenClassesConjunction judge) {
+        // transitively, and the plan style's audience channel itself -- asking a style for a facet or a two-form table
+        // (the audit of 8477c703: the rule read direct dependencies alone, and named no call)
         return judge
-            .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
-            .orShould().dependOnClassesThat().haveFullyQualifiedName("com.legend.testplan.PlanStyleFacets")
+            .should().transitivelyDependOnClassesThat().resideInAPackage("com.legend.edge..")
+            .orShould().transitivelyDependOnClassesThat().haveFullyQualifiedName("com.legend.testplan.PlanStyleFacets")
+            .orShould().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a plan style asked for a facet or a two-form table",
+                    (com.tngtech.archunit.core.domain.JavaMethodCall call) ->
+                            call.getTargetOwner().isAssignableTo(com.legend.database.PlanStyle.class)
+                                    && (call.getName().equals("facet") || call.getName().equals("twoForm"))))
             .because("the database judge is lite's flow's alone: the host judge is the only judge in compatibility"
                     + " (item 3's R1)");
     }
@@ -5204,42 +5211,9 @@ final class ArchitectureTest {
                 noClasses().that().belongToAnyOf(PlantedStyleReach.class)).check(planted));
     }
 
-    /**
-     * THE HOST JUDGE'S VARIANT DOCUMENT IS THE HOST JUDGE'S ALONE (item 3, register S401; the user, 2026-11-23: "Keep the
-     * class but it's only used in host judge right? Have to make sure not used in database"): {@code JsonDocument}, the
-     * host judge's comparison of two Variants it read, is reached by the host judge alone -- its side reading
-     * ({@code HostJudgments}), its equality ({@code Equality}) and the records' printer ({@code LiteWords}); the database
-     * judge compares Variants in SQL ({@code SqlFn.JSON_EQUAL}), and no class of it, or of anything else, may reach the
-     * host's Java comparison.
-     */
-    @Test
-    void onlyTheHostJudgeReadsAVariantDocument() {
-        onlyTheHostJudgeReadsAVariantDocumentRule().check(CORE_PROD_CLASSES);
-    }
-
-    static com.tngtech.archunit.lang.ArchRule onlyTheHostJudgeReadsAVariantDocumentRule() {
-        return classes().that().haveFullyQualifiedName("com.legend.testexec.JsonDocument")
-            .should().onlyHaveDependentClassesThat().haveNameMatching(
-                "com\\.legend\\.testexec\\.(JsonDocument|Equality|HostJudgments|LiteWords)(\\$.*)?")
-            .because("the host judge's Variant comparison is the host judge's alone; the database judge compares"
-                    + " Variants in SQL (register S401)");
-    }
-
-    /** The Variant-document rule bites: a planted class that reaches the document is caught. */
-    @Test
-    void theVariantDocumentRuleBitesAPlantedReach() {
-        var planted = new ClassFileImporter().importClasses(PlantedVariantReach.class,
-                com.legend.testexec.JsonDocument.class);
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
-                () -> onlyTheHostJudgeReadsAVariantDocumentRule().check(planted));
-    }
-
-    /** A class that reaches the host judge's Variant document, as no database judge class may. */
-    static final class PlantedVariantReach {
-        static Class<?> document() {
-            return com.legend.testexec.JsonDocument.class;
-        }
-    }
+    // (onlyTheHostJudgeReadsAVariantDocument and its bite test, 2026-11-23 -> deleted the same day with the class it
+    // guarded: testexec.JsonDocument went when register S401 was ruled by the user, 2026-11-23, "Okay" -- two whole
+    // Variants are refused by name at planning, so neither judge compares two Variant documents)
 
     /** A class that names a style's two-form table, as a database judge class must not. */
     static final class PlantedStyleReach {

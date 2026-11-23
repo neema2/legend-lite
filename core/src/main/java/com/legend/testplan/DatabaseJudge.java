@@ -195,7 +195,6 @@ public final class DatabaseJudge {
                 .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan(), env.ctx());
         if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny)
                 || tp.form() == JudgmentFacts.TypedPair.Form.INSTANCE_TEXTS || tp.kindsDiffer()
-                || tp.form() == JudgmentFacts.TypedPair.Form.VARIANTS
                 || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))) {
             com.legend.lowering.VerdictSql.TypedRow typed = tp.row(we.plan(), wa.plan(), canonicalOrder, wantEqual);
             if (typed != null) {
@@ -510,7 +509,8 @@ public final class DatabaseJudge {
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(coll.info().type())
                 || com.legend.compiler.element.type.PlatformTypes.isVariant(val.info().type())) {
             // a Variant membership: no typed form, refused by name (the audit of c2217801, 2026-11-23: a scalar Variant's
-            // membership compared the JSON texts, never the values the equality compares)
+            // membership compared the JSON texts); among Variants, register S401's refusal, as the host judge's
+            JudgmentFacts.refuseIdentityOnly(coll, val);
             return unjudged(name, "a Variant membership: no typed form");
         }
         SideRows c = planSide(coll, false, letPrefix, specs, env, hook);

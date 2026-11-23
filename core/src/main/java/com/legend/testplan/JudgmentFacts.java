@@ -37,7 +37,7 @@ final class JudgmentFacts {
         /** How the pair's values compare: as typed values, dates (by kind and instant), the same only where both are
          *  empty (an empty side, Nil), tagged values (each its kind and its value), instances of one class (each a row
          *  of its typed leaves: its keys, {@code keys}, or its identity where it has none; item 3's S4, instances). */
-        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES, COLLECTIONS, VARIANTS, INSTANCE_TEXTS }
+        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES, COLLECTIONS, INSTANCE_TEXTS }
 
         TypedPair(Type e, Type a, Form form) {
             this(e, a, form, null);
@@ -95,7 +95,6 @@ final class JudgmentFacts {
                         wantEqual);
                 case VALUES, DATES, EMPTY_ONLY -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e, aPlan, a,
                         multiset, wantEqual, form == Form.EMPTY_ONLY);
-                case VARIANTS -> com.legend.lowering.VerdictSql.typedVariants(ePlan, e, aPlan, a, multiset, wantEqual);
                 case INSTANCE_TEXTS -> com.legend.lowering.VerdictSql.typedInstanceTexts(ePlan, e, aPlan, a, multiset,
                         wantEqual);
             };
@@ -106,15 +105,18 @@ final class JudgmentFacts {
 
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
             Type aKind, com.legend.sql.SqlQuery aPlan, ModelContext ctx) {
-        if ((PlatformTypes.isVariant(eKind) || PlatformTypes.isVariant(aKind)) && (jsonCarried(ePlan) || named(ePlan))
-                && (jsonCarried(aPlan) || named(aPlan))) {
-            // a Variant's values: each its JSON, compared by the database's typed JSON equality (the user's ruling of
-            // 2026-11-22); a Variant against another kind is the same only where both are empty (VerdictSql.typedEquals),
-            // a value declared Any (a Variant cast to Any, carried as its JSON) read as the Variant it is compared with
-            // (the audit of c2217801, 2026-11-23)
-            Type e = PlatformTypes.isAny(eKind) && PlatformTypes.isVariant(aKind) ? aKind : eKind;
-            Type a = PlatformTypes.isAny(aKind) && PlatformTypes.isVariant(eKind) ? eKind : aKind;
-            return new TypedPair(e, a, TypedPair.Form.VARIANTS);
+        // a side declared Any is a Variant only where the plan sees one under its casts ({@link #sideType}); its JSON
+        // carrier cannot tell a Variant from the value it holds (the audit of 8477c703: an Integer cast to Any had been
+        // read as a Variant, and two Variants cast to Any raised at run)
+        Type eSide = PlatformTypes.isAny(eSpec.info().type()) ? sideType(eSpec) : eKind;
+        Type aSide = PlatformTypes.isAny(aSpec.info().type()) ? sideType(aSpec) : aKind;
+        if (PlatformTypes.isVariant(eSide) || PlatformTypes.isVariant(aSide)) {
+            // register S401 (ruled by the user 2026-11-23): two whole Variants, or a Variant and an Any the plan cannot
+            // see, refused by name (refuseIdentityOnly); a Variant against a value of any other type is not equal, as
+            // in Pure -- the two the same only where both are empty (VerdictSql.typedEquals), its values riding the
+            // record as carried
+            refuseIdentityOnly(eSpec, aSpec);
+            return new TypedPair(eSide, aSide, TypedPair.Form.EMPTY_ONLY);
         }
         boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan) || jsonCarried(ePlan);
         boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan) || jsonCarried(aPlan);
@@ -248,10 +250,31 @@ final class JudgmentFacts {
 
     /** {@code s}'s static facts: the keyed class it declares, its kind class, whether it is Any-stamped, Nil-typed, a
      *  map carrier; its type's name for the census and the declared type's name its values are judged by. */
+    /** Register S401 (ruled by the user 2026-11-23): an equality only identity decides -- two whole Variants, or a
+     *  Variant and an Any the plan cannot see under its casts ({@link #sideType}) -- refused by name at planning, under
+     *  both judges alike ({@code PlatformTypes.identityOnly}). */
+    static void refuseIdentityOnly(TypedSpec e, TypedSpec a) {
+        if (PlatformTypes.identityOnly(sideType(e), sideType(a))) {
+            throw new com.legend.error.NotImplementedException(PlatformTypes.VARIANT_EQUALITY_REFUSED);
+        }
+    }
+
     static HostJudgment.SideFacts sideFacts(TypedSpec s) {
-        Type t = s.info().type();
+        Type t = sideType(s);
         return new HostJudgment.SideFacts(EqualityKeys.fqnOf(t), kindOf(t), AssertVerdicts.isAnyStamped(s),
                 PlatformTypes.isNil(t), PlatformTypes.isMapCarrier(t), AssertVerdicts.typeName(s), t.typeName());
+    }
+
+    /** A side's type for the judges: its own, or where it is declared Any and is a cast of a Variant (written
+     *  {@code v->cast(@Any)}), the Variant it is -- a fact the plan reads off the expression, so both judges read the
+     *  side as one (the audit of 8477c703, 2026-11-23: reading every Any side as a Variant made an Integer one). */
+    static Type sideType(TypedSpec s) {
+        TypedSpec inner = s;
+        while (inner instanceof com.legend.compiler.spec.typed.TypedCast c) {
+            inner = c.source();
+        }
+        return PlatformTypes.isAny(s.info().type()) && PlatformTypes.isVariant(inner.info().type())
+                ? inner.info().type() : s.info().type();
     }
 
     /** The kind class of a type; null for a shape with no equality kind. */
@@ -297,6 +320,8 @@ final class JudgmentFacts {
      * keyed class a value in a key slot that declares no keyed class may carry as its own -- read once, here.
      */
     static HostJudgment.Keys keys(TypedSpec eSpec, TypedSpec aSpec, ModelContext ctx) {
+        // the host's comparison families (equals, contains, sameElements) all read their two sides' facts here
+        refuseIdentityOnly(eSpec, aSpec);
         String ef = EqualityKeys.fqnOf(eSpec.info().type());
         String af = EqualityKeys.fqnOf(aSpec.info().type());
         boolean eSubA = false;

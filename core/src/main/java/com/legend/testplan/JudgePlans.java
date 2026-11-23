@@ -170,6 +170,8 @@ public final class JudgePlans {
                 // OUR text as a side the step runs and reads (M10c item 8): deferred, where the collector admits it,
                 // else refused by the collector; the side's kind and its planned root name what the arm would
                 // evaluate (the unplanned-assert census)
+                // (the edge's collector defers only the text sides of its SQL-text and plan-text verdicts, which it
+                // asks with the EDGE_TEXT fold -- Q-S7a's temporary carve-out; a side it defers is one of those)
                 return collecting.defer(value, p, identity, fold.any(),
                         hook == null ? null : hook instanceof AssertVerdicts.SpliceHook sh ? sh : hook::apply, env,
                         letPrefix, specs, p.kind()

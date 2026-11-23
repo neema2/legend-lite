@@ -1206,37 +1206,6 @@ public final class VerdictSql {
                         new SqlExpr.StringLit(type), SqlType.Scalar.VARCHAR, Type.Primitive.STRING, false)));
     }
 
-    /** Two sides of Variant values (item 3's S4; the user's ruling of 2026-11-22), each value its JSON, compared by the
-     *  database's typed JSON equality ({@code SqlFn.JSON_EQUAL}: DuckDB's VARIANT, Postgres's jsonb; any other database
-     *  refuses by name), in order -- in any order refused by name, no database grouping JSON by its typed equality.
-     *  Null where a side has no value column. */
-    public static @com.legend.base.Nullable TypedRow typedVariants(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
-            Type aKind, boolean multiset, boolean wantEqual) {
-        if (com.legend.compiler.element.type.PlatformTypes.isNil(eKind)
-                || com.legend.compiler.element.type.PlatformTypes.isNil(aKind)) {
-            // an empty side against a Variant: the same only where both are empty, the Variant's values riding the
-            // record as the text they were carried as (the audit of c2217801: read as JSON, H2 and SQLite took a JSON
-            // null for an absent value)
-            return typedEquals(eWrapped, eKind, aWrapped, aKind, multiset, wantEqual, true);
-        }
-        SqlQuery e = jsonValues(eWrapped);
-        SqlQuery a = jsonValues(aWrapped);
-        return e == null || a == null ? null : typedEquals(e, eKind, a, aKind, multiset, wantEqual, false);
-    }
-
-    /** {@code wrapped}'s first column as JSON, in the side's own order. */
-    private static @com.legend.base.Nullable SqlQuery jsonValues(SqlQuery wrapped) {
-        if (wrapped.outputs().isEmpty()) {
-            return null;
-        }
-        SqlExpr v = SqlExpr.Column.of("w", wrapped.outputs(), wrapped.outputs().get(0).name());
-        OutputCol out = new OutputCol("value", SqlType.Scalar.JSON, true);
-        return new SqlSelect(List.of(new SqlSelect.Projection(wrapped.outputs().get(0).type() == SqlType.Scalar.JSON ? v
-                : new SqlExpr.Cast(v, SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE), "value", out)), false,
-                new SqlSource.Subselect(wrapped, "w", null), null, List.of(), null, null, List.of(), null, null,
-                List.of(out));
-    }
-
     /** Two sides of instances of one class carried as JSON documents' text (item 3's S4, the last families: a
      *  metamodel's SetImplementation, a Table -- a graph's array of its root objects), each side its documents' root
      *  elements, as the host reads a graph side ({@code Verdicts.decodeSideValues}): their texts compared -- one
@@ -1328,10 +1297,15 @@ public final class VerdictSql {
 
     /** A grid's column {@code column} as a side of its values, in the grid's own order (item 3's S4: a one-column grid
      *  against a list). */
-    public static SqlQuery gridColumn(SqlQuery grid, String column) {
-        SqlExpr v = SqlExpr.Column.of("w", grid.outputs(), column);
-        OutputCol out = new OutputCol("value", v.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type()
-                : SqlType.Scalar.VARCHAR, true);
+    public static @com.legend.base.Nullable SqlQuery gridColumn(SqlQuery grid, String column) {
+        // the column the grid declares, with its own type; one it does not declare is no reading of the grid (refused
+        // by name, as gridCells refuses it), never a text guessed for it (the audit of 8477c703)
+        OutputCol declared = grid.outputs().stream().filter(o -> o.name().equals(column)).findFirst().orElse(null);
+        if (declared == null) {
+            return null;
+        }
+        SqlExpr v = SqlExpr.Column.of("w", declared);
+        OutputCol out = new OutputCol("value", declared.type(), true);
         return new SqlSelect(List.of(new SqlSelect.Projection(v, "value", out)), false,
                 new SqlSource.Subselect(grid, "w", null), null, List.of(), null, null, List.of(), null, null,
                 List.of(out));

@@ -1551,6 +1551,8 @@ final class Scalars {
                         .multiplicity() instanceof Multiplicity.Bounded pb
                         && pb.upper() != null && pb.upper() <= 1);
                 if (listCallee || n.args().get(0).info().type() != Type.Primitive.STRING) {
+                    // a Variant's position among Variants: only identity decides (register S401), refused by name
+                    NullSemantics.refuseIdentityOnly(n.args().get(0).info().type(), n.args().get(1).info().type());
                     // LIST indexOf: 0-based, -1 on a miss; the operand
                     // conforms to the list contract by stamp (asList)
                     // and COMPACTS on the value lane (§5 positional
@@ -1685,6 +1687,10 @@ final class Scalars {
                 // (the root UNNEST, downstream list ops)
                 if (isToOne(n.args().get(0))) {
                     return new SqlExpr.ArrayLit(List.of(args.get(0)));
+                }
+                if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
+                    // Variants deduplicated by equality: only identity decides (register S401), refused by name
+                    NullSemantics.refuseIdentityOnly(n.args().get(0).info().type(), n.args().get(0).info().type());
                 }
                 // a MIXED list (track L, 2026-10-29): the first position of each element kept -- by the element's
                 // kind and value, or by the comparator over the elements at two positions (the binding convention:
@@ -2232,6 +2238,10 @@ final class Scalars {
                 boolean collCallee = !(n.callee().parameters().get(0)
                         .multiplicity() instanceof Multiplicity.Bounded pb0
                         && pb0.upper() != null && pb0.upper() <= 1);
+                if (collCallee && args.size() == 2) {
+                    // a Variant's membership by equality: only identity decides (register S401), refused by name
+                    NullSemantics.refuseIdentityOnly(n.args().get(0).info().type(), n.args().get(1).info().type());
+                }
                 if (collCallee) {
                     args = new java.util.ArrayList<>(args);
                     args.set(0, PureSql.asList(args.get(0),
@@ -2653,6 +2663,8 @@ final class Scalars {
                                         .apply(n, args),
                                 new SqlExpr.BoolLit(false)));
         RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY), (n, args) -> {
+            // a Variant's membership among Variants: only identity decides (register S401), refused by name
+            NullSemantics.refuseIdentityOnly(n.args().get(0).info().type(), n.args().get(1).info().type());
             // TYPE-aware membership: a kind-mismatched needle is never a
             // member — static FALSE, not a DB error.
             if (MixedEncoding.kindMismatch(n.args().get(0).info().type(),

@@ -36,31 +36,42 @@ class ValueTextCensusTest {
             "core/src/main/java/com/legend/testexec", "core/src/main/java/com/legend/testexecutionplan");
 
     private static final Pattern SITE = Pattern.compile(
-            "String\\.valueOf\\(|\\.toString\\(\\)|String\\.format\\(|\\.formatted\\(");
+            "String\\.valueOf\\(|\\.toString\\(\\)|String\\.format\\(|\\.formatted\\("
+                    // the audit of 8477c703: the spellings the design's section 6 names beside these -- a number's or a
+                    // value's text by its class's toString, a join of texts, a Decimal's plain digits
+                    + "|\\b(?:Double|Long|Integer|Float|Boolean|Short|Byte|Character|BigInteger|BigDecimal)\\.toString\\("
+                    + "|String\\.join\\(|\\.toPlainString\\(\\)");
 
-    /** The pins: each file's sites, measured 2026-11-23 at c2217801 (a file absent holds none). */
+    /** The pins: each file's sites (a file absent holds none). Measured 2026-11-23 at c2217801; RE-MEASURED 2026-11-23
+     *  (the audit of 8477c703) with the census made to see more -- a correct scan of character literals and the
+     *  design's other spellings ({@code Double.toString(x)} and its kin, {@code String.join}, {@code toPlainString()}):
+     *  the counts that rose are sites that were there, now seen, not code added; the census shrinks only from here. */
     private static final Map<String, Integer> PINS = Map.ofEntries(
-            Map.entry("core/src/main/java/com/legend/testexec/Equality.java", 7),
-            Map.entry("core/src/main/java/com/legend/testexec/CanonicalForm.java", 7),
-            // 6 -> 4 (2026-11-23, the audit of c2217801's fixes, a shrink: a Variant's text read as carried, its tree's
-            // keys kept as parsed)
-            Map.entry("core/src/main/java/com/legend/testexec/AssertRecords.java", 4),
+            Map.entry("core/src/main/java/com/legend/testexec/LiteWords.java", 15),
+            // 13 -> 9 (2026-11-23, register S401 ruled by the user, "Okay": two whole Variants refused at planning, so
+            // the two-Variant record and its joins went)
+            Map.entry("core/src/main/java/com/legend/testexec/AssertRecords.java", 9),
+            Map.entry("core/src/main/java/com/legend/testexec/CanonicalForm.java", 9),
+            Map.entry("core/src/main/java/com/legend/testexec/Equality.java", 8),
             Map.entry("core/src/main/java/com/legend/testplan/JudgePlans.java", 4),
-            Map.entry("core/src/main/java/com/legend/testexec/LiteWords.java", 3),
+            Map.entry("core/src/main/java/com/legend/testplan/HostJudge.java", 3),
             Map.entry("core/src/main/java/com/legend/testplan/DatabaseAsserts.java", 2),
-            Map.entry("core/src/main/java/com/legend/testplan/JudgmentFacts.java", 1),
-            Map.entry("core/src/main/java/com/legend/testplan/HostJudge.java", 1),
-            Map.entry("core/src/main/java/com/legend/testplan/DatabaseJudge.java", 1),
             Map.entry("core/src/main/java/com/legend/testplan/AssertVerdicts.java", 1),
-            Map.entry("core/src/main/java/com/legend/testexec/RootLoops.java", 1),
-            Map.entry("core/src/main/java/com/legend/testexec/LiteHostForms.java", 1),
+            Map.entry("core/src/main/java/com/legend/testplan/BodyKinds.java", 1),
+            Map.entry("core/src/main/java/com/legend/testplan/DatabaseJudge.java", 1),
+            Map.entry("core/src/main/java/com/legend/testplan/JudgmentFacts.java", 1),
+            Map.entry("core/src/main/java/com/legend/testplan/TestKinds.java", 1),
+            Map.entry("core/src/main/java/com/legend/testexec/AssertRuns.java", 1),
             Map.entry("core/src/main/java/com/legend/testexec/HostJudgments.java", 1),
-            Map.entry("core/src/main/java/com/legend/testexec/AssertRuns.java", 1));
+            Map.entry("core/src/main/java/com/legend/testexec/LiteHostForms.java", 1),
+            Map.entry("core/src/main/java/com/legend/testexec/RootLoops.java", 1),
+            Map.entry("core/src/main/java/com/legend/testexecutionplan/TestPlanJson.java", 1));
 
-    /** {@code src} with its comments and its string literals' contents removed (a literal names no site). */
+    /** {@code src} with its comments and its string and character literals' contents removed (a literal names no
+     *  site): the scan LiteralJoinCensusTest reads by (the audit of 8477c703: a pattern took the char literal
+     *  {@code '"'} for a string's start and swallowed code after it). */
     static String stripped(String src) {
-        return src.replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\n]*", "")
-                .replaceAll("\"(?:\\\\.|[^\"\\\\])*\"", "\"\"");
+        return LiteralJoinCensusTest.stripped(src);
     }
 
     static Map<String, Integer> measure() throws IOException {
@@ -113,6 +124,8 @@ class ValueTextCensusTest {
                     // String.valueOf(x) in a comment
                     /* x.toString() in a block */
                     String a(Object x) { return "String.format(" + String.valueOf(x) + x.toString(); }
+                    char q() { return '"'; }   // a character literal that is a quote, then code the census still reads
+                    String b(double d) { return Double.toString(d) + String.join(",", "a"); }
                 }
                 """;
         Matcher m = SITE.matcher(stripped(planted));
@@ -120,6 +133,7 @@ class ValueTextCensusTest {
         while (m.find()) {
             n++;
         }
-        assertTrue(n == 2, "two sites in code, none in the comments or the literal: " + n);
+        assertTrue(n == 4, "four sites in code -- after a quote's character literal too -- none in the comments or the"
+                + " literal: " + n);
     }
 }

@@ -195,7 +195,6 @@ Database types planned with it: H2.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
-| `JSON_EQUAL` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | spelled | `formatdatetime` |  | 193 |
 | `STRPTIME` | spelled | `parsedatetime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
@@ -395,7 +394,6 @@ Database types planned with it: Postgres.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
-| `JSON_EQUAL` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | refused | `to_timestamp(text, fmt) is lenient and zone-bound; not yet probed against the reference reached Postgres:` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
@@ -595,7 +593,6 @@ Database types planned with it: Snowflake.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
-| `JSON_EQUAL` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftimeArm` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(…)) AS TIMESTAMP_NTZ)` |  | 4 |
@@ -795,7 +792,6 @@ Database types planned with it: Trino.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
-| `JSON_EQUAL` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(9))` |  | 4 |
@@ -995,7 +991,6 @@ Database types planned with it: BigQuery.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafeArm` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `nullSafeArm` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `nullSafeArm` |  | 0 |
-| `JSON_EQUAL` | emulated | `nullSafeArm` |  | 0 |
 | `STRFTIME` | emulated | `strftimeArm` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `DATETIME(CAST(… AS TIMESTAMP))` |  | 4 |
@@ -1195,7 +1190,6 @@ Database types planned with it: Databricks.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
-| `JSON_EQUAL` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
@@ -1393,9 +1387,8 @@ Database types planned with it: DuckDB.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | emulated | `nullSafe` |  | 3 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
-| `SAME_IN_ORDER` | emulated | `by its operands: composed / …list_sort` |  | 0 |
-| `SAME_IN_ANY_ORDER` | emulated | `by its operands: composed / …list_sort` |  | 0 |
-| `JSON_EQUAL` | emulated | `nullSafe` |  | 0 |
+| `SAME_IN_ORDER` | emulated | `sameLists: list_sort` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `sameLists: list_sort` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | spelled | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
@@ -1595,7 +1588,6 @@ Database types planned with it: ClickHouse.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `NOT coalesce(… = …, isNull(…) AND isNull(…))` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `sameValues` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `sameValues` |  | 0 |
-| `JSON_EQUAL` | refused | `two Variants compared on a database with no typed JSON equality: their texts are not their values, so the comparison is refused by name` | `via AnsiSqlRenderer.jsonEqual` | 0 |
 | `STRFTIME` | emulated | `composed in a block` | `via ClickHouse.temporal` | 193 |
 | `STRPTIME` | emulated | `composed in a block` | `via ClickHouse.temporal` | 0 |
 | `PARSE_DATE` | emulated | `parseDateTime64BestEffort(…, 6, 'UTC')` | `via ClickHouse.temporal` | 4 |
@@ -1646,13 +1638,13 @@ Database types planned with it: SQLite.
 | `IN` | emulated | `in` |  | 6 |
 | `COALESCE` | emulated | `by its operands: composed / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `parseInt` |  | 11 |
-| `CONCAT` | emulated | `flattenConcat, asText: concat(, …)` |  | 756 |
+| `CONCAT` | emulated | `concatParts, flattenConcat` |  | 756 |
 | `LENGTH` | emulated | `asText: length(…)` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
 | `LOWER` | spelled | `lower` |  | 3 |
 | `GREATEST` | emulated | `nullSkipping: …max` |  | 52 |
 | `LEAST` | emulated | `nullSkipping: …min` |  | 8 |
-| `CONCAT_JOIN` | emulated | `asText: concat(, …)` |  | 0 |
+| `CONCAT_JOIN` | emulated | `concatParts` |  | 0 |
 | `CONCAT_WS` | spelled | `concat_ws` |  | 0 |
 | `LIST_FILTER` | emulated | `composed in a block` | `via SQLite.lists` | 23 |
 | `LIST_TRANSFORM` | emulated | `composed in a block` | `via SQLite.lists` | 31 |
@@ -1795,7 +1787,6 @@ Database types planned with it: SQLite.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
-| `JSON_EQUAL` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftimeArm` |  | 193 |
 | `STRPTIME` | refused | `SQLite parses ISO text only reached SQLite:` |  | 0 |
 | `PARSE_DATE` | emulated | `parsedDate` |  | 4 |
@@ -1995,7 +1986,6 @@ Database types planned with it: MariaDB.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `(NOT (… <=> …))` |  | 10 |
 | `SAME_IN_ORDER` | emulated | `sameValues` |  | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `sameValues` |  | 0 |
-| `JSON_EQUAL` | refused | `two Variants compared on a database with no typed JSON equality: their texts are not their values, so the comparison is refused by name` | `via AnsiSqlRenderer.jsonEqual` | 0 |
 | `STRFTIME` | emulated | `strftimeArm` |  | 193 |
 | `STRPTIME` | refused | `a date parsed by a DuckDB format has no measured spelling reached :` |  | 0 |
 | `PARSE_DATE` | emulated | `parsedDate` |  | 4 |
@@ -2195,7 +2185,6 @@ Database types planned with it: MySQL.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `(NOT (… <=> …))` | `as MariaDb` | 10 |
 | `SAME_IN_ORDER` | emulated | `sameValues` | `as MariaDb` | 0 |
 | `SAME_IN_ANY_ORDER` | emulated | `sameValues` | `as MariaDb` | 0 |
-| `JSON_EQUAL` | refused | `two Variants compared on a database with no typed JSON equality: their texts are not their values, so the comparison is refused by name` | `as MariaDb, via AnsiSqlRenderer.jsonEqual` | 0 |
 | `STRFTIME` | emulated | `strftimeArm` | `as MariaDb` | 193 |
 | `STRPTIME` | refused | `a date parsed by a DuckDB format has no measured spelling reached :` | `as MariaDb` | 0 |
 | `PARSE_DATE` | emulated | `parsedDate` | `as MariaDb` | 4 |
@@ -2395,7 +2384,6 @@ Database types planned with it: MongoDB.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `$ne` |  | 0 |
 | `SAME_IN_ORDER` | refused | `a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert` |  | 0 |
 | `SAME_IN_ANY_ORDER` | refused | `a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert` |  | 0 |
-| `JSON_EQUAL` | refused | `two Variants compared: MongoDB's pipeline has no typed JSON equality written here` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 0 |
 | `STRPTIME` | emulated | `{"$dateFromString": {"dateString": …, "format": …}}` |  | 0 |
 | `PARSE_DATE` | emulated | `{"$dateFromString": {"dateString": …}}` |  | 0 |

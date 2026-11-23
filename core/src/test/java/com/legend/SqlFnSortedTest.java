@@ -64,7 +64,8 @@ class SqlFnSortedTest {
      *  compare typed json"), its entry by the user's word of 2026-11-23 ("Approved", with the standing rule that a new
      *  function only product code writes is sorted PRODUCT with a dated note and reported): written by NullSemantics (a Variant's ==) and
      *  SameValuesForm (two lists of Variants), DuckDB's VARIANT and Postgres's jsonb writing it, every other dialect
-     *  refusing it by name). */
+     *  refusing it by name) -- its entry gone the same day: register S401 ruled by the user 2026-11-23 ("Okay"), two whole
+     *  Variants refused by name at planning, so no plan compares two JSON documents. */
     static final Set<String> PRODUCT = Set.of(
             "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
@@ -91,7 +92,7 @@ class SqlFnSortedTest {
             "PARSE_DATE", "PARSE_INT", "PI", "PLUS", "POW", "PURE_SPLIT_PART", "RADIANS", "RANDOM", "RANGE_FN",
             "REGEXP_EXTRACT", "REGEXP_EXTRACT_ALL", "REGEXP_FULL_MATCH", "REGEXP_REPLACE", "REM", "REPEAT_STR",
             "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP", "RPAD", "RTRIM",
-            "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1", "JSON_EQUAL",
+            "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1",
             "SHA256", "SIGN", "SIN", "SINH", "SPLIT", "SPLIT_PART", "SQRT", "STARTS_WITH", "STRFTIME", "STRPOS",
             "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "SUBSTRING_AS_GIVEN", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",
             "TO_VARIANT", "TRANSLATE", "TRIM", "TYPEOF", "UC_FIRST", "UNNEST", "UPPER", "VARIANT_ELEMENTS",
