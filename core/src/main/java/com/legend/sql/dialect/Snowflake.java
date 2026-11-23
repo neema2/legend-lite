@@ -1419,6 +1419,7 @@ public class Snowflake extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
+            case ERF -> throw expandedFirst(c);
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
             case FLOAT_SHORTEST_TEXT -> isDouble(a.get(0)) ? floatShortestText(writer, a.get(0))

@@ -91,6 +91,11 @@ public class Trino extends AnsiSqlRenderer {
         return 9;
     }
 
+    @Override
+    protected boolean spellsErf() {
+        return true;
+    }
+
     /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11; until then
      *  the statement's own VALUES rows: Trino holds no session table, probes/TrinoDataTable.java.txt). Trino's driver
      *  writes a parameter into the statement's text, which the server bounds by its {@code query.max-length} -- a SERVER
@@ -957,6 +962,7 @@ public class Trino extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case ERF -> erfByNormalCdf(writer, c);
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
@@ -1163,6 +1169,13 @@ public class Trino extends AnsiSqlRenderer {
             writer.expr(a.get(1), 0).append(" || chr(30) || ");
         }
         return writer.append("(").expr(a.get(0), 0).append(") || chr(31))");
+    }
+
+    /** The {@code ERF} arm of {@link #call}: {@code 2 * normal_cdf(0, 1/sqrt(2), x) - 1}. */
+    private SqlWriter erfByNormalCdf(SqlWriter writer, SqlExpr.Call c) {
+        return writer.append("(2 * normal_cdf(0, 0.7071067811865475, ")
+                .expr(new SqlExpr.Cast(c.args().get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT), 0)
+                .append(") - 1)");
     }
 
     /** The {@code ROUND_HALF_UP} arm of {@link #call}. */
