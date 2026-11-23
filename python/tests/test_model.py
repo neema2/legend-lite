@@ -304,7 +304,7 @@ class TheHostsFetch(unittest.TestCase):
 
             do_GET = do_POST = _answer
 
-            def log_message(self, *_args):
+            def log_message(self, format, *args):
                 pass
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), Sdlc)
@@ -348,6 +348,7 @@ class TheRepositorysLock(unittest.TestCase):
             text=True,
         )
         self.addCleanup(holder.wait)
+        assert holder.stdout is not None
         self.assertEqual(holder.stdout.readline().strip(), "held")
         started = time.monotonic()
         _sdlc("GET", "/projects", folder=folder)

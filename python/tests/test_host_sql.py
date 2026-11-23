@@ -12,14 +12,22 @@ from pathlib import Path
 
 from python.runfiles import runfiles
 
-FILES = runfiles.Create()
+_runfiles = runfiles.Create()
+assert _runfiles is not None, "run under Bazel: its runfiles hold what this reads"
+FILES = _runfiles
+
+
+def runfile(path: str) -> str:
+    found = FILES.Rlocation(path)
+    assert found is not None, f"{path} is not in the runfiles"
+    return found
 
 
 def rule() -> dict:
     """host_sql.txt's sections, as HostSqlTest.java reads them."""
     sections: dict[str, list[str]] = {}
     current: list[str] | None = None
-    for line in Path(FILES.Rlocation(os.environ["HOST_SQL_RULE"])).read_text(encoding="utf-8").splitlines():
+    for line in Path(runfile(os.environ["HOST_SQL_RULE"])).read_text(encoding="utf-8").splitlines():
         if not line.strip() or line.startswith("#"):
             continue
         if line.startswith("[") and line.endswith("]"):
@@ -96,7 +104,7 @@ class HostSqlTest(unittest.TestCase):
 
 def package_modules(case: unittest.TestCase) -> dict[str, str]:
     """The package's modules, beside its __init__.py: each its text by its file's name."""
-    package = Path(FILES.Rlocation(os.environ["HOST_SQL_PACKAGE"])).parent
+    package = Path(runfile(os.environ["HOST_SQL_PACKAGE"])).parent
     modules = sorted(package.glob("*.py"))
     case.assertGreater(len(modules), 10, f"{package} holds {len(modules)} modules: the guard is not looking")
     return {m.name: m.read_text(encoding="utf-8") for m in modules}

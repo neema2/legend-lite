@@ -14,7 +14,7 @@ import contextlib
 import contextvars
 import functools
 from collections.abc import Callable, Iterator
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 _RUN: contextvars.ContextVar[str | None] = contextvars.ContextVar("legend_lite_run", default=None)
 
@@ -47,7 +47,7 @@ def runs(what: str) -> Callable[[F], F]:
             finally:
                 _RUN.reset(token)
 
-        return run  # type: ignore[return-value]
+        return cast("F", run)
 
     return wrap
 

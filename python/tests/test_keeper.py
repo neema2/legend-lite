@@ -20,7 +20,7 @@ import random
 import tempfile
 import threading
 import unittest
-from typing import ClassVar
+from typing import Any, ClassVar
 from unittest import mock
 
 import pandas as pd
@@ -44,6 +44,22 @@ def reads(frames=(), copies=(), ids=()):
 
 
 NOTHING = reads()
+
+
+def _kept(keeper: PageKeeper, key: str) -> tuple[int, dict[str, Any]]:
+    """The version and the document the keeper keeps under ``key``: there is one."""
+    kept = keeper.current(key)
+    assert kept is not None
+    return kept
+
+
+def _snapshot(
+    keeper: PageKeeper, key: str, writer: str | None = None, fence: int | None = None
+) -> tuple[int, dict[str, Any], list[str], str, int]:
+    """The page under ``key`` whole, as a page open on it reads it: there is one."""
+    whole = keeper.snapshot(key, writer, fence)
+    assert whole is not None
+    return whole
 
 
 class Keeper(unittest.TestCase):
@@ -81,11 +97,11 @@ class Keeper(unittest.TestCase):
         doc = {"views": [{"id": "grid-1"}]}
         keeper.keep("p", doc, NOTHING, [])
         doc["views"].append({"id": "grid-2"})
-        self.assertEqual(keeper.current("p")[1], {"views": [{"id": "grid-1"}]}, "kept: copied in")
+        self.assertEqual(_kept(keeper, "p")[1], {"views": [{"id": "grid-1"}]}, "kept: copied in")
         written = {"views": [{"id": "grid-3"}]}
         keeper.write("p", 1, written, NOTHING, [])
         written["views"].clear()
-        self.assertEqual(keeper.current("p")[1], {"views": [{"id": "grid-3"}]}, "written: copied in")
+        self.assertEqual(_kept(keeper, "p")[1], {"views": [{"id": "grid-3"}]}, "written: copied in")
 
     def test_each_copy_a_page_read_is_the_keepers_and_goes_when_nothing_reads_it(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17: one model of whose a copy is -- its maker's until a page reads it
@@ -252,7 +268,7 @@ class Settle(unittest.TestCase):
         settled = keeper.settle("p", 1, [{"page": "x"}])
         self.assertEqual([a[0] for a in asked], [{"n": "theirs"}, {"n": "third"}])
         self.assertEqual(
-            (settled.version, settled.page, keeper.current("p")[1]), (4, {"n": "on the third"}, {"n": "on the third"})
+            (settled.version, settled.page, _kept(keeper, "p")[1]), (4, {"n": "on the third"}, {"n": "on the third"})
         )
 
     def test_a_write_by_its_id_is_taken_once_and_said_taken_with_the_page(self):
@@ -262,10 +278,10 @@ class Settle(unittest.TestCase):
         combine, asked = self.combining([made])
         keeper = PageKeeper(combine=combine)
         keeper.keep("p", {"n": 0}, NOTHING, [])
-        self.assertEqual(keeper.snapshot("p", "w1")[4], 0, "none of its writes taken yet")
+        self.assertEqual(_snapshot(keeper, "p", "w1")[4], 0, "none of its writes taken yet")
         self.assertEqual(keeper.settle("p", 1, [{"page": "x"}], writer="w1", seq=1).version, 2)
         self.assertEqual(
-            [keeper.snapshot("p", "w1")[4], keeper.snapshot("p", "w2")[4], keeper.snapshot("p")[4]],
+            [_snapshot(keeper, "p", "w1")[4], _snapshot(keeper, "p", "w2")[4], _snapshot(keeper, "p")[4]],
             [1, 0, 0],
             "taken: its own, said to it alone",
         )
@@ -284,14 +300,14 @@ class Settle(unittest.TestCase):
         combine, asked = self.combining([made, made])
         keeper = PageKeeper(combine=combine)
         keeper.keep("p", {"n": 0}, NOTHING, [])
-        self.assertEqual(keeper.snapshot("p", "w1", 1)[4], 0, "not taken when asked")
+        self.assertEqual(_snapshot(keeper, "p", "w1", 1)[4], 0, "not taken when asked")
         late = keeper.settle("p", 1, [{"page": "x"}], writer="w1", seq=1)
         self.assertEqual(
             (late.version, late.combined, late.page), (1, True, {"n": 0}), "fenced: not kept, the page as it is"
         )
         self.assertEqual(asked, [], "never combined")
         self.assertEqual(keeper.settle("p", 1, [{"page": "x"}], writer="w1", seq=2).version, 2, "sent again: kept")
-        self.assertEqual(keeper.snapshot("p", "w1", 1)[4], 2, "a fence behind what was taken moves nothing")
+        self.assertEqual(_snapshot(keeper, "p", "w1", 1)[4], 2, "a fence behind what was taken moves nothing")
 
     def test_a_write_kept_is_answered_kept_though_a_watcher_fails(self):
         # (the confirmation audit's 2) told of the write after it is kept, where the page is shown fails: the write stays
@@ -307,7 +323,7 @@ class Settle(unittest.TestCase):
         with mock.patch("traceback.print_exc") as said:
             settled = keeper.settle("p", 1, [{"page": "x"}], writer="w1", seq=1)
         self.assertEqual((settled.version, keeper.current("p")), (2, (2, {"n": 1})))
-        self.assertEqual(keeper.snapshot("p", "w1")[4], 1, "taken")
+        self.assertEqual(_snapshot(keeper, "p", "w1")[4], 1, "taken")
         said.assert_called_once()
 
     def test_a_write_sent_twice_at_once_is_kept_once(self):
@@ -345,7 +361,7 @@ class Settle(unittest.TestCase):
         with self.assertRaisesRegex(Refused, "x is not served"):
             keeper.settle("p", 2, [{"page": "x"}], lambda r: "x is not served" if "x" in r["frames"] else None)
         self.assertEqual(keeper.current("p"), (2, {"n": 1}), "nothing changed")
-        self.assertEqual(keeper.snapshot("p", "w1")[4], 0, "a write refused is not taken")
+        self.assertEqual(_snapshot(keeper, "p", "w1")[4], 0, "a write refused is not taken")
 
     def test_a_restore_is_kept_whole_at_its_version_only(self):
         keeper = PageKeeper(combine=self.combining([])[0])
@@ -509,7 +525,7 @@ class OpenPage:
         answer = self.engine.answer("GET", "/page.json", f"page={self.page._key}{asked}", None)
         if answer.status != 200:
             raise AssertionError(f"the page was not read: {answer.status} {answer.body!r}")
-        return _json.loads(answer.body)
+        return _json.loads(answer.body.decode("utf-8"))
 
     def applied(self, doc, command):
         return self.applied_as(doc, command)[0]
@@ -846,7 +862,7 @@ class OpenPage:
             return [], kinds
         if answer.status != 200:
             raise AssertionError(f"the write was refused: {answer.status} {answer.body!r}")
-        said = _json.loads(answer.body)
+        said = _json.loads(answer.body.decode("utf-8"))
         self.written = said["version"]
         facts = [f for _, _, made in self.pending for f in made]
         self.pending = []
@@ -1010,7 +1026,7 @@ class Converged(unittest.TestCase):
     def one(self, page, open_pages, intent, where):
         """Python, every open page and the keeper hold one page, which says what every edit written said; the copies
         held are the ones read."""
-        kept = datacube._session.keeper.current(page._key)
+        kept = _kept(datacube._session.keeper, page._key)
         for n, open_page in enumerate(open_pages):
             open_page.follow()
             self.assertEqual(open_page.version, kept[0], f"{where}: open page {n}")
@@ -1076,7 +1092,7 @@ class WriteCost(Converged):
         took["grid"] = time.perf_counter() - start
         if os.environ.get("LEGEND_LITE_WRITE_COST"):
             print(f"one write on a page of 60 grids: {took}")
-        kept = datacube._session.keeper.current(page._key)[1]
+        kept = _kept(datacube._session.keeper, page._key)[1]
         self.assertEqual(kept["sheets"][0].get("name"), "Renamed", "the keeper keeps what the commands made")
         for what, seconds in took.items():
             self.assertLess(seconds, self.BUDGET_SECONDS[what], f"one {what} write took {seconds:.2f}s")
@@ -1234,7 +1250,7 @@ class Converges(Converged):
             tab.close()
         # every kind of edit went through somewhere, on each side: none of them is never tried
         self.assertEqual([k for k, n in made.items() if n == 0], [], f"Python edits made: {made}")
-        there = (
+        kinds_there = (
             "renamePage",
             "addSheet",
             "renameSheet",
@@ -1251,7 +1267,7 @@ class Converges(Converged):
             "undo",
             "redo",
         )
-        self.assertEqual([k for k in there if not made_there.get(k)], [], f"open page edits made: {made_there}")
+        self.assertEqual([k for k in kinds_there if not made_there.get(k)], [], f"open page edits made: {made_there}")
 
 
 class Threads(Converged):
@@ -1291,7 +1307,7 @@ class Threads(Converged):
         self.assertGreaterEqual(sum(1 for w in written if w[1] == 0), 10, "Python wrote")
         self.assertGreaterEqual(sum(1 for w in written if w[1] == 1), 10, "the open page wrote")
         self.assertGreater(open_page.combined, 0, "no write of the open page met one of Python's")
-        kept = datacube._session.keeper.current(page._key)
+        kept = _kept(datacube._session.keeper, page._key)
         self.assertEqual(_json.dumps(page.to_dict()), _json.dumps(kept[1]), "Python holds the keeper's")
         intent = Intent(start)
         for _, _, facts in sorted(written, key=lambda w: (w[0], w[1])):

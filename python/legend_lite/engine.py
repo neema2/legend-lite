@@ -309,7 +309,7 @@ def _lite_rows_json(rows: pa.Table, plan: compiler.Plan, shape: str) -> bytes:
     ).encode("utf-8")
 
 
-def _planned(said: dict[str, str], status: int = 200) -> Answer:
+def _planned(said: dict[str, Any], status: int = 200) -> Answer:
     """A plan-and-run that answered no rows: the planner's own answer, and why its SQL was refused when it was."""
     return Answer(status, "application/json", json.dumps(said).encode("utf-8"))
 
@@ -635,7 +635,7 @@ class Engine:
         self._uploads_lock = threading.Lock()
         # the warehouses signed in to (by address), and the tables opened from them, by the model Python wrote for each
         # (C3): a plan over that model runs on the warehouse, as the signed-in user
-        self._warehouse_sessions: dict[str, warehouse.Session] = {}
+        self._warehouse_sessions: dict[str, warehouse.Warehouse] = {}
         self._warehouse_tables: dict[str, _WarehouseTable] = {}
         # the copies grids snapped (each its own table of the frames' database, served as a page's file is), each with
         # its model, runtime and relation as DataCube's code modelled it as it landed: only these are let go of by a
@@ -1846,6 +1846,7 @@ class Engine:
         Arrow chunks in one transaction, kept only when the stream completed and the copy holds the rows the warehouse
         counted). Until then the whole answer was pulled into memory and landed through a registered table outside any
         plan (census M14-snap)."""
+        assert self._headless is not None
         if asked["runtime"] != table.runtime:
             return _said(422, table.refused_runtime(asked["runtime"]) or "")
         on = _on_planner_threads()

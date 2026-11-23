@@ -52,6 +52,7 @@ from ._planned import Database, connect
 # named here as they always were; frames.py plans, then hands the run its statements
 from ._reads import (
     TYPE_KEY,  # noqa: F401 -- read from this module by others
+    ConnectionSettings,
     Reading,
     UntypedColumn,  # noqa: F401 -- read from this module by others
     begin_read,
@@ -308,7 +309,7 @@ class _File:
     leaf: dict[str, Any] | None
     # a remote file's settings of the connection (a bearer URL's session variable: B3's Q3), each a statement and the
     # values it binds, which every read's cursor runs (a cursor is a connection of its own, a variable one connection's)
-    settings: tuple[tuple[str, tuple[Any, ...]], ...] = ()
+    settings: ConnectionSettings = ()
     # the values those settings bind that the engine holds (a bearer URL: B3's Q3), taken out of a read's failure (M2)
     held_values: tuple[str, ...] = ()
 
@@ -615,7 +616,7 @@ class Frames:
         name: str,
         made: Mapping[str, Any],
         view: bool = False,
-        settings: tuple[tuple[str, tuple[Any, ...]], ...] = (),
+        settings: ConnectionSettings = (),
         held: tuple[str, ...] = (),
     ) -> None:
         """The table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy
@@ -811,11 +812,11 @@ class Frames:
             frames = {
                 t.name: {"model": t.model, "runtime": t.runtime, "accessor": t.accessor} for t in self._tables.values()
             }
-            read = [f for f in self._files.values() if f.leaf is not None]
+            read = [(f, f.leaf) for f in self._files.values() if f.leaf is not None]
         return {
             "frames": frames,
-            "files": {f.leaf["sha256"]: f.hosted() for f in read if "sha256" in f.leaf},
-            "remotes": {f.leaf["url"]: f.hosted() for f in read if "url" in f.leaf},
+            "files": {leaf["sha256"]: f.hosted() for f, leaf in read if "sha256" in leaf},
+            "remotes": {leaf["url"]: f.hosted() for f, leaf in read if "url" in leaf},
         }
 
     def owned(self) -> list[str]:

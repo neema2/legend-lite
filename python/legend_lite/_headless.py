@@ -33,9 +33,9 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Container, Coroutine, Iterator
+from collections.abc import Awaitable, Callable, Container, Coroutine, Iterator
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, cast
 
 from . import _host
 from ._library import Library, library
@@ -216,8 +216,11 @@ class Headless:
         ``reading``: the read of the frames the calling thread is in, if any (``Frames.reading_now``): a call made in one
         queries through it."""
         self._lib = lib or library()
-        self._own_folder = tempfile.TemporaryDirectory(prefix="legend-lite-datacube-") if folder is None else None
-        self._folder = Path(self._own_folder.name if self._own_folder else folder).resolve()
+        self._own_folder: tempfile.TemporaryDirectory[str] | None = None
+        if folder is None:
+            self._own_folder = tempfile.TemporaryDirectory(prefix="legend-lite-datacube-")
+            folder = self._own_folder.name
+        self._folder = Path(folder).resolve()
         self._own_db = connection is None
         self._db: Database = connect() if connection is None else connection
         if self._own_db:
@@ -442,15 +445,20 @@ class Headless:
         # the host's calls first, as a browser's globals are there before a page's scripts: a module may plan as it loads
         calls = self._calls()
         wrapped = [await self._stack.enter_async_context(self._mr.wrap_py_function(f)) for f in calls.values()]
-        define = self._mr.eval(
-            f"(...calls) => {{ const names = {json.dumps(list(calls))};"
-            " globalThis.legendLiteHost = Object.fromEntries(names.map((n, i) => [n, calls[i]])); }"
+        # what eval answers is JavaScript's value as mini-racer hands it over: here a function, a promise and a string
+        define = cast(
+            "Callable[..., Any]",
+            self._mr.eval(
+                f"(...calls) => {{ const names = {json.dumps(list(calls))};"
+                " globalThis.legendLiteHost = Object.fromEntries(names.map((n, i) => [n, calls[i]])); }"
+            ),
         )
         define(*wrapped)
         self._mr.eval(bundle)
         # a bundle whose modules await as they load (a test bundle's fixtures) says when it has: legendLiteReady
-        await self._mr.eval("Promise.resolve(globalThis.legendLiteReady)")
-        check_interface(json.loads(self._mr.eval("JSON.stringify(legendLiteHeadless.REQUEST_KINDS)")), self._lib)
+        await cast("Awaitable[Any]", self._mr.eval("Promise.resolve(globalThis.legendLiteReady)"))
+        kinds = cast("str", self._mr.eval("JSON.stringify(legendLiteHeadless.REQUEST_KINDS)"))
+        check_interface(json.loads(kinds), self._lib)
         self._mr.eval("globalThis.legendLite = legendLiteHeadless.start();")
 
     def _run(self, coroutine: Coroutine[Any, Any, Any], timeout: float | None = None) -> Any:

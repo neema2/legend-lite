@@ -28,7 +28,16 @@ from pathlib import Path
 
 from python.runfiles import runfiles
 
-FILES = runfiles.Create()
+_runfiles = runfiles.Create()
+assert _runfiles is not None, "run under Bazel: its runfiles hold what this reads"
+FILES = _runfiles
+
+
+def runfile(path: str) -> str:
+    found = FILES.Rlocation(path)
+    assert found is not None, f"{path} is not in the runfiles"
+    return found
+
 
 # Each module's names from _planned. 2026-11-12 (C3; the audit's SHOULD-FIX 2): the mints are the compiler's readers
 # (compiler.py), the load runners (projects.py) and execute's plan half (engine.py); the rest take the type, the one
@@ -331,6 +340,7 @@ def census(name: str, source: str) -> dict:
             and (node.module or "").split(".")[0] in _NETWORK_ROOTS
             and node.module != "urllib.parse"
         ):
+            assert node.module is not None  # its root is a network root's name
             network.add(node.module)
         if isinstance(node, ast.Constant) and node.value == "submit":
             submits += 1
@@ -575,7 +585,7 @@ def package_modules(case: unittest.TestCase) -> dict[str, str]:
     """The package's modules, each its text by its path in the package (``engine.py``, ``edge/_pure_v1.py``): its
     subpackages too -- legend_lite.edge reads a plan and runs it (the edge program's H5, 2026-11-18: until then the
     guard looked at the top level alone, and the edge's moved execute would have escaped it)."""
-    package = Path(FILES.Rlocation(os.environ["PLANNED_PACKAGE"])).parent
+    package = Path(runfile(os.environ["PLANNED_PACKAGE"])).parent
     modules = sorted(package.rglob("*.py"))
     case.assertGreater(len(modules), 10, f"{package} holds {len(modules)} modules: the guard is not looking")
     named = {m.relative_to(package).as_posix(): m.read_text(encoding="utf-8") for m in modules}

@@ -131,7 +131,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     """A redirect is not followed: urllib's own would carry the bearer token to wherever it points (another host,
     plain http), which a browser's fetch never does. Answered as the redirect it is, and so refused."""
 
-    def redirect_request(self, *_: Any) -> None:
+    def redirect_request(self, req: Any, fp: Any, code: Any, msg: Any, headers: Any, newurl: Any) -> None:
         return None
 
 

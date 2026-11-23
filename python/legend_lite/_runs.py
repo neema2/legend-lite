@@ -13,7 +13,7 @@ import json
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from ._planned import Database, PlannedSql, PlanText, all_from_plan, from_plan, read_plan, send
 from ._plans import statement_params
@@ -143,8 +143,8 @@ def run_write(plan: PlanText, connection: Any) -> None:
     declare_sites(p, "a plan")
     if p.get("parameters"):
         raise LoadRefused("a plan that takes parameters is not run here: its program binds none")
-    root = p.get("root") or {}
-    steps = root.get("steps") if root.get("_type") == "sequence" else [root]
+    root: dict[str, Any] = p.get("root") or {}
+    steps = cast("list[dict[str, Any]]", root.get("steps")) if root.get("_type") == "sequence" else [root]
     for step in steps:
         if step.get("_type") != "effect" or step.get("script") is not None:
             raise LoadRefused(f"a plan of writes alone is effects of one statement each, not a {step.get('_type')}")
@@ -295,7 +295,9 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
                 f"'{step['plane']}' did not count its answer, so a stream cut short could not be told: "
                 f"nothing of it is kept in {into}"
             )
-        counted = int(send(connection, from_plan(step["count"])).fetchone()[0])
+        row = send(connection, from_plan(step["count"])).fetchone()
+        assert row is not None  # a count answers one row
+        counted = int(row[0])
         if counted != expected:
             raise LoadRefused(
                 f"the stream from '{step['plane']}' landed {counted} rows in {into}, where its plane counted "

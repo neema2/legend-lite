@@ -30,10 +30,19 @@ import ast
 import os
 import unittest
 from pathlib import Path
+from typing import Any
 
 from python.runfiles import runfiles
 
-FILES = runfiles.Create()
+_runfiles = runfiles.Create()
+assert _runfiles is not None, "run under Bazel: its runfiles hold what this reads"
+FILES = _runfiles
+
+
+def runfile(path: str) -> str:
+    found = FILES.Rlocation(path)
+    assert found is not None, f"{path} is not in the runfiles"
+    return found
 
 
 def _modules(variable: str) -> frozenset[str]:
@@ -127,7 +136,7 @@ OPENERS = frozenset({"runs", "in_run", "exempt"})
 
 def package_sources() -> dict[str, str]:
     """Every module of the package by name, as shipped."""
-    package = Path(FILES.Rlocation(os.environ["PLANNED_PACKAGE"])).parent
+    package = Path(runfile(os.environ["PLANNED_PACKAGE"])).parent
     return {p.stem: p.read_text(encoding="utf-8") for p in sorted(package.glob("*.py"))}
 
 
@@ -173,12 +182,12 @@ def unreadable(tree: ast.AST) -> list[str]:
     return out
 
 
-def imported(tree: ast.AST) -> tuple[list[tuple[str, str, str]], dict[str, set[str]], dict[str, str], set[str]]:
+def imported(tree: ast.AST) -> tuple[list[tuple[str, str, str]], dict[str, set[int]], dict[str, str], set[str]]:
     """Every name a module takes from the package's modules, ``(module, name, bound as)``; every star it imports, by
     module (the package's or not); and the names it binds to a package module (``from . import x``, ``import
     legend_lite.x as y``), whose attributes are the module's names."""
     taken: list[tuple[str, str, str]] = []
-    stars: dict[str, set[str]] = {}
+    stars: dict[str, set[int]] = {}
     bound: dict[str, str] = {}
     packages: set[str] = set()
     for node in ast.walk(tree):
@@ -389,12 +398,13 @@ class _Planners:
             before = (len(self.aliases), len(self.answers))
             for node in ast.walk(tree):
                 if isinstance(node, (ast.Assign, ast.AnnAssign)) or type(node).__name__ == "TypeAlias":
+                    made: Any = node  # an Assign, an AnnAssign or a TypeAlias, told by its class's name
                     targets = (
-                        node.targets
-                        if isinstance(node, ast.Assign)
-                        else [node.target if type(node).__name__ != "TypeAlias" else node.name]
+                        made.targets
+                        if isinstance(made, ast.Assign)
+                        else [made.target if type(made).__name__ != "TypeAlias" else made.name]
                     )
-                    value = node.value
+                    value = made.value
                     if value is None:
                         continue
                     names = [t.id for t in targets if isinstance(t, ast.Name)]
@@ -597,6 +607,7 @@ def broken(sources: dict[str, str]) -> list[str]:
                     )
             for node in ast.walk(tree):
                 if (read_off(node, bound, packages) or ("", ""))[1] in RUN_ONLY:
+                    assert isinstance(node, ast.Attribute)  # read_off reads an attribute alone
                     out.append(
                         f"{name}: line {node.lineno}: {ast.unparse(node)}: the one send, a run's opener and a"
                         " sending helper are the run side's alone"

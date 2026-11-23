@@ -6,7 +6,7 @@ import datetime
 import json
 import unittest
 from decimal import Decimal
-from typing import ClassVar
+from typing import ClassVar, cast
 
 import pandas as pd
 import polars as pl
@@ -421,7 +421,7 @@ class TypedByPlan(unittest.TestCase):
     def test_a_column_the_plan_does_not_type_is_refused(self):
         from legend_lite.frames import typed_by_plan
 
-        plan = ll.Plan("SELECT 1 AS a, 2 AS b", (ll.Column("a", "Integer", {}),))
+        plan = ll.Plan(cast(PlannedSql, "SELECT 1 AS a, 2 AS b"), (ll.Column("a", "Integer", {}),))
         with self.assertRaises(RuntimeError) as e:
             typed_by_plan(pa.table({"a": [1], "b": [2]}), plan)
         self.assertIn("does not type the result column 'b'", str(e.exception))
@@ -432,7 +432,7 @@ class TypedByPlan(unittest.TestCase):
         from legend_lite.frames import typed_by_plan
 
         plan = ll.Plan(
-            "SELECT a, b",
+            cast(PlannedSql, "SELECT a, b"),
             (
                 ll.Column("a", "meta::pure::precisePrimitives::Int", {}),
                 ll.Column("b", "meta::pure::precisePrimitives::BigInt", {}),
@@ -446,7 +446,7 @@ class TypedByPlan(unittest.TestCase):
         # never read as a guess: a column of the wrong type converts wrongly without a word (types.ts typeFact)
         from legend_lite.frames import typed_by_plan
 
-        plan = ll.Plan("SELECT a", (ll.Column("a", "my::Side", {}),))
+        plan = ll.Plan(cast(PlannedSql, "SELECT a"), (ll.Column("a", "my::Side", {}),))
         with self.assertRaises(RuntimeError) as e:
             typed_by_plan(pa.table({"a": ["BUY"]}), plan)
         self.assertIn("the compiler typed a column 'my::Side', which legend-lite does not read", str(e.exception))

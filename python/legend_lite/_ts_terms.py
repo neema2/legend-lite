@@ -166,8 +166,8 @@ class Term:
     __ge__ = ge
     __lt__ = lt
     __le__ = le
-    __eq__ = eq  # type: ignore[assignment]
-    __ne__ = ne  # type: ignore[assignment]
+    __eq__ = eq  # ty: ignore[invalid-method-override] -- == is a series of comparisons, as pandas' is
+    __ne__ = ne  # ty: ignore[invalid-method-override] -- != is a series of comparisons, as pandas' is
 
     def __and__(self, other: Any) -> Term:
         return self._method("and", other)

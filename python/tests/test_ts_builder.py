@@ -8,6 +8,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -128,7 +129,8 @@ class Plotted(unittest.TestCase):
 
     def test_a_term_is_written_by_datacubes_builder_and_read_by_core(self):
         page = ll.Page("Markets")
-        days = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]).date
+        index = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"])
+        days = index.date  # ty: ignore[unresolved-attribute] -- pandas' DatetimeIndex has it, its stubs do not
         px = page.grid(
             pd.DataFrame({"symbol": ["SPX"] * 4, "day": days, "close": [100.0, 101.0, 99.5, 102.0]}), name="prices"
         )
@@ -153,7 +155,8 @@ class Plotted(unittest.TestCase):
     def test_a_tiles_python_is_gs_quants_calls_and_run_builds_the_tile_again(self):
         # B4's Show Python (timeseries-code.ts): each series gs-quant's call of it, the program run builds the same tile
         page = ll.Page("Code")
-        days = pd.date_range("2024-01-01", periods=8, freq="D").date
+        index = pd.date_range("2024-01-01", periods=8, freq="D")
+        days = index.date  # ty: ignore[unresolved-attribute] -- pandas' DatetimeIndex has it, its stubs do not
         prices = pd.DataFrame(
             {
                 "symbol": ["S"] * 8 + ["T"] * 8,
@@ -182,7 +185,7 @@ class Plotted(unittest.TestCase):
         self.assertIn("zscores(column('close', 'S'), w=3) > 1", code)
         shown = []
         shim = type("ll", (), {"Page": ll.Page, "show": staticmethod(shown.append)})
-        ran = {"ll": shim, "prices_frame": prices, "print": lambda *a, **k: None}
+        ran: dict[str, Any] = {"ll": shim, "prices_frame": prices, "print": lambda *a, **k: None}
         exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)  # noqa: S102 -- DataCube's program
         made = ran["page"].timeseries_tiles
         cubes = lambda spec: {**spec, "sources": [{**x, "cube": None} for x in spec["sources"]]}

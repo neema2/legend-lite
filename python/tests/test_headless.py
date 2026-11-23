@@ -707,7 +707,7 @@ class Remote(unittest.TestCase):
                     return None
                 return super().send_head()
 
-            def log_message(self, *_):
+            def log_message(self, format, *args):
                 pass
 
         cls.quiet = Quiet
@@ -824,7 +824,9 @@ class Remote(unittest.TestCase):
         for _ in range(2):
             with self.frames.reading() as read:
                 # the test's own question, no plan's: typed by name as a plan's statement (_planned.py)
-                self.assertEqual(read.execute(PlannedSql("SELECT count(*) FROM remote_signed")).fetchone()[0], 3)
+                counted = read.execute(PlannedSql("SELECT count(*) FROM remote_signed")).fetchone()
+                assert counted is not None
+                self.assertEqual(counted[0], 3)
         # a cursor the setting was not replayed on reads nothing
         bare = self.frames.connection._con.cursor()
         try:
@@ -848,7 +850,9 @@ class Remote(unittest.TestCase):
         answer = self.mount(url, "remote_expiring")
         self.assertEqual(answer.status, 200, answer.body[:300])
         with self.frames.reading() as read:
-            self.assertEqual(read.execute(PlannedSql("SELECT count(*) FROM remote_expiring")).fetchone()[0], 3)
+            counted = read.execute(PlannedSql("SELECT count(*) FROM remote_expiring")).fetchone()
+            assert counted is not None
+            self.assertEqual(counted[0], 3)
         # the link no longer answers: the read fails, in DuckDB's words, without the token (the server answers 404 for it:
         # the file left in place, never deleted from under the server's handle)
         self.quiet.gone.add("expiring.parquet")
@@ -965,7 +969,9 @@ class Remote(unittest.TestCase):
             ).status,
             404,
         )
-        self.assertEqual(own.execute("SELECT current_setting('autoinstall_known_extensions')").fetchone()[0], True)
+        setting = own.execute("SELECT current_setting('autoinstall_known_extensions')").fetchone()
+        assert setting is not None
+        self.assertEqual(setting[0], True)
 
     def test_a_remote_view_is_not_let_go_of_as_a_files_table(self):
         self.assertEqual(self.mount(f"{self.base}/desks.csv", "remote_kept").status, 200)
@@ -1791,11 +1797,13 @@ Data m::Rows
 
         def rows(model):
             with databases.using(model) as project:
+                assert project is not None
                 return project.cursor._con.execute("SELECT count(*) FROM P.PARTY").fetchone()[0]
 
         # the edited text's rows, never the text it was; and the text it was still its own
         self.assertEqual((rows(a), rows(b), rows(a)), (1, 2, 1))
         with databases.using(b) as project:
+            assert project is not None
             self.assertEqual(project.held.model, b)
         self.assertEqual(len(databases.names), 2)
         # the names remembered are the latest few texts', each the whole text: one let go is only asked again

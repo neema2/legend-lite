@@ -52,7 +52,8 @@ class Widget(unittest.TestCase):
 
     def cube(self, frame=None, **given):
         cube = DataCube(trades() if frame is None else frame, **given)
-        cube.send = lambda content, buffers=None, cube=cube: self.keep(cube, content, buffers or [])
+        sent = lambda content, buffers=None, cube=cube: self.keep(cube, content, buffers or [])
+        cube.send = sent  # ty: ignore[invalid-assignment] -- the widget's send stood in for: what it sends is kept
         return cube
 
     def keep(self, cube, content, buffers):
@@ -88,8 +89,9 @@ class UnexpectedFailures(Widget):
         def failing(*_args, **_kw):
             raise RuntimeError(f"the call failed: {token}")
 
+        held = lambda: (*original(), token)
         with (
-            mock.patch.object(frames, "held_values", lambda: (*original(), token)),
+            mock.patch.object(frames, "held_values", held),  # ty: ignore[invalid-argument-type] -- a tuple of str
             mock.patch.object(engine, "answer", failing),
         ):
             status, _, _, body = self.call(cube, "POST", "/snap.json", body="{}")
@@ -253,9 +255,11 @@ class InAKernel(Widget):
         super().setUp()
         self.registered = []
         zmqshell = types.ModuleType("ipykernel.zmqshell")
-        zmqshell.ZMQInteractiveShell = type("ZMQInteractiveShell", (), {})
+        shell_class = type("ZMQInteractiveShell", (), {})
+        zmqshell.ZMQInteractiveShell = shell_class  # ty: ignore[unresolved-attribute] -- a stand-in module's name
         self.shell = zmqshell.ZMQInteractiveShell()
-        self.shell.events = types.SimpleNamespace(register=lambda event, f: self.registered.append((event, f)))
+        events = types.SimpleNamespace(register=lambda event, f: self.registered.append((event, f)))
+        self.shell.events = events  # ty: ignore[unresolved-attribute] -- a stand-in shell's events
         self.displayed = []
         for patch in (
             mock.patch.dict(sys.modules, {"ipykernel.zmqshell": zmqshell}),
@@ -412,7 +416,7 @@ class InMarimo(Widget):
         """A marimo session's runtime context, as marimo keeps one: the running cell, the cell lifecycle registry."""
 
         def __init__(self, test):
-            self.cell_id = "cell-1"
+            self.cell_id: str | None = "cell-1"
             self.cell_lifecycle_registry = types.SimpleNamespace(
                 add=lambda item: (item.create(self), test.items.append(item))
             )
@@ -422,11 +426,12 @@ class InMarimo(Widget):
         self.items = []
         self.context = self.Context(self)
         lifecycle = types.ModuleType("marimo._runtime.cell_lifecycle_item")
-        lifecycle.CellLifecycleItem = type("CellLifecycleItem", (), {})
+        item_class = type("CellLifecycleItem", (), {})
+        lifecycle.CellLifecycleItem = item_class  # ty: ignore[unresolved-attribute] -- a stand-in module's name
         context = types.ModuleType("marimo._runtime.context")
-        context.get_context = lambda: self.context
+        context.get_context = lambda: self.context  # ty: ignore[unresolved-attribute] -- a stand-in module's name
         marimo = types.ModuleType("marimo")
-        marimo.running_in_notebook = lambda: True
+        marimo.running_in_notebook = lambda: True  # ty: ignore[unresolved-attribute] -- a stand-in module's name
         self.displayed = []
         notebook._warned.clear()
         for patch in (
@@ -547,9 +552,11 @@ class InMarimo(Widget):
             resume.set()
             a.join(10)
         self.assertIsNot(mine, gone)
+        assert mine.context is not None
         self.assertIs(mine.context(), self.context)
         self.assertIs(datacube._marimo_sessions[key], mine, "the new session stays under the id")
         self.assertEqual(gone.frames._tables, {}, "the gone session let go")
+        assert mine.finalizer is not None
         self.assertTrue(mine.finalizer.alive)
 
     def test_at_exit_every_marimo_session_is_let_go(self):
@@ -561,6 +568,7 @@ class InMarimo(Widget):
         datacube._let_go_at_exit()
         self.assertTrue(cube._closed)
         self.assertNotIn(id(self.context), datacube._marimo_sessions)
+        assert session.finalizer is not None
         self.assertFalse(
             session.finalizer.alive, "its finalizer called once: finalize's own exit pass calls it no more"
         )

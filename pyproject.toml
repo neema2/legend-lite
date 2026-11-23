@@ -74,3 +74,20 @@ known-first-party = ["legend_lite", "legend_lite_engine"]
 # TY, the type checker (bazel build --config=typecheck //python/...)
 [tool.ty.environment]
 python-version = "3.12"
+
+# OPTIONAL WHERE THEY ARE IMPORTED: ty reads each Bazel target with its own dependencies alone, and these are imported
+# inside a function by a layer that does not depend on them -- an extra's package (pandas, duckdb, marimo), the engine's
+# wheel, or the package's own upper modules, which the compiler's bindings (//python:compiler) load on first use. Where
+# a target does depend on one, ty resolves and checks it as any other.
+[tool.ty.analysis]
+allowed-unresolved-imports = [
+    "duckdb",
+    "legend_lite.datacube",
+    "legend_lite.engine",
+    "legend_lite.frames",
+    "legend_lite.notebook",
+    "legend_lite.page",
+    "legend_lite_engine",
+    "marimo.**",
+    "pandas",
+]

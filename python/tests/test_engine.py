@@ -238,7 +238,9 @@ class ProjectQueries(Served):
         for sql in [*p["open"], *p["use"]]:
             con.execute(sql)
         projects.run_load(load, con.execute)
-        self.assertEqual(con.execute("SELECT count(*) FROM PARTY.PARTY").fetchone()[0], 2)
+        counted = con.execute("SELECT count(*) FROM PARTY.PARTY").fetchone()
+        assert counted is not None
+        self.assertEqual(counted[0], 2)
         tampered = json.loads(load)
         digest = next(iter(tampered["root"]["content"]))
         tampered["root"]["content"][digest] = tampered["root"]["content"][digest].replace("Meridian", "Kestrel")
@@ -328,7 +330,12 @@ class ProjectQueries(Served):
             )
 
         con = duckdb.connect()
-        exists = lambda t: con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name = ?", [t]).fetchone()[0]
+
+        def exists(t):
+            counted = con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name = ?", [t]).fetchone()
+            assert counted is not None
+            return counted[0]
+
         step = json.loads(plan("snap"))["root"]["steps"][0]
         self.assertEqual(
             sorted(step),
@@ -681,7 +688,7 @@ class HostRoutesConformance(unittest.TestCase):
                     self.assertEqual(json.loads(said.body)["kind"], case["refusal"]["kind"])
                 else:
                     self.assertEqual(said.status, 200, said.body[:300])
-                    self.assertEqual(_json.loads(said.body), case["answer"])
+                    self.assertEqual(_json.loads(said.body.decode("utf-8")), case["answer"])
 
 
 class PlanAndRunRoutes(Served):
@@ -977,7 +984,7 @@ class TheEdgeSeam(unittest.TestCase):
     def test_none_is_no_edge_routes(self):
         for wrong in (None, object(), "edge"):
             with self.assertRaisesRegex(TypeError, "an engine's edge routes answer what its own routes do not"):
-                Engine(ll.Frames(), edge=wrong)
+                Engine(ll.Frames(), edge=wrong)  # ty: ignore[invalid-argument-type] -- the wrong type, refused
 
 
 class TheProductsStore(unittest.TestCase):
@@ -1524,6 +1531,7 @@ class AppsServed(unittest.TestCase):
             for app, open_app in (("query", ll.query), ("studio", ll.studio)):
                 url = open_app(browser=False)
                 web = datacube._session._web
+                assert web is not None
                 self.assertEqual(url, f"{web.url}/{app}/demo/index.html?token={web.token}")
             # a cube shown and closed leaves the web server to the apps' tabs, which say nothing when they close
             cube = ll.show(pd.DataFrame({"x": [1]}), browser=False, inline=False)
@@ -2140,6 +2148,7 @@ class WarehouseOnPython(unittest.TestCase):
     def test_a_copy_that_fails_leaves_nothing(self):
         m = self.opened()
         made = self.engine._headless
+        assert made is not None
 
         class Refusing:
             def __init__(self, inner):

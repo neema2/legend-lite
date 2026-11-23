@@ -165,7 +165,9 @@ web.close()
 
 def wheel_tag(wheel: zipfile.ZipFile) -> str:
     info = next(n for n in wheel.namelist() if n.endswith(".dist-info/WHEEL"))
-    return re.search(r"^Tag: (.+)$", wheel.read(info).decode(), re.MULTILINE).group(1)
+    tag = re.search(r"^Tag: (.+)$", wheel.read(info).decode(), re.MULTILINE)
+    assert tag is not None
+    return tag.group(1)
 
 
 def macos_minimum(data: bytes) -> tuple[int, int]:
@@ -454,7 +456,7 @@ class Installed(unittest.TestCase):
         import iceberg_table
 
         class Quiet(http.server.SimpleHTTPRequestHandler):
-            def log_message(self, *_):
+            def log_message(self, format, *args):
                 pass
 
         (root / "served").mkdir()

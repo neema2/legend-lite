@@ -18,7 +18,9 @@ import os
 
 from python.runfiles import runfiles
 
-files = runfiles.Create()
+_runfiles = runfiles.Create()
+assert _runfiles is not None, "run under Bazel: its runfiles hold what this reads"
+files = _runfiles
 # the library, the site, DataCube's headless bundle and DuckDB's extensions, each by its runfiles path (BUILD.bazel)
 _GIVEN = ("LEGEND_LITE_LIBRARY", "LEGEND_LITE_SITE", "LEGEND_LITE_DATACUBE", "LEGEND_LITE_DUCKDB_EXTENSIONS")
 for name in _GIVEN:

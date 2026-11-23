@@ -134,7 +134,7 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     redacted.args = (out,)
     if site is not None:
         # the raise's site, kept (_raised.worded; stage B's B1, 2026-11-20): a number, no value of the engine's
-        redacted.raise_site = site
+        redacted.raise_site = site  # ty: ignore[unresolved-attribute] -- an attribute of the copy's own, read by getattr
     return redacted
 
 
@@ -323,7 +323,17 @@ def run_rows_json(target: Database, sql: PlannedSql, held: Iterable[str], params
 def count_of(target: Database, plan: Plan, held: Iterable[str]) -> int:
     """A counting plan's number (its one row's one column), run on ``target`` with its own values bound, a failure's
     words with every value in ``held`` taken out (the C5 follow-up's audit item 1)."""
-    return fetched_redacted(target, plan.sql, held, list(plan.params), lambda result: int(result.fetchone()[0]))
+
+    def counted(result: Result) -> int:
+        row = result.fetchone()
+        assert row is not None  # a count answers one row
+        return int(row[0])
+
+    return fetched_redacted(target, plan.sql, held, list(plan.params), counted)
+
+
+# a remote file's settings of a connection, as begin_read runs them: each a statement and the values it binds
+type ConnectionSettings = tuple[tuple[PlannedSql, tuple[Any, ...]], ...]
 
 
 @runs("a read begun")

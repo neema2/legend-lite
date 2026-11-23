@@ -248,7 +248,7 @@ def read_plan_data(plan: dict[str, Any]) -> Plan:
     (``_raised.declare_sites``). A plan whose root is not one statement's typed result is refused by name."""
     root = plan.get("root") if isinstance(plan, dict) else None
     statement = root.get("sql") if isinstance(root, dict) else None
-    if not (isinstance(statement, dict) and isinstance(root.get("columns"), list)):
+    if not (isinstance(root, dict) and isinstance(statement, dict) and isinstance(root.get("columns"), list)):
         raise PlanParamsRefused(
             f"a query's plan runs here as one statement's typed result, not a "
             f"{root.get('_type') if isinstance(root, dict) else root!r}"

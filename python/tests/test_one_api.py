@@ -64,6 +64,13 @@ CEILINGS = {
 }
 
 
+def _kept(page):
+    """The version and the document the session's keeper keeps of ``page``: there is one."""
+    kept = datacube._session.keeper.current(page._key)
+    assert kept is not None
+    return kept
+
+
 def trades():
     return pd.DataFrame(
         {"region": ["EMEA", "AMER", "EMEA"], "desk": ["FX", "Rates", "Rates"], "notional": [100.0, 200.0, 300.0]}
@@ -381,7 +388,7 @@ class Session(unittest.TestCase):
     def written(self, engine, page, write, version=None):
         """An open page's write, as the tab sends it -- ``{edits, writer, seq}``: what it holds, with the write's id
         (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md) -- at the version the keeper has now, unless given."""
-        version = datacube._session.keeper.current(page._key)[0] if version is None else version
+        version = _kept(page)[0] if version is None else version
         self._seq = getattr(self, "_seq", 0) + 1
         return engine._page_said(
             f"page={page._key}&version={version}", json.dumps({**write, "writer": "tab-1", "seq": self._seq})
@@ -396,7 +403,7 @@ class HostApplies(Session):
         page, engine = self.served("applied")
         said = self.written(engine, page, {"edits": [{"page": {"kind": "renamePage", "name": "said"}}]})
         self.assertEqual(said[0], 200, said)
-        self.assertEqual(datacube._session.keeper.current(page._key)[1]["name"], "said")
+        self.assertEqual(_kept(page)[1]["name"], "said")
         self.assertEqual(page.name, "said")
         # a page sent with its edits is no write the host takes
         sent = self.written(engine, page, {"page": {**page.to_dict(), "name": "sent"}, "edits": []})
@@ -431,7 +438,7 @@ class HostApplies(Session):
         # of them, and a class its model home holds (headless host-tables.ts onHost): one over a class it cannot read is
         # refused as the write adds it, in DataCube's words, and nothing is kept
         page, engine = self.served("holds")
-        at = datacube._session.keeper.current(page._key)[0]
+        at = _kept(page)[0]
         cube = copy.deepcopy(page.to_dict()["cubes"][0]["cube"])
         cube["source"] = {
             "_type": "class",
@@ -467,7 +474,7 @@ class HostApplies(Session):
             "Trade is a class of datacube:trades, which this host's model home cannot read at revision 3",
             said.body.decode("utf-8"),
         )
-        self.assertEqual(datacube._session.keeper.current(page._key)[0], at, "nothing kept")
+        self.assertEqual(_kept(page)[0], at, "nothing kept")
 
     def test_both_editors_writes_are_admitted_by_one_rule(self):
         # (the S7 audit's Y-10) a page reading a frame this host no longer serves: a tab's write refused -- and Python's
@@ -479,7 +486,7 @@ class HostApplies(Session):
         self.assertIn("which this engine does not serve", said.body.decode("utf-8"))
         with self.assertRaisesRegex(ValueError, "the page reads the frames t, which this engine does not serve"):
             page.name = "by Python"
-        self.assertNotIn(datacube._session.keeper.current(page._key)[1]["name"], ("by the tab", "by Python"))
+        self.assertNotIn(_kept(page)[1]["name"], ("by the tab", "by Python"))
 
     def test_a_failure_of_the_librarys_is_said_as_one_never_as_a_refusal(self):
         # a write the keeper failed on -- a bug, not a refusal -- is a 500 that names it: never "no such page" (a KeyError)
@@ -527,7 +534,7 @@ class OneRule(Session):
         other.grid(trades(), name="u")
         first = other.save()
         self.assertEqual(other.to_dict()["record"], first)
-        self.assertEqual(datacube._session.keeper.current(other._key)[1]["record"], first)
+        self.assertEqual(_kept(other)[1]["record"], first)
         self.assertEqual(other.save(), first)
 
     def test_b8_a_detached_chart_has_no_grid_to_follow_in_python_as_on_the_screen(self):

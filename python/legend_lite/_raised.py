@@ -144,7 +144,7 @@ def sentence(site: dict[str, Any]) -> str:
     takes the operands, each operand printed as the form's slot says, a value the database computed ``<computed>`` --
     what Java's runner says (result.RaiseWords). A kind or a count of operands no form says is refused by name."""
     kind = site["kind"]
-    forms = RAISE_FORMS.get(kind)
+    forms: list[dict[str, Any]] | None = RAISE_FORMS.get(kind)
     if forms is None:
         raise ValueError(f"a raise of kind {kind}, which this host has no sentence for")
     ops = site.get("operands") or []
@@ -272,5 +272,5 @@ def worded(failure: BaseException, statement: str) -> BaseException | None:
     # the site it raised, kept for legend-engine's door, which words it its own way (engine_words; stage B's B1)
     site = raised_site(str(failure))
     if site is not None:
-        out.raise_site = site
+        out.raise_site = site  # ty: ignore[unresolved-attribute] -- an attribute of the copy's own, read by getattr
     return out

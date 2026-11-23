@@ -118,7 +118,7 @@ class OneSendTest(unittest.TestCase):
         for way in ("execute", "sql", "query", "cursor", "from_arrow"):
             self.assertFalse(hasattr(result, way), f"a statement's answer offers {way}")
         with self.assertRaises(NotPlanned) as refused:
-            send(duckdb.connect(), from_plan("SELECT 1"))
+            send(duckdb.connect(), from_plan("SELECT 1"))  # ty: ignore[invalid-argument-type] -- no Database, refused
         self.assertIn("runs on the host's Database", str(refused.exception))
         with self.assertRaises(NotPlanned):
             db.import_stream(None, None, "t; DROP TABLE x")
@@ -134,7 +134,13 @@ class OneSendTest(unittest.TestCase):
     def test_a_reads_send_refuses_text_no_plan_carries(self):
         con = _Recording()
         with self.assertRaises(NotPlanned):
-            fetched_redacted(Database(con), "SELECT 1", (), (), lambda result: result)
+            fetched_redacted(
+                Database(con),
+                "SELECT 1",  # ty: ignore[invalid-argument-type] -- text no plan carries, refused
+                (),
+                (),
+                lambda result: result,
+            )
         self.assertEqual(con.sent, [])
 
     def test_a_loads_steps_are_the_plans(self):
@@ -163,7 +169,7 @@ class OneSendTest(unittest.TestCase):
     def test_the_warehouse_is_sent_only_a_plans_statement(self):
         engine = warehouse.Warehouse.__new__(warehouse.Warehouse)  # no session: nothing may be called on it
         with self.assertRaises(NotPlanned) as refused:
-            next(engine.arrow_chunks("SELECT 1"))
+            next(engine.arrow_chunks("SELECT 1"))  # ty: ignore[invalid-argument-type] -- text no plan carries, refused
         self.assertIn("the warehouse", str(refused.exception))
 
     def test_the_warehouse_is_sent_a_plans_statement_only_inside_a_run(self):
@@ -184,7 +190,7 @@ class TheReAuditsSendTest(unittest.TestCase):
     def test_the_databases_own_send_requires_a_plans_statement(self):
         recording = _Recording()
         with self.assertRaises(NotPlanned):
-            Database(recording)._send_planned("DROP TABLE t", None)
+            Database(recording)._send_planned("DROP TABLE t", None)  # ty: ignore[invalid-argument-type] -- str, refused
         self.assertEqual(recording.sent, [], "nothing reached the database")
 
     def test_a_string_claiming_to_be_planned_is_not(self):
@@ -218,9 +224,9 @@ class APlanThePlannerAnsweredTest(unittest.TestCase):
         for plan in (written, json.dumps(written)):
             sent = []
             with self.assertRaisesRegex(NotPlanned, "not a plan the planner answered"):
-                projects.run_load(plan, sent.append)
+                projects.run_load(plan, sent.append)  # ty: ignore[invalid-argument-type] -- a host's own plan, refused
             with self.assertRaisesRegex(NotPlanned, "not a plan the planner answered"):
-                projects.run_host_load(plan, Database(_Recording()))
+                projects.run_host_load(plan, Database(_Recording()))  # ty: ignore[invalid-argument-type] -- not planned
             self.assertEqual(sent, [])
 
     def test_the_compiler_answers_plan_text(self):
@@ -298,6 +304,7 @@ class WitnessTest(unittest.TestCase):
 
         class Plane:
             def arrow_chunks(self, sql, on_receipt=None, params=()):
+                assert on_receipt is not None
                 on_receipt({"statementId": "s1", "serverRows": 3, "as": "rita", "where": "a stand-in"})
                 yield sink.getvalue().to_pybytes()
 
@@ -919,6 +926,7 @@ class C5SplitTest(unittest.TestCase):
 
         class Plane:
             def arrow_chunks(self, sql, on_receipt=None, params=()):
+                assert on_receipt is not None
                 on_receipt({"statementId": "s1", "serverRows": 9, "as": "rita", "where": "a stand-in"})
                 for _ in range(3):
                     pulls.append((current_run(), threading.current_thread() is threading.main_thread()))
@@ -950,7 +958,7 @@ class C5SplitTest(unittest.TestCase):
             def arrow_chunks(self, sql, on_receipt=None, params=()):
                 self.sql = sql
                 seen.append(current_run())
-                seen.append(warehouse._on_library(current_run))
+                seen.append(warehouse._on_library(current_run))  # ty: ignore[invalid-argument-type] -- a run's name
                 said = warehouse._on_library(lambda: _services.call("lite_warehouse_call", "submit", "{}"))
                 seen.append(said.split("\n", 1)[0])
                 if on_receipt is not None:
@@ -1331,7 +1339,10 @@ class TheBridgeTest(unittest.TestCase):
                 "replacing",
             ),
         ):
-            self.assertIn(f"takes no SQL, and its {key} is SQL", answered.refusal(ops(op)))
+            refused = answered.refusal(ops(op))
+            self.assertIsNotNone(refused)
+            assert refused is not None
+            self.assertIn(f"takes no SQL, and its {key} is SQL", refused)
         self.assertIsNone(answered.refusal(ops({"op": "count", "from": {"relation": {"name": "t"}}})))
         self.assertIsNone(
             answered.refusal({"kind": "queryPlan", "request": "anything"}), "another kind carries no host text"
@@ -1383,6 +1394,7 @@ class TheBridgeTest(unittest.TestCase):
         ]
         self.assertEqual(len(keys), 2, keys)
         written = _keyed_text(body["statement"], tuple(body["regions"]), len(keys))
+        assert written is not None
         params = []
         for r in body["regions"]:
             for key in keys:
@@ -1397,9 +1409,11 @@ class TheBridgeTest(unittest.TestCase):
         # each year's total per city, the cities in the order the keys were read
         totals = {2000: {"NYC": 5, "LDN": 3}, 2011: {"NYC": 2}}
         self.assertEqual(sorted(rows), [(yr, *[totals[yr].get(key[0]) for key in keys]) for yr in (2000, 2011)])
+        again = _keyed_text(body["statement"], tuple(body["regions"]), len(keys))
+        assert again is not None
         for wrong in (
             written + " ",
-            _keyed_text(body["statement"], tuple(body["regions"]), len(keys)).replace("SELECT", "SELECT 1,", 1),
+            again.replace("SELECT", "SELECT 1,", 1),
         ):
             with self.assertRaises(NotPlanned):
                 across_the_bridge(wrong, "the hosted DataCube's query", answered)
@@ -1445,6 +1459,7 @@ class ARaiseIsWorded(unittest.TestCase):
         # the run words a raise in lite's sentence and keeps its site: the door words that site its own way
         declare_statement_sites("SELECT 7 / 0", [{"n": 1, "kind": "DIVIDE_BY_ZERO", "operands": []}], "a plan")
         lite = worded(token, "SELECT 7 / 0")
+        assert lite is not None
         self.assertNotIn("LG#", str(lite))
         self.assertEqual(engine_words(lite, words), "Cannot divide <computed> by zero")
         self.assertIsNone(engine_words(RuntimeError("Binder Error: no such column"), words), "a database's own error")

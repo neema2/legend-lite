@@ -4023,15 +4023,16 @@ class Page:
             if file is not None:
                 read, fresh = engine.read_file_once(file, name if name is not None else Path(file).name)
             else:
+                assert remote is not None
                 read, fresh = engine.mount_remote_once(remote)
         elif frame is not None and name is not None and name in session.frames:
-            table = session.frames[name]
-            if table.given is not frame:
+            serving = session.frames[name]
+            if serving.given is not frame:
                 raise ValueError(
                     f"{name!r} serves another frame already: grid.update(frame) replaces a frame, every grid "
                     f"over it showing the new one; or give this grid a name of its own"
                 )
-            served = table.name
+            served = serving.name
         elif frame is not None:
             served, new = session.register(frame, name), True
         # the page as it was, to go back to when the grid is refused
@@ -4074,13 +4075,13 @@ class Page:
                 with self._batch(tell=False):
                     applied = self._apply_page([_plain(made["command"])], "a title")
             else:
-                cube = (
-                    self._source_cube(given, len(self._doc["cubes"]) + 1)
-                    if given is not None
-                    else self._frame_cube(served, len(self._doc["cubes"]) + 1)[0]
-                    if read is None
-                    else self._leaf_cube(read, len(self._doc["cubes"]) + 1)
-                )
+                if given is not None:
+                    cube = self._source_cube(given, len(self._doc["cubes"]) + 1)
+                elif read is None:
+                    assert served is not None  # over a frame, and no other: served above
+                    cube = self._frame_cube(served, len(self._doc["cubes"]) + 1)[0]
+                else:
+                    cube = self._leaf_cube(read, len(self._doc["cubes"]) + 1)
                 # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band
                 # at the bottom, told nothing yet
                 with self._batch(tell=False):
@@ -4131,7 +4132,7 @@ class Page:
             self._unserved = was[4]
             if id is not None:
                 self._forget({id})
-            if new:
+            if new and served is not None:
                 session.unregister(served)
             if fresh and read is not None:
                 session.engine().forget_read(read)

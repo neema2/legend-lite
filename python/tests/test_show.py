@@ -162,7 +162,8 @@ class Notebook(Shown):
             events=types.SimpleNamespace(register=lambda event, f: registered.append((event, f)))
         )
         was = sys.modules.get("IPython")
-        sys.modules["IPython"] = types.SimpleNamespace(get_ipython=lambda: shell)
+        stand_in = types.SimpleNamespace(get_ipython=lambda: shell)
+        sys.modules["IPython"] = stand_in  # ty: ignore[invalid-assignment] -- IPython stood in for
         try:
             ll.show(trades(), browser=False)
             # a stream, read once into a table of its own: nothing of it changes after a cell
@@ -235,7 +236,9 @@ class PlainScript(unittest.TestCase):
             **console,
         )
         lines = queue.Queue()
-        threading.Thread(target=lambda: [lines.put(line) for line in process.stdout], daemon=True).start()
+        said = process.stdout
+        assert said is not None
+        threading.Thread(target=lambda: [lines.put(line) for line in said], daemon=True).start()
         self.addCleanup(lambda: process.poll() is None and process.kill())
         return process, lines
 

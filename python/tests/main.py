@@ -9,7 +9,9 @@ from pathlib import Path
 
 from python.runfiles import runfiles
 
-files = runfiles.Create()
+_runfiles = runfiles.Create()
+assert _runfiles is not None, "run under Bazel: its runfiles hold what this reads"
+files = _runfiles
 for name in (
     "LEGEND_LITE_LIBRARY",
     "LEGEND_LITE_CORPUS_MODEL",
@@ -44,10 +46,12 @@ for name in (
     # one path, or several separated by spaces ($(rlocationpaths ...)), handed on as os.pathsep separates them (a
     # resolved path may hold a space); the site and DuckDB's extension folder are directories, every other a file
     is_there = Path.is_dir if name in ("LEGEND_LITE_SITE", "LEGEND_LITE_DUCKDB_EXTENSIONS") else Path.is_file
-    paths = [files.Rlocation(p) for p in os.environ[name].split()]
-    for given, path in zip(os.environ[name].split(), paths):
+    paths = []
+    for given in os.environ[name].split():
+        path = files.Rlocation(given)
         if not path or not is_there(Path(path)):
             sys.exit(f"{name}: {given} is not in the runfiles")
+        paths.append(path)
     os.environ[name] = os.pathsep.join(paths)
 
 # this user's legend-lite folder (the pages DataCube saves) a folder of the test's own, never a person's: a test that

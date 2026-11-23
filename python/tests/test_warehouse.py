@@ -48,7 +48,13 @@ class Replay:
         answer = e["answer"]
         body = base64.b64decode(answer["bodyBase64"]) if "bodyBase64" in answer else answer["body"].encode("utf-8")
         if answer["status"] >= 400:
-            raise urllib.error.HTTPError(request.full_url, answer["status"], "refused", {}, io.BytesIO(body))
+            raise urllib.error.HTTPError(
+                request.full_url,
+                answer["status"],
+                "refused",
+                {},  # ty: ignore[invalid-argument-type] -- no headers, a dict standing in for a Message
+                io.BytesIO(body),
+            )
         reply = mock.MagicMock()
         reply.__enter__.return_value = reply
         reply.status, reply.read.return_value = answer["status"], body
@@ -83,7 +89,7 @@ def act(scenario: dict) -> dict:
             with in_run("a test's run"):
                 read = engine().arrow_chunks(PlannedSql(a["sql"]))
                 first = next(read)
-                read.close()
+                read.close()  # ty: ignore[unresolved-attribute] -- a generator, declared as an Iterator
             return {"chunks": [base64.b64encode(first).decode()]}
         if a["kind"] == "refreshThenCheck":
             # the new token is what the next call carries: the replay holds that call to the recorded one
@@ -104,6 +110,7 @@ class TheCorpus(unittest.TestCase):
     """Every scenario: exactly its calls, and its outcome."""
 
     def test_every_scenario(self):
+        assert CORPUS is not None
         with open(CORPUS, encoding="utf-8") as f:
             scenarios = json.load(f)["scenarios"]
         self.assertGreaterEqual(len(scenarios), 13)
@@ -202,7 +209,7 @@ class Addresses(unittest.TestCase):
                 self.send_response(200)
                 self.end_headers()
 
-            def log_message(self, *_):
+            def log_message(self, format, *args):
                 pass
 
         elsewhere = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Elsewhere)
@@ -214,7 +221,7 @@ class Addresses(unittest.TestCase):
                 self.send_header("Location", target)
                 self.end_headers()
 
-            def log_message(self, *_):
+            def log_message(self, format, *args):
                 pass
 
         here = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Redirecting)

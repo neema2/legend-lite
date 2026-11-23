@@ -21,7 +21,7 @@ import urllib.request
 import warnings
 from decimal import Decimal
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 from unittest import mock
 
 import pandas as pd
@@ -53,6 +53,12 @@ def trades():
 
 def desks():
     return pd.DataFrame({"desk": ["FX", "Rates"], "head": ["Ana", "Ben"]})
+
+
+def dates_of(index: pd.DatetimeIndex) -> Any:
+    """``index.date``, each timestamp's date: pandas adds the attribute to a DatetimeIndex as the class is made
+    (``inherit_names``), where a type checker does not see it."""
+    return cast("Any", index).date
 
 
 def numbers(tree):
@@ -107,11 +113,17 @@ class Paged(unittest.TestCase):
             written.append((settled.version, copy.deepcopy(edits)))
             return settled
 
-        keeper.settle = settling
-        return lambda at: {
-            "version": keeper.current(page._key)[0],
-            "commands": [e for version, edits in written if version > at for e in edits],
-        }
+        keeper.settle = settling  # ty: ignore[invalid-assignment] -- the test wraps the keeper's settle to record its writes
+
+        def since(at):
+            current = keeper.current(page._key)
+            assert current is not None
+            return {
+                "version": current[0],
+                "commands": [e for version, edits in written if version > at for e in edits],
+            }
+
+        return since
 
     def built(self):
         page = ll.Page("Q3 review")
@@ -889,7 +901,7 @@ class Document(Paged):
             {
                 "desk": ["FX", "FX", "Rates"],
                 "region": ["EMEA", "AMER", "EMEA"],
-                "day": pd.to_datetime(["2024-01-02", "2024-03-04", "2024-02-01"]).date,
+                "day": dates_of(pd.to_datetime(["2024-01-02", "2024-03-04", "2024-02-01"])),
                 "pnl": [1.5, 2.0, 0.5],
             }
         )
@@ -1032,7 +1044,7 @@ class Document(Paged):
         # axis, each a #TS expression in gs-quant's vocabulary read by core, by the commands its viewer sends
         # (addTimeseries, setTimeseries); each grid's date and instrument columns DataCube's to choose
         page = ll.Page("Markets")
-        days = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]).date
+        days = dates_of(pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]))
         prices = pd.DataFrame({"symbol": ["SPX"] * 4, "day": days, "close": [100.0, 101.0, 99.5, 102.0]})
         yields = pd.DataFrame({"tenor": ["10Y"] * 4, "obs_date": days, "yield": [4.0, 4.1, 3.9, 4.2]})
         px = page.grid(prices, name="prices")
@@ -1122,7 +1134,7 @@ class Document(Paged):
         # the expert tables (2026-10-26): the screen's statistics panel's Summary, Risk, Drawdowns and Correlations tabs,
         # each the same query (headless timeseriesQuery's table), held here to pandas' own figures
         page = ll.Page("Tables")
-        days = pd.date_range("2024-01-01", periods=12, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=12, freq="D"))
         s = [100.0, 102.0, 101.0, 104.0, 99.0, 97.0, 103.0, 106.0, 105.0, 108.0, 104.0, 110.0]
         t = [50.0, 50.5, 51.0, 50.0, 49.0, 49.5, 51.5, 52.0, 51.0, 53.0, 52.5, 54.0]
         prices = pd.DataFrame({"symbol": ["S"] * 12 + ["T"] * 12, "day": list(days) * 2, "close": s + t})
@@ -1172,7 +1184,7 @@ class Document(Paged):
         # the next phases' 1 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): a tile's align, Python's
         # options(align=...) as the viewer's Settings sets it, and one of gs-quant's remaining functions, each the database's
         page = ll.Page("Calendars")
-        days = pd.date_range("2024-01-01", periods=6, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=6, freq="D"))
         daily = pd.DataFrame(
             {"symbol": ["S"] * 6, "day": list(days), "close": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]}
         )
@@ -1193,7 +1205,7 @@ class Document(Paged):
         # window and Data tab -- swap() by the tile's one rule, query() the compiler's print and the plan's SQL (nothing
         # run), table() every series' frame side by side by date
         page = ll.Page("Swap")
-        days = pd.date_range("2024-01-01", periods=4, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=4, freq="D"))
         prices = pd.DataFrame(
             {
                 "symbol": ["S"] * 4 + ["T"] * 4,
@@ -1263,7 +1275,7 @@ class Document(Paged):
         import numpy as np
 
         page = ll.Page("Views")
-        months = pd.date_range("2022-01-31", periods=30, freq="ME").date
+        months = dates_of(pd.date_range("2022-01-31", periods=30, freq="ME"))
         s = [100.0 + 3 * i + (5.0 if i % 12 == 6 else 0.0) for i in range(30)]
         t = [50.0 + 1.5 * i + (i % 3) for i in range(30)]
         px = page.grid(
@@ -1309,7 +1321,7 @@ class Document(Paged):
         self.assertTrue(pd.isna(cal.loc[2022, "Jan"]) and pd.isna(cal.loc[2022, "Year"]), "no level before the first")
         self.assertTrue(pd.isna(cal.loc[2024, "Dec"]), "a month it has not")
         # a curve across a split's tenors, in the screen's order (3M before 2Y), as of the latest and a month back
-        days = pd.date_range("2024-01-01", periods=70, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=70, freq="D"))
         tenors = {"2Y": 4.0, "10Y": 4.5, "3M": 5.0}
         rates = page.grid(
             pd.DataFrame(
@@ -1346,7 +1358,7 @@ class Document(Paged):
         from legend_lite.compiler import LegendError
 
         page = ll.Page("Refused")
-        days = pd.date_range("2024-01-01", periods=6, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=6, freq="D"))
         prices = pd.DataFrame(
             {"symbol": ["S"] * 6, "day": list(days), "close": [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]}
         )
@@ -1371,7 +1383,7 @@ class Document(Paged):
         # window's every question, by its one rule (headless timeseriesAsks: timeseries-query.ts tileAsks), each written
         # by the screen's own function (askQuery) and planned, nothing run
         page = ll.Page("Queries")
-        days = pd.date_range("2024-01-01", periods=6, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=6, freq="D"))
         prices = pd.DataFrame(
             {"symbol": ["S"] * 6, "day": list(days), "close": [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]}
         )
@@ -1414,7 +1426,7 @@ class Document(Paged):
         # Phase 5's shade from a column (FRED's recession bars): a condition series of it, by the tile's one rule
         # (timeseries-edit.ts shade), its periods the database's -- 1 where the column is not 0
         page = ll.Page("Shade")
-        days = pd.date_range("2024-01-01", periods=6, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=6, freq="D"))
         prices = pd.DataFrame(
             {
                 "symbol": ["S"] * 6,
@@ -1439,7 +1451,7 @@ class Document(Paged):
         import numpy as np
 
         page = ll.Page("Projection")
-        days = pd.date_range("2024-01-01", periods=8, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=8, freq="D"))
         close = [100.0, 101.0, 99.0, 103.0, 104.0, 102.0, 106.0, 107.5]
         prices = pd.DataFrame({"symbol": ["S"] * 8, "day": list(days), "close": close})
         tile = page.timeseries({"px": page.grid(prices, name="prices")}, ["close['S']"])
@@ -1454,7 +1466,7 @@ class Document(Paged):
             ["name", "series", "start", "start_value", "last", "last_value", "end", "end_value", "slope", "n"],
         )
         r = got.iloc[0]
-        x = np.array([pd.Timestamp(d).toordinal() for d in days[-5:]], dtype=float)
+        x = np.array([cast("pd.Timestamp", pd.Timestamp(d)).toordinal() for d in days[-5:]], dtype=float)
         slope, intercept = np.polyfit(x, np.array(close[-5:]), 1)
         self.assertEqual((r["name"], r["series"], int(r["n"])), ("Trend", "A", 5))
         self.assertEqual(
@@ -1480,7 +1492,7 @@ class Document(Paged):
         # Phase 5's drawings (the screen's Draw): a line from a point to a point, a note pinned at one -- annotations of
         # the tile's one rule, read by its one reader (timeseries-spec.ts tsProblem), refused in its words
         page = ll.Page("Drawings")
-        days = pd.date_range("2024-01-01", periods=6, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=6, freq="D"))
         prices = pd.DataFrame(
             {"symbol": ["S"] * 6, "day": list(days), "close": [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]}
         )
@@ -1508,7 +1520,7 @@ class Document(Paged):
         # 5's events from a grid): each trade at its price on its day, its quantity beside it, by the screen's one rule
         # (timeseries-query.ts marksQuery), listed with the tile's queries
         page = ll.Page("Marks")
-        days = pd.date_range("2024-01-01", periods=6, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=6, freq="D"))
         prices = pd.DataFrame(
             {"symbol": ["S"] * 6, "day": list(days), "close": [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]}
         )
@@ -1558,7 +1570,7 @@ class Document(Paged):
         # generic snippet ... to just create exactly that tile in their own datacube": the Python run makes a page of its
         # own, a grid over the person's frame, and a tile of the very spec over it, each formula's Pure printed
         page = ll.Page("Code")
-        days = pd.date_range("2024-01-01", periods=8, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=8, freq="D"))
         prices = pd.DataFrame(
             {
                 "symbol": ["S"] * 8 + ["T"] * 8,
@@ -1590,7 +1602,7 @@ class Document(Paged):
         # run, the person's frame given it: a page of its own, its one tile of the same spec over its own grid
         shown, printed = [], []
         shim = type("ll", (), {"Page": ll.Page, "show": staticmethod(shown.append)})
-        ran = {"ll": shim, "prices_frame": prices, "print": lambda *a, **k: printed.append(a)}
+        ran: dict[str, Any] = {"ll": shim, "prices_frame": prices, "print": lambda *a, **k: printed.append(a)}
         exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)  # noqa: S102 -- the test runs the Python text the package wrote
         own = ran["page"]
         self.assertIsNot(own, page)
@@ -1614,7 +1626,7 @@ class Document(Paged):
         # wrote a line of code; two grids over one frame read two frames of the person's; a tile of no instrument column
         # left DataCube to choose one when run
         page = ll.Page("Names")
-        days = pd.date_range("2024-01-01", periods=6, freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", periods=6, freq="D"))
         # a text column, so a tile not told its key would take this one
         prices = pd.DataFrame(
             {
@@ -1638,7 +1650,7 @@ class Document(Paged):
         )
         self.assertIn("page.grid(prices_frame, name='prices')", code)
         self.assertNotIn("prices_2_frame", code)
-        ran = {
+        ran: dict[str, Any] = {
             "ll": type("ll", (), {"Page": ll.Page, "show": staticmethod(lambda p: None)}),
             "prices_frame": prices,
             "print": lambda *a, **k: None,
@@ -1651,7 +1663,7 @@ class Document(Paged):
         alone = page.timeseries({"grid": two, "date": "day", "key": None}, ["open"])
         code = alone.code()
         self.assertIn("key=None", code)
-        ran = {
+        ran: dict[str, Any] = {
             "ll": type("ll", (), {"Page": ll.Page, "show": staticmethod(lambda p: None)}),
             "prices_frame": prices,
             "print": lambda *a, **k: None,
@@ -1666,7 +1678,7 @@ class Document(Paged):
         code = titled.code()
         self.assertNotIn("coding", "".join(code.splitlines()[:2]))
         printed = []
-        ran = {
+        ran: dict[str, Any] = {
             "ll": type("ll", (), {"Page": ll.Page, "show": staticmethod(lambda p: None)}),
             "prices_frame": prices,
             "print": lambda *a, **k: printed.append(a),
@@ -1681,7 +1693,7 @@ class Document(Paged):
         import numpy as np
 
         page = ll.Page("Packs")
-        days = list(pd.bdate_range("2024-01-31", periods=30).date)
+        days = list(dates_of(pd.bdate_range("2024-01-31", periods=30)))
         s_close = [100.0 + i * 0.5 + (i % 3) * 0.7 - (i % 5) * 0.4 for i in range(30)]
         t_close = [50.0 + (i % 4) * 0.6 - i * 0.1 for i in range(30)]
         prices = pd.DataFrame(
@@ -1704,7 +1716,7 @@ class Document(Paged):
             ],
         )
         sc, tc, vol = pd.Series(s_close), pd.Series(t_close), pd.Series([1000 + 10 * i for i in range(30)], dtype=float)
-        obv = (np.sign(sc.diff()).fillna(0) * vol).cumsum()
+        obv = (cast("pd.Series", np.sign(sc.diff())).fillna(0) * vol).cumsum()
         self.assertEqual(list(tile.frame("A")["A"]), list(obv))
         # rebalanced daily: 100 compounded by the weighted returns
         daily = 100 * (1 + 0.5 * sc.pct_change().fillna(0) + 0.5 * tc.pct_change().fillna(0)).cumprod()
@@ -1720,7 +1732,7 @@ class Document(Paged):
         # the E9 review's 7: the screen's window of a range of the last of a period -- each source's bounds the database's,
         # the latest of them -- the tables' too (timeseries-query.ts rangeWindow, headless timeseriesWindow)
         page = ll.Page("Range")
-        days = pd.date_range("2024-01-01", "2024-02-29", freq="D").date
+        days = dates_of(pd.date_range("2024-01-01", "2024-02-29", freq="D"))
         prices = pd.DataFrame(
             {"symbol": ["S"] * len(days), "day": list(days), "close": [100.0 + i for i in range(len(days))]}
         )
@@ -1740,7 +1752,7 @@ class Document(Paged):
         # one rule (timeseries-edit.ts editTimeseries, headless timeseriesEdit) -- the rule its viewer's editors ask -- and
         # what the viewer would say it cannot draw is refused here, in its words
         page = ll.Page("Markets")
-        days = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]).date
+        days = dates_of(pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]))
         prices = pd.DataFrame(
             {"symbol": ["SPX"] * 4, "day": days, "close": [100.0, 101.0, 99.5, 102.0], "desk": ["A"] * 4}
         )
@@ -1807,7 +1819,7 @@ class Document(Paged):
         # the second audit's A-S1, A-S2, A-S3, P-3: one judge for both sides -- a tile of no series either may leave, a
         # slot it has not refused by name, no spec set past the rule -- and the frame's notes the drawing's own
         page = ll.Page("Markets")
-        days = pd.to_datetime(["2024-01-02", "2024-01-06", "2024-01-11", "2024-01-15", "2024-01-22"]).date
+        days = dates_of(pd.to_datetime(["2024-01-02", "2024-01-06", "2024-01-11", "2024-01-15", "2024-01-22"]))
         prices = pd.DataFrame({"symbol": ["SPX"] * 5, "day": days, "close": [100.0, 101.0, 99.5, 102.0, 103.0]})
         px = page.grid(prices, name="prices")
         tile = page.timeseries({"px": px}, ["close['SPX']", "volatility(A, w => 2, type => 'simple')"])
@@ -1828,7 +1840,7 @@ class Document(Paged):
         # is now (timeseries-edit.ts editTimeseries, the viewer's state button's rule), the database reading it whatever
         # the grid is filtered to since (timeseries-spec.ts filterRead, the compiler's rule); dynamic, it follows again
         page = ll.Page("Markets")
-        days = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]).date
+        days = dates_of(pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]))
         prices = pd.DataFrame({"symbol": ["SPX"] * 4, "day": days, "close": [100.0, 101.0, 99.5, 102.0]})
         px = page.grid(prices, name="prices")
         tile = page.timeseries({"px": px}, ["close['SPX']"])
@@ -1852,7 +1864,7 @@ class Document(Paged):
         # (one model of the copy's table and the other's: the owner's "snapped into duckdb wasm as a grid snap") -- and
         # Python's frame keeps every point (the drawing's limit is the drawing's)
         page = ll.Page("Snapped")
-        days = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]).date
+        days = dates_of(pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]))
         prices = pd.DataFrame({"symbol": ["SPX"] * 4, "day": days, "close": [100.0, 101.0, 102.0, 103.0]})
         yields = pd.DataFrame({"tenor": ["10Y"] * 4, "obs_date": days, "yield": [4.0, 4.0, 4.0, 4.0]})
         px = page.grid(prices, name="prices")
@@ -1870,7 +1882,7 @@ class Document(Paged):
         many = pd.DataFrame(
             {
                 "symbol": ["A"] * n + ["B"] * n,
-                "day": list(pd.date_range("1900-01-01", periods=n).date) * 2,
+                "day": list(dates_of(pd.date_range("1900-01-01", periods=n))) * 2,
                 "close": [float(i) for i in range(n)] * 2,
             }
         )
@@ -1916,7 +1928,8 @@ class Document(Paged):
         # a file as ``files`` gives one, judged as given
         with self.assertRaisesRegex(ValueError, "a file is its name, size and sha256, not its bytes"):
             note.files = [{"name": "x.md", "size": 1, "sha256": sha, "bytes": "x"}]
-        note.files = note.files[1:]
+        # (the cast: after the assignment above a type checker reads ``note.files`` as what its setter takes)
+        note.files = cast("list[dict[str, Any]]", note.files)[1:]
         self.assertEqual([f["name"] for f in note.files], ["trades.csv"])
         note.files = []
         self.assertNotIn("files", next(v for v in page.to_dict()["views"] if v["id"] == note.id))
@@ -2784,7 +2797,7 @@ class Abilities(Paged):
         # now asks too (grid-presets.ts presetCommands; its names, a taken one moved on to _2)
         dated = pd.DataFrame(
             {
-                "traded": pd.to_datetime(["2024-01-05", "2024-01-20", "2024-02-03"]).date,
+                "traded": dates_of(pd.to_datetime(["2024-01-05", "2024-01-20", "2024-02-03"])),
                 "notional": [100.0, 250.0, 75.5],
             }
         )
@@ -2894,7 +2907,8 @@ class Abilities(Paged):
             odd.to_pandas()
         # a date written as text by a format, the database's strftime: an empty date an empty text
         dated = page.grid(
-            pd.DataFrame({"on": pd.to_datetime(["2024-01-03", None, "2024-02-15"]).date, "n": [1, 2, 3]}), name="dated"
+            pd.DataFrame({"on": dates_of(pd.to_datetime(["2024-01-03", None, "2024-02-15"])), "n": [1, 2, 3]}),
+            name="dated",
         )
         dated.format_date("on", "dd.MM.yyyy")
         said = {r["n"]: r["on_text"] for r in dated.to_pandas().to_dict("records")}
@@ -3514,7 +3528,7 @@ class Live(Paged):
         """As ``said``: the answer's status, and the answer whole (``{version, hash}``, and ``page`` and ``held`` when the
         keeper made another page of it; refused, its words). Each write with its id, as the tab's: its writer, its
         number (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md)."""
-        version = datacube._session.engine().page_versions(page._key)["version"] if version is None else version
+        version = self.versions(page)["version"] if version is None else version
         self._seq = getattr(self, "_seq", 0) + 1
         answer = datacube._session.engine().answer(
             "POST",
@@ -3526,6 +3540,20 @@ class Live(Paged):
 
     def version(self, page):
         return self.get(f"/version.json?page={page._key}")[1]["version"]
+
+    def kept(self, page) -> tuple[int, dict[str, Any]]:
+        """The keeper's own of the page, its version and its document: the page is one it keeps."""
+        current = datacube._session.keeper.current(page._key)
+        self.assertIsNotNone(current)
+        assert current is not None
+        return current
+
+    def versions(self, page) -> dict[str, Any]:
+        """The engine's versions of the page and its frames: the page is one it serves."""
+        versions = datacube._session.engine().page_versions(page._key)
+        self.assertIsNotNone(versions)
+        assert versions is not None
+        return versions
 
     def test_shown_in_a_tab_served_and_each_change_served_again(self):
         page, grid, _ = self.built()
@@ -3720,7 +3748,7 @@ class Live(Paged):
                 "version": self.version(page),
                 "page": page.to_dict(),
                 "held": ["chart-1", "grid-1", "sheet-1"],
-                "hash": page_hash(datacube._session.keeper.current(page._key)[1]),
+                "hash": page_hash(self.kept(page)[1]),
             },
         )
 
@@ -3745,13 +3773,13 @@ class Live(Paged):
         self.assertEqual((status, combined["version"], combined["page"]["name"]), (200, at + 1, "Renamed there"))
         # what the writer's screen is set to (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): the page the keeper
         # made, every id it has held, and its hash
-        self.assertEqual(combined["page"], datacube._session.keeper.current(page._key)[1])
+        self.assertEqual(combined["page"], self.kept(page)[1])
         self.assertEqual(combined["held"], datacube._session.keeper.held(page._key))
         status, plain = self.settled(page, renamed, version=at + 1)
         self.assertEqual((status, plain["version"]), (200, at + 1))
         self.assertEqual(sorted(plain), ["hash", "version"], "the writer's own page: nothing to set its screen to")
         # the page's hash with every answer (W17): what the page open on it must hash to
-        self.assertEqual(plain["hash"], page_hash(datacube._session.keeper.current(page._key)[1]))
+        self.assertEqual(plain["hash"], page_hash(self.kept(page)[1]))
         self.assertEqual(self.get(f"/page.json?page={page._key}")[1]["hash"], plain["hash"])
         self.assertEqual(page.name, "Renamed there")
 
@@ -3871,7 +3899,7 @@ class Live(Paged):
             with self.assertRaisesRegex(ValueError, "the page changed where it is open while this change was made"):
                 grid.group("region")
             # refused, the page is the keeper's at once -- even inside the call that made it, which goes on from there
-            self.assertEqual(_json.dumps(page.to_dict()), _json.dumps(datacube._session.keeper.current(page._key)[1]))
+            self.assertEqual(_json.dumps(page.to_dict()), _json.dumps(self.kept(page)[1]))
         finally:
             page._leave(failed=True)
         self.assertEqual(page.grids, [other])
@@ -3886,7 +3914,7 @@ class Live(Paged):
         try:
             n = 1 + max(int(i.split("-")[-1]) for i in page._ids if i.startswith("sheet-"))
             theirs = f"sheet-ta-{n}"
-            version = datacube._session.engine().page_versions(page._key)["version"]
+            version = self.versions(page)["version"]
             answer = datacube._session.engine().answer(
                 "POST",
                 "/page.json",
@@ -3942,7 +3970,7 @@ class Live(Paged):
         with self.assertRaises(ZeroDivisionError):
             half(page)
         self.assertEqual((page.name, self.version(page)), (name, at))
-        self.assertEqual(datacube._session.keeper.current(page._key)[1]["name"], name)
+        self.assertEqual(self.kept(page)[1]["name"], name)
 
     def test_a_page_shown_nowhere_takes_no_write(self):
         page, _, _ = self.built()
@@ -3980,7 +4008,7 @@ class Live(Paged):
         page, _, _ = self.built()
         page.sheet("Second")
         again = ll.Page.load(page.to_dict(), frames={"trades": trades()})
-        version, kept = datacube._session.keeper.current(again._key)
+        version, kept = self.kept(again)
         # one write: the page started empty (version 1), then loaded whole -- never a half-loaded page between
         self.assertEqual(version, 2)
         self.assertEqual([s.get("name") for s in kept["sheets"]], [None, "Second"])
@@ -4030,7 +4058,7 @@ class Live(Paged):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             again = ll.Page.load(page.to_dict(), frames={"first_trades": changed, "second_trades": changed})
-        version, kept = datacube._session.keeper.current(again._key)
+        version, kept = self.kept(again)
         self.assertEqual(version, 2)
         self.assertEqual(_json.dumps(kept), _json.dumps(again.to_dict()))
         self.assertEqual(
@@ -4056,6 +4084,7 @@ class Joined(Paged):
     said = Live.said
     wrote = Live.wrote
     settled = Live.settled
+    versions = Live.versions
 
     def joined(self):
         page = ll.Page("Joins")
@@ -4254,7 +4283,7 @@ class Joined(Paged):
         # (join.json together: headless joinTogether, join-open.ts openSources); the tab writes the series' query over
         # the relations it answers, and Python's plan-and-run plans and runs it
         page = ll.Page("Markets")
-        days = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04"]).date
+        days = dates_of(pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04"]))
         px = page.grid(pd.DataFrame({"symbol": ["SPX"] * 3, "day": days, "close": [100.0, 101.0, 99.5]}), name="prices")
         rates = page.grid(
             pd.DataFrame({"tenor": ["10Y"] * 3, "obs_date": days, "yield": [4.0, 4.1, 3.9]}), name="rates"
@@ -4429,7 +4458,9 @@ class Flows(Paged):
         # six days: a windowed word's line begins where its ramp ends (gs-quant's apply_ramp; item 14i, 2026-11-09), so
         # correlation(A, B, w => 2) needs more than the filter's first two prices to draw a point
         page = ll.Page("Markets")
-        days = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08", "2024-01-09"]).date
+        days = dates_of(
+            pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08", "2024-01-09"])
+        )
         prices = pd.DataFrame({"symbol": ["SPX"] * 6, "day": days, "close": [100.0, 101.0, 99.5, 102.0, 103.5, 101.5]})
         yields = pd.DataFrame({"tenor": ["10Y"] * 6, "obs_date": days, "yield": [4.0, 4.1, 3.9, 4.2, 4.0, 4.3]})
         flow = page.flow()
@@ -4990,8 +5021,8 @@ class Flows(Paged):
             {
                 "id": [1, 2],
                 "n": [3, 1],
-                "opened": pd.to_datetime(["2024-01-30", "2024-02-28"]).date,
-                "closed": pd.to_datetime(["2024-02-02", "2024-03-01"]).date,
+                "opened": dates_of(pd.to_datetime(["2024-01-30", "2024-02-28"])),
+                "closed": dates_of(pd.to_datetime(["2024-02-02", "2024-03-01"])),
             }
         )
         source = flow.grid(frame, name="spans")
@@ -5426,6 +5457,7 @@ class Snapped(Paged):
     said = Live.said
     wrote = Live.wrote
     settled = Live.settled
+    versions = Live.versions
 
     def moving(self):
         """A live frame whose rows are moved between queries: a function, read at each query."""
@@ -5584,12 +5616,12 @@ class Snapped(Paged):
         before = page.to_dict()
         engine = datacube._session.engine()
         real = engine.snap_copy
-        engine.snap_copy = lambda *a: (_ for _ in ()).throw(ValueError("5,000,001 rows exceeds the snap limit"))
+        engine.snap_copy = lambda *a: (_ for _ in ()).throw(ValueError("5,000,001 rows exceeds the snap limit"))  # ty: ignore[invalid-assignment] -- the test stands a refusing snap_copy in for the engine's
         try:
             with self.assertRaisesRegex(ValueError, "exceeds the snap limit"):
                 page.grid(desks(), name="desks", snap=True)
         finally:
-            engine.snap_copy = real
+            engine.snap_copy = real  # ty: ignore[invalid-assignment] -- the engine's own, put back
         self.assertEqual(page.to_dict(), before)
         self.assertNotIn("desks", datacube._session.frames, "a frame served for the grid refused is served no more")
 
@@ -5738,7 +5770,7 @@ class OverFiles(Paged):
         Path(cls.served.name, "desks.csv").write_text("desk,qty\nFX,1\nEQ,2\nFX,3\n")
 
         class Quiet(http.server.SimpleHTTPRequestHandler):
-            def log_message(self, *_):
+            def log_message(self, format, *args):
                 pass
 
         cls.server = http.server.ThreadingHTTPServer(
