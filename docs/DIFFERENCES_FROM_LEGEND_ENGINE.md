@@ -313,7 +313,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   A Variant is never equal to a number or a String. **read** **asked** (legend-pure's compiled runtime)
   **legend-engine** compares a Variant column with its database's own `=`, and refuses `fromJson` when it plans. **read**
 - **Lite** refuses the comparison by name: a database cannot compute identity. Compare a path (`get`), a typed value
-  (`to(@T)`), or the JSON text (`toJson()`) instead. A Variant against a value of another type is not equal, as in
+  (`to(@T)`), or the JSON text (`toString()`, a Variant's JSON text in lite: lite has no `toJson` over a Variant) instead. A Variant against a value of another type is not equal, as in
   Pure. The one difference from legend-pure: the same Variant compared with itself, which Pure answers true and lite
   refuses. **measured** (`AssertBarTest`)
 - Register S401.

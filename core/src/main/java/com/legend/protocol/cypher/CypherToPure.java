@@ -20565,8 +20565,12 @@ public final class CypherToPure {
             // creating it
             ValueSpecification cond = null;
             for (Map.Entry<String, String> g : groupOf.entrySet()) {
-                ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), g.getKey()),
-                        new AppliedProperty(new Variable("r"), g.getValue()));
+                ValueSpecification lv = new AppliedProperty(new Variable("l"), g.getKey());
+                ValueSpecification rv = new AppliedProperty(new Variable("r"), g.getValue());
+                Col source = column(staged, g.getKey());
+                // a list property's value (a Variant) by its JSON text on both sides (register S401: storedText)
+                ValueSpecification eq = source != null && source.kind() == Kind.JSON
+                        ? call("equal", storedText(lv), storedText(rv)) : call("equal", lv, rv);
                 cond = cond == null ? eq : call("and", cond, eq);
             }
             ValueSpecification made = call("join", unmatched, created.vs(), new EnumValue(JOIN_KIND, "INNER"),
@@ -20765,8 +20769,16 @@ public final class CypherToPure {
                 for (Map.Entry<String, String> prop : el.props().entrySet()) {
                     Kind kind = java.util.Objects.requireNonNull(el.kinds().get(prop.getKey()));
                     ValueSpecification q = new Variable("q");
+                    ValueSpecification value = new AppliedProperty(q, "value");
+                    ValueSpecification wanted = read(prop.getValue());
+                    // a list property (a Variant): its JSON text, the database's, against the pattern's -- two whole
+                    // Variants are not compared (register S401; the user's word of 2026-11-23, "Okay tojson it is",
+                    // the JSON text being a Variant's toString in lite)
+                    ValueSpecification same = kind == Kind.JSON
+                            ? call("equal", storedText(value), storedText(wanted))
+                            : call("equal", value, wanted);
                     ValueSpecification held = call("and", call("equal", new AppliedProperty(q, "owner"),
-                            read(el.key())), call("equal", new AppliedProperty(q, "value"), read(prop.getValue())));
+                            read(el.key())), same);
                     m = call("filter", m, lambda("r", call("greaterThan", call("size", call("filter", propRows(node,
                             prop.getKey(), kind, "owner", "value"), lambda("q", held))), new CInteger(0L))));
                 }
@@ -20778,6 +20790,13 @@ public final class CypherToPure {
                 }
             }
             return staged(selected(m, columns), columns);
+        }
+
+        /** A stored list's JSON text, the database's, or empty where the value is: a stored list is a flat list of
+         *  scalars (the write path refuses any other, Neo4j's error), so its canonical text is its value -- the
+         *  comparison register S401 leaves to a reader that knows the shape (two whole Variants are not compared). */
+        private static ValueSpecification storedText(ValueSpecification v) {
+            return call("map", v, lambda("j", call("toString", new Variable("j"))));
         }
 
         /** A relationship's join condition: the left row's {@code near} key its {@code from} end, its {@code far} key

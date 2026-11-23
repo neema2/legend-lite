@@ -566,8 +566,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  438,250 -> 439,800 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 439,767 on Linux (the TS host, the merge point with J9 and query/parse at LEGEND_LITE).
  *  439,800 -> 440,400 (2026-11-21, stage B's BE on claude/compat-error-model, for the user's word at the BE PR: the one
  *  catalog in the host -- the generated raise table in legend-pure's words (engine-client/src/generated/lite-raise.ts) and
- *  raised.ts's strict forms and whole-number spelling, which the grid's plan runner carries). Measured 440,373 on Linux. */
-const BUDGET = 440_400;
+ *  raised.ts's strict forms and whole-number spelling, which the grid's plan runner carries). Measured 440,373 on Linux.
+ *  440,400 -> 440,700 (2026-11-23, item 3 of the compatibility program, the user's word that day: "Raise budget"; PR #132's
+ *  CI at 581a93cb red on all three OSes: the generated raise table's three in-body assert kinds, ASSERT_TRUE, ASSERT_FALSE
+ *  and ASSERT_NOT_EMPTY, worded by the one catalog, S6). Measured 440,594 on Linux; the same Windows headroom as before. */
+const BUDGET = 440_700;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

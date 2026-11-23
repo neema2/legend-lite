@@ -720,7 +720,7 @@ public final class PlatformTypes {
     /** The refusal of an equality {@link #identityOnly} names: what to compare instead. */
     public static final String VARIANT_EQUALITY_REFUSED = "an equality between two whole Variants is not computed:"
             + " legend-pure compares Variants by identity, which a database cannot compute (register S401); compare a"
-            + " path (get), a typed value (to(@T)) or the JSON text (toJson())";
+            + " path (get), a typed value (to(@T)) or the JSON text (toString())";
 
     public static final String JSON_ELEMENT = "meta::json::JSONElement";
     public static final String JSON_OBJECT = "meta::json::JSONObject";

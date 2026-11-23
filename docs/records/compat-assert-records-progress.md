@@ -755,3 +755,20 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
 - **Not covered, recorded:** `removeDuplicates` over a one-column relation rewritten to a relation `distinct`
   (`ValueCollectionOps.relationSpaceRewrite`) keeps the relation's own distinct; under the database judge a Variant's
   membership in a list of another type stays refused by name (no typed form) where the host answers not contained.
+- **CI on 581a93cb found what the local round missed** (its core lane runs the Cypher parity tests, which the local
+  round did not): two openCypher cases (`Merge5` [14] and [15], MERGE matching a list property) were refused by S401 --
+  `CypherToPure`'s MERGE property match compared a stored list property (a Variant) with the pattern's as two whole
+  Variants. The user's word (2026-11-23, "Okay tojson it is"): a list property is compared by its JSON text, both
+  sides' `toString()` (lite has no `toJson` over a Variant; the refusal message and the S401 row named it wrongly, and
+  now name `toString()`). Also red there and fixed: the native-claims table (the S6 audit's `QueryDoor` reader of
+  `assertRaise`, regenerated) and two PCT edge-contract goldens (channel B DuckDB and SQLite essential: the acos/asin
+  and SQLite date-diff word moves already ruled under Q15 = A, re-recorded). The datacube grid page's script measured
+  440,594 bytes gzipped against its 440,400 budget (+194, the generated raise table's three in-body assert kinds); the
+  user's word (2026-11-23, "Raise budget"): 440,700, dated in `bundle-budget.test.ts`.
+- The Cypher fix took two sites, both through one helper (`CypherToPure.storedText`: a stored list's JSON text, empty
+  where the value is): MERGE's property match, and MERGE's creation step, which groups the unmatched rows by their
+  property values and joins each row back to its group. A stored list property is a flat list of scalars (the write
+  path refuses any other, Neo4j's error), so its canonical text is its value; the product's `==` over two whole Variants
+  stays refused, the shape of an arbitrary Variant unknown. Checked locally with CI's own suites (`//gates:core`,
+  `checks`, `edge_net`, `datacube`), the Postgres-backed tests run as an unprivileged user
+  (`tools/postgres/as_unprivileged.sh`): green.
