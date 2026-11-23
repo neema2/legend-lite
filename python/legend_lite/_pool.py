@@ -31,7 +31,7 @@ class _Pool:
     def __init__(self, size: int) -> None:
         self._calls: queue.SimpleQueue[tuple[Future[Any], Any, tuple[Any, ...]]] = queue.SimpleQueue()
         for i in range(size):
-            threading.Thread(target=self._serve, name=f'legend-lite-compiler-{i}', daemon=True).start()
+            threading.Thread(target=self._serve, name=f"legend-lite-compiler-{i}", daemon=True).start()
 
     def submit(self, call: Any, *args: Any) -> Future[Any]:
         """``call(*args)`` on a pool thread, in a copy of the caller's context -- so the run frame it is in reaches the
@@ -71,7 +71,7 @@ def library_thread() -> None:
 def _on_compiler_threads(call: Callable[[], Any]) -> Any:
     """A library call run on the compiler's threads: in place when the caller is one (a pool thread waiting on the pool
     would wait on itself; DataCube's engine's thread, ``library_thread``), else on the pool."""
-    if threading.current_thread().name.startswith('legend-lite-compiler-') or getattr(_library, 'is_one', False):
+    if threading.current_thread().name.startswith("legend-lite-compiler-") or getattr(_library, "is_one", False):
         return call()
     # run in a copy of the caller's context (the pool's submit makes it, C5-P's S4), so the run frame it is in
     # (_runframe) reaches the pool's thread: a planner entry asked through the pool inside a run is refused there as it

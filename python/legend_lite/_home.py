@@ -34,7 +34,7 @@ from typing import Any
 _chosen: Path | None = None
 # who this user is to the stores kept here (the saved pages, the saved queries): the folder's one owner -- there is no
 # sign-in -- as the browser's store is 'this browser''s
-THIS_USER = 'this user'
+THIS_USER = "this user"
 
 
 def home(path: str | Path | None = None) -> Path:
@@ -45,20 +45,20 @@ def home(path: str | Path | None = None) -> Path:
         _chosen = Path(path).expanduser().resolve()
     if _chosen is not None:
         return _chosen
-    explicit = os.environ.get('LEGEND_LITE_HOME')
+    explicit = os.environ.get("LEGEND_LITE_HOME")
     if explicit:
         return Path(explicit).expanduser().resolve()
     return _system_home()
 
 
 def _system_home() -> Path:
-    if sys.platform == 'darwin':
-        return Path.home() / 'Library' / 'Application Support' / 'legend-lite'
-    if sys.platform == 'win32':
-        local = os.environ.get('LOCALAPPDATA')
-        return (Path(local) if local else Path.home() / 'AppData' / 'Local') / 'legend-lite'
-    data = os.environ.get('XDG_DATA_HOME')
-    return (Path(data) if data else Path.home() / '.local' / 'share') / 'legend-lite'
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "legend-lite"
+    if sys.platform == "win32":
+        local = os.environ.get("LOCALAPPDATA")
+        return (Path(local) if local else Path.home() / "AppData" / "Local") / "legend-lite"
+    data = os.environ.get("XDG_DATA_HOME")
+    return (Path(data) if data else Path.home() / ".local" / "share") / "legend-lite"
 
 
 class Settings:
@@ -66,18 +66,18 @@ class Settings:
     object, the page's, never read here; written whole or not at all, under the folder's lock."""
 
     def __init__(self, folder: Path | None = None) -> None:
-        self.folder = folder if folder is not None else home() / 'settings'
+        self.folder = folder if folder is not None else home() / "settings"
 
     def read(self) -> dict[str, Any] | None:
         """What the page last kept, or None: none kept, or a file that is not one (said on standard error)."""
-        path = self.folder / 'datacube.json'
+        path = self.folder / "datacube.json"
         with locked(self.folder):
             if not path.is_file():
                 return None
             try:
-                kept = json.loads(path.read_text(encoding='utf-8'))
+                kept = json.loads(path.read_text(encoding="utf-8"))
             except (ValueError, OSError) as unread:
-                print(f'legend-lite: {path} is not DataCube\'s settings ({unread}); they start afresh', file=sys.stderr)
+                print(f"legend-lite: {path} is not DataCube's settings ({unread}); they start afresh", file=sys.stderr)
                 return None
         return kept if isinstance(kept, dict) else None
 
@@ -86,11 +86,11 @@ class Settings:
         if not isinstance(values, dict):
             raise ValueError("DataCube's settings are one object")
         with locked(self.folder):
-            written = tempfile.NamedTemporaryFile('w', encoding='utf-8', dir=self.folder, suffix='.part', delete=False)
+            written = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=self.folder, suffix=".part", delete=False)
             try:
                 with written:
                     json.dump(values, written, ensure_ascii=False)
-                os.replace(written.name, self.folder / 'datacube.json')
+                os.replace(written.name, self.folder / "datacube.json")
             except BaseException:
                 Path(written.name).unlink(missing_ok=True)
                 raise
@@ -102,9 +102,10 @@ def locked(folder: Path) -> Iterator[None]:
     folder and the one it is in are made private to this user when this makes them."""
     folder.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     folder.mkdir(mode=0o700, exist_ok=True)
-    with open(folder / '.lock', 'a+b') as lock:
-        if sys.platform == 'win32':
+    with open(folder / ".lock", "a+b") as lock:
+        if sys.platform == "win32":
             import msvcrt
+
             lock.seek(0)
             # blocks until the other process lets go (retried by msvcrt every second, for ten tries, then raises)
             msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
@@ -115,6 +116,7 @@ def locked(folder: Path) -> Iterator[None]:
                 msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
         else:
             import fcntl
+
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             try:
                 yield
@@ -125,20 +127,20 @@ def locked(folder: Path) -> Iterator[None]:
 def model_home_folder() -> Path:
     """Where this user's model home keeps its projects: a git repository in their legend-lite folder, as it is now
     (the program's B3; Python's engine serves it, DataCube's model actions write into it through the host's fetch)."""
-    return home() / 'projects'
+    return home() / "projects"
 
 
 def queries_folder() -> Path:
     """Where this user's saved queries are kept: one JSON file per query, every version of it, as legend-lite's server
     keeps them (the program's B5; Python's engine serves them at /api/pure/v1/query)."""
-    return home() / 'queries'
+    return home() / "queries"
 
 
 def pages_folder() -> Path:
     """Where this user's saved pages are kept: one ``<id>.json`` file each, the page's row (its content the page
     document's exact JSON text), as they always were (the program's B6; Python's engine serves them at
     /api/pure/v1/query/dataCube, ``page.save()`` writes into them)."""
-    return home() / 'pages'
+    return home() / "pages"
 
 
 def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
@@ -148,12 +150,13 @@ def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
     on one of the compiler's threads: its status and its body. A failure of the library's raised (``OSError``)."""
     from ._library import library
     from ._pool import _on_compiler_threads
+
     with locked(folder):
         said = _on_compiler_threads(lambda: library().call(entry, str(folder), *asked))
-    tag, _, rest = said.partition('\n')
-    if tag != 'OK':
-        raise OSError(rest.partition('\n')[2] or rest)
-    status, _, answered = rest.partition('\n')
+    tag, _, rest = said.partition("\n")
+    if tag != "OK":
+        raise OSError(rest.partition("\n")[2] or rest)
+    status, _, answered = rest.partition("\n")
     return int(status), answered
 
 
@@ -169,10 +172,13 @@ def home_call(folder: Path, kind: str, method: str, path: str, body: str | None)
     library's raised (``OSError``)."""
     from ._library import library
     from ._pool import _on_compiler_threads
+
     with locked(folder):
-        said = _on_compiler_threads(lambda: library().call(f'lite_{kind}_handle', str(folder), method, path, body or ''))
-    tag, _, rest = said.partition('\n')
-    if tag != 'OK':
-        raise OSError(rest.partition('\n')[2] or rest)
-    status, _, answered = rest.partition('\n')
+        said = _on_compiler_threads(
+            lambda: library().call(f"lite_{kind}_handle", str(folder), method, path, body or "")
+        )
+    tag, _, rest = said.partition("\n")
+    if tag != "OK":
+        raise OSError(rest.partition("\n")[2] or rest)
+    status, _, answered = rest.partition("\n")
     return int(status), answered

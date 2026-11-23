@@ -19,13 +19,23 @@ from ._loader import NOT_PLANNING, SERVICE_KEY_NAMES, loaded
 # (lite_store_queries, lite_store_cubes: the product's saved queries and pages, at lite's mount in lite's words --
 # the edge program's H6, 2026-11-17)
 # (lite_saved_queries, lite_saved_cubes: legend-engine's store, the engine library's since K2, 2026-11-18)
-_NOT_PLANNING = frozenset({
-    'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
-    'lite_release_model', 'lite_store_queries', 'lite_store_cubes',
-})
+_NOT_PLANNING = frozenset(
+    {
+        "lite_site_types",
+        "lite_warehouse_call",
+        "lite_warehouse_read",
+        "lite_sdlc_handle",
+        "lite_depot_handle",
+        "lite_release_model",
+        "lite_store_queries",
+        "lite_store_cubes",
+    }
+)
 if _NOT_PLANNING != NOT_PLANNING:
-    raise ImportError(f'the planning key\'s services ({sorted(_NOT_PLANNING)}) are not the loader\'s'
-                      f' ({sorted(NOT_PLANNING)}): one set, written twice for PlannerSurfaceTest, held equal')
+    raise ImportError(
+        f"the planning key's services ({sorted(_NOT_PLANNING)}) are not the loader's"
+        f" ({sorted(NOT_PLANNING)}): one set, written twice for PlannerSurfaceTest, held equal"
+    )
 
 
 class Library:
@@ -40,8 +50,9 @@ class Library:
         is refused inside a run of its flow (``_runframe.planning``); the warehouse's wire is the service key's, refused
         here by name."""
         if name in SERVICE_KEY_NAMES:
-            raise ValueError(f"{name} is the warehouse's wire, the run side's service key's (_services.py), not the"
-                             " planning key's")
+            raise ValueError(
+                f"{name} is the warehouse's wire, the run side's service key's (_services.py), not the planning key's"
+            )
         # a planner's entry refused inside a run by the loader itself (C5-P's audit M1): no path past it
         return loaded().call(name, *args)
 

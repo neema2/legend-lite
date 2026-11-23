@@ -20,11 +20,9 @@ class EdgeRoutes(Protocol):
     engine, and its HTTP server's admission, ask it), ``answer`` answers one, with the engine that asks (``engine``) --
     its frames, its stores -- and the call as it came."""
 
-    def serves(self, method: str, path: str) -> bool:
-        ...
+    def serves(self, method: str, path: str) -> bool: ...
 
-    def answer(self, engine: Engine, method: str, path: str, query: str, body: str | None) -> Answer:
-        ...
+    def answer(self, engine: Engine, method: str, path: str, query: str, body: str | None) -> Answer: ...
 
 
 class NoEdgeRoutes:
@@ -38,7 +36,8 @@ class NoEdgeRoutes:
     def answer(self, engine: Any, method: str, path: str, query: str, body: str | None) -> Answer:
         # the engine's own answer type, read where it is asked (the engine module imports this one)
         from .engine import Answer
-        return Answer(404, 'text/plain; charset=utf-8', f'no such path: {path}'.encode('utf-8'))
+
+        return Answer(404, "text/plain; charset=utf-8", f"no such path: {path}".encode("utf-8"))
 
 
 # the one product object every engine carries unless the edge's door gives it its routes
@@ -49,6 +48,8 @@ def edge_routes(routes: Any) -> EdgeRoutes:
     """``routes`` when it is an ``EdgeRoutes``; anything else -- ``None`` among them -- refused by name: an engine always
     answers an unknown call through one, the product's own when no edge gave it another."""
     if not isinstance(routes, EdgeRoutes):
-        raise TypeError(f'an engine\'s edge routes answer what its own routes do not (EdgeRoutes): not {routes!r} --'
-                        ' the product\'s are NO_EDGE_ROUTES, the edge\'s are composed by legend_lite.edge.engine')
+        raise TypeError(
+            f"an engine's edge routes answer what its own routes do not (EdgeRoutes): not {routes!r} --"
+            " the product's are NO_EDGE_ROUTES, the edge's are composed by legend_lite.edge.engine"
+        )
     return routes

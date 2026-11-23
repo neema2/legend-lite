@@ -16,9 +16,9 @@ import functools
 from collections.abc import Callable, Iterator
 from typing import Any, TypeVar
 
-_RUN: contextvars.ContextVar[str | None] = contextvars.ContextVar('legend_lite_run', default=None)
+_RUN: contextvars.ContextVar[str | None] = contextvars.ContextVar("legend_lite_run", default=None)
 
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 @contextlib.contextmanager
@@ -37,6 +37,7 @@ def runs(what: str) -> Callable[[F], F]:
     The variable is set and reset here directly, not through ``in_run``'s generator: the same frame at half the cost per
     run (measured 2026-11-13, docs/witness-cost-homework: around a real DuckDB statement the generator's enter and exit
     cost ~5.6 us a run, a direct set and reset ~2 us)."""
+
     def wrap(f: F) -> F:
         @functools.wraps(f)
         def run(*args: Any, **kwargs: Any) -> Any:
@@ -45,7 +46,9 @@ def runs(what: str) -> Callable[[F], F]:
                 return f(*args, **kwargs)
             finally:
                 _RUN.reset(token)
+
         return run  # type: ignore[return-value]
+
     return wrap
 
 
@@ -65,7 +68,7 @@ EXEMPTIONS: frozenset[str] = frozenset()
 def exempt(why: str) -> Iterator[None]:
     """The ``with`` block outside any run, for a known crossing ``why`` names (one of EXEMPTIONS, or refused)."""
     if why not in EXEMPTIONS:
-        raise ValueError(f'no known crossing is named {why!r}: a run plans nothing (G4)')
+        raise ValueError(f"no known crossing is named {why!r}: a run plans nothing (G4)")
     token = _RUN.set(None)
     try:
         yield
@@ -82,5 +85,7 @@ def planning(kind: str) -> None:
     """A planner entry, asked for ``kind``: refused inside a run of its own flow."""
     run = _RUN.get()
     if run is not None:
-        raise RuntimeError(f"the planner was asked {kind!r} inside a run ({run}): a run sends its plan's statements and"
-                           ' plans nothing (G4)')
+        raise RuntimeError(
+            f"the planner was asked {kind!r} inside a run ({run}): a run sends its plan's statements and"
+            " plans nothing (G4)"
+        )

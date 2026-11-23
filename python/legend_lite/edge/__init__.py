@@ -20,13 +20,13 @@ from ..frames import Frames
 from ._engine import EngineMissing, engine_library
 from ._pure_v1 import EngineRoutes
 
-__all__ = ['EngineMissing', 'EngineRoutes', 'engine']
+__all__ = ["EngineMissing", "EngineRoutes", "engine"]
 
 
 def engine(frames: Frames, **kwargs: Any) -> Engine:
     """An engine over ``frames`` that serves legend-engine's API beside lite's own (``EngineRoutes``): the edge's door,
     the one place the two are composed. ``kwargs``: the engine's own (``site``, ``headless``, ``pages``, ``keeper``)."""
-    if 'edge' in kwargs:
+    if "edge" in kwargs:
         raise TypeError("the edge's door gives the engine its routes itself: pass no 'edge'")
     # legend-engine's routes answer from the engine library: none installed, refused here, by name, before any route is
     # served (EngineMissing: "legend-engine needs the legend-lite[engine] extra"), never a route that fails later

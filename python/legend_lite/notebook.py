@@ -32,15 +32,17 @@ try:
 except ModuleNotFoundError as missing:
     raise ModuleNotFoundError(
         "DataCube in a notebook needs anywidget: pip install 'legend-lite[notebook]' "
-        '(or ll.show(df, inline=False) for a browser tab)', name=missing.name) from missing
+        "(or ll.show(df, inline=False) for a browser tab)",
+        name=missing.name,
+    ) from missing
 
 from . import datacube
 from .engine import Answer, unexpected
 
 # DataCube's files for a notebook, in its built site (datacube/BUILD.bazel)
-_LOADER = 'widget-loader.js'
-_MODULE = ('widget.js', 'widget.css')
-_CHUNKS = 'widget-chunks'
+_LOADER = "widget-loader.js"
+_MODULE = ("widget.js", "widget.css")
+_CHUNKS = "widget-chunks"
 
 
 @cache
@@ -48,7 +50,7 @@ def _loader(site: Path) -> tuple[str, str]:
     """The widget's script (the loader) and the hash its page keeps DataCube's module by."""
     missing = [name for name in (_LOADER, *_MODULE) if not (site / name).is_file()]
     if not (site / _CHUNKS).is_dir():
-        missing.append(_CHUNKS + '/')
+        missing.append(_CHUNKS + "/")
     if missing:
         raise FileNotFoundError(f"DataCube's notebook files {missing} are not in its site {site}")
     digest = hashlib.sha256()
@@ -56,8 +58,8 @@ def _loader(site: Path) -> tuple[str, str]:
     # them all by this hash
     chunks = site / _CHUNKS
     for file in [site / name for name in _MODULE] + sorted(chunks.iterdir()):
-        digest.update(file.name.encode() + b'\0' + file.read_bytes())
-    return (site / _LOADER).read_text('utf-8'), digest.hexdigest()
+        digest.update(file.name.encode() + b"\0" + file.read_bytes())
+    return (site / _LOADER).read_text("utf-8"), digest.hexdigest()
 
 
 class _EngineWidget(anywidget.AnyWidget):
@@ -76,15 +78,20 @@ class _EngineWidget(anywidget.AnyWidget):
 
     def _received(self, _widget: Any, content: Any, _buffers: Any) -> None:
         """A message from the cube's page: a call, answered on a thread of its own, so the kernel never waits on it."""
-        if isinstance(content, dict) and content.get('kind') == 'call':
-            threading.Thread(target=self._answer, args=(content,), name='legend-lite-call', daemon=True).start()
+        if isinstance(content, dict) and content.get("kind") == "call":
+            threading.Thread(target=self._answer, args=(content,), name="legend-lite-call", daemon=True).start()
 
     def _answer(self, call: dict[str, Any]) -> None:
         try:
-            method, path, query, body = call['method'], call['path'], call.get('query', ''), call.get('body')
-            if not (isinstance(method, str) and isinstance(path, str) and path.startswith('/')
-                    and isinstance(query, str) and (body is None or isinstance(body, str))):
-                answer = Answer(400, 'text/plain; charset=utf-8', b'a call is {method, path, query, body} as text')
+            method, path, query, body = call["method"], call["path"], call.get("query", ""), call.get("body")
+            if not (
+                isinstance(method, str)
+                and isinstance(path, str)
+                and path.startswith("/")
+                and isinstance(query, str)
+                and (body is None or isinstance(body, str))
+            ):
+                answer = Answer(400, "text/plain; charset=utf-8", b"a call is {method, path, query, body} as text")
             else:
                 answer = self._session.engine().answer(method, path, query, body)
         except Exception as failure:
@@ -94,8 +101,16 @@ class _EngineWidget(anywidget.AnyWidget):
         if self._closed:
             return
         try:
-            self.send({'kind': 'answer', 'id': call.get('id'), 'status': answer.status, 'type': answer.content_type,
-                       'headers': dict(answer.headers)}, [answer.body])
+            self.send(
+                {
+                    "kind": "answer",
+                    "id": call.get("id"),
+                    "status": answer.status,
+                    "type": answer.content_type,
+                    "headers": dict(answer.headers),
+                },
+                [answer.body],
+            )
         except AttributeError:
             # closed while it answered (ipywidgets drops its channel between its check and its send): no one to tell
             if not self._closed:
@@ -109,6 +124,7 @@ class _EngineWidget(anywidget.AnyWidget):
             self._shown_here = False
             return
         from IPython.display import display
+
         data, metadata = self._repr_mimebundle_()
         display(data, metadata=metadata, raw=True)
 
@@ -169,11 +185,15 @@ class PageCube(_EngineWidget):
         if self._closed:
             return
         versions = self._engine.page_versions(self._page._key) or {}
-        if any(f.lower() == name.lower() for f in versions.get('frames', {})):
+        if any(f.lower() == name.lower() for f in versions.get("frames", {})):
             self.versions = versions
 
     def __repr__(self) -> str:
-        return f'<DataCube page {self._page.name!r}>' if not self._closed else f'<DataCube page {self._page.name!r}: closed>'
+        return (
+            f"<DataCube page {self._page.name!r}>"
+            if not self._closed
+            else f"<DataCube page {self._page.name!r}: closed>"
+        )
 
 
 class DataCube(PageCube):
@@ -217,10 +237,10 @@ class DataCube(PageCube):
 
     def _open(self) -> None:
         if self._closed:
-            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
+            raise ValueError(f"the cube {self.name!r} was closed: show the frame again")
 
     def __repr__(self) -> str:
-        return f'<DataCube {self.name!r}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
+        return f"<DataCube {self.name!r}>" if not self._closed else f"<DataCube {self.name!r}: closed>"
 
 
 def for_marimo(frame: Any, name: str | None, snap: bool = False) -> DataCube:
@@ -230,16 +250,16 @@ def for_marimo(frame: Any, name: str | None, snap: bool = False) -> DataCube:
     public hook for that: this is its own (``CellLifecycleItem``, by which it closes every widget's channel), held by
     //datacube:marimo_test at the pinned marimo. Without it -- a marimo that moved it, or a show() run outside a cell (a
     UI element's callback) -- the cube works and keeps its frame until ``close()``, and says so once."""
-    return _closes_with_its_cell(DataCube(frame, name, snap=snap), 'its frame')
+    return _closes_with_its_cell(DataCube(frame, name, snap=snap), "its frame")
 
 
 def page_for_marimo(page: Any) -> PageCube:
     """``show(page)`` in a marimo notebook: the page under a new widget, for the cell to show as its output, closed
     with its cell as a frame's cube is (``for_marimo``)."""
-    return _closes_with_its_cell(PageCube(page), 'its page served')
+    return _closes_with_its_cell(PageCube(page), "its page served")
 
 
-_Closable = TypeVar('_Closable', bound=_EngineWidget)
+_Closable = TypeVar("_Closable", bound=_EngineWidget)
 
 
 def _closes_with_its_cell(cube: _Closable, kept: str) -> _Closable:
@@ -250,14 +270,15 @@ def _closes_with_its_cell(cube: _Closable, kept: str) -> _Closable:
     try:
         from marimo._runtime.cell_lifecycle_item import CellLifecycleItem
         from marimo._runtime.context import get_context
+
         context = get_context()
         if context.cell_id is not None:
             registry = context.cell_lifecycle_registry
     except (ImportError, AttributeError):
-        _warn_once(f'this marimo has no cell lifecycle legend-lite knows: a cube keeps {kept} until cube.close()')
+        _warn_once(f"this marimo has no cell lifecycle legend-lite knows: a cube keeps {kept} until cube.close()")
         return cube
     if registry is None:
-        _warn_once(f'show() ran outside a marimo cell: its cube keeps {kept} until cube.close()')
+        _warn_once(f"show() ran outside a marimo cell: its cube keeps {kept} until cube.close()")
         return cube
 
     class ClosesWithItsCell(CellLifecycleItem):
@@ -278,7 +299,7 @@ _warned: set[str] = set()
 def _warn_once(message: str) -> None:
     if message not in _warned:
         _warned.add(message)
-        print(f'legend-lite: {message}', file=sys.stderr, flush=True)
+        print(f"legend-lite: {message}", file=sys.stderr, flush=True)
 
 
 def shown(frame: Any, name: str | None, snap: bool = False) -> DataCube:
@@ -292,6 +313,7 @@ def shown(frame: Any, name: str | None, snap: bool = False) -> DataCube:
     else:
         cube = DataCube(frame, name, snap=snap)
     from IPython.display import display
+
     # shown here, even when it was in this cell already (show() of its name again)
     cube._shown_here = False
     display(cube)
@@ -304,6 +326,7 @@ def shown_page(page: Any) -> PageCube:
     again here), else a new one."""
     cube = next((v for v in page._shown if isinstance(v, PageCube) and not v._closed), None) or PageCube(page)
     from IPython.display import display
+
     # shown here, even when it was in this cell already (show(page) again)
     cube._shown_here = False
     display(cube)

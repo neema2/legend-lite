@@ -26,7 +26,7 @@ class Column:
     def sql_type(self) -> str | None:
         """Its SQL type, when the plan says it (a server's ``tdsColumns`` carry ``relationalType``: the one typing
         table's pair, the program's G9)."""
-        found = self.raw.get('relationalType') if isinstance(self.raw, dict) else None
+        found = self.raw.get("relationalType") if isinstance(self.raw, dict) else None
         return found if isinstance(found, str) else None
 
 
@@ -48,14 +48,14 @@ class Declared:
     @property
     def typed(self) -> str:
         """``Type[multiplicity]``, as the words name a parameter."""
-        return f'{self.type}[{multiplicity(self.lower, self.upper)}]'
+        return f"{self.type}[{multiplicity(self.lower, self.upper)}]"
 
 
 def multiplicity(lower: int, upper: int | None) -> str:
     """``[lower..upper]`` as Pure spells it: ``*``, ``1``, ``1..*``, ``0..1``."""
     if upper is None:
-        return '*' if lower == 0 else f'{lower}..*'
-    return str(lower) if lower == upper else f'{lower}..{upper}'
+        return "*" if lower == 0 else f"{lower}..*"
+    return str(lower) if lower == upper else f"{lower}..{upper}"
 
 
 def _whole(value: Any) -> bool:
@@ -65,16 +65,24 @@ def _whole(value: Any) -> bool:
 def declared(d: Any) -> Declared:
     """One declaration read strictly -- exactly ``{name, type, multiplicity: {lower, upper?}, enumValues}`` -- any other
     refused by name, never read loosely."""
-    m = d.get('multiplicity') if isinstance(d, dict) else None
-    enum_values = d.get('enumValues') if isinstance(d, dict) else None
-    if not (isinstance(d, dict) and set(d) == {'name', 'type', 'multiplicity', 'enumValues'}
-            and isinstance(d['name'], str) and isinstance(d['type'], str)
-            and isinstance(m, dict) and set(m) <= {'lower', 'upper'} and _whole(m.get('lower'))
-            and ('upper' not in m or _whole(m.get('upper')))
-            and isinstance(enum_values, list) and all(isinstance(v, str) for v in enum_values)):
-        raise PlanParametersRefused("a plan parameter declared without its name, type, multiplicity and enumeration's "
-                                    f'values: {_json.dumps(d)}')
-    return Declared(d['name'], d['type'], m['lower'], m.get('upper'), tuple(enum_values))
+    m = d.get("multiplicity") if isinstance(d, dict) else None
+    enum_values = d.get("enumValues") if isinstance(d, dict) else None
+    if not (
+        isinstance(d, dict)
+        and set(d) == {"name", "type", "multiplicity", "enumValues"}
+        and isinstance(d["name"], str)
+        and isinstance(d["type"], str)
+        and isinstance(m, dict)
+        and set(m) <= {"lower", "upper"}
+        and _whole(m.get("lower"))
+        and ("upper" not in m or _whole(m.get("upper")))
+        and isinstance(enum_values, list)
+        and all(isinstance(v, str) for v in enum_values)
+    ):
+        raise PlanParametersRefused(
+            f"a plan parameter declared without its name, type, multiplicity and enumeration's values: {_json.dumps(d)}"
+        )
+    return Declared(d["name"], d["type"], m["lower"], m.get("upper"), tuple(enum_values))
 
 
 @dataclass(frozen=True)
@@ -106,30 +114,32 @@ def plan_binding(plan: Any) -> tuple[tuple[str, ...], tuple[Declared, ...], tupl
     if plan is None:
         return (), (), ()
     if not isinstance(plan, dict):
-        raise PlanParamsRefused(f'a plan is a JSON object, not {plan!r}')
-    listed = plan.get('parameters') or []
+        raise PlanParamsRefused(f"a plan is a JSON object, not {plan!r}")
+    listed = plan.get("parameters") or []
     if not isinstance(listed, list):
         raise PlanParamsRefused(f"a plan's parameters are a list, not {listed!r}")
     declarations = tuple(declared(d) for d in listed)
-    root = plan.get('root')
-    if declarations and isinstance(root, dict) and root.get('_type') == 'keyed':
-        raise PlanParamsRefused('a dynamic pivot that takes parameters is not run here')
+    root = plan.get("root")
+    if declarations and isinstance(root, dict) and root.get("_type") == "keyed":
+        raise PlanParamsRefused("a dynamic pivot that takes parameters is not run here")
     if not declarations:
         payloads = plan_params(plan)
-        return payloads, (), tuple(('payload', p) for p in payloads)
-    statement = root.get('sql') if isinstance(root, dict) else None
+        return payloads, (), tuple(("payload", p) for p in payloads)
+    statement = root.get("sql") if isinstance(root, dict) else None
     if not isinstance(statement, dict):
-        raise PlanParamsRefused(f"a text plan's statement is its root's (a typed result's), not a "
-                                f"{root.get('_type') if isinstance(root, dict) else root!r}'s")
+        raise PlanParamsRefused(
+            f"a text plan's statement is its root's (a typed result's), not a "
+            f"{root.get('_type') if isinstance(root, dict) else root!r}'s"
+        )
     names = {d.name for d in declarations}
     payloads = statement_params(statement, names)
     slots: list[tuple[str, Any]] = []
     texts = iter(payloads)
-    for slot in statement['slots']:
-        if slot['binding'].get('_type') == 'payload':
-            slots.append(('payload', next(texts)))
+    for slot in statement["slots"]:
+        if slot["binding"].get("_type") == "payload":
+            slots.append(("payload", next(texts)))
         else:
-            slots.append(('one', slot['parameter']))
+            slots.append(("one", slot["parameter"]))
     return payloads, declarations, tuple(slots)
 
 
@@ -141,40 +151,52 @@ def plan_params(plan: Any) -> tuple[str, ...]:
     ``plan``: the execution plan (PlanJson, parsed), or None for a text that runs alone."""
     if plan is None:
         return ()
-    root = plan.get('root') if isinstance(plan, dict) else None
-    statement = root.get('sql') if isinstance(root, dict) else None
+    root = plan.get("root") if isinstance(plan, dict) else None
+    statement = root.get("sql") if isinstance(root, dict) else None
     if not isinstance(statement, dict):
-        raise PlanParamsRefused(f"a text plan's statement is its root's (a typed result's), not a "
-                                f"{root.get('_type') if isinstance(root, dict) else root!r}'s")
+        raise PlanParamsRefused(
+            f"a text plan's statement is its root's (a typed result's), not a "
+            f"{root.get('_type') if isinstance(root, dict) else root!r}'s"
+        )
     return statement_params(statement)
 
 
-def statement_params(statement: dict[str, Any], declared_names: frozenset[str] | set[str] = frozenset()) -> tuple[str, ...]:
+def statement_params(
+    statement: dict[str, Any], declared_names: frozenset[str] | set[str] = frozenset()
+) -> tuple[str, ...]:
     """The payloads ``statement``'s slots bind (``plan_params``' rule), in its placeholders' order. What the planner always
     writes is required, never defaulted (G7; the final audit, 2026-11-12, plan-params.ts's twin): a statement with no
     slots, and a payload its statement does not carry (no digest, no content), each refused by name. A ``one`` slot of a
     parameter in ``declared_names`` is the run's to bind (``plan_binding``), its ``asText`` too; any other refused."""
-    if 'slots' not in statement:
+    if "slots" not in statement:
         raise PlanParamsRefused("this plan's statement does not carry its slots")
-    content = statement.get('content')
+    content = statement.get("content")
     out = []
-    for slot in statement['slots']:
-        kind = slot['binding'].get('_type')
-        if kind == 'one' and slot['parameter'] in declared_names:
+    for slot in statement["slots"]:
+        kind = slot["binding"].get("_type")
+        if kind == "one" and slot["parameter"] in declared_names:
             continue
-        if kind != 'payload':
-            what = {'key': "a key's cell", 'source': "a file source's path", 'array': 'a list'}.get(kind, 'a value the run supplies')
-            raise PlanParamsRefused(f"'{slot['parameter']}' binds {what}, which a host running the plan's text does not bind")
-        digest = slot['binding'].get('digest')
+        if kind != "payload":
+            what = {"key": "a key's cell", "source": "a file source's path", "array": "a list"}.get(
+                kind, "a value the run supplies"
+            )
+            raise PlanParamsRefused(
+                f"'{slot['parameter']}' binds {what}, which a host running the plan's text does not bind"
+            )
+        digest = slot["binding"].get("digest")
         if digest is None or content is None:
             raise PlanParamsRefused(f"'{slot['parameter']}' binds a payload its statement does not carry")
         text = content.get(digest)
         if text is None:
-            raise PlanParamsRefused(f"the plan's statement binds the payload {digest}, which its content does not carry")
-        actual = hashlib.sha256(text.encode('utf-8')).hexdigest()
+            raise PlanParamsRefused(
+                f"the plan's statement binds the payload {digest}, which its content does not carry"
+            )
+        actual = hashlib.sha256(text.encode("utf-8")).hexdigest()
         if actual != digest:
-            raise PlanParamsRefused(f"the data: source's payload is not the data it was planned against: its digest is "
-                                    f'{actual}, where the plan names {digest}')
+            raise PlanParamsRefused(
+                f"the data: source's payload is not the data it was planned against: its digest is "
+                f"{actual}, where the plan names {digest}"
+            )
         out.append(text)
     return tuple(out)
 
@@ -184,8 +206,11 @@ def host_rows(names: list[str], rows: list[tuple]) -> str:
     each a column's name and its cell exactly as the driver read it -- an integer's digits, a float's shortest digits
     (a non-finite one as its name in a string), a decimal, a date, a time and a date-time as their text, a text, a
     boolean, null, a structure as its JSON with the same rules. The plan's columns say how each reads."""
-    return '[' + ','.join('{' + ','.join(_json.dumps(n) + ':' + _cell(v) for n, v in zip(names, row)) + '}'
-                          for row in rows) + ']'
+    return (
+        "["
+        + ",".join("{" + ",".join(_json.dumps(n) + ":" + _cell(v) for n, v in zip(names, row)) + "}" for row in rows)
+        + "]"
+    )
 
 
 def _cell(v) -> str:
@@ -193,16 +218,17 @@ def _cell(v) -> str:
     import decimal
     import math
     import uuid
+
     if v is None:
-        return 'null'
+        return "null"
     if isinstance(v, bool):
-        return 'true' if v else 'false'
+        return "true" if v else "false"
     if isinstance(v, int):
         return str(v)
     if isinstance(v, float):
         if math.isfinite(v):
             return repr(v)
-        return _json.dumps('NaN' if math.isnan(v) else ('Infinity' if v > 0 else '-Infinity'))
+        return _json.dumps("NaN" if math.isnan(v) else ("Infinity" if v > 0 else "-Infinity"))
     if isinstance(v, decimal.Decimal):
         return _json.dumps(str(v))
     if isinstance(v, datetime.datetime):
@@ -217,7 +243,7 @@ def _cell(v) -> str:
     if isinstance(v, uuid.UUID):
         return _json.dumps(str(v))
     if isinstance(v, (list, tuple)):
-        return '[' + ','.join(_cell(x) for x in v) + ']'
+        return "[" + ",".join(_cell(x) for x in v) + "]"
     if isinstance(v, dict):
-        return '{' + ','.join(_json.dumps(str(k)) + ':' + _cell(x) for k, x in v.items()) + '}'
-    raise TypeError(f'a cell of {type(v).__name__} has no form a host hands its rows back in')
+        return "{" + ",".join(_json.dumps(str(k)) + ":" + _cell(x) for k, x in v.items()) + "}"
+    raise TypeError(f"a cell of {type(v).__name__} has no form a host hands its rows back in")

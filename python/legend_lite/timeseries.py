@@ -11,8 +11,24 @@ from ._ts_words import *  # noqa: F403 -- gs-quant's words, generated from the c
 from ._ts_words import __all__ as _words
 from ._ts_words import excess_returns
 
-__all__ = ['Across', 'ColumnTerm', 'Term', 'ToDate', 'Window', 'abs_', 'column', 'excess_returns_pure', 'exp', 'log',
-           'not_', 'power', 'series', 'sqrt', 'text', *_words]
+__all__ = [
+    "Across",
+    "ColumnTerm",
+    "Term",
+    "ToDate",
+    "Window",
+    "abs_",
+    "column",
+    "excess_returns_pure",
+    "exp",
+    "log",
+    "not_",
+    "power",
+    "series",
+    "sqrt",
+    "text",
+    *_words,
+]
 
 
 def excess_returns_pure(price_series: Term, spot_curve: Term) -> Term:
@@ -27,7 +43,7 @@ def text(term: Term) -> str:
     refused, in DataCube's words, where it is no series (headless timeseriesTermText)."""
     from .datacube import _session  # DataCube's headless engine: the page extras' (pip install legend-lite[datacube])
 
-    said = json.loads(_session.headless().call('timeseriesTermText', json.dumps(term._wire)))
-    if 'problems' in said:
-        raise ValueError('; '.join(said['problems']))
-    return said['text']
+    said = json.loads(_session.headless().call("timeseriesTermText", json.dumps(term._wire)))
+    if "problems" in said:
+        raise ValueError("; ".join(said["problems"]))
+    return said["text"]

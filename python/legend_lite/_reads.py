@@ -25,7 +25,7 @@ from ._runframe import current_run, in_run, runs
 from ._types import UnknownType, is_integer, is_model_type
 
 # the field metadata that carries a result column's type, as the compiler typed it
-TYPE_KEY = b'legend.type'
+TYPE_KEY = b"legend.type"
 
 
 class UntypedColumn(RuntimeError):
@@ -67,7 +67,7 @@ def typed_by_plan(rows: pa.Table, plan: Plan, model_types: bool = False) -> pa.T
             # a model's own type (a class, an enumeration) carried as the driver read it, where asked (_types)
             integer = not (model_types and is_model_type(typed)) and is_integer(typed)
         except UnknownType as unknown:
-            raise UntypedColumn(f'{unknown}: {plan.sql}') from None
+            raise UntypedColumn(f"{unknown}: {plan.sql}") from None
         if integer:
             column = _integer(column)
         fields.append(pa.field(field.name, column.type, field.nullable, {**(field.metadata or {}), TYPE_KEY: typed}))
@@ -80,6 +80,7 @@ def to_pandas(rows: pa.Table) -> Any:
     and all (pandas' nullable ``Int64`` and ``boolean``, where its own would make them floats and objects), a Decimal
     a ``Decimal``, a StrictDate a ``date``."""
     import pandas as pd
+
     nullable = {pa.int64(): pd.Int64Dtype(), pa.bool_(): pd.BooleanDtype()}
     return rows.to_pandas(types_mapper=nullable.get)
 
@@ -96,13 +97,13 @@ def held_texts(value: str) -> list[str]:
     not. So a held URL is taken out as itself, its query string and each parameter's value (raw and decoded), the
     longest first."""
     out = {value}
-    query = value.find('?')
+    query = value.find("?")
     if query >= 0:
-        fragment = value.find('#', query)
-        string = value[query + 1:] if fragment < 0 else value[query + 1:fragment]
+        fragment = value.find("#", query)
+        string = value[query + 1 :] if fragment < 0 else value[query + 1 : fragment]
         out.add(string)
-        for part in string.split('&'):
-            raw = part.partition('=')[2] if '=' in part else part
+        for part in string.split("&"):
+            raw = part.partition("=")[2] if "=" in part else part
             for v in (raw, unquote_plus(raw)):
                 if len(v) >= _SHORTEST_HELD_PARAMETER:
                     out.add(v)
@@ -113,7 +114,7 @@ def redact_held(text: str, values: Iterable[str]) -> str:
     """``text`` with every held value in ``values`` (each as ``held_texts`` takes it apart) written ``***``."""
     for value in values:
         for t in held_texts(value):
-            text = text.replace(t, '***')
+            text = text.replace(t, "***")
     return text
 
 
@@ -128,7 +129,7 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     # of its type, as raised, by a copy: no traceback, cause or context of the original's, its attributes cleared, its
     # words the redacted ones (2026-11-12, the re-audit's S4: no value's own type is called outside _planned.py)
     redacted = copy.copy(failure)
-    site = getattr(failure, 'raise_site', None)
+    site = getattr(failure, "raise_site", None)
     redacted.__dict__.clear()
     redacted.args = (out,)
     if site is not None:
@@ -137,8 +138,9 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     return redacted
 
 
-def fetched_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: Sequence[Any],
-                     fetch: Callable[[Result], Any]) -> Any:
+def fetched_redacted(
+    connection: Any, sql: PlannedSql, held: Iterable[str], params: Sequence[Any], fetch: Callable[[Result], Any]
+) -> Any:
     """``sql`` run on ``connection`` AND its answer fetched (``fetch``), one failure's words for both with every held
     value taken out (``redacted``): DuckDB fails at the fetch as well as at the statement (a remote file read as its
     rows stream, a value that does not convert past the first rows), and a presigned link's expiry there repeats its
@@ -147,7 +149,7 @@ def fetched_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], para
     own outside any."""
     failure: BaseException | None = None
     try:
-        with in_run(current_run() or 'a statement redacted'):
+        with in_run(current_run() or "a statement redacted"):
             return fetch(send(connection, sql, params))
     except duckdb.Error as e:
         failure = redacted(e, held)
@@ -162,8 +164,12 @@ def fetched_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], para
 # CatalogException, a BinderException and a PermissionException are each raised as themselves -- a PermissionException
 # first leaves the transaction standing, its next statement runs -- as are an invalid input and a file that cannot be
 # read, which Reading._failed reads apart; a statement that runs says the transaction is aborted)
-_REFUSED_BEFORE_RUNNING = (duckdb.ParserException, duckdb.CatalogException, duckdb.BinderException,
-                           duckdb.PermissionException)
+_REFUSED_BEFORE_RUNNING = (
+    duckdb.ParserException,
+    duckdb.CatalogException,
+    duckdb.BinderException,
+    duckdb.PermissionException,
+)
 
 # the failures that abort a standing transaction, yet that DuckDB still raises as themselves after an abort (measured on
 # the pinned DuckDB, 2026-11-14): an invalid input (a statement given fewer values than its `?`s) and a file that cannot
@@ -192,8 +198,9 @@ class Reading:
     and asks what it asks of Python's engine over it, on its own thread, waiting on no thread. One thread uses it at a
     time (its read's: the caller, then DataCube's thread while the call runs)."""
 
-    def __init__(self, cursor: Database, hosted: dict[str, Any], models: dict[str, str],
-                 held: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self, cursor: Database, hosted: dict[str, Any], models: dict[str, str], held: tuple[str, ...] = ()
+    ) -> None:
         self.cursor = cursor
         self.hosted = hosted
         self.models = models
@@ -205,7 +212,7 @@ class Reading:
         # transaction, when DuckDB next says it is aborted (one refused before it ran never replaces it)
         self._last_failure: str | None = None
 
-    @runs('a read')
+    @runs("a read")
     def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
         overflow) aborts DuckDB's transaction, and the read ENDS there: the call shows that failure, and its later
@@ -236,7 +243,8 @@ class Reading:
                 failure = duckdb.TransactionException(
                     f"this read ended at the failure that aborted its transaction ({self.ended_by}): DuckDB aborts"
                     " the read's transaction there, so the call's later queries do not run; the next call reads the"
-                    ' database afresh')
+                    " database afresh"
+                )
         except duckdb.Error as e:
             failure = self._failed(e)
             if failure is None:
@@ -251,7 +259,8 @@ class Reading:
         # an invalid input or a file that cannot be read aborts a standing transaction, yet DuckDB raises it as itself
         # after an abort too: it is kept only where nothing is kept yet (_ABORTS_UNLESS_ABORTED)
         if not isinstance(e, _REFUSED_BEFORE_RUNNING) and not (
-                isinstance(e, _ABORTS_UNLESS_ABORTED) and self._last_failure is not None):
+            isinstance(e, _ABORTS_UNLESS_ABORTED) and self._last_failure is not None
+        ):
             self._last_failure = _words(str(failure) if failure is not None else str(e), type(e).__name__)
         return failure
 
@@ -273,7 +282,7 @@ class Reading:
                 raise
             raise failure from None
 
-    @runs('a read')
+    @runs("a read")
     def run(self, plan: Plan, values: dict[str, Any] | None = None, model_types: bool = False) -> pa.Table:
         """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``): its declared
         parameters bound at this run from ``values`` (``_params.bind``, checked before anything is sent: the lite API
@@ -281,30 +290,33 @@ class Reading:
         return typed_by_plan(self.fetched(self.execute(plan.sql, bind(plan, values))), plan, model_types)
 
 
-@runs('a plan')
-def run_plan(target: Database, plan: Plan, held: Iterable[str], values: dict[str, Any] | None = None,
-             model_types: bool = False) -> pa.Table:
+@runs("a plan")
+def run_plan(
+    target: Database, plan: Plan, held: Iterable[str], values: dict[str, Any] | None = None, model_types: bool = False
+) -> pa.Table:
     """PYTHON'S EXECUTOR: a plan's SQL run on ``target``, its rows typed by the plan (``typed_by_plan``), a failure's words
     with every value in ``held`` taken out, at the statement and at its fetch (``fetched_redacted``); its declared
     parameters bound at this run from ``values`` (``_params.bind``: the lite API spec's §4). Only SQL a planner wrote for
     this database comes here."""
-    return typed_by_plan(fetched_redacted(target, plan.sql, held, bind(plan, values), Result.to_arrow_table), plan,
-                         model_types)
+    return typed_by_plan(
+        fetched_redacted(target, plan.sql, held, bind(plan, values), Result.to_arrow_table), plan, model_types
+    )
 
 
-@runs('an execute')
+@runs("an execute")
 def run_arrow(target: Database, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> pa.Table:
     """An execute's statement run on ``target`` (its ``?``s bound to ``params``), its rows as Arrow, a failure's words
     with every value in ``held`` taken out."""
     return fetched_redacted(target, sql, held, params, Result.to_arrow_table)
 
 
-@runs('an execute')
+@runs("an execute")
 def run_rows_json(target: Database, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> str:
     """An execute's typed statement run on ``target``, its rows handed back as the driver read them (``host_rows``: what
     the compiler decodes by the plan's columns), a failure's words with every value in ``held`` taken out."""
-    return fetched_redacted(target, sql, held, params,
-                            lambda cursor: host_rows([d[0] for d in cursor.description], cursor.fetchall()))
+    return fetched_redacted(
+        target, sql, held, params, lambda cursor: host_rows([d[0] for d in cursor.description], cursor.fetchall())
+    )
 
 
 @runs("a snap's count")
@@ -314,10 +326,14 @@ def count_of(target: Database, plan: Plan, held: Iterable[str]) -> int:
     return fetched_redacted(target, plan.sql, held, list(plan.params), lambda result: int(result.fetchone()[0]))
 
 
-@runs('a read begun')
-def begin_read(cursor: Database, setup: Sequence[PlannedSql],
-               settings: Iterable[tuple[PlannedSql, Sequence[Any]]],
-               attachments: Iterable[tuple[str, Any]], pin: PlannedSql) -> None:
+@runs("a read begun")
+def begin_read(
+    cursor: Database,
+    setup: Sequence[PlannedSql],
+    settings: Iterable[tuple[PlannedSql, Sequence[Any]]],
+    attachments: Iterable[tuple[str, Any]],
+    pin: PlannedSql,
+) -> None:
     """A read's own session begun on ``cursor`` (``Frames.reading``): the planner's session setup; each remote file's
     settings of the connection with the values they bind (B3's Q3: a bearer URL's session variable is one
     connection's); each frame's value attached by the name its plan holds it under (a cursor is a connection of its
@@ -333,7 +349,7 @@ def begin_read(cursor: Database, setup: Sequence[PlannedSql],
     send(cursor, pin).fetchall()
 
 
-@runs('a read ended')
+@runs("a read ended")
 def end_read(cursor: Database, failing: BaseException | None) -> None:
     """A read's transaction let go -- rolled back when it began (``Database.began``), as nothing it ran is kept -- and
     its cursor closed (``Frames.reading``). A rollback that fails is said, never swallowed (G7; the C5 follow-up,
@@ -378,7 +394,7 @@ def arrow_of(chunks: Iterable[bytes]) -> pa.Table:
     the warehouse's DuckDB writes one at least, its schema alone for no rows). engine.py's ``_arrow_of`` until C5-P."""
     tables = [pyarrow.ipc.open_stream(c).read_all() for c in chunks]
     if not tables:
-        raise pa.ArrowInvalid('the warehouse answered no chunk, not even its columns')
+        raise pa.ArrowInvalid("the warehouse answered no chunk, not even its columns")
     return pa.concat_tables(tables) if len(tables) > 1 else tables[0]
 
 
@@ -393,8 +409,12 @@ def read_plane(plane: Any, sql: PlannedSql, params: Sequence[Any] = ()) -> pa.Ta
 
 
 @runs("a remote plane's read")
-def run_on_plane(plane: Any, plan: Plan, on_receipt: Callable[[dict[str, Any]], None] | None = None,
-                 values: dict[str, Any] | None = None) -> pa.Table:
+def run_on_plane(
+    plane: Any,
+    plan: Plan,
+    on_receipt: Callable[[dict[str, Any]], None] | None = None,
+    values: dict[str, Any] | None = None,
+) -> pa.Table:
     """A plan run on a remote plane (``read_plane``), its rows typed by the plan; ``on_receipt`` hears what the plane
     issued for it (its statement and its count). Its statement's values bound as a local run binds them (``bind``: its
     payloads, and each declared parameter's checked value), carried to the plane positionally (the host train,

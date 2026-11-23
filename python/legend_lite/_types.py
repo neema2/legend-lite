@@ -31,51 +31,51 @@ def is_model_type(name: str) -> bool:
     server reads one (JdbcDecode.byPureType: "a class instance, an enumeration's value, Any: the driver's own kind")
     and the TS host's typedByPlan carries it (the host train, 2026-11-17: Query's query/run on Python). Only a path
     names one: a bare name the lattice does not know stays refused (``plain_type``)."""
-    return name not in TYPE_FACTS and '::' in name
+    return name not in TYPE_FACTS and "::" in name
 
 
 def is_integer(name: str) -> bool:
     """An Integer, by either compiler's name for one (``precisePrimitives::BigInt`` too)."""
-    return plain_type(name) == 'Integer'
+    return plain_type(name) == "Integer"
 
 
 def is_float(name: str) -> bool:
     """A Float (a precise ``Double`` too)."""
-    return plain_type(name) == 'Float'
+    return plain_type(name) == "Float"
 
 
 def is_decimal(name: str) -> bool:
     """A Decimal (a precise ``Numeric`` too)."""
-    return plain_type(name) == 'Decimal'
+    return plain_type(name) == "Decimal"
 
 
 def is_number(name: str) -> bool:
     """A Number: what a reducer over numbers of more than one kind answers (an Integer's quartile, its deviation), each
     value as the database gave it -- a whole number, a double, or an exact decimal, which arrives as its text, as a
     Decimal's does."""
-    return plain_type(name) == 'Number'
+    return plain_type(name) == "Number"
 
 
 def is_boolean(name: str) -> bool:
     """A Boolean."""
-    return plain_type(name) == 'Boolean'
+    return plain_type(name) == "Boolean"
 
 
 def is_string(name: str) -> bool:
     """A String (a precise ``Varchar`` too)."""
-    return plain_type(name) == 'String'
+    return plain_type(name) == "String"
 
 
 def is_strict_date(name: str) -> bool:
     """A StrictDate."""
-    return plain_type(name) == 'StrictDate'
+    return plain_type(name) == "StrictDate"
 
 
 def is_date_time(name: str) -> bool:
     """A DateTime (a precise ``Timestamp`` too)."""
-    return plain_type(name) == 'DateTime'
+    return plain_type(name) == "DateTime"
 
 
 def is_date(name: str) -> bool:
     """A Date: a StrictDate or a DateTime."""
-    return plain_type(name) == 'Date'
+    return plain_type(name) == "Date"

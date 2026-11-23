@@ -45,10 +45,10 @@ from ._pool import library_thread
 from ._planner import KINDS, OVER, REFUSED, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
 
 # WebCrypto's digests, by the names crypto.subtle.digest takes
-_DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512': 'sha512'}
+_DIGESTS = {"SHA-1": "sha1", "SHA-256": "sha256", "SHA-384": "sha384", "SHA-512": "sha512"}
 
 # how much of V8's heap the engine may use: past it, the call that needs more fails, not the process
-DEFAULT_MEMORY_LIMIT = 2 * 1024 ** 3
+DEFAULT_MEMORY_LIMIT = 2 * 1024**3
 
 # a server is given this long to answer one fetch (seconds)
 _FETCH_TIMEOUT = 60
@@ -59,7 +59,7 @@ _FETCH_TIMEOUT = 60
 # elements of the same project version's text -- the 5 MB markets model 48 times in that test, 2 s each, 104 s of its
 # 185 s. The compiler's answer is its text's (model/elements: the text's protocol elements), so a text asked again is
 # answered as the compiler answered it, the native library not asked. The last few texts kept.
-_TEXT_ONLY_KINDS = frozenset({'modelElements'})
+_TEXT_ONLY_KINDS = frozenset({"modelElements"})
 _TEXT_ONLY_KEPT = 4
 
 # THE MODELS DATACUBE'S CODE HOLDS, held by the engine too while it lives, the last few (2026-11-19, the same test): a
@@ -81,7 +81,7 @@ _HELD_KEPT = 2
 # ships. The user's ruling, 2026-11-13: "agreed on turning protection off then with that error message, parent thread
 # as later follow-up" -- the keys off, V8 started by other code first refused in words, and starting every engine
 # thread from V8's own thread (which would keep the keys) a follow-up.
-_V8_FLAGS = ('--single-threaded', '--no-memory-protection-keys')
+_V8_FLAGS = ("--single-threaded", "--no-memory-protection-keys")
 _V8_STARTED = threading.Lock()
 _v8_started = False
 
@@ -99,17 +99,19 @@ def _start_v8() -> None:
         try:
             init_mini_racer(flags=_V8_FLAGS)
         except LibAlreadyInitializedError as e:
-            raise RuntimeError("V8 was started in this process before DataCube's engine, by other code using "
-                               "mini-racer (a MiniRacer made first), so with its memory protection keys on, which "
-                               "crash DataCube's engines on a CPU that has them: DataCube starts V8 itself, with them "
-                               "off (legend_lite._headless._V8_FLAGS) -- open DataCube first, or restart the Python "
-                               "process") from e
+            raise RuntimeError(
+                "V8 was started in this process before DataCube's engine, by other code using "
+                "mini-racer (a MiniRacer made first), so with its memory protection keys on, which "
+                "crash DataCube's engines on a CPU that has them: DataCube starts V8 itself, with them "
+                "off (legend_lite._headless._V8_FLAGS) -- open DataCube first, or restart the Python "
+                "process"
+            ) from e
         _v8_started = True
 
 
 # the paths this host answers a fetch at itself: its model home's SDLC and Depot, and legend-lite's API
-_HOME_APIS = (('/sdlc/api/', 'sdlc'), ('/depot/api/', 'depot'))
-_LITE_API = '/api/lite/v1/'
+_HOME_APIS = (("/sdlc/api/", "sdlc"), ("/depot/api/", "depot"))
+_LITE_API = "/api/lite/v1/"
 
 
 def _statement_in(body: str | None) -> str | None:
@@ -120,7 +122,7 @@ def _statement_in(body: str | None) -> str | None:
         sent = json.loads(body)
     except ValueError:
         return None
-    return sent['sql'] if isinstance(sent, dict) and 'sql' in sent else None
+    return sent["sql"] if isinstance(sent, dict) and "sql" in sent else None
 
 
 def answer_fetch(method: str, url: str, body: str | None) -> tuple[int, str]:
@@ -130,31 +132,41 @@ def answer_fetch(method: str, url: str, body: str | None) -> tuple[int, str]:
     the model writer, the native library's) -- or a server's address, over HTTP. Its status and its body; a failure of
     the library's said in its words (500), never raised into DataCube's code."""
     parts = urllib.parse.urlsplit(url)
-    if parts.scheme in ('http', 'https'):
-        request = urllib.request.Request(url, data=None if body is None else body.encode('utf-8'), method=method,
-                                         headers={} if body is None else {'Content-Type': 'application/json'})
+    if parts.scheme in ("http", "https"):
+        request = urllib.request.Request(
+            url,
+            data=None if body is None else body.encode("utf-8"),
+            method=method,
+            headers={} if body is None else {"Content-Type": "application/json"},
+        )
         try:
             with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT) as answered:
-                return answered.status, answered.read().decode('utf-8')
+                return answered.status, answered.read().decode("utf-8")
         except urllib.error.HTTPError as refused:
-            return refused.code, refused.read().decode('utf-8', errors='replace')
+            return refused.code, refused.read().decode("utf-8", errors="replace")
     if parts.scheme or parts.netloc:
-        return 400, json.dumps({'message': f'this host fetches over HTTP, or answers a path of its own: not {url}'})
+        return 400, json.dumps({"message": f"this host fetches over HTTP, or answers a path of its own: not {url}"})
     for root, kind in _HOME_APIS:
         if parts.path.startswith(root):
             from ._home import home_call, model_home_folder
-            target = '/' + parts.path[len(root):] + (f'?{parts.query}' if parts.query else '')
+
+            target = "/" + parts.path[len(root) :] + (f"?{parts.query}" if parts.query else "")
             try:
                 return home_call(model_home_folder(), kind, method, target, body)
             except OSError as refused:
-                return 500, json.dumps({'message': str(refused)})
+                return 500, json.dumps({"message": str(refused)})
     if parts.path.startswith(_LITE_API):
         # lite's own API, v1: the route's answer by the product's one rule (the host train, 2026-11-17: until then
         # through legend-engine's pure/v1 router, an edge entry)
         from . import compiler
-        return compiler.lite_route(parts.path, body or '')
-    return 404, json.dumps({'message': f"this host answers its model home ({', '.join(r for r, _ in _HOME_APIS)}) and "
-                                       f'legend-lite\'s API ({_LITE_API}) at a path: not {url}'})
+
+        return compiler.lite_route(parts.path, body or "")
+    return 404, json.dumps(
+        {
+            "message": f"this host answers its model home ({', '.join(r for r, _ in _HOME_APIS)}) and "
+            f"legend-lite's API ({_LITE_API}) at a path: not {url}"
+        }
+    )
 
 
 class InterfaceMismatch(RuntimeError):
@@ -170,8 +182,9 @@ def check_interface(bundle_kinds: list[str], lib: Library) -> None:
     if sent != answered or missing:
         raise InterfaceMismatch(
             "DataCube's bundle and legend-lite's native library do not agree on the planner's requests: "
-            f'the bundle sends {sorted(sent)}; this host answers {sorted(answered)}'
-            + (f'; the library exports none of {missing}' if missing else ''))
+            f"the bundle sends {sorted(sent)}; this host answers {sorted(answered)}"
+            + (f"; the library exports none of {missing}" if missing else "")
+        )
 
 
 class Headless:
@@ -180,9 +193,16 @@ class Headless:
     memory cap fails, and the engine is then ``broken``: its owner makes another. ``close()`` (or a ``with`` block)
     ends it."""
 
-    def __init__(self, bundle: str, *, connection: Database | None = None, folder: str | Path | None = None,
-                 memory_limit: int = DEFAULT_MEMORY_LIMIT, lib: Library | None = None,
-                 reading: Callable[[], Any] | None = None) -> None:
+    def __init__(
+        self,
+        bundle: str,
+        *,
+        connection: Database | None = None,
+        folder: str | Path | None = None,
+        memory_limit: int = DEFAULT_MEMORY_LIMIT,
+        lib: Library | None = None,
+        reading: Callable[[], Any] | None = None,
+    ) -> None:
         """``bundle`` is a headless bundle's script. ``connection`` the duckdb connection its queries run on (a Frames'
         one, whose tables a page's grids read; a new database of the engine's own when not given, closed with it).
         ``folder`` where the host writes a file for DataCube's code to read (a temporary folder of the engine's own
@@ -192,15 +212,15 @@ class Headless:
         ``reading``: the read of the frames the calling thread is in, if any (``Frames.reading_now``): a call made in one
         queries through it."""
         self._lib = lib or library()
-        self._own_folder = tempfile.TemporaryDirectory(prefix='legend-lite-datacube-') if folder is None else None
+        self._own_folder = tempfile.TemporaryDirectory(prefix="legend-lite-datacube-") if folder is None else None
         self._folder = Path(self._own_folder.name if self._own_folder else folder).resolve()
         self._own_db = connection is None
         self._db: Database = connect() if connection is None else connection
         if self._own_db:
-            _host.run(self._db, {'op': 'fileSearchPath', 'folder': str(self._folder)})
+            _host.run(self._db, {"op": "fileSearchPath", "folder": str(self._folder)})
         _start_v8()
         self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=self._serve, name='legend-lite-datacube', daemon=True)
+        self._thread = threading.Thread(target=self._serve, name="legend-lite-datacube", daemon=True)
         self._thread.start()
         self._stack = contextlib.AsyncExitStack()
         self._mr: Any = None
@@ -256,51 +276,51 @@ class Headless:
         # a host operation's own texts, each answered already, or the planner is not asked (the re-audit's S3)
         refused = self._answered.refusal(asked)
         if refused is not None:
-            return json.dumps({'id': asked.get('id'), 'ok': False, 'error': f'NotPlanned: {refused}'})
+            return json.dumps({"id": asked.get("id"), "ok": False, "error": f"NotPlanned: {refused}"})
         answered = self._answer(asked)
         # what DataCube's code may hand the database from now on: the statements the answer carries, read by the
         # request's kind (_planned.Answered)
-        if answered.get('ok'):
-            self._answered.record(asked['kind'], answered['answer'])
-            if asked.get('kind') == 'hold':
-                self._hold_too(asked, answered['answer'])
+        if answered.get("ok"):
+            self._answered.record(asked["kind"], answered["answer"])
+            if asked.get("kind") == "hold":
+                self._hold_too(asked, answered["answer"])
         return json.dumps(answered)
 
     def _hold_too(self, asked: dict[str, Any], held: str) -> None:
         """A model DataCube's code held (``held``, the library's tagged answer), held by the engine too: its own handle,
         kept for the latest ``_HELD_KEPT`` models, so the model stays compiled between DataCube's calls."""
-        if not held.startswith('OK\n'):
+        if not held.startswith("OK\n"):
             return
-        key = (asked['model'], asked.get('library'))
+        key = (asked["model"], asked.get("library"))
         if key in self._held:
             self._held[key] = self._held.pop(key)
             return
-        own = answer(self._lib, {'kind': 'hold', 'model': key[0], **({} if key[1] is None else {'library': key[1]})})
-        if not (own.get('ok') and own['answer'].startswith('OK\n')):
+        own = answer(self._lib, {"kind": "hold", "model": key[0], **({} if key[1] is None else {"library": key[1]})})
+        if not (own.get("ok") and own["answer"].startswith("OK\n")):
             return
-        self._held[key] = own['answer'][len('OK\n'):]
+        self._held[key] = own["answer"][len("OK\n") :]
         while len(self._held) > _HELD_KEPT:
             self._let_go(self._held.pop(next(iter(self._held))))
 
     def _let_go(self, handle: str) -> None:
-        answer(self._lib, {'kind': 'release', 'handle': handle})
+        answer(self._lib, {"kind": "release", "handle": handle})
 
     def _answer(self, asked: dict[str, Any]) -> dict[str, Any]:
         """``asked`` answered by the native library (``_planner.answer``) -- one of ``_TEXT_ONLY_KINDS`` answered as the
         library answered the same request before, when it did, the native library not asked again."""
-        kind, request = asked.get('kind'), asked.get('request')
+        kind, request = asked.get("kind"), asked.get("request")
         if kind not in _TEXT_ONLY_KINDS or not isinstance(request, str):
             return answer(self._lib, asked)
         kept = self._text_only.pop((kind, request), None)
         if kept is None:
             kept = answer(self._lib, asked)
-            if not kept.get('ok'):
+            if not kept.get("ok"):
                 # the call itself failed (the worker's failure): asked again next time
                 return kept
         self._text_only[(kind, request)] = kept
         while len(self._text_only) > _TEXT_ONLY_KEPT:
             self._text_only.pop(next(iter(self._text_only)))
-        return {**kept, 'id': asked.get('id')}
+        return {**kept, "id": asked.get("id")}
 
     @property
     def answered(self) -> Container[str]:
@@ -322,7 +342,7 @@ class Headless:
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
             writer.write_table(table)
-        return base64.b64encode(sink.getvalue()).decode('ascii')
+        return base64.b64encode(sink.getvalue()).decode("ascii")
 
     async def _statement(self, sql: str, params: str) -> str:
         """One statement run with its values bound (calls.ts ``statement``: a write's step, DataCube's table writer) --
@@ -332,15 +352,18 @@ class Headless:
         from ._reads import run_bridged_statement
 
         if self._over is not None:
-            raise RuntimeError('a write runs in no read of the frames (Frames.reading): its changes are the database\'s own')
+            raise RuntimeError(
+                "a write runs in no read of the frames (Frames.reading): its changes are the database's own"
+            )
         # never in a read (refused above), so its rows are fetched as they are (the final audit of 9af16fbe58's P8: a
         # read's own fetch here was dead code); its run, C5-P's (2026-11-15)
-        table = run_bridged_statement(self._db, across_the_bridge(sql, "the hosted DataCube's statement", self._answered),
-                                      json.loads(params))
+        table = run_bridged_statement(
+            self._db, across_the_bridge(sql, "the hosted DataCube's statement", self._answered), json.loads(params)
+        )
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
             writer.write_table(table)
-        return base64.b64encode(sink.getvalue()).decode('ascii')
+        return base64.b64encode(sink.getvalue()).decode("ascii")
 
     async def _fetch(self, method: str, url: str, body: str | None) -> str:
         # a statement the hosted code sends a SQL API over HTTP (a warehouse's submit, its JSON's `sql`) crosses the
@@ -350,7 +373,7 @@ class Headless:
         if sql is not None:
             across_the_bridge(sql, f"the hosted DataCube's HTTP request to {url}", self._answered)
         status, text = answer_fetch(method, url, body)
-        return json.dumps({'status': status, 'body': text})
+        return json.dumps({"status": status, "body": text})
 
     async def _engine(self, path: str, body: str) -> str:
         """One call of DataCube's to the engine it runs beside (calls.ts ``engine``: ``/plan-and-run.json``,
@@ -360,25 +383,37 @@ class Headless:
         body}`` (the body base64), as JSON."""
         answers = None if self.answers is None else self.answers()
         if answers is None:
-            raise RuntimeError('this host answers no call of the engine\'s: it was given none to answer')
+            raise RuntimeError("this host answers no call of the engine's: it was given none to answer")
         if self._over is None:
-            raise RuntimeError('DataCube asked the engine in a call made in no read of the frames (Frames.reading): '
-                               'its rows are read over what one read sees')
+            raise RuntimeError(
+                "DataCube asked the engine in a call made in no read of the frames (Frames.reading): "
+                "its rows are read over what one read sees"
+            )
         status, content_type, data = answers(path, body, self._over)
-        return json.dumps({'status': status, 'contentType': content_type, 'body': base64.b64encode(data).decode('ascii')})
+        return json.dumps(
+            {"status": status, "contentType": content_type, "body": base64.b64encode(data).decode("ascii")}
+        )
 
     async def _digest(self, algorithm: str, data: str) -> str:
         name = _DIGESTS.get(str(algorithm).upper())
         if name is None:
-            raise ValueError(f'crypto.subtle.digest: {algorithm!r} is not a digest WebCrypto names ({sorted(_DIGESTS)})')
-        return base64.b64encode(hashlib.new(name, base64.b64decode(data)).digest()).decode('ascii')
+            raise ValueError(
+                f"crypto.subtle.digest: {algorithm!r} is not a digest WebCrypto names ({sorted(_DIGESTS)})"
+            )
+        return base64.b64encode(hashlib.new(name, base64.b64decode(data)).digest()).decode("ascii")
 
     def _calls(self) -> dict[str, Callable[..., Coroutine[Any, Any, Any]]]:
         """The host's calls by the name DataCube's code makes each (calls.ts ``HostCalls``), defined as the global
         ``legendLiteHost`` before the bundle loads. A test's own database is no call of the product's (2026-11-12: the
         headless lane's tests' setup SQL is its own host's, datacube/test/headless/run.py TestHost)."""
-        return {'planner': self._planner, 'query': self._query, 'statement': self._statement, 'digest': self._digest,
-                'fetch': self._fetch, 'engine': self._engine}
+        return {
+            "planner": self._planner,
+            "query": self._query,
+            "statement": self._statement,
+            "digest": self._digest,
+            "fetch": self._fetch,
+            "engine": self._engine,
+        }
 
     # ---- the engine's life
 
@@ -390,25 +425,29 @@ class Headless:
         self._mr = MiniRacer()
         self._mr.set_hard_memory_limit(memory_limit)
         # no WebAssembly in this process (the user's ruling, 2026-10-11): anything that reached for it fails here, loudly
-        self._mr.eval('delete globalThis.WebAssembly;')
+        self._mr.eval("delete globalThis.WebAssembly;")
         # mini-racer 0.14.1's setTimeout waits on Atomics.waitAsync, which with a delay of 0 or less answers at once,
         # without a promise, so the timer throws, and with no delay waits forever (NaN): HTML's setTimeout takes both as
         # 0 (https://github.com/bpcreech/PyMiniRacer/issues/97). Each delay held to at least a millisecond, a real timer
         # on V8's own loop (a browser's own fire after 0 to 4 ms). This goes when the pin (pyproject.toml)
         # moves past mini-racer's fix: //datacube:headless_test's timer test says whether it still has to be here
-        self._mr.eval('{ const engines = setTimeout;'
-                      ' globalThis.setTimeout = (f, ms, ...args) => engines(f, Math.max(1, Number(ms) || 0), ...args); }')
+        self._mr.eval(
+            "{ const engines = setTimeout;"
+            " globalThis.setTimeout = (f, ms, ...args) => engines(f, Math.max(1, Number(ms) || 0), ...args); }"
+        )
         # the host's calls first, as a browser's globals are there before a page's scripts: a module may plan as it loads
         calls = self._calls()
         wrapped = [await self._stack.enter_async_context(self._mr.wrap_py_function(f)) for f in calls.values()]
-        define = self._mr.eval(f'(...calls) => {{ const names = {json.dumps(list(calls))};'
-                               ' globalThis.legendLiteHost = Object.fromEntries(names.map((n, i) => [n, calls[i]])); }')
+        define = self._mr.eval(
+            f"(...calls) => {{ const names = {json.dumps(list(calls))};"
+            " globalThis.legendLiteHost = Object.fromEntries(names.map((n, i) => [n, calls[i]])); }"
+        )
         define(*wrapped)
         self._mr.eval(bundle)
         # a bundle whose modules await as they load (a test bundle's fixtures) says when it has: legendLiteReady
-        await self._mr.eval('Promise.resolve(globalThis.legendLiteReady)')
-        check_interface(json.loads(self._mr.eval('JSON.stringify(legendLiteHeadless.REQUEST_KINDS)')), self._lib)
-        self._mr.eval('globalThis.legendLite = legendLiteHeadless.start();')
+        await self._mr.eval("Promise.resolve(globalThis.legendLiteReady)")
+        check_interface(json.loads(self._mr.eval("JSON.stringify(legendLiteHeadless.REQUEST_KINDS)")), self._lib)
+        self._mr.eval("globalThis.legendLite = legendLiteHeadless.start();")
 
     def _run(self, coroutine: Coroutine[Any, Any, Any], timeout: float | None = None) -> Any:
         """``coroutine`` run on the engine's loop, waited for."""
@@ -417,19 +456,21 @@ class Headless:
             raise RuntimeError("the engine's own thread cannot wait for the engine")
         if self.broken:
             coroutine.close()
-            raise RuntimeError('this engine ran out of its memory and is closed to calls: its owner makes another')
+            raise RuntimeError("this engine ran out of its memory and is closed to calls: its owner makes another")
         future = asyncio.run_coroutine_threadsafe(coroutine, self._loop)
         try:
             return future.result(timeout)
         except TimeoutError:
             future.cancel()
-            raise TimeoutError(f'DataCube did not answer within {timeout} s') from None
+            raise TimeoutError(f"DataCube did not answer within {timeout} s") from None
 
     async def _evaluate(self, expression: str, over: Any) -> Any:
         # the read the call was made in, while it runs: what its queries and its asks of the engine read through
         self._over = over
         try:
-            promise = self._mr.eval(f'Promise.resolve({expression}).then((v) => JSON.stringify(v === undefined ? null : v))')
+            promise = self._mr.eval(
+                f"Promise.resolve({expression}).then((v) => JSON.stringify(v === undefined ? null : v))"
+            )
             return json.loads(await promise)
         except Exception as e:
             if self._mr.was_hard_memory_limit_reached():
@@ -457,12 +498,14 @@ class Headless:
     def call(self, function: str, *args: Any, timeout: float | None = None) -> Any:
         """One of the bundle's functions (``legendLiteHeadless.<function>``) called with ``args`` as JSON gives them,
         awaited; its answer as JSON gives it to Python."""
-        return self.evaluate(f'legendLiteHeadless.{function}(...{json.dumps(list(args))})', timeout)
+        return self.evaluate(f"legendLiteHeadless.{function}(...{json.dumps(list(args))})", timeout)
 
     def execute(self, code: str) -> None:
         """JavaScript code run in the engine's context, for its effects."""
+
         async def run() -> None:
             self._mr.eval(code)
+
         self._not_its_own()
         with self._turn:
             self._run(run())
@@ -470,11 +513,13 @@ class Headless:
     def close(self) -> None:
         """Ends the engine: its calls let go, V8's context, the loop's thread, the database, and its own folder."""
         if self._loop.is_running():
+
             async def shut() -> None:
                 await self._stack.aclose()
                 if self._mr is not None:
                     self._mr.close()
                     self._mr = None
+
             with contextlib.suppress(Exception):
                 asyncio.run_coroutine_threadsafe(shut(), self._loop).result()
             self._loop.call_soon_threadsafe(self._loop.stop)
@@ -496,28 +541,30 @@ class Headless:
 
 
 # the product's bundle: beside this module in the wheel (the `datacube` extra, step 4), or where LEGEND_LITE_DATACUBE says
-_BUNDLE = Path(__file__).with_name('_datacube') / 'legend-lite-headless.js'
+_BUNDLE = Path(__file__).with_name("_datacube") / "legend-lite-headless.js"
 
 
 def bundle() -> str:
     """DataCube's headless bundle, as legend-lite ships it (or LEGEND_LITE_DATACUBE names it)."""
     import os
 
-    path = Path(os.environ.get('LEGEND_LITE_DATACUBE') or _BUNDLE)
+    path = Path(os.environ.get("LEGEND_LITE_DATACUBE") or _BUNDLE)
     if not path.is_file():
-        raise OSError(f"DataCube's code is not at {path}, where the legend-lite wheel carries it: a legend-lite run from "
-                      "its sources names the bundle it built in LEGEND_LITE_DATACUBE")
-    return path.read_text(encoding='utf-8')
+        raise OSError(
+            f"DataCube's code is not at {path}, where the legend-lite wheel carries it: a legend-lite run from "
+            "its sources names the bundle it built in LEGEND_LITE_DATACUBE"
+        )
+    return path.read_text(encoding="utf-8")
 
 
 def cells(value: Any) -> Any:
     """A grid's JSON read back exactly: the bundle tags an integer past 2^53 ({"$int": ...}) and a float JSON cannot
     write ({"$float": "NaN"}, "Infinity", "-Infinity", "-0.0")."""
     if isinstance(value, dict):
-        if value.keys() == {'$int'}:
-            return int(value['$int'])
-        if value.keys() == {'$float'}:
-            return float(value['$float'])
+        if value.keys() == {"$int"}:
+            return int(value["$int"])
+        if value.keys() == {"$float"}:
+            return float(value["$float"])
         return {k: cells(v) for k, v in value.items()}
     if isinstance(value, list):
         return [cells(v) for v in value]
