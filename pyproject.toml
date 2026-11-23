@@ -66,6 +66,11 @@ extend-exclude = [
     "warehouse",
 ]
 
+# the import sorter's first-party packages, by name: Bazel shows Ruff a target's own files alone, where it cannot find
+# them by looking
+[tool.ruff.lint.isort]
+known-first-party = ["legend_lite", "legend_lite_engine"]
+
 # TY, the type checker (bazel build --config=typecheck //python/...)
 [tool.ty.environment]
 python-version = "3.12"

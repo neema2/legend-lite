@@ -127,7 +127,7 @@ class Show(Shown):
         ll.show(df, browser=False)
         self.ask("/cube.json?table=frame")  # served: its model noted
         df["book"] = "x"
-        status, served = self.ask("/cube.json?table=frame")  # read again: a new model
+        _status, served = self.ask("/cube.json?table=frame")  # read again: a new model
         self.assertIn("book", served["model"])
         self.assertEqual(self.version(datacube._session.cubes["frame"]), (200, 1))
 

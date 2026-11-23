@@ -8,23 +8,23 @@ compiled once and planned against many times, for as long as it is open.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
 
 from . import _json
 from ._library import library
 from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer
-from ._raised import declare_sites
 
 # the plan's records and its own data's readers, theirs since C5-P (2026-11-15): named here as they always were
 from ._plans import (
     Column,
     Plan,
     PlanParamsRefused,
-    host_rows,
+    host_rows,  # noqa: F401 -- read from this module by others
     plan_binding,
     plan_params,  # noqa: F401
-    statement_params,
+    statement_params,  # noqa: F401 -- read from this module by others
 )
+from ._raised import declare_sites
 
 Tree = dict[str, Any]
 
@@ -309,7 +309,7 @@ class HeldModel:
             handle, self._handle = self._handle, None
             _answer(library().call("lite_release_model", handle))
 
-    def __enter__(self) -> HeldModel:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_exc: object) -> None:

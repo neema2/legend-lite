@@ -8,6 +8,7 @@ back as their own text. The same rule as pure-protocol's exact JSON in TypeScrip
 from __future__ import annotations
 
 import json
+import math
 from decimal import Decimal
 from typing import Any
 
@@ -48,7 +49,7 @@ def _write(v: Any, out: list[str], indent: int | None, depth: int, sort_keys: bo
     elif isinstance(v, int):
         out.append(str(v))
     elif isinstance(v, float):
-        if v != v or v in (float("inf"), float("-inf")):
+        if not math.isfinite(v):
             raise ValueError(f"{v} is not a JSON number")
         out.append(repr(v))
     elif isinstance(v, str):

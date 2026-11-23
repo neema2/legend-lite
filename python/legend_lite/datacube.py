@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import atexit
 import collections
+import contextlib
 import os
 import sys
 import threading
@@ -512,7 +513,7 @@ def _current() -> _Session:
         from marimo._runtime.context import get_context
 
         context = get_context()
-    except Exception:
+    except Exception:  # noqa: BLE001 -- marimo's own error outside a notebook, whatever its type: no context
         return _session
     key = id(context)
     with _marimo_lock:
@@ -602,19 +603,17 @@ def _release_now(key: int, session: _Session) -> None:
         if _marimo_sessions.get(key) is session:
             del _marimo_sessions[key]
     for cube in list(session.cubes.values()):
-        try:
+        # its channel may have gone with the session: the frame is still let go below
+        with contextlib.suppress(Exception):
             cube.close()
-        except Exception:
-            # its channel may have gone with the session: the frame is still let go below
-            pass
     if session._headless is not None:
         try:
             session._headless.close()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- closing goes on: each part's failure is reported, none stops the rest
             _report("DataCube code", e)
     try:
         session.frames.close()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- closing goes on: each part's failure is reported, none stops the rest
         _report("frames", e)
 
 

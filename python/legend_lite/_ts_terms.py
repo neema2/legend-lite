@@ -14,19 +14,19 @@ from enum import Enum
 from typing import Any
 
 __all__ = [
-    "Term",
-    "ColumnTerm",
-    "Window",
-    "ToDate",
     "Across",
-    "column",
-    "series",
-    "log",
-    "exp",
-    "sqrt",
+    "ColumnTerm",
+    "Term",
+    "ToDate",
+    "Window",
     "abs_",
-    "power",
+    "column",
+    "exp",
+    "log",
     "not_",
+    "power",
+    "series",
+    "sqrt",
 ]
 
 
@@ -46,7 +46,7 @@ class Window:
     """gs-quant's Window (gs_quant.timeseries.helper.Window): a size -- observations, or a calendar period ('1m', '1y')
     -- and a ramp, the size unless told; ``Window(None, 0)`` every observation to date."""
 
-    __slots__ = ("w", "r")
+    __slots__ = ("r", "w")
 
     def __init__(self, w: int | str | None = None, r: int | str | None = None) -> None:
         self.w = w

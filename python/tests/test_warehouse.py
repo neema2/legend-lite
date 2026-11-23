@@ -57,7 +57,7 @@ class Replay:
 
 def act(scenario: dict) -> dict:
     a = scenario["action"]
-    engine = lambda: warehouse.Warehouse(session(a["token"]), a.get("catalog", "main"))  # noqa: E731
+    engine = lambda: warehouse.Warehouse(session(a["token"]), a.get("catalog", "main"))
     try:
         if a["kind"] == "signIn":
             s = warehouse.sign_in(BASE, a["user"], a["password"])
@@ -182,9 +182,11 @@ class Addresses(unittest.TestCase):
         def refused(request):
             raise urllib.error.URLError("connection refused")
 
-        with mock.patch.object(warehouse, "_urlopen", refused):
-            with self.assertRaisesRegex(warehouse.WarehouseError, "cannot reach the warehouse at https://wh.example"):
-                warehouse.sign_in(BASE, "u", "p")
+        with (
+            mock.patch.object(warehouse, "_urlopen", refused),
+            self.assertRaisesRegex(warehouse.WarehouseError, "cannot reach the warehouse at https://wh.example"),
+        ):
+            warehouse.sign_in(BASE, "u", "p")
 
     def test_a_redirect_is_refused_never_followed(self):
         # urllib's own handler would carry the bearer token to wherever a redirect points: the driver's opener follows

@@ -37,7 +37,7 @@ class NoEdgeRoutes:
         # the engine's own answer type, read where it is asked (the engine module imports this one)
         from .engine import Answer
 
-        return Answer(404, "text/plain; charset=utf-8", f"no such path: {path}".encode("utf-8"))
+        return Answer(404, "text/plain; charset=utf-8", f"no such path: {path}".encode())
 
 
 # the one product object every engine carries unless the edge's door gives it its routes

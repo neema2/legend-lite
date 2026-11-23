@@ -33,9 +33,9 @@ for name in _GIVEN:
         raise SystemExit(f"{name}: {os.environ[name]} is not in the runfiles")
     os.environ[name] = path
 
-import pandas as pd  # noqa: E402
+import pandas as pd
 
-import legend_lite as ll  # noqa: E402
+import legend_lite as ll
 
 trades = pd.DataFrame(
     {

@@ -26,14 +26,14 @@ from ._planned import PlanText  # noqa: F401
 
 # the runners, the run side's since C5-P (2026-11-15: _runs.py): named here as they always were
 from ._runs import (
-    HostLoad,
-    Landed,
-    LoadRefused,
-    PLAN_VERSION,
+    PLAN_VERSION,  # noqa: F401 -- read from this module by others
+    HostLoad,  # noqa: F401 -- read from this module by others
+    Landed,  # noqa: F401 -- read from this module by others
+    LoadRefused,  # noqa: F401 -- read from this module by others
     open_project,
     run_host_load,  # noqa: F401
-    run_load,
-    run_write,
+    run_load,  # noqa: F401 -- read from this module by others
+    run_write,  # noqa: F401 -- read from this module by others
 )
 
 

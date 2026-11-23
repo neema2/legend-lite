@@ -36,6 +36,7 @@ import hashlib
 import hmac
 import http.server
 import json
+import math
 import os
 import re
 import secrets
@@ -44,11 +45,11 @@ import socketserver
 import sys
 import threading
 import traceback
+from collections.abc import Callable, Container, Iterable, Mapping
 from decimal import Decimal
-from collections.abc import Callable, Container, Iterable, Iterator, Mapping
-from types import MappingProxyType
-from typing import Any, NamedTuple
 from pathlib import Path
+from types import MappingProxyType
+from typing import Any, NamedTuple, Self
 from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlsplit
 
 from ._extra import require_datacube
@@ -61,21 +62,29 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
-from ._planned import PlannedSql, across_the_bridge, connect
-from .compiler import LegendError
+from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
+from ._home import (
+    THIS_USER,
+    Settings,
+    home,  # noqa: F401 -- read from this module by others
+    model_home_folder,
+    pages_folder,
+    queries_folder,
+    store_call,
+)
 from ._library import library
-from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._params import ParametersRefused
-from ._types import is_float, is_model_type, is_strict_date
+from ._planned import PlannedSql, across_the_bridge, connect
 from ._plans import PlanParamsRefused
+from ._pool import _on_compiler_threads, _workers
 from ._reads import count_of, read_plane, run_on_plane, run_plan
-from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
+from ._types import is_float, is_model_type, is_strict_date
+from .compiler import LegendError
+from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 from .keeper import PageKeeper, Refused
 from .projects import NotAModel, ProjectDatabases, run_host_load, run_write
-from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
 # a request body larger than this is refused: a query and its model are kilobytes, and a page's file comes a part at a
 # time (file-part.json: 4 MiB each, as base64 in JSON, datacube/src/upload.ts PART_BYTES), so no file is too big
@@ -259,7 +268,7 @@ def _lite_cell(cell: Any, column: compiler.Column) -> Any:
     if isinstance(cell, int):
         return cell
     if isinstance(cell, float):
-        if cell != cell:
+        if math.isnan(cell):
             return "NaN"
         if cell in (float("inf"), float("-inf")):
             return "Infinity" if cell > 0 else "-Infinity"
@@ -268,7 +277,7 @@ def _lite_cell(cell: Any, column: compiler.Column) -> Any:
         return _carried_float(cell) if float_column else format(cell, "f")
     if isinstance(cell, datetime.datetime):
         if cell.tzinfo is not None:
-            cell = cell.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            cell = cell.astimezone(datetime.UTC).replace(tzinfo=None)
         days = (not is_model_type(column.type) and is_strict_date(column.type)) or column.raw.get("precision") == "DAY"
         if days:
             return f"{cell.year}-{cell.month:02d}-{cell.day:02d}"
@@ -454,7 +463,7 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
     the store gave it, a failure of the library's said (500)."""
     try:
         status, answered = store_call(entry, folder, *asked, _QUERY_USER)
-    except Exception as failure:
+    except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
         traceback.print_exc()
         return _said(500, f"{type(failure).__name__}: {failure}")
     if status == 204:
@@ -515,7 +524,7 @@ def _app_site(app: str) -> Path | None:
 
 def _model_home(path: str) -> bool:
     """A call of the model home's: the SDLC's API or the Depot's."""
-    return path.startswith(_SDLC_API) or path.startswith(_DEPOT_API)
+    return path.startswith((_SDLC_API, _DEPOT_API))
 
 
 class NativePlanner:
@@ -840,7 +849,7 @@ class Engine:
         ``unexpected``'s 500, redacted (as legend-engine's routes' are, at the edge)."""
         try:
             return work(body)
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return unexpected(failure, self.frames.held_values())
 
     def answer_over(self, path: str, body: str, over: Reading) -> tuple[int, str, bytes]:
@@ -918,7 +927,7 @@ class Engine:
         except OSError as refused:
             # the library's own refusal, in its words
             return _said(500, str(refused))
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             traceback.print_exc()
             return _said(500, f"{type(failure).__name__}: {failure}")
         if not answered:
@@ -1024,7 +1033,7 @@ class Engine:
             said = self._mount(url, asked["name"], asked.get("s3"))
         except ValueError as refused:
             return _said(400, redact_held(str(refused), _bearer(url)))
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             # the file not read (not there, its keys refused, a format DuckDB cannot read): said, as the tab says it,
             # the link's token in no word (M2)
             return _said(422, redact_held(f"{type(failure).__name__}: {failure}", _bearer(url)))
@@ -1213,7 +1222,7 @@ class Engine:
             said = json.dumps(self._read_in(path, asked["name"], asked["table"]))
         except ValueError as refused:
             return _said(400, str(refused))
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             # the file not read (DuckDB could not, a column no model holds): said, as the tab says it
             return _said(422, f"{type(failure).__name__}: {failure}")
         finally:
@@ -1268,7 +1277,7 @@ class Engine:
         """A file read in for a grid (``page.grid(file=...)``: X4), once for its bytes: the table a file of the same
         bytes was read into already, as this engine serves it, or the file read in now (``read_file``) -- and whether it
         was read now."""
-        size, sha256 = _bytes_of(Path(path))
+        _size, sha256 = _bytes_of(Path(path))
         held = self.frames.hosted()["files"].get(sha256)
         if held is not None:
             return held, False
@@ -1313,7 +1322,7 @@ class Engine:
                 # table served, and the page may let go of it again
                 headless.call("forget", json.dumps({"table": table}))
                 self.frames.forget_file(table)
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return _said(422, f"{type(failure).__name__}: {failure}")
         return Answer(204, "text/plain; charset=utf-8", b"")
 
@@ -1515,7 +1524,7 @@ class Engine:
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
             headless = self._headless()
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return _said(422, f"{type(failure).__name__}: {failure}")
         # one read of the frames (D15): DataCube's code reads them, and asks the engine, as they were when it began
         with self.frames.reading() as over:
@@ -1535,7 +1544,7 @@ class Engine:
                     )
                 )
                 leaves = json.loads(headless.call("cubeLeaves", asked["cube"], asked.get("document"), asked.get("id")))
-            except Exception as refused:
+            except Exception as refused:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
                 # DataCube's refusal (a frame not served, a join that no longer joins), in its words, from V8
                 return _said(422, f"{type(refused).__name__}: {refused}")
         read = sorted({leaf["name"] for leaf in leaves if leaf["_type"] == "frame"})
@@ -1575,7 +1584,7 @@ class Engine:
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
             headless = self._headless()
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return _said(422, f"{type(failure).__name__}: {failure}")
         with self.frames.reading() as over:
             try:
@@ -1590,7 +1599,7 @@ class Engine:
                         "Python",
                     )
                 )
-            except Exception as refused:
+            except Exception as refused:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
                 return _said(422, f"{type(refused).__name__}: {refused}")
         if "problems" in made:
             return _said(422, "; ".join(made["problems"]))
@@ -1643,7 +1652,7 @@ class Engine:
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
             headless = self._headless()
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return _said(422, f"{type(failure).__name__}: {failure}")
         # a combination reads a snapped grid over its copy, which this engine holds (the review's P3: read live)
         spec = (
@@ -1665,7 +1674,7 @@ class Engine:
                     said = headless.call(
                         "joinCube", _json.dumps({**spec, "how": asked["how"], "sheet": asked["sheet"], "title": None})
                     )
-            except Exception as refused:
+            except Exception as refused:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
                 # DataCube's refusal (a grid not on the page, a leaf read elsewhere, a condition the compiler refuses),
                 # in its words, from V8
                 return _said(422, f"{type(refused).__name__}: {refused}")
@@ -1716,7 +1725,7 @@ class Engine:
             with headless.turn(), self.frames.holding():
                 headless.call("forget", json.dumps({"table": table}))
                 self.frames.forget_file(table)
-        except Exception:
+        except Exception:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             traceback.print_exc()
             return
         self.keeper.gone(sha256, "files")
@@ -1767,7 +1776,7 @@ class Engine:
                 # dropped first, and only then served no more: a drop that fails leaves it served, to let go again
                 headless.call("forget", json.dumps({"table": name}))
                 self.frames.forget_file(name)
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return _said(422, f"{type(failure).__name__}: {failure}")
         with self._warehouse_lock:
             self._copies.pop(name, None)
@@ -1792,7 +1801,7 @@ class Engine:
                 # a copy from the moment it is served, before the frames are let go: no page's file forget drops it
                 with self._warehouse_lock:
                     self._copies[name] = made
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             # no value this engine holds in its words (a presigned link's URL: the C5 follow-up's audit item 1)
             return _said(
                 422,
@@ -1824,7 +1833,7 @@ class Engine:
                         self._copies[name] = made
         except warehouse.SessionExpired:
             raise
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return _said(
                 422, f"the snap could not be copied into this Python's DuckDB: {type(failure).__name__}: {failure}"
             )
@@ -1849,7 +1858,7 @@ class Engine:
         try:
             # DataCube's own code: what says a count past the limit, and what models the copy
             headless = self._headless()
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return _said(422, f"{type(failure).__name__}: {failure}")
         try:
             # counted where the rows are, before anything is copied (the tab's preflight)
@@ -1908,7 +1917,7 @@ class Engine:
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
             headless = self._headless()
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return _said(422, f"{type(failure).__name__}: {failure}")
         # its turn first, then the frames held: the copy is landed and modelled by DataCube's code inside (D15)
         with headless.turn(), self.frames.serving() as models:
@@ -2111,7 +2120,7 @@ class Engine:
             if self._library is None:
                 try:
                     self._library = str(self._headless().call("pureLibrary"))
-                except Exception as failure:
+                except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
                     return f"DataCube's own code could not say its Pure library: {type(failure).__name__}: {failure}"
             own = self._library
         if library != own:
@@ -2223,7 +2232,7 @@ class Engine:
                     "version": self.version(name),
                 }
             body = json.dumps(cube).encode("utf-8")
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             # a frame that could not be read: said, never a dropped call, redacted
             return unexpected(failure, self.frames.held_values())
         return Answer(200, "application/json", body)
@@ -2342,7 +2351,7 @@ class Engine:
             settled = self.keeper.settle(name, int(version), written["edits"], self.frames.unadmitted, writer, seq)
         except Refused as refused:
             return _said(409, str(refused))
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             # a failure of the library's or of DataCube's code, said as one (the engine's one unexpected answer, redacted:
             # a page may name a remote file by its URL) -- never taken for a refusal or a page not served
             return unexpected(failure, self.frames.held_values())
@@ -2435,7 +2444,7 @@ class Engine:
         for watcher in watchers:
             try:
                 watcher(name, version)
-            except Exception:
+            except Exception:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
                 # one watcher failing is its own bug: the frame's other pages are still told
                 traceback.print_exc()
 
@@ -2545,7 +2554,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     server: _Server
     timeout = _IDLE
 
-    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 -- the stdlib's name
+    def log_message(self, format: str, *args: Any) -> None:
         pass
 
     def _send(self, answer: Answer) -> None:
@@ -2618,7 +2627,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             return site == "same-origin"
         return self.headers.get("Origin") == f"http://{self.headers.get('Host')}"
 
-    def do_POST(self) -> None:  # noqa: N802 -- the stdlib's name
+    def do_POST(self) -> None:
         url = urlsplit(self.path)
         # the API, an open page's write (page.json: the page keeper's), a page's file in or out, the
         # saved pages, the page's settings, PlanAndRun's calls, a warehouse's and a grid's Snap
@@ -2678,10 +2687,10 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         engine = self.server.web.engine
         try:
             return engine.answer(method, path, query, body)
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             return unexpected(failure, engine.frames.held_values())
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         """A frame's cube or version (with the token), or a file of the engine's site (DataCube's built pages), to a
         Host naming this machine."""
         url = urlsplit(self.path)
@@ -2721,7 +2730,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             self.server.answering(self.connection)
             self._send(self._answered("GET", url.path, url.query, None))
 
-    def do_PUT(self) -> None:  # noqa: N802
+    def do_PUT(self) -> None:
         """The query store's PUTs (a saved query updated or patched), with the token."""
         url = urlsplit(self.path)
         if not (_saved_query(url.path) or self.server.web.engine.edge.serves("PUT", url.path)):
@@ -2729,7 +2738,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             return
         self._with_body("PUT", url)
 
-    def do_DELETE(self) -> None:  # noqa: N802
+    def do_DELETE(self) -> None:
         """The model home's DELETEs (the SDLC's: a workspace, a review) and the query store's (a saved query), with the
         token; its body, when it has one."""
         url = urlsplit(self.path)
@@ -2760,7 +2769,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             return
         self._send(self._answered(method, url.path, url.query, body))
 
-    def do_OPTIONS(self) -> None:  # noqa: N802
+    def do_OPTIONS(self) -> None:
         # no cross-origin request is answered: only the engine's own page calls it
         self._refuse_unread(405, "this engine answers no cross-origin request")
 
@@ -2773,7 +2782,7 @@ class WebServer:
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
         self.token = secrets.token_urlsafe(32)
-        self._authorization = f"Bearer {self.token}".encode("utf-8")
+        self._authorization = f"Bearer {self.token}".encode()
         self._server = _Server(self)
         port = self._server.server_address[1]
         self.url = f"http://127.0.0.1:{port}"
@@ -2793,7 +2802,7 @@ class WebServer:
         self._server.server_close()
         self._thread.join()
 
-    def __enter__(self) -> WebServer:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:

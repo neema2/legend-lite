@@ -8,8 +8,8 @@ import contextlib
 import gc
 import io
 import json
-import re
 import os
+import re
 import sys
 import threading
 import types
@@ -516,8 +516,9 @@ class InMarimo(Widget):
         # session's entry and is held before it takes the lock; a new context that took the gone one's id finds the
         # queue empty and the gone session still under its id -- it gets a session of its own, and A then lets go of
         # the gone one alone
-        import pyarrow as pa
         import weakref
+
+        import pyarrow as pa
 
         gone_context = self.Context(self)
         gone = datacube._Session()

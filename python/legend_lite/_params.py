@@ -10,6 +10,7 @@ declarations are read by the seam (``_plans.declared``)."""
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -169,11 +170,7 @@ def value_of(p: Declared, v: Any) -> Any:
         if isinstance(v, bool) or not isinstance(v, (int, float)):
             return not_a("a Float is a number")
         f = float(v)
-        return (
-            f
-            if f == f and f not in (float("inf"), float("-inf"))
-            else _Refused(f"{_shown(v)} is not finite: no SQL literal stands for it")
-        )
+        return f if math.isfinite(f) else _Refused(f"{_shown(v)} is not finite: no SQL literal stands for it")
 
     def decimal() -> Any:
         return v if isinstance(v, str) and _DECIMAL.fullmatch(v) else not_a("a Decimal is its plain digits as text")

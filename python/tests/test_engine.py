@@ -3,10 +3,9 @@ query/run, plan-and-run and its dry run, the saved pages and queries at lite's m
 then; the refusals in lite's error shape; and only the engine's own page answered (its token, a local Host, no
 cross-origin answer). legend-engine's pure/v1 is the edge's, tested by test_edge (the edge program's H5)."""
 
+import datetime
 import http.client
 import json
-import datetime
-from decimal import Decimal
 import os
 import socket
 import sys
@@ -14,13 +13,13 @@ import tempfile
 import threading
 import time
 import unittest
-
-from legend_lite._planned import Database, from_plan, plan_from_answer
 import unittest.mock
-from unittest import mock
-from pathlib import Path
 import urllib.error
 import urllib.request
+from decimal import Decimal
+from pathlib import Path
+from typing import ClassVar
+from unittest import mock
 
 import pandas as pd
 import pyarrow as pa
@@ -28,9 +27,10 @@ import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite import _json
+from legend_lite._home import locked
+from legend_lite._planned import Database, plan_from_answer
 from legend_lite.engine import Engine, NativePlanner, WebServer
 from legend_lite.keeper import page_hash
-from legend_lite._home import locked
 
 GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
 
@@ -229,6 +229,7 @@ class ProjectQueries(Served):
         # B3 (2026-11-11): a project's rows are the plan's ONCE load, run by Python as the tab runs it; a blob that is not
         # the data planned is refused by name before a statement of it runs
         import duckdb
+
         from legend_lite import compiler, projects
 
         p = compiler.project_data(PARTY, "DuckDB")
@@ -249,6 +250,7 @@ class ProjectQueries(Served):
         # B3 (2026-11-11): Python's run_load and the tab's runLoad (engine-client plan_runner_test) run one fixture --
         # the same plan's load, the same rows, the same tampered blob refused in the same words
         import duckdb
+
         from legend_lite import compiler, projects
 
         with open(os.environ["LEGEND_LITE_RUN_LOAD_FIXTURE"], encoding="utf-8") as f:
@@ -284,6 +286,7 @@ class ProjectQueries(Served):
         # the plan names the plane, its statement and the table; the chunks are read as one Arrow stream by the
         # database's own import, kept only when the stream completed and the table holds the rows the plane counted
         import duckdb
+
         from legend_lite import compiler, projects
 
         def chunk(start, n):
@@ -588,7 +591,7 @@ class QueryRunRoute(Served):
                 "s": pa.array(["é", None]),
                 "b": pa.array([True, False]),
                 "day": pa.array([datetime.date(2024, 1, 2), None]),
-                "at": pa.array([datetime.datetime(2024, 1, 2, 3, 4, 5, 120000), None], pa.timestamp("us")),
+                "at": pa.array([datetime.datetime(2024, 1, 2, 3, 4, 5, 120000), None], pa.timestamp("us")),  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
             }
         )
         table = self.frames.register("typed", frame)
@@ -647,7 +650,7 @@ class HostRoutesConformance(unittest.TestCase):
     its own: its answer exact (``answer``), its refusal's kind (``refusal``), as the server's reader asks its routes.
     The other operations are the bindings lane's (test_compiler.LiteApiConformance)."""
 
-    ROUTES = {
+    ROUTES: ClassVar[dict] = {
         "query/run": ("POST", "/api/lite/v1/query/run"),
         "queries/get": ("GET", "/api/lite/v1/queries/"),
         "queries/dataCube/get": ("GET", "/api/lite/v1/queries/dataCube/"),
@@ -753,7 +756,7 @@ class PlanAndRunRoutes(Served):
         from legend_lite._planned import PlannedSql
 
         with self.frames.reading() as read:
-            with self.assertRaises(Exception):
+            with self.assertRaises(Exception):  # noqa: B017 -- whichever error the database or the dataframe library raises: the point is that it is not swallowed
                 read.execute(PlannedSql("SELECT CAST('x' AS INTEGER) AS n"))
             answer = self.server.engine._plan_and_run(
                 json.dumps(
@@ -1130,8 +1133,8 @@ class SavedPagesKept(unittest.TestCase):
         self.assertEqual(self.engine.answer("POST", "/saved-pages.json", "", '{"call":"all"}').status, 404)
 
     def test_the_folder_is_this_users_unless_pointed_elsewhere(self):
-        from unittest import mock
         import importlib
+        from unittest import mock
 
         home_module = importlib.import_module("legend_lite._home")
         self.addCleanup(setattr, home_module, "_chosen", home_module._chosen)
@@ -1410,7 +1413,7 @@ class AppsServed(unittest.TestCase):
         self.assertEqual(self.call("GET", "/query/demo/index.html")[0], 404, "no site built: nothing served")
 
     def test_the_links_token_traded_for_the_cookie_and_the_address_without_it(self):
-        status, headers, body = self.call("GET", f"/studio/demo/index.html?token={self.server.token}")
+        status, headers, _body = self.call("GET", f"/studio/demo/index.html?token={self.server.token}")
         self.assertEqual(status, 303)
         self.assertEqual(headers["Location"], "/studio/demo/index.html")
         self.assertEqual(
@@ -1491,13 +1494,13 @@ class AppsServed(unittest.TestCase):
             said = b""
             while chunk := raw.recv(65536):
                 said += chunk
-        self.assertTrue(said.startswith(b"HTTP/1.0 403") or said.startswith(b"HTTP/1.1 403"), said[:80])
+        self.assertTrue(said.startswith((b"HTTP/1.0 403", b"HTTP/1.1 403")), said[:80])
         self.assertEqual(said.count(b"HTTP/1."), 1, said)
 
     def test_lites_own_routes_answered_as_its_server_answers_them(self):
         # lite's own API, v1 (the spec's §2, §3, §5; the host train, 2026-11-17): one route per operation
         model = json.dumps({"model": "Class demo::A { x: Integer[1]; y: Nope[1]; }"})
-        status, headers, body = self.call(
+        status, _headers, body = self.call(
             "POST", "/api/lite/v1/model/check", {**self.cookie(), "Content-Type": "application/json"}, model
         )
         self.assertEqual(status, 200, body)
@@ -1571,7 +1574,7 @@ class Page(Cube):
     """page.json: a page it serves (Python's ll.Page; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md) -- its document
     and its version -- and version.json for a page: its own version and each of its frames'."""
 
-    DOC = {
+    DOC: ClassVar[dict] = {
         "kind": "datacube.page",
         "version": 4,
         "name": "Q3",
@@ -1679,7 +1682,6 @@ class Page(Cube):
 
     def test_a_pages_numbers_exact_both_ways(self):
         # a calculated column's 12.30 is 12.30, an integer past 2**53 every digit (the protocol's exact JSON)
-        engine = self.server.engine
         lambda_ = {
             "_type": "lambda",
             "body": [{"_type": "decimal", "value": Decimal("12.30")}, {"_type": "integer", "value": 2**70}],
@@ -1699,7 +1701,7 @@ class WarehouseOnPython(unittest.TestCase):
     said as one."""
 
     URL = "https://wh.example"
-    OBJECTS = [
+    OBJECTS: ClassVar[list] = [
         {
             "catalog": "main",
             "databaseType": "DuckDB",
@@ -1925,6 +1927,7 @@ class WarehouseOnPython(unittest.TestCase):
         # which repeat a presigned link's URL (its signature) -- answered as they were. Each failure's words now have
         # every value the engine holds taken out
         import duckdb
+
         from legend_lite import engine as engine_module
 
         token = "https://bucket.example/f.parquet?X-Amz-Signature=sig-0123456789abcdef"

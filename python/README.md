@@ -5,10 +5,11 @@ with bindings on Python's standard library alone (ctypes, json, decimal).
 
 ```python
 import legend_lite as ll
+
 tree = ll.parse("|#>{trades::DB.TRADES}#->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])")
-ll.relation_type(model_text, tree)          # the compiler's columns and types
+ll.relation_type(model_text, tree)  # the compiler's columns and types
 ll.plan(model_text, tree, "trades::RT").sql  # the compiler's SQL
-ll.print_tree(tree)                          # back to Pure text
+ll.print_tree(tree)  # back to Pure text
 ```
 
 It works on **protocol trees** (upstream's V1 lambda JSON as Python dicts), the way DataCube builds
@@ -28,10 +29,10 @@ across `os.fork`: start child processes with multiprocessing's `spawn` method.
 ## Dataframes as Legend tables
 
 ```python
-frames = ll.Frames()                                   # one duckdb-python database
-trades = frames.register("trades", df)                 # a pandas or polars frame, an Arrow table, ...
+frames = ll.Frames()  # one duckdb-python database
+trades = frames.register("trades", df)  # a pandas or polars frame, an Arrow table, ...
 trades.execute("->filter(x|$x.desk == 'FX')->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])")  # pyarrow.Table
-trades.model, trades.runtime, trades.accessor          # the model the compiler plans it against
+trades.model, trades.runtime, trades.accessor  # the model the compiler plans it against
 ```
 
 A frame is anything Arrow reads, or a function returning one. It is handed to duckdb-python as Arrow,
@@ -56,9 +57,10 @@ not a column (`reset_index()` keeps it as one).
 
 ```python
 import legend_lite as ll
-cube = ll.show(df)          # DataCube in a browser tab (under the cell in a notebook); show() returns at once
-df.loc[0, 'qty'] = 5         # the cube's next query sees it (in a notebook, it re-queries after the cell)
-cube.update(new_df)          # a new frame: the open cube shows it by itself
+
+cube = ll.show(df)  # DataCube in a browser tab (under the cell in a notebook); show() returns at once
+df.loc[0, "qty"] = 5  # the cube's next query sees it (in a notebook, it re-queries after the cell)
+cube.update(new_df)  # a new frame: the open cube shows it by itself
 cube.close()
 ```
 
@@ -108,9 +110,10 @@ compiler's library and DataCube's site, with `ll`, `pd` and a sample `trades` Da
 
 ```python
 from legend_lite.engine import Engine, WebServer
-engine = Engine(frames)        # legend-engine's pure/v1 API over the frames: engine.answer(method, path, query, body)
-server = WebServer(engine)     # over HTTP at server.url, from a background thread
-server.authorization           # "Bearer <token>": every call for the engine's data carries it
+
+engine = Engine(frames)  # legend-engine's pure/v1 API over the frames: engine.answer(method, path, query, body)
+server = WebServer(engine)  # over HTTP at server.url, from a background thread
+server.authorization  # "Bearer <token>": every call for the engine's data carries it
 server.close()
 ```
 

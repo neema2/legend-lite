@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import compiler
-from . import _runs
+from . import _runs, compiler
 from ._planned import PlannedSql
 
 DUCKDB = "DuckDB"

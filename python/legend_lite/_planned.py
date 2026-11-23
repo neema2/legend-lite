@@ -23,7 +23,7 @@ import json
 import re
 from collections import OrderedDict
 from collections.abc import Container, Iterable, Sequence
-from typing import Any
+from typing import Any, ClassVar
 
 from ._raised import declare_sites, worded
 from ._runframe import current_run
@@ -139,7 +139,7 @@ class Answered:
     )
 
     # per step kind, the fields that hold no statement of this database's (H3)
-    _NOT_HERE = {"stream": frozenset({"sql"}), "update": frozenset({"count"})}
+    _NOT_HERE: ClassVar[dict] = {"stream": frozenset({"sql"}), "update": frozenset({"count"})}
 
     def __init__(self) -> None:
         self._texts: OrderedDict[str, None] = OrderedDict()
@@ -230,14 +230,14 @@ class Answered:
 
     def _add(self, text: object) -> None:
         if not isinstance(text, str):
-            raise ValueError(f"a planner's statement is text, not {type(text).__name__}")
+            raise ValueError(f"a planner's statement is text, not {type(text).__name__}")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         self._this.add(text)
         self._texts[text] = None
         self._texts.move_to_end(text)
 
     def _all(self, texts: object) -> None:
         if not isinstance(texts, list):
-            raise ValueError(f"a planner's statements are a list, not {type(texts).__name__}")
+            raise ValueError(f"a planner's statements are a list, not {type(texts).__name__}")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         for text in texts:
             self._add(text)
 
@@ -390,7 +390,7 @@ class Database:
     Nothing else of DuckDB's is reachable through it, so a module holds no way to send what no plan carries. Made by
     :func:`connect`, or over a connection a person handed the host (Frames(connection=...): theirs to keep)."""
 
-    __slots__ = ("_con", "_began")
+    __slots__ = ("_began", "_con")
 
     def __init__(self, connection: Any) -> None:
         if isinstance(connection, (Database, Result)):

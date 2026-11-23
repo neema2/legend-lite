@@ -185,7 +185,7 @@ class Plotted(unittest.TestCase):
         ran = {"ll": shim, "prices_frame": prices, "print": lambda *a, **k: None}
         exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)  # noqa: S102 -- DataCube's program
         made = ran["page"].timeseries_tiles
-        cubes = lambda spec: {**spec, "sources": [{**x, "cube": None} for x in spec["sources"]]}  # noqa: E731
+        cubes = lambda spec: {**spec, "sources": [{**x, "cube": None} for x in spec["sources"]]}
         self.assertEqual(cubes(made[0].spec), cubes(tile.spec))
 
     def test_every_gallery_series_as_pythons_builder_code_writes_its_text(self):
@@ -197,7 +197,7 @@ class Plotted(unittest.TestCase):
         for row in rows:
             if "python" not in row:
                 continue
-            term = eval(row["python"], {"__builtins__": {}}, names)  # noqa: S307 -- the fixture's code, DataCube's own
+            term = eval(row["python"], {"__builtins__": {}}, names)
             written = ts.text(term)
             if written != row["text"]:
                 wrong.append(f"{row['series']}: {row['python']}\n    wrote {written}\n    not   {row['text']}")

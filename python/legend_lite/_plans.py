@@ -234,7 +234,7 @@ def _cell(v) -> str:
     if isinstance(v, datetime.datetime):
         # a zoned value at UTC, its offset dropped: the plan's session is UTC (Boundary.sessionSetup)
         if v.tzinfo is not None:
-            v = v.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            v = v.astimezone(datetime.UTC).replace(tzinfo=None)
         return _json.dumps(v.isoformat())
     if isinstance(v, (datetime.date, datetime.time)):
         return _json.dumps(v.isoformat())

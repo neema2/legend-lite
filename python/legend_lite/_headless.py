@@ -35,14 +35,18 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Container, Coroutine, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from . import _host
-from ._planned import Answered, Database, across_the_bridge, connect
 from ._library import Library, library
+from ._planned import Answered, Database, across_the_bridge, connect
+from ._planner import (
+    KINDS,
+    OVER,
+    REFUSED,
+    answer,
+)
 from ._pool import library_thread
-
-from ._planner import KINDS, OVER, REFUSED, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
 
 # WebCrypto's digests, by the names crypto.subtle.digest takes
 _DIGESTS = {"SHA-1": "sha1", "SHA-256": "sha256", "SHA-384": "sha384", "SHA-512": "sha512"}
@@ -533,7 +537,7 @@ class Headless:
         if self._own_folder is not None:
             self._own_folder.cleanup()
 
-    def __enter__(self) -> Headless:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_exc: object) -> None:

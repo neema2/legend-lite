@@ -165,7 +165,7 @@ web.close()
 
 def wheel_tag(wheel: zipfile.ZipFile) -> str:
     info = next(n for n in wheel.namelist() if n.endswith(".dist-info/WHEEL"))
-    return re.search(r"^Tag: (.+)$", wheel.read(info).decode(), re.M).group(1)
+    return re.search(r"^Tag: (.+)$", wheel.read(info).decode(), re.MULTILINE).group(1)
 
 
 def macos_minimum(data: bytes) -> tuple[int, int]:
@@ -423,7 +423,7 @@ class Installed(unittest.TestCase):
         # the wheel alone: the compiler, and DataCube refused in one sentence naming its extra
         subprocess.run([*pip, str(WHEEL)], check=True, env=env, timeout=240)
         core = subprocess.run(
-            [python, "-I", "-c", CORE], cwd=root, env=env, capture_output=True, text=True, timeout=120
+            [python, "-I", "-c", CORE], check=False, cwd=root, env=env, capture_output=True, text=True, timeout=120
         )
         self.assertEqual(core.returncode, 0, core.stdout + core.stderr)
         alone = json.loads(core.stdout.strip().splitlines()[-1])
@@ -439,6 +439,7 @@ class Installed(unittest.TestCase):
         # what each wheel says it needs (legend-lite's Requires-Dist, pandas' own) is what is installed
         checked = subprocess.run(
             [python, "-m", "pip", "check", "--disable-pip-version-check"],
+            check=False,
             env=env,
             capture_output=True,
             text=True,
@@ -449,6 +450,7 @@ class Installed(unittest.TestCase):
         import functools
         import http.server
         import threading
+
         import iceberg_table
 
         class Quiet(http.server.SimpleHTTPRequestHandler):
@@ -466,6 +468,7 @@ class Installed(unittest.TestCase):
         )
         ran = subprocess.run(
             [python, "-I", "-c", SCRIPT, f"{table}#iceberg"],
+            check=False,
             cwd=root,
             env=env,
             capture_output=True,
@@ -511,7 +514,7 @@ class Installed(unittest.TestCase):
         # the [engine] extra installed beside it: the edge's door answers legend-engine's current user as before K2
         subprocess.run([*pip, str(ENGINE_WHEEL)], check=True, env=env, timeout=240)
         edged = subprocess.run(
-            [python, "-I", "-c", EDGE], cwd=root, env=env, capture_output=True, text=True, timeout=120
+            [python, "-I", "-c", EDGE], check=False, cwd=root, env=env, capture_output=True, text=True, timeout=120
         )
         self.assertEqual(edged.returncode, 0, edged.stdout + edged.stderr)
         self.assertEqual(json.loads(edged.stdout.strip().splitlines()[-1]), {"user": [200, '"this user"']})

@@ -7,11 +7,11 @@ DataCube's builder makes each term the tile's and writes its #TS text (``text(te
 import json
 
 from ._ts_terms import Across, ColumnTerm, Term, ToDate, Window, abs_, column, exp, log, not_, power, series, sqrt
-from ._ts_words import *  # noqa: F403 -- gs-quant's words, generated from the catalog
+from ._ts_words import *
 from ._ts_words import __all__ as _words
 from ._ts_words import excess_returns
 
-__all__ = [
+__all__ = [  # noqa: PLE0604 -- the generated module's own list of names (_ts_words.__all__)
     "Across",
     "ColumnTerm",
     "Term",

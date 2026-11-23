@@ -421,7 +421,7 @@ class OnThePage(unittest.TestCase):
         pkg = ref["package"]
         # the project's own BI profile: its store refuses a meta:: path (the platform's, meta::legend::bi::BI, is core's
         # to ship); each function saved by its compiled name, as the store keys it
-        measure = lambda name, returns, body, tags="": {  # noqa: E731
+        measure = lambda name, returns, body, tags="": {
             "type": "CREATE",
             "path": f"{pkg}::measures::{name}_Trade_MANY__{returns}_1_",
             "pureCode": f"function <<{pkg}::BI.measure>> {tags} {pkg}::measures::{name}(t: {trade}[*]): {returns}[1]"
@@ -562,7 +562,7 @@ class OnThePage(unittest.TestCase):
                     "notional": [1.5, 2.0],
                     "dec": pa.array([Decimal("12.30"), Decimal("1.05")], pa.decimal128(10, 2)),
                     "day": [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
-                    "at": [datetime.datetime(2024, 1, 1, 9, 30, 0, 120000), datetime.datetime(2024, 1, 2, 10, 0)],
+                    "at": [datetime.datetime(2024, 1, 1, 9, 30, 0, 120000), datetime.datetime(2024, 1, 2, 10, 0)],  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
                     "flag": [True, None],
                 }
             ),
@@ -656,6 +656,7 @@ class AtTheEnd(unittest.TestCase):
         code = 'from legend_lite import datacube\ndatacube._session.headless()\nprint("made")\n'
         done = subprocess.run(
             [sys.executable, "-c", code],
+            check=False,
             env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
             capture_output=True,
             text=True,

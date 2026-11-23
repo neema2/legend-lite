@@ -69,6 +69,7 @@ Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
 
     def test_each_answers_with_the_edges_entry_refused(self):
         from unittest import mock
+
         from legend_lite import compiler
 
         real = library().call
@@ -509,7 +510,7 @@ class Compiling(unittest.TestCase):
     def test_the_compiler_needs_no_package_beyond_pythons_own(self):
         # this suite runs with nothing but the bindings on the path: a star import brings no duckdb
         names = {}
-        exec("from legend_lite import *", names)
+        exec("from legend_lite import *", names)  # noqa: S102 -- the test runs the Python text the package wrote
         self.assertIn("plan", names)
         self.assertNotIn("Frames", names)
 

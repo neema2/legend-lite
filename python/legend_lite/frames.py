@@ -32,8 +32,9 @@ import contextlib
 import re
 import sys
 import threading
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any
 
 from ._extra import require_datacube
 
@@ -50,17 +51,17 @@ from ._planned import Database, connect
 # the run side (C5-P, 2026-11-15): what sends a plan's statements and reads their answer, frames.py's until then and
 # named here as they always were; frames.py plans, then hands the run its statements
 from ._reads import (
-    TYPE_KEY,
+    TYPE_KEY,  # noqa: F401 -- read from this module by others
     Reading,
-    UntypedColumn,
+    UntypedColumn,  # noqa: F401 -- read from this module by others
     begin_read,
     end_read,
     held_texts,  # noqa: F401
-    redact_held,
-    redacted,
+    redact_held,  # noqa: F401 -- read from this module by others
+    redacted,  # noqa: F401 -- read from this module by others
     run_plan,
-    to_pandas,
-    typed_by_plan,
+    to_pandas,  # noqa: F401 -- read from this module by others
+    typed_by_plan,  # noqa: F401 -- read from this module by others
 )
 from ._runs import LoadRefused, ask, run_host_load, run_statements
 

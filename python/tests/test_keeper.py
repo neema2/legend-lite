@@ -20,6 +20,7 @@ import random
 import tempfile
 import threading
 import unittest
+from typing import ClassVar
 from unittest import mock
 
 import pandas as pd
@@ -1058,7 +1059,7 @@ class WriteCost(Converged):
 
     # measured 2026-10-21 in the container (the plan's As built, S4): a page write 0.13s, a grid write 0.36s; the budget
     # about ten times that, for CI's slower runners
-    BUDGET_SECONDS = {"page": 1.5, "grid": 3.0}
+    BUDGET_SECONDS: ClassVar[dict] = {"page": 1.5, "grid": 3.0}
 
     def test_one_write_on_a_page_of_sixty_grids(self):
         import time
@@ -1279,7 +1280,7 @@ class Threads(Converged):
         worker.start()
         rng = random.Random(2)
         for n in range(40):
-            kind, said = python_edit(page, rng, frame)
+            _kind, said = python_edit(page, rng, frame)
             if isinstance(said, list):
                 written.append((page._version, 0, said))
         worker.join(timeout=600)

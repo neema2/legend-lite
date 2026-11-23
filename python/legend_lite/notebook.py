@@ -24,7 +24,7 @@ import sys
 import threading
 from functools import cache
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 try:
     import anywidget
@@ -94,7 +94,7 @@ class _EngineWidget(anywidget.AnyWidget):
                 answer = Answer(400, "text/plain; charset=utf-8", b"a call is {method, path, query, body} as text")
             else:
                 answer = self._session.engine().answer(method, path, query, body)
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             # still an answer: a page waiting on a call never waits forever -- the engine's one unexpected answer, its
             # words with every value the session's frames hold taken out (the C5 follow-up's check, 2026-11-15)
             answer = unexpected(failure, self._session.frames.held_values())
@@ -259,10 +259,7 @@ def page_for_marimo(page: Any) -> PageCube:
     return _closes_with_its_cell(PageCube(page), "its page served")
 
 
-_Closable = TypeVar("_Closable", bound=_EngineWidget)
-
-
-def _closes_with_its_cell(cube: _Closable, kept: str) -> _Closable:
+def _closes_with_its_cell[Closable: _EngineWidget](cube: Closable, kept: str) -> Closable:
     """``cube`` closed when the marimo cell that made it runs again or is deleted -- through marimo's own hook
     (``CellLifecycleItem``, by which it closes every widget's channel), held by //datacube:marimo_test at the pinned
     marimo. Without it, the cube keeps ``kept`` until ``close()``, and says so once."""

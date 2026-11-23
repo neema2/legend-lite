@@ -88,7 +88,7 @@ class Session:
 # where a call of the library runs: here, unless a host whose callers are many threads (the engine's connections)
 # hands in its own pool -- a thread that calls the library is attached to it for good, so a host keeps the calls on a
 # few (set_library_thread); the HTTP never runs there
-_on_library: Callable[[Callable[[], str]], str] = lambda call: call()  # noqa: E731
+_on_library: Callable[[Callable[[], str]], str] = lambda call: call()
 
 
 def set_library_thread(run: Callable[[Callable[[], str]], str]) -> None:
@@ -219,7 +219,7 @@ def connect(base_url: str, user: str, password: str) -> tuple[Session, list[dict
 
 def _seconds_left(expires_at: str, now: float) -> float | None:
     try:
-        return datetime.fromisoformat(expires_at.replace("Z", "+00:00")).timestamp() - now
+        return datetime.fromisoformat(expires_at).timestamp() - now
     except ValueError:
         return None
 

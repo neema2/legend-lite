@@ -26,7 +26,7 @@ _TOKEN = re.compile(re.escape(RAISE_TOKEN) + r"([0-9]{1,9})")
 
 def _sites_of(value: object, what: str) -> list[dict[str, Any]]:
     if not isinstance(value, list):
-        raise ValueError(f"{what}'s raise sites are not a list")
+        raise ValueError(f"{what}'s raise sites are not a list")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
     for i, site in enumerate(value):
         if (
             not isinstance(site, dict)
@@ -52,7 +52,7 @@ def declare_sites(answer: object, what: str) -> None:
     holds ``sites``, each statement text beside them (``statement``, ``sql``, ``run``, ``statements``). Refused by name
     where the answer carries no ``raises``, the kinds its statements can send (a plan of PlanJson v60 always does)."""
     if not isinstance(answer, dict) or not isinstance(answer.get("raises"), list):
-        raise ValueError(f"{what} carries no raises (PlanJson's ``raises`` and each statement's ``sites``)")
+        raise ValueError(f"{what} carries no raises (PlanJson's ``raises`` and each statement's ``sites``)")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
 
     def walk(node: object) -> None:
         if isinstance(node, list):

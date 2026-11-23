@@ -21,15 +21,16 @@ import urllib.request
 import warnings
 from decimal import Decimal
 from pathlib import Path
+from typing import ClassVar
 from unittest import mock
 
 import pandas as pd
 
 import legend_lite as ll
 from legend_lite import _headless, _home, _json, _pool, datacube
-from legend_lite.keeper import page_hash
 from legend_lite import page as page_module
 from legend_lite._types import plain_type
+from legend_lite.keeper import page_hash
 
 
 def groups_of(view, measure):
@@ -240,10 +241,10 @@ class Document(Paged):
         self.assertIn("1.50", page.to_json())
         path = os.path.join(tempfile.mkdtemp(dir=os.environ.get("TEST_TMPDIR")), "q3.page.json")
         page.save(path)
-        self.assertIn("1.50", open(path, encoding="utf-8").read())
+        self.assertIn("1.50", Path(path).read_text(encoding="utf-8"))
         # as DataCube's Export > Page File writes it (headless pageFile, B5): its text, one line, byte for byte (no newline
         # of Python's own: the S7 audit's Y-4)
-        self.assertEqual(open(path, encoding="utf-8").read().count("\n"), 0)
+        self.assertEqual(Path(path).read_text(encoding="utf-8").count("\n"), 0)
         # classes kept in a project: refused in DataCube's words, as Export > Page File refuses it
         modelled = ll.Page.load(
             {
@@ -565,7 +566,7 @@ class Document(Paged):
     def test_a_sheet_gone_is_refused_its_layout_and_an_empty_one_laid_out_in_no_bands_is_as_it_was(self):
         # (the audit of neema2/legend-lite#47) an empty sheet laid out in no bands is as it is -- no shape names no
         # bands -- and a sheet no longer on its page is refused, layout_from too, as every sheet call refuses one
-        page, grid, chart = self.built()
+        page, _grid, _chart = self.built()
         empty = page.sheet("Empty")
         self.assertIs(empty.layout(), empty)
         self.assertEqual(self.bands(empty), [])
@@ -578,7 +579,7 @@ class Document(Paged):
     def test_a_grid_beside_others_is_capped_as_datacube_caps_a_source_added_beside_others(self):
         # DataCube's one rule (gridCapped), of the page's grids counting the new one: the page's first grid is not capped,
         # one beside it is
-        page, grid, chart = self.built()
+        page, grid, _chart = self.built()
         other = page.grid(desks(), name="desks")
         cubes = {c["id"]: c["cube"] for c in page.to_dict()["cubes"]}
         self.assertNotIn("maxRows", cubes[grid._view["cube"]]["configuration"])
@@ -586,7 +587,7 @@ class Document(Paged):
 
     def test_an_empty_list_of_conditions_is_no_filter(self):
         # the filter editor's normal form: an empty group is none, so [] takes the filter off, as None does
-        page, grid, chart = self.built()
+        page, grid, _chart = self.built()
         grid.filter([])
         self.assertNotIn("filter", page.to_dict()["cubes"][0]["cube"]["query"])
 
@@ -1205,7 +1206,7 @@ class Document(Paged):
         tile.edit("A", "close['S']", name="S close")
         tile.swap("S", "T")
         self.assertEqual(
-            [s["name"] if "name" in s else None for s in tile.series],
+            [s.get("name") for s in tile.series],
             ["T close", None],
             "a name saying it says the other",
         )
@@ -1341,6 +1342,7 @@ class Document(Paged):
         # the C5 follow-up's audit item 2 (2026-11-15): a question the planner refuses (a LegendError, not a ValueError)
         # raised out of queries(), every other question lost; it is a row whose `refused` is the planner's words
         from unittest import mock
+
         from legend_lite.compiler import LegendError
 
         page = ll.Page("Refused")
@@ -1589,7 +1591,7 @@ class Document(Paged):
         shown, printed = [], []
         shim = type("ll", (), {"Page": ll.Page, "show": staticmethod(shown.append)})
         ran = {"ll": shim, "prices_frame": prices, "print": lambda *a, **k: printed.append(a)}
-        exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)
+        exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)  # noqa: S102 -- the test runs the Python text the package wrote
         own = ran["page"]
         self.assertIsNot(own, page)
         self.assertEqual(shown, [own])
@@ -1641,7 +1643,7 @@ class Document(Paged):
             "prices_frame": prices,
             "print": lambda *a, **k: None,
         }
-        exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)
+        exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)  # noqa: S102 -- the test runs the Python text the package wrote
         cubes = lambda spec: {**spec, "sources": [{**s, "cube": None} for s in spec["sources"]]}
         self.assertEqual(cubes(ran["page"].timeseries_tiles[0].spec), cubes(tile.spec))
         self.assertEqual(ran["page"].timeseries_tiles[0].title, tile.title)
@@ -1654,7 +1656,7 @@ class Document(Paged):
             "prices_frame": prices,
             "print": lambda *a, **k: None,
         }
-        exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)
+        exec(compile(code.replace("import legend_lite as ll\n", ""), "tile.py", "exec"), ran)  # noqa: S102 -- the test runs the Python text the package wrote
         self.assertNotIn("key", ran["page"].timeseries_tiles[0].spec["sources"][0])
         # the second review, 2026-10-28: a title on the program's first line read as its encoding (PEP 263) -- `coding=
         # utf-7` decoded `+ACc-` as a quote and `+AAo-` as a line end inside the title's string. Compiled from its bytes,
@@ -1669,7 +1671,7 @@ class Document(Paged):
             "prices_frame": prices,
             "print": lambda *a, **k: printed.append(a),
         }
-        exec(compile(code.replace("import legend_lite as ll\n", "").encode("utf-8"), "tile.py", "exec"), ran)
+        exec(compile(code.replace("import legend_lite as ll\n", "").encode("utf-8"), "tile.py", "exec"), ran)  # noqa: S102 -- the test runs the Python text the package wrote
         self.assertEqual(ran["page"].timeseries_tiles[0].title, attack)
         self.assertFalse(any("INJECTED" in str(a) for a in printed), printed)
 
@@ -2312,11 +2314,11 @@ class Document(Paged):
         # a timestamp, as its exact text (D12): a datetime column compared with a Python datetime
         stamped = page.grid(
             pd.DataFrame(
-                {"at": [datetime.datetime(2024, 1, 31, 10, 30), datetime.datetime(2024, 2, 2, 9, 0)], "qty": [1, 2]}
+                {"at": [datetime.datetime(2024, 1, 31, 10, 30), datetime.datetime(2024, 2, 2, 9, 0)], "qty": [1, 2]}  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
             ),
             name="stamped",
         )
-        stamped.filter(("at", "lessThan", datetime.datetime(2024, 2, 1, 9, 0)))
+        stamped.filter(("at", "lessThan", datetime.datetime(2024, 2, 1, 9, 0)))  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
         self.assertEqual(page.to_dict()["cubes"][2]["cube"]["query"]["filter"]["value"], "2024-02-01T09:00:00")
         self.assertEqual(len(stamped.view().rows), 1)
 
@@ -2384,12 +2386,12 @@ class Document(Paged):
             page.stack(other, "chart-1")
 
     def test_saved_and_loaded_again_as_it_was_what_it_does_not_model_kept(self):
-        page, grid, chart = self.built()
+        page, _grid, chart = self.built()
         summary = page.sheet("Summary")
         summary.add(chart)
         path = os.path.join(tempfile.mkdtemp(dir=os.environ.get("TEST_TMPDIR")), "q3.page.json")
         page.save(path)
-        saved = json.loads(open(path, encoding="utf-8").read())
+        saved = json.loads(Path(path).read_text(encoding="utf-8"))
         # a field a newer writer added, kept through a load and a save
         saved["variables"] = [{"name": "asOf"}]
         saved["cubes"][0]["cube"]["query"]["keepGroupedColumns"] = True
@@ -2558,7 +2560,7 @@ class Abilities(Paged):
         # (clickSort)
         page = ll.Page("Clicked")
         grid = page.grid(trades(), name="clicked_trades")
-        sorts = lambda: [(s["column"], s["direction"]) for s in grid._query["sorts"]]  # noqa: E731
+        sorts = lambda: [(s["column"], s["direction"]) for s in grid._query["sorts"]]
         # a number from the largest, then the other way, then none
         grid.toggle_sort("notional")
         self.assertEqual(sorts(), [("notional", "desc")])
@@ -2628,7 +2630,7 @@ class Abilities(Paged):
     def test_a_date_range_relative_to_today_is_two_conditions_the_database_computes(self):
         # grid.filter_date_range: the menu's Filter > Date Range (DataCube's date-ranges.ts)
         page = ll.Page("Dated")
-        today = datetime.date.today()
+        today = datetime.date.today()  # noqa: DTZ011 -- the local day, as the page's own default reads it
         frame = pd.DataFrame({"day": [today, today - datetime.timedelta(days=400)], "notional": [1.0, 2.0]})
         grid = page.grid(frame, name="dated")
         grid.filter_date_range("day", "last30Days")
@@ -2717,7 +2719,7 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, "is no longer on its page"):
             on_third.view()
         with self.assertRaisesRegex(ValueError, "is no longer on its page"):
-            third.name
+            _ = third.name
         page.remove(second)
         with self.assertRaisesRegex(ValueError, "a page has one sheet at least"):
             page.remove(first)
@@ -2977,8 +2979,12 @@ class Abilities(Paged):
                 {"kind": "between", "column": "notional", "min": 0, "max": 1000},
             ]
         )
+
         # its row: its counts (the grid read itself, its hidden columns beside them: a box after it reads the counts alone)
-        counts = lambda *names: (lambda row: {k: int(row[k]) for k in names})(grid.to_pandas().to_dict("records")[0])
+        def counts(*names):
+            row = grid.to_pandas().to_dict("records")[0]
+            return {k: int(row[k]) for k in names}
+
         self.assertEqual(len(grid.to_pandas()), 1)
         self.assertEqual(
             counts("Rows", "region_empty", "id_repeated", "notional_outside"),
@@ -3409,9 +3415,9 @@ class Abilities(Paged):
         with (
             mock.patch.object(datacube._current(), "page_objects", return_value=[page, other]),
             mock.patch.object(page, "_record_gone", side_effect=RuntimeError("the page could not hear it")),
+            self.assertRaisesRegex(RuntimeError, "the page could not hear it"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "the page could not hear it"):
-                ll.Page.delete(id)
+            ll.Page.delete(id)
         self.assertNotIn("record", other.to_dict(), "told, after the page before it failed")
 
     def test_the_sessions_pages_are_kept_and_read_whole_while_pages_are_made_on_another_thread(self):
@@ -3587,7 +3593,7 @@ class Live(Paged):
         # page's own write is its commands, served to another view as Python's are, and Python's next change, on top of
         # it, is its commands; a grid's edit over a Live frame that changed in place, its cube opened again first
         # (rebuilt: P11)
-        page, grid, _ = self.built()
+        page, _grid, _ = self.built()
         tab = ll.show(page, browser=False)
         since = self.writes(page)
         at = self.version(page)
@@ -3719,7 +3725,7 @@ class Live(Paged):
         )
 
     def test_shown_again_and_closed_and_shown_again(self):
-        page, grid, _ = self.built()
+        page, _grid, _ = self.built()
         first = ll.show(page, browser=False)
         at = self.version(page)
         # shown again in another tab: the page as it is, its version the same
@@ -3874,7 +3880,7 @@ class Live(Paged):
         # (found by the keeper's soak at 60 seeds; docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version)
         # the open page wrote a sheet at the number Python's next one takes: under its tab's tag, so each keeps its own
         # id, nothing renamed -- Python's handle is the sheet it made
-        page, grid, _ = self.built()
+        page, _grid, _ = self.built()
         ll.show(page, browser=False)
         page._enter()
         try:
@@ -3990,9 +3996,12 @@ class Live(Paged):
                 page.grid(trades(), name=f"calls_{grids}_{i}")
             headless = datacube._session.headless()
             calls, real = [], headless.call
-            headless.call = lambda function, *args, **kwargs: (calls.append(function), real(function, *args, **kwargs))[
-                1
-            ]
+
+            def counted(function, *args, calls=calls, real=real, **kwargs):
+                calls.append(function)
+                return real(function, *args, **kwargs)
+
+            headless.call = counted
             try:
                 page.name = f"Renamed {grids}"
             finally:
@@ -4035,7 +4044,7 @@ class Joined(Paged):
     the tab's Join… makes one, its rows planned by Python over one model of the two frames it reads, saved and loaded
     over those frames, reopened when one of them is served again, and the page served with both frames' versions."""
 
-    HOW = {
+    HOW: ClassVar[dict] = {
         "form": "join",
         "kind": "left",
         "on": {"rows": [{"left": "desk", "op": "==", "right": "desk"}]},
@@ -4145,7 +4154,7 @@ class Joined(Paged):
         self.assertEqual([t.id for t in third.tiles], [far.id, there.id], "on its first input's sheet")
 
     def test_saved_and_loaded_over_its_frames_and_reopened_when_one_is_served_again(self):
-        page, joined = self.joined()
+        page, _joined = self.joined()
         saved = page.to_dict()
         cube = next(c["cube"] for c in saved["cubes"] if c["cube"]["source"]["_type"] == "join")
         self.assertEqual([cube["source"][s]["source"]["name"] for s in ("left", "right")], ["trades", "desks"])
@@ -4165,7 +4174,7 @@ class Joined(Paged):
     def test_a_join_that_no_longer_joins_is_left_out_as_the_tab_leaves_it_out(self):
         # (the S7 confirmation audit's Y2-1) a frame served without the column it joins on: the join fails as its plan
         # does, no refusal -- left out and said, as the tab's Open... leaves it out, the page's other grids opened
-        page, joined = self.joined()
+        page, _joined = self.joined()
         saved = page.to_dict()
         name = next(c["cube"]["source"]["name"] for c in saved["cubes"] if c["cube"]["source"]["_type"] == "join")
         with warnings.catch_warnings(record=True) as said:
@@ -4298,7 +4307,7 @@ class Joined(Paged):
         self.assertEqual(len(json.loads(body)["relations"]), 2)
 
     def test_shown_served_with_both_frames_versions(self):
-        page, joined = self.joined()
+        page, _joined = self.joined()
         tab = ll.show(page, browser=False)
         try:
             status, versions = self.get(f"/version.json?page={page._key}")
@@ -4324,7 +4333,7 @@ class Flowed(Paged):
         return page, source, big
 
     def test_a_box_reads_its_inputs_rows_as_that_grid_is_now(self):
-        page, source, big = self.chain()
+        _page, source, big = self.chain()
         self.assertEqual(big._cube["source"]["_type"], "rows")
         self.assertEqual(big._cube["source"]["input"], {"grid": source.id}, "a live input: the grid it reads, by id")
         self.assertEqual(big.frames, ["trades"], "what it reads is what its input reads")
@@ -4334,7 +4343,7 @@ class Flowed(Paged):
         self.assertEqual(sorted(big.to_pandas()["notional"]), [100.0])
 
     def test_a_box_after_a_box_and_after_a_grouped_one_its_groups(self):
-        page, source, big = self.chain()
+        page, _source, big = self.chain()
         after = page.grid(input=big)
         self.assertEqual(after.frames, ["trades"])
         self.assertEqual(sorted(after.to_pandas()["notional"]), [100.0, 250.0], "its input's rows, filtered")
@@ -4464,7 +4473,7 @@ class Flows(Paged):
             flow.grid(trades(), name="other", sheet=flow)
 
     def test_saved_and_loaded_as_it_was(self):
-        page, flow, _source, _big = self.flowed()
+        page, _flow, _source, _big = self.flowed()
         saved = page.to_dict()
         again = ll.Page.load(saved, frames={"trades": trades()})
         self.assertEqual(again.to_dict()["sheets"], saved["sheets"])
@@ -4582,9 +4591,11 @@ class Flows(Paged):
             big.output_table("big trades")
         # a frame's own table is none an Output writes
         big.output_table("trades", "overwrite")
-        with tempfile.TemporaryDirectory() as folder:
-            with self.assertRaisesRegex(ValueError, "one of this page's own tables"):
-                flow.run(folder)
+        with (
+            tempfile.TemporaryDirectory() as folder,
+            self.assertRaisesRegex(ValueError, "one of this page's own tables"),
+        ):
+            flow.run(folder)
 
     def test_a_table_output_is_refused_a_name_a_streaming_snap_has_reserved(self):
         # the closing audit's item 1 (2026-11-13): a warehouse snap streams its rows into a name reserved with the frames
@@ -4612,7 +4623,7 @@ class Flows(Paged):
         # one writer (flow-output.ts outputCsv, headless gridOutput; the review of 2026-10-26's B2, C1, C9, C10): every row
         # in its sorts' order, the columns it hands on under their names, in its order, each value as it is -- the tab's
         # own text, its BOM and CRLFs
-        page, flow, source, _big = self.flowed()
+        _page, flow, source, _big = self.flowed()
         chosen = flow.grid(input=source)
         chosen.select(["notional", "region"], rename={"region": "area"}, order=["notional", "region"])
         chosen.sort("notional", "desc")
@@ -4627,7 +4638,7 @@ class Flows(Paged):
     def test_a_select_keeps_and_renames_for_what_reads_it(self):
         # a flow's Select (select-columns.ts selectCommands): the columns it keeps, by the names it gives them -- the box
         # after it reads them so (the relation's rename), its own grid showing them so
-        page, flow, source, big = self.flowed()
+        _page, flow, _source, big = self.flowed()
         chosen = flow.grid(input=big)
         chosen.select(["region", "notional"], rename={"region": "area"})
         after = flow.grid(input=chosen)
@@ -4681,7 +4692,7 @@ class Flows(Paged):
     def test_a_summarize_gives_its_keys_and_aggregates(self):
         # a box after a Summarize reads a row per group, its keys and its aggregates -- the dimensions it is not grouped
         # by left out (snapshot.ts ungroupedDimensions: Alteryx's Summarize), as the canvas says and the screen reads
-        page, flow, source, big = self.flowed()
+        _page, flow, _source, big = self.flowed()
         by_region = flow.grid(input=big)
         by_region.group("region")
         after = flow.grid(input=by_region)
@@ -4725,7 +4736,7 @@ class Flows(Paged):
     def test_unique_and_its_duplicates(self):
         # M3: a flow's Unique (unique.ts uniqueCommands) -- a row of each key, its first by an order -- and its
         # Duplicates, the filter's False port (FL7): every row after a key's first
-        page, flow, source, _big = self.flowed()
+        _page, flow, source, _big = self.flowed()
         firsts = flow.grid(input=source)
         firsts.unique(["region"], by=("notional", "desc"))
         self.assertEqual(sorted(firsts.to_pandas()["notional"]), [100.0, 250.0], "each region's largest")
@@ -4893,7 +4904,7 @@ class Flows(Paged):
         # FL2: a Cross Tab box (desk by region, its measures summed) -- its columns its values, which a box after it
         # reads once Load values pins them (grid.load_pivot_values: asked of the database), each value's column named
         # by it; pinned by hand to fewer, fewer; taken off, refused in words
-        page, flow, source, _big = self.flowed()
+        _page, flow, source, _big = self.flowed()
         crossed = flow.grid(input=source)
         crossed.group("desk").pivot("region")
         crossed.load_pivot_values()
@@ -4954,15 +4965,13 @@ class Flows(Paged):
     def test_number_columns_binned_as_a_binning_box_bins_them(self):
         # M3: grid.binning -- each number column into N bins of equal width over its own range, the database placing each
         # value; the box after it reads each bin's lower edge beside its column, the range and upper edge hidden
-        page, flow, source, _big = self.flowed()
+        _page, flow, source, _big = self.flowed()
         binned = flow.grid(input=source)
         binned.binning(["notional", "pnl"], 2)
         rows = flow.grid(input=binned).to_pandas()
         self.assertIn("notional_bins", rows.columns)
         self.assertIn("pnl_bins", rows.columns)
-        self.assertFalse(
-            [c for c in rows.columns if c.endswith("__min") or c.endswith("__upper")], "its helpers hidden"
-        )
+        self.assertFalse([c for c in rows.columns if c.endswith(("__min", "__upper"))], "its helpers hidden")
         # notional 75.5 to 250: two bins of 87.25, the largest in the last
         self.assertEqual(
             sorted(zip(rows["notional"], rows["notional_bins"])), [(75.5, 75.5), (100.0, 75.5), (250.0, 162.75)]
@@ -5005,7 +5014,7 @@ class Flows(Paged):
     def test_a_dry_run_counts_every_box_and_writes_nothing(self):
         # M6: flow.dry_run -- every box's rows counted as the canvas counts them, the boxes that stop a run judged, the
         # files a run would write named; nothing written. A stopping Test failing: none would be, said why
-        page, flow, source, big = self.flowed()
+        _page, flow, source, big = self.flowed()
         out = flow.grid(input=source)
         out.output("trades out.csv")
         dry = flow.dry_run()
@@ -5023,7 +5032,7 @@ class Flows(Paged):
     def test_a_custom_filter_keeps_the_rows_its_condition_is_true_for(self):
         # FL12: grid.custom_filter -- a condition in Pure over $x, parsed and typed by the compiler, the database judging;
         # its column hidden from the box after it; its False the rest; a condition that is no Boolean refused
-        page, flow, source, _big = self.flowed()
+        _page, flow, source, _big = self.flowed()
         kept = flow.grid(input=source)
         kept.custom_filter("$x.notional->toOne() > 90 && $x.region == 'EMEA'")
         after = flow.grid(input=kept)
@@ -5043,7 +5052,7 @@ class Flows(Paged):
         # §4's Dynamic Replace: grid.dynamic_replace -- rules read off another grid's rows (the database reading them), a
         # column, a condition over $x and a value each; of a column's rules the first that holds, its own value where
         # none does; pinned in place; the compiler typing each, refusing in its words, the rule named
-        page, flow, source, _big = self.flowed()
+        _page, flow, source, _big = self.flowed()
         rules = flow.grid(
             pd.DataFrame(
                 {
@@ -5151,9 +5160,11 @@ class Flows(Paged):
         self.assertEqual(page.parameters["rate"], Decimal("1.10"))
         # a table written from a cached copy: refused in words (this session's engine holds the copy)
         after.output_table("regions_out")
-        with tempfile.TemporaryDirectory() as folder:
-            with self.assertRaisesRegex(ValueError, "this box reads a cached box's copy"):
-                flow.run(folder)
+        with (
+            tempfile.TemporaryDirectory() as folder,
+            self.assertRaisesRegex(ValueError, "this box reads a cached box's copy"),
+        ):
+            flow.run(folder)
 
     def test_a_macro_is_a_sub_flow_used_as_one_box(self):
         # M8's standard macro: page.macro -- boxes, each over the one before it, saved as one Pure function of the first
@@ -5259,7 +5270,7 @@ class Flows(Paged):
     def test_a_sample_hands_on_the_rest(self):
         # M3: a Sample a filter makes hands on the rest by its False (Alteryx's Create Samples, its estimation and holdout):
         # the rows it leaves out, by the same seed -- its rows and the rest every row, none in both
-        page, flow, source, _big = self.flowed()
+        _page, flow, source, _big = self.flowed()
         every = sorted(source.to_pandas()["notional"])
         sampled = flow.grid(input=source)
         sampled.sample("random", 50, seed=2)
@@ -5438,14 +5449,14 @@ class Snapped(Paged):
             f"its snap ({grid.snapped['label']}) is no longer held -- go live to read its rows live again, "
             "or snap it anew"
         )
-        with mock.patch.object(datacube._session, "held_copies", lambda: {}):
+        with mock.patch.object(datacube._session, "held_copies", dict):
             with self.assertRaisesRegex(ValueError, gone):
                 grid.view()
             # its live base is its frame's, whatever its copy: what a snap pulls, what a class is made of
             self.assertIn("trades", grid.relation)
         self.assertEqual(len(grid.view().rows), shown, "held again: its copy read")
         grid.live()
-        with mock.patch.object(datacube._session, "held_copies", lambda: {}):
+        with mock.patch.object(datacube._session, "held_copies", dict):
             self.assertEqual(len(grid.view().rows), shown, "live: its frame read, no copy asked for")
 
     def test_a_snapped_grid_reads_its_copy_whatever_its_frame_does_and_live_again_reads_the_frame(self):
@@ -5457,7 +5468,7 @@ class Snapped(Paged):
         copy = grid.snapped
         self.assertEqual((copy["table"], copy["rowCount"], "pulledBy" in copy), ("snap", 3, False))
         self.assertRegex(copy["label"], r"^Snap \d\d:\d\d$")
-        datetime.datetime.fromisoformat(copy["takenAt"].replace("Z", "+00:00"))
+        datetime.datetime.fromisoformat(copy["takenAt"])
         # the page's own command, as DataCube's Snap writes it, and the document's copies by cube
         self.assertEqual(page._page_commands[-1], {"kind": "snap", "grid": grid.id, "copy": copy})
         self.assertEqual(page.to_dict()["copies"], {grid._view["cube"]: copy})
@@ -5611,8 +5622,10 @@ class Snapped(Paged):
         self.assertEqual(
             [str(w.message) for w in said],
             [
-                f"trades was snapped ({label}) when the page was saved: it opens live, as a snap lasts only as "
-                "long as the session that made it"
+                (
+                    f"trades was snapped ({label}) when the page was saved: it opens live, as a snap lasts only as "
+                    "long as the session that made it"
+                )
             ],
         )
         self.assertNotIn("copies", again.to_dict())
@@ -6223,7 +6236,7 @@ class OverWarehouse(Paged):
     (legend_lite.warehouse's Warehouse and connect, as test_engine.py WarehouseOnPython stands in for it)."""
 
     URL = "https://wh.example"
-    COLUMNS = [
+    COLUMNS: ClassVar[list] = [
         {
             "name": "desk",
             "type": "VARCHAR",
@@ -6247,6 +6260,7 @@ class OverWarehouse(Paged):
         import duckdb
         import pyarrow as pa
         import pyarrow.ipc
+
         from legend_lite import warehouse
 
         objects = [

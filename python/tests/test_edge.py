@@ -16,14 +16,13 @@ from unittest import mock
 
 import pyarrow as pa
 import pyarrow.ipc
+import test_engine
+from test_engine import GROUP, PARTY, PARTY_QUERY, trades
 
 import legend_lite as ll
 from legend_lite import edge
 from legend_lite._edge_seam import NO_EDGE_ROUTES, EdgeRoutes
 from legend_lite.engine import Engine, WebServer
-
-import test_engine
-from test_engine import GROUP, PARTY, PARTY_QUERY, trades
 
 
 def read_arrow(body):
@@ -86,6 +85,7 @@ class EdgeOn(unittest.TestCase):
     def test_without_the_engine_library_the_door_is_refused_by_name(self):
         import builtins
         import sys
+
         from legend_lite import _loader
 
         real_import = builtins.__import__
@@ -148,7 +148,7 @@ class UnexpectedFailures(EdgeServed):
         held = "X-Amz-Signature=held-0123456789"
         original = self.frames.held_values
         self.frames.held_values = lambda: (*original(), held)
-        status, _, body = self.post(
+        _status, _, body = self.post(
             "/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC",
             self.execute_input(self.query("->select(~[desk])")),
         )
@@ -233,7 +233,7 @@ class Calls(EdgeServed):
             # a request that fails says how in its place, rather than leaving it None
             try:
                 answers[i] = self.arrow(GROUP)[1].to_pylist()
-            except Exception as failure:
+            except Exception as failure:  # noqa: BLE001 -- the thread's failure is kept as its answer, for the assert
                 answers[i] = repr(failure)
 
         threads = [threading.Thread(target=ask, args=(i,)) for i in range(len(answers))]

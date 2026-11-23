@@ -16,10 +16,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from ._planned import Database, PlannedSql, PlanText, all_from_plan, from_plan, read_plan, send
-from ._raised import declare_sites
 from ._plans import statement_params
+from ._raised import declare_sites
 from ._runframe import in_run, runs
-
 
 # the plan format this host runs: the planner's (PlanJson.VERSION), as the tab's runner's is (plan-runner.ts PLAN_VERSION,
 # held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
@@ -169,7 +168,7 @@ def run_write(plan: PlanText, connection: Any) -> None:
         try:
             for sql in all_from_plan(target["transaction"]["rollback"]):
                 send(connection, sql)
-        except Exception as rollback:
+        except Exception as rollback:  # noqa: BLE001 -- whatever the rollback raises is said with the load's own failure
             raise LoadRefused(f"{failure} -- and rolling its transaction back failed: {rollback}") from failure
         raise
 
@@ -311,7 +310,7 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
         try:
             for sql in all_from_plan(step["transaction"]["rollback"]):
                 send(connection, sql)
-        except Exception as rollback:
+        except Exception as rollback:  # noqa: BLE001 -- whatever the rollback raises is said with the load's own failure
             raise LoadRefused(f"{failure} -- and rolling its transaction back failed: {rollback}") from failure
         raise
     finally:

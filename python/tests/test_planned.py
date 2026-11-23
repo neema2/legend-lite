@@ -5,6 +5,8 @@ guard pinning where the type is made is tools/guards/PlannedSqlTest.java."""
 
 import json
 import unittest
+from pathlib import Path
+from typing import ClassVar
 
 import duckdb
 
@@ -24,9 +26,9 @@ from legend_lite._planned import (
     send,
 )
 from legend_lite._planner import answer
+from legend_lite._reads import fetched_redacted
 from legend_lite._runframe import current_run, in_run, planning, runs
 from legend_lite.compiler import LegendError
-from legend_lite._reads import fetched_redacted
 
 
 class _Recording:
@@ -169,7 +171,7 @@ class OneSendTest(unittest.TestCase):
         # the method is reached (a name bound to it, getattr), outside a run it is refused by name before anything is
         # submitted; nothing may be called on this one, so a submit would fail otherwise
         engine = warehouse.Warehouse.__new__(warehouse.Warehouse)
-        sends = (engine.arrow_chunks, getattr(engine, "arrow_chunks"))
+        sends = (engine.arrow_chunks, engine.arrow_chunks)
         for reached in sends:
             with self.assertRaisesRegex(Unframed, r"sent to the warehouse only inside a run"):
                 next(reached(from_plan("SELECT 1")))
@@ -273,7 +275,7 @@ class WitnessTest(unittest.TestCase):
     def test_a_load_hands_the_database_its_plans_statements_alone(self):
         import os
 
-        fixture = json.loads(open(os.environ["LEGEND_LITE_RUN_LOAD_FIXTURE"], encoding="utf-8").read())
+        fixture = json.loads(Path(os.environ["LEGEND_LITE_RUN_LOAD_FIXTURE"]).read_text(encoding="utf-8"))
         project = compiler.project_data(fixture["model"], fixture["databaseType"])
         witness = _Witness(duckdb.connect())
         db = Database(witness)
@@ -458,7 +460,7 @@ class KeyedExpansionFixtureTest(unittest.TestCase):
     def test_each_case_is_written_as_the_other_runners_write_it(self):
         import os
 
-        cases = json.loads(open(os.environ["LEGEND_LITE_KEYED_FIXTURE"], encoding="utf-8").read())["cases"]
+        cases = json.loads(Path(os.environ["LEGEND_LITE_KEYED_FIXTURE"]).read_text(encoding="utf-8"))["cases"]
         self.assertGreater(len(cases), 3)
         for case in cases:
             with self.subTest(case["name"]):
@@ -613,7 +615,9 @@ class RunFrameTest(unittest.TestCase):
         # //python:run_closure_test, which holds every send of the run side framed): each statement each sends is sent
         # inside the run it names
         from unittest import mock
+
         import pyarrow as pa
+
         from legend_lite import frames as frames_module
 
         con = duckdb.connect()
@@ -689,15 +693,15 @@ class RunFrameTest(unittest.TestCase):
                 "a gone session's frames let go (its finalizer may land inside a run)",
                 "a crossing of my own",
             ):
-                with self.assertRaisesRegex(ValueError, "no known crossing is named"):
-                    with exempt(crossing):
-                        pass
+                with self.assertRaisesRegex(ValueError, "no known crossing is named"), exempt(crossing):
+                    pass
             with self.assertRaisesRegex(RuntimeError, "inside a run"):
                 planning("plan")
 
     def _gone_session(self, connection):
         """A marimo session over ``connection``, a frame registered, held as marimo's sessions are (its key)."""
         import pyarrow as pa
+
         from legend_lite import datacube
         from legend_lite.frames import Frames
 
@@ -771,6 +775,7 @@ class RunFrameTest(unittest.TestCase):
         # call that drained the queue raises nothing, and the next queued session is let go all the same
         import sys
         from unittest import mock
+
         from legend_lite import datacube
 
         first, first_key = self._gone_session(duckdb.connect())
@@ -794,7 +799,7 @@ class RunFrameTest(unittest.TestCase):
     def test_each_runner_sends_inside_its_run(self):
         import os
 
-        fixture = json.loads(open(os.environ["LEGEND_LITE_RUN_LOAD_FIXTURE"], encoding="utf-8").read())
+        fixture = json.loads(Path(os.environ["LEGEND_LITE_RUN_LOAD_FIXTURE"]).read_text(encoding="utf-8"))
         project = compiler.project_data(fixture["model"], fixture["databaseType"])
         seen = []
         projects.run_load(project["load"], lambda statement: seen.append(current_run()))
@@ -902,6 +907,7 @@ class C5SplitTest(unittest.TestCase):
         # a foreign thread), where a run's frame is not set; each pull -- the plane's next chunk -- runs in the run's
         # context, so the plane's every chunk is fetched in the run
         import threading
+
         import pyarrow as pa
         import pyarrow.ipc
 
@@ -930,6 +936,7 @@ class C5SplitTest(unittest.TestCase):
         # which copies the caller's context: the frame reaches them, and they are services, which the witness passes
         import pyarrow as pa
         import pyarrow.ipc
+
         from legend_lite import _reads, _services
         from legend_lite._pool import _on_compiler_threads
 
@@ -997,7 +1004,9 @@ class C5SplitTest(unittest.TestCase):
         # and a constant name alone -- a read after a frame registered and the connection's own settings changed sends
         # exactly the statements a read sent before (its frames' attachments are data, attached, never statements)
         from unittest import mock
+
         import pyarrow as pa
+
         from legend_lite import _reads
         from legend_lite.frames import Frames
 
@@ -1033,18 +1042,20 @@ class FollowupTest(unittest.TestCase):
         # a rollback fails only when no transaction is open on the read's cursor any longer (measured, duckdb 1.5.5): one
         # ended by a statement of the read's own here. The read ended well: the rollback's failure is raised
         import pyarrow as pa
+
         from legend_lite.frames import Frames
 
         frames = Frames()
         frames.register("t", pa.table({"x": [1]}))
-        with self.assertRaisesRegex(duckdb.TransactionException, "cannot rollback - no transaction is active"):
-            with frames.reading() as read:
-                read.execute(PlannedSql("COMMIT"))  # the test's own statement: the read's transaction ended inside it
+        with (
+            self.assertRaisesRegex(duckdb.TransactionException, "cannot rollback - no transaction is active"),
+            frames.reading() as read,
+        ):
+            read.execute(PlannedSql("COMMIT"))  # the test's own statement: the read's transaction ended inside it
         # the read failed: its failure stays the one raised, the rollback's noted on it
-        with self.assertRaises(KeyError) as failed:
-            with frames.reading() as read:
-                read.execute(PlannedSql("COMMIT"))
-                raise KeyError("the read failed")
+        with self.assertRaises(KeyError) as failed, frames.reading() as read:
+            read.execute(PlannedSql("COMMIT"))
+            raise KeyError("the read failed")
         self.assertEqual(failed.exception.args, ("the read failed",))
         self.assertTrue(
             any(
@@ -1066,7 +1077,7 @@ class FollowupTest(unittest.TestCase):
         token = "https://bucket.example/f.parquet?X-Amz-Signature=sig-0123456789abcdef"
 
         class Failing:
-            description = [("n",)]
+            description: ClassVar[list] = [("n",)]
 
             def __getattr__(self, name):
                 def fetch(*_a):
@@ -1403,7 +1414,7 @@ class ARaiseIsWorded(unittest.TestCase):
 
         from legend_lite._raised import declare_statement_sites, raised_kind, raised_words
 
-        fixture = json.loads(open(os.environ["LEGEND_LITE_RAISE_FIXTURE"], encoding="utf-8").read())
+        fixture = json.loads(Path(os.environ["LEGEND_LITE_RAISE_FIXTURE"]).read_text(encoding="utf-8"))
         # the sites are the statement's (PlanJson v56; phase D's Phase 2): declared first, as a plan read does
         declare_statement_sites(fixture["statement"], fixture["sites"], "the fixture")
         cases = fixture["cases"]
@@ -1480,11 +1491,12 @@ class BindAtRun(unittest.TestCase):
     def test_a_remote_planes_run_binds_as_a_local_run_does(self):
         # the warehouse's statement API binds at run (the host train, 2026-11-17, the orchestrator's ruling (a)): the
         # plane is handed the plan's payloads and each parameter's checked value, positionally -- the same _params.bind
-        from legend_lite._plans import Column, Plan
-        from legend_lite._reads import run_on_plane
-        from legend_lite._planned import PlannedSql
         import pyarrow as pa
         import pyarrow.ipc
+
+        from legend_lite._planned import PlannedSql
+        from legend_lite._plans import Column, Plan
+        from legend_lite._reads import run_on_plane
 
         handed = []
         rows = pa.table({"n": pa.array([1], pa.int64())})
@@ -1608,8 +1620,10 @@ class BindAtRun(unittest.TestCase):
             (
                 "DateTime",
                 "2026-11-17",
-                'given "2026-11-17" (string): a DateTime is its ISO 8601 text in UTC, '
-                "YYYY-MM-DDTHH:MM[:SS[.fffffffff]]",
+                (
+                    'given "2026-11-17" (string): a DateTime is its ISO 8601 text in UTC, '
+                    "YYYY-MM-DDTHH:MM[:SS[.fffffffff]]"
+                ),
             ),
             ("p::Unknown", 1, "a p::Unknown value is not bound by a plan"),
         ]
@@ -1628,6 +1642,7 @@ class BindAtRun(unittest.TestCase):
 
     def test_a_plans_slots_bind_payloads_and_parameters_in_order(self):
         import hashlib
+
         from legend_lite._params import bind
         from legend_lite._plans import Plan, PlanParamsRefused, plan_binding
 

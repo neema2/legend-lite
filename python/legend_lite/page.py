@@ -116,7 +116,7 @@ def _expression(expression: Any) -> None:
     """A calculated column's expression, which Python makes its lambda's text of (``x|<expression>``): text, or that text
     would be some other (a number, ``x|5``, a lambda DataCube would take) -- its name and the rest DataCube judges."""
     if not isinstance(expression, str):
-        raise ValueError(f"an expression is text, not {expression!r}")
+        raise ValueError(f"an expression is text, not {expression!r}")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
 
 
 def _store_said(said: str) -> str:
@@ -2394,7 +2394,7 @@ def _timeseries_sources(sources: Any) -> list[dict[str, Any]]:
         elif isinstance(given, Mapping):
             told = {k: (v._id if k == "grid" and isinstance(v, Grid) else v) for k, v in given.items()}
         else:
-            raise ValueError(f"a timeseries reads grids: {given!r} is not one")
+            raise ValueError(f"a timeseries reads grids: {given!r} is not one")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         return told if alias is None else {"alias": alias, **told}
 
     # one source told as a mapping: its grid and its own slots alone (``{'grid': g, 'date': 'day'}``) -- a mapping with any
@@ -2542,7 +2542,7 @@ class Timeseries(Tile):
         """Grid ``grid`` read as a source more, its alias, date and instrument column DataCube's rule's (Settings' Read
         another grid)."""
         if not isinstance(grid, Grid):
-            raise ValueError(f"a timeseries reads grids: {grid!r} is not one")
+            raise ValueError(f"a timeseries reads grids: {grid!r} is not one")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         return self._edit({"kind": "read", "grid": grid._id})
 
     def unread(self, alias: str) -> Timeseries:
@@ -2688,7 +2688,7 @@ class Timeseries(Tile):
             answer = session.engine().answer("POST", "/plan.json", "", _json.dumps(asked))
         said = json.loads(answer.body)
         if not (isinstance(said, dict) and isinstance(said.get("plan"), str)):
-            raise ValueError(answer.body.decode("utf-8", errors="replace"))
+            raise ValueError(answer.body.decode("utf-8", errors="replace"))  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         return {"pure": compiler.print_tree(tree), "sql": compiler.read_planned(said["plan"]).sql}
 
     def code(self, language: str = "python") -> str:
@@ -2862,7 +2862,7 @@ class Timeseries(Tile):
                 {"page": self._page._doc, "tile": self._id, "series": series, "window": window, "table": "statistics"}
             )
             named, why = said["columns"], said["why"]
-            value = lambda r, c: None if c not in rows.columns or pd.isna(r[c]) else r[c]
+            value = lambda r, c, rows=rows: None if c not in rows.columns or pd.isna(r[c]) else r[c]
             for _, r in rows.iterrows():
                 split = r[named["split"]] if named["split"] in rows.columns else None
                 line = {"line": self._line(said, split, series=series)}
@@ -2940,7 +2940,7 @@ class Timeseries(Tile):
                 rows = rows.head(said["limit"])
                 warnings.warn(said["cut"], stacklevel=2)
             for _, r in rows.iterrows():
-                read = lambda k: None if named[k] is None or pd.isna(r[named[k]]) else r[named[k]]
+                read = lambda k, r=r, named=named: None if named[k] is None or pd.isna(r[named[k]]) else r[named[k]]
                 out.append(
                     {
                         "name": said["name"],
@@ -2981,8 +2981,8 @@ class Timeseries(Tile):
             )
             named = said["columns"]
             for _, r in rows.iterrows():
-                read = lambda k: None if pd.isna(r[named[k]]) else r[named[k]]
-                day = lambda k: None if pd.isna(r[named[k]]) else pd.Timestamp(r[named[k]])
+                read = lambda k, r=r, named=named: None if pd.isna(r[named[k]]) else r[named[k]]
+                day = lambda k, r=r, named=named: None if pd.isna(r[named[k]]) else pd.Timestamp(r[named[k]])
                 out.append(
                     {
                         "name": said["name"],
@@ -3232,7 +3232,7 @@ class Timeseries(Tile):
         for _, r in rows.iterrows():
             key = (r[named["split"]] if split else None, int(r[named["year"]]))
             row = table.setdefault(key, {m: None for m in months} | {"Year": None})
-            value = lambda c: None if pd.isna(r[c]) else float(r[c])
+            value = lambda c, r=r: None if pd.isna(r[c]) else float(r[c])
             row[months[int(r[named["month"]]) - 1]] = value(named["return"])
             row["Year"] = value(named["yearReturn"])
         keys = sorted(table, key=lambda k: (str(k[0]), -k[1]))
@@ -3421,7 +3421,7 @@ class Sheet:
             raise ValueError(f"{self!r} is a board: a flow runs its Outputs")
         import time
 
-        at = datetime.datetime.now(datetime.timezone.utc)
+        at = datetime.datetime.now(datetime.UTC)
         started = time.perf_counter()
         boxes = {b["tile"]: b for b in layout["boxes"]}
         # a cached box copied again where its copy is of what it is no more
@@ -3594,7 +3594,7 @@ class Sheet:
                 raise ValueError("a band is a list of tiles, one at least: sheet.layout([grid, chart], [other])")
             for tile in band:
                 if not isinstance(tile, Tile):
-                    raise ValueError(f"a band is a list of tiles, not {tile!r}")
+                    raise ValueError(f"a band is a list of tiles, not {tile!r}")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
                 _ = tile._view
         # the bands as DataCube's layout picker lays them out (headless layoutBands: its rows shape, the places in order)
         said = json.loads(
@@ -3628,7 +3628,7 @@ class Sheet:
         it once, and only they: the page with it is read as DataCube reads one, and refused in its words."""
         _ = self._doc  # a sheet no longer on its page refused, as every sheet call refuses one
         if not isinstance(layout, Mapping):
-            raise ValueError(f"a sheet's layout is {{'kind': 'bands', 'fit': ..., 'bands': [...]}}, not {layout!r}")
+            raise ValueError(f"a sheet's layout is {{'kind': 'bands', 'fit': ..., 'bands': [...]}}, not {layout!r}")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         self._page._apply_page([_commands.page_layout(sheet=self._id, layout=_copied(layout))])
         return self
 
@@ -4509,7 +4509,7 @@ class Page:
         boxes = list(boxes)
         if not boxes:
             raise ValueError("a macro is made of one box at least")
-        for before, after in zip(boxes, boxes[1:]):
+        for before, after in itertools.pairwise(boxes):
             source = next(c["cube"]["source"] for c in self._doc["cubes"] if c["id"] == after._view["cube"])
             if source.get("_type") != "rows" or source.get("input", {}).get("grid") != before._id:
                 raise ValueError(
@@ -4665,7 +4665,7 @@ class Page:
         for page in _current().page_objects():
             try:
                 page._record_gone(id)
-            except Exception as failure:
+            except Exception as failure:  # noqa: BLE001 -- every page is told before the first failure is raised, below
                 failed.append(failure)
         if failed:
             raise failed[0]
@@ -4855,7 +4855,7 @@ class Page:
         def __enter__(self) -> None:
             self.page._quiet += 1
 
-        def __exit__(self, kind: Any, *_: Any) -> None:
+        def __exit__(self, kind: type[BaseException] | None, *_: object) -> None:
             self.page._quiet -= 1
             # written once, when it went through; a change that raised writes nothing (the call lets it go)
             if kind is None and self.tell:

@@ -29,7 +29,9 @@ from pathlib import Path
 import pandas as pd
 
 import legend_lite as ll
-from legend_lite import datacube, engine as engine_module, page as page_module
+from legend_lite import datacube
+from legend_lite import engine as engine_module
+from legend_lite import page as page_module
 
 PAGE = Path(page_module.__file__)
 ENGINE = Path(engine_module.__file__)

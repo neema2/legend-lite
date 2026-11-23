@@ -60,23 +60,22 @@ def literals(source: str) -> list[tuple[int, str]]:
 class HostSqlTest(unittest.TestCase):
     def test_a_statement_in_a_string_is_found_never_in_a_comment_or_a_docstring(self):
         r = rule()
-        source = "\n".join(
-            [
-                '"""SELECT * FROM T: a module\'s docstring about SQL."""',
-                "# CREATE TABLE t (x INT)",
-                "def f(name):",
-                '    """DROP TABLE t: a function\'s docstring."""',
-                "    a = 'SELECT 1'",
-                "    b = f'DROP TABLE IF EXISTS {name}'",
-                "    c = 'select x from y'",
-                "    d = {'label': 'Select a column', 'tag': 'SELECT', 'state': 'COMMITTED', 'kind': 'SELECTED'}",
-                "    e = f'{name} and then SELECT 2'",
-                "    g = f'{name}SELECT 1 FROM t'",
-                "    h = ['install ' + name, 'load ' + name, 'set threads = 4', 'pragma platform', 'use \"db\"']",
-                "    i = ['Install the app', 'load more rows', 'set', 'use the filter', 'begin']",
-                "    return ('USE ' + name)",
-            ]
-        )
+        lines = [
+            '"""SELECT * FROM T: a module\'s docstring about SQL."""',
+            "# CREATE TABLE t (x INT)",
+            "def f(name):",
+            '    """DROP TABLE t: a function\'s docstring."""',
+            "    a = 'SELECT 1'",
+            "    b = f'DROP TABLE IF EXISTS {name}'",
+            "    c = 'select x from y'",
+            "    d = {'label': 'Select a column', 'tag': 'SELECT', 'state': 'COMMITTED', 'kind': 'SELECTED'}",
+            "    e = f'{name} and then SELECT 2'",
+            "    g = f'{name}SELECT 1 FROM t'",
+            "    h = ['install ' + name, 'load ' + name, 'set threads = 4', 'pragma platform', 'use \"db\"']",
+            "    i = ['Install the app', 'load more rows', 'set', 'use the filter', 'begin']",
+            "    return ('USE ' + name)",
+        ]
+        source = "\n".join(lines)
         self.assertEqual(
             [line for line, text in literals(source) if r["statement"].match(text)],
             [5, 6, 7, 10, 11, 11, 11, 11, 11, 13],

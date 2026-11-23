@@ -6,6 +6,7 @@ import datetime
 import json
 import unittest
 from decimal import Decimal
+from typing import ClassVar
 
 import pandas as pd
 import polars as pl
@@ -140,6 +141,7 @@ class NamedAndAttached(unittest.TestCase):
 
     def test_the_plan_names_the_frame_never_its_bytes(self):
         from unittest import mock
+
         from legend_lite import frames as module
 
         ran = []
@@ -251,7 +253,7 @@ class Names(unittest.TestCase):
         # refused, and nothing of either left behind
         for frame in (pd.DataFrame({"id": [1, 2], "nothing": [None, None]}), pd.DataFrame(), streamed(pa.table({}))):
             frames = ll.Frames()
-            with self.assertRaises(Exception):
+            with self.assertRaises(Exception):  # noqa: B017 -- whichever error the database or the dataframe library raises: the point is that it is not swallowed
                 frames.register("trades", frame)
             self.assertNotIn("trades", frames)
             self.assertEqual(len(frames.register("trades", trades()).execute("->select(~[id])")), 5)
@@ -336,7 +338,8 @@ class Conversions(unittest.TestCase):
             table = ll.Frames().register("t", given)
             self.assertEqual([(c.name, c.type) for c in table.columns], [("at", "DateTime")])
             self.assertEqual(
-                table.execute("->select(~[at])").to_pylist(), [{"at": datetime.datetime(2026, 10, 8, 13, 30)}]
+                table.execute("->select(~[at])").to_pylist(),
+                [{"at": datetime.datetime(2026, 10, 8, 13, 30)}],  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
             )
 
 
@@ -353,7 +356,7 @@ class TypedByPlan(unittest.TestCase):
                 "s": pa.array(["a", None]),
                 "b": pa.array([True, None]),
                 "day": pa.array([datetime.date(2024, 1, 2), None]),
-                "at": pa.array([datetime.datetime(2024, 1, 2, 3, 4, 5, 123456), None], pa.timestamp("us")),
+                "at": pa.array([datetime.datetime(2024, 1, 2, 3, 4, 5, 123456), None], pa.timestamp("us")),  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
                 "v": pa.array(['{"a": [1, 2.50]}', None], pa.json_()),
             }
         )
@@ -383,7 +386,7 @@ class TypedByPlan(unittest.TestCase):
                 "s": "a",
                 "b": True,
                 "day": datetime.date(2024, 1, 2),
-                "at": datetime.datetime(2024, 1, 2, 3, 4, 5, 123456),
+                "at": datetime.datetime(2024, 1, 2, 3, 4, 5, 123456),  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
                 "v": '{"a": [1, 2.50]}',
             },
         )
@@ -470,8 +473,8 @@ class ModelTypesCarried(unittest.TestCase):
     (TypedByPlan's pin)."""
 
     def test_an_enumerations_column_is_carried_and_a_bare_unknown_name_refused(self):
-        from legend_lite._plans import Column, Plan
         from legend_lite._planned import PlannedSql
+        from legend_lite._plans import Column, Plan
         from legend_lite._reads import UntypedColumn, typed_by_plan
 
         rows = pa.table({"Country": ["US", None]})
@@ -503,6 +506,7 @@ class TypeNamesAreReadHere(unittest.TestCase):
         import io
         import pathlib
         import tokenize
+
         import legend_lite
         from legend_lite._type_facts import TYPE_FACTS
 
@@ -568,7 +572,7 @@ class ModelFor(unittest.TestCase):
         self.assertEqual(len(self.frames._admitted), 8)
         self.assertNotIn(self.project(0), self.frames._admitted)
         with self.assertRaises(ValueError):
-            first.handle  # let go of (closed)
+            _ = first.handle  # let go of (closed)
         # asked again, held again
         self.assertIsNotNone(self.frames.model_for(self.project(0)))
 
@@ -579,7 +583,7 @@ class JsonConnection(unittest.TestCase):
     text by its digest, verified once (compiler.plan_params), and bound where Python runs the plan."""
 
     # a quote, a backslash, a line break, in an order no sort would give
-    RECORDS = [{"name": "it's"}, {"name": "back\\slash"}, {"name": "two\nlines"}, {"name": "a"}]
+    RECORDS: ClassVar[list] = [{"name": "it's"}, {"name": "back\\slash"}, {"name": "two\nlines"}, {"name": "a"}]
     QUERY = "|m::P.all()->project(~[name: p|$p.name])"
 
     @staticmethod
@@ -681,6 +685,7 @@ class ParametersBoundAtRun(unittest.TestCase):
 
     def test_a_refused_value_is_lites_parameters_refusal_and_nothing_runs(self):
         from unittest import mock
+
         from legend_lite import compiler
 
         plan = self.table.plan(self.query("d:String[1]", "->filter(r|$r.desk == $d)"))
@@ -706,6 +711,7 @@ class TheProductsKinds(unittest.TestCase):
 
     def test_a_model_refusal_follows_the_products_kinds_renamed(self):
         from unittest import mock
+
         from legend_lite import compiler, frames, projects
 
         renamed = {"PARSE": "unparsed", "COMPILE": "untyped", "INTERNAL": "failed"}
@@ -714,7 +720,9 @@ class TheProductsKinds(unittest.TestCase):
             self.assertFalse(compiler.refuses_the_text(ll.LegendError("no", "compile")))
             self.assertIsInstance(frames._refusal(ll.LegendError("no", "unparsed")), frames.ModelRefused)
             self.assertNotIsInstance(frames._refusal(ll.LegendError("no", "failed")), frames.ModelRefused)
-            with mock.patch.object(compiler, "project_data", side_effect=ll.LegendError("no model", "untyped")):
-                with self.assertRaises(projects.NotAModel):
-                    with projects.ProjectDatabases(None).using("m", surface=True):
-                        pass
+            with (
+                mock.patch.object(compiler, "project_data", side_effect=ll.LegendError("no model", "untyped")),
+                self.assertRaises(projects.NotAModel),
+                projects.ProjectDatabases(None).using("m", surface=True),
+            ):
+                pass

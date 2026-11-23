@@ -117,7 +117,7 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
         if tag != "OK":
             raise OSError(rest.partition("\n")[2] or rest)
         status, _, answered = rest.partition("\n")
-    except Exception as failure:
+    except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
         traceback.print_exc()
         return _said(500, f"{type(failure).__name__}: {failure}")
     if int(status) == 204:
@@ -137,9 +137,11 @@ def _arrow_ipc(rows: pa.Table, metadata: dict[str, str]) -> bytes:
         raise RuntimeError(f"the database answered columns {rows.column_names}, the plan declared {declared}")
     rows = rows.replace_schema_metadata(metadata)
     sink = pa.BufferOutputStream()
-    with pa.CompressedOutputStream(sink, "zstd") as compressed:
-        with pyarrow.ipc.new_stream(compressed, rows.schema) as writer:
-            writer.write_table(rows)
+    with (
+        pa.CompressedOutputStream(sink, "zstd") as compressed,
+        pyarrow.ipc.new_stream(compressed, rows.schema) as writer,
+    ):
+        writer.write_table(rows)
     return sink.getvalue().to_pybytes()
 
 
@@ -194,7 +196,7 @@ class EngineRoutes:
             if path == EXECUTE:
                 return self._execute(engine, body) if _arrow_requested(query) else self._execute_json(engine, body)
             answer = pure_v1(path, query, body)
-        except Exception as failure:
+        except Exception as failure:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
             # never a dropped call: the database refusing is an answer; anything else is a bug, logged whole, and
             # answered the same way (as legend-lite's server answers both)
             if not isinstance(failure, duckdb.Error):
@@ -203,7 +205,7 @@ class EngineRoutes:
             message = redact_held(f"{type(failure).__name__}: {failure}", engine.frames.held_values())
             try:
                 answer = refusal(message)
-            except Exception:
+            except Exception:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
                 # the compiler itself failing: still an answer, its own words
                 traceback.print_exc()
                 return _said(500, message)

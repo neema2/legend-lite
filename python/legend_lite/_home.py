@@ -84,9 +84,9 @@ class Settings:
     def write(self, values: dict[str, Any]) -> None:
         """The page's settings, kept whole: to a file beside them, then moved over them."""
         if not isinstance(values, dict):
-            raise ValueError("DataCube's settings are one object")
+            raise ValueError("DataCube's settings are one object")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         with locked(self.folder):
-            written = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=self.folder, suffix=".part", delete=False)
+            written = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=self.folder, suffix=".part", delete=False)  # noqa: SIM115 -- entered just below, inside the try that removes the file if the write fails
             try:
                 with written:
                     json.dump(values, written, ensure_ascii=False)

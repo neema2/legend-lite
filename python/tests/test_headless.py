@@ -9,10 +9,12 @@ import datetime
 import json
 import os
 import re
+import subprocess
 import threading
 import unittest
-from pathlib import Path
 from decimal import Decimal
+from pathlib import Path
+from typing import ClassVar
 from unittest import mock
 
 import duckdb
@@ -20,8 +22,7 @@ import pandas as pd
 import pyarrow.ipc
 
 import legend_lite as ll
-from legend_lite import datacube
-from legend_lite import _pool
+from legend_lite import _pool, datacube
 from legend_lite._headless import Headless, bundle
 from legend_lite._planned import Database, PlannedSql
 from legend_lite.engine import Engine
@@ -224,6 +225,7 @@ class Grids(unittest.TestCase):
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap
         import csv
         import io
+
         import pandas as pd
 
         frame = pd.DataFrame({"region": ["EMEA", "EMEA", "APAC"], "qty": [1200, 34, 5000]})
@@ -268,7 +270,7 @@ class Grids(unittest.TestCase):
             self.assertIn(part, relation)
         rows = grid.to_pandas().set_index("desk").sort_index()
         emea = TRADES[TRADES.region == "EMEA"].assign(big=lambda d: d.notional > 50)
-        one = lambda d: d.iloc[0] if d.nunique() == 1 else None  # noqa: E731 -- uniqueValueOnly
+        one = lambda d: d.iloc[0] if d.nunique() == 1 else None
         # a Boolean with nulls stays a boolean (pandas' nullable type, frames.to_pandas): its null pandas' NA
         expected = (
             emea.groupby("desk")
@@ -631,6 +633,7 @@ class Files(unittest.TestCase):
         # change is simulated where it is seen: the second hash differs from the first
         import tempfile
         from unittest import mock
+
         from legend_lite import engine as engine_module
 
         folder = tempfile.TemporaryDirectory()
@@ -645,9 +648,8 @@ class Files(unittest.TestCase):
             seen.append(digest)
             return (size, digest) if len(seen) == 1 else (size + 1, "0" * 64)
 
-        with mock.patch.object(engine_module, "_bytes_of", changing):
-            with self.assertRaises(ValueError) as refused:
-                self.engine.read_file(path, "moving.csv")
+        with mock.patch.object(engine_module, "_bytes_of", changing), self.assertRaises(ValueError) as refused:
+            self.engine.read_file(path, "moving.csv")
         self.assertIn("the file moving.csv changed while it was read", str(refused.exception))
         self.assertEqual(len(seen), 2, "hashed before the read and again after it")
         self.assertEqual(self.tables("moving"), 0)
@@ -683,6 +685,7 @@ class Remote(unittest.TestCase):
         import http.server
         import tempfile
         import threading
+
         import pyarrow as pa
         import pyarrow.parquet as pq
 
@@ -693,7 +696,7 @@ class Remote(unittest.TestCase):
         class Quiet(http.server.SimpleHTTPRequestHandler):
             # the files a test marked gone (a link that no longer answers): 404, the file left where it is -- deleting it
             # raced the server's own handle on Windows (the closing audit's item 8, 2026-11-13)
-            gone: set[str] = set()
+            gone: ClassVar[set[str]] = set()
 
             def send_head(self):
                 import posixpath
@@ -835,6 +838,7 @@ class Remote(unittest.TestCase):
         # that expired, a file gone -- so a read's failure, and a mount's, is said with every value Python holds taken
         # out (the whole URL, its query string, each parameter long enough to be a token), the address named
         import shutil
+
         import duckdb
 
         sentinel = "SENTINEL-" + os.urandom(6).hex()
@@ -849,9 +853,8 @@ class Remote(unittest.TestCase):
         # the file left in place, never deleted from under the server's handle)
         self.quiet.gone.add("expiring.parquet")
         self.addCleanup(self.quiet.gone.discard, "expiring.parquet")
-        with self.frames.reading() as read:
-            with self.assertRaises(duckdb.Error) as failed:
-                read.execute(PlannedSql("SELECT count(*) FROM remote_expiring")).fetchone()
+        with self.frames.reading() as read, self.assertRaises(duckdb.Error) as failed:
+            read.execute(PlannedSql("SELECT count(*) FROM remote_expiring")).fetchone()
         self.assertNotIn(sentinel, str(failed.exception))
         self.assertIsNone(failed.exception.__context__, "the database's own error, which holds the URL, is not chained")
         # a page's mount of a link that does not answer (Page.load): named by its address, the token in no word
@@ -1082,7 +1085,7 @@ class Joins(unittest.TestCase):
     )
     # customer 20 listed twice: trade 3 comes out twice
     CUSTOMERS = pd.DataFrame({"customer_id": [10, 20, 20, 30], "region": ["EMEA", "AMER", "APAC", "EMEA"]})
-    HOW = {
+    HOW: ClassVar[dict] = {
         "form": "join",
         "kind": "left",
         "on": {"rows": [{"left": "customer_id", "op": "==", "right": "customer_id"}]},
@@ -1371,6 +1374,7 @@ class OneRead(unittest.TestCase):
         # small round's item 5), so a DuckDB that moved it would fail here, not pass unread
         self.assertTrue(issubclass(duckdb.HTTPException, duckdb.IOException))
         import tempfile
+
         import pyarrow.parquet as pq
 
         folder = tempfile.TemporaryDirectory()
@@ -1614,14 +1618,14 @@ class V8Started(unittest.TestCase):
     its context: OneRead's, a notebook's, the warehouse snap's second engine). Each case runs in a process of its own,
     whose V8 nothing has started yet."""
 
-    def run_alone(self, body: str) -> "subprocess.CompletedProcess[str]":
-        import subprocess
+    def run_alone(self, body: str) -> subprocess.CompletedProcess[str]:
         import sys
         import textwrap
 
         env = dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in sys.path if p))
         return subprocess.run(
             [sys.executable, "-X", "faulthandler", "-c", textwrap.dedent(body)],
+            check=False,
             env=env,
             capture_output=True,
             text=True,

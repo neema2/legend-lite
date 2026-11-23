@@ -392,7 +392,7 @@ class _Planners:
                     targets = (
                         node.targets
                         if isinstance(node, ast.Assign)
-                        else [node.target if not type(node).__name__ == "TypeAlias" else node.name]
+                        else [node.target if type(node).__name__ != "TypeAlias" else node.name]
                     )
                     value = node.value
                     if value is None:
@@ -493,13 +493,16 @@ def late_imports(tree: ast.AST) -> list[str]:
         a.asname for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names if a.name == "sys" and a.asname
     }
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "sys" and any(a.name == "modules" for a in node.names):
-            out.append(f"line {node.lineno}: {ast.unparse(node)}: sys.modules, a late import")
-        elif (
-            isinstance(node, ast.Attribute)
-            and node.attr == "modules"
-            and isinstance(node.value, ast.Name)
-            and node.value.id in systems
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "sys"
+            and any(a.name == "modules" for a in node.names)
+            or (
+                isinstance(node, ast.Attribute)
+                and node.attr == "modules"
+                and isinstance(node.value, ast.Name)
+                and node.value.id in systems
+            )
         ):
             out.append(f"line {node.lineno}: {ast.unparse(node)}: sys.modules, a late import")
         elif (
@@ -707,7 +710,7 @@ class RunClosureTest(unittest.TestCase):
 
     def test_the_rule_sees_every_break(self):
         # each a violator the rule must name, red on revert of its own check
-        run, door, planner = sorted(RUN)[0], "engine", "compiler"
+        run, door, planner = min(RUN), "engine", "compiler"
         cases = {
             # the build's own rule, read: a run or seam module imports its own side alone
             (run, "from . import compiler"): "the run side imports",
