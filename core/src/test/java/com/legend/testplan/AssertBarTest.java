@@ -604,6 +604,92 @@ class AssertBarTest {
                 wrong));
     }
 
+    /** Failing asserts of every family, the bodies the two checks below run (item 3's S5). */
+    private static final List<String> FAILING = List.of(
+            "{|assertEquals(1, 2)}", "{|assertEquals([1, 2], [2, 1])}", "{|assertEquals('a', 'b')}",
+            "{|assertEquals(1.5D, 2.5D)}", "{|assertEquals(%2020-01-01, %2020-01-02)}",
+            "{|assertSameElements([1, 2], [1, 3])}", "{|assertNotEquals(1, 1)}", "{|assertSize([1, 2], 3)}",
+            "{|assertEmpty([1])}", "{|assertNotEmpty([]->cast(@Integer))}", "{|assertContains([1, 2], 3)}",
+            "{|assertNotContains([1, 2], 2)}", "{|assertEqWithinTolerance(1.0, 2.0, 0.1)}", "{|assert(1 == 2)}",
+            "{|assertFalse(1 == 1)}", "{|assertInstanceOf(1, String)}", "{|assert(1 == 2, | 'my message')}",
+            "{|assertEquals([1, 'a'], [1, 'b'])}", "{|assertJsonStringsEqual('{\"a\":1}', '{\"a\":2}')}",
+            "{|[1, 2]->forAll(i | assertEquals(1, $i))}",
+            "{|assertEquals('1'->fromJson(), '2'->fromJson())}",
+            "{|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue,"
+                    + " []).values, [1, 3])}");
+
+    /** ONE CATALOG (item 3's S5, docs/records/compat-assert-records-2026-11-21.md section 6): every failed assert on
+     *  lite's road, under every judge, is a record of the one catalog and its message is that record's sentence --
+     *  no judge words a failure of its own. A refusal by name (an unjudged decline) is not a failure and carries
+     *  none. */
+    @Test
+    void everyFailureIsItsRecordsSentence() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            for (String body : FAILING) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    try {
+                        Program.runFresh(MAPPED_ON.formatted(database), body, "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        wrong.add(database + " " + mode + " " + body + " -> passed (a FAILING body)");
+                    } catch (AssertFailed f) {
+                        if (f.unjudgedReason() != null) {
+                            continue;
+                        }
+                        if (f.record() == null) {
+                            wrong.add(database + " " + mode + " " + body + " -> no record: " + oneLine(f.getMessage()));
+                        } else if (!f.getMessage().equals(f.record().sentence())) {
+                            wrong.add(database + " " + mode + " " + body + " -> \"" + oneLine(f.getMessage())
+                                    + "\" is not its record's \"" + oneLine(f.record().sentence()) + "\"");
+                        }
+                    } catch (com.legend.sql.DialectCapability | com.legend.error.NotImplementedException refused) {
+                        // a refusal by name (a database without a carrier for the shape): no failure, no record
+                    } catch (RuntimeException other) {
+                        wrong.add(database + " " + mode + " " + body + " -> " + oneLine(other.toString()));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one catalog:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** NO PROSE IN A STATEMENT (item 3's S5): the database judge plans no catalog sentence -- no template's fixed text
+     *  ("expected ", ", got ", " to contain ", ...) is in any planned statement or plan field of a failing assert's
+     *  plan; the sentence is written from the record after the run, by the one printer. */
+    @Test
+    void noPlannedStatementHoldsACatalogSentence() throws Exception {
+        List<String> fragments = new ArrayList<>();
+        for (com.legend.error.AssertKind k : com.legend.error.AssertKind.values()) {
+            for (String part : k.template().split("\\{[^}]*\\}")) {
+                // (two words at least: a slot's name -- "expected" -- is a record's data in the plan, never prose)
+                if (part.strip().length() >= 8 && part.strip().contains(" ")) {
+                    fragments.add(part.strip());
+                }
+            }
+        }
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            for (String body : FAILING) {
+                String plan;
+                try {
+                    plan = com.legend.testexecutionplan.TestPlanJson.write(Program.plan(MAPPED_ON.formatted(database),
+                            body, "p::RT", ExecuteOptions.NONE.withJudgeMode(
+                                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)));
+                } catch (RuntimeException refused) {
+                    continue;   // refused at planning, by name: nothing planned
+                }
+                for (String f : fragments) {
+                    if (plan.contains(f)) {
+                        wrong.add(database + " " + body + " plans the catalog's text \"" + f + "\"");
+                    }
+                }
+            }
+        }
+        assertTrue(!fragments.isEmpty() && wrong.isEmpty(), "no prose in a statement:\n  " + String.join("\n  ", wrong));
+    }
+
     /** Two sides of several set implementations (a metamodel's documents gathered into one JSON array), in order, under
      *  every judge on every in-process database (the audit of 3f2fe452: the side's order was numbered inside the
      *  documents' aggregate, which neither DuckDB nor H2 runs). Its model holds no test data: a metamodel query reads

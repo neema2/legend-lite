@@ -5169,4 +5169,45 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(PlantedUpstreamStyle.class.getName()),
                 upstreamSidesOutsideTheEdge(new ClassFileImporter().importClasses(PlantedUpstreamStyle.class)));
     }
+
+    /**
+     * R1 OF ITEM 3 (docs/records/compat-assert-records-2026-11-21.md section 6, S5, 2026-11-23): THE DATABASE JUDGE IS
+     * LITE'S FLOW'S ALONE. Its classes -- the verdict statements' builder, the judge's planners, its batch, its run's
+     * reader and the root loops -- reach no class of the compatibility edge and no style's two-form table: the host
+     * judge is the only judge in compatibility (rule 4 of the compatibility program's rules of record, the user's words
+     * of 2026-11-19), so nothing the database judge plans or reads may depend on an audience. HostOnlyCompatibilityTest
+     * holds the run half (a compatibility style refuses the database judge by name); this holds the code half.
+     */
+    @Test
+    void theDatabaseJudgeReachesNoEdge() {
+        theDatabaseJudgeReachesNoEdgeRule(DATABASE_JUDGE).check(CORE_PROD_CLASSES);
+    }
+
+    /** The database judge's classes, by name (their nested classes with them). */
+    static final String DATABASE_JUDGE = "com\\.legend\\.(lowering\\.VerdictSql|testplan\\.(DatabaseJudge|DatabaseAsserts"
+            + "|VerdictBatch)|testexec\\.(DatabaseVerdicts|RootLoops))(\\$.*)?";
+
+    static com.tngtech.archunit.lang.ArchRule theDatabaseJudgeReachesNoEdgeRule(String judge) {
+        return noClasses()
+            .that().haveNameMatching(judge)
+            .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("com.legend.testplan.PlanStyleFacets")
+            .because("the database judge is lite's flow's alone: the host judge is the only judge in compatibility"
+                    + " (item 3's R1)");
+    }
+
+    /** R1 bites: a planted class matched as a judge class that names a style's two-form table is caught. */
+    @Test
+    void theDatabaseJudgeRuleBitesAPlantedReach() {
+        var planted = new ClassFileImporter().importClasses(PlantedStyleReach.class);
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> theDatabaseJudgeReachesNoEdgeRule(
+                java.util.regex.Pattern.quote(PlantedStyleReach.class.getName())).check(planted));
+    }
+
+    /** A class that names a style's two-form table, as a database judge class must not. */
+    static final class PlantedStyleReach {
+        static Class<?> styles() {
+            return com.legend.testplan.PlanStyleFacets.class;
+        }
+    }
 }

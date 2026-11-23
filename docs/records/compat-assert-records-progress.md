@@ -604,3 +604,20 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
 - **A standing rule (the user, 2026-11-23, "Approved"):** a new MIR function that only product code writes is sorted
   PRODUCT in `SqlFnSortedTest` with a dated note and reported to the user; one sorted EDGE_ONLY, or any change that
   loosens a guard, still goes to the user first. First use: `JSON_EQUAL`.
+
+## S5: the guards that keep item 3 mechanical (2026-11-23)
+
+- **R1** (`ArchitectureTest.theDatabaseJudgeReachesNoEdge`): the database judge's classes (VerdictSql, DatabaseJudge,
+  DatabaseAsserts, VerdictBatch, DatabaseVerdicts, RootLoops and their nested classes) depend on no class of the
+  compatibility edge and not on `PlanStyleFacets`; its bite test plants a class that names `PlanStyleFacets`.
+- **R2 and R4** (`ValueTextCensusTest`, a census): every site in `testplan`, `testexec` and `testexecutionplan` that
+  makes a text from a value (`String.valueOf`, `toString()`, `String.format`, `formatted`, comment- and
+  string-stripped) counted per file and pinned, shrink-only: 37 sites in 14 files at c2217801, the value printer
+  (LiteWords) and the records' builder (AssertRecords) among them. A bite test holds that a comment and a literal
+  count for nothing.
+- **One catalog** (`AssertBarTest.everyFailureIsItsRecordsSentence`): 22 failing bodies of every family, under the
+  host judge, the database judge and both, on DuckDB, H2 and SQLite: each failure carries a record of the one catalog
+  and its message is that record's sentence; a refusal by name carries none.
+- **No prose in a statement** (`AssertBarTest.noPlannedStatementHoldsACatalogSentence`): the same bodies planned for
+  the database judge on each database: no template's fixed text of two words or more is in the plan.
+- The codec part of S5 landed with S3 and S4 (the test plan at version 41; the prose residue narrowed at S3).
