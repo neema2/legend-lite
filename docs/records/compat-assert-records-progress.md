@@ -512,3 +512,54 @@ it (scratchpad/research/next-phase-design.md). Step 1 (the wide row) at 545fa65a
   reads back a Float: the JSON carrier holds no Decimal), M5 for an Any's tree (refused at run), M7 (a Date-typed
   value's toString, a tagged DateTime's record, a mapped instance's date: S312 forms), M8 (SQLite's REAL decimals), the
   class reference against its path.
+
+## S4 step 4's audit fixed (2026-11-22)
+
+The audit of 68bb2853 and 946d16f2 (a reviewer that wrote none of it; its harness ran each body under the host judge,
+the database judge and both, on DuckDB and H2, against the base and the new tree).
+
+- H2 regressions: a metamodel instance pair (a SetImplementation) compares its documents' texts in order, no UNNEST H2
+  cannot spell -- fixed. assertInstanceOf over an instance on H2 stays refused by name under the database judge, as a
+  model class's instances are under every judge there (a documented gap of H2's dialect): a route deciding it from the
+  types was built and dropped by the user's case-by-case review (16 lines of the judge for one database's gap; the type
+  fact belongs to the compiler's instanceOf fold if it is ever wanted).
+- Bodies that passed at the base and were refused, typed now: assertContains over a mixed list (the tagged membership,
+  VerdictSql.typedContainsTagged); a Decimal of a declared precision in a tolerance; two sides of different kinds
+  (decided false by their kinds, recorded); a class reference against another; emptiness of a tagged side
+  (typedEmptyTagged); a table of more than one column against a list (its cells row-major, each of its column's kind:
+  the product's own flatten, ValueCollections.rowMajorTaggedList, compared by the tagged list member).
+- assertJsonStringsEqual: a literal actual is canonicalized as the golden is (its keys sorted); no whole-document
+  fallback where the elements cannot be placed.
+- The host judge follows Pure where the database judge already did: assertContains over instances is upstream's equal
+  (contains is `exists(x | $value == $x)`, legend-pure's contains.pure) -- a keyed class by its keys, any other instance
+  by its identity, read on the identity lane as assertEquals reads it (HostJudgment.Contains carries its keys); an
+  instance whose data names no class is an instance of its static class (HostJudgment.InstanceOf.valueClass). On H2 a
+  model class's instances in assertContains are refused by name under every judge, as their equality already was.
+- assertError's row needs both a line and a column for a position (errorFailure reads both); a disagreement between the
+  row and the plan is an IllegalStateException, never a null dereference.
+- H2's JSON-to-number cast (the audit's L8): DuckDB casts the JSON string "1" to 1 as well (probed on 1.5.6), so the two
+  databases agree; no change.
+- The test plan's codec is version 41 (the row's report always present, the new families, the host's contains keys and
+  instanceOf class).
+- Stale comments after the sentence path's deletion corrected (the audit's list).
+- Open, with their tasks: an enumeration cast to Any is carried as its name, so it meets the String of that name (the
+  database judge's record says String; the host passes: the Any carrier, task 25); a Variant pair (H1, the typed JSON
+  comparison, held for the user's ruling on its register row).
+- The user's ruling of 2026-11-22 recorded (docs/records/compat-rules-of-record-2026-11-19.md, last section; AGENTS.md's
+  upstream-fidelity tenet amended): the core follows Pure; compatibility lives at the edge; a rare or cosmetic difference
+  whose Pure-faithful form needs disproportionate SQL takes the database's native answer, recorded (the yardstick: a
+  cast or one native function per value is proportionate; a CASE tree per dialect, a subquery per value or a table
+  function is not). First application: S400's widening pass retired (it cast every mixed-scale Decimal list, and on
+  BigQuery, ClickHouse and Snowflake every Float list whose literals ride a decimal type -- 63 of the census's 64 new
+  casts per database -- for no verdict); the row amended: a Decimal list takes its database's own scale.
+- The review of the round's product Java, case by case (the user: product Java grows only for a real reason, in the
+  right place, computing nothing): kept -- the host's contains by keys or identity and instanceOf by declared class
+  (correctness), mixed-list contains and emptiness, a declared-precision Decimal in a tolerance, a literal JSON actual's
+  keys sorted, a wider table against a list (each passed at the base, and the host passes it); dropped -- H2's
+  built-instance route. The host's three equality judgments (equals, sameElements, contains) read their sides through
+  one rule, HostJudgments.asEqualSees. DatabaseVerdicts' change reverted to its one line.
+- Inherited from earlier commits, found by this round (their rounds skipped the lean lanes): the Python engine's JSON
+  mirror wrote six fraction digits after S312's amendment (fixed: nine); SQLite's lean SQL grew with batch 2's audit fix
+  (faa46300: a Decimal in a JSON list written from its exact text, where the REAL lost digits past fifteen and wrote 1D
+  as 1.0 -- kept, a cheap fix of a real mismatch, re-pinned); the cast census and BigQuery's lean SQL grew with S400
+  (retired above).

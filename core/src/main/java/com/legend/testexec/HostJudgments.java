@@ -334,6 +334,17 @@ final class HostJudgments {
 
     /** The keys the pair restricts to, or null: both sides declare the SAME keyed class (a side declared a supertype
      *  counts as the other's class when every value on its wire is of it), as planning read the facts. */
+    /** Two sides as upstream's {@code equal} sees them (X5; {@code EqualityUtilities}): a class-kind side's JSON text
+     *  decoded to its structure, then a keyed class's instances restricted to their classifier and keys, any other's
+     *  whole (its identity read with it) -- the one rule assertEquals, assertSameElements and assertContains judge by. */
+    static List<List<Object>> asEqualSees(HostJudgment.Keys keys, HostJudgment.SideFacts ef, HostJudgment.SideFacts af,
+            List<Object> eRaw, List<Object> aRaw) {
+        List<Object> e = structuredSide(ef, eRaw);
+        List<Object> a = structuredSide(af, aRaw);
+        var ik = restrictKeys(keys, ef, af, e, a);
+        return ik == null ? List.of(e, a) : List.of(restrictToKeys(e, ik, keys), restrictToKeys(a, ik, keys));
+    }
+
     static com.legend.testexecutionplan.@com.legend.base.Nullable KeyTree restrictKeys(HostJudgment.Keys k,
             HostJudgment.SideFacts ef, HostJudgment.SideFacts af, List<Object> eVals, List<Object> aVals) {
         String ec = ef.classFqn();
@@ -433,9 +444,13 @@ final class HostJudgments {
         if (val.size() != 1) {
             return null;   // non-[1] value arg — generic path
         }
-        boolean member = coll.stream().anyMatch(x ->
+        // upstream's contains is its equal (the audit of 946d16f2)
+        List<List<Object>> seen = asEqualSees(j.keys(), j.collection(), j.value(), coll, val);
+        List<Object> c = seen.get(0);
+        Object v = seen.get(1).get(0);
+        boolean member = c.stream().anyMatch(x ->
                 com.legend.testexec.Equality.same(com.legend.testexec.Equality.Typed.of(x),
-                        com.legend.testexec.Equality.Typed.of(val.get(0)), rules));
+                        com.legend.testexec.Equality.Typed.of(v), rules));
         return member ? com.legend.testexecutionplan.Verdicts.ok()
                 : com.legend.testexecutionplan.Verdicts.fail(AssertRecords.notContained(coll, val.get(0),
                         j.collection().classFqn(), j.value().classFqn()));
@@ -570,9 +585,11 @@ final class HostJudgments {
         // batch 53): instanceOf is the model's subtype relation
         // (a property-less class such as NullLiteral has nothing
         // else on the wire)
-        if (com.legend.testexec.AssertRuns.structured(v) instanceof java.util.Map<?, ?> m
-                && m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE)
-                        instanceof String wireType) {
+        // an instance whose data names no class is of its static class (a layout of one class: the audit of 946d16f2)
+        Object s = com.legend.testexec.AssertRuns.structured(v);
+        String wireType = s instanceof java.util.Map<?, ?> m && m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE)
+                instanceof String w ? w : s instanceof java.util.Map<?, ?> ? j.valueClass() : null;
+        if (wireType != null) {
             return j.acceptedTypes().contains(wireType) ? com.legend.testexecutionplan.Verdicts.ok()
                     : com.legend.testexecutionplan.Verdicts.fail(AssertRecords.notInstanceOfClass(v, wireType, type));
         }
@@ -603,13 +620,9 @@ final class HostJudgments {
         // Node[1] program value) arrives as object text: decode it
         // to the structure the key restriction reads (the executor's
         // own rule for JSON slots — WORLD_MAP §4, __type rides along)
-        List<Object> eVals = structuredSide(j.e(), ef.values());
-        List<Object> aVals = structuredSide(j.a(), af.values());
-        var ik = restrictKeys(j.keys(), j.e(), j.a(), eVals, aVals);
-        List<Object> e = ik != null
-                ? restrictToKeys(eVals, ik, j.keys()) : eVals;
-        List<Object> a = ik != null
-                ? restrictToKeys(aVals, ik, j.keys()) : aVals;
+        List<List<Object>> both = asEqualSees(j.keys(), j.e(), j.a(), ef.values(), af.values());
+        List<Object> e = both.get(0);
+        List<Object> a = both.get(1);
         com.legend.error.@com.legend.base.Nullable ErrorRecord d = com.legend.testexec.Equality.sameElements(
                 typedSide(e, j.e()), typedSide(a, j.a()), rules)
                 // the failed TYPED comparison's message, never a second, untyped one (the ledger audit's D4, 2026-11-16:
@@ -788,13 +801,9 @@ final class HostJudgments {
         // Node[1] program value) arrives as object text: decode it
         // to the structure the key restriction reads (the executor's
         // own rule for JSON slots — WORLD_MAP §4, __type rides along)
-        List<Object> eVals = structuredSide(j.e(), ef.values());
-        List<Object> aVals = structuredSide(j.a(), af.values());
-        var ik = restrictKeys(j.keys(), j.e(), j.a(), eVals, aVals);
-        List<Object> e = ik != null
-                ? restrictToKeys(eVals, ik, j.keys()) : eVals;
-        List<Object> a = ik != null
-                ? restrictToKeys(aVals, ik, j.keys()) : aVals;
+        List<List<Object>> both = asEqualSees(j.keys(), j.e(), j.a(), ef.values(), af.values());
+        List<Object> e = both.get(0);
+        List<Object> a = both.get(1);
         List<com.legend.testexec.Equality.Typed> te = typedSide(e, j.e());
         List<com.legend.testexec.Equality.Typed> ta = typedSide(a, j.a());
         boolean equal = incidental

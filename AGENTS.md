@@ -109,6 +109,21 @@
 > guessed. A divergence that is not a row is a defect; a row the user did not
 > rule is a defect too. People bringing a legend-engine project read the
 > recorded differences as one page: `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`.
+> **Amended 2026-11-22 (the user, "Yes good"; the full wording in
+> `docs/records/compat-rules-of-record-2026-11-19.md`, last section): the core
+> follows Pure; compatibility lives at the edge.** The core takes Pure's
+> meaning whenever there is a choice (a reasoned departure where Pure's answer
+> is an artifact of its implementation, as a ruled register row). Where
+> matching Pure would need disproportionate SQL -- a CASE tree per dialect, a
+> subquery per value, a table function; a cast or one native function per
+> value is proportionate -- for a rare or cosmetic difference, the core takes
+> the database's native typed answer and records it (a register row and a
+> known-quirks table the both-judges runs read, grown only by the user's
+> word). Never accepted for cost: a verdict that flips on ordinary inputs, data
+> lost, a NULL where Pure raises. Core presentation is one product spelling
+> per type (program text by the database's cheapest native expression; returned
+> typed values by the result writer, which never changes them); upstream's
+> spellings and legend-engine's departures from Pure belong to the edge.
 >
 > **The six tenets (adopted by the user, 2026-11-19: "Adopt tenets yes";
 > `docs/records/compat-rules-of-record-2026-11-19.md`) `[CONVENTION until B5's

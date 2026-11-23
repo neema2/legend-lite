@@ -121,3 +121,37 @@ works only from lite's typed output.
   last step, the legend-pure route takes it over (the database returns typed rows, Java prints legend-pure's text);
   where the text is used further in the query, the database computes lite's own text and the difference is recorded.
   No SQL is kept for legend-pure's spelling.
+
+## The core follows Pure; compatibility lives at the edge (the user, 2026-11-22; amends the upstream-fidelity tenet)
+
+The user's words, verbatim: "compatibility should be able to emulate upstream pure and engine at the edges and that the
+lite core should try to stick as close to pure as possible so that compatibility with pure is as small as possible";
+"lite really should be as clean as possible bc everything works in typed values - so for semantics it should be as
+close to pure faithful when there is a decision to be made but compatibility with pure and engine should be at edges
+when doesnt make sense to copy pure (since we like to push everything to database for product)". On the wording below,
+with its yardstick and its clause on Pure's artifacts: "Yes good".
+
+> **lite's core follows Pure; compatibility lives at the edge.** The core takes Pure's meaning whenever there is a
+> choice, so the compatibility layer for legend-pure stays as small as possible. Where Pure's answer is an artifact of
+> its implementation rather than its design (two separately built Variants are never equal: Pure compares them by
+> identity), the core may depart for a stated reason, as a register row the user rules. The core computes in the
+> database on typed values: where matching Pure exactly would need disproportionate SQL for a rare or cosmetic
+> difference, the core takes the database's native typed answer and records it -- a register row, and a known-quirks
+> table the both-judges runs read, which grows only by the user's word. The yardstick: a cast or one native function
+> per value is proportionate (stay faithful to Pure); a CASE tree per dialect, a subquery per value or a table function
+> is disproportionate (take the database's answer, record it). A difference that flips a verdict on ordinary inputs,
+> loses data, or returns NULL where Pure raises is never accepted for cost. Presentation in the core is one product
+> spelling per type: for text the program computes, written by the database's cheapest native expression; for typed
+> values it returns, by the result writer, which spells each type once and never changes a value. legend-pure's and
+> legend-engine's spellings, and legend-engine's departures from Pure, belong to the edge: a door rewrite before the
+> planner or a presenter after it, in Java as needed.
+
+Why the core follows Pure rather than the database (the reasoning the user accepted): the edge rewrites a program
+before the planner and re-spells an answer after the run, but it never re-computes a value inside the database
+(tenet 3 of the six). A meaning the core took from a database instead of from Pure would therefore reach compatibility
+users with no way to fix it at the edge; a core that follows Pure keeps the compatibility gap small by construction.
+
+First applications (2026-11-22): S400's casts retired (a list of Decimals takes its database's own scale -- Postgres,
+H2, MariaDB and SQLite keep each element's, as Pure does; DuckDB, ClickHouse, Snowflake and BigQuery give an array one
+type natively -- recorded); a Variant compared by the database's native typed equality (DuckDB's VARIANT, Postgres's
+jsonb), DuckDB's `true = 1` recorded. To build: the known-quirks table.

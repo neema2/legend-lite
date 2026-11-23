@@ -132,7 +132,7 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      * typed values): the row is its verdict and the typed values its family reads -- {@code [verdict, expected values,
      * actual values]}, each side a list in its own order, the values written only where the verdict fails -- and the
      * run builds the failure's record from them with the host judge's own builders, so both judges word one failure
-     * one way. A row with no report is the seven-column row of a family S4 has not converted, its failure its message.
+     * one way. Every row carries its report (S4 step 4: the seven-column row deleted).
      *
      * @param family the assert's family: which builder records its failure
      * @param want   the assert's polarity (equal, not equal)
@@ -216,7 +216,17 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
         JSON_UNORDERED_ROOT,
         /** {@link #EMPTY} over a graph side: {@code [verdict, documents]}, each document's root objects the side's values,
          *  as the host reads a graph side (item 3's S4, the last families). */
-        EMPTY_GRAPH;
+        EMPTY_GRAPH,
+        /** {@link #EQUALS} over documents (instances carried as JSON text, a graph's array): each side a list of
+         *  documents, each document's root objects the side's values, as the host reads a graph side. */
+        EQUALS_DOCUMENTS,
+        /** {@link #IS_NOT} over documents, as {@link #EQUALS_DOCUMENTS}. */
+        IS_NOT_DOCUMENTS,
+        /** {@link #CONTAINS} over tagged values (a mixed list, an Any), each side a list of {@code {k, v0, ...}} structs,
+         *  as {@link #EQUALS_TAGGED}'s. */
+        CONTAINS_TAGGED,
+        /** {@link #EMPTY} over tagged values, as {@link #EQUALS_TAGGED}'s. */
+        EMPTY_TAGGED;
 
         /** The equality family: in any order or in order, over tagged values or typed ones. */
         public static Family equality(boolean multiset, boolean tagged) {

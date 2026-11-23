@@ -261,7 +261,7 @@ channel_a	BigQuery	meta::pure::functions::string::contains_String_1__String_1__B
 channel_a	BigQuery	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	496	5914	0	57	0
 channel_a	BigQuery	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	170	2822	0	0	0
 channel_a	BigQuery	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	254	4483	0	0	0
-channel_a	BigQuery	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	7344	88779	0	482	4
+channel_a	BigQuery	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	7350	88785	0	482	4
 channel_a	BigQuery	meta::pure::functions::string::generation::generateGuid__String_1_	1	33	1146	0	0	0
 channel_a	BigQuery	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	122	3362	0	0	0
 channel_a	BigQuery	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	124	3372	0	27	0
@@ -306,7 +306,7 @@ channel_a	BigQuery	meta::pure::functions::string::substring_String_1__Integer_1_
 channel_a	BigQuery	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	930	14959	0	0	0
 channel_a	BigQuery	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	332	6538	0	0	0
 channel_a	BigQuery	meta::pure::functions::string::toLower_String_1__String_1_	2	62	2538	0	0	0
-channel_a	BigQuery	meta::pure::functions::string::toString_Any_1__String_1_	25	2260	33387	0	0	1
+channel_a	BigQuery	meta::pure::functions::string::toString_Any_1__String_1_	25	2281	33408	0	0	1
 channel_a	BigQuery	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	332	6538	0	0	0
 channel_a	BigQuery	meta::pure::functions::string::toUpper_String_1__String_1_	2	62	2538	0	0	0
 channel_a	BigQuery	meta::pure::functions::string::trim_String_1__String_1_	2	100	2614	0	0	0
@@ -572,7 +572,7 @@ channel_a	ClickHouse	meta::pure::functions::string::contains_String_1__String_1_
 channel_a	ClickHouse	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	1468	6901	0	35	0
 channel_a	ClickHouse	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	723	3385	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	1235	5479	0	0	0
-channel_a	ClickHouse	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	23429	105136	0	2550	4
+channel_a	ClickHouse	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	23435	105142	0	2550	4
 channel_a	ClickHouse	meta::pure::functions::string::generation::generateGuid__String_1_	1	348	1466	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	778	4028	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	526	3779	0	57	0
@@ -617,7 +617,7 @@ channel_a	ClickHouse	meta::pure::functions::string::substring_String_1__Integer_
 channel_a	ClickHouse	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	3838	17912	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	1972	8203	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::toLower_String_1__String_1_	2	678	3164	0	0	0
-channel_a	ClickHouse	meta::pure::functions::string::toString_Any_1__String_1_	25	10264	41516	0	0	1
+channel_a	ClickHouse	meta::pure::functions::string::toString_Any_1__String_1_	25	10285	41537	0	0	1
 channel_a	ClickHouse	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	1972	8203	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::toUpper_String_1__String_1_	2	678	3164	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::trim_String_1__String_1_	2	736	3260	0	0	0
@@ -883,7 +883,7 @@ channel_a	Databricks	meta::pure::functions::string::contains_String_1__String_1_
 channel_a	Databricks	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	439	5995	0	80	0
 channel_a	Databricks	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	235	2979	0	0	0
 channel_a	Databricks	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	251	4618	0	0	0
-channel_a	Databricks	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	10703	93814	0	1888	4
+channel_a	Databricks	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	10709	93820	0	1888	4
 channel_a	Databricks	meta::pure::functions::string::generation::generateGuid__String_1_	1	24	1183	0	0	0
 channel_a	Databricks	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	122	3454	0	0	0
 channel_a	Databricks	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	128	3422	0	28	0
@@ -928,7 +928,7 @@ channel_a	Databricks	meta::pure::functions::string::substring_String_1__Integer_
 channel_a	Databricks	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	951	15226	0	0	0
 channel_a	Databricks	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	332	6768	0	0	0
 channel_a	Databricks	meta::pure::functions::string::toLower_String_1__String_1_	2	62	2630	0	0	0
-channel_a	Databricks	meta::pure::functions::string::toString_Any_1__String_1_	25	2839	35158	0	0	1
+channel_a	Databricks	meta::pure::functions::string::toString_Any_1__String_1_	25	2860	35179	0	0	1
 channel_a	Databricks	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	332	6768	0	0	0
 channel_a	Databricks	meta::pure::functions::string::toUpper_String_1__String_1_	2	62	2630	0	0	0
 channel_a	Databricks	meta::pure::functions::string::trim_String_1__String_1_	2	100	2706	0	0	0
@@ -1194,7 +1194,7 @@ channel_a	DuckDB	meta::pure::functions::string::contains_String_1__String_1__Boo
 channel_a	DuckDB	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	335	5909	0	35	0
 channel_a	DuckDB	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	140	2896	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	248	4633	0	0	0
-channel_a	DuckDB	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	5265	88496	0	258	4
+channel_a	DuckDB	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	5281	88512	0	258	4
 channel_a	DuckDB	meta::pure::functions::string::generation::generateGuid__String_1_	1	39	1204	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	118	3462	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	122	3422	0	27	0
@@ -1239,7 +1239,7 @@ channel_a	DuckDB	meta::pure::functions::string::substring_String_1__Integer_1__I
 channel_a	DuckDB	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	844	15149	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	322	6788	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::toLower_String_1__String_1_	2	58	2638	0	0	0
-channel_a	DuckDB	meta::pure::functions::string::toString_Any_1__String_1_	25	2036	34407	0	0	1
+channel_a	DuckDB	meta::pure::functions::string::toString_Any_1__String_1_	25	2092	34463	0	0	1
 channel_a	DuckDB	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	322	6788	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::toUpper_String_1__String_1_	2	58	2638	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::trim_String_1__String_1_	2	96	2714	0	0	0
@@ -1270,7 +1270,7 @@ channel_a	H2	TypedSelect	8	2552	52773	1	257	0
 channel_a	H2	TypedSlice	5	488	12121	0	0	2
 channel_a	H2	TypedSort	13	4664	75949	3	111	4
 channel_a	H2	TypedWrite	1	274	5985	2	0	0
-channel_a	H2	let	204	128273	1597309	155	20303	40
+channel_a	H2	let	204	128241	1597261	155	20341	40
 channel_a	H2	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	H2	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	58910	0	0	0
 channel_a	H2	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	2248	69138	0	195	0
@@ -1505,7 +1505,7 @@ channel_a	H2	meta::pure::functions::string::contains_String_1__String_1__Boolean
 channel_a	H2	meta::pure::functions::string::decodeBase64_String_1__String_1_	0	0	0	0	0	3
 channel_a	H2	meta::pure::functions::string::encodeBase64_String_1__String_1_	0	0	0	0	0	2
 channel_a	H2	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	322	6303	0	0	0
-channel_a	H2	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	16	2968	45474	0	102	26
+channel_a	H2	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	16	2974	45480	0	102	26
 channel_a	H2	meta::pure::functions::string::generation::generateGuid__String_1_	1	41	1738	0	0	0
 channel_a	H2	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	122	4530	0	0	0
 channel_a	H2	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	124	3956	0	27	0
@@ -1550,7 +1550,7 @@ channel_a	H2	meta::pure::functions::string::substring_String_1__Integer_1__Integ
 channel_a	H2	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	902	17867	0	0	0
 channel_a	H2	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	332	9458	0	0	0
 channel_a	H2	meta::pure::functions::string::toLower_String_1__String_1_	2	62	3706	0	0	0
-channel_a	H2	meta::pure::functions::string::toString_Any_1__String_1_	25	3169	48840	0	336	1
+channel_a	H2	meta::pure::functions::string::toString_Any_1__String_1_	25	3190	48861	0	336	1
 channel_a	H2	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	332	9458	0	0	0
 channel_a	H2	meta::pure::functions::string::toUpper_String_1__String_1_	2	62	3706	0	0	0
 channel_a	H2	meta::pure::functions::string::trim_String_1__String_1_	2	100	3782	0	0	0
@@ -1816,7 +1816,7 @@ channel_a	MariaDB	meta::pure::functions::string::contains_String_1__String_1__Bo
 channel_a	MariaDB	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	944	7823	0	254	0
 channel_a	MariaDB	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	283	3909	0	0	0
 channel_a	MariaDB	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	322	6012	0	0	0
-channel_a	MariaDB	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	36	4732	86867	0	168	6
+channel_a	MariaDB	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	36	4738	86873	0	168	6
 channel_a	MariaDB	meta::pure::functions::string::generation::generateGuid__String_1_	1	38	1638	0	0	0
 channel_a	MariaDB	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	120	4334	0	0	0
 channel_a	MariaDB	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	128	3863	0	30	0
@@ -1861,7 +1861,7 @@ channel_a	MariaDB	meta::pure::functions::string::substring_String_1__Integer_1__
 channel_a	MariaDB	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	1473	17961	4	72	0
 channel_a	MariaDB	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	332	8973	0	0	0
 channel_a	MariaDB	meta::pure::functions::string::toLower_String_1__String_1_	2	62	3512	0	0	0
-channel_a	MariaDB	meta::pure::functions::string::toString_Any_1__String_1_	25	2161	45407	0	0	1
+channel_a	MariaDB	meta::pure::functions::string::toString_Any_1__String_1_	25	2182	45428	0	0	1
 channel_a	MariaDB	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	332	8973	0	0	0
 channel_a	MariaDB	meta::pure::functions::string::toUpper_String_1__String_1_	2	62	3512	0	0	0
 channel_a	MariaDB	meta::pure::functions::string::trim_String_1__String_1_	2	100	3588	0	0	0
@@ -2127,7 +2127,7 @@ channel_a	MySQL	meta::pure::functions::string::contains_String_1__String_1__Bool
 channel_a	MySQL	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	944	7676	0	254	0
 channel_a	MySQL	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	283	3811	0	0	0
 channel_a	MySQL	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	322	5865	0	0	0
-channel_a	MySQL	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	36	7624	87995	0	751	6
+channel_a	MySQL	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	36	7630	88001	0	751	6
 channel_a	MySQL	meta::pure::functions::string::generation::generateGuid__String_1_	1	38	1589	0	0	0
 channel_a	MySQL	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	120	4236	0	0	0
 channel_a	MySQL	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	128	3814	0	30	0
@@ -2172,7 +2172,7 @@ channel_a	MySQL	meta::pure::functions::string::substring_String_1__Integer_1__In
 channel_a	MySQL	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	1225	17460	4	72	0
 channel_a	MySQL	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	332	8728	0	0	0
 channel_a	MySQL	meta::pure::functions::string::toLower_String_1__String_1_	2	62	3414	0	0	0
-channel_a	MySQL	meta::pure::functions::string::toString_Any_1__String_1_	25	3675	45696	0	340	1
+channel_a	MySQL	meta::pure::functions::string::toString_Any_1__String_1_	25	3696	45717	0	340	1
 channel_a	MySQL	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	332	8728	0	0	0
 channel_a	MySQL	meta::pure::functions::string::toUpper_String_1__String_1_	2	62	3414	0	0	0
 channel_a	MySQL	meta::pure::functions::string::trim_String_1__String_1_	2	100	3490	0	0	0
@@ -2438,7 +2438,7 @@ channel_a	Postgres	meta::pure::functions::string::contains_String_1__String_1__B
 channel_a	Postgres	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	485	5969	0	72	0
 channel_a	Postgres	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	233	2929	0	0	0
 channel_a	Postgres	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	307	4602	0	0	0
-channel_a	Postgres	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	15855	98054	72	4805	4
+channel_a	Postgres	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	15865	98068	72	4805	4
 channel_a	Postgres	meta::pure::functions::string::generation::generateGuid__String_1_	1	52	1187	0	0	0
 channel_a	Postgres	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	122	3406	0	0	0
 channel_a	Postgres	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	124	3394	0	27	0
@@ -2483,7 +2483,7 @@ channel_a	Postgres	meta::pure::functions::string::substring_String_1__Integer_1_
 channel_a	Postgres	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	1046	15201	0	0	0
 channel_a	Postgres	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	332	6648	0	0	0
 channel_a	Postgres	meta::pure::functions::string::toLower_String_1__String_1_	2	62	2582	0	0	0
-channel_a	Postgres	meta::pure::functions::string::toString_Any_1__String_1_	25	2011	33730	0	0	1
+channel_a	Postgres	meta::pure::functions::string::toString_Any_1__String_1_	25	2046	33779	0	0	1
 channel_a	Postgres	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	332	6648	0	0	0
 channel_a	Postgres	meta::pure::functions::string::toUpper_String_1__String_1_	2	62	2582	0	0	0
 channel_a	Postgres	meta::pure::functions::string::trim_String_1__String_1_	2	100	2658	0	0	0
@@ -2651,7 +2651,7 @@ channel_a	SQLite	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_
 channel_a	SQLite	meta::pure::functions::math::atan_Number_1__Float_1_	3	115	3717	0	0	0
 channel_a	SQLite	meta::pure::functions::math::average_Float_MANY__Float_1_	2	195	3293	2	0	0
 channel_a	SQLite	meta::pure::functions::math::average_Integer_MANY__Float_1_	2	183	3245	2	0	0
-channel_a	SQLite	meta::pure::functions::math::average_Number_MANY__Float_1_	2	185	3283	2	0	0
+channel_a	SQLite	meta::pure::functions::math::average_Number_MANY__Float_1_	2	232	3330	2	0	0
 channel_a	SQLite	meta::pure::functions::math::bitAnd_Integer_1__Integer_1__Integer_1_	16	1227	22978	0	120	0
 channel_a	SQLite	meta::pure::functions::math::bitNot_Integer_1__Integer_1_	15	748	19120	0	60	0
 channel_a	SQLite	meta::pure::functions::math::bitOr_Integer_1__Integer_1__Integer_1_	16	1227	22962	0	120	0
@@ -2749,7 +2749,7 @@ channel_a	SQLite	meta::pure::functions::string::contains_String_1__String_1__Boo
 channel_a	SQLite	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	5549	10892	30	1295	0
 channel_a	SQLite	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	3515	6117	18	0	0
 channel_a	SQLite	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	484	4638	0	0	0
-channel_a	SQLite	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	36	5324	69027	0	236	6
+channel_a	SQLite	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	36	5330	69033	0	236	6
 channel_a	SQLite	meta::pure::functions::string::generation::generateGuid__String_1_	1	226	1314	0	23	0
 channel_a	SQLite	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	116	3306	0	0	0
 channel_a	SQLite	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	120	3343	0	27	0
@@ -2794,7 +2794,7 @@ channel_a	SQLite	meta::pure::functions::string::substring_String_1__Integer_1__I
 channel_a	SQLite	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	996	14916	0	0	0
 channel_a	SQLite	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	322	6403	0	0	0
 channel_a	SQLite	meta::pure::functions::string::toLower_String_1__String_1_	2	58	2484	0	0	0
-channel_a	SQLite	meta::pure::functions::string::toString_Any_1__String_1_	25	3290	33736	0	214	1
+channel_a	SQLite	meta::pure::functions::string::toString_Any_1__String_1_	25	3311	33757	0	214	1
 channel_a	SQLite	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	322	6403	0	0	0
 channel_a	SQLite	meta::pure::functions::string::toUpper_String_1__String_1_	2	58	2484	0	0	0
 channel_a	SQLite	meta::pure::functions::string::trim_String_1__String_1_	2	96	2560	0	0	0
@@ -3371,7 +3371,7 @@ channel_a	Trino	meta::pure::functions::string::contains_String_1__String_1__Bool
 channel_a	Trino	meta::pure::functions::string::decodeBase64_String_1__String_1_	3	641	6119	0	30	0
 channel_a	Trino	meta::pure::functions::string::encodeBase64_String_1__String_1_	2	137	2829	0	0	0
 channel_a	Trino	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	3	765	5054	0	141	0
-channel_a	Trino	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	17304	99391	0	4172	4
+channel_a	Trino	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	38	17298	99385	0	4172	4
 channel_a	Trino	meta::pure::functions::string::generation::generateGuid__String_1_	1	41	1174	0	0	0
 channel_a	Trino	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	2	140	3420	0	0	0
 channel_a	Trino	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	1	178	3446	0	36	0
@@ -3416,7 +3416,7 @@ channel_a	Trino	meta::pure::functions::string::substring_String_1__Integer_1__In
 channel_a	Trino	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	999	15144	0	0	0
 channel_a	Trino	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	332	6638	0	0	0
 channel_a	Trino	meta::pure::functions::string::toLower_String_1__String_1_	2	62	2578	0	0	0
-channel_a	Trino	meta::pure::functions::string::toString_Any_1__String_1_	25	3266	34837	0	0	1
+channel_a	Trino	meta::pure::functions::string::toString_Any_1__String_1_	25	3245	34816	0	0	1
 channel_a	Trino	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	332	6638	0	0	0
 channel_a	Trino	meta::pure::functions::string::toUpper_String_1__String_1_	2	62	2578	0	0	0
 channel_a	Trino	meta::pure::functions::string::trim_String_1__String_1_	2	100	2654	0	0	0
@@ -3662,7 +3662,7 @@ core	DuckDB	meta::pure::functions::string::substr_String_1__Integer_1__String_1_
 core	DuckDB	meta::pure::functions::string::substring_String_1__Integer_1__Integer_1__String_1_	2	346	6528	0	0	0
 core	DuckDB	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	1	193	3380	0	0	0
 core	DuckDB	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	4	264	5332	0	0	0
-core	DuckDB	meta::pure::functions::string::toString_Any_1__String_1_	10	1006	19520	0	0	0
+core	DuckDB	meta::pure::functions::string::toString_Any_1__String_1_	10	1014	19528	0	0	0
 core	DuckDB	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	4	264	5332	0	0	0
 core	DuckDB	user	17	1285	40252	0	0	0
 core	H2	TypedCDate	7	317	24785	0	0	0
@@ -3734,7 +3734,7 @@ core	SQLite	TypedPivot	6	1891	27333	11	68	0
 core	SQLite	TypedProject	48	4454	854267	5	216	0
 core	SQLite	TypedPropertyAccess	1	720	5511	3	0	0
 core	SQLite	TypedSelect	10	903	42679	0	0	0
-core	SQLite	TypedSerialize	2	213	7796	0	0	0
+core	SQLite	TypedSerialize	2	281	7864	0	0	0
 core	SQLite	TypedSort	39	7604	182872	17	134	0
 core	SQLite	TypedVariable	2	62	4750	0	0	0
 core	SQLite	let	165	30057	1088876	118	5045	0

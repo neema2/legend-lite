@@ -156,7 +156,7 @@ public final class BodyDriver {
                     failureMessage, appealOn, verdictIds, appeals);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
-         *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
+         *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runTyped}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
             return new ExecEnv(plan, target, options, verdictBatch,

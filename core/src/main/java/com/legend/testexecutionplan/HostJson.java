@@ -431,13 +431,15 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("collection", wSideFacts(x.collection()));
         o.put("value", wSideFacts(x.value()));
+        o.put("keys", wKeys(x.keys()));
         return o;
     }
 
     static HostJudgment.Contains rHjContains(Json.Obj o) {
         HostJudgment.SideFacts v_collection = rSideFacts(obj(field(o, "collection", "Contains")));
         HostJudgment.SideFacts v_value = rSideFacts(obj(field(o, "value", "Contains")));
-        return new HostJudgment.Contains(v_collection, v_value);
+        HostJudgment.Keys v_keys = rKeys(obj(field(o, "keys", "Contains")));
+        return new HostJudgment.Contains(v_collection, v_value, v_keys);
     }
 
     static Map<String, Object> wHjTolerance(HostJudgment.Tolerance x) {
@@ -505,13 +507,15 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("typeName", x.typeName() == null ? null : x.typeName());
         o.put("acceptedTypes", new ArrayList<Object>(x.acceptedTypes()));
+        o.put("valueClass", x.valueClass() == null ? null : x.valueClass());
         return o;
     }
 
     static HostJudgment.InstanceOf rHjInstanceOf(Json.Obj o) {
         @Nullable String v_typeName = absent(o, "typeName", "InstanceOf") ? null : str(o.get("typeName"));
         java.util.Set<String> v_acceptedTypes = new java.util.LinkedHashSet<>(readList(field(o, "acceptedTypes", "InstanceOf"), n0 -> str(n0)));
-        return new HostJudgment.InstanceOf(v_typeName, v_acceptedTypes);
+        @Nullable String v_valueClass = absent(o, "valueClass", "InstanceOf") ? null : str(o.get("valueClass"));
+        return new HostJudgment.InstanceOf(v_typeName, v_acceptedTypes, v_valueClass);
     }
 
     static Map<String, Object> wHjIs(HostJudgment.Is x) {

@@ -424,7 +424,7 @@ public final class AssertVerdicts {
             return null;
         }
         // a caller's failure message (the asserts-as-plan-nodes program, step 2, 2026-11-04): the family's arm judges the
-        // base overload; under the database judge its verdict row fails with the message's text (DatabaseJudge.runVerdict)
+        // base overload; under the database judge its verdict row fails with the message's text (DatabaseJudge.runTyped)
         com.legend.compiler.spec.AssertMessages.Split split = env.options().judgeMode() == PlanningOptions.JudgeMode.HOST
                 ? null : com.legend.compiler.spec.AssertMessages.split(bare, specs);
         if (split != null) {
@@ -946,7 +946,7 @@ public final class AssertVerdicts {
                     ? null : HostJudge.planJsonStringsEqual(args, letPrefix, hook);
             // the value exactly one by its multiplicity, so the judgment never meets a collection (S3)
             case ASSERT_CONTAINS -> args.size() < 2 || !exactlyOneValue(args.get(1)) ? null
-                    : HostJudge.planContains(args, hook);
+                    : HostJudge.planContains(args, env, hook);
             case ASSERT_EQ -> args.size() < 2 ? null : HostJudge.planEq(args, letPrefix, env, hook);
             case ASSERT_EQ_WITHIN_TOLERANCE -> args.size() < 3 ? null : HostJudge.planTolerance(args, hook);
             case ASSERT, ASSERT_FALSE -> args.isEmpty() ? null
@@ -976,7 +976,7 @@ public final class AssertVerdicts {
                     : HostJudge.negated(HostJudge.planEq(args, letPrefix, env, hook),
                             fn == NativeFn.Verdict.ASSERT_NOT_EQ ? "NOT_EQ" : "IS_NOT");
             case ASSERT_NOT_CONTAINS -> args.size() < 2 || !exactlyOneValue(args.get(1)) ? null
-                    : HostJudge.negated(HostJudge.planContains(args, hook), "NOT_CONTAINS");
+                    : HostJudge.negated(HostJudge.planContains(args, env, hook), "NOT_CONTAINS");
             case ASSERT_NOT_SIZE -> args.size() < 2 ? null
                     : HostJudge.negated(HostJudge.planSize(args, letPrefix, hook), "NOT_SIZE");
         };

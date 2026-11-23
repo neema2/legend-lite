@@ -30,8 +30,8 @@ final class JudgmentFacts {
 
     /** An equality pair's TYPED kinds (item 3's S4): the kinds the database judge compares its two sides as -- each
      *  side's typed class ({@code VerdictSql.typedClass}; two number kinds then the same only where both are empty,
-     *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair stays the seven-column row:
-     *  a side with no typed class, or a partial date's literal. A Decimal literal is typed: its written scale rides its
+     *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair has no typed form here
+     *  (the caller refuses it by name). A Decimal literal is typed: its written scale rides its
      *  SQL type, which the reader restores where a driver drops it (SQLite's, as BigQuery's). */
     record TypedPair(Type e, Type a, Form form, @Nullable EqualityKeys keys) {
         /** How the pair's values compare: as typed values, dates (by kind and instant), the same only where both are
@@ -61,11 +61,18 @@ final class JudgmentFacts {
                     ? ctx.isSubtype(c, PACKAGEABLE) : true;
         }
 
+        /** Whether the pair's two typed kinds differ (two kinds lite never calls equal, register S127): decided by
+         *  their kinds, the same only where both are empty, whatever channel carries them (the audit of 946d16f2). */
+        boolean kindsDiffer() {
+            return form == Form.VALUES && !e.equals(a);
+        }
+
         /** The family whose record the host's builders write: an instance's identity assert ({@code assertEq},
          *  {@code assertIs}) names it by its class and identity, as the host's does; else the equality's. */
         com.legend.testexecutionplan.RootLoop.Family family(boolean multiset, String name) {
             return form == Form.INSTANCES && (name.equals("assertEq") || name.equals("assertIs"))
                     ? com.legend.testexecutionplan.RootLoop.Family.EQ
+                    : form == Form.INSTANCE_TEXTS && !multiset ? com.legend.testexecutionplan.RootLoop.Family.EQUALS_DOCUMENTS
                     : com.legend.testexecutionplan.RootLoop.Family.equality(multiset, tagged());
         }
 
@@ -142,8 +149,10 @@ final class JudgmentFacts {
             // the documents compared as texts, recorded as documents (item 3's S4, the last families)
             return new TypedPair(eSpec.info().type(), aSpec.info().type(), TypedPair.Form.INSTANCE_TEXTS);
         }
-        if (eKind.equals(aKind) && named(ePlan) && named(aPlan)) {
-            // a packageable element carried by its path (a Mapping): its path compared, a String
+        if (named(ePlan) && named(aPlan) && EqualityKeys.fqnOf(eKind) instanceof String ek
+                && ek.equals(EqualityKeys.fqnOf(aKind))) {
+            // a packageable element carried by its path (a Mapping, a class reference of either class): its path
+            // compared, a String
             return new TypedPair(eKind, aKind, TypedPair.Form.VALUES);
         }
         if (collection(ePlan) && collection(aPlan)) {
@@ -211,7 +220,7 @@ final class JudgmentFacts {
 
     /** A date side's kind under register S399 (the user's ruling of 2026-11-22: the product compares a date by its
      *  kind and its instant, the database comparing): a literal's own -- a day a StrictDate, a date-time of any written
-     *  precision a DateTime, a partial date none (it stays the seven-column row) --, a StrictDate's or DateTime's side
+     *  precision a DateTime, a partial date none (its written text the tagged form's) --, a StrictDate's or DateTime's side
      *  its own, a {@code Date} side's by its column's SQL type (a DATE holds days, a TIMESTAMP date-times); null for any
      *  other side. A fact of the types, fixed at planning. */
     private static @Nullable Type dateKind(TypedSpec spec, Type kind, com.legend.sql.SqlQuery plan) {

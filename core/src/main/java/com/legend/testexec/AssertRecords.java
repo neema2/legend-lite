@@ -86,6 +86,12 @@ final class AssertRecords {
                     : negated("NOT_SIZE", e, a);
             case EMPTY -> emptiness(report.want(), null, e);
             case EMPTY_GRAPH -> emptiness(report.want(), null, rootObjects(e));
+            case EMPTY_TAGGED -> emptiness(report.want(), null, untagged(e));
+            case EQUALS_DOCUMENTS -> equality(false, report.want(), rootObjects(e), rootObjects(a), List.of(), List.of(),
+                    report.e(), report.a());
+            case IS_NOT_DOCUMENTS -> negated("IS_NOT", rootObjects(e), rootObjects(a));
+            case CONTAINS_TAGGED -> report.want() ? notContained(untagged(e), a.isEmpty() ? null : untagged(a).get(0),
+                    eClass, aClass) : negated("NOT_CONTAINS", untagged(e), untagged(a));
             case CONTAINS -> report.want() ? notContained(e, a.isEmpty() ? null : a.get(0), eClass, aClass)
                     : negated("NOT_CONTAINS", e, a);
             case TOLERANCE -> notWithin((Number) row.get(1), (Number) row.get(2), (Number) row.get(3));

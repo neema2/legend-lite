@@ -243,7 +243,7 @@ def _lite_cell(cell: Any, column: compiler.Column) -> Any:
     """ONE CELL OF lite's query/run JSON ANSWER, as the server writes it (LiteV1Planning.Answered, CellText.pureJson,
     the PRODUCT's dates, register S312): an Integer an exact number; a Float its carried token (a non-finite one its
     name, a string); a Decimal its plain text, a string; a boolean, a text (a Variant's JSON text among them); a
-    StrictDate, or a date-time of a column that holds days, its day; any other date-time UTC, six fraction digits and
+    StrictDate, or a date-time of a column that holds days, its day; any other date-time UTC, nine fraction digits and
     Z. A list or a structure is refused by name: the server writes its own JSON form, which Python does not yet."""
     float_column = not is_model_type(column.type) and is_float(column.type)
     if cell is None or isinstance(cell, (bool, str)):
@@ -264,8 +264,10 @@ def _lite_cell(cell: Any, column: compiler.Column) -> Any:
         days = (not is_model_type(column.type) and is_strict_date(column.type)) or column.raw.get('precision') == 'DAY'
         if days:
             return f'{cell.year}-{cell.month:02d}-{cell.day:02d}'
+        # nine fraction digits, as the server writes one (register S312, amended 2026-11-22): a pandas Timestamp's
+        # nanoseconds where it carries them
         return (f'{cell.year}-{cell.month:02d}-{cell.day:02d}T{cell.hour:02d}:{cell.minute:02d}:{cell.second:02d}.'
-                f'{cell.microsecond:06d}Z')
+                f'{cell.microsecond:06d}{getattr(cell, "nanosecond", 0):03d}Z')
     if isinstance(cell, datetime.date):
         return f'{cell.year}-{cell.month:02d}-{cell.day:02d}'
     raise LegendError(f"a query/run answer in JSON writes no {type(cell).__name__} cell (column '{column.name}'): "

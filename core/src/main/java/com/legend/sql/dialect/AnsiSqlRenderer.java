@@ -264,8 +264,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // a DateTime's texts (phase D's D1.2, 2026-11-15): the product's, a STRFTIME (the edge's spelling passes wrote
         // legend-pure's node for it first, if any); legend-pure's, the judges' and the edge's, its composition
         ps.add(new DateTimeText.Expansion());
-        // a list of Decimals at one scale, the widest (the user's ruling of 2026-11-22)
-        ps.add(new DecimalLists.Widening());
         // the judges' canon of a timestamp, lite's spelling (census C5's step C, 2026-11-17)
         ps.add(new DateTimeCanonText.Expansion());
         // (DateTimePrintText, legend-pure's DateTime print form: gone 2026-11-17, census B12 -- the edge composes it)

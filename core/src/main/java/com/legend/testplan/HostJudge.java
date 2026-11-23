@@ -82,10 +82,21 @@ final class HostJudge {
                 new HostJudgment.Size(AssertVerdicts.envelopeValuesRead(args.get(0), letPrefix)));
     }
 
-    static HostSides.Check planContains(List<TypedSpec> args,
+    static HostSides.Check planContains(List<TypedSpec> args, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return new HostSides.Check(List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
-                new HostJudgment.Contains(facts(args.get(0)), facts(args.get(1))));
+        // instances read on the identity lane and restricted by their keys, as the equality's (upstream's contains is
+        // its equal: the audit of 946d16f2)
+        boolean instances = instance(args.get(0)) || instance(args.get(1));
+        return new HostSides.Check(List.of(instances ? identityAsk(args.get(0), hook) : valueAsk(args.get(0), hook),
+                instances ? identityAsk(args.get(1), hook) : valueAsk(args.get(1), hook)),
+                new HostJudgment.Contains(facts(args.get(0)), facts(args.get(1)),
+                        JudgmentFacts.keys(args.get(0), args.get(1), env.ctx())));
+    }
+
+    /** Whether {@code s} is typed by a class (a model class's, a Pair's), not Any: its values are instances. */
+    private static boolean instance(TypedSpec s) {
+        return com.legend.compiler.element.EqualityKeys.fqnOf(s.info().type()) != null
+                && !com.legend.compiler.element.type.PlatformTypes.isAny(s.info().type());
     }
 
     static HostSides.Check planTolerance(List<TypedSpec> args,
@@ -157,7 +168,9 @@ final class HostJudge {
             accepted.add(type);
             accepted.addAll(env.ctx().subtree(type));
         }
-        return new HostSides.Check(List.of(valueAsk(args.get(0), hook)), new HostJudgment.InstanceOf(type, accepted));
+        return new HostSides.Check(List.of(valueAsk(args.get(0), hook)), new HostJudgment.InstanceOf(type, accepted,
+                instance(args.get(0)) ? com.legend.compiler.element.EqualityKeys.fqnOf(args.get(0).info().type())
+                        : null));
     }
 
     /** {@link #is} planned; null (no side asked) where the pair is not two elements. */

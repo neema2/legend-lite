@@ -119,8 +119,7 @@ public final class VerdictBatch {
 
     /** A deferred verdict row. (Its ruled comparison {@code orElse}, its appeal and its decline went with A4 of the compatibility program, stage A ratified by the user 2026-11-19:
      *  the rendered-text rule's rows fallback and the edge's engine-text rows left the database judge.) */
-    /** A deferred verdict row: its statement, its columns' schema (the seven-column verdict schema, or a typed
-     *  member's own), and a typed member's report (item 3's S4; null for a seven-column row). */
+    /** A deferred verdict row: its statement, its typed member's columns' schema and its report (item 3's S4). */
     private record Pending(int ix, String name, SqlQuery query, ExecutionPlan.Target on,
             com.legend.compiler.element.type.Type.RelationType schema, RootLoop.Report report,
             @com.legend.base.Nullable SqlQuery message, ExecutionPlan.@com.legend.base.Nullable Target messageOn,
@@ -332,6 +331,7 @@ public final class VerdictBatch {
             // assertIsNot's (#28): its failure the IS_NOT record of the actual side, as the host's negated judgment's
             report = new RootLoop.Report(report.family() == RootLoop.Family.EQUALS_TAGGED
                     || report.family() == RootLoop.Family.SAME_ELEMENTS_TAGGED ? RootLoop.Family.IS_NOT_TAGGED
+                    : report.family() == RootLoop.Family.EQUALS_DOCUMENTS ? RootLoop.Family.IS_NOT_DOCUMENTS
                     : RootLoop.Family.IS_NOT, report.want(), report.e(), report.a(), report.fixed(), report.index());
         }
         int ix = 0;

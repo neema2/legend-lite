@@ -135,11 +135,11 @@ public final class DatabaseJudge {
                 : !we.target().equals(wa.target()) && !we.storeFree() && !wa.storeFree()
                         ? "sides on different databases"
                 : null;
-        // a GRID side (the tabular wrap): two grids compared as typed rows; a grid against any other side has no typed
-        // form and is refused by name (item 3's S4, the sentence rows' deletion, 2026-11-22: its row canons against the
-        // peer's cells, measured unreached on every judge lane)
+        // a GRID side (the tabular wrap): two grids compared as typed rows; a grid against a list as the list the
+        // product reads it as; any other pair refused by name (item 3's S4, the sentence rows' deletion, 2026-11-22)
         if (why == null && re.tdsWrapped() != ra.tdsWrapped()) {
-            // a one-column grid against a list (item 3's S4, the last families): the column's values, as any side's
+            // a grid against a list (item 3's S4, the last families, and the audit of 946d16f2): a one-column grid's
+            // values, a wider grid's cells row-major, as any side's
             TypedSide one = gridColumnPair(name, wantEqual, eSpec, aSpec, re, ra, java.util.Objects.requireNonNull(we),
                     java.util.Objects.requireNonNull(wa), canonicalOrder, env);
             if (one != null) {
@@ -194,7 +194,7 @@ public final class DatabaseJudge {
         JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, re.kinds().get(ie), java.util.Objects.requireNonNull(we)
                 .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan(), env.ctx());
         if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny)
-                || tp.form() == JudgmentFacts.TypedPair.Form.INSTANCE_TEXTS
+                || tp.form() == JudgmentFacts.TypedPair.Form.INSTANCE_TEXTS || tp.kindsDiffer()
                 || tp.form() == JudgmentFacts.TypedPair.Form.VARIANTS
                 || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))) {
             com.legend.lowering.VerdictSql.TypedRow typed = tp.row(we.plan(), wa.plan(), canonicalOrder, wantEqual);
@@ -220,12 +220,23 @@ public final class DatabaseJudge {
         com.legend.lowering.CanonRider peer = gridE ? ra : re;
         com.legend.compiler.element.type.Type pk = peer.literalOnly() && peer.literalIndex() >= 0
                 ? peer.kinds().get(peer.literalIndex()) : oneKind(peer);
-        if (schema == null || schema.columns().size() != 1 || pk == null) {
+        if (schema == null || schema.columns().isEmpty()) {
             return null;
         }
-        com.legend.sql.SqlQuery column = com.legend.lowering.VerdictSql.gridColumn((gridE ? we : wa).plan(),
-                schema.columns().get(0).name());
-        com.legend.compiler.element.type.Type ck = schema.columns().get(0).type();
+        com.legend.compiler.element.type.Type ck;
+        com.legend.sql.SqlQuery column;
+        if (schema.columns().size() > 1) {
+            // a wider grid: its cells row-major, each of its column's kind (the product's flatten), a tagged list
+            column = com.legend.lowering.VerdictSql.gridCells((gridE ? we : wa).plan(), schema);
+            ck = new com.legend.compiler.element.type.Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
+            pk = pk != null ? pk : (gridE ? aSpec : eSpec).info().type();
+        } else {
+            column = com.legend.lowering.VerdictSql.gridColumn((gridE ? we : wa).plan(), schema.columns().get(0).name());
+            ck = schema.columns().get(0).type();
+        }
+        if (column == null || pk == null) {
+            return null;
+        }
         com.legend.sql.SqlQuery ep = gridE ? column : we.plan();
         com.legend.sql.SqlQuery ap = gridE ? wa.plan() : column;
         JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, gridE ? ck : pk, ep, aSpec, gridE ? pk : ck, ap,
@@ -296,7 +307,7 @@ public final class DatabaseJudge {
     /** A side's one kind, its literal channel aside (a rider lists its kinds, then its literal channel's where it has
      *  one), or null where it has another count or rides the literal channel alone (S4's measurement, 2026-11-22:
      *  until then the typed gates asked for one kind in all, and every side carrying a literal channel -- most of the
-     *  conditions, tolerances and subsets -- declined to the seven-column row). */
+     *  conditions, tolerances and subsets -- declined). */
     private static com.legend.compiler.element.type.@com.legend.base.Nullable Type oneKind(com.legend.lowering.CanonRider r) {
         return !r.literalOnly() && r.kinds().size() - (r.literalIndex() >= 0 ? 1 : 0) == 1 ? r.kinds().get(0) : null;
     }
@@ -308,7 +319,10 @@ public final class DatabaseJudge {
         if (k == null || s.side() == null) {
             return null;
         }
-        return k == com.legend.compiler.element.type.Type.Primitive.INTEGER
+        // (a Decimal of a declared precision, every {@code ...D} literal's type, is a Decimal: the audit of 946d16f2)
+        return k instanceof com.legend.compiler.element.type.Type.PrecisionDecimal
+                ? com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                : k == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 || k == com.legend.compiler.element.type.Type.Primitive.FLOAT
                 || k == com.legend.compiler.element.type.Type.Primitive.DECIMAL ? k : null;
     }
@@ -360,10 +374,6 @@ public final class DatabaseJudge {
         return new SideRows(w, rider, null);
     }
 
-    /** THE ONE UNJUDGED OUTCOME (leg 3.3, audit §4y): the database judge
-     * declined the shape — counted, then raised as a verdict failure that
-     * CARRIES its reason (the runner's ledger reads the type, never the
-     * text). {@code detail} rides the message only. */
     /** Whether a side is a Map or a List: a value with no identity on any carrier ({@code eq}'s refusal). */
     private static boolean collectionKind(TypedSpec s) {
         String f = com.legend.compiler.element.EqualityKeys.fqnOf(s.info().type());
@@ -371,6 +381,10 @@ public final class DatabaseJudge {
                 || "meta::pure::functions::collection::Map".equals(f);
     }
 
+    /** THE ONE UNJUDGED OUTCOME (leg 3.3, audit §4y): the database judge
+     * declined the shape — counted, then raised as a verdict failure that
+     * CARRIES its reason (the runner's ledger reads the type, never the
+     * text). {@code detail} rides the message only. */
     static TypedSide unjudged(String name, String why) {
         return unjudged(name, why, "");
     }
@@ -438,7 +452,7 @@ public final class DatabaseJudge {
             return unjudged(name, side.why());
         }
         var sw = java.util.Objects.requireNonNull(side.side());
-        // the elements written as lite's sentence writes them where the side's canon names one primitive kind
+        // the elements recorded by their kind where the side's canon names one primitive kind
         com.legend.lowering.CanonRider r = side.rider();
         // (a side the types say is empty -- Nil, an empty literal's kind on its literal channel alone -- its own kind)
         if (sw.shape() != com.legend.plan.ResultShape.GRAPH && r != null && !r.tdsWrapped() && JudgmentFacts.emptyKind(
@@ -456,6 +470,17 @@ public final class DatabaseJudge {
         }
         // TYPED (item 3's S4, the last families): a graph's count of root objects; assertEmpty's failure its root
         // objects, assertNotEmpty's none (so it reads no element: every database spells it)
+        if (sw.shape() != com.legend.plan.ResultShape.GRAPH && !sw.plan().outputs().isEmpty()
+                && sw.plan().outputs().get(0).type() instanceof com.legend.sql.SqlType.Tagged) {
+            // TYPED (the audit of 946d16f2): a tagged side's rows, its values each its kind and its value
+            com.legend.lowering.VerdictSql.TypedRow tagged = com.legend.lowering.VerdictSql.typedEmptyTagged(sw.plan(),
+                    arg.info().type(), wantEmpty);
+            if (tagged != null) {
+                return runTyped(name, tagged, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.EMPTY_TAGGED, wantEmpty, null, null, null, -1),
+                        side.on(env));
+            }
+        }
         com.legend.lowering.VerdictSql.TypedRow graph = sw.shape() != com.legend.plan.ResultShape.GRAPH ? null
                 : wantEmpty ? com.legend.lowering.VerdictSql.typedEmptyGraph(sw.plan(), arg.info().type())
                 : com.legend.lowering.VerdictSql.typedNotEmptyGraph(sw.plan());
@@ -511,6 +536,17 @@ public final class DatabaseJudge {
             return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
                     com.legend.testexecutionplan.RootLoop.Family.CONTAINS, !negated, JudgmentFacts.sideFacts(coll),
                     JudgmentFacts.sideFacts(val), null, -1), c.on(env));
+        }
+        if (!cr.tdsWrapped()) {
+            // TYPED (the audit of 946d16f2): tagged values -- a mixed list, an Any, a literal channel's -- each its kind
+            // and its value
+            typed = com.legend.lowering.VerdictSql.typedContainsTagged(java.util.Objects.requireNonNull(c.side()).plan(),
+                    coll.info().type(), java.util.Objects.requireNonNull(v.side()).plan(), val.info().type(), !negated);
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.CONTAINS_TAGGED, !negated,
+                        JudgmentFacts.sideFacts(coll), JudgmentFacts.sideFacts(val), null, -1), c.on(env));
+            }
         }
         // no typed form: refused by name (item 3's S4, the sentence rows' deletion, 2026-11-22)
         return unjudged(name, literal ? "a literal channel's membership: no typed form"
@@ -1016,8 +1052,16 @@ public final class DatabaseJudge {
         // serializes it is the serializer's to fix); a root the query does not order is a MULTISET of root objects, the
         // golden's root elements against the document's, under the host's own test (HostJudgments.jsonOf: the actual's
         // OrderView INCIDENTAL), the document as its plan writes it riding the failure
+        // a literal actual is read and canonicalized at planning as the golden is (a constant folded; the audit of
+        // 946d16f2: its keys were compared in their written order); a computed one the database builds keys sorted
+        TypedSpec writtenActual = actualJson;
+        String actualText = com.legend.compiler.spec.VerdictQueries.foldedStringLiteral(actualJson);
+        if (actualText != null) {
+            // (an actual that does not parse raises its error, as the host judge's read of it does)
+            actualJson = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(JudgeJson.STRICT.read(actualText));
+        }
         SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
-        SideRows jw = planSide(actualJson, false, false, false, letPrefix, specs, env, hook);
+        SideRows jw = planSide(writtenActual, false, false, false, letPrefix, specs, env, hook);
         SideRows je = planSide(com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(goldenRead), true, false,
                 false, letPrefix, specs, env, hook);
         boolean unordered = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
@@ -1033,18 +1077,12 @@ public final class DatabaseJudge {
         BodyDriver.WrappedSide r = jr == null ? null : jr.side();
         com.legend.lowering.VerdictSql.TypedRow typed = r == null ? null
                 : com.legend.lowering.VerdictSql.typedJson(e.plan(), a.plan(), w.plan(), goldenText, r.plan());
-        if (typed != null) {
-            try {
-                // a dialect that cannot place the root's element rows compares the documents whole, which equal
-                // sequences pass and others fail
-                env.dialect().renderStatement(env.read(typed.row()));
-            } catch (com.legend.sql.DialectCapability wall) {
-                typed = null;
-            }
-        }
-        if (typed == null) {
+        if (r == null) {
+            // an ordered root, or a golden that is no array: the canonical documents compared whole
             typed = com.legend.lowering.VerdictSql.typedJson(e.plan(), a.plan(), w.plan(), goldenText, null);
         }
+        // (a dialect that cannot place the root's element rows refuses the body by name where it renders the row: no
+        // whole-document comparison stands in for the multiset, the audit of 946d16f2)
         if (typed == null) {
             return unjudged(name, "json: a side with no typed value column");
         }

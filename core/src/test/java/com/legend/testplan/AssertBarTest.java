@@ -444,6 +444,7 @@ class AssertBarTest {
             Class p::Q { id: Integer[1]; e: Decimal[1]; }
             Class p::K { <<equality.Key>> id: Integer[1]; <<equality.Key>> at: DateTime[1]; note: String[1]; }
             Class p::KN { <<equality.Key>> k: p::K[1]; <<equality.Key>> f: Float[1]; }
+            Class p::N { name: String[1]; }
             ###Relational
             Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER) Table U (ID INTEGER PRIMARY KEY, E DECIMAL(10,2)) )
             ###Mapping
@@ -613,8 +614,11 @@ class AssertBarTest {
         want.put("{|assertEquals(1.50D, 1.5D)}", "pass");
         want.put("{|assertEquals([1.50D], [2.50D])}", "AssertFailed: expected 1.50, got 2.50");
         want.put("{|assertEquals([1.50D, 2.25D], [1.50D])}", "AssertFailed: expected [1.50, 2.25], got [1.50]");
-        // a list of Decimals at one scale, the widest, on every database (S400, the user's ruling of 2026-11-22)
-        want.put("{|assertEquals([1.0D, 10.125D], [1.0D])}", "AssertFailed: expected [1.000, 10.125], got [1.0]");
+        // a list of Decimals at its database's own scale (S400 as amended by the user's ruling of 2026-11-22, the core
+        // follows Pure and takes the database's native answer for a cosmetic difference): DuckDB and SQLite give the
+        // list one type, H2 keeps each element's (Pure's answer); the verdict is the same everywhere (S139)
+        want.put("{|assertEquals([1.0D, 10.125D], [1.0D])}", "AssertFailed: expected [1.000, 10.125], got [1.0]"
+                + "|H2=AssertFailed: expected [1.0, 10.125], got [1.0]");
         want.put("{|assertEquals([1.0D, 10.125D], [1.000D, 10.125D])}", "pass");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
@@ -632,7 +636,10 @@ class AssertBarTest {
                     } catch (Throwable t) {
                         got = t.getClass().getSimpleName() + ": " + t.getMessage();
                     }
-                    if (!e.getValue().equals(got)) {
+                    int own = e.getValue().indexOf("|" + database + "=");
+                    String expected = own >= 0 ? e.getValue().substring(own + database.toString().length() + 2)
+                            : e.getValue().split("\\|", 2)[0];
+                    if (!expected.equals(got)) {
                         wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
                     }
                 }
@@ -810,6 +817,33 @@ class AssertBarTest {
         // a nanosecond adjust is a nanosecond assert (the instances audit's M-a)
         want.put("{|assertEquals(%2020-01-01T10:00:00.123456, %2020-01-01T10:00:00.123456->adjust(789,"
                 + " DurationUnit.NANOSECONDS))}", "AssertFailed|H2=DialectCapability|SQLite=DialectCapability");
+        // the audit of 946d16f2: bodies that passed at its base, typed now
+        want.put("{|assertContains([1, 2.5], 2.5)}", "pass");
+        want.put("{|assertContains([1, 2.5], 2)}", "AssertFailed");
+        // (SQLite holds no exact decimal: its Decimal arithmetic refused, never approximated)
+        want.put("{|assertEqWithinTolerance(1.0D, 1.05D, 0.1D)}",
+                "pass|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertNotEquals(1->cast(@Any), 'a'->cast(@Any))}", "pass");
+        want.put("{|assertNotEquals([1]->cast(@Any), [1.0]->cast(@Any))}", "pass");
+        want.put("{|assertNotEquals(p::N, p::K)}", "pass");
+        want.put("{|assertEmpty([1, 'a']->filter(x | false))}", "pass");
+        // a wider table against a list: its cells row-major, each of its column's kind (the product's flatten)
+        String grid = "execute(|p::Q.all()->project([x | $x.id, x | $x.id->toString()], ['id', 's'])->sort('id'), p::M,"
+                + " p::RT.runtimeValue, []).values";
+        want.put("{|assertEquals([1, '1', 2, '2'], " + grid + ")}", "pass");
+        want.put("{|assertEquals([1, '1', 2, '3'], " + grid + ")}", "AssertFailed");
+        // membership is upstream's equal: a keyed class by its keys, any other instance by its identity (H2: a model
+        // class's instances refused by name under every judge, as their equality is)
+        String k = "^p::K(id=1, at=%2020-01-01T10:00:00.5, note='a')";
+        want.put("{|assertContains([" + k + "], " + k.replace("'a'", "'b'") + ")}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertContains([" + k + "], " + k.replace("id=1", "id=2") + ")}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertContains([^p::N(name='x')], ^p::N(name='x'))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|let n = ^p::N(name='x'); assertContains([$n], $n);}", "pass|H2=DialectCapability: LIST_GET");
+        // an instance whose data names no class is of its static class
+        want.put("{|assertInstanceOf(^p::N(name='x'), p::N)}",
+                "pass|H2/DATABASE=DialectCapability: LIST_GET|H2/BOTH=DialectCapability: LIST_GET");
+        want.put("{|assertInstanceOf(^p::N(name='x'), p::K)}",
+                "AssertFailed|H2/DATABASE=DialectCapability: LIST_GET|H2/BOTH=DialectCapability: LIST_GET");
         List<String> wrong = new ArrayList<>();
         List<String> seen = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {

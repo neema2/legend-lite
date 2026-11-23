@@ -905,7 +905,7 @@ public final class VerdictSql {
      *  (compared by value, register S139); an enumeration as itself (its values' names); a StrictDate and a DateTime as
      *  themselves, compared by their instant (register S399; a {@code Date} side's kind is its column's,
      *  {@code JudgmentFacts.typedPair}); an empty side's kind (Nil, a side the types say holds nothing) as itself.
-     *  An instance, a generic type and a table stay the seven-column row until S4 converts them. */
+     *  Null for any other kind (an instance, a generic type, a table: their own typed members). */
     public static @com.legend.base.Nullable Type typedClass(@com.legend.base.Nullable Type kind) {
         if (kind == Type.Primitive.STRING || kind == Type.Primitive.INTEGER || kind == Type.Primitive.FLOAT
                 || kind == Type.Primitive.BOOLEAN || kind instanceof Type.EnumType || kind == Type.Primitive.STRICT_DATE
@@ -980,7 +980,7 @@ public final class VerdictSql {
 
     /** Whether two sides' typed rows carry their values alike: a Decimal the root writes as its text (a store-read
      *  Decimal's {@code DECIMAL_TEXT}, the value lane's egress) against a decimal value does not compare -- no typed
-     *  member for the pair (it stays the seven-column row). */
+     *  member for the pair (the caller refuses it by name). */
     private static boolean oneCarrier(SqlQuery e, SqlQuery a) {
         return (e.outputs().get(0).type() == SqlType.Scalar.DECIMAL_TEXT)
                 == (a.outputs().get(0).type() == SqlType.Scalar.DECIMAL_TEXT);
@@ -1073,13 +1073,7 @@ public final class VerdictSql {
         if (rows == null) {
             return null;
         }
-        OutputCol oOut = new OutputCol(O, SqlType.Scalar.JSON, false);
-        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        SqlQuery docs = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t",
-                rows.outputs(), O), SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(
-                SqlExpr.Column.of("t", rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table("__xg", "t",
-                rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null,
-                List.of(), null, null, List.of(oOut, rnOut));
+        SqlQuery docs = jsonDocuments("__xg", rows);
         SqlQuery list = listed("__dg", docs);
         return typedRow(List.of(new SqlWith.Cte("__xg", rows), new SqlWith.Cte("__dg", docs)),
                 new SqlSource.Subselect(list, "a", null), SqlExpr.Call.of(SqlFn.EQUAL, graphCount(graphPlan),
@@ -1171,11 +1165,35 @@ public final class VerdictSql {
                 List.of(listValue(TYPED_ACTUAL, "a", list, kind)));
     }
 
+    /** {@code assertEmpty} / {@code assertNotEmpty} over a tagged side (the audit of 946d16f2: a mixed list's filter):
+     *  its emptiness the verdict, its values -- each its kind and its value -- riding the failure
+     *  ({@code Family.EMPTY_TAGGED}). Null where the side has no kinded reading. */
+    public static @com.legend.base.Nullable TypedRow typedEmptyTagged(SqlQuery wrapped, Type kind, boolean wantEmpty) {
+        java.util.TreeMap<String, SqlType> held = new java.util.TreeMap<>();
+        SqlQuery h = kindsOf(wrapped, kind, held, true) ? kindedRows(wrapped, kind, held, true) : null;
+        if (h == null) {
+            return null;
+        }
+        SqlQuery list = listed("__hg", structRows(rowsOf("__gg", h)));
+        SqlExpr empty = noRows("__gg", h);
+        return typedRow(List.of(new SqlWith.Cte("__gg", h), new SqlWith.Cte("__hg", structRows(rowsOf("__gg", h)))),
+                new SqlSource.Subselect(list, "a", null), wantEmpty ? empty : SqlExpr.Call.of(SqlFn.NOT, empty),
+                List.of(listValue(TYPED_ACTUAL, "a", list, kind)));
+    }
+
     /** {@code assertInstanceOf}'s TYPED member where the value's static type decided it (item 3's S4): the decided
      *  verdict, then the value's typed list and the type's name riding the failure for the host's record
      *  ({@code AssertKind.INSTANCE_OF}). Null where the value has no typed column. */
     public static @com.legend.base.Nullable TypedRow typedInstanceOf(SqlQuery wrapped, Type kind, boolean holds,
             String type) {
+        if (holds) {
+            // decided true: no failure to record, so no value read (the audit of 946d16f2: an instance's list of structs
+            // is no list H2 spells, and a holding assert need not read it)
+            return typedRow(List.of(), new SqlSource.Dual(), new SqlExpr.BoolLit(true), List.of(new Valued(TYPED_ACTUAL,
+                    nullOf(new SqlType.Array(SqlType.Scalar.VARCHAR)), new SqlType.Array(SqlType.Scalar.VARCHAR), kind,
+                    true), new Valued("__t", new SqlExpr.StringLit(type), SqlType.Scalar.VARCHAR, Type.Primitive.STRING,
+                    false)));
+        }
         SqlQuery rows = valueRows(wrapped);
         if (rows == null || !(kind instanceof Type.Primitive) && !(rows.outputs().get(0).type() instanceof SqlType.Struct)) {
             // an instance's value rides as its struct, the host's reading; carried another way, no typed reading here
@@ -1212,6 +1230,24 @@ public final class VerdictSql {
         if (eRows == null || aRows == null) {
             return null;
         }
+        if (!multiset) {
+            // in order: the documents' texts in order, each document riding the failure whole, its root objects read
+            // where the record is built (Family.EQUALS_DOCUMENTS) -- no row per element, which every database spells
+            SqlQuery eList = listed("__xe", eRows);
+            SqlQuery aList = listed("__xa", aRows);
+            SqlQuery eDocs = listed("__de", jsonDocuments("__xe", eRows));
+            SqlQuery aDocs = listed("__da", jsonDocuments("__xa", aRows));
+            SqlExpr same = SqlExpr.Call.of(SqlFn.SAME_IN_ORDER, SqlExpr.Column.of("e", eList.outputs(), LISTED),
+                    SqlExpr.Column.of("a", aList.outputs(), LISTED), new SqlExpr.ScalarSubquery(rowsOf("__xe", eRows)),
+                    new SqlExpr.ScalarSubquery(rowsOf("__xa", aRows)));
+            return typedRow(List.of(new SqlWith.Cte("__xe", eRows), new SqlWith.Cte("__xa", aRows),
+                            new SqlWith.Cte("__de", jsonDocuments("__xe", eRows)),
+                            new SqlWith.Cte("__da", jsonDocuments("__xa", aRows))),
+                    cross(cross(cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a",
+                            null)), new SqlSource.Subselect(eDocs, "de", null)), new SqlSource.Subselect(aDocs, "da", null)),
+                    wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
+                            listValue(TYPED_EXPECTED, "de", eDocs, eKind), listValue(TYPED_ACTUAL, "da", aDocs, aKind)));
+        }
         SqlQuery eEl = rootElements("__xe", eRows);
         SqlQuery aEl = rootElements("__xa", aRows);
         SqlQuery eTexts = elementTexts("__ee", eEl);
@@ -1230,6 +1266,17 @@ public final class VerdictSql {
                         new SqlSource.Subselect(eDocs, "de", null)), new SqlSource.Subselect(aDocs, "da", null)),
                 wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
                         listValue(TYPED_EXPECTED, "de", eDocs, eKind), listValue(TYPED_ACTUAL, "da", aDocs, aKind)));
+    }
+
+    /** A side's document texts ({@code rows}, read as {@code cte}) each as its JSON document, in order. */
+    private static SqlQuery jsonDocuments(String cte, SqlQuery rows) {
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.JSON, false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", rows.outputs(), O),
+                SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
+                rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, "t", rows.outputs(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
+                List.of(oOut, rnOut));
     }
 
     /** A side's documents ({@code rows}, read as {@code cte}) as their root arrays' elements, each JSON, in order. */
@@ -1267,6 +1314,19 @@ public final class VerdictSql {
         return new SqlSelect(List.of(new SqlSelect.Projection(v, "value", out)), false,
                 new SqlSource.Subselect(grid, "w", null), null, List.of(), null, null, List.of(), null, null,
                 List.of(out));
+    }
+
+    /** A grid of more than one column as its CELLS, row-major (the product's flatten of a relation in a value's place,
+     *  {@link ValueCollections#rowMajorTaggedList}): one tagged value per cell, its kind its column's, in the grid's
+     *  own order -- a list {@link #typedTagged} compares. Null where the grid is no select or a column's kind has no
+     *  channel (a class). */
+    public static @com.legend.base.Nullable SqlQuery gridCells(SqlQuery grid, Type.RelationType schema) {
+        if (!(grid instanceof SqlSelect rel)) {
+            return null;
+        }
+        int[] next = {0};
+        SqlExpr.TaggedList cells = ValueCollections.rowMajorTaggedList(rel, schema, () -> "__gc" + next[0]++);
+        return cells == null ? null : TaggedLists.root(cells, true, "__gc" + next[0]++);
     }
 
     /** {@code wrapped}'s first column as its text, in the side's own order. */
@@ -1375,6 +1435,53 @@ public final class VerdictSql {
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("c", one.outputs(), SINGLE),
                         new SqlExpr.BoolLit(true)), List.of(listValue(TYPED_ACTUAL, "v", vList, kind), new Valued("__t",
                         new SqlExpr.StringLit(type), SqlType.Scalar.VARCHAR, Type.Primitive.STRING, false)));
+    }
+
+    /**
+     * {@code assertContains} / {@code assertNotContains}' TYPED member over tagged values (item 3's S4, the audit of
+     * 946d16f2: a mixed list, an Any): each value its kind and its value ({@link #kindedRows}, as {@link #typedTagged}
+     * compares them); the verdict whether some element has the value's kind and a value {@code IS NOT DISTINCT FROM} it,
+     * under {@code want}; both sides' tagged values ride the failure ({@code Family.CONTAINS_TAGGED}). Null where a
+     * side has no kinded reading.
+     */
+    public static @com.legend.base.Nullable TypedRow typedContainsTagged(SqlQuery collWrapped, Type collKind,
+            SqlQuery valWrapped, Type valKind, boolean want) {
+        java.util.TreeMap<String, SqlType> kinds = new java.util.TreeMap<>();
+        java.util.TreeMap<String, SqlType> held = new java.util.TreeMap<>();
+        if (!kindsOf(collWrapped, collKind, kinds, false) || !kindsOf(valWrapped, valKind, kinds, false)
+                || !kindsOf(collWrapped, collKind, held, true) || !kindsOf(valWrapped, valKind, held, true)) {
+            return null;
+        }
+        SqlQuery cc = kindedRows(collWrapped, collKind, kinds, false);
+        SqlQuery vc = kindedRows(valWrapped, valKind, kinds, false);
+        SqlQuery ch = kindedRows(collWrapped, collKind, held, true);
+        SqlQuery vh = kindedRows(valWrapped, valKind, held, true);
+        if (cc == null || vc == null || ch == null || vh == null) {
+            return null;
+        }
+        SqlExpr on = SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of("__c", cc.outputs(), "k"),
+                SqlExpr.Column.of("__v", vc.outputs(), "k"));
+        for (int j = 0; j < kinds.size(); j++) {
+            on = SqlExpr.Call.of(SqlFn.AND, on, SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
+                    SqlExpr.Column.of("__c", cc.outputs(), "v" + j), SqlExpr.Column.of("__v", vc.outputs(), "v" + j)));
+        }
+        OutputCol mOut = new OutputCol("__m", SqlType.Scalar.BIGINT, false);
+        SqlSelect m = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
+                false, List.of()), "__m", mOut)), false, new SqlSource.Join(new SqlSource.Table("__c", "__c",
+                cc.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), new SqlSource.Table("__v", "__v",
+                vc.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), SqlSource.Join.Kind.INNER, on),
+                null, List.of(), null, null, List.of(), null, null, List.of(mOut));
+        SqlExpr some = SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Column.of("m", m.outputs(), "__m"),
+                new SqlExpr.IntLit(0));
+        SqlQuery cList = listed("__hc", structRows(rowsOf("__gc", ch)));
+        SqlQuery vList = listed("__hv", structRows(rowsOf("__gv", vh)));
+        return typedRow(List.of(new SqlWith.Cte("__c", cc), new SqlWith.Cte("__v", vc), new SqlWith.Cte("__gc", ch),
+                        new SqlWith.Cte("__gv", vh), new SqlWith.Cte("__hc", structRows(rowsOf("__gc", ch))),
+                        new SqlWith.Cte("__hv", structRows(rowsOf("__gv", vh)))),
+                cross(cross(new SqlSource.Subselect(m, "m", null), new SqlSource.Subselect(cList, "c", null)),
+                        new SqlSource.Subselect(vList, "v", null)),
+                want ? some : SqlExpr.Call.of(SqlFn.NOT, some), List.of(
+                        listValue(TYPED_EXPECTED, "c", cList, collKind), listValue(TYPED_ACTUAL, "v", vList, valKind)));
     }
 
     /** {@code assertContains} / {@code assertNotContains}' TYPED member (item 3's S4): the collection's values and the
@@ -2087,7 +2194,7 @@ public final class VerdictSql {
     }
 
     /** Whether each of a grid's columns has a typed class the cells carry: a date column's cells a DATE or TIMESTAMP,
-     *  never a text, and no column empty-is-NULL (toCSV's equivalence stays the seven-column row). */
+     *  never a text, and no column empty-is-NULL (toCSV's equivalence: no typed form, refused by name). */
     private static boolean typedGrid(GridSide grid, List<Type> kinds) {
         if (!carriesCells(grid) || kinds.size() != grid.width()) {
             return false;
@@ -2164,9 +2271,6 @@ public final class VerdictSql {
 
     private static final String P = "__p";
 
-    /** A TEXT assert's verdict row whose OUR text is a side the database computes (2026-11-04, the core program): the
-     *  golden a constant, ours the side's one-row relation ({@code oursRow}: {@link #scalarRow}'s {@code value}), string
-     *  equality; the ACTUAL column carries our text back to the appeal of a failed row. */
     /** {@code plan}'s first output as a one-row relation {@code (value)} (a one-row seed LEFT JOINed to the plan, so an
      *  empty plan is one NULL row, as {@link #scalarRow}'s): a rendered text's value, no canon (2026-11-04). */
     public static SqlQuery firstValueRow(SqlQuery plan) {
@@ -2342,7 +2446,7 @@ public final class VerdictSql {
                 body = rename.rewriteRoot(w.body());
             }
             bodies.add(body);
-            // the member's own columns, in its schema's order, by name (a seven-column row may carry more: its hints),
+            // the member's own columns, in its schema's order, by name
             // each in the shared column of its position and types
             List<OutputCol> mine = new ArrayList<>();
             List<Integer> at = new ArrayList<>();
@@ -2505,7 +2609,9 @@ public final class VerdictSql {
         SqlExpr c = SqlExpr.Column.of("o", cOut);
         SqlExpr matched = SqlExpr.Call.of(SqlFn.EQUAL, m, new SqlExpr.StringLit(expected));
         if (line != null || column != null) {
-            matched = SqlExpr.Call.of(SqlFn.AND, matched, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, l));
+            // a position is its line and its column, both carried (AssertRecords.errorFailure reads the two)
+            matched = SqlExpr.Call.of(SqlFn.AND, matched, SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, l),
+                    SqlExpr.Call.of(SqlFn.IS_NOT_NULL, c)));
         }
         if (line != null) {
             matched = SqlExpr.Call.of(SqlFn.AND, matched, SqlExpr.Call.of(SqlFn.EQUAL, l, new SqlExpr.IntLit(line)));
@@ -2573,8 +2679,8 @@ public final class VerdictSql {
                         new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1))));
     }
 
-    /** A kind's name as lite's sentence writes it where two texts tie: a primitive's short name (a Decimal of a declared
-     *  precision a Decimal), any other type its own name. */
+    /** A kind's name as a typed row records it: a primitive's short name (a Decimal of a declared precision a Decimal),
+     *  any other type its own name. */
     public static String kindText(Type t) {
         return t instanceof Type.PrecisionDecimal ? "Decimal" : t.typeName();
     }

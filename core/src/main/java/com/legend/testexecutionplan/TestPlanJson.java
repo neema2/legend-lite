@@ -81,8 +81,12 @@ public final class TestPlanJson {
      *  statement is a row per member, its number first, its columns shared by position and type, and the group carries
      *  each member's columns ({@code Verdicts.layout}, absent where none); a database root's row carries its unrolled
      *  element's own message or error ({@code RootLoop.Row.message}, {@code unplanned}) and an unrolled host part its
-     *  own message side ({@code HostJudgment.Part.message}, {@code messageShape}), the user's decision 4. */
-    public static final int VERSION = 40;
+     *  own message side ({@code HostJudgment.Part.message}, {@code messageShape}), the user's decision 4; 41 (item 3's S4
+     *  step 4, 2026-11-22: every assert typed or refused by name): a database root's row always carries its typed report
+     *  (the seven-column row gone), its families the last ones typed, and the host's membership its keys
+     *  ({@code HostJudgment.Contains.keys}) and an instanceOf its value's static class ({@code InstanceOf.valueClass}),
+     *  the audit of 946d16f2. */
+    public static final int VERSION = 41;
 
     private TestPlanJson() {
     }

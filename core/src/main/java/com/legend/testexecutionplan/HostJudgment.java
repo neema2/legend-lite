@@ -74,8 +74,10 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     }
 
     /** {@code collection} and {@code value}: the two sides' static facts, an instance's {@code instanceOf} half in the
-     *  failure message (2026-11-05, the assert bar: a list of pairs printed {@code instanceOf ?}). */
-    record Contains(SideFacts collection, SideFacts value) implements HostJudgment {
+     *  failure message (2026-11-05, the assert bar: a list of pairs printed {@code instanceOf ?}); {@code keys} the
+     *  keyed-class facts membership restricts by, as the equality's ({@link Equals#keys}: upstream's {@code contains}
+     *  is its {@code equal}, a keyed class by its keys, any other instance by its identity; the audit of 946d16f2). */
+    record Contains(SideFacts collection, SideFacts value, Keys keys) implements HostJudgment {
     }
 
     record Tolerance() implements HostJudgment {
@@ -176,8 +178,10 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
 
     /** {@code assertInstanceOf(v, type)}: the type's name and the classes it accepts -- itself and its subtree,
      *  the model's subtype relation read at planning; a null name where the type argument is no reference (the
-     *  judgment declines the side it read: the walk's generic path). */
-    record InstanceOf(@Nullable String typeName, java.util.Set<String> acceptedTypes) implements HostJudgment {
+     *  judgment declines the side it read: the walk's generic path); {@code valueClass} the value's static class, the
+     *  class of an instance whose data names none (a layout of one class: the audit of 946d16f2), null for any other. */
+    record InstanceOf(@Nullable String typeName, java.util.Set<String> acceptedTypes, @Nullable String valueClass)
+            implements HostJudgment {
         public InstanceOf {
             acceptedTypes = Collections.unmodifiableSet(new java.util.LinkedHashSet<>(acceptedTypes));
         }
