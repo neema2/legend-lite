@@ -297,6 +297,18 @@ class InAKernel(Widget):
         self.assertEqual(len(self.displayed), 2)
         self.assertIsNone(datacube._session._web, "no web server for a notebook")
 
+    def test_a_closed_cube_displayed_again_shows_its_words(self):
+        # ipywidgets takes a closed widget's bundle away (Widget.close sets _repr_mimebundle_ to None): displayed in a
+        # later cell, the cube says it is closed, as IPython shows any object's words -- it raised a TypeError (found
+        # by ty, 2026-11-23)
+        cube = ll.show(trades())
+        self.cell_ends()
+        cube.close()
+        cube._ipython_display_()
+        bundle, given = self.displayed[-1]
+        self.assertEqual(bundle, {"text/plain": "<DataCube 'frame': closed>"})
+        self.assertTrue(given["raw"])
+
     def test_a_name_shown_again_is_the_same_cube_shown_again(self):
         first = ll.show(trades(), name="trades")
         again = ll.show(trades(2), name="trades")

@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import sys
 import threading
+from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -125,7 +126,16 @@ class _EngineWidget(anywidget.AnyWidget):
             return
         from IPython.display import display
 
-        data, metadata = self._repr_mimebundle_()
+        # a closed widget has no bundle (ipywidgets' close takes the method away), nor has one without a view: its
+        # words then, as IPython shows any object's
+        mimebundle: Callable[[], tuple[dict[str, Any], dict[str, Any]] | None] | None = getattr(
+            self, "_repr_mimebundle_", None
+        )
+        bundle = mimebundle() if mimebundle is not None else None
+        if bundle is None:
+            display({"text/plain": repr(self)}, raw=True)
+            return
+        data, metadata = bundle
         display(data, metadata=metadata, raw=True)
 
     def _after_cell(self) -> None:
