@@ -308,14 +308,16 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 16. Two whole Variants are not compared (item 3)
 - **You write** `fromJson('{"a": 1}') == fromJson('{"a":1}')`, `assertEquals` over two Variants, or `contains`, `in`,
-  `indexOf` or `removeDuplicates` over a list of Variants.
+  `indexOf`, `removeDuplicates`, `distinct`, `union` or `isDistinct` over a list holding Variants.
 - **legend-pure** compares two Variants by identity: two documents built apart are never equal, whatever they hold.
   A Variant is never equal to a number or a String. **read** **asked** (legend-pure's compiled runtime)
   **legend-engine** compares a Variant column with its database's own `=`, and refuses `fromJson` when it plans. **read**
 - **Lite** refuses the comparison by name: a database cannot compute identity. Compare a path (`get`), a typed value
   (`to(@T)`), or the JSON text (`toString()`, a Variant's JSON text in lite: lite has no `toJson` over a Variant) instead. A Variant against a value of another type is not equal, as in
-  Pure. The one difference from legend-pure: the same Variant compared with itself, which Pure answers true and lite
-  refuses. **measured** (`AssertBarTest`)
+  Pure, read through casts to `Any` and into a list's members; a Variant inside a list of other values compared by
+  equality is refused too. The one difference from legend-pure: the same Variant compared with itself, which Pure
+  answers true and lite refuses. Not yet refused: a relation's `distinct`, `groupBy` or join over a Variant column,
+  which uses the database's own equality. **measured** (`AssertBarTest`)
 - Register S401.
 
 ## Gaps lite has today (not differences by design)

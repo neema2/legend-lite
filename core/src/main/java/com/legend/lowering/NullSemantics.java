@@ -124,8 +124,10 @@ final class NullSemantics {
             return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
         }
         if (n.args().size() == 2) {
-            // two whole Variants, or a Variant and an Any the plan cannot see: only identity decides (register S401)
-            refuseIdentityOnly(n.args().get(0).info().type(), n.args().get(1).info().type());
+            // two whole Variants, or a Variant and an Any the plan cannot see, or a Variant among other values: only
+            // identity decides (register S401), refused by name (VariantEquality.between; its DISJOINT pairs the
+            // Lowerer folds before this, InstanceEquality.disjointAnswer)
+            com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1));
         }
         if (ops.size() == 2
                 && ops.get(0) instanceof SqlExpr.Column
@@ -145,16 +147,6 @@ final class NullSemantics {
             return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
         }
         return new SqlExpr.Call(SqlFn.EQUAL, ops);
-    }
-
-    /** Register S401 (ruled by the user 2026-11-23): an equality only identity decides -- two whole Variants, or a
-     *  Variant and an Any the plan cannot see -- is refused by name, the product's equality and its membership alike
-     *  (legend-pure's identity is not computed in a database; {@code PlatformTypes.identityOnly}). */
-    static void refuseIdentityOnly(com.legend.compiler.element.type.Type a, com.legend.compiler.element.type.Type b) {
-        if (com.legend.compiler.element.type.PlatformTypes.identityOnly(a, b)) {
-            throw new com.legend.error.NotImplementedException(
-                    com.legend.compiler.element.type.PlatformTypes.VARIANT_EQUALITY_REFUSED);
-        }
     }
 
     /** Engine pureToSQLQuery: an enum-referencing comparison routes the

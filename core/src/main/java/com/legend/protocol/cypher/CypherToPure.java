@@ -20568,9 +20568,11 @@ public final class CypherToPure {
                 ValueSpecification lv = new AppliedProperty(new Variable("l"), g.getKey());
                 ValueSpecification rv = new AppliedProperty(new Variable("r"), g.getValue());
                 Col source = column(staged, g.getKey());
-                // a list property's value (a Variant) by its JSON text on both sides (register S401: storedText)
+                // a list property's value (a Variant) by its JSON text on both sides (register S401: listText), as
+                // the groups were formed (created): two rows wanting [7, 8] and [7.0, 8.0] create two, where Neo4j
+                // creates one (the register's S401 Cypher note)
                 ValueSpecification eq = source != null && source.kind() == Kind.JSON
-                        ? call("equal", storedText(lv), storedText(rv)) : call("equal", lv, rv);
+                        ? call("equal", listText(lv), listText(rv)) : call("equal", lv, rv);
                 cond = cond == null ? eq : call("and", cond, eq);
             }
             ValueSpecification made = call("join", unmatched, created.vs(), new EnumValue(JOIN_KIND, "INNER"),
@@ -20771,11 +20773,14 @@ public final class CypherToPure {
                     ValueSpecification q = new Variable("q");
                     ValueSpecification value = new AppliedProperty(q, "value");
                     ValueSpecification wanted = read(prop.getValue());
-                    // a list property (a Variant): its JSON text, the database's, against the pattern's -- two whole
-                    // Variants are not compared (register S401; the user's word of 2026-11-23, "Okay tojson it is",
-                    // the JSON text being a Variant's toString in lite)
+                    // a list property (a Variant) against the pattern's: by their orderability keys, the texts the
+                    // database builds that Cypher's = compares (variantsEqual; a number by its value, so a stored
+                    // [42, 43] is the pattern's [42.0, 43.0], as Neo4j matches it) -- two whole Variants are not
+                    // compared (register S401; the user's word of 2026-11-23, "Okay tojson it is"; the audit of
+                    // 581a93cb and 386db8fe: the JSON text had matched neither Neo4j nor the island's own =)
                     ValueSpecification same = kind == Kind.JSON
-                            ? call("equal", storedText(value), storedText(wanted))
+                            ? call("equal", CypherToPure.keyOf(value, KEY_DEPTH),
+                                    CypherToPure.keyOf(wanted, KEY_DEPTH))
                             : call("equal", value, wanted);
                     ValueSpecification held = call("and", call("equal", new AppliedProperty(q, "owner"),
                             read(el.key())), same);
@@ -20792,10 +20797,9 @@ public final class CypherToPure {
             return staged(selected(m, columns), columns);
         }
 
-        /** A stored list's JSON text, the database's, or empty where the value is: a stored list is a flat list of
-         *  scalars (the write path refuses any other, Neo4j's error), so its canonical text is its value -- the
-         *  comparison register S401 leaves to a reader that knows the shape (two whole Variants are not compared). */
-        private static ValueSpecification storedText(ValueSpecification v) {
+        /** A list property's JSON text, the database's, or empty where the value is: the creation step's join on the
+         *  groups its rows form (two whole Variants are not compared, register S401). */
+        private static ValueSpecification listText(ValueSpecification v) {
             return call("map", v, lambda("j", call("toString", new Variable("j"))));
         }
 

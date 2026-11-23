@@ -64,7 +64,9 @@ final class JudgmentFacts {
         /** Whether the pair's two typed kinds differ (two kinds lite never calls equal, register S127): decided by
          *  their kinds, the same only where both are empty, whatever channel carries them (the audit of 946d16f2). */
         boolean kindsDiffer() {
-            return form == Form.VALUES && !e.equals(a);
+            return form == Form.VALUES && !e.equals(a)
+                    // a Variant against values of another type (register S401): the same only where both are empty
+                    || form == Form.EMPTY_ONLY && (PlatformTypes.isVariant(e) || PlatformTypes.isVariant(a));
         }
 
         /** The family whose record the host's builders write: an instance's identity assert ({@code assertEq},
@@ -105,6 +107,9 @@ final class JudgmentFacts {
 
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
             Type aKind, com.legend.sql.SqlQuery aPlan, ModelContext ctx) {
+        // a Variant among a side's values (a mixed collection's member too): register S401's refusal where only
+        // identity decides, before any other form reads the pair
+        refuseIdentityOnly(eSpec, aSpec);
         // a side declared Any is a Variant only where the plan sees one under its casts ({@link #sideType}); its JSON
         // carrier cannot tell a Variant from the value it holds (the audit of 8477c703: an Integer cast to Any had been
         // read as a Variant, and two Variants cast to Any raised at run)
@@ -248,17 +253,33 @@ final class JudgmentFacts {
                         ? Type.Primitive.DATE_TIME : null;
     }
 
-    /** {@code s}'s static facts: the keyed class it declares, its kind class, whether it is Any-stamped, Nil-typed, a
-     *  map carrier; its type's name for the census and the declared type's name its values are judged by. */
-    /** Register S401 (ruled by the user 2026-11-23): an equality only identity decides -- two whole Variants, or a
-     *  Variant and an Any the plan cannot see under its casts ({@link #sideType}) -- refused by name at planning, under
-     *  both judges alike ({@code PlatformTypes.identityOnly}). */
-    static void refuseIdentityOnly(TypedSpec e, TypedSpec a) {
-        if (PlatformTypes.identityOnly(sideType(e), sideType(a))) {
-            throw new com.legend.error.NotImplementedException(PlatformTypes.VARIANT_EQUALITY_REFUSED);
-        }
+    /** Register S401 (ruled by the user 2026-11-23): an equality only identity decides -- two whole Variants, a
+     *  Variant and an Any the plan cannot see, or a Variant among values of other types -- refused by name at planning,
+     *  under both judges alike, as the product refuses it ({@code VariantEquality.between}, which reads a side through
+     *  its casts and its collection literal's members). */
+    static com.legend.compiler.spec.typed.VariantEquality.Verdict refuseIdentityOnly(TypedSpec e, TypedSpec a) {
+        return com.legend.compiler.spec.typed.VariantEquality.between(e, a);
     }
 
+    /** Whether no Variant is among either side's values (after {@link #refuseIdentityOnly}'s refusal). */
+    static boolean computed(TypedSpec e, TypedSpec a) {
+        return refuseIdentityOnly(e, a) == com.legend.compiler.spec.typed.VariantEquality.Verdict.COMPUTED;
+    }
+
+    /** Whether a side's Variants meet values of other types alone (after {@link #refuseIdentityOnly}'s refusal). */
+    static boolean variantDisjoint(TypedSpec e, TypedSpec a) {
+        return refuseIdentityOnly(e, a) == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT;
+    }
+
+    /** A membership of or in a Variant (after {@link #refuseIdentityOnly}'s refusal): the database judge's has no
+     *  typed form. */
+    static boolean variantMembership(TypedSpec coll, TypedSpec val) {
+        return variantDisjoint(coll, val) || PlatformTypes.isVariant(coll.info().type())
+                || PlatformTypes.isVariant(val.info().type());
+    }
+
+    /** {@code s}'s static facts: the keyed class it declares, its kind class, whether it is Any-stamped, Nil-typed, a
+     *  map carrier; its type's name for the census and the declared type's name its values are judged by. */
     static HostJudgment.SideFacts sideFacts(TypedSpec s) {
         Type t = sideType(s);
         return new HostJudgment.SideFacts(EqualityKeys.fqnOf(t), kindOf(t), AssertVerdicts.isAnyStamped(s),
@@ -269,12 +290,7 @@ final class JudgmentFacts {
      *  {@code v->cast(@Any)}), the Variant it is -- a fact the plan reads off the expression, so both judges read the
      *  side as one (the audit of 8477c703, 2026-11-23: reading every Any side as a Variant made an Integer one). */
     static Type sideType(TypedSpec s) {
-        TypedSpec inner = s;
-        while (inner instanceof com.legend.compiler.spec.typed.TypedCast c) {
-            inner = c.source();
-        }
-        return PlatformTypes.isAny(s.info().type()) && PlatformTypes.isVariant(inner.info().type())
-                ? inner.info().type() : s.info().type();
+        return com.legend.compiler.spec.typed.VariantEquality.sideType(s);
     }
 
     /** The kind class of a type; null for a shape with no equality kind. */

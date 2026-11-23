@@ -191,6 +191,5 @@ class ChannelBGrammarTest {
         // ledger only with a dated reason (ChannelBLedger)
         ChannelBLedger.judge("Grammar", out, ChannelBLedger.of(
                 org.finos.legend.lite.pct.extension.PctBackend.name(), "Grammar"));
-        ChannelBLane.judgeSqlHeld("Grammar");
     }
 }

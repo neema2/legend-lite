@@ -870,9 +870,10 @@ public final class AssertVerdicts {
     /** Whether {@code is(left, right)} compares two PRIMITIVE values (both statically of a primitive type):
      *  compiled pure's {@code Is} native writes {@code left == right} for two primitive operands -- their values. */
     static boolean primitivePair(TypedSpec left, TypedSpec right) {
-        return left.info().type() instanceof com.legend.compiler.element.type.Type.Primitive
-                && right.info().type() instanceof com.legend.compiler.element.type.Type.Primitive
-                && !isAnyStamped(left) && !isAnyStamped(right);
+        // (a pair only identity decides refused by name first, register S401: assertIs, assertNotEq and assertIsNot
+        // read the pair here -- the audit of 581a93cb and 386db8fe, 2026-11-23)
+        return JudgmentFacts.computed(left, right) && java.util.stream.Stream.of(left, right).allMatch(s -> s.info()
+                .type() instanceof com.legend.compiler.element.type.Type.Primitive && !isAnyStamped(s));
     }
 
     /** {@code fn}'s arm planned over {@code bare}'s arguments, or null where the host checks do not plan the shape. */

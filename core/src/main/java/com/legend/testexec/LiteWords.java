@@ -36,6 +36,11 @@ public final class LiteWords {
         if (v instanceof Map<?, ?> m) {
             return instance(m, instanceClass);
         }
+        if (v instanceof String json && com.legend.result.RowDecode.VARIANT.equals(instanceClass)) {
+            // a Variant's value carried as its JSON text is written as JSON, never as a quoted String (the audit of
+            // 581a93cb and 386db8fe, 2026-11-23)
+            return value(variantTexts(List.of(json)).get(0), null);
+        }
         return switch (v) {
             case null -> "[]";
             case String s -> quoted(s);
@@ -149,7 +154,7 @@ public final class LiteWords {
             case Double d -> "Float";
             case Float f -> "Float";
             case BigDecimal d -> "Decimal";
-            case String s -> "String";
+            case String s -> com.legend.result.RowDecode.VARIANT.equals(instanceClass) ? "Variant" : "String";
             case Boolean b -> "Boolean";
             case PureDateLiteral d -> d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? "DateTime"
                     : d.precision().atLeast(PureDateLiteral.Precision.DAY) ? "StrictDate" : "Date";

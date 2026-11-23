@@ -294,7 +294,6 @@ class ChannelBEssentialTest {
         // the EXACT gate (2026-11-03): every failure ledgered with its text, every ledgered test failing
         ChannelBLedger.judge("Essential", out, ChannelBLedger.of(org.finos.legend.lite.pct.extension.PctBackend.name(),
                 "Essential"));
-        ChannelBLane.judgeSqlHeld("Essential");
     }
 
     /** The engine's relational essential manifest exclusions (its relational

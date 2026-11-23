@@ -323,8 +323,8 @@ public final class VerdictSql {
         if (both == null) {
             return null;
         }
-        SqlQuery ce = leafRows("__ie", eRows, both.get(0));
-        SqlQuery ca = leafRows("__ia", aRows, both.get(1));
+        SqlQuery ce = leafRows("__ie", eRows, both.get(0), tracked(eWrapped));
+        SqlQuery ca = leafRows("__ia", aRows, both.get(1), tracked(aWrapped));
         SqlQuery eCmp = listed("__ke", structRows(rowsOf("__ce", ce)));
         SqlQuery aCmp = listed("__ka", structRows(rowsOf("__ca", ca)));
         // the record's instances as the host's reads them: a keyed class restricted to its classifier and its keys
@@ -388,8 +388,8 @@ public final class VerdictSql {
         if (both == null) {
             return null;
         }
-        SqlQuery cl = leafRows("__xc", cRows, both.get(0));
-        SqlQuery vl = leafRows("__xv", vRows, both.get(1));
+        SqlQuery cl = leafRows("__xc", cRows, both.get(0), tracked(collWrapped));
+        SqlQuery vl = leafRows("__xv", vRows, both.get(1), tracked(valWrapped));
         SqlExpr on = null;
         for (int i = 0; i < both.get(0).size(); i++) {
             SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("__c", cl.outputs(), "c" + i),
@@ -519,6 +519,49 @@ public final class VerdictSql {
         return null;
     }
 
+    /** Whether every object {@code side} holds has an identity the product tracks, proven from its plan alone: no read
+     *  of a table its own WITH does not define, of a catalog, a URL, raw SQL or a grid's report; no cast to a
+     *  struct; and every struct literal an object carrying a literal id ({@code ClassLayouts.SYNTHETIC_ID}) -- an
+     *  object built in the body, never one read from a store, built per row or in a fold's reducer (those carry no
+     *  literal id: docs/OBJECT_IDENTITY_2026_10_20.md section 4). There the identity's guard can never raise, so it is
+     *  left out and the member fuses with the asserts beside it ({@code VerdictBatch.raisingRuns}: the PCT grammar
+     *  ratchet's 179 -> 180 of item 3's S4, the user's word of 2026-11-23, "fold in the instance fusing"). Any other
+     *  shape keeps the guard. */
+    static boolean tracked(SqlQuery side) {
+        java.util.Set<String> defined = new java.util.HashSet<>();
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlQuery with(SqlWith w) {
+                w.ctes().forEach(c -> defined.add(c.name()));
+                return w;
+            }
+        }.rewrite(side);
+        List<String> untracked = new ArrayList<>();
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Table t && (t.call() || !defined.contains(t.name()))
+                        || s instanceof SqlSource.Cte c && !defined.contains(c.name())
+                        || s instanceof SqlSource.Catalog || s instanceof SqlSource.SourceUrl
+                        || s instanceof SqlSource.RawSql || s instanceof SqlSource.GridReport) {
+                    untracked.add("a read of rows its plan does not build");
+                }
+                return s;
+            }
+
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                if (e instanceof SqlExpr.Cast c && c.target() instanceof SqlType.Struct
+                        || e instanceof SqlExpr.StructLit l && l.fields().stream().noneMatch(f -> f.name().equals(
+                        com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID) && f.value() instanceof SqlExpr.StringLit)) {
+                    untracked.add("an object with no literal id");
+                }
+                return e;
+            }
+        }.rewrite(side);
+        return untracked.isEmpty();
+    }
+
     private static List<String> append(List<String> at, String name) {
         List<String> out = new ArrayList<>(at);
         out.add(name);
@@ -527,8 +570,10 @@ public final class VerdictSql {
 
     /** A side's instances ({@code rows}, read as {@code cte}) as rows of their typed leaves ({@code c0, c1, ...,
      *  __rn}): each leaf the field read down its path, cast to its layout's type (a dialect carrying a struct as JSON
-     *  reads the field by it), a date-time as the judge's instant, an identity where the product tracks it. */
-    private static SqlQuery leafRows(String cte, SqlQuery rows, List<Leaf> leaves) {
+     *  reads the field by it), a date-time as the judge's instant, an identity where the product tracks it -- read
+     *  plain where {@code tracked} (the side's plan proves it, {@link #tracked}), else behind the guard that raises
+     *  where it does not ({@code CanonicalRenderSql.trackedId}). */
+    private static SqlQuery leafRows(String cte, SqlQuery rows, List<Leaf> leaves, boolean tracked) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         List<OutputCol> outs = new ArrayList<>();
         for (int i = 0; i < leaves.size(); i++) {
@@ -539,7 +584,7 @@ public final class VerdictSql {
             }
             String last = leaf.path().get(leaf.path().size() - 1);
             SqlExpr read = last.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
-                    ? new SqlExpr.Cast(CanonicalRenderSql.trackedId(((SqlExpr.StructGet) v).source()),
+                    ? new SqlExpr.Cast(tracked ? v : CanonicalRenderSql.trackedId(((SqlExpr.StructGet) v).source()),
                             SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
                     : new SqlExpr.Cast(v, leaf.type(), SqlExpr.Reason.JUDGE);
             SqlType type = last.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID) ? SqlType.Scalar.VARCHAR

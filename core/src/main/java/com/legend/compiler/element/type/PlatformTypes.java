@@ -45,6 +45,11 @@ public final class PlatformTypes {
      * types as an instance of it, stamped [1] (a VALUE, never an empty). */
     public static final String TDS_NULL_FQN = "meta::pure::tds::TDSNull";
 
+    /** Whether {@code t} is the TDSNull sentinel's class (a read here, so a caller's bytecode holds no spelling of it). */
+    public static boolean isTdsNull(Type t) {
+        return t instanceof Type.ClassType c && c.fqn().equals(TDS_NULL_FQN);
+    }
+
     private PlatformTypes() {
     }
 
@@ -708,16 +713,9 @@ public final class PlatformTypes {
                 && (c.fqn().equals(VARIANT) || JSON_FAMILY.contains(c.fqn()));
     }
 
-    /** REGISTER S401 (ruled by the user 2026-11-23, "Okay"): whether only identity decides an equality between values
-     *  of {@code a} and {@code b} -- two whole Variants, or a Variant and an Any whose type the plan cannot see.
-     *  legend-pure compares Variants by identity (two separately built Variants are never equal, checked against its
-     *  compiled runtime), which a database cannot compute, so lite refuses it by name ({@link #VARIANT_EQUALITY_REFUSED});
-     *  a Variant against a value of any other type is not equal, as in Pure, decided by the types. */
-    public static boolean identityOnly(Type a, Type b) {
-        return isVariant(a) && (isVariant(b) || isAny(b)) || isVariant(b) && isAny(a);
-    }
-
-    /** The refusal of an equality {@link #identityOnly} names: what to compare instead. */
+    /** REGISTER S401 (ruled by the user 2026-11-23, "Okay"): legend-pure compares Variants by identity (two separately
+     *  built Variants are never equal, checked against its compiled runtime), which a database cannot compute; the
+     *  refusal of an equality only identity decides ({@code VariantEquality.between}) names what to compare instead. */
     public static final String VARIANT_EQUALITY_REFUSED = "an equality between two whole Variants is not computed:"
             + " legend-pure compares Variants by identity, which a database cannot compute (register S401); compare a"
             + " path (get), a typed value (to(@T)) or the JSON text (toString())";

@@ -76,7 +76,10 @@ public final class DatabaseJudge {
         boolean anyAny = AssertVerdicts.isAnyStamped(eSpec) || AssertVerdicts.isAnyStamped(aSpec);
         boolean bothGrids = com.legend.compiler.element.type.Type.isRelation(eSpec.info().type())
                 && com.legend.compiler.element.type.Type.isRelation(aSpec.info().type());
-        if (ke != null && ka != null && !anyNil && !anyAny && !bothGrids && !ke.equals(ka)) {
+        // register S401: refused by name where only identity decides; a Variant against values of other types alone
+        // is the typed pair's (the same only where both are empty, JudgmentFacts.typedPair), never the kind gate's
+        if (ke != null && ka != null && !anyNil && !anyAny && !bothGrids && !ke.equals(ka)
+                && !JudgmentFacts.variantDisjoint(eSpec, aSpec)) {
             if (ke.primitive() && ka.primitive()) {
                 // X4: the engine has no cross-kind PRIMITIVE equality — a
                 // VERDICT (false), decided statically, the one comparison SQL
@@ -506,11 +509,10 @@ public final class DatabaseJudge {
     static TypedSide databaseContains(String name, TypedSpec coll, TypedSpec val,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean negated) {
-        if (com.legend.compiler.element.type.PlatformTypes.isVariant(coll.info().type())
-                || com.legend.compiler.element.type.PlatformTypes.isVariant(val.info().type())) {
-            // a Variant membership: no typed form, refused by name (the audit of c2217801, 2026-11-23: a scalar Variant's
-            // membership compared the JSON texts); among Variants, register S401's refusal, as the host judge's
-            JudgmentFacts.refuseIdentityOnly(coll, val);
+        // among Variants (a mixed collection's member too), register S401's refusal, as the host judge's
+        if (JudgmentFacts.variantMembership(coll, val)) {
+            // a Variant's membership among values of other types: no typed form, refused by name (the audit of
+            // c2217801, 2026-11-23: a scalar Variant's membership compared the JSON texts)
             return unjudged(name, "a Variant membership: no typed form");
         }
         SideRows c = planSide(coll, false, letPrefix, specs, env, hook);

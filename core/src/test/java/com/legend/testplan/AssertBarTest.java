@@ -945,13 +945,27 @@ class AssertBarTest {
                 "{|assertNotEquals('\"1\"'->fromJson(), '1'->fromJson())}",
                 "{|assertSameElements(['1'->fromJson()], ['1'->fromJson()])}",
                 "{|assertContains(['1'->fromJson()], '1'->fromJson())}",
-                // two Variants cast to Any are Variants; a value cast to Any the plan cannot see may be one
+                // two Variants cast to Any are Variants (read through the casts, VariantEquality.seen)
                 "{|assertEquals('{\"a\":1}'->fromJson()->cast(@Any), '{\"a\":1}'->fromJson())}",
-                "{|assertEquals(1->cast(@Any), '1'->fromJson())}",
+                // a Variant among a collection's other values (the audit of 581a93cb and 386db8fe, 2026-11-23): the
+                // database would compare it with the other side's values
+                "{|assertEquals(['1'->fromJson(), 2], [1, 2])}", "{|assertContains(['a', '\"b\"'->fromJson()], 'b')}",
+                "{|assertSameElements([1, 2], ['1'->fromJson(), 2])}",
+                // the identity asserts and their negations name the refusal, never a generic one (the same audit)
+                "{|assertNotEq('1'->fromJson(), '2'->fromJson())}", "{|assertIs('1'->fromJson(), '1'->fromJson())}",
+                "{|assertIsNot('1'->fromJson(), '2'->fromJson())}",
                 // the product's equality and membership
                 "{|assert('1'->fromJson() == '1'->fromJson())}", "{|assert('1'->fromJson() != '2'->fromJson())}",
                 "{|assert(['1'->fromJson()]->contains('1'->fromJson()))}",
-                "{|assert('1'->fromJson()->in(['1'->fromJson()]))}")) {
+                "{|assert('1'->fromJson()->in(['1'->fromJson()]))}",
+                "{|assert(['1'->fromJson(), 2]->contains(1))}", "{|assert(['1'->fromJson(), 2] == [1, 2])}",
+                "{|assert('1'->fromJson()->cast(@Any) == '1'->fromJson()->cast(@Any))}",
+                // the product's deduplications, union desugared to distinct (the same audit)
+                "{|assert(['1'->fromJson(), 2, '1'->fromJson()]->removeDuplicates()->size() == 3)}",
+                "{|assert(['1'->fromJson(), '1'->fromJson()]->distinct()->size() == 2)}",
+                "{|assert(['1'->fromJson(), '2'->fromJson()]->isDistinct())}",
+                "{|assert(['1'->fromJson()]->union(['1'->fromJson()])->size() == 2)}",
+                "{|assert([1, 2]->removeDuplicatesBy(x | '1'->fromJson())->size() == 2)}")) {
             want.put(two, refused);
         }
         // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
@@ -965,6 +979,28 @@ class AssertBarTest {
         want.put("{|assertEquals('1'->fromJson(), 1)}", "AssertFailed");
         want.put("{|assert('1'->fromJson() == 1)}", "AssertFailed");
         want.put("{|assertFalse('\"a\"'->fromJson() == 'a')}", "pass");
+        // decided by the types under every judge, read through casts, the record writing a Variant as JSON with its kind
+        // (the audit of 581a93cb and 386db8fe: the database judge had answered UNJUDGED, the host "got \"1\" (String)")
+        String variantOne = "AssertFailed: expected 1 (Integer), got 1 (Variant)";
+        want.put("{|assertEquals(1, '1'->fromJson())}", variantOne);
+        want.put("{|assertEquals(1, '1'->fromJson()->cast(@Any))}", variantOne);
+        want.put("{|assertEquals(1->cast(@Any), '1'->fromJson())}", variantOne);
+        want.put("{|assertEq(1, '1'->fromJson())}", variantOne);
+        want.put("{|assertNotEquals(1, '1'->fromJson())}", "pass");
+        want.put("{|assertNotEquals(true, 'true'->fromJson())}", "pass");
+        want.put("{|assert(!'1'->fromJson()->in([1, 2]))}", "pass");
+        want.put("{|assert(![1, 2]->contains('1'->fromJson()))}", "pass");
+        want.put("{|assert([1, 2]->indexOf('1'->fromJson()) == -1)}", "pass");
+        want.put("{|assertFalse('1'->fromJson()->cast(@Any) == 1)}", "pass");
+        // two empty sides are equal whatever their types (Pure's [] == []; the same audit's M1)
+        want.put("{|assert('{}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
+        want.put("{|assertFalse('{\"a\":1}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
+        // a Variant's membership among values of other types: the host's answer; the database judge has no typed form
+        // for it, refused by name (recorded, register S401)
+        String noTypedForm = "AssertFailed: assertNotContains: UNJUDGED in database mode";
+        want.put("{|assertNotContains([1, 2], '1'->fromJson())}", "pass|DuckDB/DATABASE=" + noTypedForm + "|DuckDB/BOTH="
+                + noTypedForm + "|H2/DATABASE=" + noTypedForm + "|H2/BOTH=" + noTypedForm + "|SQLite/DATABASE="
+                + noTypedForm + "|SQLite/BOTH=" + noTypedForm);
         want.put("{|assertEquals(1.0, (0.5 + 0.5)->cast(@Any))}", "pass");
         want.put("{|assertEquals(true, 'true'->fromJson()->to(@Boolean))}", "pass");
         // a graph's size and emptiness (its root objects): typed, its failures the host's records

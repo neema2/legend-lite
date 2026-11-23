@@ -397,9 +397,12 @@ final class InstanceEquality {
      * enum-vs-STRING equality IS the corpus's deliberate name-comparison
      * convention and stays allowed. CLASS rule: a USER class instance
      * against a primitive is disjoint by kind; platform carriers
-     * (List/Pair/Map/TDSNull/Variant) and Any/Nil keep their own
+     * (List/Pair/Map/TDSNull) and Any/Nil keep their own
      * comparison lanes (TDSNull rides NullSemantics; an Any operand may
-     * hold anything at run time — UNDECIDED, never static FALSE).
+     * hold anything at run time — UNDECIDED, never static FALSE). VARIANT
+     * rule (register S401): a Variant against values of other types alone
+     * ({@code VariantEquality.between}). The answer is
+     * {@link #disjointAnswer}'s.
      */
     static boolean staticallyDisjoint(List<TypedSpec> args) {
         if (args.size() != 2) {
@@ -407,11 +410,11 @@ final class InstanceEquality {
         }
         Type a = args.get(0).info().type();
         Type b = args.get(1).info().type();
-        if (PlatformTypes.isVariant(a) != PlatformTypes.isVariant(b)) {
-            // a Variant is never equal to a value of another type, as in Pure (register S401, ruled by the user
-            // 2026-11-23): only an Any or an empty value may hold one
-            Type other = PlatformTypes.isVariant(a) ? b : a;
-            return !PlatformTypes.isAny(other) && !PlatformTypes.isNil(other);
+        // a Variant is never equal to a value of another type, as in Pure (register S401, ruled by the user
+        // 2026-11-23), read through casts and collection literals; where only identity decides, refused by name
+        if (com.legend.compiler.spec.typed.VariantEquality.between(args.get(0), args.get(1))
+                == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
+            return true;
         }
         boolean ae = a instanceof Type.EnumType;
         boolean be = b instanceof Type.EnumType;
@@ -421,8 +424,7 @@ final class InstanceEquality {
         if (ae != be) {
             Type other = ae ? b : a;
             if (PlatformTypes.isAny(other)
-                    || PlatformTypes.isNil(other)
-                    || PlatformTypes.isVariant(other)) {
+                    || PlatformTypes.isNil(other)) {
                 return false;
             }
             return !(other instanceof Type.Primitive prim
@@ -431,6 +433,17 @@ final class InstanceEquality {
         boolean ac = instanceLiteral(args.get(0));
         boolean bc = instanceLiteral(args.get(1));
         return ac != bc && (ac ? b : a) instanceof Type.Primitive;
+    }
+
+    /** A statically disjoint equality's answer: false, unless both sides may be empty -- then whether both are, as
+     *  Pure's {@code [] == []} is true (the audit of 581a93cb and 386db8fe, 2026-11-23: an absent Variant path
+     *  against an empty Integer folded false). */
+    static SqlExpr disjointAnswer(List<TypedSpec> args, Function<TypedSpec, SqlExpr> lower) {
+        if (!com.legend.compiler.spec.typed.VariantEquality.mayBeEmpty(args.get(0))
+                || !com.legend.compiler.spec.typed.VariantEquality.mayBeEmpty(args.get(1))) {
+            return new SqlExpr.BoolLit(false);
+        }
+        return Scalars.bothEmpty(args.get(0), lower.apply(args.get(0)), args.get(1), lower.apply(args.get(1)));
     }
 
     /** The CLASS side must be an instance-construction LITERAL (the

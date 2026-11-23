@@ -772,3 +772,68 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
   stays refused, the shape of an arbitrary Variant unknown. Checked locally with CI's own suites (`//gates:core`,
   `checks`, `edge_net`, `datacube`), the Postgres-backed tests run as an unprivileged user
   (`tools/postgres/as_unprivileged.sh`): green.
+
+## The final audit's fixes: S401 read through casts, lists and deduplications (2026-11-23)
+
+- **The audit** (of 581a93cb and 386db8fe, by a reviewer that wrote none of it): 4 HIGH, 5 MEDIUM, 8 LOW. The rule
+  "a Variant is never equal to a value of another type; two whole Variants refused" had been applied to `==` alone and
+  read declared types alone. Membership, mixed lists (`[fromJson('1'), 2]`, an `Any[*]`), a Variant cast to `Any` in the
+  product, and `distinct`, `union`, `isDistinct` and `removeDuplicatesBy` still reached the database's own JSON
+  equality, and answers differed by database (`[1,2]->contains(fromJson('1'))`: DuckDB true, SQLite false, H2 a raise).
+- **One reading, both judges and the product:** `compiler/spec/typed/VariantEquality`. A side's values are seen through
+  a cast to `Any` and into a collection literal's (or a concatenation's) members. Where only identity decides, the
+  comparison is refused by name: two whole Variants, a Variant and an unseen `Any`, or a Variant among values of other
+  types. A Variant meeting values of other types alone is DISJOINT: `==` folds false (true where both sides are empty,
+  as Pure's `[] == []`; `InstanceEquality.disjointAnswer`), `contains` and `in` false, `indexOf` -1. `distinct` (and
+  `union`, which desugars to it), `isDistinct`, `removeDuplicates` and `removeDuplicatesBy` refuse a Variant among
+  their values or keys. `PlatformTypes.identityOnly` and `NullSemantics.refuseIdentityOnly` are deleted. The judges
+  read the same helper (`JudgmentFacts.refuseIdentityOnly`, `sideType`, `computed`, `variantDisjoint`,
+  `variantMembership`).
+- **The database judge** no longer answers UNJUDGED for a Variant against a value of another type: the pair passes the
+  kind gate to the typed empty-only form, which the literal channel now admits (`TypedPair.kindsDiffer`), so
+  `assertNotEquals(1, fromJson('1'))` passes under every judge. `assertNotEq`, `assertIs` and `assertIsNot` over two
+  Variants name the S401 refusal (`AssertVerdicts.primitivePair` reads it first).
+- **The record** writes a Variant's value as JSON and its kind as `Variant` (`LiteWords.value`, `LiteWords.kind`), so
+  the host's `assertEq(1, fromJson('1'))` record ("expected 1 (Integer), got 1 (Variant)") is the database judge's
+  and BOTH agrees.
+- **The TDSNull sentinel** keeps its own lane: a Variant column compared with `^TDSNull()` is the null test again.
+- **Cypher:** MERGE's match of a stored list property against the pattern's now compares their orderability keys
+  (`CypherToPure.keyOf`, what Cypher's `=` in WHERE compares), so a stored `[42, 43]` matches the pattern's
+  `[42.0, 43.0]`, as in Neo4j. The creation step still groups one MERGE's unmatched rows by the JSON text
+  (`listText`): two rows wanting `[7, 8]` and `[7.0, 8.0]` create two nodes where Neo4j creates one (recorded in S401).
+  A `count(DISTINCT x)` over orderability keys was tried and withdrawn: the key's `joinStrings` inside an aggregate is
+  a shape the aggregate scan refuses (three openCypher `Return5` cases).
+- **Measured** with the auditor's own probes on a javac build of the fix: 59 judge bodies on DuckDB, H2 and SQLite under
+  HOST, DATABASE and BOTH. All agree, except Variant membership under the database judge (no typed form, refused by name,
+  recorded) and H2's JSON-null record (pending its ruling). 27 product queries and 5 relation queries on all three
+  databases. The openCypher subset the auditor ran (567 cases on DuckDB): unchanged, `Merge5` [15] included. The new
+  bodies are pinned in `AssertBarTest`.
+- **Pins:** `JavaEvalLedgerTest` DatabaseJudge 844 -> 843 and AssertVerdicts 1330 -> 1329 (shrinks, dated).
+- **Not covered, recorded in S401 for the user's ruling:** relation-level comparisons of a Variant column (`distinct`,
+  `groupBy`, an `over` partition, a join key, an aggregate's DISTINCT including Cypher's `count(DISTINCT list)`) still
+  use the database's equality, as before item 3. Grids compared by the host judge read Variant cells by their text.
+  A Variant's `toString()` text is the database's own spelling (`[1.5,100.0]` on DuckDB, `[1.50,1E2]` on H2).
+- **Instance verdicts fused again** (the user's word, 2026-11-23: "If we have to change stuff anyway we should fold in
+  the instance fusing"). Channel B grammar's judge statements had risen 179 -> 180. Each instance assert's verdict SQL
+  carried the identity guard (`CanonicalRenderSql.trackedId`, a raise where the product does not track an object's
+  identity), and `VerdictBatch.raisingRuns` starts a new statement at every member that may raise.
+  `VerdictSql.leafRows` now reads `__id` plainly where a side's plan builds every object it reads with a literal id
+  (`VerdictSql.tracked`: no read of rows the plan does not build, no object without a literal id), so those members
+  fuse. Per test, main -> head -> fused: grammar's `testFirstComplex` 1 -> 2 -> 1 (grammar 179 -> 180 -> 179); essential's
+  `testHeadComplex` 1 -> 2 -> 1 and `testParseDateTypes` 2 -> 1 -> 1 (essential 477 -> 477 -> 476, its +1 and -1 having
+  cancelled, so its pin had not moved): two statements down in all, essential's pin re-pinned 477 -> 476 (a shrink).
+  The guard stays wherever the proof fails.
+- **The channel B ledger's stale rows:** the warm lanes at 386db8fe found 33 rows whose failures the run now words
+  differently, with no verdict moved (Q15 = A): postgres relation 2; mariadb relation 2, mysql essential 1, mysql
+  relation 23, clickhouse relation 5. They were re-recorded from the census lines byte for byte, five cut before the
+  census's own ellipsis. BigQuery: no move.
+- **The judge-SQL pins were held by no lane** (found while re-pinning, 2026-11-23). `ChannelBLane.judgeSqlHeld` sat at
+  the end of each suite's census, after the early return the LITE-PCT lane takes (since 4fb8ee8b, on main), and the
+  compatibility lanes measure no judge SQL. So no lane held the pins: grammar's 180 turned nothing red, and the size
+  pins went stale. Restored: `ChannelBLane.judge` holds the pins after the lane's ledger (a no-op on every other lane),
+  and the five dead calls are deleted. Proven to bite: the unclassified lane run against main's committed pins fails.
+- **The pins re-measured** (`bazel run //pct:update_ratchets`, shrinks): judge statements essential 477 -> 476 (the
+  fusing); judge characters, all five suites, 28.3M -> 2.7M (essential 7,196,265 -> 918,746, grammar 2,506,526 ->
+  389,012, relation 5,770,627 -> 631,211, standard 12,410,457 -> 721,186, unclassified 408,592 -> 80,145); the plans'
+  JSON likewise. How much of the drop is item 3's (the sentence SQL deleted in S4 step 4), and how much main's since the
+  pins were set on 2026-11-19, is measured by the generator on main (below).

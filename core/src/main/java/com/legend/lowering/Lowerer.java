@@ -4147,7 +4147,8 @@ public final class Lowerer {
             // PCT inlines captured instances by value): instances keep
             // struct comparison, identity tests ledgered.
             case TypedNativeCall n when (isFamily(n, Pure.AT_BOOLEAN_EQUAL) || isFamily(n, Pure.AT_BOOLEAN_EQ))
-                    && InstanceEquality.staticallyDisjoint(n.args()) -> new SqlExpr.BoolLit(false);
+                    && InstanceEquality.staticallyDisjoint(n.args()) -> InstanceEquality.disjointAnswer(n.args(),
+                            a -> scalar(a, columns));
 
             // COLLECTION-VALUED relation nodes in scalar position (the
             // list encodings; relation-typed sources take relation()).

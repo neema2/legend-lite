@@ -88,7 +88,8 @@ final class AssertRecords {
         @Nullable String aClass = report.a() == null ? null : report.a().classFqn();
         ErrorRecord failure = report.fixed() != null ? report.fixed() : switch (report.family()) {
             // a typed row's values are typed, never a JSON carrier's
-            // (two Variants' values carried as their JSON texts, as the host's read carries them)
+            // (a Variant's values carried as their JSON texts, as the host's read carries them; two whole Variants
+            // never reach a record, refused at planning by register S401)
             case EQUALS -> equality(false, report.want(), e, a, variant(report.e()) ? e : List.of(),
                     variant(report.a()) ? a : List.of(), report.e(), report.a());
             case SAME_ELEMENTS -> equality(true, report.want(), e, a, variant(report.e()) ? e : List.of(),
