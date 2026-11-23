@@ -73,6 +73,7 @@ Database types planned with it: H2.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -244,7 +245,7 @@ Database types planned with it: Postgres.
 | `COALESCE` | emulated | `coalesceArm` |  | 552 |
 | `PARSE_INT` | emulated | `parseInt` |  | 11 |
 | `CONCAT` | emulated | `concatFlat` |  | 756 |
-| `LENGTH` | emulated | `by its operands: length(…) / length(CAST(… AS VARCHAR))` |  | 73 |
+| `LENGTH` | emulated | `lengthArm` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
 | `LOWER` | spelled | `lower` |  | 3 |
 | `GREATEST` | spelled | `greatest` |  | 52 |
@@ -270,6 +271,7 @@ Database types planned with it: Postgres.
 | `LOG10` | emulated | `log10(CAST(… AS DOUBLE PRECISION))` |  | 2 |
 | `POW` | emulated | `power(CAST(… AS DOUBLE PRECISION), CAST(… AS DOUBLE PRECISION))` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | spelled | `erf` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -406,7 +408,7 @@ Database types planned with it: Postgres.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
+| `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
 | `JSON_ARRAY_LENGTH` | spelled | `jsonb_array_length` |  | 0 |
@@ -467,6 +469,7 @@ Database types planned with it: Snowflake.
 | `LOG10` | emulated | `LOG(10, …)` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -664,6 +667,7 @@ Database types planned with it: Trino.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | emulated | `erfByNormalCdf` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -861,6 +865,7 @@ Database types planned with it: BigQuery.
 | `LOG10` | emulated | `LOG10(CAST(… AS FLOAT64))` |  | 2 |
 | `POW` | emulated | `POW(CAST(… AS FLOAT64), CAST(… AS FLOAT64))` |  | 9 |
 | `PI` | emulated | `ACOS(-1)` |  | 1 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `SIN` | spelled | `SIN` |  | 3 |
 | `COS` | spelled | `COS` |  | 3 |
 | `TAN` | spelled | `TAN` |  | 2 |
@@ -1058,6 +1063,7 @@ Database types planned with it: Databricks.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1255,6 +1261,7 @@ Database types planned with it: DuckDB.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1452,6 +1459,7 @@ Database types planned with it: ClickHouse.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `pow` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | spelled | `erf` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1649,6 +1657,7 @@ Database types planned with it: SQLite.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `pow` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1846,6 +1855,7 @@ Database types planned with it: MariaDB.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `POW` |  | 9 |
 | `PI` | emulated | `(PI() + 0.0E0)` |  | 1 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -2043,6 +2053,7 @@ Database types planned with it: MySQL.
 | `LOG10` | spelled | `log10` | `as MariaDb` | 2 |
 | `POW` | spelled | `POW` | `as MariaDb` | 9 |
 | `PI` | emulated | `(PI() + 0.0E0)` | `as MariaDb` | 1 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `SIN` | spelled | `sin` | `as MariaDb` | 3 |
 | `COS` | spelled | `cos` | `as MariaDb` | 3 |
 | `TAN` | spelled | `tan` | `as MariaDb` | 2 |
@@ -2240,6 +2251,7 @@ Database types planned with it: MongoDB.
 | `LOG10` | emulated | `op1: $log10` |  | 0 |
 | `POW` | emulated | `guarded: {"$pow": [{"$toDouble": , }, , ]}` |  | 0 |
 | `PI` | emulated | `{"$numberDouble": "3.141592653589793"}` |  | 0 |
+| `ERF` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `SIN` | emulated | `op1: $sin` |  | 0 |
 | `COS` | emulated | `op1: $cos` |  | 0 |
 | `TAN` | emulated | `op1: $tan` |  | 0 |
