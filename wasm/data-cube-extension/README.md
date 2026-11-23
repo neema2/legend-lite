@@ -62,8 +62,8 @@ flowchart LR
 
 - **The hook.** `LegendDataCubeApplicationPlugin.getExtraDuckDBQueryPlanners()` lets a plugin contribute a planner: a
   key, a label, a factory for an engine server client, and a rule for which queries it is asked for. Each contributed
-  planner adds two settings, both off by default: **use** it instead of the engine server, or **compare** it with the
-  engine server in the background (shadow mode). With no plugin registered nothing changes, and public legend-studio
+  planner adds one setting, off by default, that **uses** it instead of the engine server. With no plugin registered
+  nothing changes, and public legend-studio
   registers none.
 - **The client.** `LegendLiteEngineClient` is a `V1_EngineServerClient` whose `request()` asks the engine module
   instead of the network. Every method keeps its name, input, output and errors. A route legend-lite does not answer
@@ -187,7 +187,7 @@ export class LegendDataCubeWebApplication {
 }
 ```
 
-Nothing else is configured: the plugin adds its two settings to DataCube's settings, under the debug group, both off.
+Nothing else is configured: the plugin adds its setting to DataCube's settings, under the debug group, off.
 
 ### 5. Bundling and serving
 
@@ -214,19 +214,19 @@ What the server and the page must allow:
 - **WebAssembly GC.** The module needs a browser with WebAssembly GC and exception handling. It was run in Chrome only;
   see [What was verified](#what-was-verified).
 
-### 6. Turn it on and watch it
+### 6. Turn it on
 
-The settings are in DataCube's **Settings** (application menu, top right), in the debug group:
+The setting is in DataCube's **Settings** (application menu, top right), in the debug group:
 
 | Setting | Key | Effect |
 |---|---|---|
-| Planner: Use legend-lite for Cached and Local Sources (Experimental) | `debugger.planner.legend-lite.enabled` | legend-lite plans every query it supports; a failure shows `[legend-lite] <message>`, and is not retried on the engine server |
-| Planner: Compare legend-lite with the Engine in the Background (Experimental) | `debugger.planner.legend-lite.shadow` | The engine server plans as usual; afterwards legend-lite plans the same query, its SQL runs on the same DuckDB, and the results are compared |
+| Planner: Use legend-lite for Cached and Local Sources (Experimental) | `debugger.planner.legend-lite.enabled` | legend-lite plans every query it supports, in the tab. A query it does not support (G3) still goes to the engine server. A failure shows `[legend-lite] <message>`, and is not retried on the engine server |
 
-**Start with compare.** It cannot change what a user sees. Each comparison sends a telemetry event,
-`data-cube.planner-shadow.match`, `.difference`, `.inconclusive`, `.refusal` or `.failure`. The event carries counts,
-timings, the planner's key and messages, and never the query or the SQL. The query and both SQL texts are written to
-the browser console under `Planner Shadow`. Comparisons run one at a time, and a result over 50,000 rows is skipped.
+The first query planned with legend-lite loads the module (about 3.5 MB gzipped) and starts the worker; later queries
+reuse it. With legend-lite in use, the browser's network panel shows no `generatePlan` request to the engine server.
+
+There is no compare mode in this first step (decided 2026-11-23): nothing runs the engine's plan beside legend-lite's.
+Grammar and typing calls still go to the engine server either way.
 
 ## Trying it locally against public legend-studio
 
@@ -265,20 +265,19 @@ NODE_ENV=development yarn webpack serve --mode development --host localhost --po
 ```
 
 Open `http://localhost:9007/datacube`, create a DataCube from a local CSV file (New DataCube, source type Local File),
-and turn a setting on. The settings can also be set before the page loads:
+and turn the setting on. It can also be set before the page loads:
 
 ```js
 const k = 'legend-data-cube';
 const v = JSON.parse(localStorage.getItem(k) || '{}');
 v['application-settings-storage'] = v['application-settings-storage'] || {};
 v['application-settings-storage']['data-cube'] = {
-  'debugger.planner.legend-lite.enabled': false,
-  'debugger.planner.legend-lite.shadow': true,
+  'debugger.planner.legend-lite.enabled': true,
 };
 localStorage.setItem(k, JSON.stringify(v));
 ```
 
-With use on, the network panel shows no `generatePlan` request to the engine server, and shows the assets chunk and
+With it on, the network panel shows no `generatePlan` request to the engine server, and shows the assets chunk and
 `LegendLiteEngine.worker.js` loaded on the first query and not before.
 
 Note: on legend-studio `master` the dev app crashes on start when `dev/config.json` has no `oidcConfig` (it reads
@@ -323,15 +322,15 @@ Each of these is marked `TEMPORARY` in the code, with the condition for removing
 | G1: a relational connection without `postProcessorWithParameter` is refused (legend-studio's serializer leaves the empty array out) | legend-lite's `ConnectionReader.java`; shimmed by `liftEmbeddedConnections` in `LegendLiteEngineClient.ts` | The client adds what is missing before `generatePlan` | legend-lite accepts the connection as sent |
 | G2: `generatePlan` refuses a connection embedded in the runtime, which is how DataCube sends it | legend-lite's `edge/PureV1Routes.java`; shimmed by the same function | The client moves each embedded connection into an element of its own | legend-lite plans over an embedded connection |
 | G3: a pivot with no cast plans as two statements (DataCube runs this query, with `limit 0`, to find a pivot's columns) | `LegendLiteQuerySupport.ts` | That query goes to the engine server in every mode | legend-lite plans it as one statement for DuckDB |
-| G4: the `last()` aggregate fails | legend-lite | The query fails with legend-lite's message (use), or is recorded as a refusal (compare) | Fixed in legend-lite |
+| G4: the `last()` aggregate fails | legend-lite | The query fails with legend-lite's message | Fixed in legend-lite |
 | G5: arithmetic on a nullable column fails to compile | legend-lite's `Typer.java` | As G4 | Fixed in legend-lite, once legend-engine's answer is checked |
-| G11: DuckDB versions differ (legend-studio pins `@duckdb/duckdb-wasm` 1.31.0; legend-lite is tested on DuckDB 1.5.x), and legend-lite's SQL assumes a UTC session, which DataCube does not set | Both | A difference compare mode may report, e.g. on dates | Settled between the two projects |
+| G11: DuckDB versions differ (legend-studio pins `@duckdb/duckdb-wasm` 1.31.0; legend-lite is tested on DuckDB 1.5.x), and legend-lite's SQL assumes a UTC session, which DataCube does not set | Both | A result that may differ from the engine's, e.g. on dates | Settled between the two projects |
 
 There is also no timeout on a request to the worker: a module that never answers leaves its query waiting.
 
 ## What was verified
 
-Verified, on 2026-11-20:
+Verified, on 2026-11-20, and again on 2026-11-23 after compare mode was taken out of the hook:
 
 - The package compiled (`tsc`, tests included) inside a legend-studio checkout's `node_modules`, against the public
   indexes of `@finos/legend-application-data-cube` (with the hook), `@finos/legend-data-cube`, `@finos/legend-graph`
@@ -339,9 +338,9 @@ Verified, on 2026-11-20:
 - Its 43 tests passed under legend-studio's jest configuration (with the DuckDB engine mocked; see [Tests](#tests)).
 - The DataCube dev app (webpack 5, development mode), with the plugin registered and a 60-row local CSV, in Chrome:
   - At start, nothing of legend-lite was fetched. The assets chunk and the worker were loaded on the first query.
-  - The two settings were shown, named `legend-lite`.
-  - Compare: the comparison ran and recorded `planner: legend-lite`, `outcome: match`.
-  - Use: no `generatePlan` request reached the engine server, and the grid showed all 60 rows.
+  - The setting was shown, named `legend-lite`.
+  - With it on, no `generatePlan` request reached the engine server, and the grid showed all 60 rows.
+  - (On 2026-11-20, with the compare mode the hook then had, legend-lite's result also matched the engine's.)
 
 Not verified:
 
@@ -375,8 +374,8 @@ Paste this, with the placeholders filled in, into a Claude session opened in the
 > 3. Check the bundler and server against README step 5: `.wasm` as `application/wasm`, same origin, and the CSP.
 > 4. Add the tests from `src/__tests__/` to our jest setup, with the DuckDB engine stub from the README's Tests
 >    section, and run them.
-> 5. Run the app locally, turn on "Planner: Compare legend-lite with the Engine in the Background", open a local CSV
->    file, and show me the `Planner Shadow` record from the console.
+> 5. Run the app locally, turn on "Planner: Use legend-lite for Cached and Local Sources", open a local CSV file, and
+>    show me that the grid is drawn and that no `generatePlan` request reached the engine server.
 >
 > Do not change the plugin's behaviour: no fallback from legend-lite to the engine server, and nothing of the module
 > loaded before a setting is on. Tell me what you could not verify.
