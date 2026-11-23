@@ -1,0 +1,44 @@
+# The repository's Python workspace: the packages every Python target uses, and the Python tools' settings. Not a
+# package itself (python/ builds legend-lite's wheel, //python:wheel): uv reads it to write uv.lock, which pins
+# every package with its hashes and which Bazel's one pip hub (@pypi, MODULE.bazel) reads.
+# Change a dependency here, then `bazel run //tools/python:lock.update`.
+[project]
+name = "legend-lite-workspace"
+version = "0"
+# the repository's one interpreter (MODULE.bazel: python.toolchain) is 3.12
+requires-python = ">=3.12"
+dependencies = [
+    "pyarrow==23.0.1",
+    "tzdata==2026.5",
+    # legend_lite's frames (//python): duckdb-python at the warehouse's DuckDB (tools/deps/jars_table.bzl:
+    # duckdb_jdbc_warehouse 1.5.5), and pyarrow above
+    "duckdb==1.5.5",
+    # the frames' tests only: the two dataframe libraries a frame comes from
+    "pandas==3.0.6",
+    "polars==2.0.0",
+    # legend_lite's cube in a notebook (legend_lite/notebook.py; the wheel's `notebook` extra): anywidget, and
+    # through it ipywidgets and IPython
+    "anywidget==0.11.0",
+    # IPython's on Windows (its terminal's colours): pinned here although uv's lock, resolved for every platform,
+    # holds it either way
+    "colorama==0.4.6",
+    # the notebook cube's real-notebook test only (//datacube:jupyterlab_test): JupyterLab, the notebook most
+    # people run, at the version the manual check passed on (docs/datacube-python-show/jupyterlab-check/)
+    "jupyterlab==4.6.4",
+    # the notebook cube's real-marimo test only (//datacube:marimo_test): marimo, the reactive notebook
+    "marimo==0.25.1",
+    # DataCube headless in Python (2026-10-11; docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md, the user's
+    # ruling: V8): mini-racer, V8 14.4 with its ICU data inside the wheel (py3-none, all five targets), runs
+    # DataCube's own non-screen bundle in the Python process (legend_lite/_headless.py; the wheel's `datacube`
+    # extra; //datacube:headless_test)
+    "mini-racer==0.14.1",
+]
+
+[tool.uv]
+# dependencies only: there is nothing here to build or install
+package = false
+# Jupyter's terminals on Windows (jupyter-server's and terminado's, `os_name == 'nt'`): pywinpty has wheels for Windows
+# alone, and the pip hub would build its source anywhere else a target takes every wheel (//datacube:notebook_wheels).
+# The notebook tests do not run on Windows (datacube/BUILD.bazel, _NOTEBOOK_PLATFORMS), and pip-compile's lock,
+# resolved on macOS, never held it.
+exclude-dependencies = ["pywinpty"]

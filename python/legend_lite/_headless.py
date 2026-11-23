@@ -394,7 +394,7 @@ class Headless:
         # mini-racer 0.14.1's setTimeout waits on Atomics.waitAsync, which with a delay of 0 or less answers at once,
         # without a promise, so the timer throws, and with no delay waits forever (NaN): HTML's setTimeout takes both as
         # 0 (https://github.com/bpcreech/PyMiniRacer/issues/97). Each delay held to at least a millisecond, a real timer
-        # on V8's own loop (a browser's own fire after 0 to 4 ms). This goes when the pin (tools/python/requirements.in)
+        # on V8's own loop (a browser's own fire after 0 to 4 ms). This goes when the pin (pyproject.toml)
         # moves past mini-racer's fix: //datacube:headless_test's timer test says whether it still has to be here
         self._mr.eval('{ const engines = setTimeout;'
                       ' globalThis.setTimeout = (f, ms, ...args) => engines(f, Math.max(1, Number(ms) || 0), ...args); }')

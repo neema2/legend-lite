@@ -1,30 +1,24 @@
-load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/guards:defs.bzl", "guards_package")
 
-# THE PYTHON DEPENDENCIES (Bazel workplan P1-07): requirements.in names them; requirements_lock.txt pins
-# every one with its hashes. `bazel run //tools/python:requirements.update` is the only way the lock
-# changes. Its own check, :requirements.test, re-resolves against PyPI (rules_python tags it
-# requires-network), so it is manual: run it when this directory changes. The gate's check is offline.
-compile_pip_requirements(
-    name = "requirements",
-    src = "requirements.in",
-    requirements_txt = "requirements_lock.txt",
-    tags = ["manual"],
-)
+# THE PYTHON DEPENDENCIES (Bazel workplan P1-07): //:pyproject.toml names them; //:uv.lock pins every one with its
+# hashes (uv's lock since 2026-11-23; requirements.in and pip-compile's requirements_lock.txt, here, before it).
+# `bazel run //:uv_lock.update` is the only way the lock changes.
 
-# The lock holds every pin of requirements.in, at the same version, with hashes: offline, in the checks lane.
+# The lock holds every pin of pyproject.toml, at the same version, with hashes: offline, in the checks lane
+# (lock_matches_requirements until 2026-11-23, the same check of pip-compile's lock; that lock's own network
+# re-resolution, :requirements.test, went with it: uv's rule makes no test, and `uv lock --check` is the manual run).
 py_test(
-    name = "lock_matches_requirements",
+    name = "lock_matches_pyproject",
     size = "small",
-    srcs = ["lock_matches_requirements.py"],
+    srcs = ["lock_matches_pyproject.py"],
     args = [
-        "$(rlocationpath requirements.in)",
-        "$(rlocationpath requirements_lock.txt)",
+        "$(rlocationpath //:pyproject.toml)",
+        "$(rlocationpath //:uv.lock)",
     ],
     data = [
-        "requirements.in",
-        "requirements_lock.txt",
+        "//:pyproject.toml",
+        "//:uv.lock",
     ],
     deps = ["@rules_python//python/runfiles"],
 )
