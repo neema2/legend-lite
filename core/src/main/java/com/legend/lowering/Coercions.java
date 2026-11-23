@@ -144,9 +144,23 @@ final class Coercions {
                         : raised;
             });
         }
-        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_ASSERT_FAILED_TEXT) {
-            rules.put(f, (Scalars.StyledRule) (n, args, styled) -> new com.legend.sql.SqlExpr.StringLit(
-                    styled.forms().assertFailed()));
+        // assertRaise -- an in-body assert's failure with no message of its caller's (Lite.ASSERT_RAISE, item 3's S6,
+        // 2026-11-23): the raise of the kind its argument names, no operand (the catalog words it); typed as the position
+        // it stands in, as fail's is
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_ASSERT_RAISE) {
+            rules.put(f, (n, args) -> {
+                com.legend.sql.RaiseKind k = args.get(0) instanceof com.legend.sql.SqlExpr.StringLit kind
+                        ? com.legend.sql.RaiseKind.valueOf(kind.value()) : null;
+                if (k != com.legend.sql.RaiseKind.ASSERT_TRUE && k != com.legend.sql.RaiseKind.ASSERT_FALSE
+                        && k != com.legend.sql.RaiseKind.ASSERT_NOT_EMPTY) {
+                    throw new IllegalStateException("assertRaise's argument is the guard's assert kind: " + args);
+                }
+                com.legend.sql.SqlExpr raised = PureSql.raise(new com.legend.sql.SqlExpr.RaiseText(k, List.of(), null),
+                        n.pos());
+                return n.info().type() instanceof com.legend.compiler.element.type.Type.Primitive p && p != com.legend.compiler.element.type.Type.Primitive.BOOLEAN
+                        ? new com.legend.sql.SqlExpr.Cast(raised, PureSql.type(p), com.legend.sql.SqlExpr.Reason.RAISE)
+                        : raised;
+            });
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CELL_TEXT) {
             rules.put(f, (n, args) -> com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CELL_TEXT, args.get(0)));

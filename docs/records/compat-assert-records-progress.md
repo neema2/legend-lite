@@ -621,3 +621,23 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
 - **No prose in a statement** (`AssertBarTest.noPlannedStatementHoldsACatalogSentence`): the same bodies planned for
   the database judge on each database: no template's fixed text of two words or more is in the plan.
 - The codec part of S5 landed with S3 and S4 (the test plan at version 41; the prose residue narrowed at S3).
+
+## S6: an in-body assert raises its kind (2026-11-23)
+
+- **The rulings:** Q-C = C1 (an in-body assert is a raise code worded by the catalog), Q-S6 ("all yes": a caller's
+  message stays USER_FAIL; each guard its own kind where its sentence needs no value; `fail()` with no message is
+  `assert(false)`'s raise), Q15 = A (lite's words on every route). The general form (each guard's sentence with its
+  values) was weighed and declined: a raise carries facts fixed at planning (B1's sites, `Operand.Computed`), never a
+  value the database computed, so it would need a run-time value channel in every raise.
+- **What changed:** an assert in a lambda body whose caller gives no message raises its kind, a site with no operand
+  (`RaiseKind`/`ErrorKind` `ASSERT_TRUE`, `ASSERT_FALSE`, `ASSERT_NOT_EMPTY`, each worded by its `AssertKind`'s
+  template): `assert`, `assertTrue`, `fail()` and the three guards whose sentences print values (`assertEquals`,
+  `assertNotEquals`, `assertEmpty`) raise the condition's failure; `assertFalse` and `assertNotEmpty` their own. The
+  raise is at the assert's own place (its line and column). `assertFailedText()` (the plan style's message written
+  into the statement) replaced one for one by `assertRaise(kind)`; `LoweringForms.assertFailed` and its two forms
+  deleted; no "Assert failed" or catalog sentence rides a product plan. The edge words an in-body assert as the
+  product does.
+- **Guards moved (shrinks, dated):** the LambdaBodies "Assert failed" rows of `CompatSpellingGuardTest` and
+  `TerminalRowsFrozenTest`. Governance counts unchanged (one native for one).
+- **Tests:** `exec.InBodyAssertRaiseTest` (each guard's kind as a site with no sentence on DuckDB, H2 and SQLite; a
+  caller's message), `PureOnlyTextTest` (the product's and the edge's words the same).

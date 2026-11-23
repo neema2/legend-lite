@@ -1425,13 +1425,6 @@ public final class AssertVerdicts {
         return marks.size() <= 1;
     }
 
-    /** A condition's failure SENTENCE for the database judge's verdict row, until item 3's S4 carries the record
-     *  (item 3, 2026-11-21: the host judge plans the record, AssertKind.condition; until then lite's sentence or
-     *  legend-pure's "Assert failed", by the plan's style). */
-    static String defaultConditionMessage(boolean wantTrue) {
-        return com.legend.error.AssertKind.condition(wantTrue, null).sentence();
-    }
-
     /** The unroll's elements as ONE host assert under the statement's name and no family: every element's asks in
      *  order, judged by {@link HostJudgment.Unrolled} element by element (each entered and counted there). */
     static HostAssert composite(TypedSpec bare, UnrollPlan unroll) {

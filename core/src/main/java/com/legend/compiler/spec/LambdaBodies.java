@@ -112,34 +112,33 @@ final class LambdaBodies {
             return null;
         }
         List<ValueSpecification> condIn = af.parameters().subList(0, condArgs);
-        // each guard's condition, and whether its default message is the plan style's (assert's alone: the user's R1,
-        // 2026-11-18) -- decided by the one switch over the guard, never a second compare of its name
-        record Guard(ValueSpecification condition, boolean styledDefault) {
+        // each guard's condition, and the kind it raises where its caller gives no message (item 3's S6, 2026-11-23; the
+        // user's Q-S6): the catalog's kind of the guard where its sentence needs no value (TRUE, FALSE, NOT_EMPTY), else
+        // TRUE -- a raise carries facts fixed at planning, never a value the database computed, so assertEquals,
+        // assertNotEquals and assertEmpty, whose sentences print their values, raise their condition's failure. Decided
+        // by the one switch over the guard, never a second compare of its name
+        record Guard(ValueSpecification condition, com.legend.sql.RaiseKind kind) {
         }
         Guard guard = switch (fqn.substring(fqn.lastIndexOf(':') + 1)) {
-            case "assert" -> new Guard(condIn.get(0), true);
-            case "assertTrue" -> new Guard(condIn.get(0), false);
-            case "assertFalse" -> new Guard(Calls.platform("not", condIn), false);
-            case "assertEquals" -> new Guard(Calls.platform("equal", condIn), false);
+            case "assert", "assertTrue" -> new Guard(condIn.get(0), com.legend.sql.RaiseKind.ASSERT_TRUE);
+            case "assertFalse" -> new Guard(Calls.platform("not", condIn), com.legend.sql.RaiseKind.ASSERT_FALSE);
+            case "assertEquals" -> new Guard(Calls.platform("equal", condIn), com.legend.sql.RaiseKind.ASSERT_TRUE);
             case "assertNotEquals" -> new Guard(Calls.platform("not",
-                    List.of(Calls.platform("equal", condIn))), false);
-            case "assertEmpty" -> new Guard(Calls.platform("isEmpty", condIn), false);
-            case "assertNotEmpty" -> new Guard(Calls.platform("isNotEmpty", condIn), false);
+                    List.of(Calls.platform("equal", condIn))), com.legend.sql.RaiseKind.ASSERT_TRUE);
+            case "assertEmpty" -> new Guard(Calls.platform("isEmpty", condIn), com.legend.sql.RaiseKind.ASSERT_TRUE);
+            case "assertNotEmpty" -> new Guard(Calls.platform("isNotEmpty", condIn),
+                    com.legend.sql.RaiseKind.ASSERT_NOT_EMPTY);
             default -> throw new IllegalStateException(fqn);
         };
         ValueSpecification condVs = guard.condition();
         TypedSpec cond = t.synth(condVs, scope);
         ExprType str = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
         List<ValueSpecification> msgArgs = af.parameters().subList(condArgs, af.parameters().size());
-        TypedSpec message;
-        if (msgArgs.isEmpty() && guard.styledDefault()) {
-            // assert's default alone is the plan style's, at lowering (the user's R1, 2026-11-18): lite's sentence, or
-            // legend-pure's on the edge (Pure.Lite.ASSERT_FAILED_TEXT); the six other guards keep their text below
-            var text = t.model().findFunction(com.legend.builtin.Pure.Lite.ASSERT_FAILED_TEXT).stream().findFirst()
-                    .orElseThrow(() -> new TypeInferenceException("assertFailedText is not registered"));
-            message = new TypedNativeCall(text, List.of(), str);
-        } else if (msgArgs.isEmpty()) {
-            message = new com.legend.compiler.spec.typed.TypedCString("Assert failed", str);
+        @com.legend.base.Nullable TypedSpec message;
+        if (msgArgs.isEmpty()) {
+            // no message of the caller's: the guard's kind, raised (Pure.Lite.ASSERT_RAISE) -- a site the catalog words,
+            // no sentence in the plan
+            message = null;
         } else if (msgArgs.get(0) instanceof LambdaFunction thunk
                 && thunk.parameters().isEmpty()) {
             message = synthBody(t, thunk, scope);
@@ -151,10 +150,20 @@ final class LambdaBodies {
         }
         TypedSpec rest = synthBody(t, new LambdaFunction(lam.parameters(),
                 lam.body().subList(1, lam.body().size())), scope);
-        var fail = t.model().findFunction("meta::pure::functions::asserts::fail").stream()
-                .filter(f -> f.parameters().size() == 1).findFirst()
-                .orElseThrow(() -> new TypeInferenceException("fail(message) is not registered"));
-        TypedSpec raise = new TypedNativeCall(fail, List.of(message), rest.info());
+        TypedSpec raise;
+        if (message == null) {
+            var assertRaise = t.model().findFunction(com.legend.builtin.Pure.Lite.ASSERT_RAISE).stream().findFirst()
+                    .orElseThrow(() -> new TypeInferenceException("assertRaise is not registered"));
+            // at the assert's own place: an assertError over the body reads the raise's line and column
+            raise = new TypedNativeCall(assertRaise, List.of(new com.legend.compiler.spec.typed.TypedCString(
+                    guard.kind().name(), str)), rest.info(), af.pos());
+        } else {
+            // the caller's message is the error's text (USER_FAIL): legend-pure's assert(c, m) is fail(m)'s raise
+            var fail = t.model().findFunction("meta::pure::functions::asserts::fail").stream()
+                    .filter(f -> f.parameters().size() == 1).findFirst()
+                    .orElseThrow(() -> new TypeInferenceException("fail(message) is not registered"));
+            raise = new TypedNativeCall(fail, List.of(message), rest.info());
+        }
         return new com.legend.compiler.spec.typed.TypedIf(cond, rest,
                 java.util.Optional.of(raise), rest.info());
     }

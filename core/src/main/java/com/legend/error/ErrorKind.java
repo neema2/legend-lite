@@ -123,6 +123,14 @@ public enum ErrorKind implements ErrorCode {
             + " (docs/SEMANTICS_REGISTER.md S170)")),
     /** [the start, the end, the length]: legend-pure's String.substring raise, Java's own words (S383). */
     SUBSTRING_OUT_OF_RANGE(Form.any("Range [%1$s, %2$s) out of bounds for length %3$s")),
+    /** An in-body assert's failure with no message of its caller's (item 3's S6): the one catalog's sentence of the
+     *  assert's kind (lite's words, the user's Q15 = A and Q-S6 -- one catalog for an assert's failure wherever it
+     *  fails). No values: a raise carries facts fixed at planning, never a value the database computed. */
+    ASSERT_TRUE(Form.of(0, AssertKind.TRUE.template())),
+    /** {@code assertFalse}'s, as {@link #ASSERT_TRUE}. */
+    ASSERT_FALSE(Form.of(0, AssertKind.FALSE.template())),
+    /** {@code assertNotEmpty}'s, as {@link #ASSERT_TRUE}. */
+    ASSERT_NOT_EMPTY(Form.of(0, AssertKind.NOT_EMPTY.template())),
     /** {@code fail(message)}: the user's own message is the error's text; this word only where none was given. */
     USER_FAIL(Form.of(0, "fail"), Form.any("fail: %1$s")),
     /** A failure the database raised with no site of lite's (phase D's Phase 2, item 4, 2026-11-16; the user's ruling:

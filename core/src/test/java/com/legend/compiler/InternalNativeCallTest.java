@@ -15,8 +15,8 @@ import org.junit.jupiter.api.Test;
 /**
  * THE COMPILER'S OWN NATIVES ARE NOT A USER'S TO CALL (PR #118 fix round, 2026-11-18, N1; the edge follow-ups' F32):
  * {@code meta::legend::lite::typeRaise}, {@code meta::legend::lite::cellText} and
- * {@code meta::legend::lite::assertFailedText} are written by the compiler alone (the resolver's chain dispatch and
- * casts, the match checker; the TDS cell's text; an in-body assert's default message), born with their record
+ * {@code meta::legend::lite::assertRaise} are written by the compiler alone (the resolver's chain dispatch and
+ * casts, the match checker; the TDS cell's text; an in-body assert's raise where its caller gives no message), born with their record
  * ({@code compiler.spec.Calls}) after the name resolver. A user's call to any of the three -- by its full name or an
  * overload's signature id, in a query or a function's body, or a reference to one under eval -- is refused by name where
  * the user's names are resolved (a bare name is none of the user's, an import of the package included); the platform's
@@ -27,8 +27,8 @@ class InternalNativeCallTest {
     private static final List<String> CALLS = List.of(
             Pure.Lite.TYPE_RAISE + "('CAST_IMPOSSIBLE', 'a', 'b')",
             Pure.Lite.CELL_TEXT + "('x')",
-            // the in-body assert's default message (N2, the same day): the compiler's too
-            Pure.Lite.ASSERT_FAILED_TEXT + "()");
+            // the in-body assert's raise (N2, the same day; assertFailedText until item 3's S6, 2026-11-23): the compiler's
+            Pure.Lite.ASSERT_RAISE + "('ASSERT_TRUE')");
 
     @Test
     void aQueryCallingAnInternalNativeByItsFullNameIsRefusedByName() {

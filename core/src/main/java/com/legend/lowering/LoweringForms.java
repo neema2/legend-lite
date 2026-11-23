@@ -64,9 +64,6 @@ public interface LoweringForms {
     /** An object reference's connection segment (the audit's J12, 2026-11-17): the product's names no connection, the
      *  empty text; legend-engine's its H2 test-connection JSON, whatever the database. */
     String objectReferenceConnection();
-    /** An in-body assert's message where its caller gave none ({@code Pure.Lite.ASSERT_FAILED_TEXT}; the user's R1,
-     *  2026-11-18): the product's lite sentence; legend-pure's on the edge. */
-    String assertFailed();
 
     /** A statement whose relations read more than once are written once ({@code shared}), or at each read
      *  ({@code unshared}). */

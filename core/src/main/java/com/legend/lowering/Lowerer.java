@@ -3594,7 +3594,9 @@ public final class Lowerer {
     private static TypedSpec refusingFail(TypedSpec spec) {
         if (spec instanceof TypedNativeCall nc
                 && com.legend.builtin.Pure.AT_ASSERTS_FAIL.contains(nc.callee().id())) {
-            String message = !nc.args().isEmpty() && nc.args().get(0) instanceof TypedCString m ? m.value() : "fail";
+            // fail() with no message is its condition's failure (item 3's S6)
+            String message = nc.args().isEmpty() ? com.legend.error.ErrorKind.ASSERT_TRUE.sentence(List.of())
+                    : nc.args().get(0) instanceof TypedCString m ? m.value() : "fail";
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE, message);
         }
         if (spec instanceof com.legend.compiler.spec.typed.TypedIf ti) {

@@ -517,11 +517,14 @@ public final class Pure {
          *  resolver's chain dispatch and subtype reads raised as legend-pure's sentence through {@code fail} until
          *  then; the sentence is the edge's ({@code edge.PureMessages}). Lowers to {@code SqlFn.ERROR}. */
         public static final String TYPE_RAISE = PKG + "typeRaise";
-        /** An in-body assert's message where its caller gave none (the user's R1, 2026-11-18, PR #118's fix round, N2):
-         *  {@code assertFailedText()}, which {@code compiler.spec.LambdaBodies} writes for {@code fail}'s message; the
-         *  plan's style words it at lowering ({@code lowering.LoweringForms#assertFailed}): the product's lite sentence,
-         *  "expected true, got false"; the compatibility edge's legend-pure's. */
-        public static final String ASSERT_FAILED_TEXT = PKG + "assertFailedText";
+        /** An in-body assert's failure where its caller gave no message (item 3's S6, 2026-11-23; the user's Q-C = C1
+         *  and Q-S6): {@code assertRaise(kind)}, {@code kind} the name of {@code sql.RaiseKind.ASSERT_TRUE},
+         *  {@code ASSERT_FALSE} or {@code ASSERT_NOT_EMPTY}, which {@code compiler.spec.LambdaBodies} writes as the
+         *  guard's raise. A site with no operand: the one catalog words it ({@code ErrorKind}'s sentence of the kind,
+         *  lite's words on every route, Q15 = A), and the plan carries no sentence. It replaced
+         *  {@code assertFailedText()}, the message the plan's style wrote into the statement (the user's R1 of
+         *  2026-11-18), one for one. Lowers to {@code SqlFn.ERROR}. */
+        public static final String ASSERT_RAISE = PKG + "assertRaise";
         /** A SQL island's INLINE VIEW (2026-10-16, docs/LITE_INVENTION_CENSUS.md): a derived table or a common table
          *  expression whose own query computes window functions. SQL computes those windows over all of the view's
          *  rows, before the enclosing query's WHERE; Pure's relation composition folds a later filter under them
@@ -677,7 +680,7 @@ public final class Pure {
      *  each database's own reading would make one program answer differently per database. {@link Lite#SUBSTR_AS_GIVEN}
      *  (A3, 2026-11-20) is the door's too, for the same reason. */
     public static final java.util.Set<String> COMPILER_OWN = java.util.Set.of(Lite.TYPE_RAISE, Lite.CELL_TEXT,
-            Lite.ASSERT_FAILED_TEXT, Lite.SUBSTRING_AS_GIVEN, Lite.SUBSTR_AS_GIVEN);
+            Lite.ASSERT_RAISE, Lite.SUBSTRING_AS_GIVEN, Lite.SUBSTR_AS_GIVEN);
 
     private static String liteLocalName(String fqn) {
         return fqn.substring(Lite.PKG.length());
@@ -691,7 +694,7 @@ public final class Pure {
                     Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE, Lite.ROUTE,
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
                     Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
-                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.CELL_TEXT, Lite.TYPE_RAISE, Lite.ASSERT_FAILED_TEXT,
+                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.CELL_TEXT, Lite.TYPE_RAISE, Lite.ASSERT_RAISE,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.STAGE, Lite.WRITE_INSTANCES,
@@ -1023,8 +1026,8 @@ public final class Pure {
     public static final NativeFunctionDefinition TRUST_ONE__T_MANY = signature("native function meta::legend::lite::trustOne<T>(values:T[*]):T[1];");
     /** A TDS cell's text (see {@link Lite#CELL_TEXT}): the text, empty where the cell is; the edge's TDSNull. */
     public static final NativeFunctionDefinition CELL_TEXT__STRING_0_1 = signature("native function meta::legend::lite::cellText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::String[1];");
-    /** An in-body assert's default message, worded by the plan's style (see {@link Lite#ASSERT_FAILED_TEXT}). */
-    public static final NativeFunctionDefinition ASSERT_FAILED_TEXT = signature("native function meta::legend::lite::assertFailedText():meta::pure::metamodel::type::String[1];");
+    /** An in-body assert's failure with no message of its caller's (see {@link Lite#ASSERT_RAISE}): its kind's name. */
+    public static final NativeFunctionDefinition ASSERT_RAISE__STRING_1 = signature("native function meta::legend::lite::assertRaise(kind:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     /** A run-time type check's failure (see {@link Lite#TYPE_RAISE}): its kind's name and the two types' paths. */
     public static final NativeFunctionDefinition TYPE_RAISE__STRING_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::typeRaise(kind:meta::pure::metamodel::type::String[1], from:meta::pure::metamodel::type::String[1], to:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     /** The database's own SUBSTRING over the arguments as given ({@link Lite#SUBSTRING_AS_GIVEN}): A3, the
@@ -1045,7 +1048,7 @@ public final class Pure {
     public static final java.util.Map<String, String> COMPILER_OWN_IDS = java.util.Map.of(
             com.legend.model.SignatureMangle.mangle(TYPE_RAISE__STRING_1__STRING_1__STRING_1), Lite.TYPE_RAISE,
             com.legend.model.SignatureMangle.mangle(CELL_TEXT__STRING_0_1), Lite.CELL_TEXT,
-            com.legend.model.SignatureMangle.mangle(ASSERT_FAILED_TEXT), Lite.ASSERT_FAILED_TEXT,
+            com.legend.model.SignatureMangle.mangle(ASSERT_RAISE__STRING_1), Lite.ASSERT_RAISE,
             com.legend.model.SignatureMangle.mangle(SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1), Lite.SUBSTRING_AS_GIVEN,
             com.legend.model.SignatureMangle.mangle(SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1),
             Lite.SUBSTRING_AS_GIVEN,
@@ -2650,7 +2653,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(AS_OF_JOIN_WITH_PREFIX__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_DECODE_PK_MAP = com.legend.model.FunctionId.ofAll(ASOR_DECODE_PK_MAP__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_PK_VALUE = com.legend.model.FunctionId.ofAll(ASOR_PK_VALUE__STRING_1__INTEGER_1);
-    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASSERT_FAILED_TEXT = com.legend.model.FunctionId.ofAll(ASSERT_FAILED_TEXT);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASSERT_RAISE = com.legend.model.FunctionId.ofAll(ASSERT_RAISE__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AT_TIME = com.legend.model.FunctionId.ofAll(AT_TIME__DATE_1__STRICT_TIME_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CAST_AS_DECLARED = com.legend.model.FunctionId.ofAll(CAST_AS_DECLARED__ANY_01__T_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CELL_TEXT = com.legend.model.FunctionId.ofAll(CELL_TEXT__STRING_0_1);

@@ -63,12 +63,6 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
         return ENGINE_TEST_CONNECTION;
     }
 
-    /** legend-pure's assert(condition): assert(condition, | 'Assert failed') (assert.pure). */
-    @Override
-    public String assertFailed() {
-        return "Assert failed";
-    }
-
     /** legend-engine's JsonBuilder cardinality rule (the engine's {@code execute()} contract; the audit's J3,
      *  2026-11-17): exactly one object bare, zero or several as the array. */
     @Override

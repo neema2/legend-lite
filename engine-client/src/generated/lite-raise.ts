@@ -145,4 +145,13 @@ export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
   SUBSTRING_OUT_OF_RANGE: [
     { arity: -1, emptySlot: -1, template: 'Range [%1$s, %2$s) out of bounds for length %3$s', slots: [], shape: 'TEMPLATE' },
   ],
+  ASSERT_TRUE: [
+    { arity: 0, emptySlot: -1, template: 'expected true, got false', slots: [], shape: 'TEMPLATE' },
+  ],
+  ASSERT_FALSE: [
+    { arity: 0, emptySlot: -1, template: 'expected false, got true', slots: [], shape: 'TEMPLATE' },
+  ],
+  ASSERT_NOT_EMPTY: [
+    { arity: 0, emptySlot: -1, template: 'expected at least one value, got none', slots: [], shape: 'TEMPLATE' },
+  ],
 };

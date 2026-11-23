@@ -5180,16 +5180,16 @@ final class ArchitectureTest {
      */
     @Test
     void theDatabaseJudgeReachesNoEdge() {
-        theDatabaseJudgeReachesNoEdgeRule(DATABASE_JUDGE).check(CORE_PROD_CLASSES);
+        // the database judge's classes, by name (their nested classes with them); a literal, so GuardNamesExistTest
+        // reads it (S6's round, 2026-11-23: a name handed in went unread)
+        theDatabaseJudgeReachesNoEdgeRule(noClasses().that().haveNameMatching("com\\.legend\\.(lowering\\.VerdictSql|"
+                + "testplan\\.(DatabaseJudge|DatabaseAsserts|VerdictBatch)|testexec\\.(DatabaseVerdicts|RootLoops))(\\$.*)?"))
+                .check(CORE_PROD_CLASSES);
     }
 
-    /** The database judge's classes, by name (their nested classes with them). */
-    static final String DATABASE_JUDGE = "com\\.legend\\.(lowering\\.VerdictSql|testplan\\.(DatabaseJudge|DatabaseAsserts"
-            + "|VerdictBatch)|testexec\\.(DatabaseVerdicts|RootLoops))(\\$.*)?";
-
-    static com.tngtech.archunit.lang.ArchRule theDatabaseJudgeReachesNoEdgeRule(String judge) {
-        return noClasses()
-            .that().haveNameMatching(judge)
+    static com.tngtech.archunit.lang.ArchRule theDatabaseJudgeReachesNoEdgeRule(
+            com.tngtech.archunit.lang.syntax.elements.GivenClassesConjunction judge) {
+        return judge
             .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
             .orShould().dependOnClassesThat().haveFullyQualifiedName("com.legend.testplan.PlanStyleFacets")
             .because("the database judge is lite's flow's alone: the host judge is the only judge in compatibility"
@@ -5201,7 +5201,7 @@ final class ArchitectureTest {
     void theDatabaseJudgeRuleBitesAPlantedReach() {
         var planted = new ClassFileImporter().importClasses(PlantedStyleReach.class);
         org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> theDatabaseJudgeReachesNoEdgeRule(
-                java.util.regex.Pattern.quote(PlantedStyleReach.class.getName())).check(planted));
+                noClasses().that().belongToAnyOf(PlantedStyleReach.class)).check(planted));
     }
 
     /** A class that names a style's two-form table, as a database judge class must not. */

@@ -266,9 +266,11 @@ final class Scalars {
         // types the call as the position) it casts to that carrier
         for (com.legend.model.FunctionId f : Pure.AT_ASSERTS_FAIL) {
             RULES.put(f, (n, args) -> {
-                // USER_FAIL: the user's own message, the one operand the product writes (D1.1)
-                SqlExpr raised = PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.USER_FAIL,
-                        List.of(args.isEmpty() ? new SqlExpr.StringLit("fail") : args.get(0))), n.pos());
+                // USER_FAIL: the user's own message, the one operand the product writes (D1.1); fail() with none is
+                // legend-pure's assert(false) (fail.pure), its condition's failure (item 3's S6, the user's Q-S6c)
+                SqlExpr raised = PureSql.raise(args.isEmpty()
+                        ? new SqlExpr.RaiseText(com.legend.sql.RaiseKind.ASSERT_TRUE, List.of())
+                        : new SqlExpr.RaiseText(com.legend.sql.RaiseKind.USER_FAIL, List.of(args.get(0))), n.pos());
                 return n.info().type() instanceof Type.Primitive p
                         && p != Type.Primitive.BOOLEAN
                         ? new SqlExpr.Cast(raised, PureSql.type(p), SqlExpr.Reason.RAISE)

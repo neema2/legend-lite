@@ -68,6 +68,15 @@ public enum RaiseKind {
      *  start (A3 of the compatibility program, 2026-11-19; register S383): legend-pure raises there (Java's
      *  {@code String.substring}), and so does the product, in the database. Operands: the start, the end, the length. */
     SUBSTRING_OUT_OF_RANGE,
+    /** An assert in a function's body that fails with no message of its caller's (item 3's S6, the user's Q-S6 of
+     *  2026-11-22, "all yes"): its condition's kind -- {@code assert}, {@code assertTrue}, {@code fail()} and the guards
+     *  whose own sentence needs values the raise cannot carry ({@code assertEquals}, {@code assertNotEquals},
+     *  {@code assertEmpty}: a raise carries planned facts, never a value the database computed). No operand. */
+    ASSERT_TRUE,
+    /** {@code assertFalse} in a body, failing with no message of its caller's. No operand. */
+    ASSERT_FALSE,
+    /** {@code assertNotEmpty} in a body, failing with no message of its caller's. No operand. */
+    ASSERT_NOT_EMPTY,
     /** {@code fail(message)}: the user's own message, the one operand the product writes. */
     USER_FAIL;
 
