@@ -267,11 +267,12 @@ public final class DatabaseJudge {
 
     static PlannedMessage plannedMessage(TypedSpec message, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        Object folded = com.legend.compiler.spec.typed.Literals.fold(message, letPrefix);
+        // a caller's message: a final print, its literals' join the compiler's (a ruled carve-out: Q-S7b, 2026-11-22)
+        Object folded = com.legend.compiler.spec.typed.Literals.joined(message, letPrefix);
         if (folded instanceof String s) {
             return new PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(s, null), env.target());
         }
-        BodyDriver.PlannedValue pv = BodyDriver.planHostSide(message, letPrefix, specs, env, false, false,
+        BodyDriver.PlannedValue pv = BodyDriver.planHostSide(message, letPrefix, specs, env, false, HostSides.Fold.NONE,
                 hook == null ? null : hook::apply);
         BodyDriver.WrappedSide side = pv.side();
         if (side == null) {
@@ -506,6 +507,12 @@ public final class DatabaseJudge {
     static TypedSide databaseContains(String name, TypedSpec coll, TypedSpec val,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean negated) {
+        if (com.legend.compiler.element.type.PlatformTypes.isVariant(coll.info().type())
+                || com.legend.compiler.element.type.PlatformTypes.isVariant(val.info().type())) {
+            // a Variant membership: no typed form, refused by name (the audit of c2217801, 2026-11-23: a scalar Variant's
+            // membership compared the JSON texts, never the values the equality compares)
+            return unjudged(name, "a Variant membership: no typed form");
+        }
         SideRows c = planSide(coll, false, letPrefix, specs, env, hook);
         if (c.why() != null) {
             return unjudged(name, c.why());
@@ -1029,11 +1036,11 @@ public final class DatabaseJudge {
         // the golden, through its let and the pretty-print natives
         // (identity up to whitespace), to the literal chain
         String goldenText = com.legend.compiler.spec.VerdictQueries
-                .foldedStringLiteral(AssertVerdicts.chaseLets(
+                .stringToken(AssertVerdicts.chaseLets(
                         com.legend.compiler.spec.VerdictQueries.throughJsonPrettyPrint(
                                 AssertVerdicts.chaseLets(args.get(0), letPrefix)), letPrefix));
         if (goldenText == null) {
-            return unjudged(name, "json golden is not a literal");
+            return unjudged(name, "json golden is not one literal (a join of literals is the database's: not planned)");
         }
         // the golden read as strict JSON, the product's (json-simple, register S144, is the host judge's at the edge:
         // the two-form kind's planning read left with A4 of the compatibility program, stage A ratified by the user
@@ -1055,7 +1062,7 @@ public final class DatabaseJudge {
         // a literal actual is read and canonicalized at planning as the golden is (a constant folded; the audit of
         // 946d16f2: its keys were compared in their written order); a computed one the database builds keys sorted
         TypedSpec writtenActual = actualJson;
-        String actualText = com.legend.compiler.spec.VerdictQueries.foldedStringLiteral(actualJson);
+        String actualText = com.legend.compiler.spec.VerdictQueries.stringToken(actualJson);
         if (actualText != null) {
             // (an actual that does not parse raises at planning, as a golden that does not parse does -- before the
             // body's earlier asserts, where the host raises at the assert's own turn: the audit of 3f2fe452, recorded)

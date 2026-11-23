@@ -48,6 +48,7 @@ public final class LiteWords {
             case Boolean b -> b.toString();
             case PureDateLiteral d -> dateText(d);
             case List<?> l -> values(l, instanceClass);
+            case JsonDocument j -> j.text();
             default -> throw new com.legend.error.NotImplementedException(
                     "lite's message text for " + v.getClass().getName() + " is not modeled");
         };
@@ -136,6 +137,7 @@ public final class LiteWords {
             case Boolean b -> "Boolean";
             case PureDateLiteral d -> d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? "DateTime"
                     : d.precision().atLeast(PureDateLiteral.Precision.DAY) ? "StrictDate" : "Date";
+            case JsonDocument j -> "Variant";
             case Map<?, ?> m -> m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE) instanceof String t ? t
                     : instanceClass == null ? "Any" : instanceClass;
             case List<?> l -> {

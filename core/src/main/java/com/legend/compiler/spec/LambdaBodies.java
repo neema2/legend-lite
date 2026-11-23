@@ -162,7 +162,7 @@ final class LambdaBodies {
             var fail = t.model().findFunction("meta::pure::functions::asserts::fail").stream()
                     .filter(f -> f.parameters().size() == 1).findFirst()
                     .orElseThrow(() -> new TypeInferenceException("fail(message) is not registered"));
-            raise = new TypedNativeCall(fail, List.of(message), rest.info());
+            raise = new TypedNativeCall(fail, List.of(message), rest.info(), af.pos());
         }
         return new com.legend.compiler.spec.typed.TypedIf(cond, rest,
                 java.util.Optional.of(raise), rest.info());

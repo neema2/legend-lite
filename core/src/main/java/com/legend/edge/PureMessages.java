@@ -34,7 +34,8 @@ public final class PureMessages {
     }
 
     /** A raised site's sentence: the one catalog's ({@code result.RaiseWords}, the user's ruling of 2026-11-21: lite
-     *  says legend-pure's sentence wherever legend-pure has one), the same the run says. */
+     *  says legend-pure's sentence wherever legend-pure has one, an in-body assert's failure aside -- the assert
+     *  catalog's, Q15 = A), the same the run says. */
     public static String worded(com.legend.executionplan.ExecutionPlan.Site site) {
         return com.legend.result.RaiseWords.sentence(site);
     }

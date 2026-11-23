@@ -103,7 +103,7 @@ public final class Seeds {
                         || PlatformTypes.SET_UP_DATA_SQLS_V2.equals(sg.callee().qualifiedName()))) {
             return null;
         }
-        if (!(Literals.fold(sg.args().get(0), lets) instanceof String csv)) {
+        if (!(Literals.joined(sg.args().get(0), lets) instanceof String csv)) {
             return null;
         }
         // the store as spelled or through the let that binds it: the walk reads the call once its lets are dissolved
@@ -142,7 +142,7 @@ public final class Seeds {
                         return null;
                     }
                 }
-            } else if (!(Literals.fold(e, lets) instanceof String)) {
+            } else if (!(Literals.joined(e, lets) instanceof String)) {
                 return null;
             }
         }
@@ -160,7 +160,7 @@ public final class Seeds {
             if (e instanceof TypedNativeCall call && NativeFn.DdlStatement.of(call.callee().id()).isPresent()) {
                 texts.add(env.style().facet(com.legend.planner.UpstreamPlans.class).ddlText(call, env));
             } else {
-                texts.add((String) java.util.Objects.requireNonNull(Literals.fold(e, lets)));
+                texts.add((String) java.util.Objects.requireNonNull(Literals.joined(e, lets)));
             }
         }
         return texts;
@@ -183,7 +183,7 @@ public final class Seeds {
         List<TypedSpec> stringArgs = EffectPlanner.stringArgs(c);
         for (TypedSpec arg : stringArgs) {
             boolean theParameter = arg instanceof com.legend.compiler.spec.typed.TypedVariable v && param.equals(v.name());
-            if (!theParameter && !(Literals.fold(arg, lets) instanceof String)) {
+            if (!theParameter && !(Literals.joined(arg, lets) instanceof String)) {
                 return false;
             }
         }

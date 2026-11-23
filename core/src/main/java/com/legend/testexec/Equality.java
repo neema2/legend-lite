@@ -142,12 +142,15 @@ public final class Equality {
     public static boolean same(Typed et, Typed at, HostRules rules) {
         Object e = et.value();
         Object a = at.value();
-        if (e == null || a == null) {
-            return e == a;
+        // a Variant is the same as a Variant alone, never a String, a number or a Boolean of the same text (Pure's
+        // classifier is part of the value; the audit of c2217801, 2026-11-23)
+        if (e == null || a == null || e instanceof JsonDocument || a instanceof JsonDocument) {
+            return e == a || e instanceof JsonDocument je && a instanceof JsonDocument ja && je.sameAs(ja);
         }
         if ((e instanceof Map<?, ?> || e instanceof List<?>)
                 && (a instanceof Map<?, ?> || a instanceof List<?>)) {
-            return structural(e, a, rules);
+            // an object is never an array (the audit of c2217801: [] against {} recursed through the leaf without end)
+            return (e instanceof Map<?, ?>) == (a instanceof Map<?, ?>) && structural(e, a, rules);
         }
         Kind ek = effectiveKind(et);
         Kind ak = effectiveKind(at);
@@ -307,6 +310,7 @@ public final class Equality {
             case Boolean b -> 3;
             case com.legend.values.PureDateLiteral d -> 4;
             case Map<?, ?> m -> 5;
+            case JsonDocument j -> 6;
             default -> throw new Unjudged("sort over " + v.getClass().getName());
         };
     }
@@ -319,6 +323,7 @@ public final class Equality {
             case String s -> s;
             case Boolean b -> b;
             case com.legend.values.PureDateLiteral d -> d.toInstantFloor();
+            case JsonDocument j -> j.text();
             default -> "";   // instances and maps: no order of their own (sameElements matches them)
         };
     }

@@ -29,11 +29,33 @@ public final class HostSides {
     private HostSides() {
     }
 
+    /**
+     * What the compiler may answer for a side without a statement (item 3's S7, the user's Q-D of 2026-11-21 and
+     * Q-S7a/Q-S7b of 2026-11-22: Java never computes a value the program compares). {@link #NONE}: nothing, the side is
+     * planned. {@link #TOKENS}: the program's constant tokens verbatim ({@code Literals.tokens}); a join of them is the
+     * database's to compute. {@link #MESSAGE}: a caller's failure message, a final print, its literals joined
+     * ({@code Literals.joined}, a ruled carve-out). {@link #EDGE_TEXT}: the compatibility edge's SQL-text and plan-text
+     * verdicts' texts, their literals joined -- a TEMPORARY carve-out (Q-S7a), deleted by B3.
+     */
+    public enum Fold {
+        NONE, TOKENS, MESSAGE, EDGE_TEXT;
+
+        /** Whether a constant is answered at all. */
+        public boolean any() {
+            return this != NONE;
+        }
+
+        /** Whether the answer may be the compiler's join of the program's literals. */
+        public boolean joins() {
+            return this == MESSAGE || this == EDGE_TEXT;
+        }
+    }
+
     /** One side an arm asks for: the argument and the flags {@link JudgePlans#evalSide} took for it. */
-    public record Ask(TypedSpec arg, boolean identity, boolean fold,
+    public record Ask(TypedSpec arg, boolean identity, Fold fold,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.@com.legend.base.Nullable ExecEnv at) {
         /** An ask planned under the step's environment. */
-        Ask(TypedSpec arg, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+        Ask(TypedSpec arg, boolean identity, Fold fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
             this(arg, identity, fold, hook, null);
         }
     }

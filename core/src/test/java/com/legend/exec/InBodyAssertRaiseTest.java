@@ -94,6 +94,17 @@ class InBodyAssertRaiseTest {
         }
     }
 
+    /** A body whose asserts are in-body guards reaches an assert, with or without the caller's message (the audit of
+     *  e13a9c6d: the guard's raise had stopped counting, so such a body read as calling no verdict function). */
+    @Test
+    void anInBodyGuardIsAnAssertTheBodyReaches() {
+        var ctx = Compiler.compileModel(TestBackends.platform().withStorelessRuntime(""));
+        for (String body : List.of("|[1]->map({x|assert($x > 0); $x;})", "|[1]->map({x|assertEquals(1, $x); $x;})",
+                "|[1]->map({x|assert($x > 0, 'm'); $x;})")) {
+            assertTrue(com.legend.TestExecution.facts(Compiler.query(ctx, body)).verdicts(), body);
+        }
+    }
+
     private static com.legend.error.DataError raised(TestBackend backend, ExecutionPlan plan) {
         return assertThrows(com.legend.error.DataError.class, () -> {
             try (java.sql.Connection c = backend.open()) {

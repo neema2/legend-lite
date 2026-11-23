@@ -242,7 +242,7 @@ final class HostJudgments {
      *  2026-11-22: two Variants the same JSON value). */
     static List<Object> structuredSide(HostJudgment.SideFacts side, List<Object> vals) {
         if (side.classFqn() == null || AssertRecords.variant(side)) {
-            return side.classFqn() == null ? vals : AssertRecords.variantTrees(vals);
+            return side.classFqn() == null ? vals : JsonDocument.all(vals);
         }
         List<Object> out = new ArrayList<>(vals.size());
         for (Object v : vals) {
@@ -339,8 +339,13 @@ final class HostJudgments {
      *  whole (its identity read with it) -- the one rule assertEquals, assertSameElements and assertContains judge by. */
     static List<List<Object>> asEqualSees(HostJudgment.Keys keys, HostJudgment.SideFacts ef, HostJudgment.SideFacts af,
             List<Object> eRaw, List<Object> aRaw) {
-        List<Object> e = structuredSide(ef, eRaw);
-        List<Object> a = structuredSide(af, aRaw);
+        // a Variant against a value declared Any (a Variant cast to Any): the Any side's JSON read as a Variant too, as
+        // the database judge compares the two (the audit of c2217801, 2026-11-23)
+        boolean ev = AssertRecords.variant(ef), av = AssertRecords.variant(af);
+        List<Object> e = av && !ev && com.legend.result.RowDecode.ANY.equals(ef.classFqn())
+                ? JsonDocument.all(eRaw) : structuredSide(ef, eRaw);
+        List<Object> a = ev && !av && com.legend.result.RowDecode.ANY.equals(af.classFqn())
+                ? JsonDocument.all(aRaw) : structuredSide(af, aRaw);
         var ik = restrictKeys(keys, ef, af, e, a);
         return ik == null ? List.of(e, a) : List.of(restrictToKeys(e, ik, keys), restrictToKeys(a, ik, keys));
     }

@@ -5204,6 +5204,43 @@ final class ArchitectureTest {
                 noClasses().that().belongToAnyOf(PlantedStyleReach.class)).check(planted));
     }
 
+    /**
+     * THE HOST JUDGE'S VARIANT DOCUMENT IS THE HOST JUDGE'S ALONE (item 3, register S401; the user, 2026-11-23: "Keep the
+     * class but it's only used in host judge right? Have to make sure not used in database"): {@code JsonDocument}, the
+     * host judge's comparison of two Variants it read, is reached by the host judge alone -- its side reading
+     * ({@code HostJudgments}), its equality ({@code Equality}) and the records' printer ({@code LiteWords}); the database
+     * judge compares Variants in SQL ({@code SqlFn.JSON_EQUAL}), and no class of it, or of anything else, may reach the
+     * host's Java comparison.
+     */
+    @Test
+    void onlyTheHostJudgeReadsAVariantDocument() {
+        onlyTheHostJudgeReadsAVariantDocumentRule().check(CORE_PROD_CLASSES);
+    }
+
+    static com.tngtech.archunit.lang.ArchRule onlyTheHostJudgeReadsAVariantDocumentRule() {
+        return classes().that().haveFullyQualifiedName("com.legend.testexec.JsonDocument")
+            .should().onlyHaveDependentClassesThat().haveNameMatching(
+                "com\\.legend\\.testexec\\.(JsonDocument|Equality|HostJudgments|LiteWords)(\\$.*)?")
+            .because("the host judge's Variant comparison is the host judge's alone; the database judge compares"
+                    + " Variants in SQL (register S401)");
+    }
+
+    /** The Variant-document rule bites: a planted class that reaches the document is caught. */
+    @Test
+    void theVariantDocumentRuleBitesAPlantedReach() {
+        var planted = new ClassFileImporter().importClasses(PlantedVariantReach.class,
+                com.legend.testexec.JsonDocument.class);
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> onlyTheHostJudgeReadsAVariantDocumentRule().check(planted));
+    }
+
+    /** A class that reaches the host judge's Variant document, as no database judge class may. */
+    static final class PlantedVariantReach {
+        static Class<?> document() {
+            return com.legend.testexec.JsonDocument.class;
+        }
+    }
+
     /** A class that names a style's two-form table, as a database judge class must not. */
     static final class PlantedStyleReach {
         static Class<?> styles() {

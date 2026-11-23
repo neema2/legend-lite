@@ -1212,6 +1212,13 @@ public final class VerdictSql {
      *  Null where a side has no value column. */
     public static @com.legend.base.Nullable TypedRow typedVariants(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
             Type aKind, boolean multiset, boolean wantEqual) {
+        if (com.legend.compiler.element.type.PlatformTypes.isNil(eKind)
+                || com.legend.compiler.element.type.PlatformTypes.isNil(aKind)) {
+            // an empty side against a Variant: the same only where both are empty, the Variant's values riding the
+            // record as the text they were carried as (the audit of c2217801: read as JSON, H2 and SQLite took a JSON
+            // null for an absent value)
+            return typedEquals(eWrapped, eKind, aWrapped, aKind, multiset, wantEqual, true);
+        }
         SqlQuery e = jsonValues(eWrapped);
         SqlQuery a = jsonValues(aWrapped);
         return e == null || a == null ? null : typedEquals(e, eKind, a, aKind, multiset, wantEqual, false);
@@ -1348,9 +1355,15 @@ public final class VerdictSql {
             // duplicate column), its rows sorted by the ordinal
             List<SqlSelect.Projection> ps = new ArrayList<>();
             for (Type.Column c : schema.columns()) {
-                SqlExpr col = SqlExpr.Column.of(sub.alias(), inner.outputs(), c.name());
-                ps.add(new SqlSelect.Projection(col, c.name(), new OutputCol(c.name(), col.type() instanceof
-                        com.legend.sql.TypeFact.Typed t ? t.type() : SqlType.Scalar.VARCHAR, true)));
+                // each column the numbered source declares, with its own type; a column it does not declare is no
+                // reading of this grid (refused by name, as an untyped grid is), never a text guessed for it
+                OutputCol declared = inner.outputs().stream().filter(o -> o.name().equals(c.name())).findFirst()
+                        .orElse(null);
+                if (declared == null) {
+                    return null;
+                }
+                SqlExpr col = SqlExpr.Column.of(sub.alias(), declared);
+                ps.add(new SqlSelect.Projection(col, c.name(), new OutputCol(c.name(), declared.type(), true)));
             }
             rel = new SqlSelect(ps, false, new SqlSource.Subselect(inner, sub.alias(), sub.frameName()), null,
                     List.of(), null, null, List.of(new SqlSelect.SortKey(SqlExpr.Column.of(sub.alias(), inner.outputs(),

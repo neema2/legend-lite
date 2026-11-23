@@ -100,6 +100,12 @@ public final class TestPlanner {
             return host;
         }
         TestPlan database = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.DATABASE));
+        if (database.judge() != TestPlan.Judge.DATABASE) {
+            // a body whose only asserts raise in the product's own statements (an in-body guard, a fail): the database
+            // judge plans what the host plans, so there is one plan (the audit of e13a9c6d, 2026-11-23: such a body
+            // was refused, an agreement of two host plans)
+            return host;
+        }
         TestPlan both = new TestPlan(List.of(), List.of(new TestPlan.Isolated(host, database)),
                 TestPlan.Judge.AGREEMENT, java.util.Map.of(), java.util.Map.of(), host.answersLastVerdict(),
                 host.session(), host.facts());

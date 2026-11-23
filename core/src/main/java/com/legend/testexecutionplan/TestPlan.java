@@ -635,7 +635,9 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
          * 2026-10-30: "it's okay to join CONSTANT strings only"): the cells are the COMPILER's join of the program's
          * constant tokens ({@code 'a' + 'b'}, {@code joinStrings}, {@code replace} over literals, nothing else:
          * {@code compiler.spec.typed.Literals}, its admitted set pinned), not the tokens verbatim; a reader of the plan
-         * knows which.
+         * knows which. Since item 3's S7 (2026-11-23; the user's Q-D, superseding the 2026-10-30 ruling for compared
+         * sides) only a ruled carve-out's side is joined -- a caller's message, the compatibility edge's text verdicts
+         * until B3 ({@code testplan.HostSides.Fold}); a compared side holds the program's tokens, or is planned.
          */
         record Constant(List<Column> columns, List<List<String>> cells, boolean folded) implements Side {
             public Constant {

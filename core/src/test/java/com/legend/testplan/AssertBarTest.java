@@ -923,16 +923,33 @@ class AssertBarTest {
         want.put("{|assertEquals([1, 'a'], [1, 'b']->cast(@Any))}", "AssertFailed");
         want.put("{|assertEquals([1, 'a'], [1.0, 'a']->cast(@Any))}", "AssertFailed");
         // a variant's scalar (the audit of 2026-11-22: H2's JSON read as a number by its text; SQLite's tagged record)
-        // two Variants: the same JSON value by the database's typed JSON equality (the user's ruling of 2026-11-22:
-        // DuckDB's VARIANT; H2 and SQLite compare JSON as text, so the database judge refuses by name) -- keys in any
-        // order, spacing, a number by value, a string never a number; the host the same rule over the JSON trees
+        // two Variants: the same document, parsed (register S401: DuckDB's json(); H2 and SQLite hold no JSON parse of
+        // their own, so the database judge refuses by name) -- spacing aside, keys in their order, an integer never a
+        // fraction, a fraction as its double, a Boolean never a number, JSON null a value; the host the same rule
         String byDb = "|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|SQLite/DATABASE=DialectCapability"
                 + "|SQLite/BOTH=DialectCapability";
         want.put("{|assertEquals('1'->fromJson(), '1'->fromJson())}", "pass" + byDb);
         want.put("{|assertEquals('1'->fromJson(), '2'->fromJson())}", "AssertFailed: expected 1, got 2" + byDb);
         want.put("{|assertEquals(1->toVariant(), 1->toVariant())}", "pass" + byDb);
-        want.put("{|assertEquals('{\"a\":1,\"b\":[1, 2]}'->fromJson(), '{\"b\":[1,2],\"a\":1.0}'->fromJson())}",
+        want.put("{|assertEquals('{\"a\":1,\"b\":[1, 2]}'->fromJson(), '{ \"a\" : 1, \"b\":[1,2]}'->fromJson())}",
                 "pass" + byDb);
+        want.put("{|assertEquals('{\"a\":1,\"b\":2}'->fromJson(), '{\"b\":2,\"a\":1}'->fromJson())}",
+                "AssertFailed" + byDb);
+        want.put("{|assertEquals('{\"a\":1.50}'->fromJson(), '{\"a\":1.5}'->fromJson())}", "pass" + byDb);
+        want.put("{|assertEquals('1'->fromJson(), '1.0'->fromJson())}", "AssertFailed" + byDb);
+        want.put("{|assertEquals('true'->fromJson(), '1'->fromJson())}", "AssertFailed" + byDb);
+        want.put("{|assertEquals('{}'->fromJson(), '{\"a\":1}'->fromJson())}", "AssertFailed" + byDb);
+        want.put("{|assertEquals('{\"a\":null}'->fromJson(), '{\"b\":null}'->fromJson())}", "AssertFailed" + byDb);
+        want.put("{|assertEquals('[]'->fromJson(), '{}'->fromJson())}", "AssertFailed" + byDb);
+        // (recorded, a product follow-up: H2 and SQLite read a Variant's JSON null back as an absent value, so the
+        // database judge's record writes no value where the host writes "null" -- the verdict the same)
+        want.put("{|assertEquals([], 'null'->fromJson())}", "AssertFailed: expected [], got [\"null\"]"
+                + "|H2/DATABASE=AssertFailed|H2/BOTH=JudgesDisagree|SQLite/DATABASE=AssertFailed|SQLite/BOTH=JudgesDisagree");
+        want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected [], got [\"1\"]");
+        // a Variant is never a String of its text, and a Variant cast to Any is still that Variant (the audit of
+        // c2217801)
+        want.put("{|assertEquals('\"abc\"'->fromJson(), 'abc')}", "AssertFailed");
+        want.put("{|assertEquals('{\"a\":1}'->fromJson()->cast(@Any), '{\"a\":1}'->fromJson())}", "pass" + byDb);
         want.put("{|assertEquals('{\"a\":1}'->fromJson(), '{\"a\":2}'->fromJson())}",
                 "AssertFailed: expected {\"a\":1}, got {\"a\":2}" + byDb);
         want.put("{|assertNotEquals('\"1\"'->fromJson(), '1'->fromJson())}", "pass" + byDb);
@@ -1207,6 +1224,34 @@ class AssertBarTest {
                 org.junit.jupiter.api.Assertions.assertEquals(1L, sent, "one fused statement: " + body);
             }
         }
+    }
+
+    /** RULE 4, Q-D (item 3's S7, 2026-11-23): a COMPARED side the compiler would have to join is the database's to
+     *  compute -- planned, never a joined constant -- and still judged the same on every judge; a caller's message (a
+     *  final print) keeps its literals' join, marked {@code folded} in the plan; a joined assertError expected text and
+     *  a joined JSON golden under the database judge are refused by name. */
+    @Test
+    void aComparedJoinIsTheDatabasesAndAMessageKeepsItsJoin() throws Exception {
+        String model = StorelessRuntime.with(MODEL, Databases.PLATFORM);
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                assertEquals("pass", outcome(c, "{|assertEquals('ab', 'a' + 'b')}", mode), mode + ": a compared join");
+                assertEquals("AssertFailed: got it", outcome(c, "{|assertEquals('ab', 'a' + 'c', 'got ' + 'it')}", mode),
+                        mode + ": a caller's joined message");
+                String joinedError = outcome(c, "{|assertError(|fail('ab'), 'a' + 'b')}", mode);
+                assertTrue(joinedError.startsWith("NotImplementedException") && joinedError.contains("join of literals"),
+                        mode + ": a joined expected text refused by name: " + joinedError);
+            }
+            String json = outcome(c, "{|assertJsonStringsEqual('{\"a\":' + '1}', '{\"a\":1}')}",
+                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+            assertTrue(json.contains("not one literal"), "a joined JSON golden refused by name: " + json);
+        }
+        String compared = com.legend.testexecutionplan.TestPlanJson.write(Program.plan(model,
+                "{|assertEquals('ab', 'a' + 'b')}", StorelessRuntime.RUNTIME, ExecuteOptions.NONE));
+        assertTrue(!compared.contains("\"folded\":true"), "a compared join is no joined constant: " + compared);
+        String messaged = com.legend.testexecutionplan.TestPlanJson.write(Program.plan(model,
+                "{|assertEquals('ab', 'a' + 'c', 'got ' + 'it')}", StorelessRuntime.RUNTIME, ExecuteOptions.NONE));
+        assertTrue(messaged.contains("\"folded\":true"), "a caller's message keeps its join: " + messaged);
     }
 
     private static void record(String id, List<String> wrong, List<String> missed, List<String> closed) {

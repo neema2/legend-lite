@@ -109,8 +109,12 @@ final class JudgmentFacts {
         if ((PlatformTypes.isVariant(eKind) || PlatformTypes.isVariant(aKind)) && (jsonCarried(ePlan) || named(ePlan))
                 && (jsonCarried(aPlan) || named(aPlan))) {
             // a Variant's values: each its JSON, compared by the database's typed JSON equality (the user's ruling of
-            // 2026-11-22); a Variant against another kind is the same only where both are empty (VerdictSql.typedEquals)
-            return new TypedPair(eKind, aKind, TypedPair.Form.VARIANTS);
+            // 2026-11-22); a Variant against another kind is the same only where both are empty (VerdictSql.typedEquals),
+            // a value declared Any (a Variant cast to Any, carried as its JSON) read as the Variant it is compared with
+            // (the audit of c2217801, 2026-11-23)
+            Type e = PlatformTypes.isAny(eKind) && PlatformTypes.isVariant(aKind) ? aKind : eKind;
+            Type a = PlatformTypes.isAny(aKind) && PlatformTypes.isVariant(eKind) ? eKind : aKind;
+            return new TypedPair(e, a, TypedPair.Form.VARIANTS);
         }
         boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan) || jsonCarried(ePlan);
         boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan) || jsonCarried(aPlan);

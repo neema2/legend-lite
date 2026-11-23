@@ -478,14 +478,15 @@ public class Postgres extends AnsiSqlRenderer {
         return w -> w.append("CAST(").piece(text).append(" AS JSONB[])");
     }
 
-
-    /** {@inheritDoc} Postgres's jsonb: an object's keys in any order, an array's elements in order, numbers by their
-     *  exact value, two kinds that differ unequal (the user's ruling of 2026-11-22). */
+    /** {@inheritDoc} Postgres's jsonb, the database's own answer (register S401, recorded): an object's keys in any
+     *  order, an array's elements in order, numbers by their exact value ({@code 1} is {@code 1.0} here), two kinds
+     *  that differ unequal. */
     @Override
     protected SqlWriter jsonEqual(SqlWriter writer, SqlExpr.Call c) {
         return writer.append("(CAST(").expr(c.args().get(0), 0).append(" AS JSONB) IS NOT DISTINCT FROM CAST(")
                 .expr(c.args().get(1), 0).append(" AS JSONB))");
     }
+
     /** Pure's splitPart: the non-empty tokens, 1-based (the lowering's index), NULL past either end, as an array
      *  index is (measured); the empty delimiter is the lowering's. */
     @Override

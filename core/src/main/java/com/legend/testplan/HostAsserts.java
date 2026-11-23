@@ -270,7 +270,7 @@ final class HostAsserts implements TestDoor.Asserts {
             BodyDriver.@Nullable ExecEnv bodyEnv, AssertBranch.Parts parts, List<TypedSpec> letPrefix,
             Map<String, BodyDriver.ExecFrame> frames) {
         TestPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, typed.specs(), env, false,
-                false, null).side();
+                HostSides.Fold.NONE, null).side();
         HostAsserts then = plan(AssertBranch.body(typed, parts.then()), runtime, env, bodyEnv, letPrefix, frames);
         HostAsserts otherwise = then == null ? null
                 : plan(AssertBranch.body(typed, parts.otherwise()), runtime, env, bodyEnv, letPrefix, frames);
@@ -466,7 +466,7 @@ final class HostAsserts implements TestDoor.Asserts {
         }
         List<HostSides.Ask> asks = new ArrayList<>(working.size());
         for (TypedSpec side : working) {
-            asks.add(new HostSides.Ask(side, false, false, hook));
+            asks.add(new HostSides.Ask(side, false, HostSides.Fold.NONE, hook));
         }
         HostSides.Planned sides;
         com.legend.testexecutionplan.@Nullable Failure caught = null;

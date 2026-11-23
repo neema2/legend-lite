@@ -153,7 +153,7 @@ public final class LetPlanner {
 
     /** Whether {@code value}, bound by a let after {@code lets}, does no work when evaluated -- it cannot raise and
      *  touches no database, so running it as a statement changes nothing: a function value (a lambda), an element
-     *  reference, a variable, a constant ({@code Literals.fold}), an orchestration handle (a connection, a runtime:
+     *  reference, a variable, a constant ({@code Literals.isConstant}), an orchestration handle (a connection, a runtime:
      *  {@link BodyPlanner#handleType}), or the census carrier the checker captured from the model. */
     public static boolean doesNoWork(TypedSpec value, List<TypedSpec> lets,
             com.legend.compiler.element.ModelContext ctx) {
@@ -161,7 +161,7 @@ public final class LetPlanner {
                 || value instanceof com.legend.compiler.spec.typed.TypedPackageableRef
                 || value instanceof com.legend.compiler.spec.typed.TypedVariable
                 || value instanceof com.legend.compiler.spec.typed.TypedCsvCensus
-                || com.legend.compiler.spec.typed.Literals.fold(value, lets) != null
+                || com.legend.compiler.spec.typed.Literals.isConstant(value, lets)
                 || BodyPlanner.handleType(value, ctx) != null;
     }
 

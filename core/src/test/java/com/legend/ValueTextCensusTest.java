@@ -42,7 +42,9 @@ class ValueTextCensusTest {
     private static final Map<String, Integer> PINS = Map.ofEntries(
             Map.entry("core/src/main/java/com/legend/testexec/Equality.java", 7),
             Map.entry("core/src/main/java/com/legend/testexec/CanonicalForm.java", 7),
-            Map.entry("core/src/main/java/com/legend/testexec/AssertRecords.java", 6),
+            // 6 -> 4 (2026-11-23, the audit of c2217801's fixes, a shrink: a Variant's text read as carried, its tree's
+            // keys kept as parsed)
+            Map.entry("core/src/main/java/com/legend/testexec/AssertRecords.java", 4),
             Map.entry("core/src/main/java/com/legend/testplan/JudgePlans.java", 4),
             Map.entry("core/src/main/java/com/legend/testexec/LiteWords.java", 3),
             Map.entry("core/src/main/java/com/legend/testplan/DatabaseAsserts.java", 2),

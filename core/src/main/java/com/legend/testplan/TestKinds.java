@@ -467,7 +467,7 @@ final class TestKinds implements ProgramKinds {
             effect = NativeFn.Effect.of(call.callee().id()).orElseThrow();
             List<String> values = new ArrayList<>();
             for (TypedSpec arg : EffectPlanner.stringArgs(e.call())) {
-                if (!(Literals.fold(arg, e.body().subList(0, e.body().size() - 1))
+                if (!(Literals.joined(arg, e.body().subList(0, e.body().size() - 1))
                         instanceof String folded)) {
                     throw new NotImplementedException("a computed String argument of "
                             + e.call().callee().qualifiedName() + ": a SQL text built at run time is a text hole, which"

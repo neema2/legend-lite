@@ -32,7 +32,7 @@ final class HostJudge {
     }
 
     private static HostSides.Ask valueAsk(TypedSpec arg, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return new HostSides.Ask(arg, false, true, hook);
+        return new HostSides.Ask(arg, false, HostSides.Fold.TOKENS, hook);
     }
 
     /** A side on the IDENTITY LANE without a canon rider (F13c: the assert-condition/predicate evaluator; in-SQL
@@ -40,12 +40,12 @@ final class HostJudge {
      *  where literal. */
     private static HostSides.Ask identityAsk(TypedSpec arg,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return new HostSides.Ask(arg, true, true, hook);
+        return new HostSides.Ask(arg, true, HostSides.Fold.TOKENS, hook);
     }
 
     /** A side the canon fetch reads ({@link #sideCanonOf}): never folded, on the identity lane. */
     private static HostSides.Ask canonAsk(TypedSpec arg, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return new HostSides.Ask(arg, true, false, hook);
+        return new HostSides.Ask(arg, true, HostSides.Fold.NONE, hook);
     }
 
     /** The static facts of one side, read once at planning. */
@@ -138,7 +138,7 @@ final class HostJudge {
     static HostSides.Check messaged(HostSides.Check check, TypedSpec message,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         List<HostSides.Ask> asks = new java.util.ArrayList<>(check.asks());
-        asks.add(new HostSides.Ask(message, false, true, hook));
+        asks.add(new HostSides.Ask(message, false, HostSides.Fold.MESSAGE, hook));
         return new HostSides.Check(asks, new HostJudgment.Messaged(check.judgment(), check.asks().size()));
     }
 
@@ -169,11 +169,13 @@ final class HostJudge {
             accepted.add(type);
             accepted.addAll(env.ctx().subtree(type));
         }
-        // the value's static class names an instance whose data names none only where no subclass could be it (the
-        // audit of 3f2fe452: a list of a class and its subclass, read at(0), named the wrong one)
+        // the value's static class names an instance whose data names none (a store read, a literal): an instance of it
+        // is one of every type that accepts it. Where the instance is of a subclass the data does not name (a literal
+        // list of a class and its subclass, read at(0)), the static class is all the plan knows -- open, recorded (the
+        // audit of c2217801, 2026-11-23: naming none where a subclass exists failed every instance of such a class)
         String vc = instance(args.get(0)) ? com.legend.compiler.element.EqualityKeys.fqnOf(args.get(0).info().type()) : null;
         return new HostSides.Check(List.of(valueAsk(args.get(0), hook)), new HostJudgment.InstanceOf(type, accepted,
-                vc != null && env.ctx().subtree(vc).stream().allMatch(vc::equals) ? vc : null));
+                vc));
     }
 
     /** {@link #is} planned; null (no side asked) where the pair is not two elements. */

@@ -641,3 +641,48 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
   `TerminalRowsFrozenTest`. Governance counts unchanged (one native for one).
 - **Tests:** `exec.InBodyAssertRaiseTest` (each guard's kind as a site with no sentence on DuckDB, H2 and SQLite; a
   caller's message), `PureOnlyTextTest` (the product's and the edge's words the same).
+
+## The audit of e13a9c6d (S6) fixed (2026-11-23)
+
+- MEDIUM: an in-body guard's raise (`assertRaise`) counts as an assert in a body's facts (`StatementEffects.isVerdictCall`),
+  as its `fail(...)` did, and the product query door still admits it (`QueryDoor.isAssert` excludes it as it excludes
+  `fail`); a body whose only asserts raise in the product's statements is planned once under BOTH (the database judge
+  plans what the host plans: it had been refused, an agreement of two host plans, before S6 too).
+- LOW: the caller-message guard and `fail(); v` keep their place for `assertError`'s line and column; javadoc of
+  `ErrorKind`, `PureMessages` and `USER_FAIL` corrected; the lite API record amended (an in-body assert's refusal now
+  carries `raise` and `where`).
+
+## Variants: lite's own equality, and the audit of c2217801 fixed (2026-11-23)
+
+- **The rule (register S401, provisional):** two Variants are the same document, each parsed and printed again --
+  spacing never counts, an object's keys keep their order, an integer is never a fraction, a fraction compares as its
+  double, a Boolean is never a number, JSON null is a value. DuckDB `json(a) IS NOT DISTINCT FROM json(b)`, one function
+  per value; the host the same rule over the parsed tree (`testexec.JsonDocument`); Postgres its jsonb's own answer,
+  recorded; the rest refuse by name. Pure's own answer is identity (read: `EqualityUtilities.equal`, compiled
+  `VariantInstanceImpl.equals`), no rule a program can use; the user's tenet of 2026-11-23 ("make it as close to pure
+  when doesnt really matter, lites own when better or easier or leaner or faster") picks the leanest value rule, the
+  text rule Pure's own Variant class holds. DuckDB's VARIANT equality (c2217801) went: it raised on an empty object,
+  took a JSON null for an absent value and `{"a":null}` for `{"b":null}`, and its `TRY` broke an operand carrying
+  lite's raise guard and turned raises into false.
+- **The audit's other findings:** the host no longer calls a Variant equal to a String, a number or a Boolean of its
+  text; `assertInstanceOf` names an instance by its static class again (M5's narrowing failed every instance of a class
+  with a subclass; the mixed-subclass list stays a recorded gap); a Variant cast to Any is read as the Variant it is
+  compared with, on both judges; the product's `==` over two Variants is decided by their Pure types, each operand read
+  as JSON (a list lambda had compared texts); a scalar Variant membership is refused by name under the database judge;
+  a JSON null Variant is written as carried in a one-sided record; `[]` against `{}` no longer recurses without end; a
+  grid column its source does not declare refuses the grid instead of defaulting to text; comments corrected.
+- **Recorded gap:** H2 and SQLite read a top-level JSON null Variant back as an absent value, so under the database
+  judge `assertEquals([], 'null'->fromJson())`'s record writes no value where the host writes "null" (the verdict the
+  same; BOTH reports the judges' records differ) -- a product follow-up.
+
+## S7: a compared constant is the database's (2026-11-23)
+
+- `Literals.fold` is private; its callers take `tokens` (the program's tokens verbatim: a compared side, assertError's
+  expected text), `joined` (a ruled carve-out: an effect's SQL or DDL text, a seed's CSV, the generator's load text, a
+  caller's message, and until B3 the edge's text verdicts) or `isConstant` (a predicate). A side's fold is a mode
+  (`HostSides.Fold`: NONE, TOKENS, MESSAGE, EDGE_TEXT) in place of a boolean; the edge keeps its boolean doors,
+  `EngineTextPlanning` naming EDGE_TEXT. A joined compared side is planned for the database (`'a' + 'b'` a VALUES side);
+  a joined assertError expected text and a joined JSON golden under the database judge are refused by name (none on any
+  lane: the corpus is judged by the host alone, A4).
+- Guard: `LiteralJoinCensusTest` pins every join site per file (Q-D's carve-outs, Q-S7a's temporary edge entry); the
+  2026-10-30 ruling's citations carry dated notes (JavaEvalLedgerTest, LiteralsParityTest, TestPlan.Side.Constant).

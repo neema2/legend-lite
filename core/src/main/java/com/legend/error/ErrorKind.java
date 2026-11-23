@@ -18,7 +18,10 @@ package com.legend.error;
  * {@code INSERT_OUT_OF_BOUNDS}, {@code LIST_LENGTHS_DIFFER}, the S170 window frame, and the refusals of a value a
  * database cannot hold (S138, S181, a load's width): each its own kind and sentence, its facts the operands -- a
  * database's name, a function's, a count (stage B's BE-P, 2026-11-21: until then three kinds whose operand was the
- * place's prose).
+ * place's prose). And an in-body assert's failure ({@code ASSERT_TRUE}, {@code ASSERT_FALSE}, {@code ASSERT_NOT_EMPTY}):
+ * the assert catalog's own sentences where legend-pure says "Assert failed" (item 3's S6; the user's Q15 = A, lite's
+ * assert-failure words on every route, and the tenet of 2026-11-23: lite's own where it is better, the compatibility
+ * edge re-spelling upstream's only where a test needs it).
  */
 public enum ErrorKind implements ErrorCode {
     /** rem's and quotient's, the dividend its operand (legend-pure's CompiledSupport); Integer / Integer's, no operand:
@@ -131,7 +134,8 @@ public enum ErrorKind implements ErrorCode {
     ASSERT_FALSE(Form.of(0, AssertKind.FALSE.template())),
     /** {@code assertNotEmpty}'s, as {@link #ASSERT_TRUE}. */
     ASSERT_NOT_EMPTY(Form.of(0, AssertKind.NOT_EMPTY.template())),
-    /** {@code fail(message)}: the user's own message is the error's text; this word only where none was given. */
+    /** {@code fail(message)}: the user's own message is the error's text. ({@code fail()} with none raises
+     *  {@link #ASSERT_TRUE} since item 3's S6; the bare form stays for a plan that names the kind with no operand.) */
     USER_FAIL(Form.of(0, "fail"), Form.any("fail: %1$s")),
     /** A failure the database raised with no site of lite's (phase D's Phase 2, item 4, 2026-11-16; the user's ruling:
      *  "I'm good with database only giving the database message too"): its message is the database's own, verbatim,

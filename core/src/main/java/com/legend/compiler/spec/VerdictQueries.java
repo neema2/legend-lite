@@ -367,40 +367,13 @@ public final class VerdictQueries {
      * afterwards → a String collection; otherwise the collection keeps
      * its mixed stamp (the literal channel). Minted HERE (Invariant 7: the
      * compiler layers own typed nodes), for the database-mode verdict. */
-    /** A String constant written as a chain of literals joined by {@code +}
-     * ({@code '[' + '{...},' + ']'} — the corpus's golden spelling), folded
-     * to ONE literal at compile time; null when any piece is not a literal
-     * (the value is not a constant). A constant fold over literals — no
-     * data touched. */
-    public static @com.legend.base.Nullable String foldedStringLiteral(TypedSpec s) {
+    /** A String the program spells as one literal token -- through the pretty-print natives, which are the identity up
+     *  to whitespace on a JSON text -- or null. A chain of literals joined by {@code +} is null: a COMPARED text is the
+     *  database's to compute, never the compiler's join (item 3's S7, the user's Q-D of 2026-11-21 and Q-S7b of
+     *  2026-11-22: a joined golden refused by name until a use appears; none on any database judge's lane). */
+    public static @com.legend.base.Nullable String stringToken(TypedSpec s) {
         s = throughJsonPrettyPrint(s);
-        if (s instanceof com.legend.compiler.spec.typed.TypedCString c) {
-            return c.value();
-        }
-        if (s instanceof TypedNativeCall n
-                && com.legend.compiler.element.type.PlatformTypes.STRING_PLUS
-                        .equals(n.callee().qualifiedName())) {
-            StringBuilder b = new StringBuilder();
-            for (TypedSpec a : n.args()) {
-                if (a instanceof TypedCollection col) {
-                    for (TypedSpec e : col.elements()) {
-                        String piece = foldedStringLiteral(e);
-                        if (piece == null) {
-                            return null;
-                        }
-                        b.append(piece);
-                    }
-                } else {
-                    String piece = foldedStringLiteral(a);
-                    if (piece == null) {
-                        return null;
-                    }
-                    b.append(piece);
-                }
-            }
-            return b.toString();
-        }
-        return null;
+        return s instanceof com.legend.compiler.spec.typed.TypedCString c ? c.value() : null;
     }
 
     /** {@code x->parseJSON()->toPrettyJSONString()} and {@code x->toPrettyJSONString()}

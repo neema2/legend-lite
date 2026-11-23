@@ -159,14 +159,16 @@ public class DuckDb extends AnsiSqlRenderer {
         return writer.function("strftime", args);
     }
 
-    /** {@inheritDoc} DuckDB's VARIANT: an object's keys in any order, an array's elements in order, numbers by value;
-     *  two kinds that differ raise there, so TRY makes them unequal (probed on 1.5.6). Recorded: VARIANT holds a JSON
-     *  fraction as a double, and its equality takes {@code true} for {@code 1} (a DuckDB issue; the user's ruling of
-     *  2026-11-22: a rare difference whose fix would be a table function per value is the database's, recorded). */
+    /** {@inheritDoc} DuckDB's {@code json()}: each document parsed and printed again, so spacing never counts, an
+     *  object's keys keep their order, an integer prints as written and a number with a fraction or an exponent as its
+     *  double ({@code 1.50} is {@code 1.5}, {@code 1e2} is {@code 100.0}, {@code 1} is not {@code 1.0}) -- register
+     *  S401, probed on 1.5.6. Nothing is caught: a document that does not parse raises. (DuckDB's VARIANT equality,
+     *  until 2026-11-23, raised on an empty object, took a JSON null for an absent value, a null-valued key for
+     *  another's, and {@code true} for {@code 1}: the audit of c2217801.) */
     @Override
     protected SqlWriter jsonEqual(SqlWriter writer, SqlExpr.Call c) {
-        return writer.append("COALESCE(TRY(CAST(").expr(c.args().get(0), 0).append(" AS VARIANT) IS NOT DISTINCT FROM CAST(")
-                .expr(c.args().get(1), 0).append(" AS VARIANT)), FALSE)");
+        return writer.append("(json(").expr(c.args().get(0), 0).append(") IS NOT DISTINCT FROM json(")
+                .expr(c.args().get(1), 0).append("))");
     }
 
     /** {@inheritDoc} Yes: an embedded engine. */

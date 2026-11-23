@@ -387,7 +387,8 @@ public final class GeneratorSplice {
                 Loads a = loads(call.args().get(0), before, texts);
                 Loads b = loads(call.args().get(1), before, texts);
                 if (a != null && b != null && (a.generated() != null || b.generated() != null)) {
-                    String message = call.args().size() == 3 && Literals.fold(call.args().get(2), before)
+                    // a caller's message: a final print (a ruled carve-out, Q-S7b, 2026-11-22)
+                    String message = call.args().size() == 3 && Literals.joined(call.args().get(2), before)
                             instanceof String m ? m : null;
                     out.add(comparison(a, b, message, ctx, generator));
                     for (TypedSpec arg : call.args().subList(0, 2)) {
@@ -596,7 +597,8 @@ public final class GeneratorSplice {
         if (text instanceof TypedPlannedValue pv && texts.containsKey(pv)) {
             return new Loads(texts.get(pv), null, ref.fullPath());
         }
-        return Literals.fold(call.args().get(0), before) instanceof String constant
+        // the generator's load text: a ruled carve-out (Q-D, 2026-11-21)
+        return Literals.joined(call.args().get(0), before) instanceof String constant
                 ? new Loads(null, constant, ref.fullPath()) : null;
     }
 

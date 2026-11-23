@@ -220,8 +220,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 segment++;
                 batch = BodyDriver.newVerdictBatch(env);
                 benv = env.withVerdictBatch(batch);
-                TestPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, specs, env, false, false,
-                        null).side();
+                TestPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, specs, env, false,
+                        HostSides.Fold.NONE, null).side();
                 DatabaseAsserts then = plan(AssertBranch.body(typed, parts.then()), runtime, env, systemRouted,
                         bodyEnv, letPrefix, place + i + "t.");
                 DatabaseAsserts otherwise = then == null ? null : plan(AssertBranch.body(typed, parts.otherwise()),

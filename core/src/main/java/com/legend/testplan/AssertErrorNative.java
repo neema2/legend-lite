@@ -67,11 +67,17 @@ final class AssertErrorNative {
             // calls upstream, all in legend-pure's own tests; item 3's S8: until then refused as a computed message)
             throw new com.legend.error.NotImplementedException("assertError with a matcher function: not planned");
         }
+        // the expected text is COMPARED: the program's own token (a literal, a let bound to one), never a join the
+        // compiler would compute (item 3's S7, the user's Q-D and Q-S7b: a compared constant is the database's, a joined
+        // expected text refused by name until a use appears -- none on any lane)
         Object expected = ae.args().get(1) instanceof TypedCString exp ? exp.value()
-                : com.legend.compiler.spec.typed.Literals.fold(ae.args().get(1), lets);
+                : com.legend.compiler.spec.typed.Literals.tokens(ae.args().get(1), lets);
         if (!(expected instanceof String message)) {
-            throw new com.legend.error.NotImplementedException(
-                    "assertError whose message argument is computed at run time (not a String the compiler folds)");
+            throw new com.legend.error.NotImplementedException(com.legend.compiler.spec.typed.Literals.isConstant(
+                    ae.args().get(1), lets)
+                    ? "assertError whose expected message is a join of literals: a compared text is the database's to"
+                            + " compute, not planned"
+                    : "assertError whose message argument is computed at run time (not a String the compiler folds)");
         }
         Long line = optionalInt(ae, 2);
         Long column = optionalInt(ae, 3);

@@ -56,6 +56,12 @@ final class AssertRecords {
                     : incidental ? record(AssertKind.SAME_ELEMENTS, "expected", eb, "actual", ab)
                     : LiteWords.equalsRecord(bare ? et.get(0) : eb, bare ? at.get(0) : ab, () -> "", () -> "", null, null);
         }
+        if (variant(ef) || variant(af)) {
+            // one Variant side: written as the JSON texts it was carried as, which the database judge's run reads too
+            // (the audit of c2217801, 2026-11-23: the host wrote a JSON null as the empty value) -- one record
+            e = variant(ef) ? eCarried : e;
+            a = variant(af) ? aCarried : a;
+        }
         @Nullable String eClass = ef == null ? null : ef.classFqn();
         @Nullable String aClass = af == null ? null : af.classFqn();
         if (!wantEqual) {
@@ -69,36 +75,6 @@ final class AssertRecords {
     /** Whether {@code f} declares a Variant. */
     static boolean variant(com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts f) {
         return f != null && com.legend.result.RowDecode.VARIANT.equals(f.classFqn());
-    }
-
-    /** A Variant side's values -- each carried as its JSON text -- as JSON trees, their numbers exact: the host compares
-     *  two Variants as the same JSON value (the user's ruling of 2026-11-22: an object's keys in any order, an array's
-     *  elements in order, numbers by value, a Boolean never a number), as the database's typed JSON equality does. */
-    static List<Object> variantTrees(List<Object> values) {
-        List<Object> out = new java.util.ArrayList<>(values.size());
-        for (Object v : values) {
-            out.add(exactNumbers(v instanceof String s ? com.legend.sql.Json.parse(s) : v));
-        }
-        return out;
-    }
-
-    private static @Nullable Object exactNumbers(@Nullable Object v) {
-        return switch (v) {
-            case null -> null;
-            case java.math.BigDecimal d -> d;
-            case Number n -> new java.math.BigDecimal(n.toString());
-            case java.util.Map<?, ?> m -> {
-                java.util.Map<String, @Nullable Object> o = new java.util.LinkedHashMap<>();
-                m.forEach((k, x) -> o.put(String.valueOf(k), exactNumbers(x)));
-                yield o;
-            }
-            case List<?> l -> {
-                List<@Nullable Object> o = new java.util.ArrayList<>(l.size());
-                l.forEach(x -> o.add(exactNumbers(x)));
-                yield o;
-            }
-            default -> v;
-        };
     }
 
     /** A side's values as a JSON carrier may have brought them: none for a side of a primitive kind. */
