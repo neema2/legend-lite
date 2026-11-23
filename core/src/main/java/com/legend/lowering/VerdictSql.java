@@ -558,7 +558,9 @@ public final class VerdictSql {
     /** Whether a tagged side ({@code wrapped}'s first column a {@link SqlType.Tagged}) or a side of one typed class
      *  states its kinds, each with the SQL type that holds it, into {@code into}, keyed by {@link #kindKey}. */
     private static boolean kindsOf(SqlQuery wrapped, Type kind, java.util.Map<String, SqlType> into, boolean byType) {
-        if (wrapped.outputs().isEmpty()) {
+        if (wrapped.outputs().isEmpty() || wrapped.outputs().get(0).type() == SqlType.Scalar.DECIMAL_TEXT) {
+            // (a Decimal the root writes as its text has no typed reading against a tagged side's values: oneCarrier's
+            // rule, the audit of 3f2fe452 -- its text was joined against a number)
             return false;
         }
         if (wrapped.outputs().get(0).type() instanceof SqlType.Tagged tg) {
@@ -1187,8 +1189,7 @@ public final class VerdictSql {
     public static @com.legend.base.Nullable TypedRow typedInstanceOf(SqlQuery wrapped, Type kind, boolean holds,
             String type) {
         if (holds) {
-            // decided true: no failure to record, so no value read (the audit of 946d16f2: an instance's list of structs
-            // is no list H2 spells, and a holding assert need not read it)
+            // decided true: no failure to record, so no value read (a holding assert need not read it)
             return typedRow(List.of(), new SqlSource.Dual(), new SqlExpr.BoolLit(true), List.of(new Valued(TYPED_ACTUAL,
                     nullOf(new SqlType.Array(SqlType.Scalar.VARCHAR)), new SqlType.Array(SqlType.Scalar.VARCHAR), kind,
                     true), new Valued("__t", new SqlExpr.StringLit(type), SqlType.Scalar.VARCHAR, Type.Primitive.STRING,
@@ -1205,15 +1206,28 @@ public final class VerdictSql {
                         new SqlExpr.StringLit(type), SqlType.Scalar.VARCHAR, Type.Primitive.STRING, false)));
     }
 
-    /** Two sides of Variant values (item 3's S4, the audit of 2026-11-22), each its JSON document's text as the
-     *  database writes it -- the host reads a Variant so -- compared as typed Strings ({@link #typedEquals}). Null where
-     *  a side has no value column. */
-    public static @com.legend.base.Nullable TypedRow typedVariantTexts(SqlQuery eWrapped, SqlQuery aWrapped,
-            boolean multiset, boolean wantEqual) {
-        SqlQuery e = documentTexts(eWrapped);
-        SqlQuery a = documentTexts(aWrapped);
-        return e == null || a == null ? null
-                : typedEquals(e, Type.Primitive.STRING, a, Type.Primitive.STRING, multiset, wantEqual, false);
+    /** Two sides of Variant values (item 3's S4; the user's ruling of 2026-11-22), each value its JSON, compared by the
+     *  database's typed JSON equality ({@code SqlFn.JSON_EQUAL}: DuckDB's VARIANT, Postgres's jsonb; any other database
+     *  refuses by name), in order -- in any order refused by name, no database grouping JSON by its typed equality.
+     *  Null where a side has no value column. */
+    public static @com.legend.base.Nullable TypedRow typedVariants(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
+            Type aKind, boolean multiset, boolean wantEqual) {
+        SqlQuery e = jsonValues(eWrapped);
+        SqlQuery a = jsonValues(aWrapped);
+        return e == null || a == null ? null : typedEquals(e, eKind, a, aKind, multiset, wantEqual, false);
+    }
+
+    /** {@code wrapped}'s first column as JSON, in the side's own order. */
+    private static @com.legend.base.Nullable SqlQuery jsonValues(SqlQuery wrapped) {
+        if (wrapped.outputs().isEmpty()) {
+            return null;
+        }
+        SqlExpr v = SqlExpr.Column.of("w", wrapped.outputs(), wrapped.outputs().get(0).name());
+        OutputCol out = new OutputCol("value", SqlType.Scalar.JSON, true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(wrapped.outputs().get(0).type() == SqlType.Scalar.JSON ? v
+                : new SqlExpr.Cast(v, SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE), "value", out)), false,
+                new SqlSource.Subselect(wrapped, "w", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(out));
     }
 
     /** Two sides of instances of one class carried as JSON documents' text (item 3's S4, the last families: a
@@ -1321,8 +1335,27 @@ public final class VerdictSql {
      *  own order -- a list {@link #typedTagged} compares. Null where the grid is no select or a column's kind has no
      *  channel (a class). */
     public static @com.legend.base.Nullable SqlQuery gridCells(SqlQuery grid, Type.RelationType schema) {
-        if (!(grid instanceof SqlSelect rel)) {
+        if (!(grid instanceof SqlSelect gs)) {
             return null;
+        }
+        // the grid's own order first: an unsorted select over a source whose plan defines an order is numbered by that
+        // order, as a one-column grid's values are (valueRows) -- the flatten's numbering keyed by it, never by the
+        // cells' values (the audit of 3f2fe452: a descending sort was read ascending)
+        SqlSelect rel = gs;
+        if (gs.orderBy().isEmpty() && plainProjection(gs) && gs.from() instanceof SqlSource.Subselect sub
+                && SideOrdinal.defined(sub.inner()) instanceof SqlQuery inner) {
+            // the grid's columns by name over the numbered source (a star would read the ordinal too: H2 refuses the
+            // duplicate column), its rows sorted by the ordinal
+            List<SqlSelect.Projection> ps = new ArrayList<>();
+            for (Type.Column c : schema.columns()) {
+                SqlExpr col = SqlExpr.Column.of(sub.alias(), inner.outputs(), c.name());
+                ps.add(new SqlSelect.Projection(col, c.name(), new OutputCol(c.name(), col.type() instanceof
+                        com.legend.sql.TypeFact.Typed t ? t.type() : SqlType.Scalar.VARCHAR, true)));
+            }
+            rel = new SqlSelect(ps, false, new SqlSource.Subselect(inner, sub.alias(), sub.frameName()), null,
+                    List.of(), null, null, List.of(new SqlSelect.SortKey(SqlExpr.Column.of(sub.alias(), inner.outputs(),
+                    SideOrdinal.ORD), true, null, null)), null, null,
+                    ps.stream().map(p -> java.util.Objects.requireNonNull(p.out())).toList());
         }
         int[] next = {0};
         SqlExpr.TaggedList cells = ValueCollections.rowMajorTaggedList(rel, schema, () -> "__gc" + next[0]++);

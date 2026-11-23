@@ -123,6 +123,14 @@ final class NullSemantics {
                 && (ops.get(0) instanceof SqlExpr.NullLit || ops.get(1) instanceof SqlExpr.NullLit)) {
             return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
         }
+        if (ops.size() == 2 && json(ops.get(0)) && json(ops.get(1)) && n.args().size() == 2
+                && com.legend.compiler.element.type.PlatformTypes.isVariant(n.args().get(0).info().type())
+                && com.legend.compiler.element.type.PlatformTypes.isVariant(n.args().get(1).info().type())) {
+            // two Variants: the database's typed JSON equality, never their texts (the user's ruling of 2026-11-22:
+            // DuckDB's VARIANT, Postgres's jsonb; a database with no typed JSON equality refuses by name). An Any
+            // carried as JSON keeps its own rule (S127: an Integer is never a Float)
+            return new SqlExpr.Call(SqlFn.JSON_EQUAL, ops);
+        }
         if (ops.size() == 2
                 && ops.get(0) instanceof SqlExpr.Column
                 && ops.get(1) instanceof SqlExpr.Column
@@ -141,6 +149,11 @@ final class NullSemantics {
             return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
         }
         return new SqlExpr.Call(SqlFn.EQUAL, ops);
+    }
+
+    /** Whether {@code e} is carried as JSON (a Variant, an Any's carrier). */
+    private static boolean json(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == com.legend.sql.SqlType.Scalar.JSON;
     }
 
     /** Engine pureToSQLQuery: an enum-referencing comparison routes the

@@ -159,6 +159,16 @@ public class DuckDb extends AnsiSqlRenderer {
         return writer.function("strftime", args);
     }
 
+    /** {@inheritDoc} DuckDB's VARIANT: an object's keys in any order, an array's elements in order, numbers by value;
+     *  two kinds that differ raise there, so TRY makes them unequal (probed on 1.5.6). Recorded: VARIANT holds a JSON
+     *  fraction as a double, and its equality takes {@code true} for {@code 1} (a DuckDB issue; the user's ruling of
+     *  2026-11-22: a rare difference whose fix would be a table function per value is the database's, recorded). */
+    @Override
+    protected SqlWriter jsonEqual(SqlWriter writer, SqlExpr.Call c) {
+        return writer.append("COALESCE(TRY(CAST(").expr(c.args().get(0), 0).append(" AS VARIANT) IS NOT DISTINCT FROM CAST(")
+                .expr(c.args().get(1), 0).append(" AS VARIANT)), FALSE)");
+    }
+
     /** {@inheritDoc} Yes: an embedded engine. */
     @Override
     public boolean inProcess() {
@@ -608,9 +618,13 @@ public class DuckDb extends AnsiSqlRenderer {
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case DATE_TRUNC -> dateTruncArm(writer, c);
             case CURRENT_USER_FN -> writer.append("current_user");
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL -> nullSafe(writer, c);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, JSON_EQUAL -> nullSafe(writer, c);
             // its own list equality (item 3's S4: probed on 1.5.6 to agree with the portable form)
-            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameLists(writer, c, "list_sort");
+            // (two lists of JSON values -- Variants -- by the typed JSON equality, position by position: a list of
+            // JSON compares their texts)
+            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> c.args().size() == 4
+                    && c.args().get(2) instanceof SqlExpr.ScalarSubquery rows && SameValuesForm.json(rows.subquery())
+                    ? sameValues(writer, c) : sameLists(writer, c, "list_sort");
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)

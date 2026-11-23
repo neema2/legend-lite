@@ -1576,7 +1576,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafeArm(writer, c);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER, JSON_EQUAL -> nullSafeArm(writer, c);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case LPAD -> padWithSpace(writer, "lpad", c.args());
             case RPAD -> padWithSpace(writer, "rpad", c.args());

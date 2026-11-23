@@ -44,7 +44,18 @@ final class SameValuesForm {
                         + " form on a database that carries them as JSON: refused (item 3's S4)");
             }
         }
+        if (!ordered && values(eRows).stream().anyMatch(c -> c.type() == SqlType.Scalar.JSON)) {
+            // a multiset of JSON values groups them by a key no database types (DuckDB's VARIANT groups 1 apart from
+            // 1.0, which its equality calls the same): refused by name (the user's ruling of 2026-11-22)
+            throw new com.legend.sql.DialectCapability("an assert comparing Variants in any order: no database here"
+                    + " groups JSON values by their typed equality, so it is refused by name");
+        }
         return ordered ? inOrder(eRows, aRows) : anyOrder(eRows, aRows);
+    }
+
+    /** Whether {@code rows} carries its values as JSON (Variants): compared by {@link SqlFn#JSON_EQUAL}. */
+    static boolean json(SqlQuery rows) {
+        return values(rows).stream().anyMatch(c -> c.type() == SqlType.Scalar.JSON);
     }
 
     private static SqlQuery inOrder(SqlQuery eRows, SqlQuery aRows) {
@@ -55,7 +66,9 @@ final class SameValuesForm {
         SqlExpr on = SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of("x", eRows.outputs(), RN),
                 SqlExpr.Column.of("y", aRows.outputs(), RN));
         for (int i = 0; i < ev.size(); i++) {
-            on = SqlExpr.Call.of(SqlFn.AND, on, SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
+            // two JSON values by the database's typed JSON equality (Variants: never their texts)
+            on = SqlExpr.Call.of(SqlFn.AND, on, SqlExpr.Call.of(ev.get(i).type() == SqlType.Scalar.JSON
+                    && av.get(i).type() == SqlType.Scalar.JSON ? SqlFn.JSON_EQUAL : SqlFn.NULL_SAFE_EQUAL,
                     SqlExpr.Column.of("x", eRows.outputs(), ev.get(i).name()),
                     SqlExpr.Column.of("y", aRows.outputs(), av.get(i).name())));
         }

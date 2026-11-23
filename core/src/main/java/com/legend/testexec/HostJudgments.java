@@ -237,10 +237,12 @@ final class HostJudgments {
         return com.legend.testexec.Equality.Typed.all(values, arg.declared());
     }
 
-    /** A class-kind side's values with JSON object text decoded to structures ({@link AssertVerdicts#structured}). */
+    /** A class-kind side's values with JSON object text decoded to structures ({@link AssertVerdicts#structured}); a
+     *  Variant side's, each carried as its JSON text, as JSON trees with exact numbers (lite's rule, the user's of
+     *  2026-11-22: two Variants the same JSON value). */
     static List<Object> structuredSide(HostJudgment.SideFacts side, List<Object> vals) {
-        if (side.classFqn() == null) {
-            return vals;
+        if (side.classFqn() == null || AssertRecords.variant(side)) {
+            return side.classFqn() == null ? vals : AssertRecords.variantTrees(vals);
         }
         List<Object> out = new ArrayList<>(vals.size());
         for (Object v : vals) {
@@ -332,8 +334,6 @@ final class HostJudgments {
                 : judge(j, sides.get(), message, run);
     }
 
-    /** The keys the pair restricts to, or null: both sides declare the SAME keyed class (a side declared a supertype
-     *  counts as the other's class when every value on its wire is of it), as planning read the facts. */
     /** Two sides as upstream's {@code equal} sees them (X5; {@code EqualityUtilities}): a class-kind side's JSON text
      *  decoded to its structure, then a keyed class's instances restricted to their classifier and keys, any other's
      *  whole (its identity read with it) -- the one rule assertEquals, assertSameElements and assertContains judge by. */
@@ -345,6 +345,8 @@ final class HostJudgments {
         return ik == null ? List.of(e, a) : List.of(restrictToKeys(e, ik, keys), restrictToKeys(a, ik, keys));
     }
 
+    /** The keys the pair restricts to, or null: both sides declare the SAME keyed class (a side declared a supertype
+     *  counts as the other's class when every value on its wire is of it), as planning read the facts. */
     static com.legend.testexecutionplan.@com.legend.base.Nullable KeyTree restrictKeys(HostJudgment.Keys k,
             HostJudgment.SideFacts ef, HostJudgment.SideFacts af, List<Object> eVals, List<Object> aVals) {
         String ec = ef.classFqn();
@@ -627,7 +629,7 @@ final class HostJudgments {
                 typedSide(e, j.e()), typedSide(a, j.a()), rules)
                 // the failed TYPED comparison's message, never a second, untyped one (the ledger audit's D4, 2026-11-16:
                 // an untyped re-compare that held here returned null, and the failed assert passed)
-                ? null : AssertRecords.equality(true, true, e, a, e, a, j.e(), j.a());
+                ? null : AssertRecords.equality(true, true, e, a, ef.values(), af.values(), j.e(), j.a());
         com.legend.testexec.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows

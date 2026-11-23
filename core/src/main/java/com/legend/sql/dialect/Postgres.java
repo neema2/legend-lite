@@ -478,6 +478,14 @@ public class Postgres extends AnsiSqlRenderer {
         return w -> w.append("CAST(").piece(text).append(" AS JSONB[])");
     }
 
+
+    /** {@inheritDoc} Postgres's jsonb: an object's keys in any order, an array's elements in order, numbers by their
+     *  exact value, two kinds that differ unequal (the user's ruling of 2026-11-22). */
+    @Override
+    protected SqlWriter jsonEqual(SqlWriter writer, SqlExpr.Call c) {
+        return writer.append("(CAST(").expr(c.args().get(0), 0).append(" AS JSONB) IS NOT DISTINCT FROM CAST(")
+                .expr(c.args().get(1), 0).append(" AS JSONB))");
+    }
     /** Pure's splitPart: the non-empty tokens, 1-based (the lowering's index), NULL past either end, as an array
      *  index is (measured); the empty delimiter is the lowering's. */
     @Override
@@ -804,7 +812,7 @@ public class Postgres extends AnsiSqlRenderer {
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER, JSON_EQUAL -> nullSafe(writer, c);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());

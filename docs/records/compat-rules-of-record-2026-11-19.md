@@ -152,6 +152,6 @@ before the planner and re-spells an answer after the run, but it never re-comput
 users with no way to fix it at the edge; a core that follows Pure keeps the compatibility gap small by construction.
 
 First applications (2026-11-22): S400's casts retired (a list of Decimals takes its database's own scale -- Postgres,
-H2, MariaDB and SQLite keep each element's, as Pure does; DuckDB, ClickHouse, Snowflake and BigQuery give an array one
-type natively -- recorded); a Variant compared by the database's native typed equality (DuckDB's VARIANT, Postgres's
+H2 and MariaDB keep each element's, as Pure does; DuckDB, SQLite's JSON list, ClickHouse, Snowflake and BigQuery give an
+array one type natively -- recorded); a Variant compared by the database's native typed equality (DuckDB's VARIANT, Postgres's
 jsonb), DuckDB's `true = 1` recorded. To build: the known-quirks table.

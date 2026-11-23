@@ -1042,6 +1042,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case GREATER -> MongoJson.guardedOp(writer, "$gt", a);
             case GREATER_EQUAL -> MongoJson.guardedOp(writer, "$gte", a);
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> MongoJson.op(writer, "$ne", a);
+            case JSON_EQUAL -> throw new com.legend.sql.DialectCapability("two Variants compared: MongoDB's pipeline has no typed JSON equality written here");
             case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> throw new com.legend.sql.DialectCapability("a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert");
             case NULL_SAFE_EQUAL -> MongoJson.op(writer, "$eq", a);
             case XOR -> MongoJson.guardedOp(writer, "$ne", a);

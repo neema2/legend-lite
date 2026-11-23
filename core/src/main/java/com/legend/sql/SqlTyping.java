@@ -351,7 +351,7 @@ public final class SqlTyping {
             // SQL definition: the null tests always yield a boolean
             case IS_NULL, IS_NOT_NULL -> false;
             // the verdict over two sides' values: a Boolean on every form, two empty sides the same (item 3's S4)
-            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> false;
+            case SAME_IN_ORDER, SAME_IN_ANY_ORDER, JSON_EQUAL -> false;
             // probed: concat()/concat_ws SKIP NULL args (engine
             // parity is the emission's own reason); all-NULL -> ''
             case CONCAT, CONCAT_JOIN, CONCAT_WS -> false;
@@ -398,7 +398,7 @@ public final class SqlTyping {
                     ENDS_WITH, MATCHES, REGEXP_FULL_MATCH, LIST_EXISTS,
                     LIST_FOR_ALL, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL,
                     NULL_SAFE_NOT_EQUAL, LIST_BOOL_AND, LIST_BOOL_OR,
-                    XOR, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> T_BOOLEAN;
+                    XOR, SAME_IN_ORDER, SAME_IN_ANY_ORDER, JSON_EQUAL -> T_BOOLEAN;
             case CONCAT, CONCAT_JOIN, CONCAT_WS, UPPER, LOWER, TRIM, LTRIM, RTRIM,
                     REPLACE, TRANSLATE, SUBSTRING, SUBSTRING_AS_GIVEN, LEFT, RIGHT, LPAD, RPAD,
                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART, PURE_SPLIT_PART,
@@ -783,7 +783,7 @@ public final class SqlTyping {
             switch (c.fn()) {
                 case IS_NULL, COALESCE, OR, NULL_SAFE_EQUAL,
                         NULL_SAFE_NOT_EQUAL, IS_DISTINCT_FROM, ALL_DISTINCT,
-                        LIST_BOOL_AND, LIST_BOOL_OR, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> {
+                        LIST_BOOL_AND, LIST_BOOL_OR, SAME_IN_ORDER, SAME_IN_ANY_ORDER, JSON_EQUAL -> {
                     return false;
                 }
                 default -> {

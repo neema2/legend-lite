@@ -1360,6 +1360,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.expr(a.get(0), 4).append(" IN (").list(a.subList(1, a.size())).append(")");
     }
 
+    /** {@link SqlFn#JSON_EQUAL}: two JSON values the same by this database's typed JSON equality. A database proven to
+     *  have one writes it; any other refuses by name -- its JSON is text, and texts that differ (key order, spacing, a
+     *  number's spelling) can be one value (the user's ruling of 2026-11-22: never compared as text). */
+    protected SqlWriter jsonEqual(SqlWriter writer, SqlExpr.Call c) {
+        throw new DialectCapability("two Variants compared on a database with no typed JSON equality: their texts are"
+                + " not their values, so the comparison is refused by name");
+    }
+
     /** {@code (x IS DISTINCT FROM y)}: the null-safe inequality (the engine's nullSafeNotEqual DynaFunction). */
     protected final SqlWriter distinctFrom(SqlWriter writer, List<SqlExpr> a) {
         return writer.append("(").expr(a.get(0), 4).append(" IS DISTINCT FROM ").expr(a.get(1), 4).append(")");
@@ -1373,6 +1381,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (c.fn() == SqlFn.NULL_SAFE_EQUAL) {
             return notDistinctFrom(writer, c.args());
+        }
+        if (c.fn() == SqlFn.JSON_EQUAL) {
+            return jsonEqual(writer, c);
         }
         if (c.fn() == SqlFn.IS_DISTINCT_FROM || c.fn() == SqlFn.NULL_SAFE_NOT_EQUAL) {
             return distinctFrom(writer, c.args());

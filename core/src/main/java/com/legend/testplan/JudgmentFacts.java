@@ -95,7 +95,7 @@ final class JudgmentFacts {
                         wantEqual);
                 case VALUES, DATES, EMPTY_ONLY -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e, aPlan, a,
                         multiset, wantEqual, form == Form.EMPTY_ONLY);
-                case VARIANTS -> com.legend.lowering.VerdictSql.typedVariantTexts(ePlan, aPlan, multiset, wantEqual);
+                case VARIANTS -> com.legend.lowering.VerdictSql.typedVariants(ePlan, e, aPlan, a, multiset, wantEqual);
                 case INSTANCE_TEXTS -> com.legend.lowering.VerdictSql.typedInstanceTexts(ePlan, e, aPlan, a, multiset,
                         wantEqual);
             };
@@ -108,9 +108,9 @@ final class JudgmentFacts {
             Type aKind, com.legend.sql.SqlQuery aPlan, ModelContext ctx) {
         if ((PlatformTypes.isVariant(eKind) || PlatformTypes.isVariant(aKind)) && (jsonCarried(ePlan) || named(ePlan))
                 && (jsonCarried(aPlan) || named(aPlan))) {
-            // a Variant's values: each its JSON document's text, as the host reads a Variant (the audit of 2026-11-22:
-            // read by its JSON kinds, the record named a number the host names a document)
-            return new TypedPair(Type.Primitive.STRING, Type.Primitive.STRING, TypedPair.Form.VARIANTS);
+            // a Variant's values: each its JSON, compared by the database's typed JSON equality (the user's ruling of
+            // 2026-11-22); a Variant against another kind is the same only where both are empty (VerdictSql.typedEquals)
+            return new TypedPair(eKind, aKind, TypedPair.Form.VARIANTS);
         }
         boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan) || jsonCarried(ePlan);
         boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan) || jsonCarried(aPlan);
@@ -152,8 +152,9 @@ final class JudgmentFacts {
         if (named(ePlan) && named(aPlan) && EqualityKeys.fqnOf(eKind) instanceof String ek
                 && ek.equals(EqualityKeys.fqnOf(aKind))) {
             // a packageable element carried by its path (a Mapping, a class reference of either class): its path
-            // compared, a String
-            return new TypedPair(eKind, aKind, TypedPair.Form.VALUES);
+            // compared, a String; one kind for both, the metaclass they share -- Class<p::Q> and Class<Any> are two
+            // views of one reference, never kinds that differ (the audit of 3f2fe452)
+            return new TypedPair(eKind, eKind, TypedPair.Form.VALUES);
         }
         if (collection(ePlan) && collection(aPlan)) {
             // nested lists and maps: each value as its database holds it (VerdictSql.typedCollections)

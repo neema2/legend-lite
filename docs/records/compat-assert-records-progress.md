@@ -563,3 +563,44 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
   (faa46300: a Decimal in a JSON list written from its exact text, where the REAL lost digits past fifteen and wrote 1D
   as 1.0 -- kept, a cheap fix of a real mismatch, re-pinned); the cast census and BigQuery's lean SQL grew with S400
   (retired above).
+
+## Variants typed; the audit of 3f2fe452 fixed (2026-11-23)
+
+- **Variants compared as JSON values, in the product first** (the user's ruling of 2026-11-22: "variant on duckdb and
+  jsonb in postgres should both compare typed json"; the cheap form, DuckDB's `true = 1` recorded): a new MIR function,
+  `SqlFn.JSON_EQUAL`, which the product's `==` writes for two Variants (`NullSemantics.equalNullArms`) -- DuckDB
+  `COALESCE(TRY(CAST(a AS VARIANT) IS NOT DISTINCT FROM CAST(b AS VARIANT)), FALSE)`, Postgres
+  `CAST(a AS JSONB) IS NOT DISTINCT FROM CAST(b AS JSONB)`, every other dialect refusing it by name (until then the
+  product compared two Variants' texts: key order, spacing and `1` against `1.0` all answered false on DuckDB). The
+  database judge's Variant pair reuses the product's function through the list comparison's portable form
+  (`SameValuesForm`: a JSON column compared by `JSON_EQUAL`; DuckDB's own list equality would compare texts); a Variant
+  multiset is refused by name (DuckDB groups `1` apart from `1.0`). An `Any` carried as JSON keeps its own rule (S127).
+  The host reads each Variant as its JSON tree with exact numbers (`AssertRecords.variantTrees`, through
+  `HostJudgments.structuredSide`), so its verdict is the same rule; both judges record the Variants as their JSON
+  documents. Known and recorded: DuckDB's VARIANT takes `true` for `1` (a DuckDB issue, text drafted for the user to
+  file, with its `strftime('%n…')` bug); a Variant membership (`assertContains`) is refused by name at run under the
+  database judge.
+- **The audit of 3f2fe452** (a reviewer that wrote none of it, each body under every judge on DuckDB, H2, SQLite):
+  - H1 fixed: a wider table against a list reads its cells in the table's own order (an unsorted select over an ordered
+    source numbered by that order, as a one-column table's values are) -- a descending sort had been read ascending.
+  - H2 fixed: a store-read Decimal carried as its text has no tagged reading (`kindsOf`): refused by name, as at the
+    base, never its text joined against a number (SQLite had answered wrongly).
+  - H3 fixed: a class reference and itself cast to `Class<Any>` are one reference (one kind, the metaclass they share).
+  - H4 fixed: the host's membership reads instances on the identity lane only for a keyless class; a keyed class's keys
+    decide, so a store read (no classifier written) meets a literal by its keys, as Pure's contains does.
+  - M5 fixed: assertInstanceOf names an instance by its static class only where that class has no subclass (a model
+    fact read at planning).
+  - M7 fixed in the product: `SideOrdinal` no longer numbers inside a grouped or aggregating select (a JSON array
+    aggregate among them) -- a metamodel pair of several set implementations ran on neither DuckDB nor H2.
+  - M6 recorded: a literal JSON actual that does not parse raises at planning, as a golden that does not parse already
+    did, before the body's earlier asserts (the host raises at the assert's own turn); a deferred raise is open.
+  - L8: the S400 notes corrected (SQLite's JSON list unifies the scale, as DuckDB does); the register row records that a
+    Decimal list element's text flips a verdict on DuckDB and SQLite (`['1.000', '10.125']` against Pure's
+    `['1.0', '10.125']`) -- ruled by the user 2026-11-23, the database's, recorded ("For compatibility it should print
+    in the compatibility host the thing that matches pure. For product, the types should be correct, so toString I'm
+    happy to do whatever makes most sense for the product"). L9 and the NIT: comments and a javadoc's place corrected.
+  - Recorded as pre-existing: a literal list of a class and its subclass loses each element's classifier on the host's
+    folded path; the host compares keyless store-read instances by their values (S111 would refuse them by name).
+- **A standing rule (the user, 2026-11-23, "Approved"):** a new MIR function that only product code writes is sorted
+  PRODUCT in `SqlFnSortedTest` with a dated note and reported to the user; one sorted EDGE_ONLY, or any change that
+  loosens a guard, still goes to the user first. First use: `JSON_EQUAL`.

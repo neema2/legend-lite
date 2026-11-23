@@ -1057,7 +1057,8 @@ public final class DatabaseJudge {
         TypedSpec writtenActual = actualJson;
         String actualText = com.legend.compiler.spec.VerdictQueries.foldedStringLiteral(actualJson);
         if (actualText != null) {
-            // (an actual that does not parse raises its error, as the host judge's read of it does)
+            // (an actual that does not parse raises at planning, as a golden that does not parse does -- before the
+            // body's earlier asserts, where the host raises at the assert's own turn: the audit of 3f2fe452, recorded)
             actualJson = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(JudgeJson.STRICT.read(actualText));
         }
         SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);

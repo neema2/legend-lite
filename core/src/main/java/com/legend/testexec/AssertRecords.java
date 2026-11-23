@@ -44,6 +44,18 @@ final class AssertRecords {
     static ErrorRecord equality(boolean incidental, boolean wantEqual, List<Object> e, List<Object> a,
             List<Object> eCarried, List<Object> aCarried, com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts ef,
             com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts af) {
+        if (variant(ef) && variant(af)) {
+            // two Variants written as their JSON documents, minified, whichever judge read them (each carries them as
+            // their JSON texts): one record on both judges
+            List<String> et = eCarried.stream().map(v -> LiteWords.canonJson(String.valueOf(v), false)).toList();
+            List<String> at = aCarried.stream().map(v -> LiteWords.canonJson(String.valueOf(v), false)).toList();
+            boolean bare = et.size() == 1 && at.size() == 1;
+            String eb = "[" + String.join(", ", et) + "]";
+            String ab = "[" + String.join(", ", at) + "]";
+            return !wantEqual ? record(AssertKind.NOT_EQUALS, "actual", bare ? at.get(0) : ab)
+                    : incidental ? record(AssertKind.SAME_ELEMENTS, "expected", eb, "actual", ab)
+                    : LiteWords.equalsRecord(bare ? et.get(0) : eb, bare ? at.get(0) : ab, () -> "", () -> "", null, null);
+        }
         @Nullable String eClass = ef == null ? null : ef.classFqn();
         @Nullable String aClass = af == null ? null : af.classFqn();
         if (!wantEqual) {
@@ -52,6 +64,41 @@ final class AssertRecords {
         return incidental ? sameElements(e, a, eClass, aClass)
                 : sidesNotEqual(e, a, carrier(ef, eCarried), carrier(af, aCarried), eClass, aClass,
                         ef == null ? null : ef.declared(), af == null ? null : af.declared());
+    }
+
+    /** Whether {@code f} declares a Variant. */
+    static boolean variant(com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts f) {
+        return f != null && com.legend.result.RowDecode.VARIANT.equals(f.classFqn());
+    }
+
+    /** A Variant side's values -- each carried as its JSON text -- as JSON trees, their numbers exact: the host compares
+     *  two Variants as the same JSON value (the user's ruling of 2026-11-22: an object's keys in any order, an array's
+     *  elements in order, numbers by value, a Boolean never a number), as the database's typed JSON equality does. */
+    static List<Object> variantTrees(List<Object> values) {
+        List<Object> out = new java.util.ArrayList<>(values.size());
+        for (Object v : values) {
+            out.add(exactNumbers(v instanceof String s ? com.legend.sql.Json.parse(s) : v));
+        }
+        return out;
+    }
+
+    private static @Nullable Object exactNumbers(@Nullable Object v) {
+        return switch (v) {
+            case null -> null;
+            case java.math.BigDecimal d -> d;
+            case Number n -> new java.math.BigDecimal(n.toString());
+            case java.util.Map<?, ?> m -> {
+                java.util.Map<String, @Nullable Object> o = new java.util.LinkedHashMap<>();
+                m.forEach((k, x) -> o.put(String.valueOf(k), exactNumbers(x)));
+                yield o;
+            }
+            case List<?> l -> {
+                List<@Nullable Object> o = new java.util.ArrayList<>(l.size());
+                l.forEach(x -> o.add(exactNumbers(x)));
+                yield o;
+            }
+            default -> v;
+        };
     }
 
     /** A side's values as a JSON carrier may have brought them: none for a side of a primitive kind. */
@@ -76,8 +123,11 @@ final class AssertRecords {
         @Nullable String aClass = report.a() == null ? null : report.a().classFqn();
         ErrorRecord failure = report.fixed() != null ? report.fixed() : switch (report.family()) {
             // a typed row's values are typed, never a JSON carrier's
-            case EQUALS -> equality(false, report.want(), e, a, List.of(), List.of(), report.e(), report.a());
-            case SAME_ELEMENTS -> equality(true, report.want(), e, a, List.of(), List.of(), report.e(), report.a());
+            // (two Variants' values carried as their JSON texts, as the host's read carries them)
+            case EQUALS -> equality(false, report.want(), e, a, variant(report.e()) ? e : List.of(),
+                    variant(report.a()) ? a : List.of(), report.e(), report.a());
+            case SAME_ELEMENTS -> equality(true, report.want(), e, a, variant(report.e()) ? e : List.of(),
+                    variant(report.a()) ? a : List.of(), report.e(), report.a());
             case IS_NOT -> negated("IS_NOT", e, a);
             case EQ -> notEq(e.isEmpty() ? null : e.get(0), a.isEmpty() ? null : a.get(0), eClass, aClass,
                     report.e() == null ? null : report.e().declared(), report.a() == null ? null : report.a().declared());

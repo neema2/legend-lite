@@ -2003,6 +2003,7 @@ public class ClickHouse extends AnsiSqlRenderer {
                     .expr(a.get(1), 4).append(", isNull(").expr(a.get(0), 0).append(") AND isNull(").expr(a.get(1), 0)
                     .append("))");
             case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameValues(writer, c);
+            case JSON_EQUAL -> jsonEqual(writer, c);
             case NULL_SAFE_EQUAL -> writer.append("coalesce(").expr(a.get(0), 4).append(" = ").expr(a.get(1), 4)
                     .append(", isNull(").expr(a.get(0), 0).append(") AND isNull(").expr(a.get(1), 0).append("))");
             // NULL-ignoring, as DuckDB's concat

@@ -84,13 +84,14 @@ final class HostJudge {
 
     static HostSides.Check planContains(List<TypedSpec> args, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        // instances read on the identity lane and restricted by their keys, as the equality's (upstream's contains is
-        // its equal: the audit of 946d16f2)
-        boolean instances = instance(args.get(0)) || instance(args.get(1));
-        return new HostSides.Check(List.of(instances ? identityAsk(args.get(0), hook) : valueAsk(args.get(0), hook),
-                instances ? identityAsk(args.get(1), hook) : valueAsk(args.get(1), hook)),
-                new HostJudgment.Contains(facts(args.get(0)), facts(args.get(1)),
-                        JudgmentFacts.keys(args.get(0), args.get(1), env.ctx())));
+        // upstream's contains is its equal (the audit of 946d16f2): a keyed class's instances by their keys, any other
+        // instance by its identity -- read on the identity lane, a keyless class's alone (the audit of 3f2fe452: a
+        // keyed literal's classifier met a store read that carries none)
+        HostJudgment.Keys keys = JudgmentFacts.keys(args.get(0), args.get(1), env.ctx());
+        boolean identity = (instance(args.get(0)) || instance(args.get(1))) && keys.e() == null && keys.a() == null;
+        return new HostSides.Check(List.of(identity ? identityAsk(args.get(0), hook) : valueAsk(args.get(0), hook),
+                identity ? identityAsk(args.get(1), hook) : valueAsk(args.get(1), hook)),
+                new HostJudgment.Contains(facts(args.get(0)), facts(args.get(1)), keys));
     }
 
     /** Whether {@code s} is typed by a class (a model class's, a Pair's), not Any: its values are instances. */
@@ -168,9 +169,11 @@ final class HostJudge {
             accepted.add(type);
             accepted.addAll(env.ctx().subtree(type));
         }
+        // the value's static class names an instance whose data names none only where no subclass could be it (the
+        // audit of 3f2fe452: a list of a class and its subclass, read at(0), named the wrong one)
+        String vc = instance(args.get(0)) ? com.legend.compiler.element.EqualityKeys.fqnOf(args.get(0).info().type()) : null;
         return new HostSides.Check(List.of(valueAsk(args.get(0), hook)), new HostJudgment.InstanceOf(type, accepted,
-                instance(args.get(0)) ? com.legend.compiler.element.EqualityKeys.fqnOf(args.get(0).info().type())
-                        : null));
+                vc != null && env.ctx().subtree(vc).stream().allMatch(vc::equals) ? vc : null));
     }
 
     /** {@link #is} planned; null (no side asked) where the pair is not two elements. */

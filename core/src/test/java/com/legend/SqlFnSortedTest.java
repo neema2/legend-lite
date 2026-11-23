@@ -59,7 +59,12 @@ class SqlFnSortedTest {
      *  is the product's dialects refusing it by name; SAME_IN_ORDER and SAME_IN_ANY_ORDER 2026-11-22, item 3's S4, by the
      *  user's word that day ("Yes on list compare", then "Yes, add both entries"): two sides' typed values the same,
      *  written by VerdictSql, each dialect writing its database's own form -- DuckDB's list equality, every other the
-     *  portable one, MongoDB refusing it by name). */
+     *  portable one, MongoDB refusing it by name; JSON_EQUAL 2026-11-23, item 3's S4, the user's ruling of 2026-11-22
+     *  (Variants compared by the database's typed JSON equality, "variant on duckdb and jsonb in postgres should both
+     *  compare typed json"), its entry by the user's word of 2026-11-23 ("Approved", with the standing rule that a new
+     *  function only product code writes is sorted PRODUCT with a dated note and reported): written by NullSemantics (a Variant's ==) and
+     *  SameValuesForm (two lists of Variants), DuckDB's VARIANT and Postgres's jsonb writing it, every other dialect
+     *  refusing it by name). */
     static final Set<String> PRODUCT = Set.of(
             "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
@@ -86,7 +91,7 @@ class SqlFnSortedTest {
             "PARSE_DATE", "PARSE_INT", "PI", "PLUS", "POW", "PURE_SPLIT_PART", "RADIANS", "RANDOM", "RANGE_FN",
             "REGEXP_EXTRACT", "REGEXP_EXTRACT_ALL", "REGEXP_FULL_MATCH", "REGEXP_REPLACE", "REM", "REPEAT_STR",
             "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP", "RPAD", "RTRIM",
-            "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1",
+            "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1", "JSON_EQUAL",
             "SHA256", "SIGN", "SIN", "SINH", "SPLIT", "SPLIT_PART", "SQRT", "STARTS_WITH", "STRFTIME", "STRPOS",
             "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "SUBSTRING_AS_GIVEN", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",
             "TO_VARIANT", "TRANSLATE", "TRIM", "TYPEOF", "UC_FIRST", "UNNEST", "UPPER", "VARIANT_ELEMENTS",

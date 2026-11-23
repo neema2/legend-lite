@@ -604,6 +604,58 @@ class AssertBarTest {
                 wrong));
     }
 
+    /** Two sides of several set implementations (a metamodel's documents gathered into one JSON array), in order, under
+     *  every judge on every in-process database (the audit of 3f2fe452: the side's order was numbered inside the
+     *  documents' aggregate, which neither DuckDB nor H2 runs). Its model holds no test data: a metamodel query reads
+     *  the system database alone. */
+    @Test
+    void aMetamodelPairOfSeveralSetsIsOneOutcome() throws Exception {
+        String model = """
+                ###Pure
+                Class ext::A { id: Integer[1]; aName: String[1]; }
+                Class ext::B extends ext::A { bName: String[1]; }
+                ###Relational
+                Database p::DB ( Table ABC (id INTEGER PRIMARY KEY, aName VARCHAR(20), bName VARCHAR(20)) )
+                ###Mapping
+                Mapping p::M ( ext::A[a] : Relational { id : [p::DB]ABC.id, aName : [p::DB]ABC.aName } )
+                Mapping p::M2 ( include p::M
+                    ext::B[b2] extends [a] : Relational { bName : [p::DB]ABC.bName } )
+                ###Connection
+                RelationalDatabaseConnection p::C { store: p::DB; type: %s; specification: LocalH2 { }; auth: DefaultH2; }
+                ###Runtime
+                Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+                """;
+        String m = "p::M->meta::pure::mapping::rootClassMappingByClass";
+        String m2 = "p::M2->meta::pure::mapping::rootClassMappingByClass";
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals(" + m + "(ext::A)->concatenate(" + m + "(ext::B)), " + m + "(ext::A)->concatenate(" + m
+                + "(ext::B)))}", "pass");
+        want.put("{|assertEquals(" + m + "(ext::A)->concatenate(" + m + "(ext::B)), " + m2 + "(ext::A)->concatenate("
+                + m2 + "(ext::B)))}", "AssertFailed");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(model.formatted(database), e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!got.startsWith(e.getValue())) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "a metamodel pair:\n  " + String.join("\n  ", wrong));
+    }
+
     /** A Decimal literal's typed member on every database the platform runs in-process (item 3's S4, 2026-11-22): its
      *  written scale rides its SQL type and the reader restores it where the driver drops it (SQLite holds a REAL), so
      *  the record writes {@code 1.50} on every database; two Decimals compare by value (register S139). */
@@ -785,9 +837,21 @@ class AssertBarTest {
         want.put("{|assertEquals([1, 'a'], [1, 'b']->cast(@Any))}", "AssertFailed");
         want.put("{|assertEquals([1, 'a'], [1.0, 'a']->cast(@Any))}", "AssertFailed");
         // a variant's scalar (the audit of 2026-11-22: H2's JSON read as a number by its text; SQLite's tagged record)
-        want.put("{|assertEquals('1'->fromJson(), '1'->fromJson())}", "pass");
-        want.put("{|assertEquals('1'->fromJson(), '2'->fromJson())}", "AssertFailed");
-        want.put("{|assertEquals(1->toVariant(), 1->toVariant())}", "pass");
+        // two Variants: the same JSON value by the database's typed JSON equality (the user's ruling of 2026-11-22:
+        // DuckDB's VARIANT; H2 and SQLite compare JSON as text, so the database judge refuses by name) -- keys in any
+        // order, spacing, a number by value, a string never a number; the host the same rule over the JSON trees
+        String byDb = "|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|SQLite/DATABASE=DialectCapability"
+                + "|SQLite/BOTH=DialectCapability";
+        want.put("{|assertEquals('1'->fromJson(), '1'->fromJson())}", "pass" + byDb);
+        want.put("{|assertEquals('1'->fromJson(), '2'->fromJson())}", "AssertFailed: expected 1, got 2" + byDb);
+        want.put("{|assertEquals(1->toVariant(), 1->toVariant())}", "pass" + byDb);
+        want.put("{|assertEquals('{\"a\":1,\"b\":[1, 2]}'->fromJson(), '{\"b\":[1,2],\"a\":1.0}'->fromJson())}",
+                "pass" + byDb);
+        want.put("{|assertEquals('{\"a\":1}'->fromJson(), '{\"a\":2}'->fromJson())}",
+                "AssertFailed: expected {\"a\":1}, got {\"a\":2}" + byDb);
+        want.put("{|assertNotEquals('\"1\"'->fromJson(), '1'->fromJson())}", "pass" + byDb);
+        want.put("{|assertEquals('\"abc\"'->fromJson(), '\"abd\"'->fromJson())}",
+                "AssertFailed: expected \"abc\", got \"abd\"" + byDb);
         want.put("{|assertEquals(1.0, (0.5 + 0.5)->cast(@Any))}", "pass");
         want.put("{|assertEquals(true, 'true'->fromJson()->to(@Boolean))}", "pass");
         // a graph's size and emptiness (its root objects): typed, its failures the host's records
@@ -832,11 +896,24 @@ class AssertBarTest {
                 + " p::RT.runtimeValue, []).values";
         want.put("{|assertEquals([1, '1', 2, '2'], " + grid + ")}", "pass");
         want.put("{|assertEquals([1, '1', 2, '3'], " + grid + ")}", "AssertFailed");
+        // the audit of 3f2fe452: a wider table's cells in the table's own order (a descending sort read descending); a
+        // class reference against itself cast to Class<Any> one reference; a store-read Decimal carried as its text
+        // against a Decimal literal refused by name, never its text joined against a number
+        String desc = "execute(|p::Q.all()->project([x | $x.id, x | $x.id->toString()], ['id', 's'])->sort(descending('id')),"
+                + " p::M, p::RT.runtimeValue, []).values";
+        want.put("{|assertEquals([2, '2', 1, '1'], " + desc + ")}", "pass");
+        want.put("{|assertEquals([1, '1', 2, '2'], " + desc + ")}", "AssertFailed");
+        want.put("{|assertEquals(p::Q, p::Q->cast(@Class<Any>))}", "pass");
+        want.put("{|assertNotEquals(p::Q, p::Q->cast(@Class<Any>))}", "AssertFailed");
+        String unjudged = "AssertFailed: assertContains: UNJUDGED";
+        want.put("{|assertContains(p::Q.all().e, 1.5D)}", "pass|DuckDB/DATABASE=" + unjudged + "|DuckDB/BOTH=" + unjudged
+                + "|H2/DATABASE=" + unjudged + "|H2/BOTH=" + unjudged + "|SQLite/DATABASE=" + unjudged + "|SQLite/BOTH="
+                + unjudged);
         // membership is upstream's equal: a keyed class by its keys, any other instance by its identity (H2: a model
-        // class's instances refused by name under every judge, as their equality is)
+        // class's instances refused by name by the database judge; a keyless class's identity under every judge)
         String k = "^p::K(id=1, at=%2020-01-01T10:00:00.5, note='a')";
-        want.put("{|assertContains([" + k + "], " + k.replace("'a'", "'b'") + ")}", "pass|H2=DialectCapability: LIST_GET");
-        want.put("{|assertContains([" + k + "], " + k.replace("id=1", "id=2") + ")}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertContains([" + k + "], " + k.replace("'a'", "'b'") + ")}", "pass|H2/DATABASE=DialectCapability: LIST_GET|H2/BOTH=DialectCapability: LIST_GET");
+        want.put("{|assertContains([" + k + "], " + k.replace("id=1", "id=2") + ")}", "AssertFailed|H2/DATABASE=DialectCapability: LIST_GET|H2/BOTH=DialectCapability: LIST_GET");
         want.put("{|assertContains([^p::N(name='x')], ^p::N(name='x'))}", "AssertFailed|H2=DialectCapability: LIST_GET");
         want.put("{|let n = ^p::N(name='x'); assertContains([$n], $n);}", "pass|H2=DialectCapability: LIST_GET");
         // an instance whose data names no class is of its static class
