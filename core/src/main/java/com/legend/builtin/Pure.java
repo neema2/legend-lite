@@ -663,6 +663,11 @@ public final class Pure {
          *  its caller names without renaming it first. Upstream reads a column only as a reflected {@code Column}
          *  evaluated on a row ({@code $rel->columns()}, typed {@code Any}); a {@code ColSpec} there is a name alone. */
         public static final String READ = PKG + "read";
+        /** Error function {@code erf(x) = (2 / sqrt(pi)) * integral_0^x exp(-t^2) dt} (S308):
+         *  lowers to {@code SqlFn.ERF} (native {@code erf} on Postgres 16+ and ClickHouse;
+         *  {@code 2 * normal_cdf(0, 0.7071067811865475, CAST(x AS DOUBLE)) - 1} on Trino;
+         *  Sun {@code fdlibm} / Cody 1969 IEEE-754 rational minimax elsewhere). */
+        public static final String ERF = PKG + "erf";
 
         private Lite() {
         }
@@ -736,22 +741,24 @@ public final class Pure {
                     liteLocalName(Lite.UPDATE),
                     liteLocalName(Lite.MERGE),
                     liteLocalName(Lite.WITHOUT),
-                    liteLocalName(Lite.READ));
+                    liteLocalName(Lite.READ),
+                    liteLocalName(Lite.ERF));
 
     /** The same surface by FUNCTION ID: each bare name ({@link #LITE_SURFACE}) and the lite overloads it stands for,
      *  the catalog's generated AT_ groups. EngineHandlers adds them to the engine surface, joined by id like the
      *  engine's own rows. A method, not a field: the AT_ groups are initialized after this point in the class. */
     public static java.util.Map<String, List<com.legend.model.FunctionId>> liteSurfaceFunctions() {
-        return java.util.Map.of(
-                liteLocalName(Lite.NAVIGATE), AT_LEGEND_LITE_NAVIGATE,
-                liteLocalName(Lite.SOURCE_URL), AT_LEGEND_LITE_SOURCE_URL,
-                liteLocalName(Lite.JOIN_WITH_PREFIX), AT_LEGEND_LITE_JOIN_WITH_PREFIX,
-                liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX,
-                liteLocalName(Lite.DELETE), AT_LEGEND_LITE_DELETE,
-                liteLocalName(Lite.UPDATE), AT_LEGEND_LITE_UPDATE,
-                liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE,
-                liteLocalName(Lite.WITHOUT), AT_LEGEND_LITE_WITHOUT,
-                liteLocalName(Lite.READ), AT_LEGEND_LITE_READ);
+        return java.util.Map.ofEntries(
+                java.util.Map.entry(liteLocalName(Lite.NAVIGATE), AT_LEGEND_LITE_NAVIGATE),
+                java.util.Map.entry(liteLocalName(Lite.SOURCE_URL), AT_LEGEND_LITE_SOURCE_URL),
+                java.util.Map.entry(liteLocalName(Lite.JOIN_WITH_PREFIX), AT_LEGEND_LITE_JOIN_WITH_PREFIX),
+                java.util.Map.entry(liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX),
+                java.util.Map.entry(liteLocalName(Lite.DELETE), AT_LEGEND_LITE_DELETE),
+                java.util.Map.entry(liteLocalName(Lite.UPDATE), AT_LEGEND_LITE_UPDATE),
+                java.util.Map.entry(liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE),
+                java.util.Map.entry(liteLocalName(Lite.WITHOUT), AT_LEGEND_LITE_WITHOUT),
+                java.util.Map.entry(liteLocalName(Lite.READ), AT_LEGEND_LITE_READ),
+                java.util.Map.entry(liteLocalName(Lite.ERF), AT_LEGEND_LITE_ERF));
     }
 
     /** Every registered native in the lite-internal package — the
@@ -1246,6 +1253,8 @@ public final class Pure {
     // of the contract (identity/primitive/collection/model-defined equality).
     public static final NativeFunctionDefinition EQUAL__ANY_MANY__ANY_MANY = signature("native function meta::pure::functions::boolean::equal(left:meta::pure::metamodel::type::Any[*], right:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EQ__ANY_1__ANY_1 = signature("native function meta::pure::functions::boolean::eq(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    // erf (Lite.ERF, lite surface): Gaussian error function erf(x) = (2/sqrt(pi)) * int_0^x exp(-t^2) dt
+    public static final NativeFunctionDefinition ERF__NUMBER_1 = signature("native function meta::legend::lite::erf(x:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     // Identity (pointer equality) — real pure essential/boolean/equality/
     // is.pure:23 (<<PCT.platformOnly>>). NO SQL lowering: the assertIs
     // K-arm adjudicates identity in World 1 for statically-identified
@@ -2662,6 +2671,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DELETE_INSTANCES = com.legend.model.FunctionId.ofAll(DELETE_INSTANCES__RELATION_1__CLASS_1__COL_SPEC_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIVIDE_ROUND = com.legend.model.FunctionId.ofAll(DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ERF = com.legend.model.FunctionId.ofAll(ERF__NUMBER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN_EQUAL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_COMPUTED_KEYS = com.legend.model.FunctionId.ofAll(GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);

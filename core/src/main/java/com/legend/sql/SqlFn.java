@@ -57,7 +57,7 @@ public enum SqlFn {
     LIST_FLATTEN,
     JSON_MERGE_PATCH,   // json_merge_patch(obj, patch) — null patch keys DROP (RFC 7386)
     // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
-    SQRT, CBRT, EXP, LN, LOG10, POW, PI,
+    SQRT, CBRT, EXP, LN, LOG10, POW, PI, ERF,
     SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
     CEILING, FLOOR, ROUND, SIGN, XOR,
     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
@@ -245,7 +245,9 @@ public enum SqlFn {
                     FLOAT_TO_TEXT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
                     // the product's join of a row's cells skips a NULL part by design (Phase 3, 2026-11-17; found by
                     // MaySkipCensusTest: MariaDB, MySQL, SQLite, BigQuery and MongoDB branch or skip)
-                    CONCAT_WS));
+                    CONCAT_WS,
+                    // ErfMath expands ERF into piecewise CASE WHEN branches on non-native dialects (S308)
+                    ERF));
 
     /** Whether this function draws afresh at every place it is written -- the database's random float ({@link #RANDOM})
      *  or uuid ({@link #GUID}) -- so two places of it are two values: a value holding one is computed once, in its own

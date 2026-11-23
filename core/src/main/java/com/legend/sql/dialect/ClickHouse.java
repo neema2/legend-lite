@@ -131,6 +131,11 @@ public class ClickHouse extends AnsiSqlRenderer {
         super(LEXICON);
     }
 
+    @Override
+    protected boolean spellsErf() {
+        return true;
+    }
+
     // ==================================================================
     // Session and structure
     // ==================================================================
@@ -1942,6 +1947,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case ERF -> writer.function("erf", c.args());
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
