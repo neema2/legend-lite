@@ -51,6 +51,9 @@ final class AssertRecords {
             e = variant(ef) ? LiteWords.variantTexts(eCarried) : e;
             a = variant(af) ? LiteWords.variantTexts(aCarried) : a;
         }
+        // an enumeration side's values as its enumeration's (register S169), as the host compared them
+        e = LiteWords.enumNames(ef, af, e);
+        a = LiteWords.enumNames(af, ef, a);
         @Nullable String eClass = ef == null ? null : ef.classFqn();
         @Nullable String aClass = af == null ? null : af.classFqn();
         if (!wantEqual) {
@@ -95,7 +98,8 @@ final class AssertRecords {
             case SAME_ELEMENTS -> equality(true, report.want(), e, a, variant(report.e()) ? e : List.of(),
                     variant(report.a()) ? a : List.of(), report.e(), report.a());
             case IS_NOT -> negated("IS_NOT", e, a);
-            case EQ -> notEq(e.isEmpty() ? null : e.get(0), a.isEmpty() ? null : a.get(0), eClass, aClass,
+            case EQ -> notEq(e.isEmpty() ? null : LiteWords.enumNames(report.e(), report.a(), e).get(0),
+                    a.isEmpty() ? null : LiteWords.enumNames(report.a(), report.e(), a).get(0), eClass, aClass,
                     report.e() == null ? null : report.e().declared(), report.a() == null ? null : report.a().declared());
             case CONDITION -> condition(report.want());
             case SIZE -> report.want() ? size(row.get(1), ((Number) row.get(2)).longValue())
@@ -190,7 +194,10 @@ final class AssertRecords {
     private static List<Object> untagged(List<Object> structs) {
         List<Object> out = new java.util.ArrayList<>(structs.size());
         for (Object s : structs) {
-            java.util.Map<?, ?> m = (java.util.Map<?, ?>) s;
+            if (!(s instanceof java.util.Map<?, ?> m)) {
+                // (the final audit of c758fe95: a raw ClassCastException; a pair planned tagged reads tagged values)
+                throw new IllegalStateException("a tagged side's value carries no kind: " + s.getClass().getSimpleName());
+            }
             out.add(m.get("v" + m.get("k")));
         }
         return out;

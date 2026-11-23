@@ -445,6 +445,7 @@ class AssertBarTest {
             Class p::K { <<equality.Key>> id: Integer[1]; <<equality.Key>> at: DateTime[1]; note: String[1]; }
             Class p::KN { <<equality.Key>> k: p::K[1]; <<equality.Key>> f: Float[1]; }
             Class p::N { name: String[1]; }
+            Enum p::E { A, B }
             ###Relational
             Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER) Table U (ID INTEGER PRIMARY KEY, E DECIMAL(10,2)) )
             ###Mapping
@@ -615,6 +616,10 @@ class AssertBarTest {
             "{|assertEquals([1, 'a'], [1, 'b'])}", "{|assertJsonStringsEqual('{\"a\":1}', '{\"a\":2}')}",
             "{|[1, 2]->forAll(i | assertEquals(1, $i))}",
             "{|assertEquals('1'->fromJson(), 2)}",
+            // two primitives of different kinds, and an enumeration against its name's String (the final audit of
+            // c758fe95: the database judge's cross-kind gate had failed with a planned sentence and no record)
+            "{|assertEquals('1', 1)}", "{|assertSameElements(['1'], [1])}", "{|assertEq(true, 1)}",
+            "{|assertEquals(p::E.A, 'A')}",
             "{|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue,"
                     + " []).values, [1, 3])}");
 
@@ -965,7 +970,13 @@ class AssertBarTest {
                 "{|assert(['1'->fromJson(), '1'->fromJson()]->distinct()->size() == 2)}",
                 "{|assert(['1'->fromJson(), '2'->fromJson()]->isDistinct())}",
                 "{|assert(['1'->fromJson()]->union(['1'->fromJson()])->size() == 2)}",
-                "{|assert([1, 2]->removeDuplicatesBy(x | '1'->fromJson())->size() == 2)}")) {
+                "{|assert([1, 2]->removeDuplicatesBy(x | '1'->fromJson())->size() == 2)}",
+                // a Variant reached through any expression typed Any, and one held in a Pair or a List (the final audit
+                // of c758fe95: only casts, literals and concatenations had been read)
+                "{|assert(if(true, |'1'->fromJson(), |2) == 1)}", "{|assert(['1'->fromJson(), 2]->filter(x | true)->contains(1))}",
+                "{|assert([2]->add('1'->fromJson())->contains(1))}", "{|assertContains(['1'->fromJson(), 2]->map(x | $x), 1)}",
+                "{|assert(pair(1, '1'->fromJson()) == pair(1, 1))}", "{|assertEquals(list(['1'->fromJson()]), list([1]))}",
+                "{|assertEquals(1, ['1'->fromJson(), 2]->filter(x | true)->at(0))}")) {
             want.put(two, refused);
         }
         // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
@@ -995,6 +1006,21 @@ class AssertBarTest {
         // two empty sides are equal whatever their types (Pure's [] == []; the same audit's M1)
         want.put("{|assert('{}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
         want.put("{|assertFalse('{\"a\":1}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
+        // two primitives of different kinds: one record under every judge (the database judge's typed pair, never a
+        // planned sentence); an enumeration is never its name's String (register S169, the user's "false, matching")
+        want.put("{|assertEquals('1', 1)}", "AssertFailed: expected \"1\", got 1");
+        want.put("{|assertEquals(true, 1)}", "AssertFailed: expected true, got 1");
+        want.put("{|assertNotEquals('1', 1)}", "pass");
+        want.put("{|assertEquals(p::E.A, 'A')}", "AssertFailed: expected A, got \"A\"");
+        want.put("{|assertNotEquals(p::E.A, 'A')}", "pass");
+        want.put("{|assertEq(p::E.A, 'A')}", "AssertFailed: expected A, got \"A\"");
+        want.put("{|assertEquals([p::E.A, p::E.B], [p::E.A, p::E.B])}", "pass");
+        // a multiset of enumerations sorts them (the host's sort had no order for them: legend-engine's corpus on H2)
+        want.put("{|assertSameElements([p::E.A, p::E.B], [p::E.B, p::E.A])}", "pass");
+        // a list literal holding both days and date-times: its days cannot be told apart in the database (S399)
+        String mixedDays = "NotImplementedException: a list literal holding both days and date-times is not compared";
+        want.put("{|assertContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)}", mixedDays);
+        want.put("{|assertEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])}", mixedDays);
         // a Variant's membership among values of other types: the host's answer; the database judge has no typed form
         // for it, refused by name (recorded, register S401)
         String noTypedForm = "AssertFailed: assertNotContains: UNJUDGED in database mode";

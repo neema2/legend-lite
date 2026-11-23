@@ -95,10 +95,16 @@ final class InstanceEquality {
     /** The claimed lowering, or null for an unclaimable shape. */
     static @com.legend.base.Nullable SqlExpr lower(TypedNativeCall n,
             Function<Type, com.legend.compiler.element
-                    .@com.legend.base.Nullable EqualityKeys> keysOf,
+                    .@com.legend.base.Nullable EqualityKeys> keysOfModel,
             Function<Type, SqlType> sqlTypeOf,
             Function<TypedSpec, SqlExpr> scalar,
             Supplier<String> freshVar) {
+        // a key declared Variant: comparing two such objects compares their Variants (register S401), refused by name
+        Function<Type, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys> keysOf = t -> {
+            com.legend.compiler.element.EqualityKeys k = keysOfModel.apply(t);
+            com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(k);
+            return k;
+        };
         String callee = n.callee().qualifiedName();
         if (EQUAL.equals(callee) && (instanceFqn(n.args().get(0)) == null || instanceFqn(n.args().get(1)) == null)) {
             return collectionsEqual(n, keysOf, sqlTypeOf, scalar, freshVar);

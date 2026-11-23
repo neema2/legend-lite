@@ -341,8 +341,8 @@ final class HostJudgments {
     static List<List<Object>> asEqualSees(HostJudgment.Keys keys, HostJudgment.SideFacts ef, HostJudgment.SideFacts af,
             List<Object> eRaw, List<Object> aRaw) {
         // (a Variant cast to Any is a Variant in its facts, read at planning: JudgmentFacts.sideType)
-        List<Object> e = structuredSide(ef, eRaw);
-        List<Object> a = structuredSide(af, aRaw);
+        List<Object> e = LiteWords.enumNames(ef, af, structuredSide(ef, eRaw));
+        List<Object> a = LiteWords.enumNames(af, ef, structuredSide(af, aRaw));
         var ik = restrictKeys(keys, ef, af, e, a);
         return ik == null ? List.of(e, a) : List.of(restrictToKeys(e, ik, keys), restrictToKeys(a, ik, keys));
     }
@@ -566,8 +566,8 @@ final class HostJudgments {
     private static TypedSide eqOf(HostJudgment.Eq j, List<TypedSide> pair, HostRules rules, BodyRun run) {
         SideFetch ef = sideCanonOf(pair.get(0));
         SideFetch af = sideCanonOf(pair.get(1));
-        Object ee = com.legend.testexec.AssertRuns.one(ef.values(), "assertEq expected");
-        Object aa = com.legend.testexec.AssertRuns.one(af.values(), "assertEq actual");
+        Object ee = AssertRuns.one(LiteWords.enumNames(j.e(), j.a(), ef.values()), "assertEq expected");
+        Object aa = AssertRuns.one(LiteWords.enumNames(j.a(), j.e(), af.values()), "assertEq actual");
         // eq's non-primitive identity rule throws LOUD here (P2-5); a primitive under its side's declared kind where that
         // is numeric, as assertEquals' typedSide reads it (PR #118 fix round, 2026-11-18, G2)
         com.legend.error.ErrorRecord d = com.legend.testexec.PureAsserts.eqHolds(ee, j.e().declared(), aa, j.a().declared(), rules) ? null

@@ -835,5 +835,82 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
 - **The pins re-measured** (`bazel run //pct:update_ratchets`, shrinks): judge statements essential 477 -> 476 (the
   fusing); judge characters, all five suites, 28.3M -> 2.7M (essential 7,196,265 -> 918,746, grammar 2,506,526 ->
   389,012, relation 5,770,627 -> 631,211, standard 12,410,457 -> 721,186, unclassified 408,592 -> 80,145); the plans'
-  JSON likewise. How much of the drop is item 3's (the sentence SQL deleted in S4 step 4), and how much main's since the
-  pins were set on 2026-11-19, is measured by the generator on main (below).
+  JSON likewise. Measured on main (2942e983) by the same generator: main is its pins exactly (1,019 statements,
+  28,292,467 characters, 145,504,972 of plan JSON), so the whole drop is item 3's -- the sentence SQL deleted in S4
+  step 4: characters -90% (28.3M -> 2.7M), plan JSON -60% (145.5M -> 57.5M), statements 1,019 -> 1,018. The pins had
+  not gone stale on main; they diverged on this branch, where no lane held them.
+
+## The final audit of c758fe95 fixed (2026-11-23)
+
+- **The audit** (the whole item at c758fe95, a reviewer that wrote none of it; about 260 judge bodies x 3 databases x 3
+  judges, and product queries): HIGH 3, MEDIUM 4, LOW 3. Re-run with the auditor's own probe kit on a javac build of the
+  fix: the judges' disagreements across its thirteen batches went 54 -> 5, and every body that moved moved as intended.
+  The 5 left are pre-existing and not item 3's: DuckDB's binder error in a message lambda (`[1]->at(5)`, 4) and
+  DuckDB's nanosecond range (S181, 1), each a database error the two judges word differently.
+- **H1 (S401 read from shapes only):** `VariantEquality.seen` now follows every expression typed `Any` to its inputs
+  (an `if`'s branches, `first`/`at`/`filter`/`add`/`map`/`concatenate`, a property read off an object literal; a
+  Boolean input contributes none). A `Pair`, `List` or `Map` holding a Variant, and a keyed class whose equality key is
+  declared Variant (`refuseVariantKeys`, in the product's `InstanceEquality.lower` and the judges' key trees), are
+  refused by name. Every product probe the audit ran now answers false or is refused, the same on all three databases.
+  Still recorded in S401: an `Any` that comes from a variable or a stored property.
+- **H2 (a planned sentence):** two primitives of different kinds pass the database judge's kind gate to the typed pair,
+  so the failure is the host's record under both judges ("expected "1", got 1"); the gate's `Verdicts.fail(String)`
+  sentence is deleted. `AssertBarTest`'s `FAILING` list gains the cross-kind pairs, so the one-catalog guards see them.
+- **H3 (a day in a list of date-times):** a list literal holding both days and date-times reaches DuckDB and H2 as one
+  array of date-times, so neither judge can tell its days apart: refused by name at planning under both judges
+  (`JudgmentFacts.refuseMixedDays`, S399).
+- **M1:** the record writer's raw cast is a named failure; the audit's two inputs are now refused at planning.
+- **M2 (enum against its name's String; register S169, "false, matching"):** an enumeration's value rides the host as
+  `LiteWords.EnumName`, a value of its own kind like a Variant's (`LiteWords.Kinded`), so the host no longer calls
+  `t::E.A` the String 'A'. Both judges write one record ("expected A, got "A""). An enum cast to `Any` keeps its kind
+  (`VariantEquality.sideType`). Its membership against a String has no typed form under the database judge (refused
+  by name, where main had compared the name).
+- **M3:** the S398 row (the assert words, Q15 = A, temporary until B2) is written, with DIFFERENCES entry 17. S399's
+  DuckDB per-assert nanosecond clause: accepted as interim by the user 2026-11-23 ("Accept the nanosecond clause as
+  interim"), to be asked again when the product's == decides every assert.
+- **M4:** `JudgmentFacts` pinned in `JavaEvalLedgerTest` at its measured 356 stripped lines, shrink-only. Its growth over
+  item 3 (225 -> 484 raw lines) was accepted by the user 2026-11-23 ("Accept ... judgement growth"). DatabaseJudge
+  843 -> 838 (a shrink).
+- **L1:** stale javadoc rewritten or removed (`VerdictSql`'s class and `MESSAGE`, two orphaned javadocs, `Verdicts.fail`,
+  `Equality`); the rules-of-record's first-application note now says S401 replaced the Variant equality. L2 (H2's
+  JSON-null record pinned as a disagreement) awaits its ruling. L3 (a membership record drops number kinds) is open,
+  recorded here.
+- **The wide round on these fixes found two false positives, both fixed** (the corpus caught them; a re-record was
+  avoided by reading the roster diff's direction twice): (1) the Variant-key refusal sat in the host's key-tree
+  planning, which also enumerates every keyed class an `Any` slot may hold, so one keyed class with a Variant key in a
+  model refused every Pair with an `Any` member -- 18 legend-engine corpus tests (selfJoin, 17 debugPrint) went from
+  PASS to refused; the refusal now reads the two sides' own classes alone. (2) The enum rule wrapped an enumeration
+  against any String-carried value, so a table's cell typed `Any` holding the enumeration by its name (Pure: the
+  enumeration) failed -- 7 corpus tests (the enum mappings, testAggToManyWithFilter); an enumeration is now its own kind
+  only against a side whose kind is known to be a String or an enumeration, never against an `Any` the plan cannot
+  see. Also: a name cut the identity guardrail counted (LiteWords now asks `PureAsserts.bare`), and
+  `Verdicts.fail(String)`, left with the edge's SQL-text referee as its one caller, moved there (Verdicts 80 -> 77, a
+  shrink).
+- **The design review** (read-only, independent, 2026-11-23, on the user's worry "we still did not make assert part of
+  platform"): item 3 met its goal (records in one catalog, typed values, the database deciding), but the database judge
+  still decides with its own comparison layer (`VerdictSql`) beside the product's `==`, so Pure's equality lives in three
+  places and nearly every audit finding was two of them disagreeing; measured: `assert(1 == 1.0)` passes while
+  `assertEquals(1, 1.0)` fails. Its recommendation, taken for the landing: land item 3, state the split plainly, and
+  freeze `VerdictSql` -- pinned shrink-only in `JavaEvalLedgerTest` (2286 stripped lines) -- until a "one equality" item
+  makes the product's `==` decide every assert. The order against the rest of stage B is the user's call (posted).
+
+## The user's rulings at landing, and what comes next (2026-11-23)
+
+- "Accept the nanosecond clause as interim and judgement growth; go with measure then B3": S399's DuckDB per-assert
+  nanosecond clause accepted as interim; JudgmentFacts' growth over item 3 accepted (pinned shrink-only); item 3 lands
+  first, with the assert-versus-`==` split stated and `VerdictSql` frozen.
+- Next, in order: (1) measure -- each assert body against the product's own `==` (`assert(<Pure's body>)`) per database,
+  how many product answers a Pure-kinded `==` would move -- and the user's ruling on the query `==`'s semantics (number
+  kinds S127, enumeration against String S169, day against date-time S399); (2) B3, built around `==` as its first door
+  rewrite (legend-engine's audience keeps legend-engine's meaning), with B3's other strands: the referee and appeal
+  runs out of the test plans into the edge (the SQL-text and plan-text goldens' Java join, Q-S7a's carve-out; the
+  appeal prose `Appeal.contract`, `EngineTextJudgment.decline`, `Failure.unjudgedReason`), one host rulebook (the
+  mixed-run hazard, ruled option 4 on the condition "as long as we actually get to b3"), the corpus door's rewrites at
+  planning (testToSqlGenerationFirstDayOfWeek's held appeal); (3) the asserts switched to the product's `==` and
+  `VerdictSql`'s comparison layer deleted. B2 runs in parallel.
+- **For B2, the product's Float text (the user, 2026-11-23: "I think we do it as 2.0 don't users expect float to print
+  as decimals always"):** Q10 (2026-11-10: 6 decimals, trailing zeros and a trailing `.` trimmed) amended so a whole
+  Float keeps one decimal digit -- trailing zeros trimmed down to one place: `2.0`, `1.5`, `0.3`, `0.333333`, `0.0` below
+  0.0000005 -- one rule for scalars and tables (the 2026-11-19 table ruling's `2.0`). Measured today on DuckDB, H2 and
+  SQLite: `(2.0 * 1.0)->toString()` prints `2`. B2 changes the printer (`SqlFn.FLOAT_SHORTEST_TEXT`'s decomposition,
+  per dialect) and re-records what moves.

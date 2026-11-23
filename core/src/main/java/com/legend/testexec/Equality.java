@@ -145,8 +145,9 @@ public final class Equality {
         // a Variant is never the same as a String, a number or a Boolean of the same text (Pure's classifier is part of
         // the value; the audit of c2217801, 2026-11-23); two Variants are refused at planning (register S401, ruled by
         // the user 2026-11-23: legend-pure's identity), so two Variant values never meet here
-        if (e == null || a == null || e instanceof LiteWords.VariantText || a instanceof LiteWords.VariantText) {
-            return e == null && a == null;
+        // (an enumeration's value likewise, carried as its enumeration and name: LiteWords.EnumName, register S169)
+        if (e == null || a == null || e instanceof LiteWords.Kinded || a instanceof LiteWords.Kinded) {
+            return e == null && a == null || e instanceof LiteWords.Kinded && e.equals(a);
         }
         if ((e instanceof Map<?, ?> || e instanceof List<?>)
                 && (a instanceof Map<?, ?> || a instanceof List<?>)) {
@@ -311,7 +312,7 @@ public final class Equality {
             case Boolean b -> 3;
             case com.legend.values.PureDateLiteral d -> 4;
             case Map<?, ?> m -> 5;
-            case LiteWords.VariantText j -> 6;
+            case LiteWords.Kinded k -> 6;   // a Variant's JSON, an enumeration's value (S401, S169)
             default -> throw new Unjudged("sort over " + v.getClass().getName());
         };
     }
@@ -324,7 +325,7 @@ public final class Equality {
             case String s -> s;
             case Boolean b -> b;
             case com.legend.values.PureDateLiteral d -> d.toInstantFloor();
-            case LiteWords.VariantText j -> j.json();
+            case LiteWords.Kinded k -> k.sortKey();   // equal values sort together (LiteWords.Kinded)
             default -> "";   // instances and maps: no order of their own (sameElements matches them)
         };
     }

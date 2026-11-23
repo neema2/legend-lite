@@ -80,7 +80,7 @@ public final class PureAsserts {
 
     private static boolean isNonPrimitive(@com.legend.base.Nullable Object v) {
         return v != null && !(v instanceof Number || v instanceof String
-                || v instanceof Boolean || isTemporal(v));
+                || v instanceof Boolean || v instanceof LiteWords.Kinded || isTemporal(v));
     }
 
     /** The m3 primitive path ({@code meta::pure::metamodel::type::Integer}) as its bare spelling, which names the same

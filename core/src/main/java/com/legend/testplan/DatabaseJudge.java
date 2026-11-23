@@ -78,16 +78,10 @@ public final class DatabaseJudge {
                 && com.legend.compiler.element.type.Type.isRelation(aSpec.info().type());
         // register S401: refused by name where only identity decides; a Variant against values of other types alone
         // is the typed pair's (the same only where both are empty, JudgmentFacts.typedPair), never the kind gate's
+        // two primitives of different kinds (X4: never equal, S127) are the typed pair's too, its record the host's (the
+        // final audit of c758fe95: a sentence planned here had been the one failure no record carried)
         if (ke != null && ka != null && !anyNil && !anyAny && !bothGrids && !ke.equals(ka)
-                && !JudgmentFacts.variantDisjoint(eSpec, aSpec)) {
-            if (ke.primitive() && ka.primitive()) {
-                // X4: the engine has no cross-kind PRIMITIVE equality — a
-                // VERDICT (false), decided statically, the one comparison SQL
-                // never sees
-                staticallyDecided(env);
-                return wantEqual ? com.legend.testexecutionplan.Verdicts.fail(name + ": kinds differ (" + AssertVerdicts.typeName(eSpec)
-                        + " vs " + AssertVerdicts.typeName(aSpec) + ")") : com.legend.testexecutionplan.Verdicts.ok();
-            }
+                && !JudgmentFacts.variantDisjoint(eSpec, aSpec) && !(ke.primitive() && ka.primitive())) {
             // a class / generic side's static class is a declaration, not
             // the value's kind (a supertype stamp over equal instances):
             // leg 3.2's instance canon decides; unjudged until then

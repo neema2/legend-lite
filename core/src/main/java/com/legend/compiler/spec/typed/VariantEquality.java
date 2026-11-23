@@ -29,8 +29,14 @@ public final class VariantEquality {
         DISJOINT
     }
 
-    /** The types {@code s}'s values are seen to have: its own; through a cast to Any, the cast value's; a collection
-     *  literal's or a concatenation's, its members'. An empty literal contributes none. */
+    /** The types {@code s}'s values are seen to have: its own; where it is typed Any, its inputs' -- a cast's source, a
+     *  collection literal's members, an if's branches, a collection function's list and values ({@code first}, {@code
+     *  at}, {@code filter}, {@code add}, {@code concatenate}), a map's body -- each read the same way (a Boolean input, a
+     *  condition or a predicate, contributes none); a property read off an object literal, the value it was given; an
+     *  Any whose values come from nowhere the plan holds (a variable, a stored property), itself. An empty literal
+     *  contributes none. (The final audit of c758fe95, 2026-11-23: reading only casts, literals and concatenations
+     *  let {@code [fromJson('1'), 2]->first()} and {@code if(c, |fromJson('1'), |2)} reach the database's own
+     *  equality.) */
     public static Set<Type> seen(TypedSpec s) {
         Set<Type> out = new LinkedHashSet<>();
         collect(s, out);
@@ -38,23 +44,47 @@ public final class VariantEquality {
     }
 
     private static void collect(TypedSpec s, Set<Type> out) {
-        if (s instanceof TypedCast c && PlatformTypes.isAny(s.info().type())) {
-            collect(c.source(), out);
-        } else if (s instanceof TypedCollection tc) {
+        Type t = s.info().type();
+        if (s instanceof TypedCollection tc) {
             tc.elements().forEach(e -> collect(e, out));
-        } else if (s instanceof TypedNativeCall n
-                && com.legend.builtin.Pure.AT_COLLECTION_CONCATENATE.contains(n.callee().id())) {
-            n.args().forEach(a -> collect(a, out));
-        } else if (!PlatformTypes.isNil(s.info().type())) {
-            out.add(s.info().type());
+        } else if (s instanceof TypedLambda l) {
+            if (!l.body().isEmpty()) {
+                collect(l.body().get(l.body().size() - 1), out);
+            }
+        } else if (PlatformTypes.isAny(t) && s instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedNewInstance ni && ni.properties().get(pa.property()) != null) {
+            collect(ni.properties().get(pa.property()), out);
+        } else if (PlatformTypes.isAny(t) && !(s instanceof TypedPropertyAccess) && !s.children().isEmpty()) {
+            for (TypedSpec c : s.children()) {
+                if (!condition(c)) {
+                    collect(c, out);
+                }
+            }
+        } else if (!PlatformTypes.isNil(t)) {
+            out.add(t);
         }
     }
 
-    /** A side's one type for the judges' facts: the Variant an Any side is seen to be, else its declared type. */
+    /** A Boolean input: a condition or a predicate, never a value an Any passes on. */
+    private static boolean condition(TypedSpec c) {
+        TypedSpec v = c instanceof TypedLambda l && !l.body().isEmpty() ? l.body().get(l.body().size() - 1) : c;
+        return v.info().type() == Type.Primitive.BOOLEAN;
+    }
+
+    /** Whether {@code t} holds a Variant: is one, or a generic type (a Pair, a List, a Map) one of whose arguments
+     *  does -- comparing two such values compares their Variants. */
+    public static boolean holdsVariant(Type t) {
+        return PlatformTypes.isVariant(t)
+                || t instanceof Type.GenericType g && g.arguments().stream().anyMatch(VariantEquality::holdsVariant);
+    }
+
+    /** A side's one type for the judges' facts: the Variant, or the enumeration, an Any side is seen to be (a value of
+     *  a kind of its own, never a String of its text: S401, S169), else its declared type. */
     public static Type sideType(TypedSpec s) {
         Set<Type> seen = seen(s);
-        return PlatformTypes.isAny(s.info().type()) && seen.size() == 1
-                && PlatformTypes.isVariant(seen.iterator().next()) ? seen.iterator().next() : s.info().type();
+        Type one = seen.size() == 1 ? seen.iterator().next() : null;
+        return PlatformTypes.isAny(s.info().type()) && one != null
+                && (PlatformTypes.isVariant(one) || one instanceof Type.EnumType) ? one : s.info().type();
     }
 
     /** An equality between {@code a}'s values and {@code b}'s: refused by name where only identity decides, DISJOINT
@@ -62,6 +92,10 @@ public final class VariantEquality {
     public static Verdict between(TypedSpec a, TypedSpec b) {
         Set<Type> sa = seen(a);
         Set<Type> sb = seen(b);
+        if (sa.stream().anyMatch(VariantEquality::nestedVariant) || sb.stream().anyMatch(VariantEquality::nestedVariant)) {
+            // a Pair, a List or a Map holding a Variant: comparing it compares the Variant within
+            throw refused();
+        }
         boolean va = sa.stream().anyMatch(PlatformTypes::isVariant);
         boolean vb = sb.stream().anyMatch(PlatformTypes::isVariant);
         if (!va && !vb) {
@@ -83,11 +117,29 @@ public final class VariantEquality {
         return Verdict.DISJOINT;
     }
 
+    private static boolean nestedVariant(Type t) {
+        return !PlatformTypes.isVariant(t) && holdsVariant(t);
+    }
+
+    /** A keyed class whose equality keys hold a Variant (a key declared Variant, or a nested key's): comparing two of
+     *  its objects compares the Variants, refused by name. */
+    public static void refuseVariantKeys(com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
+        if (keys == null) {
+            return;
+        }
+        for (com.legend.compiler.element.EqualityKeys.Key k : keys.keys()) {
+            if (k.declaredClass() != null && PlatformTypes.isVariant(new Type.ClassType(k.declaredClass()))) {
+                throw refused();
+            }
+            refuseVariantKeys(k.nested());
+        }
+    }
+
     /** Comparisons among one collection's own values (removeDuplicates, distinct, isDistinct, union, a dedup's key):
      *  refused by name where a Variant is seen among them. */
     public static void refuseAmong(TypedSpec values) {
         Set<Type> seen = seen(values);
-        if (seen.stream().anyMatch(PlatformTypes::isVariant)) {
+        if (seen.stream().anyMatch(VariantEquality::holdsVariant)) {
             throw refused();
         }
     }

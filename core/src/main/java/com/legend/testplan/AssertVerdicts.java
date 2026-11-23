@@ -1573,18 +1573,6 @@ public final class AssertVerdicts {
         return DatabaseJudge.ARM;
     }
 
-    /** DATABASE mode (leg 3.1, docs/DATABASE_MODE_HOMEWORK §4b): both
-     * sides are PLANNED (never executed on their own), composed by
-     * {@link com.legend.lowering.VerdictSql} into ONE statement, and the
-     * database returns the verdict row: {@code __verdict} (never NULL),
-     * the two framed canons as the evidence, and {@code __unjudged} when
-     * the statement could not decide. A side the wrap declines, a
-     * non-SQL side, a grid side (3.1b), a multi-candidate Number side or
-     * an enum on the literal channel is UNJUDGED — the assert FAILS with
-     * the reason and the census counts it; no host judgment is consulted. */
-    /** A grid side's statement facts from its schema: the declared-Float
-     * columns (the 2-ULP leniency) and, under toCSV's grammar, the String
-     * columns whose empty cell and NULL print alike. */
     /** A grid side's schema by EFFECTIVE kind (a Number over a DOUBLE wire is a Float). */
     static com.legend.compiler.element.type.Type.@com.legend.base.Nullable RelationType effectiveSchema(
             BodyDriver.WrappedSide side) {

@@ -63,13 +63,6 @@ public final class Verdicts {
         throw new com.legend.error.AssertFailed(failure);
     }
 
-    /** A failure worded elsewhere, not yet a record: the database judge's verdict row and its declines until item 3's
-     *  S4, and the compatibility edge's appeal path (B3's). The host judge raises records ({@link #fail(
-     *  com.legend.error.ErrorRecord)}). */
-    public static TypedSide fail(String message) {
-        // the seam: verdicts speak the platform vocabulary
-        throw new com.legend.error.AssertFailed(message);
-    }
 
 
 

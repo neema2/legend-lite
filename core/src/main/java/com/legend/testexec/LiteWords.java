@@ -54,13 +54,53 @@ public final class LiteWords {
             case PureDateLiteral d -> dateText(d);
             case List<?> l -> values(l, instanceClass);
             case VariantText vt -> vt.json();
+            case EnumName en -> en.name();
             default -> throw new com.legend.error.NotImplementedException(
                     "lite's message text for " + v.getClass().getName() + " is not modeled");
         };
     }
 
+    /** A value of a kind of its own: equal only to a value of its own kind and text, never to a String, a number or a
+     *  Boolean of the same text ({@code Equality.same}). */
+    public sealed interface Kinded permits VariantText, EnumName {
+        /** The value's place in a multiset's sort: equal values share it (never printed). */
+        String sortKey();
+    }
+
     /** A Variant's value in a record: its JSON text, written as JSON (never a quoted String). */
-    public record VariantText(String json) {
+    public record VariantText(String json) implements Kinded {
+        @Override
+        public String sortKey() {
+            return json;
+        }
+    }
+
+    /** An enumeration's value, carried as its name: its enumeration and its name, never its name's String (register
+     *  S169, retired by the user's ruling "false, matching"; the final audit of c758fe95, 2026-11-23: the host had
+     *  called {@code t::E.A} the String 'A'). Written as its name. */
+    public record EnumName(String enumeration, String name) implements Kinded {
+        @Override
+        public String sortKey() {
+            return enumeration.concat(name);
+        }
+    }
+
+    /** An enumeration side's values as both judges carry them, each an {@link EnumName}, where the other side's kind is
+     *  known to be a String or an enumeration -- never against a side typed Any, which may hold the enumeration carried
+     *  by its name (a table's cell: legend-engine's corpus asserts it equal, as Pure does; the corpus run of the final
+     *  audit's fixes, 2026-11-23); any other side's as they are. */
+    public static List<Object> enumNames(com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts side,
+            com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts other, List<Object> carried) {
+        if (side == null || !(side.kind() instanceof com.legend.testexecutionplan.KindClass.Enum en) || other == null
+                || !(other.kind() == com.legend.testexecutionplan.KindClass.Primitive.STRING
+                        || other.kind() instanceof com.legend.testexecutionplan.KindClass.Enum)) {
+            return carried;
+        }
+        List<Object> out = new java.util.ArrayList<>(carried.size());
+        for (Object v : carried) {
+            out.add(v instanceof String s ? new EnumName(en.fqn(), s) : v);
+        }
+        return out;
     }
 
     /** A Variant side's values as both judges carry them, each its JSON text; a NULL there is JSON {@code null} (a
@@ -158,6 +198,7 @@ public final class LiteWords {
             case Boolean b -> "Boolean";
             case PureDateLiteral d -> d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? "DateTime"
                     : d.precision().atLeast(PureDateLiteral.Precision.DAY) ? "StrictDate" : "Date";
+            case EnumName en -> en.enumeration();   // its path: two enumerations' values of one name told apart
             case VariantText vt -> "Variant";
             case Map<?, ?> m -> m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE) instanceof String t ? t
                     : instanceClass == null ? "Any" : instanceClass;

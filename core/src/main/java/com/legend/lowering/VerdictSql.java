@@ -20,29 +20,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * DATABASE-MODE JUDGING, leg 3.1 (docs/DATABASE_MODE_HOMEWORK_2026_09_18.md
- * §4b): ONE statement decides an equality assert. Both sides are the
- * canon-wrapped side plans the verdict lane already lowers
- * ({@link CanonicalRenderSql#wrapWithCanon}); this class composes them
- * into
- *
- * <pre>
- * WITH __e AS (SELECT canon AS __c, row_number() OVER () AS __rn FROM (e) w),
- *      __a AS (...)
- * SELECT (frame(__e) IS NOT DISTINCT FROM frame(__a)) AS __verdict,
- *        frame(__e) AS __expected, frame(__a) AS __actual,
- *        CASE WHEN a null canon cell THEN 'null-canon-cell' END AS __unjudged
- * </pre>
- *
- * where {@code frame} is CANONICAL_FORM_SPEC's side framing in SQL — the
- * same rule {@code AssertVerdicts.frame} applied in Java: no element
- * {@code '[]'}, one element its bare text, many {@code '[a, b]'} in the
- * side's order (arrival order for an ordered side, canon-text order for a
- * multiset side). The verdict column can never be NULL (P-19: a NULL
- * verdict read as a pass was the highest-ranked risk); the evidence
- * columns ARE the failure message; {@code __unjudged} names a shape the
- * statement could not decide, and the caller FAILS the assert with it.
- * No Java compares a value.
+ * THE DATABASE JUDGE'S STATEMENTS (item 3, 2026-11-20 to 2026-11-23): an assert's two sides, planned (never executed on
+ * their own), composed into typed verdict rows the database answers -- each side's values as typed columns, the verdict
+ * the database's comparison of them ({@code __verdict}, never NULL: P-19), a failure's values carried as typed cells
+ * for the record the host's builders write ({@code AssertRecords}), so both judges write one record from the same
+ * values (register S398's catalog). No failure sentence is planned here, and no Java compares a value. A shape with
+ * no typed form is refused by name by the planner that asked for it.
  */
 public final class VerdictSql {
 
@@ -50,9 +33,8 @@ public final class VerdictSql {
     }
 
     public static final String VERDICT = "__verdict";
-    /** The failure text the judge raises with, composed in the statement (M8b): the family's name and the two
-     *  canons each on its line, or the negated families' one sentence; computed on every row, read where the row does
-     *  not hold. */
+    /** A caller's own failure message, read where its assert fails ({@link #messageRow}): the value its lambda
+     *  computed. */
     public static final String MESSAGE = "__message";
 
     /** One canon-wrapped side: the wrapped plan, the name of the canon column that decides (one of
@@ -2604,24 +2586,6 @@ public final class VerdictSql {
         return SideOrdinal.inBranchOrder(side);
     }
 
-    /**
-     * THE VERDICT ROW SELF-CONTAINED (the test-is-the-product plan's M8b, MV2/MV3, 2026-11-01; the user's ruling of
-     * 2026-11-01, §6 "B3 as settled": an assert is one lowered statement answering holds, message, unjudged, and the
-     * plan carries nothing about the assert): {@code row}, a verdict row of the five columns, gains {@link #HOLDS} --
-     * the verdict under the assert's polarity -- and {@link #MESSAGE} -- the failure text the judge raises with, spelled
-     * exactly as the host judge spelled it from the row: the family's {@code name}, {@code \nexpected: } the expected
-     * canon, {@code \nactual:   } the actual canon (every family's two canon columns were text already -- the
-     * tolerance's numbers and the counts cast by the database before M8b too -- so the message pastes the text Java
-     * pasted; a null canon the word {@code null}, as Java spelled it), or the negated families' one sentence. The judge
-     * reads holds and message and knows no polarity. A row wrapped once: a second wrap is a loud error.
-     */
-    /** {@code row} with its expected and actual texts framed as the Strings they print (Pure's {@code %r}): the
-     *  rendered-text family, whose sides upstream compares as Strings -- a golden's text against a relation's
-     *  {@code toString} or {@code toCSV} -- while the database judge compares their rows, whose framed text is that
-     *  same text (2026-11-03: Postgres's Variant key extractions read unquoted under the database judge alone, quoted
-     *  under the host). */
-    /** {@code row} with its verdict decided false at planning (a grid pair whose schemas differ): its canons kept for
-     *  the message. */
     /** What running an assertError's function raised, as its verdict statement reads it: its message, line and column,
      *  each a value or absent (SQL NULL) -- the runner's bound parameters ({@link #bound}), or constants where the
      *  function raised while it was planned ({@link #raised}). */

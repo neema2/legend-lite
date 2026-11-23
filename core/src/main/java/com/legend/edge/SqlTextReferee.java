@@ -169,8 +169,15 @@ public final class SqlTextReferee {
     /** A text that differs from its golden, in clean mode: the assert's failure, the first difference named. */
     public static com.legend.testexecutionplan.TypedSide textsDiffer(String name, String golden, String ours,
             @com.legend.base.Nullable String decline) {
-        return com.legend.testexecutionplan.Verdicts.fail(name + " (sql-text): our text differs from the golden" + (decline != null ? " (" + decline + ")"
+        return fail(name + " (sql-text): our text differs from the golden" + (decline != null ? " (" + decline + ")"
                 : "") + ": " + firstTextDiff(golden, ours));
+    }
+
+    /** The SQL-text referee's failure, in its own words (B3's: no record in the product's catalog). Moved here from
+     *  {@code Verdicts} when the database judge's last planned sentence went and the edge was its one caller (the final
+     *  audit of c758fe95, 2026-11-23). */
+    static com.legend.testexecutionplan.TypedSide fail(String message) {
+        throw new com.legend.error.AssertFailed(message);
     }
 
     /** The engine's index-less {@code sqlRemoveFormatting($res)} over a

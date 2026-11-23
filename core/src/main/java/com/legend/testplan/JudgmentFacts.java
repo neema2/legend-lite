@@ -174,7 +174,8 @@ final class JudgmentFacts {
         // instances of ONE class -- a model class's or a Pair's -- its keys read here, at planning (a subtype pair
         // restricts by the classifiers its run carries, which the host reads)
         return ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
-                ? new TypedPair(eKind, aKind, TypedPair.Form.INSTANCES, EqualityKeys.resolve(ctx, eSpec.info().type()))
+                ? new TypedPair(eKind, aKind, TypedPair.Form.INSTANCES, variantKeysRefused(EqualityKeys.resolve(ctx,
+                        eSpec.info().type())))
                 : null;
     }
 
@@ -258,7 +259,24 @@ final class JudgmentFacts {
      *  under both judges alike, as the product refuses it ({@code VariantEquality.between}, which reads a side through
      *  its casts and its collection literal's members). */
     static com.legend.compiler.spec.typed.VariantEquality.Verdict refuseIdentityOnly(TypedSpec e, TypedSpec a) {
+        refuseMixedDays(e, a);
         return com.legend.compiler.spec.typed.VariantEquality.between(e, a);
+    }
+
+    /** Register S399 (a day is never a date-time): a list literal holding both days and date-times reaches the database
+     *  as one array of date-times (DuckDB's and H2's arrays hold one type), so neither judge can tell its days apart --
+     *  refused by name at planning, under both judges alike (the final audit of c758fe95, 2026-11-23: the host had
+     *  called a day contained in such a list). */
+    static void refuseMixedDays(TypedSpec... sides) {
+        for (TypedSpec s : sides) {
+            if (s instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                    && tc.elements().stream().anyMatch(x -> x.info().type() == Type.Primitive.STRICT_DATE)
+                    && tc.elements().stream().anyMatch(x -> x.info().type() == Type.Primitive.DATE_TIME)) {
+                throw new com.legend.error.NotImplementedException("a list literal holding both days and date-times is"
+                        + " not compared: the database carries it as one kind, so its days cannot be told apart (register"
+                        + " S399); compare the days and the date-times apart");
+            }
+        }
     }
 
     /** Whether no Variant is among either side's values (after {@link #refuseIdentityOnly}'s refusal). */
@@ -317,6 +335,12 @@ final class JudgmentFacts {
         return fqn != null ? new KindClass.Instance(fqn) : null;
     }
 
+    /** {@code k}, after register S401's refusal of a key declared Variant. */
+    private static @Nullable EqualityKeys variantKeysRefused(@Nullable EqualityKeys k) {
+        com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(k);
+        return k;
+    }
+
     /** The compiler's key tree in the plan's vocabulary. */
     static @Nullable KeyTree keyTree(@Nullable EqualityKeys k) {
         if (k == null) {
@@ -349,6 +373,10 @@ final class JudgmentFacts {
         EqualityKeys e = ef != null && (ef.equals(af) || eSubA) ? EqualityKeys.resolve(ctx, eSpec.info().type())
                 : null;
         EqualityKeys a = aSubE ? EqualityKeys.resolve(ctx, aSpec.info().type()) : null;
+        // the two sides' own classes: a key declared Variant compares their Variants (register S401) -- never the classes
+        // an Any slot may hold, read below (one keyed class with a Variant key in the model is no Pair's)
+        com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(e);
+        com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(a);
         Map<String, KeyTree> byClass = new LinkedHashMap<>();
         Set<String> seen = new java.util.HashSet<>();
         ownClassesOfTheSlots(e, ctx, byClass, seen);
