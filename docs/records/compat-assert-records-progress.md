@@ -869,7 +869,7 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
   DuckDB per-assert nanosecond clause: accepted as interim by the user 2026-11-23 ("Accept the nanosecond clause as
   interim"), to be asked again when the product's == decides every assert.
 - **M4:** `JudgmentFacts` pinned in `JavaEvalLedgerTest` at its measured 356 stripped lines, shrink-only. Its growth over
-  item 3 (225 -> 484 raw lines) was accepted by the user 2026-11-23 ("Accept ... judgement growth"). DatabaseJudge
+  item 3 (177 -> 356 stripped lines, 225 -> 512 raw) was accepted by the user 2026-11-23 ("Accept ... judgement growth"). DatabaseJudge
   843 -> 838 (a shrink).
 - **L1:** stale javadoc rewritten or removed (`VerdictSql`'s class and `MESSAGE`, two orphaned javadocs, `Verdicts.fail`,
   `Equality`); the rules-of-record's first-application note now says S401 replaced the Variant equality. L2 (H2's
@@ -883,7 +883,8 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
   against any String-carried value, so a table's cell typed `Any` holding the enumeration by its name (Pure: the
   enumeration) failed -- 7 corpus tests (the enum mappings, testAggToManyWithFilter); an enumeration is now its own kind
   only against a side whose kind is known to be a String or an enumeration, never against an `Any` the plan cannot
-  see. Also: a name cut the identity guardrail counted (LiteWords now asks `PureAsserts.bare`), and
+  see. Also: a name cut the identity guardrail counted (LiteWords now labels an enumeration by its full name,
+  `EnumName.enumeration()`, which no guardrail counts as a cut), and
   `Verdicts.fail(String)`, left with the edge's SQL-text referee as its one caller, moved there (Verdicts 80 -> 77, a
   shrink).
 - **The design review** (read-only, independent, 2026-11-23, on the user's worry "we still did not make assert part of
@@ -893,6 +894,56 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
   `assertEquals(1, 1.0)` fails. Its recommendation, taken for the landing: land item 3, state the split plainly, and
   freeze `VerdictSql` -- pinned shrink-only in `JavaEvalLedgerTest` (2286 stripped lines) -- until a "one equality" item
   makes the product's `==` decide every assert. The order against the rest of stage B is the user's call (posted).
+
+## The narrow review of f9e74256 fixed (2026-11-23)
+
+An independent reviewer read the head commit alone (read-only, probes on DuckDB, H2 and SQLite against a build of
+c758fe95). Findings and fixes:
+
+- **H1 (new in f9e74256):** `VariantEquality.seen` skipped every Boolean input, not only conditions, so an `if`'s `|true`
+  branch was dropped: `if(true, |true, |fromJson('1')) == true` answered false in the product and both judges (Pure:
+  true). The reader now reads the inputs that pass a value on and no others: an `if`'s branches (never its condition), a
+  filter's, sort's, take's or slice's list (never its predicate, key or count), a map's body with its parameter read as
+  the list's values, a native call's arguments whose declared parameter carries the call's own type variable. That side
+  is a Variant among other values, so it is refused by name (S401's rule for a mixed side) -- the database would compare
+  the Variant with the other side's value; on SQLite c758fe95 had answered `->in([true])` false.
+- **M1 (new):** an index, a count and a map's parameter had been counted as values, refusing `->at(0)`, `->take(1)` and
+  `->map(x|$x)` over Variants against a String; they answer false again, on all three databases.
+- **M2:** the mixed day/date-time refusal read only a list literal written as the side; it now reads a side as the
+  Variant rule does, and through a node typed the abstract `Date` (`VariantEquality.dateKinds`): a list read through a
+  `map` or a `filter` is refused too. A list bound by a `let` still reaches the judges as a variable: recorded in S399.
+  The first cut also read a function's arguments; round 8 caught it refusing PCT's `max`, `min`, `greatest` and `least`
+  over days and date-times (6 tests a lane), which lite answers -- a function's result keeps its own kind -- so the
+  reader stops at a function call.
+- **M3:** a Variant held in a Pair's or an object's member declared `Any` (`pair(1, fromJson('1')->cast(@Any))`, an
+  object whose `Any` key holds a Variant) had been compared by the database (true; Pure: false); refused by name now,
+  in the product and both judges (S401, DIFFERENCES 16 updated).
+- **LOW:** the host's `Equality` called two Variants with equal JSON equal (unreachable: two whole Variants are refused at
+  planning); a Variant now equals nothing there. Recorded under S169: an enumeration carried through an `Any` side that
+  holds other kinds, or a String cast to `Any` against an enumeration (the product's `==` and the judges disagree with
+  Pure, the same before f9e74256). Docs: an unrelated edit to S342's text undone; S398 no longer cites the user's remark
+  of 2026-11-21 as a ruling (the session's answer to it was a plan), and cites the user's 2026-11-23 description of B2
+  ("for compatibility- both pure and engine formatting/presentation at the final toString we use java to exactly match
+  both upstreams"); S399's product sentence corrected (the product's `==` calls a day equal to its midnight on DuckDB
+  and H2: a recorded gap, closed by the one-equality work); this record's `PureAsserts.bare` slip and JudgmentFacts'
+  raw count corrected. JudgmentFacts 356 -> 355 (a shrink).
+- Pinned in `AssertBarTest`: the `if` with a Boolean branch, `at(0)`, `take(1)` and `map` over Variants, the mixed days
+  through `map` (and `at`'s day failing as a day), the Pair and the object with a Variant in an `Any` member.
+- **The warm lanes on f9e74256** (MariaDB, MySQL, ClickHouse, Postgres, SQLite, MongoDB, Trino, H2, BigQuery, Snowflake,
+  Databricks): no verdict moved against 386db8fe or main, and no ledger row is stale (the 33 rows re-recorded hold;
+  Postgres' and MySQL's and ClickHouse's relation lanes, red on 386db8fe for their stale rows, are green). The channel B
+  reds left are main's own (MariaDB's unordered-list flake, MySQL's Decimal text, BigQuery's UNION ALL and
+  coalesce_AllEmpty rows). BigQuery's lane found one slip: the canonical instrument (`CanonicalForm`, a measurement,
+  never a verdict) had no case for an enumeration carried as its own kind, so four Standard asserts moved from agree to
+  residue (`unmodeled-kind:EnumName`); an enumeration now renders its name and a Variant its JSON there
+  (`CanonicalFormTest`). The round on that fix found its next step: `CanonicalDivergence.kindClass` had no class for
+  either, and threw once render named them -- the instrument runs inside the run, so PCT's `testDayOfWeek` and nine
+  legend-engine corpus tests (the enumeration mappings, `testInQueryWithEnum`, `testFilterOnEnum`, ...) failed on it;
+  an enumeration's class is its enumeration and a Variant's its own.
+- **CI on f9e74256:** every lane green but `windows / core`: `//core:core_tests_testplan` timed out (301.3 s of its
+  300). Item 3's `AssertBarTest` (118 -> 385 bodies, each on three databases under every judge) is 82 s of the package's
+  83 s on a Linux desk -- the ratio that made the integration package `large` on 2026-10-18; testplan is `large` too
+  (`core/BUILD.bazel`'s `_CORE_TEST_LARGE`, dated).
 
 ## The user's rulings at landing, and what comes next (2026-11-23)
 
@@ -914,3 +965,42 @@ the database judge and both, on DuckDB and H2, against the base and the new tree
   0.0000005 -- one rule for scalars and tables (the 2026-11-19 table ruling's `2.0`). Measured today on DuckDB, H2 and
   SQLite: `(2.0 * 1.0)->toString()` prints `2`. B2 changes the printer (`SqlFn.FLOAT_SHORTEST_TEXT`'s decomposition,
   per dialect) and re-records what moves.
+
+## The measurement: the asserts against their Pure bodies over the product's `==` (2026-11-23)
+
+The user's "go with measure then B3". An independent measurer (read-only; javac build of f9e74256 plus the narrow
+review's fixes) took 788 assert bodies (AssertBarTest's, the final audit's batches, 170 PCT-shaped cases), rewrote the
+694 that have a Pure body over the product's operators (`assertEquals(e, a)` -> `assert(e == a)`, `assertSameElements`
+-> sort then `==`, `assertContains` -> `contains`, tolerance -> `abs(e - a) <= abs(d)`, ...), and ran both forms under the
+host and database judges on DuckDB, H2 and SQLite (4,728 verdict pairs), plus 102 product queries.
+
+- 312 of the 694 differ on at least one database (DuckDB 219, H2 272, SQLite 207): about 170 are meaning (number kinds
+  ~50 a database, dates ~45, instances and keys ~20, grids, enumeration against String 6, other kinds, empties,
+  Variants), about 104 are gaps of the product road (H2's missing list encodings 67 and a mixed-list syntax error 21;
+  DuckDB list shapes 13; `is` not a product native; `assert(cond, msg)` inside `forAll` unplanned), about 38 are gaps of
+  the asserts (the database judge's UNJUDGED forms, the mixed-days refusal).
+- Under the rewritten form the two judges disagree on 3, 1 and 3 body-database pairs; as written, on 47, 51 and 54.
+- Product answers that would move if `==` followed the assert rules: DuckDB 56, H2 44 (and 19 errors), SQLite 36 --
+  numbers (literals and columns), dates (DuckDB and H2 call a day equal to its midnight), instances and Pairs, Variants'
+  typed reads, an enumeration column against a String (S169's engine-matching rule), `'1' == 1` (true on DuckDB and H2).
+  Three a database move AWAY from Pure: two date-times written at different precision (the product compares the
+  written text, Pure's answer; the asserts follow S399's instant) and a keyed object with keys `1.0D` and `1.00D` (the
+  product compares scale, Pure's answer; S139 ruled value).
+- The product disagrees with itself today: `[1, 2]->contains(1.0)` true but `1.0->in([1, 2])` false;
+  `['A', 'B']->indexOf(t::E.A)` 0 but `contains` false; `[] == [1, 2]->filter(x | $x > 5)` false on DuckDB and SQLite;
+  `$xs->at(0) == $xs->at(0)` over keyless instances false; `[1, 2] == [1.0, 2.0]` true on DuckDB only; a grid's `==`
+  ignores column names.
+- What the lowering lacks for one equality: kind rules inside the `==` family (one rule for `==`, `in`, `contains`,
+  `indexOf`, deduplication); one date rule; a portable list equality (scalar against list, empties, multisets, H2's
+  forms); typed-leaf instance equality on every database; grid `==`; an `is` native; a per-element message in
+  `forAll`. Estimated +1.4k to 2.3k lines in lowering, -2.5k to 3k (VerdictSql's comparison layer,
+  `JudgmentFacts.typedPair`, DatabaseJudge's equality planning), 3 to 5 slices.
+- The engine door (B3): legend-engine's `==` is the database's own equality (`pureToSQLQuery.pure` `processEquals`,
+  :8363-8445, `nullSafeEqualsOperation` for empties; it refuses a side of many values, a partial date and `fromJson`),
+  read from the source, not asked of the engine runner: its audience's door rewrites kind-ruled `==`, `!=`, `contains`
+  and `in` back to the database's comparison and refuses list `==`.
+- Posted to the user for the ruling on the query `==`'s semantics (number kinds, day against date-time, enumeration
+  against String, written precision against instant, Decimal scale in keys) before B3.
+- Outputs: the session's scratchpad `eq-measure/` (corpus.json, runs/class_table.txt, runs/direction_table.txt,
+  runs/classified.json, pq.table.txt, pq.summary.txt).
+

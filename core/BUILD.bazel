@@ -890,8 +890,11 @@ _CORE_TEST_PACKAGES = [
 # `large` (900 s); the other packages stay `medium`.
 _CORE_TEST_MEMORY_MB = 512
 
-# the packages whose run outgrew `medium`'s 300 s on CI's slowest runner (above)
-_CORE_TEST_LARGE = ["integration"]
+# the packages whose run outgrew `medium`'s 300 s on CI's slowest runner (above). 2026-11-24: testplan too -- item 3's
+# AssertBarTest (118 -> 385 bodies, each on DuckDB, H2 and SQLite under every judge; 82 s of the package's 83 s on a
+# Linux desk) timed out on CI's Windows runner at f9e74256 (core_tests_testplan, 301.3 s), the integration package's
+# ratio; it is `large` (900 s) like integration
+_CORE_TEST_LARGE = ["integration", "testplan"]
 
 _CORE_TEST_EXCLUDED_TAGS = [
     "benchmark",   # the seam measurement (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18): its own manual targets below

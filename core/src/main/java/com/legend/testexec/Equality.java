@@ -144,10 +144,11 @@ public final class Equality {
         Object a = at.value();
         // a Variant is never the same as a String, a number or a Boolean of the same text (Pure's classifier is part of
         // the value; the audit of c2217801, 2026-11-23); two Variants are refused at planning (register S401, ruled by
-        // the user 2026-11-23: legend-pure's identity), so two Variant values never meet here
-        // (an enumeration's value likewise, carried as its enumeration and name: LiteWords.EnumName, register S169)
+        // the user 2026-11-23: legend-pure's identity), so two Variant values never meet here, and one equals nothing
+        // (the narrow review of f9e74256: equal JSON had been called equal); an enumeration's value is carried as its
+        // enumeration and name (LiteWords.EnumName, register S169), equal to the same enumeration's same name alone
         if (e == null || a == null || e instanceof LiteWords.Kinded || a instanceof LiteWords.Kinded) {
-            return e == null && a == null || e instanceof LiteWords.Kinded && e.equals(a);
+            return e == null && a == null || e instanceof LiteWords.EnumName && e.equals(a);
         }
         if ((e instanceof Map<?, ?> || e instanceof List<?>)
                 && (a instanceof Map<?, ?> || a instanceof List<?>)) {

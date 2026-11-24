@@ -446,6 +446,7 @@ class AssertBarTest {
             Class p::KN { <<equality.Key>> k: p::K[1]; <<equality.Key>> f: Float[1]; }
             Class p::N { name: String[1]; }
             Enum p::E { A, B }
+            Class p::KA { <<equality.Key>> a: Any[1]; }
             ###Relational
             Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER) Table U (ID INTEGER PRIMARY KEY, E DECIMAL(10,2)) )
             ###Mapping
@@ -976,9 +977,21 @@ class AssertBarTest {
                 "{|assert(if(true, |'1'->fromJson(), |2) == 1)}", "{|assert(['1'->fromJson(), 2]->filter(x | true)->contains(1))}",
                 "{|assert([2]->add('1'->fromJson())->contains(1))}", "{|assertContains(['1'->fromJson(), 2]->map(x | $x), 1)}",
                 "{|assert(pair(1, '1'->fromJson()) == pair(1, 1))}", "{|assertEquals(list(['1'->fromJson()]), list([1]))}",
-                "{|assertEquals(1, ['1'->fromJson(), 2]->filter(x | true)->at(0))}")) {
+                "{|assertEquals(1, ['1'->fromJson(), 2]->filter(x | true)->at(0))}",
+                // an if's Boolean branch is a value, never a condition (the narrow review of f9e74256: it had been
+                // skipped, the side read as a Variant alone and called unequal to true)
+                "{|assertEquals(true, if(true, |true, |'1'->fromJson()))}",
+                "{|assert(if(true, |true, |'1'->fromJson()) == true)}",
+                // a Variant held in a member declared Any of a Pair or an object the plan builds (the same review)
+                "{|assert(pair(1, '1'->fromJson()->cast(@Any)) == pair(1, 1->cast(@Any)))}",
+                "{|assertEquals(^p::KA(a='1'->fromJson()), ^p::KA(a='1'->fromJson()))}")) {
             want.put(two, refused);
         }
+        // an index, a count and a map's parameter are not values of the side (the same review: they had been counted,
+        // and the equality refused)
+        want.put("{|assert(!(['1'->fromJson()]->cast(@Any)->at(0) == 'a'))}", "pass");
+        want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))}", "pass");
+        want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->map(x | $x)->contains('a'))}", "pass");
         // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
         // the record, a NULL among them JSON null (the audit of 8477c703); H2's JSON array aggregate drops a JSON null,
         // so its database judge's record lists none there -- recorded, the verdict the same
@@ -1017,8 +1030,12 @@ class AssertBarTest {
         want.put("{|assertEquals([p::E.A, p::E.B], [p::E.A, p::E.B])}", "pass");
         // a multiset of enumerations sorts them (the host's sort had no order for them: legend-engine's corpus on H2)
         want.put("{|assertSameElements([p::E.A, p::E.B], [p::E.B, p::E.A])}", "pass");
-        // a list literal holding both days and date-times: its days cannot be told apart in the database (S399)
-        String mixedDays = "NotImplementedException: a list literal holding both days and date-times is not compared";
+        // values holding both days and date-times: their days cannot be told apart in the database (S399); read
+        // through a map too (the narrow review of f9e74256); a function's result keeps its kind (at's day is a day)
+        String mixedDays = "NotImplementedException: values holding both days and date-times are not compared";
+        want.put("{|assertContains([%2020-01-01T00:00, %2020-01-02]->map(x | $x), %2020-01-02T00:00)}", mixedDays);
+        want.put("{|assertEquals(%2020-01-02T00:00, [%2020-01-02, %2020-01-01T00:00]->at(0))}",
+                "AssertFailed: expected 2020-01-02T00:00:00.000000000Z, got 2020-01-02");
         want.put("{|assertContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)}", mixedDays);
         want.put("{|assertEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])}", mixedDays);
         // a Variant's membership among values of other types: the host's answer; the database judge has no typed form

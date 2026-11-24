@@ -263,17 +263,18 @@ final class JudgmentFacts {
         return com.legend.compiler.spec.typed.VariantEquality.between(e, a);
     }
 
-    /** Register S399 (a day is never a date-time): a list literal holding both days and date-times reaches the database
-     *  as one array of date-times (DuckDB's and H2's arrays hold one type), so neither judge can tell its days apart --
+    /** Register S399 (a day is never a date-time): a side whose values hold both days and date-times (a list literal,
+     *  read through a map, a filter or an if as {@code VariantEquality.dateKinds} reads it, never a function's arguments) reaches the
+     *  database as one kind (DuckDB's and H2's arrays hold one type), so neither judge can tell its days apart --
      *  refused by name at planning, under both judges alike (the final audit of c758fe95, 2026-11-23: the host had
-     *  called a day contained in such a list). */
+     *  called a day contained in such a list; the narrow review of f9e74256: a list read through a map had escaped).
+     *  A list bound by a let reaches the judges as a variable, unread: a recorded gap (S399). */
     static void refuseMixedDays(TypedSpec... sides) {
         for (TypedSpec s : sides) {
-            if (s instanceof com.legend.compiler.spec.typed.TypedCollection tc
-                    && tc.elements().stream().anyMatch(x -> x.info().type() == Type.Primitive.STRICT_DATE)
-                    && tc.elements().stream().anyMatch(x -> x.info().type() == Type.Primitive.DATE_TIME)) {
-                throw new com.legend.error.NotImplementedException("a list literal holding both days and date-times is"
-                        + " not compared: the database carries it as one kind, so its days cannot be told apart (register"
+            java.util.Set<Type> kinds = com.legend.compiler.spec.typed.VariantEquality.dateKinds(s);
+            if (kinds.contains(Type.Primitive.STRICT_DATE) && kinds.contains(Type.Primitive.DATE_TIME)) {
+                throw new com.legend.error.NotImplementedException("values holding both days and date-times are not"
+                        + " compared: the database carries them as one kind, so their days cannot be told apart (register"
                         + " S399); compare the days and the date-times apart");
             }
         }
