@@ -575,8 +575,8 @@ public class DuckDb extends AnsiSqlRenderer {
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
             case NEGATE -> negation(writer, c.args());
-            case IS_NULL -> isNullTest(writer, c.args());
-            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args(), parentPrec);
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args(), parentPrec);
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),

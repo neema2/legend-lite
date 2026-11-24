@@ -1395,8 +1395,8 @@ public class Snowflake extends AnsiSqlRenderer {
             // the shared spellings (the base's named helpers)
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             case NEGATE -> negation(writer, c.args());
-            case IS_NULL -> isNullTest(writer, c.args());
-            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args(), parentPrec);
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args(), parentPrec);
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case PI -> writer.append("pi()");

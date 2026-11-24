@@ -1342,14 +1342,36 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append("-").expr(a.get(0), 7);
     }
 
-    /** {@code x IS NULL}. */
-    protected final SqlWriter isNullTest(SqlWriter writer, List<SqlExpr> a) {
-        return writer.expr(a.get(0), 4).append(" IS NULL");
+    /** {@code x IS NULL}, parenthesized under an operator that binds tighter ({@link #nullTest}). */
+    protected final SqlWriter isNullTest(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        return nullTest(writer, a.get(0), " IS NULL", parentPrec);
     }
 
-    /** {@code x IS NOT NULL}. */
-    protected final SqlWriter isNotNullTest(SqlWriter writer, List<SqlExpr> a) {
-        return writer.expr(a.get(0), 4).append(" IS NOT NULL");
+    /** {@code x IS NOT NULL}, parenthesized under an operator that binds tighter ({@link #nullTest}). */
+    protected final SqlWriter isNotNullTest(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        return nullTest(writer, a.get(0), " IS NOT NULL", parentPrec);
+    }
+
+    /** A null test is parenthesized as an operand of a comparison, of {@code IS [NOT] DISTINCT FROM} or of IN; under
+     *  AND, OR and NOT it is bare. No database here reads the bare text as the tree means: {@code a = b IS NULL} is
+     *  {@code (a = b) IS NULL} where {@code IS} binds looser than a comparison (Postgres, DuckDB, H2) or beside it,
+     *  left to right (SQLite, MySQL), which answered wrong rows with no error (2026-11-24, measured on DuckDB and
+     *  SQLite); Trino's and BigQuery's grammars take no second predicate there (read, not run).
+     *
+     *  <p>A null test of a null test stays bare, as it was: H2's null guard writes {@code x IS NOT NULL IS NULL} (21
+     *  statements of the corpus), which H2, DuckDB and SQLite read the one way (measured). A database whose grammar
+     *  takes no second predicate would refuse that text, as it would before this. */
+    private SqlWriter nullTest(SqlWriter writer, SqlExpr x, String test, int parentPrec) {
+        boolean wrap = 3 < parentPrec;
+        if (wrap) {
+            writer.append("(");
+        }
+        boolean nested = x instanceof SqlExpr.Call c && (c.fn() == SqlFn.IS_NULL || c.fn() == SqlFn.IS_NOT_NULL);
+        writer.expr(x, nested ? 3 : 4).append(test);
+        if (wrap) {
+            writer.append(")");
+        }
+        return writer;
     }
 
     /** {@code x IN (a, b, ...)}; a plan parameter as the WHOLE list is one array, bound once ({@link #anyOf}). */
