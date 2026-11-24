@@ -19,7 +19,7 @@ import java.util.List;
  * <ul>
  *   <li>S137 (the user's ruling of 2026-11-05): upstream's {@code assertSize}, {@code assertEmpty} and
  *   {@code assertNotEmpty} take a collection ({@code Any[*]}), so over a relation they count the relation itself, ONE
- *   value -- {@code assertSize($rel, n)} holds only for {@code n == 1}, failing with {@code expected size n, got 1};
+ *   value -- {@code assertSize($rel, n)} holds only for {@code n == 1}, failing with {@code expected size: n, actual size: 1};
  *   {@code assertNotEmpty($rel)} always holds. The relation is replaced by one value and both judges plan the rewritten
  *   call. {@code assertEmpty($rel)} always fails upstream with {@code '%s is not empty'} printing the relation itself,
  *   a text lite does not spell: refused by name (the verdict is a failure either way). Until B3 the test planner asked
@@ -44,8 +44,115 @@ public final class UpstreamTestBodies {
 
     /** {@code typed} as upstream's runners read it: the body rewritten (above), the query itself where nothing is. */
     public static com.legend.TypedQuery admitted(com.legend.TypedQuery typed) {
-        List<TypedSpec> read = jsonGoldensCleaned(countedAsOne(typed.body()));
+        List<TypedSpec> read = joinsOrderFree(typed, jsonGoldensCleaned(countedAsOne(typed.body())));
         return read == typed.body() ? typed : typed.withBody(read);
+    }
+
+    /** {@code body} with each order-dependent comparison of a golden text and a join of a list whose order the program
+     *  does not define made explicitly order-free (B3 step 4's joins, pulled in with step 2b's deletion of S131's
+     *  hidden multiset, 2026-11-24): an {@code assertEquals} or {@code assertSameElements} whose one side is a golden
+     *  written as String literals (or a one-element list of one) and whose other is {@code L->joinStrings(sep)} or
+     *  {@code L->makeString(sep)} with a literal separator, {@code L} a list of Strings with no defined order (a store or
+     *  frame read with no sort: {@code OrderView.INCIDENTAL}), becomes {@code assertSameElements} of the golden's pieces
+     *  between separators and {@code L} itself. Upstream's judge compared the two texts' tokens as a multiset there
+     *  (register S131's "a join's tokens"); lite's judge compares the two lists. The body itself where nothing is
+     *  rewritten. */
+    static List<TypedSpec> joinsOrderFree(com.legend.TypedQuery typed, List<TypedSpec> body) {
+        List<TypedSpec> out = new java.util.ArrayList<>(body.size());
+        List<TypedSpec> lets = new java.util.ArrayList<>();
+        boolean changed = false;
+        for (TypedSpec statement : body) {
+            TypedSpec r = joinOrderFree(typed, statement, lets);
+            changed |= r != statement;
+            out.add(r);
+            lets.add(r);
+        }
+        return changed ? out : body;
+    }
+
+    private static TypedSpec joinOrderFree(com.legend.TypedQuery typed, TypedSpec n, List<TypedSpec> lets) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall call && call.args().size() == 2) {
+            NativeFn.Verdict fn = NativeFn.Verdict.of(Calls.calleeIdOf(n)).orElse(null);
+            if (fn == NativeFn.Verdict.ASSERT_EQUALS || fn == NativeFn.Verdict.ASSERT_SAME_ELEMENTS) {
+                for (int side = 0; side < 2; side++) {
+                    String golden = literalText(call.args().get(1 - side));
+                    // the join where it stands, or the let it is bound to (`let res = L->makeString(','); assertEquals(
+                    // golden, $res)`: the corpus's testQualifierWithForkAndOrWithInline)
+                    TypedSpec joined = com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets);
+                    TypedSpec list = unorderedJoined(joined, lets);
+                    if (golden == null || list == null) {
+                        continue;
+                    }
+                    String sep = ((com.legend.compiler.spec.typed.TypedCString)
+                            ((com.legend.compiler.spec.typed.TypedNativeCall) joined).args().get(1)).value();
+                    if (sep.isEmpty()) {
+                        continue;
+                    }
+                    List<com.legend.protocol.spec.ValueSpecification> pieces = new java.util.ArrayList<>();
+                    for (String piece : golden.split(java.util.regex.Pattern.quote(sep), -1)) {
+                        pieces.add(new com.legend.protocol.spec.CString(piece));
+                    }
+                    TypedSpec tokens = typed.specs().typeExpression(new com.legend.protocol.spec.PureCollection(pieces));
+                    List<TypedSpec> args = side == 0 ? List.of(list, tokens) : List.of(tokens, list);
+                    return EngineSubstitutes.call(typed.context(), List.of(com.legend.model.FunctionId.of(
+                            com.legend.builtin.Pure.ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY)), args, call.pos());
+                }
+            }
+        }
+        List<TypedSpec> kids = n.children();
+        List<TypedSpec> rebuilt = new java.util.ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = joinOrderFree(typed, k, lets);
+            changed |= r != k;
+            rebuilt.add(r);
+        }
+        return changed ? n.withChildren(rebuilt) : n;
+    }
+
+    /** Whether {@code list} maps a table's rows each to a bare cell read -- {@code $t.rows->map(r | <r's column>)}, the
+     *  typed form of {@code columnValues} and of a getter with a literal column name: the column read itself, the read
+     *  under the cell's {@code trustOne}, or the TDSNull-if-empty guard ({@code TdsDesugars}' three forms). A computed
+     *  element ({@code $r.getString('a') + ' ' + ...}) is not one. */
+    private static boolean cellReads(TypedSpec list) {
+        if (!(list instanceof com.legend.compiler.spec.typed.TypedMap map)
+                || !(map.source() instanceof com.legend.compiler.spec.typed.TypedPropertyAccess rows)
+                || !rows.property().equals("rows")
+                || !(map.mapper() instanceof com.legend.compiler.spec.typed.TypedLambda fn) || fn.body().isEmpty()
+                || fn.parameters().size() != 1) {
+            return false;
+        }
+        TypedSpec cell = fn.body().get(fn.body().size() - 1);
+        if (cell instanceof com.legend.compiler.spec.typed.TypedIf) {
+            return true;   // the TDSNull-if-empty guard over the cell
+        }
+        if (cell instanceof com.legend.compiler.spec.typed.TypedNativeCall c && c.args().size() == 1) {
+            cell = c.args().get(0);   // the cell under its trustOne
+        }
+        return cell instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable row
+                && row.name().equals(fn.parameters().get(0));
+    }
+
+    /** The list {@code e} joins -- {@code L->joinStrings(sep)} or {@code L->makeString(sep)}, a literal separator, a
+     *  list of Strings whose order the program does not define -- or null. */
+    private static @com.legend.base.Nullable TypedSpec unorderedJoined(TypedSpec e, List<TypedSpec> lets) {
+        if (!(e instanceof com.legend.compiler.spec.typed.TypedNativeCall j) || j.args().size() != 2
+                || !(j.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCString)) {
+            return null;
+        }
+        String name = j.callee().qualifiedName();
+        if (!name.equals(com.legend.compiler.element.type.PlatformTypes.STRING_JOIN_STRINGS)
+                && !name.equals(com.legend.compiler.element.type.PlatformTypes.STRING_MAKE_STRING)) {
+            return null;
+        }
+        TypedSpec list = j.args().get(0);
+        // a list of bare table-cell reads ({@code columnValues}, {@code rows->map(r | $r.get('c'))}) is left as written:
+        // a cell may be TDSNull, which a join writes as its text and a list holds as no value (the corpus's
+        // testProjectionWithEnumQualifierParameter)
+        boolean strings = list.info().type() == Type.Primitive.STRING && !cellReads(list);
+        return strings && com.legend.compiler.spec.OrderView.of(list, lets) == com.legend.compiler.spec.OrderView.INCIDENTAL
+                ? list : null;
     }
 
     /** {@code body} with each relation an {@code assertSize} or {@code assertNotEmpty} counts replaced by ONE value
@@ -116,6 +223,20 @@ public final class UpstreamTestBodies {
             return call.withChildren(args);
         }
         return node;
+    }
+
+    /** {@code e}'s text where it is written as String literals -- one, or joined by {@code +}, or a one-element list
+     *  of such -- else null (the lift's golden, {@link UpstreamPrints}). */
+    static @com.legend.base.Nullable String literalText(TypedSpec e) {
+        TypedSpec s = e instanceof com.legend.compiler.spec.typed.TypedCollection c && c.children().size() == 1
+                ? c.children().get(0) : e;
+        List<com.legend.compiler.spec.typed.TypedCString> pieces = new java.util.ArrayList<>();
+        if (s instanceof com.legend.compiler.spec.typed.TypedCollection || !literalPieces(s, pieces)) {
+            return null;
+        }
+        StringBuilder text = new StringBuilder();
+        pieces.forEach(p -> text.append(p.value()));
+        return text.toString();
     }
 
     /** Whether {@code e} is String literals alone -- one, or joined by {@code +} -- each added to {@code pieces} in

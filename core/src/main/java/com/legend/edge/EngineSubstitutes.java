@@ -103,6 +103,15 @@ final class EngineSubstitutes {
         return checked(ctx, new TypedNativeCall(r.chosen(), call.args(), r.output(), call.pos()), nativeIds);
     }
 
+    /** A NEW call of the registry's function for {@code nativeIds} that the typer picks for {@code args}, at
+     *  {@code pos}, its type the typer's (B3, 2026-11-24: the test-body door's explicit order-free assert,
+     *  {@code UpstreamTestBodies.joinsOrderFree}); neither a signature nor a type assembled here. */
+    static TypedNativeCall call(ModelContext ctx, List<FunctionId> nativeIds, List<TypedSpec> args,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
+        InferenceKernel.Resolution r = resolve(ctx, args, nativeIds);
+        return new TypedNativeCall(r.chosen(), args, r.output(), pos);
+    }
+
     /** The typer's choice among the registry's functions for {@code nativeIds}, over {@code args}' types. */
     private static InferenceKernel.Resolution resolve(ModelContext ctx, List<TypedSpec> args,
             List<FunctionId> nativeIds) {

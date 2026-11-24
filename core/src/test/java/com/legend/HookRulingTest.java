@@ -444,8 +444,8 @@ class HookRulingTest {
         // asserted here: deleted, NARROWS A HOOK THE USER RULED, A4 of the compatibility program, stage A ratified by
         // the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"):
         // the host judge is the only judge in compatibility, so no compatibility body runs both judges isolated)
-        assertTrue(productHearing().renderedTexts() == com.legend.testexec.LiteRenderedTexts.STRINGS,
-                "lite's runs hold two differing strings as differing");
+        // (renderedTexts, lite's runs holding two differing strings as differing: the hook deleted 2026-11-24, B3 step
+        // 2b -- the two texts are the verdict on every route)
         assertTrue(productHearing().hostForms() == com.legend.testexec.LiteHostForms.STRICT,
                 "lite's runs never equal two number kinds");
         assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,

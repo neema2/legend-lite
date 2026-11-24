@@ -914,8 +914,12 @@ class BodyRouterParityTest {
                 // a frame's grid rendered
                 java.util.Map.entry("{| let r = " + EXECUTE + "; assertEquals('name\nAcme\nBolt\n',"
                         + " $r.values->toOne()" + csv + ");}", "ok"),
-                // the rendered text under assertSameElements: the lines a multiset
-                java.util.Map.entry("{| assertSameElements('a\n2\n1\n', #TDS\na\n1\n2\n#" + csv + ");}", "ok"))) {
+                // the rendered text under assertSameElements: two Strings, compared as the two one-element lists they
+                // are, as legend-pure compares them (B3 step 2b, 2026-11-24: the compatibility rules' rendered-text
+                // multiset of lines, S131's, deleted with the run hook's renderedTexts -- an unordered printed table is an
+                // explicit assertSameElements of its lines at the door, edge.UpstreamPrints)
+                java.util.Map.entry("{| assertSameElements('a\n2\n1\n', #TDS\na\n1\n2\n#" + csv + ");}",
+                        "AssertFailed"))) {
             Run moved = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS,
                     com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
             assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);

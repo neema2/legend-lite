@@ -95,8 +95,10 @@ class CompatSpellingGuardTest {
             "createTableRowIdentifiers(", "createRowIdentifier([",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
             "TDSNull",
-            // legend-pure's assert sentences (census J29, 2026-11-18; since item 3's S2, 2026-11-21, no source holds them:
-            // one catalog of lite's words on every route, Q15 = A; a planted one in a product source turns this guard red)
+            // legend-pure's assert sentences (census J29, 2026-11-18; from item 3's S2, 2026-11-21, no source held them:
+            // one catalog of lite's words on every route, Q15 = A; since B3 step 3, 2026-11-24, the catalog's own
+            // sentences are legend-pure's where cheap -- error/AssertKind.java's RULED rows below, the user's rulings
+            // of 2026-11-24 -- and a planted one in any other product source still turns this guard red)
             "No error was thrown", "Expected non-empty collection", "Execution error message mismatch",
             "Execution error line mismatch", "Execution error column mismatch", "^Assert failed$",
             "should not equal", " does not contain ", "is not equivalent to", "the element references differ",

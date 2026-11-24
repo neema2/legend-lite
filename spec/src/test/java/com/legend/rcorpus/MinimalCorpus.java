@@ -625,6 +625,13 @@ public final class MinimalCorpus {
                     // legend-engine's tests read as its runner reads them: the edge's test-body door (B3 step 2)
                     return com.legend.edge.UpstreamTestBodies.admitted(typed);
                 }
+
+                @Override
+                public com.legend.TypedQuery read(com.legend.TypedQuery typed,
+                        com.legend.testexecutionplan.BodyFacts facts, Reads reads) {
+                    // a relation's printed text, legend-pure's, read before the body (B3 step 2b)
+                    return com.legend.edge.UpstreamPrints.read(typed, facts.effects(), reads::read);
+                }
             };
         }
 

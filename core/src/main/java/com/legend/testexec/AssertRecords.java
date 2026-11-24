@@ -57,7 +57,7 @@ final class AssertRecords {
         @Nullable String eClass = ef == null ? null : ef.classFqn();
         @Nullable String aClass = af == null ? null : af.classFqn();
         if (!wantEqual) {
-            return notEqual(e, a, aClass);
+            return notEqual(e, a, eClass, aClass);
         }
         return incidental ? sameElements(e, a, eClass, aClass)
                 : sidesNotEqual(e, a, carrier(ef, eCarried), carrier(af, aCarried), eClass, aClass,
@@ -144,8 +144,8 @@ final class AssertRecords {
         return java.util.Collections.unmodifiableList(new java.util.ArrayList<>(l));
     }
 
-    static ErrorRecord notEqual(List<Object> e, List<Object> a, @Nullable String aClass) {
-        return record(AssertKind.NOT_EQUALS, "expected", LiteWords.pairSide(e, a, null), "actual",
+    static ErrorRecord notEqual(List<Object> e, List<Object> a, @Nullable String eClass, @Nullable String aClass) {
+        return record(AssertKind.NOT_EQUALS, "expected", LiteWords.pairSide(e, a, eClass), "actual",
                 LiteWords.pairSide(a, e, aClass));
     }
 

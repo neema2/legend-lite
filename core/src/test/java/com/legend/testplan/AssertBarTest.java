@@ -55,6 +55,10 @@ class AssertBarTest {
             // the four default-message asserts (#28): platform natives, each its positive family negated, worded by
             // lite's own sentence under every judge
             new Probe("assertNotEq-fails", "{|assertNotEq(1, 1)}", "1 should not equal 1"),
+            // the expected side's class printed as the actual side's (the review of B3 step 3's M1, 2026-11-24: the
+            // expected side was printed with no class, "? {...}")
+            new Probe("assertNotEquals-instance-fails", "{|let p = ^t::Person(name='a'); assertNotEquals($p, $p);}",
+                    "t::Person {\"name\":\"a\"} should not equal t::Person {\"name\":\"a\"}"),
             new Probe("assertNotSize-holds", "{|assertNotSize([1, 2], 3)}", null),
             new Probe("assertNotSize-fails", "{|assertNotSize([1, 2], 2)}", "size should not equal: 2"),
             new Probe("assertNotContains-holds", "{|assertNotContains([1, 2], 3)}", null),

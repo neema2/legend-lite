@@ -49,12 +49,6 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
-        public RenderedTexts renderedTexts() {
-            // lite's own runs: the two strings are the verdict
-            return LiteRenderedTexts.STRINGS;
-        }
-
-        @Override
         public HostForms hostForms() {
             // lite's own runs: a Float compared exactly (S15), a caught error in lite's words
             return LiteHostForms.STRICT;

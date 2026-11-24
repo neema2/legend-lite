@@ -177,7 +177,7 @@ What strict means, all of it:
    follow their arguments (`Pair<Integer, Float>` against `Pair<Integer, Integer>` is a compile error; `List<Number>`
    against `List<Integer>` compares at run time).
 7. **The doors carry upstream's looseness:** legend-pure's door rewrites a cross-type `==` to `false` (Pure's answer),
-   legend-engine's to the database's comparison; upstream programs still compile, lite's own do not.
+   legend-engine's to the database's comparison; upstream programs still compile, lite's own do not. **Mechanism ruled 2026-11-24 ("Love it"):** the typer types a comparison across types as a marker node, never a warning mode in the core; the product refuses the marker before planning, legend-engine's door rewrites it to the database's comparison, legend-pure's to `false`; each door lists what it loosened, a migration report (docs/records/compat-b3-progress.md).
 8. **Implementable on every database:** the static case sends no SQL (a compile error) or one SQL type's `=` (single-
    typed lists keep the native list functions, DuckDB's `list_contains` and the rest); the run-time case reuses the tagged
    list's row forms, which already run on every lane. H2's missing list functions are a gap with or without this (step

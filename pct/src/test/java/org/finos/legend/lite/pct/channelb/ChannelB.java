@@ -277,7 +277,7 @@ public final class ChannelB {
             if (measuresJudgeSql()) {
                 judgeSql(ctx, resolved);
             }
-            TestExecution.runProgram(typed(ctx, resolved),
+            TestExecution.runProgram(typed(ctx, resolved, conn),
                     com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, referee(),
                     OPTIONS);
             return new Outcome(fqn, Status.PASS, "");
@@ -411,6 +411,18 @@ public final class ChannelB {
         return lite() ? typed : com.legend.edge.UpstreamTestBodies.admitted(typed);
     }
 
+    /** {@link #typed(ModelContext, ValueSpecification)} with, under the compatibility rules, each relation's printed
+     *  text read on {@code conn} before the body and substituted (B3 step 2b, {@code edge.UpstreamPrints}): the read
+     *  planned and run through the public test door, as the body is. */
+    private static com.legend.TypedQuery typed(ModelContext ctx, ValueSpecification resolved, Connection conn) {
+        com.legend.TypedQuery typed = typed(ctx, resolved);
+        return lite() ? typed : com.legend.edge.UpstreamPrints.read(typed, TestExecution.facts(typed).effects(),
+                (query, answer) -> TestExecution.runProgram(
+                query, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, referee(),
+                OPTIONS, answer));
+    }
+
     /** The run hook: the compatibility edge's appeals (COMPAT), or none -- lite's own runs hear no appeal (LITE). */
     private static com.legend.testexec.EdgeRun referee() {
         return lite() ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(null);
@@ -501,7 +513,7 @@ public final class ChannelB {
         com.legend.testexecutionplan.AssertListener listener = (name, pass, detail) ->
                 told.add(name + (pass ? " pass" : " FAIL " + detail));
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
-            TestExecution.runProgram(typed(ctx, resolved),
+            TestExecution.runProgram(typed(ctx, resolved, conn),
                     com.legend.testbackend.StorelessRuntime.RUNTIME,
                     com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, referee(),
                     OPTIONS);

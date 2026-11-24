@@ -322,13 +322,18 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   and a value typed `Any` that comes from a variable or a stored property, which use the database's own equality. **measured** (`AssertBarTest`)
 - Register S401.
 
-### 17. A failed assert's words are lite's (item 3, until B2)
+### 17. A failed assert's words: legend-pure's sentences, lite's value forms (B3 step 3, 2026-11-24)
 - **You write** an assert that fails: `assertEquals(1, 2)`, `assertContains([1, 2], 3)`, `assert(false)`.
-- **legend-pure** says "Assert failed", or `expected: 1` and `actual:   2` on two lines, or `[1, 2] does not contain 3`;
+- **legend-pure** says `expected: 1` and `actual:   2` on two lines, `[1, 2] does not contain 3`, "Assert failed";
   legend-engine's runs print the same. **read**
-- **Lite** says "expected 1, got 2", "expected [1, 2] to contain 3": one catalog of words, written from the values
-  both judges compared, on every route. Whether a test passes or fails is unchanged on every lane. **measured**
-- **When:** item 3; B2 writes legend-pure's words at the compatibility edge.
+- **Lite** says legend-pure's sentence where it has one -- `expected: 1, actual: 2` on one line,
+  `[1, 2] does not contain 3`, "Assert failed", "Execution error message mismatch. ..." -- with lite's own forms of the
+  values in it (a Float, a date, a list as lite prints them); six kinds legend-pure has no sentence for keep lite's own
+  (the same elements, the same instance, an instance of, a TDS's equivalence, a tolerance, an error with no position).
+  One catalog, written from the values both judges compared, on every route. Whether a test passes or fails is
+  unchanged on every lane. **measured**
+- **When:** item 3 (lite's own words), B3 step 3 (legend-pure's sentences, the user's ruling of 2026-11-24: "keep errors
+  close to pure when cheap/fast so don't have to reword everything on compatibility").
 - Register S398.
 
 ## Gaps lite has today (not differences by design)

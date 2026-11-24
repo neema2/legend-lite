@@ -130,7 +130,8 @@ class HookLambdasTest {
             // rendered-text rule, two strings that differ never held
             Map.entry("com.legend.result.CellText$1", Set.of("com.legend.result.CellText$Forms")),
             Map.entry("com.legend.testexec.LiteHostForms", Set.of("com.legend.testexec.HostForms")),
-            Map.entry("com.legend.testexec.LiteRenderedTexts", Set.of("com.legend.testexec.RenderedTexts")),
+            // (LiteRenderedTexts, lite's rendered-text rule: deleted with its kind 2026-11-24, B3 step 2b -- the two texts
+            // are the verdict on every route, a printed side read and printed before the body, edge.UpstreamPrints)
             // (D's train 4's three product forms -- a rendered golden's null word, a date literal's message text, the
             // rendered-text rule -- deleted with their kinds: A4 of the compatibility program, stage A ratified by the
             // user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
@@ -256,7 +257,7 @@ class HookLambdasTest {
      *  host judge's behaviours and the rendered-text rule. Each is a hook type here, so its product implementers are
      *  pinned in {@link #CLASS_HOOKS} and a product lambda of one would be {@link #LAMBDA_HOOKS}'s. */
     static final List<Class<?>> RUN_FORMS = List.of(com.legend.result.CellText.Forms.class,
-            com.legend.testexec.HostForms.class, com.legend.testexec.RenderedTexts.class);
+            com.legend.testexec.HostForms.class);   // (RenderedTexts: deleted 2026-11-24, B3 step 2b)
 
     /** The hook types: the ruled hooks, the facet kinds, the two-form kinds, the run's forms, the plan style. */
     static Set<String> hookTypes() {

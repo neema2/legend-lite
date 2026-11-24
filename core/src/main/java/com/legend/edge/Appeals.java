@@ -116,12 +116,6 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
     // (join, the agreement judge's database half's second hearing of an appeal, A1 of 2026-11-08: deleted with the
     // database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
 
-    /** The compatibility rules' rendered-text comparison (S131, S132; census C1, 2026-11-17). */
-    @Override
-    public com.legend.testexec.RenderedTexts renderedTexts() {
-        return UpstreamRenderedTexts.INSTANCE;
-    }
-
     /** Compiled legend-pure's host forms (census C1's step 2c, 2026-11-17): the Float's 2-ULP tolerance (S15/S132, until
      *  B3 step 1b) and the caught error's words; its number-kind, date and Decimal rules went 2026-11-24 (B3 step 1a). */
     @Override

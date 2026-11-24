@@ -22566,3 +22566,33 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   (two DuckDB threads pulling at once would raise "cannot enter context"; measured on one); `_reads.end_read`'s
   `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
   static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.
+
+## 2026-11-24 — B3 step 2b: the lift; the rendered-text tolerances deleted (S131's printed half, S132); the rosters
+
+The user's option (B), substitution before planning ("Great let's do it!"), on B2's printer (`edge/PureRelationTextWriter`,
+merged from claude/compat-b2-nufdlk). A compatibility test body's printed relation side is read before the body through
+the public test door and printed as legend-pure prints it (`edge/UpstreamPrints`); the compatibility rules' tolerant
+comparison of rendered texts is deleted (`edge/UpstreamRenderedTexts`, the run hook's `renderedTexts`): the two texts
+are the verdict on every route. An unordered printed table and an unordered join compared with a golden become an
+explicit `assertSameElements` at the door (`UpstreamPrints.unordered`, `UpstreamTestBodies.joinsOrderFree`). Record:
+docs/records/compat-b3-progress.md, step 2b. Every roster and register change below carries its reason here:
+
+- **`duckdb-fail-roster.txt` +14:** `calendarAggregations::testAnnualizedValue`, `testCmeValue`, `testP12MtdValue`,
+  `testP12WtdValue`, `testP4WaValue`, `testP4WtdValue`, `testP52WtdValue`, `testPmaValue`, `testPrioryearValue`,
+  `testPymtdValue`, `testPyqtdValue`, `testPytdValue`, `testQtdValue`, `testYtdValue`. Their goldens are H2's decimal
+  arithmetic; DuckDB computes doubles (`5.590000000000001`). legend-engine 4.145.0 fails each of them on DuckDB 1.3.0
+  and 1.5.6 with the digits lite gets (B3 step 1b's oracle, docs/records/compat-b3-homework/oracle-1b/; brought to the
+  user with step 1b). Until today S132's 2-ULP tolerance on a printed text held them.
+- **`h2-fail-roster.txt` +1 / -3:** + `calendarAggregations::testCmeValue` (its Lateral cell: lite's IEEE division,
+  the user's ruling of 2026-09-19, legend-engine's H2 golden 2 ULP apart; held by S132 until today); - `testMtdValue`,
+  `testSubclassValue`, `groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath` (gains: their printed texts are
+  legend-pure's own now, where the edge's SQL text differed).
+- **`h2-unordered-register.txt` +1:** `testGroupByWithFilterFunction_noDatePath` (now passing, its rows compared as a
+  multiset: an unordered chain, generated).
+- **`duckdb-engine-order-register.txt` -44 / +1:** the register names a test whose BODY statements the test lane's
+  scan-order emulation changed; a lifted side's read runs before the body (the emulation still applies to it), so 44
+  tests' changed statements left their bodies; + `inheritance::cross::testProjectAssociationTdsV2` (its read's frame
+  bound before the read, generated).
+- **PCT channel B's ledger -4 (h2 Relation):** `project::testSimpleProject`, `testSimpleProjectList`,
+  `testSimpleProjectWithEmpty`, `composition::testFilterPostProject` pass: printed in Java, where the edge's SQL text
+  needed a list function H2 has no encoding for.

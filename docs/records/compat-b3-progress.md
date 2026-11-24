@@ -329,3 +329,72 @@ is written. The lean-SQL baseline and query capture unchanged; pinned in `DuckDb
 `Audience.PRODUCT`); `PureTestRunner` threads it to the setups, the body and the judge; the corpus's observer returns
 legend-engine's (the recorder and the referee, the upstream style, the door); `EdgeProgram.upstream` refuses a plan
 style that is not upstream's.
+
+**Step 3's independent review (read-only, of `7619acb4`):** no HIGH -- every template checked against the pinned
+legend-pure source, the slot orders, the builders, the re-records (every converted row re-derived by script: words only,
+no key, status or row moved), the guards and the negation rule found sound. Fixed in the next commit: M1 the expected
+side of `X should not equal Y` printed without its class (`? {...}`; `AssertRecords.notEqual` takes both classes, a
+failing instance probe pinned in `AssertBarTest`); M2 the differences page's section 17 rewritten; L1 the stale
+`expected size n, got 1` (S137, the door's comment), S398's citation (`assertNotEquals.pure:18`), the spelling guard's
+comment amended; L3 a negation over a cast written as its value alone (the tagged carrier) parenthesized too, and the
+rule pinned on seven dialects (`NegationLeadingMinusTest`); L4 the ledger's dated re-record note; L5 recorded in S398
+(an in-body `assertEquals` guard raises `Assert failed`). L2 recorded, not unified: PCT's channel B and the edge's test
+helper choose the plan style, the run hook and the door from one rule-set flag each, outside the runner's audience
+object (`Audience`'s comment says so).
+
+**Step 3 landed and checked (2026-11-24):** pushed `7619acb4`; its round green on the Bazel tree (292 of 293, one
+skipped); the warm lanes on 7619acb4 -- Snowflake, Databricks, BigQuery, ten suites each: no verdict moved, only the two
+expected messages re-worded (`testArcCosineError`, `testArcSineError`: the assertError sentence), every ledger row of
+each lane matching (Snowflake 11, Databricks 23, BigQuery's two re-worded rows as prefixes of the detail); BigQuery's two
+census failures main's own (the UNION ALL and coalesce_AllEmpty rows); the canon line's `ulp-policy` field gone with
+step 1b's census, its counts unchanged.
+
+## Step 2b -- the lift (built 2026-11-24, round pending)
+
+The user's option (B), substitution before planning ("Great let's do it!"), on B2's printer (B2b's S1,
+`edge/PureRelationTextWriter`, merged into B3 with B2's S2). `edge/UpstreamPrints.read(typed, writes, reads)`: each
+assert side that prints a relation (its own `toString`, the corpus helper's `toCSV`, a TDS's `.csv`, followed by literal
+`replace`s) is read before the body through the public test door on the body's own session, once its setups have run
+(`Audience.read`, the runner's reader; PCT's channel B reads on its connection), printed by the edge's printer with the
+replaces applied in Java, and substituted as a String literal; lite's judge compares at the assert's place. A body that
+writes is left as written (the design review's gate: its facts' effects, the caller's). The read is one shape the
+program road plans: the relation with the lets it reads substituted, each `execute(...)` bound to a let of its own
+before it (`readBody`; the round's catches: PCT's `eval::testSimpleEval`, a let holding a to-one reader, and the
+corpus's `testProjectAssociationTdsV2` / `testUnionTwoRelationMappings_EmbeddedFirmProject`, an `execute(...)` read where
+it stands). A printed relation with no defined order compared with a golden becomes an explicit `assertSameElements` of
+the two texts' lines (split at the line break, or at what a literal `replace` put there), typed by the typer: S131's
+multiset made explicit (step 4's printed tables, pulled in).
+
+**Measured on the first round (b3s7, before the read fixes above):** PCT channel B under the compatibility rules: one
+regression (`eval::testSimpleEval` on DuckDB, SQLite and H2, the read's shape: fixed) and four H2 gains
+(`project::testSimpleProject`, `testSimpleProjectList`, `testSimpleProjectWithEmpty`, `composition::testFilterPostProject`:
+the edge's SQL text needed a list function H2 has no encoding for; printed in Java they pass; their ledger rows left).
+The corpus: DuckDB's 14 `calendarAggregations` tests fail as legend-engine fails them on DuckDB (step 1b's oracle: the
+goldens are H2's decimal arithmetic; brought to the user with step 1b); H2's `testCmeValue` fails on its Lateral cell
+(lite's IEEE division, the user's ruling of 2026-09-19); H2 gains `testMtdValue`, `testSubclassValue` and
+`groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath`; two reads refused by the program road (fixed above).
+
+**Rulings relayed to B2 (the user, 2026-11-24, "Int as float agree, parser bumps are always okay"):** an integer-held
+Float's text on lite's route (`1000000.0`) kept; the parser-equivalence floor's moves approved, now and from here on
+(B2 records both beside S311 and the floor's pin).
+
+**The fast dev loop, written down (the user, 2026-11-24: "Are we optimized ... seems like every time I ask for update we
+have not made huge progress", then "Where can we write this down so we stick to this loop"):** step 2b cost about six
+hours, about half of it avoidable -- five full corpus regenerations (40 minutes each), one per failure, and three
+guesses at a typed tree before a one-run probe answered it, while the single-test corpus runner (2 minutes) was there
+the whole time. The rules are in AGENTS.md, "The fast dev loop", where every session reads them: the narrowest runner
+first; probe, don't guess; read the whole round before fixing; one regeneration and one round per step; never idle
+while a run goes.
+
+**Ruled by the user, 2026-11-24 ("Love it"), for step 5 (the one equality):** strict typing stays lite's alone, and
+upstream's looseness is carried at the doors -- never a warning mode in the core (tenet 6 of the six: no modes in the
+core). The typer does not throw on a comparison across types (`==`, `!=`, `in`, `contains`, `indexOf`, ordering); it
+types it as a marker node, "a comparison across types". Lite's own programs: nothing removes the marker, so lite reports
+it as a compile error before planning, naming the fix. legend-engine's door replaces the marker with engine's
+comparison (the database's own `=`; an enumeration against a String by its stored source value, decision 3);
+legend-pure's door with Pure's answer, `false`. The core does the same thing for every audience. **And a migration
+report:** each door lists every comparison it loosened -- the expression, the two types, upstream's answer and lite's fix
+(e.g. `my::Order.status == 'OPEN'`: an enumeration against a String, answered as legend-engine does; under lite a compile
+error -- write `my::Order.status == my::Status.OPEN`) -- so a team bringing an engine project sees exactly what to change
+before moving to lite's strict rules; no answer changes. (Asked by the user: "strict type in lite only or strict type
+everywhere but in engine the strict is a warning ... or something else smart"; the warning became the door's report.)

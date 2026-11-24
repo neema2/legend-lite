@@ -1345,13 +1345,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writesLeadingMinus(x) ? writer.append("-(").expr(x, 0).append(")") : writer.append("-").expr(x, 7);
     }
 
-    /** Whether {@code x}'s text starts with a minus: a negative number literal, written bare, or a negation. */
+    /** Whether {@code x}'s text starts with a minus: a negative number literal, written bare, a negation, or a cast
+     *  written as its value alone (to the tagged carrier) over one of those. Every other node's text starts with a
+     *  name, a keyword, a quote or a parenthesis (a predicate over the written text, not a render arm: the review of
+     *  B3 step 3's L3, 2026-11-24). */
     protected boolean writesLeadingMinus(SqlExpr x) {
         return switch (x) {
             case SqlExpr.IntLit i -> i.value() < 0;
             case SqlExpr.FloatLit f -> Math.copySign(1.0, f.value()) < 0;
             case SqlExpr.DecimalLit d -> d.value().signum() < 0;
             case SqlExpr.Call c -> c.fn() == SqlFn.NEGATE;
+            case SqlExpr.Cast c when c.target() instanceof com.legend.sql.SqlType.Tagged -> writesLeadingMinus(c.value());
             default -> false;
         };
     }

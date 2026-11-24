@@ -124,7 +124,7 @@ final class HostJudgments {
                 // raw cells against a whole TDS value never equal: the two sides as written (item 3, 2026-11-21: until
                 // then a sentence of its own outside the catalog)
                 () -> AssertRecords.rowValuesDiffer(e, a, !mixedFlatVsTds && incidental),
-                () -> AssertRecords.notEqual(e, a, null));
+                () -> AssertRecords.notEqual(e, a, null, null));
     }
 
     /** The MULTISET flat-cells verdict: loose CELL pool host lattice
@@ -313,7 +313,7 @@ final class HostJudgments {
             case HostJudgment.SameElements s -> sameElementsOf(s, sides, rules, run);
             case HostJudgment.Equals e -> equalsOf(e, sides, rules, run);
             case HostJudgment.Json js -> jsonOf(js, sides, rules, com.legend.testexecutionplan.JudgeJson.STRICT);
-            case HostJudgment.Rendered r -> renderedOf(r, sides, run.hearing().renderedTexts());
+            case HostJudgment.Rendered r -> renderedOf(r, sides);
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
             case HostJudgment.EdgeJudged e -> run.judged(e, sides);
             case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, run);
@@ -862,20 +862,18 @@ final class HostJudgments {
     
     }
 
-    private static TypedSide renderedOf(HostJudgment.Rendered j, List<TypedSide> pair, RenderedTexts texts) {
+    private static TypedSide renderedOf(HostJudgment.Rendered j, List<TypedSide> pair) {
         String name = j.name();
         String form = j.form();
         List<Object> ev = com.legend.testexec.AssertRuns.decodeSide(pair.get(0));
         List<Object> av = com.legend.testexec.AssertRuns.decodeSide(pair.get(1));
         if (ev.size() == 1 && ev.get(0) instanceof String et
                 && av.size() == 1 && av.get(0) instanceof String at) {
-            // GENERIC FIRST (2026-11-04, the core program): the two strings compared as strings; the ruled policy (an
-            // unsorted query's lines as a multiset, S131; float tokens within 2 ULP, S132) only where they differ
-            // (measured on the corpus's DuckDB host pass: 240 of 269 texts byte-equal, 25 held by the policy)
-            // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings ARE the
-            // verdict; the ruled row comparison after a failed text is compatibility mode's alone
-            boolean held = et.equals(at)
-                    || texts.held(j.aForm() != null ? et : at, j.aForm() != null ? at : et, form, j.sortedOrder());
+            // the two strings ARE the verdict on every route (B3 step 2b, 2026-11-24: the compatibility rules' tolerant
+            // comparison -- an unsorted query's lines as a multiset, S131; float tokens within 2 ULP, S132 -- deleted;
+            // a printed side is read before the body and printed as legend-pure prints it, an unordered printed table
+            // compared as an explicit assertSameElements of its lines, edge.UpstreamPrints)
+            boolean held = et.equals(at);
             if (held != j.wantEqual()) {
                 // the two texts, each a String as lite writes it (item 3, 2026-11-21: until then a sentence of its own
                 // outside the catalog, the first differing line)

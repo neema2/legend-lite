@@ -218,6 +218,7 @@ meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWith
 meta::relational::tests::functions::pureToSqlQuery::addDriverTablePkForProject
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeDateRange
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeValue
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRangeOnSaturday
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRangeOnSunday
@@ -228,7 +229,6 @@ meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCy
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCyminus3DateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testFilterBeforeCalendar
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testMtdDateRange
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testMtdValue
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12MtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WaDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WtdDateRange
@@ -261,7 +261,6 @@ meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPy
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testQtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testReportenddayDateRange
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testSubclassValue
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testWtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::simpleFunctionExpressionTranslationAdjust
@@ -311,7 +310,6 @@ meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuar
 meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfThisYear
 meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfYear
 meta::relational::tests::functions::sqlstring::testTrim
-meta::relational::tests::groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath
 meta::relational::tests::groupBy::testGroupByPercentile
 meta::relational::tests::groupBy::testGroupByWithJoinDB2
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwice
