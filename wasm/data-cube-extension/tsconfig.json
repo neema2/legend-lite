@@ -1,0 +1,21 @@
+{
+  // the compiler settings of legend-studio's packages (@finos/legend-dev-utils/tsconfig.base.json)
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext", "webworker"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "target": "esnext",
+    "module": "NodeNext",
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "rootDir": "src",
+    "outDir": "lib"
+  },
+  "include": ["src/**/*.ts"]
+}

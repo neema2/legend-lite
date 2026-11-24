@@ -158,6 +158,43 @@ copy_to_directory(
     visibility = ["//visibility:public"],
 )
 
+# THE ENGINE MODULE AS A PACKAGE, for a host outside this repository that asks legend-engine's routes (legend-studio's
+# DataCube; the proposal at https://github.com/finos/legend-studio/discussions/5930, its phase 0 and its gap G12): the
+# engine module and its runtime as //wasm:engine_planner builds them, the types of the one export such a host calls
+# (npm/index.d.ts: pureV1OrError, whose contract is legend-engine's API), and the licence with its notices. A
+# directory an npm client reads as a package. NOT //wasm:planner: since the K2 ruling that module answers lite's own
+# operations alone and exports no legend-engine route. Not published: npm/package.json is private until where it is
+# published is decided.
+copy_to_directory(
+    name = "engine_planner_package",
+    srcs = [
+        ":engine_planner",
+        "npm/README.md",
+        "npm/index.d.ts",
+        "npm/package.json",
+        "//:LICENSE",
+        "//:NOTICE",
+        "//:THIRD_PARTY_NOTICES.md",
+    ],
+    root_paths = [
+        "wasm/engine_planner",
+        "wasm/npm",
+    ],
+)
+
+# The package answers as a host uses it: each file its package.json names is in it, and the module, loaded through the
+# package's own entry, answers a pure/v1 route. `engine = True` is for the flags the module needs; the test loads the
+# package's copy, not WASM_ENGINE_PLANNER's.
+node_test(
+    name = "engine_planner_package_test",
+    # loads the module, as round_trip_test does: `medium` for the same reason
+    size = "medium",
+    data = [":engine_planner_package"],
+    entry_point = "engine_planner_package.mjs",
+    env = {"ENGINE_PLANNER_PACKAGE": "$(rlocationpath :engine_planner_package)"},
+    engine = True,
+)
+
 # The JVM halves of the differentials: the corpus, and the timezone probe. Target-
 # configuration libraries run by java_run (//tools/java_run), so core is compiled
 # once for them and for the module.
