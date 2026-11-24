@@ -196,7 +196,7 @@ class PureAssertsTest {
                 com.legend.values.PureDateLiteral.parse("2014-01-01")));
         // register S399 (the user's ruling of 2026-11-22): lite's product compares a date-time by its instant, so one
         // instant at two written precisions is one value (legend-pure's PureDate.equals is precision-sensitive; the
-        // compatibility routes keep it, CompiledPureHostForms.equalDates); a day is never a date-time
+        // every route since B3's one rulebook, 2026-11-24); a day is never a date-time
         assertTrue(same(
                 com.legend.values.PureDateLiteral.parse("2014-01-01T10:00"),
                 com.legend.values.PureDateLiteral.parse("2014-01-01T10:00:00")));

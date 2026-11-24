@@ -216,7 +216,7 @@ class AssertBarTest {
                     "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T10:00:01.000000000Z"),
             // register S399 (the user's ruling of 2026-11-22): lite's product compares a date by its kind and its
             // instant, so two date-times at one instant are equal whatever their written precision (legend-pure: not
-            // equal, AbstractPureDate.java:30-59; the compatibility routes keep Pure's answer, CompiledPureHostForms)
+            // equal, AbstractPureDate.java:30-59; every route lite's since B3's one rulebook, 2026-11-24)
             new Probe("assertEquals-datetime-precision-is-no-value",
                     "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}", null),
             new Probe("datetime-trailing-zeros-equal", "{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}",
@@ -1228,7 +1228,7 @@ class AssertBarTest {
         // register S399 (the user's ruling of 2026-11-22, superseding in the product the orchestrator's ruling 3 of
         // 2026-11-19): lite's product compares a date-time by its instant, so an hour equals its minute at one instant,
         // under every judge (legend-pure: not equal, DateWithHour.getMinute() is -1 where a minute's is 0; the
-        // compatibility routes keep that answer, CompiledPureHostForms.equalDates)
+        // every route since B3's one rulebook, 2026-11-24)
         want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
         want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}",
                 "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z");

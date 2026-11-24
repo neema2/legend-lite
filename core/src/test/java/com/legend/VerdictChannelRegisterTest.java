@@ -54,13 +54,9 @@ class VerdictChannelRegisterTest {
             // door now, the run hook's HostForms, and calls no equality of the judge's)
             // (EqualToJson, RefereeVerify and UpstreamRenderedTexts: gone 2026-11-18, train 17 item 4 -- the 2-ULP bound
             // they read is the edge's CompiledPureHostForms.withinUlps, no longer Equality's)
-            // 2026-11-17 (census C1's step 2c): compiled legend-pure's cross-kind rule moved from Equality to the
-            // edge's HostForms -- it names the judge's kinds (Equality.Kind), never a second equality
-            "core/src/main/java/com/legend/edge/CompiledPureHostForms.java",
-            // the hook's signature and lite's form name the judge's kinds (Equality.Kind) -- the same 2026-11-17 move
-            "core/src/main/java/com/legend/testexec/HostForms.java",
-            // its product form's own class (GUARD's C.9, 2026-11-17)
-            "core/src/main/java/com/legend/testexec/LiteHostForms.java",
+            // (CompiledPureHostForms, HostForms and LiteHostForms: gone 2026-11-24, B3 step 1a of the compatibility
+            // program -- the run hook's cross-kind, date and Decimal rules deleted, the host judge reads lite's own on
+            // every route, so none names Equality's kinds; entered 2026-11-17 with census C1's step 2c; a shrink)
             // 2026-11-18 (census J29): the host judge's words over the verdict's own facts, deciding nothing
             // (HostWords and its two forms until 2026-11-21, item 3's S2: the host judge's failed asserts as records)
             "core/src/main/java/com/legend/testexec/AssertRecords.java");

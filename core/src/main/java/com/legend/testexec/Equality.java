@@ -166,12 +166,10 @@ public final class Equality {
                     + a.getClass().getSimpleName());
         }
         if (ek != ak) {
-            // Rule 3 (register S127, the user's ruling of 2026-11-04: "the principled fix for the product, then compiled
-            // for backwards compatible"): a different kind is never equal in lite's own runs -- the type is part of the
-            // value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false, legend-pure's interpreted rule); in backwards-compatibility
-            // mode compiled legend-pure's (CompiledSupport.eq(Number, Number), what a test's assert runs upstream): an
-            // Integer and a Decimal equal by their texts (1D == 1), a Float equal to neither
-            return rules.forms().equalAcrossNumberKinds(ek, ak, e, a);
+            // Rule 3 (register S127, the user's ruling of 2026-11-04): a different kind is never equal -- the type is part
+            // of the value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false), on every route: B3's one rulebook (2026-11-24; E1
+            // withdrawn 2026-11-20 ~21:00) deleted compiled legend-pure's crossing rule from the edge, which moved no test
+            return false;
         }
         if (ek == Kind.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -186,15 +184,9 @@ public final class Equality {
             if (!(e instanceof Number en && a instanceof Number an)) {
                 return false;
             }
-            // the run hook's form (train 17, 2026-11-18): lite's by value (register S139, the user's ruling of
-            // 2026-11-05), as `==` does in the database; the edge's scale-sensitive, compiled legend-pure's
-            boolean eq = rules.forms().equalDecimals(decimal(en), decimal(an));
-            if (!eq && decimal(en).compareTo(decimal(an)) == 0) {
-                // leg 3.0 census: the pair differs by SCALE only — the
-                // witness set for the canon spec's Decimal amendment
-                CanonicalDivergence.decimalScaleOnly();
-            }
-            return eq;
+            // by value (register S139, the user's ruling of 2026-11-05), as `==` does in the database, on every route:
+            // B3's one rulebook (2026-11-24) deleted the edge's scale-sensitive rule, which moved no test
+            return decimal(en).compareTo(decimal(an)) == 0;
         }
         if (ek == Kind.FLOAT) {
             if (!(e instanceof Number en && a instanceof Number an)) {
@@ -221,7 +213,7 @@ public final class Equality {
         if (ek == Kind.BOOLEAN) {
             return e.equals(a);
         }
-        return rules.forms().equalDates(e, a);   // dates: the run hook's form (register S399)
+        return LiteHostForms.STRICT.equalDates(e, a);   // dates by kind and instant (register S399), on every route
     }
 
     private static boolean structural(Object e, Object a, HostRules rules) {

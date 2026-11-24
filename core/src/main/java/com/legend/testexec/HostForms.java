@@ -11,15 +11,8 @@ package com.legend.testexec;
  */
 public interface HostForms {
 
-    /** Whether {@code e} of kind {@code ek} equals {@code a} of the different kind {@code ak}. */
-    boolean equalAcrossNumberKinds(Equality.Kind ek, Equality.Kind ak, Object e, Object a);
 
-    /** Whether two dates of one kind are equal (register S399, the user's ruling of 2026-11-22): lite's by kind and
-     *  instant, the edge's by legend-pure's written form. Either side may be a driver's temporal carrier. */
-    boolean equalDates(Object e, Object a);
 
-    /** Whether two Decimals are equal (train 17, 2026-11-18: until then the plan's {@code decimalScale} rule). */
-    boolean equalDecimals(java.math.BigDecimal e, java.math.BigDecimal a);
 
     /** Whether two finite Floats whose values differ are equal all the same (train 17, 2026-11-18: until then the
      *  plan's {@code floatUlps} rule). */
