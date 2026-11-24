@@ -169,6 +169,29 @@
 > raised error's record is lite's typed output, so compatibility may word
 > upstream's sentence in Java from it (tenet 3).
 >
+> **The equality rule — strict typing (ruled by the user, 2026-11-24: "Love it";
+> `docs/records/compat-stage-b-plan-2026-11-24.md`) `[CONVENTION until B3 step 3]`.**
+> Two values are equal only when they have the same type and the same value; a
+> value is what it denotes, not how it was written. Decided as a tenet, never by
+> matching upstream's answers (the user: "We just should decide our tenets").
+> - **Different types never compare.** Where the types are known when the query is
+>   compiled (literals, columns, parameters, computed expressions), comparing two
+>   different types is a compile error naming the fix: Integer, Float and Decimal are
+>   three types; a day and a date-time; an enumeration and a String; two unrelated
+>   classes. `==`, `!=`, `in`, `contains`, `indexOf`, the deduplications, joins and
+>   ordering (`<`, `max`, `min`, `sort`) all hold to it.
+> - **Types known only at run time** (`Any`, `Number`, the abstract `Date`, a generic
+>   position) carry their type beside the value; equal means the same type and the
+>   same value, and a mixed list orders by value, then by type.
+> - **Within one type, the value, not its spelling:** a Decimal by its number (S139),
+>   a date-time by its instant (S399).
+> - **Classes:** the run-time class is part of the value — the same class, then the
+>   keys of a keyed class or the identity of a keyless one.
+> - **Arithmetic keeps its typed promotion** (`1 + 1.5` is a Float): computing is not
+>   comparing.
+> - **Upstream's looseness lives at the doors:** legend-pure's door rewrites a
+>   cross-type `==` to `false`, legend-engine's to the database's comparison.
+>
 > **World-map tenet — ratified 2026-09-03 (`docs/WORLD_MAP.md`,
 > `docs/TENET_CHARTER.md` Clause 6):** Pure code is NATIVES (one Java SQL
 > lowering rule each), PLATFORM SEMANTICS (Java, designed from the engine's

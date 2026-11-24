@@ -315,8 +315,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Lite** refuses the comparison by name: a database cannot compute identity. Compare a path (`get`), a typed value
   (`to(@T)`), or the JSON text (`toString()`, a Variant's JSON text in lite: lite has no `toJson` over a Variant) instead. A Variant against a value of another type is not equal, as in
   Pure, read through every expression typed `Any` to where its values come from (a cast, a list, an `if`, `first`,
-  `filter`, `map`, ...); a Variant inside a list of other values, or held in a `Pair`, a `List`, a `Map` or an object
-  (in a member declared `Any` too), compared by equality is refused too. The one difference from legend-pure: the same Variant compared with itself, which Pure
+  `filter`, `map`, ...); a Variant inside a list of other values, or held in a `Pair`, a `List` or a `Map` (in a member
+  declared `Any` too), or in a key declared Variant, compared by equality is refused too. The one difference from legend-pure: the same Variant compared with itself, which Pure
   answers true and lite refuses. Not yet refused: a relation's `distinct`, `groupBy` or join over a Variant column,
   and a value typed `Any` that comes from a variable or a stored property, which use the database's own equality. **measured** (`AssertBarTest`)
 - Register S401.
