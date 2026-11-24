@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""B3 step 1b, phase 1: writes the oracle's inputs from legend-engine 4.145.0's OWN test sources (read, never recalled).
+
+  python3 -I make_models.py <legend_engine_src root> <out dir>
+
+Writes, under <out dir>:
+  models/calendar-h2.pure      the calendarAggregations tests' model (store, mapping, classes) re-packaged under
+                               oracle1b::calendar, a LocalH2 connection whose testDataSetupSqls are the tests'
+                               own setUp statements (DDL written for the store's tables), and a Runtime
+  models/sqlfn-h2.pure         the same for mapping::sqlFunction's log tests (oracle1b::sqlfn)
+  models/*-duckdb-connection.pure  the DuckDB connection that replaces the H2 one (planoracle.SeedDuckDbMain)
+  requests/calendar.tsv        the 14 calendar lambdas (name TAB lambda), each ending ->from(mapping, runtime)
+  requests/sqlfn_log.tsv       the 2 log lambdas
+Each request's lambda is the test's own `execute(|...)` lambda, the class and mapping paths re-packaged.
+"""
+import os
+import re
+import sys
+
+ROOT = sys.argv[1]
+OUT = sys.argv[2]
+CR = os.path.join(ROOT, "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/"
+                  "legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/"
+                  "core_relational/relational")
+CAL = os.path.join(CR, "calendarAggregation/tests/testCalendarFunctions.pure")
+SQLFN = os.path.join(CR, "tests/mapping/sqlFunction/testSqlFunctionsInMapping.pure")
+
+
+def pure_string(s):
+    """A Pure single-quoted string literal."""
+    return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def unescape(s):
+    return s.replace("\\'", "'").replace("\\\\", "\\")
+
+
+def setup_body(src, fn):
+    start = src.index(fn)
+    open_ = src.index("{", start)
+    depth = 0
+    for i in range(open_, len(src)):
+        if src[i] == "{":
+            depth += 1
+        elif src[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return src[open_ + 1:i]
+    raise ValueError(fn)
+
+
+def execute_in_db_statements(body, variables):
+    """Each executeInDb(<string expr>, $connection) of a setUp body, its string expression evaluated (literals and
+    the body's `let` String variables joined by +)."""
+    out = []
+    for m in re.finditer(r"executeInDb\((.*?),\s*\$connection\);", body):
+        expr = m.group(1)
+        parts = re.findall(r"'((?:\\.|[^'\\])*)'|\$(\w+)", expr)
+        text = ""
+        for lit, var in parts:
+            text += variables[var] if var else unescape(lit)
+        out.append(text.strip())
+    return out
+
+
+# ---- the calendar family ------------------------------------------------------------------------------------------
+cal = open(CAL, encoding="utf-8").read()
+cal_setup = setup_body(cal, "meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::setUp()")
+cols = re.search(r"let columnNames = '([^']*)';", cal_setup).group(1)
+cal_inserts = execute_in_db_statements(cal_setup, {"columnNames": cols})
+
+CAL_COLS = [
+    ("date", "DATE"), ("dayOfCalendarYear", "INTEGER"), ("shortNameWeekDay", "VARCHAR(3)"), ("adjustedDate", "DATE"),
+    ("fiscalWeekOffset", "INTEGER"), ("fiscalDay", "INTEGER"), ("fiscalDayOfMonth", "INTEGER"),
+    ("fiscalDayOfQuarter", "INTEGER"), ("fiscalDayOfWeek", "INTEGER"), ("prior12WeekDate", "DATE"),
+    ("prior4WeekDate", "DATE"), ("prior52WeekDate", "DATE"), ("currentMonthNum", "INTEGER"),
+    ("fiscalMonthEnd", "DATE"), ("currentQuarterNum", "INTEGER"), ("currentWeek", "INTEGER"),
+    ("fiscalWeekStart", "DATE"), ("currentYear", "INTEGER"), ("previousBusinessDay", "DATE"),
+    ("previousFiscalMonth", "INTEGER"), ("previousFiscalQuarter", "INTEGER"), ("previousFiscalYear", "INTEGER"),
+    ("numberOfFiscalDaysInMonth", "INTEGER"), ("numberOfFiscalDaysInYear", "INTEGER"),
+]  # calendarStore.pure:17-74, CalendarDatabase's NY_Calendar and London_Calendar (identical column lists)
+cal_cols_sql = ", ".join("%s %s" % c for c in CAL_COLS)
+
+# DDL for the tables setUp makes with dropAndCreateTableInDb/dropAndCreateSchemaInDb (testCalendarFunctions.pure:106,
+# 167, 171, 175-177): the store's column types (testCalendarFunctions.pure:7-9; calendarStore.pure:17-74) in a spelling H2
+# and DuckDB both read; Float/DOUBLE is an 8-byte double on both (lite's DuckDb.ddlType spells FLOAT and DOUBLE as
+# DOUBLE). Statements that only one database reads are not used: the same list seeds legend-engine's H2 (LocalH2) and
+# the DuckDB file (SeedDuckDbMain).
+cal_seed = [
+    "DROP TABLE IF EXISTS EmployeeTable;",
+    "DROP TABLE IF EXISTS FirmTable;",
+    "DROP TABLE IF EXISTS EmployeeDetailsTable;",
+    "DROP SCHEMA IF EXISTS LegendCalendarSchema CASCADE;",
+    "CREATE TABLE EmployeeTable (id INTEGER NOT NULL, hireDate DATE, hireType VARCHAR(10), fteFactor DOUBLE, PRIMARY KEY (id));",
+]
+emp = [s for s in cal_inserts if s.lower().startswith("insert into employeetable ")]
+firm = [s for s in cal_inserts if s.lower().startswith("insert into firmtable ")]
+det = [s for s in cal_inserts if s.lower().startswith("insert into employeedetailstable ")]
+ny = [s for s in cal_inserts if s.lower().startswith("insert into legendcalendarschema.ny_calendar ")]
+assert len(emp) + len(firm) + len(det) + len(ny) == len(cal_inserts), "an unclassified setUp statement"
+cal_seed += emp
+cal_seed += ["CREATE TABLE FirmTable (firmName VARCHAR(100) NOT NULL, employeeId INTEGER NOT NULL, PRIMARY KEY (firmName, employeeId));"]
+cal_seed += firm
+cal_seed += ["CREATE TABLE EmployeeDetailsTable (id INTEGER NOT NULL, birthDate DATE, yearsOfExperience DOUBLE, PRIMARY KEY (id));"]
+cal_seed += det
+cal_seed += ["CREATE SCHEMA LegendCalendarSchema;",
+             "CREATE TABLE LegendCalendarSchema.NY_Calendar (%s);" % cal_cols_sql,
+             "CREATE TABLE LegendCalendarSchema.London_Calendar (%s);" % cal_cols_sql]
+cal_seed += ny
+counts = (len(emp), len(firm), len(det), len(ny))
+assert counts == (59, 2, 2, 60), counts
+
+CAL_MODEL = """// B3 step 1b's oracle input (phase 1, 2026-11-24): legend-engine 4.145.0's calendarAggregations tests' model,
+// read from core_relational/relational/calendarAggregation/tests/testCalendarFunctions.pure (lines 1-33, 85-100) and
+// re-packaged under oracle1b::calendar (the engine's compiled core already holds the meta:: originals). Left out:
+// EmployeeMappingUnion (no measured test uses it), Employee.fteFactorDyna() (no measured test uses it), and
+// EmployeeDatabase's `include ...calendarAggregations::CalendarDatabase` (the engine's compiler resolves a store from
+// the request's own elements only, PureModel.getStore_safe; the calendar functions' joins name the compiled core's
+// CalendarDatabase themselves, calendarAggregationPureToSQL.pure:24-37, so the SQL is the same).
+// The connection's testDataSetupSqls are the tests' own setUp statements (testCalendarFunctions.pure:102-242).
+
+###Relational
+Database oracle1b::calendar::EmployeeDatabase
+(
+   Table EmployeeTable(id INT PRIMARY KEY, hireDate DATE, hireType VARCHAR(10), fteFactor DOUBLE)
+   Table EmployeeDetailsTable(id INT PRIMARY KEY, birthDate DATE, yearsOfExperience DOUBLE)
+   Table FirmTable(firmName VARCHAR(100) PRIMARY KEY, employeeId INT PRIMARY KEY)
+
+   Join JoinEmployeeToFirm(EmployeeTable.id = FirmTable.employeeId)
+   Join JoinEmployeeToemployeeDetails(EmployeeTable.id = EmployeeDetailsTable.id)
+)
+
+###Pure
+Class oracle1b::calendar::Employee
+{
+   id       : Integer[1];
+   hireDate : Date[1];
+   hireType : String[1];
+   fteFactor: Float[1];
+   firmName : String[0..1];
+   employeeDetails : oracle1b::calendar::employeeDetails[1];
+}
+
+Class oracle1b::calendar::employeeDetails
+{
+   birthDate : Date[1];
+   yearsOfExperience : Integer[1];
+}
+
+###Mapping
+Mapping oracle1b::calendar::EmployeeMapping
+(
+   oracle1b::calendar::Employee[emp] : Relational
+   {
+      id       : [oracle1b::calendar::EmployeeDatabase]EmployeeTable.id,
+      hireDate : [oracle1b::calendar::EmployeeDatabase]EmployeeTable.hireDate,
+      hireType : [oracle1b::calendar::EmployeeDatabase]EmployeeTable.hireType,
+      fteFactor: [oracle1b::calendar::EmployeeDatabase]EmployeeTable.fteFactor,
+      firmName : [oracle1b::calendar::EmployeeDatabase]@JoinEmployeeToFirm | FirmTable.firmName,
+      employeeDetails
+      (
+        birthDate : [oracle1b::calendar::EmployeeDatabase]@JoinEmployeeToemployeeDetails | EmployeeDetailsTable.birthDate,
+        yearsOfExperience : [oracle1b::calendar::EmployeeDatabase]@JoinEmployeeToemployeeDetails | EmployeeDetailsTable.yearsOfExperience
+      )
+   }
+)
+
+###Connection
+RelationalDatabaseConnection oracle1b::calendar::Conn
+{
+    store: oracle1b::calendar::EmployeeDatabase;
+    type: H2;
+    specification: LocalH2
+    {
+        testDataSetupSqls: [
+%s
+        ];
+    };
+    auth: DefaultH2;
+}
+
+###Runtime
+Runtime oracle1b::calendar::RT
+{
+    mappings:
+    [
+        oracle1b::calendar::EmployeeMapping
+    ];
+    connections:
+    [
+        oracle1b::calendar::EmployeeDatabase: [ c1: oracle1b::calendar::Conn ]
+    ];
+}
+"""
+
+DUCK_CONN = """// B3 step 1b's oracle input: the DuckDB connection that replaces %(conn)s's LocalH2 one (planoracle.SeedDuckDbMain
+// --connection), as tools/engine-runner/src/test/resources/pure_v1/duckdb-connection.pure does for the pure/v1 goldens.
+// ${DUCKDB_PATH} is the path of the reader's copy of the seeded file (planoracle.GoldenRunMain --duckdb).
+
+###Connection
+RelationalDatabaseConnection %(conn)s
+{
+    store: %(store)s;
+    type: DuckDB;
+    specification: DuckDB
+    {
+        path: '${DUCKDB_PATH}';
+    };
+    auth: Test;
+}
+"""
+
+
+def seed_block(stmts):
+    return ",\n".join("            " + pure_string(s) for s in stmts)
+
+
+os.makedirs(os.path.join(OUT, "models"), exist_ok=True)
+os.makedirs(os.path.join(OUT, "requests"), exist_ok=True)
+with open(os.path.join(OUT, "models/calendar-h2.pure"), "w", encoding="utf-8") as f:
+    f.write(CAL_MODEL % seed_block(cal_seed))
+with open(os.path.join(OUT, "models/calendar-duckdb-connection.pure"), "w", encoding="utf-8") as f:
+    f.write(DUCK_CONN % {"conn": "oracle1b::calendar::Conn", "store": "oracle1b::calendar::EmployeeDatabase"})
+
+# the 14 tests S132 moves on DuckDB (testAnnualizedValue, testCmeValue, testPmaValue also the 3 it moves on H2)
+CAL_TESTS = ["testAnnualizedValue", "testCmeValue", "testP12MtdValue", "testP12WtdValue", "testP4WaValue",
+             "testP4WtdValue", "testP52WtdValue", "testPmaValue", "testPrioryearValue", "testPymtdValue",
+             "testPyqtdValue", "testPytdValue", "testQtdValue", "testYtdValue"]
+PKG = "meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::"
+with open(os.path.join(OUT, "requests/calendar.tsv"), "w", encoding="utf-8") as f:
+    f.write("# B3 step 1b (phase 1, 2026-11-24): the calendarAggregations tests S132 moves, each the test's own execute(|...)\n"
+            "# lambda (testCalendarFunctions.pure, the line after each name), re-packaged under oracle1b::calendar and\n"
+            "# closed by ->from(mapping, runtime); read by planoracle.GoldenRunMain (--requests): name TAB lambda.\n")
+    for t in CAL_TESTS:
+        i = cal.index(PKG + t + "()")
+        body = cal[i:cal.index("\n}\n", i)]
+        lam = re.search(r"execute\(\|(.*?),\s*(EmployeeMapping\w*)\s*,\s*meta::external::store::relational::tests::testRuntime\(\)",
+                        body, re.S)
+        query = " ".join(lam.group(1).split())
+        assert lam.group(2) == "EmployeeMapping", (t, lam.group(2))
+        query = query.replace("Employee.all()", "oracle1b::calendar::Employee.all()", 1)
+        line = cal[:i].count("\n") + 1
+        f.write("# %s%s (testCalendarFunctions.pure:%d)\n" % (PKG, t, line))
+        f.write("calendarAggregations::%s\t|%s->from(oracle1b::calendar::EmployeeMapping, oracle1b::calendar::RT)\n"
+                % (t, query))
+
+# ---- the sqlFunction log family -----------------------------------------------------------------------------------
+sq = open(SQLFN, encoding="utf-8").read()
+sq_setup = setup_body(sq, "meta::relational::tests::mapping::sqlFunction::setUp()")
+sq_inserts = execute_in_db_statements(sq_setup, {})
+assert len(sq_inserts) == 2, sq_inserts
+# myDB.dataTable (testSqlFunctionsInMapping.pure:735-755); float1 is `Float` there: an 8-byte double on H2 (FLOAT) and
+# in lite's DuckDB DDL (DuckDb.ddlType: FLOAT -> DOUBLE), written DOUBLE so both databases read the one statement
+sq_seed = [
+    "DROP TABLE IF EXISTS dataTable;",
+    "CREATE TABLE dataTable (int1 INTEGER NOT NULL, string1 VARCHAR(200), string2 VARCHAR(200), string3 VARCHAR(200), "
+    "string2float VARCHAR(200), string2Decimal VARCHAR(200), string2Integer VARCHAR(200), string2date VARCHAR(200), "
+    "stringDateFormat VARCHAR(12), stringDateTimeFormat VARCHAR(32), dateTime TIMESTAMP, float1 DOUBLE, "
+    "stringUserDefinedDateFormat VARCHAR(7), stringToInt VARCHAR(5), alphaNumericString VARCHAR(15), PRIMARY KEY (int1));",
+] + sq_inserts
+
+SQ_MODEL = """// B3 step 1b's oracle input (phase 1, 2026-11-24): legend-engine 4.145.0's mapping::sqlFunction log tests' model,
+// read from core_relational/relational/tests/mapping/sqlFunction/testSqlFunctionsInMapping.pure and re-packaged
+// under oracle1b::sqlfn: myDB verbatim (:735-755); SqlFunctionDemo and testMapping cut to the one property the log
+// tests read, logResult : Float[1] (:701) mapped as the test maps it, scope([myDB] dataTable)(logResult: log(float1))
+// (:761-766, :816). The connection's testDataSetupSqls are the tests' setUp statements (:41-50).
+
+###Relational
+Database oracle1b::sqlfn::myDB
+(
+    Table dataTable
+    (
+        int1 INTEGER PRIMARY KEY,
+        string1 VARCHAR(200),
+        string2 VARCHAR(200),
+        string3 VARCHAR(200),
+        string2float  VARCHAR(200),
+        string2Decimal VARCHAR(200),
+        string2Integer  VARCHAR(200),
+        string2date  VARCHAR(200),
+        stringDateFormat VARCHAR(12),
+        stringDateTimeFormat VARCHAR(32),
+        dateTime TIMESTAMP,
+        float1 Float,
+        stringUserDefinedDateFormat VARCHAR(7),
+        stringToInt VARCHAR(5),
+        alphaNumericString VARCHAR(15)
+    )
+)
+
+###Pure
+Class oracle1b::sqlfn::SqlFunctionDemo
+{
+   logResult: Float[1];
+}
+
+###Mapping
+Mapping oracle1b::sqlfn::testMapping
+(
+    oracle1b::sqlfn::SqlFunctionDemo: Relational
+    {
+       scope([oracle1b::sqlfn::myDB] dataTable)
+       (
+          logResult: log(float1)
+       )
+    }
+)
+
+###Connection
+RelationalDatabaseConnection oracle1b::sqlfn::Conn
+{
+    store: oracle1b::sqlfn::myDB;
+    type: H2;
+    specification: LocalH2
+    {
+        testDataSetupSqls: [
+%s
+        ];
+    };
+    auth: DefaultH2;
+}
+
+###Runtime
+Runtime oracle1b::sqlfn::RT
+{
+    mappings:
+    [
+        oracle1b::sqlfn::testMapping
+    ];
+    connections:
+    [
+        oracle1b::sqlfn::myDB: [ c1: oracle1b::sqlfn::Conn ]
+    ];
+}
+"""
+with open(os.path.join(OUT, "models/sqlfn-h2.pure"), "w", encoding="utf-8") as f:
+    f.write(SQ_MODEL % seed_block(sq_seed))
+with open(os.path.join(OUT, "models/sqlfn-duckdb-connection.pure"), "w", encoding="utf-8") as f:
+    f.write(DUCK_CONN % {"conn": "oracle1b::sqlfn::Conn", "store": "oracle1b::sqlfn::myDB"})
+
+SQ_PKG = "meta::relational::tests::mapping::sqlFunction::log::"
+with open(os.path.join(OUT, "requests/sqlfn_log.tsv"), "w", encoding="utf-8") as f:
+    f.write("# B3 step 1b (phase 1, 2026-11-24): the mapping::sqlFunction::log tests S15 moves, each the test's own\n"
+            "# execute(|...) lambda re-packaged under oracle1b::sqlfn and closed by ->from(mapping, runtime).\n")
+    for t in ["testProject", "testFilter"]:
+        i = sq.index(SQ_PKG + t + "()")
+        body = sq[i:sq.index("\n}\n", i)]
+        lam = re.search(r"execute\(\|(.*?),\s*testMapping,\s*testDataTypeMappingRuntime\(\)", body, re.S)
+        query = " ".join(lam.group(1).split()).replace("SqlFunctionDemo.all()", "oracle1b::sqlfn::SqlFunctionDemo.all()", 1)
+        line = sq[:i].count("\n") + 1
+        f.write("# %s%s (testSqlFunctionsInMapping.pure:%d)\n" % (SQ_PKG, t, line))
+        f.write("log::%s\t|%s->from(oracle1b::sqlfn::testMapping, oracle1b::sqlfn::RT)\n" % (t, query))
+
+print("calendar seed: %d statements (%d employees, %d firms, %d details, %d NY calendar rows); sqlfn seed: %d"
+      % ((len(cal_seed),) + counts + (len(sq_seed),)))
+
+# ---- the goldens, as the tests assert them (read from the sources) -------------------------------------------------
+with open(os.path.join(OUT, "goldens.tsv"), "w", encoding="utf-8") as f:
+    f.write("# test\tkind\tgolden\tsource\n")
+    for t in CAL_TESTS:
+        i = cal.index(PKG + t + "()")
+        j = cal.index("\n}\n", i)
+        m = re.search(r"assertEquals\(\['(hireType,[^']*)'\], toCSV\(\$result\.values\)->replace\('\\n', ','\)\);", cal[i:j])
+        line = cal[:i + m.start()].count("\n") + 1
+        f.write("calendarAggregations::%s\tcsv\t%s\ttestCalendarFunctions.pure:%d\n" % (t, m.group(1), line))
+    for t in ["testProject", "testFilter"]:
+        i = sq.index(SQ_PKG + t + "()")
+        j = sq.index("\n}\n", i)
+        m = re.search(r"assertEquals\(\[([0-9., ]+)\], \$result\.values->at\(0\)\.rows\.values\);", sq[i:j])
+        line = sq[:i + m.start()].count("\n") + 1
+        f.write("log::%s\tfloats\t%s\ttestSqlFunctionsInMapping.pure:%d\n" % (t, m.group(1).replace(" ", ""), line))

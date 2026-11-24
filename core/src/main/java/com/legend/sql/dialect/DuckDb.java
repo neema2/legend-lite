@@ -1345,6 +1345,15 @@ public class DuckDb extends AnsiSqlRenderer {
                             List.of(v))), 0)
                     .append(" END)");
         }
+        if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.value() instanceof SqlExpr.FloatLit f
+                && Double.isFinite(f.value())) {
+            // a Float literal cast to DOUBLE is written as the double itself, its exponent form, which DuckDB reads as
+            // a DOUBLE, correctly rounded: DuckDB's DECIMAL-to-DOUBLE cast is not (CAST(0.09531017980432493 AS DOUBLE)
+            // is 0.09531017980432492, one unit in the last place below the literal's double; measured on DuckDB 1.5.6,
+            // B3 step 1b, 2026-11-24 -- an assert's expected Float on the compatibility route, whose literal is written
+            // as a decimal, compared one ULP off the database's own ln). The value the literal names, nothing computed.
+            return writer.append(doubleLiteral(f.value()));
+        }
         return super.variantAwareCast(writer, c);
     }
 

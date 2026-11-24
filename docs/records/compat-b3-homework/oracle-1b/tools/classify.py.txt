@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""B3 step 1b, phase 2's reader: legend-engine's answers (planoracle.GoldenRunMain's jsonl) set against the goldens and
+lite's actuals, each test classed.
+
+  python3 -I classify.py <oracle1b dir> <label>=<engine.jsonl> [<label>=<engine.jsonl> ...]
+
+A label names the lane and the database that answered, e.g. duckdb-1.3.0.0 or h2-2.1.214; its first word (duckdb or h2)
+picks lite's actuals. For each test it prints legend-engine's cells (the JSON text as the execute route wrote it), the
+text legend-engine's own test would compare (each number read as a double, json-simple's reading, and printed as
+legend-pure's compiled toString prints a Float: the shortest digits, positional), whether that passes the golden, and
+the class:
+  (a) agrees with lite      legend-engine fails it too, and its doubles are lite's
+  (b) printing difference   legend-engine passes, its doubles are lite's: only lite's text differs
+  (c) real difference       the doubles differ (legend-engine passes, or both fail with different values)
+Row order is reported apart (the tests compare an unsorted groupBy's rows in order: S131's territory, not this step's).
+"""
+import json
+import sys
+from decimal import Decimal
+
+
+def pure_float_text(num_text):
+    """legend-pure's compiled text of a Float (CompiledSupport.primitiveToString(double)): DecimalFormat("0.0") with 340
+    fraction digits, i.e. the shortest round-trip digits written positionally, a point always, 0.0 for zero."""
+    d = float(num_text)
+    if d == 0.0:
+        return "0.0"
+    s = format(Decimal(repr(d)), "f")
+    return s if "." in s else s + ".0"
+
+
+def load_tsv(path):
+    rows = []
+    for line in open(path, encoding="utf-8"):
+        if line.startswith("#") or not line.strip():
+            continue
+        rows.append(line.rstrip("\n").split("\t"))
+    return rows
+
+
+def find_key(node, key, out):
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k == key:
+                out.append(v)
+            find_key(v, key, out)
+    elif isinstance(node, list):
+        for v in node:
+            find_key(v, key, out)
+
+
+def main():
+    base = sys.argv[1]
+    goldens = {r[0]: (r[1], r[2], r[3]) for r in load_tsv(base + "/goldens.tsv")}
+    lite = {}
+    for r in load_tsv(base + "/lite_actuals.tsv"):
+        cells = {}
+        if len(r) > 3 and r[2]:
+            cells[r[2]] = r[3]
+        if len(r) > 5 and r[4]:
+            cells[r[4]] = r[5]
+        lite[(r[0], r[1])] = (cells, r[-1])
+    for spec in sys.argv[2:]:
+        label, path = spec.split("=", 1)
+        lane = label.split("-")[0]
+        print("=" * 100)
+        print("## %s  (%s)" % (label, path))
+        plans = {}
+        answers = []
+        for line in open(path, encoding="utf-8"):
+            name, status, body = json.loads(line)
+            if name == "#":
+                print("answered by: " + body)
+            elif name.startswith("plan."):
+                plans[name[5:]] = (status, body)
+            else:
+                answers.append((name, status, body))
+        for name, status, body in answers:
+            kind, golden, source = goldens[name]
+            print("-" * 100)
+            print("%s  [golden %s]" % (name, source))
+            pstatus, pbody = plans.get(name, ("?", ""))
+            if pstatus == "200":
+                sqls = []
+                find_key(json.loads(pbody), "sqlQuery", sqls)
+                for s in sqls:
+                    print("  sql: " + s)
+            if status != "200":
+                print("  legend-engine REFUSED (%s): %s" % (status, body[:600]))
+                continue
+            res = json.loads(body, parse_float=Num, parse_int=Num)
+            rows = [r["values"] for r in res["result"]["rows"]]
+            cols = res["result"]["columns"]
+            print("  legend-engine cells (as sent): %s %s" % (cols, rows))
+            lite_cells, prov = lite.get((name, lane), ({}, "none"))
+            if kind == "csv":
+                text = ",".join(cols) + ","
+                for r in rows:
+                    text += ",".join("" if v is None else (pure_float_text(v) if isinstance(v, Num) else str(v)) for v in r) + ","
+                engine_pass = text == golden
+                print("  its test compares: %s" % text)
+                print("  golden:            %s  -> legend-engine %s" % (golden, "PASSES" if engine_pass else "FAILS"))
+                eng = {r[0]: (None if r[1] is None else float(r[1])) for r in rows}
+                order = [r[0] for r in rows]
+                gold_order = [c for c in golden.split(",")[2::2] if c]
+                if order != gold_order:
+                    print("  row order %s differs from the golden's %s" % (order, gold_order))
+                if not lite_cells:
+                    print("  lite: no actual recorded for lane %s" % lane)
+                    continue
+                same = all(k in eng and eng[k] is not None and float(v) == eng[k] for k, v in lite_cells.items())
+                print("  lite (%s): %s -> as doubles %s" % (prov, lite_cells, {k: repr(float(v)) for k, v in lite_cells.items()}))
+            else:
+                vals = [float(r[0]) for r in rows]
+                gold = [float(x) for x in golden.split(",")]
+                engine_pass = vals == gold
+                print("  legend-engine values %s vs golden %s -> legend-engine %s (exact Float equality)"
+                      % ([repr(v) for v in vals], [repr(g) for g in gold], "PASSES" if engine_pass else "FAILS"))
+                known = [(i, v) for i, v in ((int(k) - 1, v) for k, v in lite_cells.items()) if v != "?"]
+                same = all(i < len(vals) and float(v) == vals[i] for i, v in known)
+                print("  lite (%s): %s" % (prov, lite_cells))
+            if engine_pass:
+                cls = "(b) printing difference" if same else "(c) real difference (legend-engine passes, values differ)"
+            else:
+                cls = "(a) agrees with lite" if same else "(c) real difference (both fail, values differ: inspect)"
+            print("  CLASS: " + cls)
+
+
+class Num(str):
+    """A JSON number kept as the text legend-engine's execute route wrote (ExecutionResultObjectMapperFactory:
+    value.toString()), so a DECFLOAT's digits are shown before the double reading."""
+
+
+if __name__ == "__main__":
+    main()

@@ -388,6 +388,20 @@ class DuckDbRenderTest {
                 "addInterval under a comparison must parenthesize: " + addI);
     }
 
+    @Test
+    @DisplayName("a Float literal cast to DOUBLE is the double itself, in exponent form: DuckDB's DECIMAL-to-DOUBLE cast is"
+            + " not correctly rounded (B3 step 1b, 2026-11-24)")
+    void aFloatLiteralCastToDoubleIsTheDouble() {
+        // the compatibility route writes a Float literal as legend-engine does, a decimal; cast to DOUBLE (an assert's
+        // expected Float) DuckDB 1.5.6 read CAST(0.09531017980432493 AS DOUBLE) as 0.09531017980432492, one ULP below
+        // the literal's double and DuckDB's own ln(1.1); 0.09531017980432493E0 (an exponent: a DOUBLE) it reads as that double exactly
+        assertEquals("0.09531017980432493E0", renderExpr(new SqlExpr.Cast(
+                SqlExpr.FloatLit.of(0.09531017980432493, SqlExpr.FloatLit.Kind.DECIMAL), SqlType.Scalar.DOUBLE,
+                SqlExpr.Reason.USER)));
+        assertEquals("1.5E0", renderExpr(new SqlExpr.Cast(SqlExpr.FloatLit.of(1.5, SqlExpr.FloatLit.Kind.DOUBLE),
+                SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER)));
+    }
+
     private String renderExpr(SqlExpr e) {
         return duck.render(SqlSelect.starOf(T_PERSON)
                         .withProjections(List.of(new SqlSelect.Projection(e, null, null))))

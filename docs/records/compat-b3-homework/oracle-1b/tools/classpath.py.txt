@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Writes a java @argfile holding `-cp <the launcher's class path>` for a built java_binary, in the launcher's own order
+(the order matters: legend-engine's H2 execution jar carries H2 2.1.214's classes and must stay ahead of the pool's
+h2 jar), each entry resolved to an absolute path through the runfiles tree, or the runfiles manifest when the tree is
+absent. Optionally swaps one jar (run B: legend-engine's DuckDB driver replaced by lite's).
+
+  python3 -I classpath.py <launcher> <out.args> [--swap=<basename-substring>=<absolute jar>] [--runfiles=<dir>]
+"""
+import os
+import re
+import sys
+
+launcher, out = sys.argv[1], sys.argv[2]
+swap = None
+runfiles = launcher + ".runfiles"
+for a in sys.argv[3:]:
+    if a.startswith("--runfiles="):
+        runfiles = a[len("--runfiles="):]
+    if a.startswith("--swap="):
+        key, jar = a[len("--swap="):].split("=", 1)
+        swap = (key, jar)
+text = open(launcher, encoding="utf-8").read()
+m = re.search(r'CLASSPATH="\$\{RUNPATH\}([^"]*)"', text)
+if not m:
+    sys.exit("no CLASSPATH=\"${RUNPATH}...\" line in " + launcher)
+entries = ("${RUNPATH}" + m.group(1)).split(":")
+manifest = {}
+mf = runfiles + "_manifest"
+if os.path.exists(mf):
+    for line in open(mf, encoding="utf-8"):
+        parts = line.rstrip("\n").split(" ", 1)
+        if len(parts) == 2:
+            manifest[parts[0]] = parts[1]
+resolved = []
+for e in entries:
+    rel = e.replace("${RUNPATH}", "_main/")
+    rel = os.path.normpath(rel)  # _main/../repo/x -> repo/x
+    path = os.path.join(runfiles, rel)
+    if not os.path.exists(path):
+        path = manifest.get(rel, "")
+    if not path or not os.path.exists(path):
+        sys.exit("class path entry not found: %s (runfiles %s)" % (e, runfiles))
+    resolved.append(os.path.realpath(path))
+swapped = 0
+if swap:
+    for i, p in enumerate(resolved):
+        if swap[0] in os.path.basename(p):
+            resolved[i] = os.path.realpath(swap[1])
+            swapped += 1
+    if swapped != 1:
+        sys.exit("--swap matched %d entries, not one" % swapped)
+with open(out, "w", encoding="utf-8") as f:
+    f.write("-cp\n" + ":".join(resolved) + "\n")
+print("%s: %d entries%s" % (out, len(resolved), " (1 swapped: %s)" % swap[1] if swap else ""))
+for p in resolved:
+    b = os.path.basename(p)
+    if b.startswith("duckdb_jdbc") or re.match(r"h2-\d", b) or "h2-execution" in b or "planoracle" in b:
+        print("  " + b)

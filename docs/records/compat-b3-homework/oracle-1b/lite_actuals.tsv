@@ -1,0 +1,27 @@
+# lite's actual answer to each moved test, the cells the leniency (S15/S132) hid. Provenance per row:
+#   census   docs/V7_FLATCELLS_ATTEMPT_CENSUS.md lines 10-30 (2026-08-28, lite on DuckDB; Lateral cells truncated there)
+#   record   docs/records/compat-b3-progress.md lines 28-30, 44 (2026-11-24 measurement)
+#   computed work/calc.py and work/h2three.py over the test's own seed: DuckDB = the doubles summed in insertion order
+#            (reproduces every census cell); H2 = lite's IEEE division then H2's decimal SUM of the doubles (reproduces
+#            the record's 9.81285067873303158 exactly)
+#   inferred the record's two ln(1.1) values are swapped (see tests.md); confirm with run B (DuckDB 1.5.6.0)
+# test	lane	key1	value1	key2	value2	provenance
+calendarAggregations::testAnnualizedValue	duckdb	Campus	9.812850678733032	Lateral	9.26769230769231	census(Campus)+computed
+calendarAggregations::testCmeValue	duckdb	Campus	0.5131221719457014	Lateral	0.5644343891402716	census(Campus)+computed
+calendarAggregations::testP12MtdValue	duckdb	Campus	6.840000000000002	Lateral	7.239999999999998	census+computed
+calendarAggregations::testP12WtdValue	duckdb	Campus	4.6	Lateral	4.700000000000001	census+computed
+calendarAggregations::testP4WaValue	duckdb	Campus	0.8574999999999999	Lateral	0.98	census+computed
+calendarAggregations::testP4WtdValue	duckdb	Campus	3.4299999999999997	Lateral	3.92	census+computed
+calendarAggregations::testP52WtdValue	duckdb	Campus	6.840000000000002	Lateral	6.979999999999999	census+computed
+calendarAggregations::testPmaValue	duckdb	Campus	0.259	Lateral	0.22200000000000003	census+computed
+calendarAggregations::testPrioryearValue	duckdb	Campus	2.84	Lateral	3.0600000000000005	census+computed
+calendarAggregations::testPymtdValue	duckdb	Campus	0.69	Lateral	0.45999999999999996	census+computed
+calendarAggregations::testPyqtdValue	duckdb	Campus	1.4	Lateral	1.3599999999999999	census+computed
+calendarAggregations::testPytdValue	duckdb	Campus	1.5899999999999999	Lateral	1.54	census+computed
+calendarAggregations::testQtdValue	duckdb	Campus	4.2299999999999995	Lateral	4.32	census+computed
+calendarAggregations::testYtdValue	duckdb	Campus	5.590000000000001	Lateral	5.719999999999999	census+computed
+calendarAggregations::testAnnualizedValue	h2	Campus	9.81285067873303158	Lateral	9.26769230769230804	record(Campus)+computed
+calendarAggregations::testCmeValue	h2	Campus	0.513122171945701362	Lateral	0.564434389140271501	computed
+calendarAggregations::testPmaValue	h2	Campus	0.258999999999999991	Lateral	0.221999999999999996	computed
+log::testProject	duckdb	1	0.09531017980432492	2	?	inferred(row 1); row 2 unrecorded
+log::testFilter	duckdb	1	0.09531017980432492			inferred

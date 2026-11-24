@@ -1,0 +1,17 @@
+# test	kind	golden	source
+calendarAggregations::testAnnualizedValue	csv	hireType,annualized,Campus,9.812850678733032,Lateral,9.267692307692307,	testCalendarFunctions.pure:827
+calendarAggregations::testCmeValue	csv	hireType,cme,Campus,0.5131221719457013,Lateral,0.5644343891402714,	testCalendarFunctions.pure:840
+calendarAggregations::testP12MtdValue	csv	hireType,p12mtd,Campus,6.84,Lateral,7.24,	testCalendarFunctions.pure:1016
+calendarAggregations::testP12WtdValue	csv	hireType,p12wtd,Campus,4.6,Lateral,4.7,	testCalendarFunctions.pure:951
+calendarAggregations::testP4WaValue	csv	hireType,p4wa,Campus,0.8575,Lateral,0.98,	testCalendarFunctions.pure:964
+calendarAggregations::testP4WtdValue	csv	hireType,p4wtd,Campus,3.43,Lateral,3.92,	testCalendarFunctions.pure:977
+calendarAggregations::testP52WtdValue	csv	hireType,p52wtd,Campus,6.84,Lateral,6.98,	testCalendarFunctions.pure:990
+calendarAggregations::testPmaValue	csv	hireType,pma,Campus,0.259,Lateral,0.222,	testCalendarFunctions.pure:1030
+calendarAggregations::testPrioryearValue	csv	hireType,priorYear,Campus,2.84,Lateral,3.06,	testCalendarFunctions.pure:1094
+calendarAggregations::testPymtdValue	csv	hireType,pymtd,Campus,0.69,Lateral,0.46,	testCalendarFunctions.pure:1171
+calendarAggregations::testPyqtdValue	csv	hireType,pyqtd,Campus,1.4,Lateral,1.36,	testCalendarFunctions.pure:1184
+calendarAggregations::testPytdValue	csv	hireType,pytd,Campus,1.59,Lateral,1.54,	testCalendarFunctions.pure:1197
+calendarAggregations::testQtdValue	csv	hireType,qtd,Campus,4.23,Lateral,4.32,	testCalendarFunctions.pure:1244
+calendarAggregations::testYtdValue	csv	hireType,ytd,Campus,5.59,Lateral,5.72,	testCalendarFunctions.pure:1291
+log::testProject	floats	0.09531017980432493,0.5877866649021191	testSqlFunctionsInMapping.pure:571
+log::testFilter	floats	0.09531017980432493	testSqlFunctionsInMapping.pure:578

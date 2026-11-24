@@ -1,0 +1,393 @@
+====================================================================================================
+## duckdb-1.3.0.0  (<oracle1b>/out/a/calendar.jsonl)
+answered by: legend-engine 4.145.0; H2 2.1.214; DuckDB v1.3.0
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testAnnualizedValue  [golden testCalendarFunctions.pure:827]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear then ((1.0 * "root".fteFactor) / ((1.0 * "ny_calendar_1".fiscalDay) / "ny_calendar_1".numberOfFiscalDaysInYear)) else null end) as "annualized" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'annualized'] [['Campus', '9.812850678733032'], ['Lateral', '9.26769230769231']]
+  its test compares: hireType,annualized,Campus,9.812850678733032,Lateral,9.26769230769231,
+  golden:            hireType,annualized,Campus,9.812850678733032,Lateral,9.267692307692307,  -> legend-engine FAILS
+  lite (census(Campus)+computed): {'Campus': '9.812850678733032', 'Lateral': '9.26769230769231'} -> as doubles {'Campus': '9.812850678733032', 'Lateral': '9.26769230769231'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testCmeValue  [golden testCalendarFunctions.pure:840]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentMonthNum = "ny_calendar_1".currentMonthNum then ((1.0 * "root".fteFactor) / ((1.0 * "ny_calendar_1".fiscalDay) / "ny_calendar_1".numberOfFiscalDaysInMonth)) else null end) as "cme" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'cme'] [['Campus', '0.5131221719457014'], ['Lateral', '0.5644343891402716']]
+  its test compares: hireType,cme,Campus,0.5131221719457014,Lateral,0.5644343891402716,
+  golden:            hireType,cme,Campus,0.5131221719457013,Lateral,0.5644343891402714,  -> legend-engine FAILS
+  lite (census(Campus)+computed): {'Campus': '0.5131221719457014', 'Lateral': '0.5644343891402716'} -> as doubles {'Campus': '0.5131221719457014', 'Lateral': '0.5644343891402716'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP12MtdValue  [golden testCalendarFunctions.pure:1016]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date > date_add("ny_calendar_1".date,to_years(-1)) and "ny_calendar_0".date <= "ny_calendar_1".date then "root".fteFactor else null end) as "p12mtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p12mtd'] [['Lateral', '7.239999999999998'], ['Campus', '6.840000000000002']]
+  its test compares: hireType,p12mtd,Lateral,7.239999999999998,Campus,6.840000000000002,
+  golden:            hireType,p12mtd,Campus,6.84,Lateral,7.24,  -> legend-engine FAILS
+  row order ['Lateral', 'Campus'] differs from the golden's ['Campus', 'Lateral']
+  lite (census+computed): {'Campus': '6.840000000000002', 'Lateral': '7.239999999999998'} -> as doubles {'Campus': '6.840000000000002', 'Lateral': '7.239999999999998'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP12WtdValue  [golden testCalendarFunctions.pure:951]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior12WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p12wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p12wtd'] [['Lateral', '4.700000000000001'], ['Campus', '4.6']]
+  its test compares: hireType,p12wtd,Lateral,4.700000000000001,Campus,4.6,
+  golden:            hireType,p12wtd,Campus,4.6,Lateral,4.7,  -> legend-engine FAILS
+  row order ['Lateral', 'Campus'] differs from the golden's ['Campus', 'Lateral']
+  lite (census+computed): {'Campus': '4.6', 'Lateral': '4.700000000000001'} -> as doubles {'Campus': '4.6', 'Lateral': '4.700000000000001'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP4WaValue  [golden testCalendarFunctions.pure:964]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior4WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then ((1.0 * "root".fteFactor) / 4) else null end) as "p4wa" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p4wa'] [['Campus', '0.8574999999999999'], ['Lateral', '0.98']]
+  its test compares: hireType,p4wa,Campus,0.8574999999999999,Lateral,0.98,
+  golden:            hireType,p4wa,Campus,0.8575,Lateral,0.98,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '0.8574999999999999', 'Lateral': '0.98'} -> as doubles {'Campus': '0.8574999999999999', 'Lateral': '0.98'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP4WtdValue  [golden testCalendarFunctions.pure:977]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior4WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p4wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p4wtd'] [['Campus', '3.4299999999999997'], ['Lateral', '3.92']]
+  its test compares: hireType,p4wtd,Campus,3.4299999999999997,Lateral,3.92,
+  golden:            hireType,p4wtd,Campus,3.43,Lateral,3.92,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '3.4299999999999997', 'Lateral': '3.92'} -> as doubles {'Campus': '3.4299999999999997', 'Lateral': '3.92'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP52WtdValue  [golden testCalendarFunctions.pure:990]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior52WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p52wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p52wtd'] [['Campus', '6.840000000000002'], ['Lateral', '6.979999999999999']]
+  its test compares: hireType,p52wtd,Campus,6.840000000000002,Lateral,6.979999999999999,
+  golden:            hireType,p52wtd,Campus,6.84,Lateral,6.98,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '6.840000000000002', 'Lateral': '6.979999999999999'} -> as doubles {'Campus': '6.840000000000002', 'Lateral': '6.979999999999999'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPmaValue  [golden testCalendarFunctions.pure:1030]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_1".currentMonthNum = 1 and "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear then ((1.0 * "root".fteFactor) / 12) when "ny_calendar_1".currentMonthNum > 1 and "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentMonthNum <= "ny_calendar_1".previousFiscalMonth then ((1.0 * "root".fteFactor) / "ny_calendar_1".previousFiscalMonth) else null end) as "pma" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'pma'] [['Campus', '0.259'], ['Lateral', '0.22200000000000003']]
+  its test compares: hireType,pma,Campus,0.259,Lateral,0.22200000000000003,
+  golden:            hireType,pma,Campus,0.259,Lateral,0.222,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '0.259', 'Lateral': '0.22200000000000003'} -> as doubles {'Campus': '0.259', 'Lateral': '0.22200000000000003'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPrioryearValue  [golden testCalendarFunctions.pure:1094]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear then "root".fteFactor else null end) as "priorYear" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'priorYear'] [['Campus', '2.84'], ['Lateral', '3.0600000000000005']]
+  its test compares: hireType,priorYear,Campus,2.84,Lateral,3.0600000000000005,
+  golden:            hireType,priorYear,Campus,2.84,Lateral,3.06,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '2.84', 'Lateral': '3.0600000000000005'} -> as doubles {'Campus': '2.84', 'Lateral': '3.0600000000000005'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPymtdValue  [golden testCalendarFunctions.pure:1171]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".currentMonthNum = "ny_calendar_1".currentMonthNum and "ny_calendar_0".fiscalDayOfMonth <= "ny_calendar_1".fiscalDayOfMonth then "root".fteFactor else null end) as "pymtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'pymtd'] [['Campus', '0.69'], ['Lateral', '0.45999999999999996']]
+  its test compares: hireType,pymtd,Campus,0.69,Lateral,0.45999999999999996,
+  golden:            hireType,pymtd,Campus,0.69,Lateral,0.46,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '0.69', 'Lateral': '0.45999999999999996'} -> as doubles {'Campus': '0.69', 'Lateral': '0.45999999999999996'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPyqtdValue  [golden testCalendarFunctions.pure:1184]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".currentQuarterNum = "ny_calendar_1".currentQuarterNum and "ny_calendar_0".fiscalDayOfQuarter <= "ny_calendar_1".fiscalDayOfQuarter then "root".fteFactor else null end) as "pyqtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'pyqtd'] [['Campus', '1.4'], ['Lateral', '1.3599999999999999']]
+  its test compares: hireType,pyqtd,Campus,1.4,Lateral,1.3599999999999999,
+  golden:            hireType,pyqtd,Campus,1.4,Lateral,1.36,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '1.4', 'Lateral': '1.3599999999999999'} -> as doubles {'Campus': '1.4', 'Lateral': '1.3599999999999999'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPytdValue  [golden testCalendarFunctions.pure:1197]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "pytd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'pytd'] [['Lateral', '1.54'], ['Campus', '1.5899999999999999']]
+  its test compares: hireType,pytd,Lateral,1.54,Campus,1.5899999999999999,
+  golden:            hireType,pytd,Campus,1.59,Lateral,1.54,  -> legend-engine FAILS
+  row order ['Lateral', 'Campus'] differs from the golden's ['Campus', 'Lateral']
+  lite (census+computed): {'Campus': '1.5899999999999999', 'Lateral': '1.54'} -> as doubles {'Campus': '1.5899999999999999', 'Lateral': '1.54'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testQtdValue  [golden testCalendarFunctions.pure:1244]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentQuarterNum = "ny_calendar_1".currentQuarterNum and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "qtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'qtd'] [['Campus', '4.2299999999999995'], ['Lateral', '4.32']]
+  its test compares: hireType,qtd,Campus,4.2299999999999995,Lateral,4.32,
+  golden:            hireType,qtd,Campus,4.23,Lateral,4.32,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '4.2299999999999995', 'Lateral': '4.32'} -> as doubles {'Campus': '4.2299999999999995', 'Lateral': '4.32'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testYtdValue  [golden testCalendarFunctions.pure:1291]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "ytd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'ytd'] [['Campus', '5.590000000000001'], ['Lateral', '5.719999999999999']]
+  its test compares: hireType,ytd,Campus,5.590000000000001,Lateral,5.719999999999999,
+  golden:            hireType,ytd,Campus,5.59,Lateral,5.72,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '5.590000000000001', 'Lateral': '5.719999999999999'} -> as doubles {'Campus': '5.590000000000001', 'Lateral': '5.719999999999999'}
+  CLASS: (a) agrees with lite
+====================================================================================================
+## duckdb-1.3.0.0  (<oracle1b>/out/a/sqlfn.jsonl)
+answered by: legend-engine 4.145.0; H2 2.1.214; DuckDB v1.3.0
+----------------------------------------------------------------------------------------------------
+log::testProject  [golden testSqlFunctionsInMapping.pure:571]
+  sql: select ln("root".float1) as "log" from dataTable as "root"
+  legend-engine cells (as sent): ['log'] [['0.09531017980432493'], ['0.5877866649021191']]
+  legend-engine values ['0.09531017980432493', '0.5877866649021191'] vs golden ['0.09531017980432493', '0.5877866649021191'] -> legend-engine PASSES (exact Float equality)
+  lite (inferred(row 1); row 2 unrecorded): {'1': '0.09531017980432492', '2': '?'}
+  CLASS: (c) real difference (legend-engine passes, values differ)
+----------------------------------------------------------------------------------------------------
+log::testFilter  [golden testSqlFunctionsInMapping.pure:578]
+  sql: select ln("root".float1) as "log" from dataTable as "root" where ln("root".float1) < 0.1
+  legend-engine cells (as sent): ['log'] [['0.09531017980432493']]
+  legend-engine values ['0.09531017980432493'] vs golden ['0.09531017980432493'] -> legend-engine PASSES (exact Float equality)
+  lite (inferred): {'1': '0.09531017980432492'}
+  CLASS: (c) real difference (legend-engine passes, values differ)
+====================================================================================================
+## h2-2.1.214  (<oracle1b>/out/h2/calendar.jsonl)
+answered by: legend-engine 4.145.0; H2 2.1.214; DuckDB v1.3.0
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testAnnualizedValue  [golden testCalendarFunctions.pure:827]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear then (1.0 * "root".fteFactor) / ((1.0 * "ny_calendar_1".fiscalDay) / ("ny_calendar_1".numberOfFiscalDaysInYear)) else null end) as "annualized" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'annualized'] [['Campus', '9.812850678733031674210897722814848'], ['Lateral', '9.267692307692307692310292293769579']]
+  its test compares: hireType,annualized,Campus,9.812850678733032,Lateral,9.267692307692307,
+  golden:            hireType,annualized,Campus,9.812850678733032,Lateral,9.267692307692307,  -> legend-engine PASSES
+  lite (record(Campus)+computed): {'Campus': '9.81285067873303158', 'Lateral': '9.26769230769230804'} -> as doubles {'Campus': '9.812850678733032', 'Lateral': '9.267692307692307'}
+  CLASS: (b) printing difference
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testCmeValue  [golden testCalendarFunctions.pure:840]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentMonthNum = "ny_calendar_1".currentMonthNum then (1.0 * "root".fteFactor) / ((1.0 * "ny_calendar_1".fiscalDay) / ("ny_calendar_1".numberOfFiscalDaysInMonth)) else null end) as "cme" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'cme'] [['Campus', '0.5131221719457013574660540611371595'], ['Lateral', '0.5644343891402714932126594672508753']]
+  its test compares: hireType,cme,Campus,0.5131221719457013,Lateral,0.5644343891402714,
+  golden:            hireType,cme,Campus,0.5131221719457013,Lateral,0.5644343891402714,  -> legend-engine PASSES
+  lite (computed): {'Campus': '0.513122171945701362', 'Lateral': '0.564434389140271501'} -> as doubles {'Campus': '0.5131221719457013', 'Lateral': '0.5644343891402716'}
+  CLASS: (c) real difference (legend-engine passes, values differ)
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP12MtdValue  [golden testCalendarFunctions.pure:1016]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date > dateadd(year, -1, "ny_calendar_1".date) and "ny_calendar_0".date <= "ny_calendar_1".date then "root".fteFactor else null end) as "p12mtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'p12mtd'] [['Campus', '6.84'], ['Lateral', '7.24']]
+  its test compares: hireType,p12mtd,Campus,6.84,Lateral,7.24,
+  golden:            hireType,p12mtd,Campus,6.84,Lateral,7.24,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP12WtdValue  [golden testCalendarFunctions.pure:951]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior12WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p12wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'p12wtd'] [['Campus', '4.6'], ['Lateral', '4.7']]
+  its test compares: hireType,p12wtd,Campus,4.6,Lateral,4.7,
+  golden:            hireType,p12wtd,Campus,4.6,Lateral,4.7,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP4WaValue  [golden testCalendarFunctions.pure:964]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior4WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then (1.0 * "root".fteFactor) / 4 else null end) as "p4wa" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'p4wa'] [['Campus', '0.8575'], ['Lateral', '0.98']]
+  its test compares: hireType,p4wa,Campus,0.8575,Lateral,0.98,
+  golden:            hireType,p4wa,Campus,0.8575,Lateral,0.98,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP4WtdValue  [golden testCalendarFunctions.pure:977]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior4WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p4wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'p4wtd'] [['Campus', '3.43'], ['Lateral', '3.92']]
+  its test compares: hireType,p4wtd,Campus,3.43,Lateral,3.92,
+  golden:            hireType,p4wtd,Campus,3.43,Lateral,3.92,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP52WtdValue  [golden testCalendarFunctions.pure:990]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior52WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p52wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'p52wtd'] [['Campus', '6.84'], ['Lateral', '6.98']]
+  its test compares: hireType,p52wtd,Campus,6.84,Lateral,6.98,
+  golden:            hireType,p52wtd,Campus,6.84,Lateral,6.98,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPmaValue  [golden testCalendarFunctions.pure:1030]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_1".currentMonthNum = 1 and "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear then (1.0 * "root".fteFactor) / 12 when "ny_calendar_1".currentMonthNum > 1 and "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentMonthNum <= "ny_calendar_1".previousFiscalMonth then (1.0 * "root".fteFactor) / ("ny_calendar_1".previousFiscalMonth) else null end) as "pma" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'pma'] [['Campus', '0.259'], ['Lateral', '0.222']]
+  its test compares: hireType,pma,Campus,0.259,Lateral,0.222,
+  golden:            hireType,pma,Campus,0.259,Lateral,0.222,  -> legend-engine PASSES
+  lite (computed): {'Campus': '0.258999999999999991', 'Lateral': '0.221999999999999996'} -> as doubles {'Campus': '0.259', 'Lateral': '0.222'}
+  CLASS: (b) printing difference
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPrioryearValue  [golden testCalendarFunctions.pure:1094]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear then "root".fteFactor else null end) as "priorYear" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'priorYear'] [['Campus', '2.84'], ['Lateral', '3.06']]
+  its test compares: hireType,priorYear,Campus,2.84,Lateral,3.06,
+  golden:            hireType,priorYear,Campus,2.84,Lateral,3.06,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPymtdValue  [golden testCalendarFunctions.pure:1171]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".currentMonthNum = "ny_calendar_1".currentMonthNum and "ny_calendar_0".fiscalDayOfMonth <= "ny_calendar_1".fiscalDayOfMonth then "root".fteFactor else null end) as "pymtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'pymtd'] [['Campus', '0.69'], ['Lateral', '0.46']]
+  its test compares: hireType,pymtd,Campus,0.69,Lateral,0.46,
+  golden:            hireType,pymtd,Campus,0.69,Lateral,0.46,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPyqtdValue  [golden testCalendarFunctions.pure:1184]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".currentQuarterNum = "ny_calendar_1".currentQuarterNum and "ny_calendar_0".fiscalDayOfQuarter <= "ny_calendar_1".fiscalDayOfQuarter then "root".fteFactor else null end) as "pyqtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'pyqtd'] [['Campus', '1.4'], ['Lateral', '1.36']]
+  its test compares: hireType,pyqtd,Campus,1.4,Lateral,1.36,
+  golden:            hireType,pyqtd,Campus,1.4,Lateral,1.36,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPytdValue  [golden testCalendarFunctions.pure:1197]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "pytd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'pytd'] [['Campus', '1.59'], ['Lateral', '1.54']]
+  its test compares: hireType,pytd,Campus,1.59,Lateral,1.54,
+  golden:            hireType,pytd,Campus,1.59,Lateral,1.54,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testQtdValue  [golden testCalendarFunctions.pure:1244]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentQuarterNum = "ny_calendar_1".currentQuarterNum and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "qtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'qtd'] [['Campus', '4.23'], ['Lateral', '4.32']]
+  its test compares: hireType,qtd,Campus,4.23,Lateral,4.32,
+  golden:            hireType,qtd,Campus,4.23,Lateral,4.32,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testYtdValue  [golden testCalendarFunctions.pure:1291]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "ytd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE'2022-11-16' = "ny_calendar_1".date) group by "hireType"
+  legend-engine cells (as sent): ['hireType', 'ytd'] [['Campus', '5.59'], ['Lateral', '5.72']]
+  its test compares: hireType,ytd,Campus,5.59,Lateral,5.72,
+  golden:            hireType,ytd,Campus,5.59,Lateral,5.72,  -> legend-engine PASSES
+  lite: no actual recorded for lane h2
+====================================================================================================
+## h2-2.1.214  (<oracle1b>/out/h2/sqlfn.jsonl)
+answered by: legend-engine 4.145.0; H2 2.1.214; DuckDB v1.3.0
+----------------------------------------------------------------------------------------------------
+log::testProject  [golden testSqlFunctionsInMapping.pure:571]
+  sql: select ln("root".float1) as "log" from dataTable as "root"
+  legend-engine cells (as sent): ['log'] [['0.09531017980432493'], ['0.5877866649021191']]
+  legend-engine values ['0.09531017980432493', '0.5877866649021191'] vs golden ['0.09531017980432493', '0.5877866649021191'] -> legend-engine PASSES (exact Float equality)
+  lite (none): {}
+  CLASS: (b) printing difference
+----------------------------------------------------------------------------------------------------
+log::testFilter  [golden testSqlFunctionsInMapping.pure:578]
+  sql: select ln("root".float1) as "log" from dataTable as "root" where ln("root".float1) < cast(0.1 as float)
+  legend-engine cells (as sent): ['log'] [['0.09531017980432493']]
+  legend-engine values ['0.09531017980432493'] vs golden ['0.09531017980432493'] -> legend-engine PASSES (exact Float equality)
+  lite (none): {}
+  CLASS: (b) printing difference
+====================================================================================================
+## duckdb-1.5.6.0  (<oracle1b>/out/b/calendar.jsonl)
+answered by: legend-engine 4.145.0; H2 2.1.214; DuckDB v1.5.6
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testAnnualizedValue  [golden testCalendarFunctions.pure:827]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear then ((1.0 * "root".fteFactor) / ((1.0 * "ny_calendar_1".fiscalDay) / "ny_calendar_1".numberOfFiscalDaysInYear)) else null end) as "annualized" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'annualized'] [['Campus', '9.812850678733032'], ['Lateral', '9.26769230769231']]
+  its test compares: hireType,annualized,Campus,9.812850678733032,Lateral,9.26769230769231,
+  golden:            hireType,annualized,Campus,9.812850678733032,Lateral,9.267692307692307,  -> legend-engine FAILS
+  lite (census(Campus)+computed): {'Campus': '9.812850678733032', 'Lateral': '9.26769230769231'} -> as doubles {'Campus': '9.812850678733032', 'Lateral': '9.26769230769231'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testCmeValue  [golden testCalendarFunctions.pure:840]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentMonthNum = "ny_calendar_1".currentMonthNum then ((1.0 * "root".fteFactor) / ((1.0 * "ny_calendar_1".fiscalDay) / "ny_calendar_1".numberOfFiscalDaysInMonth)) else null end) as "cme" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'cme'] [['Campus', '0.5131221719457014'], ['Lateral', '0.5644343891402716']]
+  its test compares: hireType,cme,Campus,0.5131221719457014,Lateral,0.5644343891402716,
+  golden:            hireType,cme,Campus,0.5131221719457013,Lateral,0.5644343891402714,  -> legend-engine FAILS
+  lite (census(Campus)+computed): {'Campus': '0.5131221719457014', 'Lateral': '0.5644343891402716'} -> as doubles {'Campus': '0.5131221719457014', 'Lateral': '0.5644343891402716'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP12MtdValue  [golden testCalendarFunctions.pure:1016]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date > date_add("ny_calendar_1".date,to_years(-1)) and "ny_calendar_0".date <= "ny_calendar_1".date then "root".fteFactor else null end) as "p12mtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p12mtd'] [['Lateral', '7.239999999999998'], ['Campus', '6.840000000000002']]
+  its test compares: hireType,p12mtd,Lateral,7.239999999999998,Campus,6.840000000000002,
+  golden:            hireType,p12mtd,Campus,6.84,Lateral,7.24,  -> legend-engine FAILS
+  row order ['Lateral', 'Campus'] differs from the golden's ['Campus', 'Lateral']
+  lite (census+computed): {'Campus': '6.840000000000002', 'Lateral': '7.239999999999998'} -> as doubles {'Campus': '6.840000000000002', 'Lateral': '7.239999999999998'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP12WtdValue  [golden testCalendarFunctions.pure:951]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior12WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p12wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p12wtd'] [['Campus', '4.6'], ['Lateral', '4.700000000000001']]
+  its test compares: hireType,p12wtd,Campus,4.6,Lateral,4.700000000000001,
+  golden:            hireType,p12wtd,Campus,4.6,Lateral,4.7,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '4.6', 'Lateral': '4.700000000000001'} -> as doubles {'Campus': '4.6', 'Lateral': '4.700000000000001'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP4WaValue  [golden testCalendarFunctions.pure:964]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior4WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then ((1.0 * "root".fteFactor) / 4) else null end) as "p4wa" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p4wa'] [['Campus', '0.8574999999999999'], ['Lateral', '0.98']]
+  its test compares: hireType,p4wa,Campus,0.8574999999999999,Lateral,0.98,
+  golden:            hireType,p4wa,Campus,0.8575,Lateral,0.98,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '0.8574999999999999', 'Lateral': '0.98'} -> as doubles {'Campus': '0.8574999999999999', 'Lateral': '0.98'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP4WtdValue  [golden testCalendarFunctions.pure:977]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior4WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p4wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p4wtd'] [['Lateral', '3.92'], ['Campus', '3.4299999999999997']]
+  its test compares: hireType,p4wtd,Lateral,3.92,Campus,3.4299999999999997,
+  golden:            hireType,p4wtd,Campus,3.43,Lateral,3.92,  -> legend-engine FAILS
+  row order ['Lateral', 'Campus'] differs from the golden's ['Campus', 'Lateral']
+  lite (census+computed): {'Campus': '3.4299999999999997', 'Lateral': '3.92'} -> as doubles {'Campus': '3.4299999999999997', 'Lateral': '3.92'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testP52WtdValue  [golden testCalendarFunctions.pure:990]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".date >= "ny_calendar_1".prior52WeekDate and "ny_calendar_0".date <= case when "ny_calendar_1".date = "ny_calendar_1".adjustedDate then "ny_calendar_1".adjustedDate else "ny_calendar_1".previousBusinessDay end then "root".fteFactor else null end) as "p52wtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'p52wtd'] [['Lateral', '6.979999999999999'], ['Campus', '6.840000000000002']]
+  its test compares: hireType,p52wtd,Lateral,6.979999999999999,Campus,6.840000000000002,
+  golden:            hireType,p52wtd,Campus,6.84,Lateral,6.98,  -> legend-engine FAILS
+  row order ['Lateral', 'Campus'] differs from the golden's ['Campus', 'Lateral']
+  lite (census+computed): {'Campus': '6.840000000000002', 'Lateral': '6.979999999999999'} -> as doubles {'Campus': '6.840000000000002', 'Lateral': '6.979999999999999'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPmaValue  [golden testCalendarFunctions.pure:1030]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_1".currentMonthNum = 1 and "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear then ((1.0 * "root".fteFactor) / 12) when "ny_calendar_1".currentMonthNum > 1 and "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentMonthNum <= "ny_calendar_1".previousFiscalMonth then ((1.0 * "root".fteFactor) / "ny_calendar_1".previousFiscalMonth) else null end) as "pma" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'pma'] [['Lateral', '0.22200000000000003'], ['Campus', '0.259']]
+  its test compares: hireType,pma,Lateral,0.22200000000000003,Campus,0.259,
+  golden:            hireType,pma,Campus,0.259,Lateral,0.222,  -> legend-engine FAILS
+  row order ['Lateral', 'Campus'] differs from the golden's ['Campus', 'Lateral']
+  lite (census+computed): {'Campus': '0.259', 'Lateral': '0.22200000000000003'} -> as doubles {'Campus': '0.259', 'Lateral': '0.22200000000000003'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPrioryearValue  [golden testCalendarFunctions.pure:1094]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear then "root".fteFactor else null end) as "priorYear" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'priorYear'] [['Campus', '2.84'], ['Lateral', '3.0600000000000005']]
+  its test compares: hireType,priorYear,Campus,2.84,Lateral,3.0600000000000005,
+  golden:            hireType,priorYear,Campus,2.84,Lateral,3.06,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '2.84', 'Lateral': '3.0600000000000005'} -> as doubles {'Campus': '2.84', 'Lateral': '3.0600000000000005'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPymtdValue  [golden testCalendarFunctions.pure:1171]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".currentMonthNum = "ny_calendar_1".currentMonthNum and "ny_calendar_0".fiscalDayOfMonth <= "ny_calendar_1".fiscalDayOfMonth then "root".fteFactor else null end) as "pymtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'pymtd'] [['Campus', '0.69'], ['Lateral', '0.45999999999999996']]
+  its test compares: hireType,pymtd,Campus,0.69,Lateral,0.45999999999999996,
+  golden:            hireType,pymtd,Campus,0.69,Lateral,0.46,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '0.69', 'Lateral': '0.45999999999999996'} -> as doubles {'Campus': '0.69', 'Lateral': '0.45999999999999996'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPyqtdValue  [golden testCalendarFunctions.pure:1184]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".currentQuarterNum = "ny_calendar_1".currentQuarterNum and "ny_calendar_0".fiscalDayOfQuarter <= "ny_calendar_1".fiscalDayOfQuarter then "root".fteFactor else null end) as "pyqtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'pyqtd'] [['Campus', '1.4'], ['Lateral', '1.3599999999999999']]
+  its test compares: hireType,pyqtd,Campus,1.4,Lateral,1.3599999999999999,
+  golden:            hireType,pyqtd,Campus,1.4,Lateral,1.36,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '1.4', 'Lateral': '1.3599999999999999'} -> as doubles {'Campus': '1.4', 'Lateral': '1.3599999999999999'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testPytdValue  [golden testCalendarFunctions.pure:1197]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".previousFiscalYear and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "pytd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'pytd'] [['Campus', '1.5899999999999999'], ['Lateral', '1.54']]
+  its test compares: hireType,pytd,Campus,1.5899999999999999,Lateral,1.54,
+  golden:            hireType,pytd,Campus,1.59,Lateral,1.54,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '1.5899999999999999', 'Lateral': '1.54'} -> as doubles {'Campus': '1.5899999999999999', 'Lateral': '1.54'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testQtdValue  [golden testCalendarFunctions.pure:1244]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".currentQuarterNum = "ny_calendar_1".currentQuarterNum and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "qtd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'qtd'] [['Campus', '4.2299999999999995'], ['Lateral', '4.32']]
+  its test compares: hireType,qtd,Campus,4.2299999999999995,Lateral,4.32,
+  golden:            hireType,qtd,Campus,4.23,Lateral,4.32,  -> legend-engine FAILS
+  lite (census+computed): {'Campus': '4.2299999999999995', 'Lateral': '4.32'} -> as doubles {'Campus': '4.2299999999999995', 'Lateral': '4.32'}
+  CLASS: (a) agrees with lite
+----------------------------------------------------------------------------------------------------
+calendarAggregations::testYtdValue  [golden testCalendarFunctions.pure:1291]
+  sql: select "root".hireType as "hireType", sum(case when "ny_calendar_0".currentYear = "ny_calendar_1".currentYear and "ny_calendar_0".fiscalDay <= "ny_calendar_1".fiscalDay then "root".fteFactor else null end) as "ytd" from EmployeeTable as "root" left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_0" on ("root".hireDate = "ny_calendar_0".date) left outer join LegendCalendarSchema.NY_Calendar as "ny_calendar_1" on (DATE '2022-11-16' = "ny_calendar_1".date) group by 1
+  legend-engine cells (as sent): ['hireType', 'ytd'] [['Lateral', '5.719999999999999'], ['Campus', '5.590000000000001']]
+  its test compares: hireType,ytd,Lateral,5.719999999999999,Campus,5.590000000000001,
+  golden:            hireType,ytd,Campus,5.59,Lateral,5.72,  -> legend-engine FAILS
+  row order ['Lateral', 'Campus'] differs from the golden's ['Campus', 'Lateral']
+  lite (census+computed): {'Campus': '5.590000000000001', 'Lateral': '5.719999999999999'} -> as doubles {'Campus': '5.590000000000001', 'Lateral': '5.719999999999999'}
+  CLASS: (a) agrees with lite
+====================================================================================================
+## duckdb-1.5.6.0  (<oracle1b>/out/b/sqlfn.jsonl)
+answered by: legend-engine 4.145.0; H2 2.1.214; DuckDB v1.5.6
+----------------------------------------------------------------------------------------------------
+log::testProject  [golden testSqlFunctionsInMapping.pure:571]
+  sql: select ln("root".float1) as "log" from dataTable as "root"
+  legend-engine cells (as sent): ['log'] [['0.09531017980432493'], ['0.5877866649021191']]
+  legend-engine values ['0.09531017980432493', '0.5877866649021191'] vs golden ['0.09531017980432493', '0.5877866649021191'] -> legend-engine PASSES (exact Float equality)
+  lite (inferred(row 1); row 2 unrecorded): {'1': '0.09531017980432492', '2': '?'}
+  CLASS: (c) real difference (legend-engine passes, values differ)
+----------------------------------------------------------------------------------------------------
+log::testFilter  [golden testSqlFunctionsInMapping.pure:578]
+  sql: select ln("root".float1) as "log" from dataTable as "root" where ln("root".float1) < 0.1
+  legend-engine cells (as sent): ['log'] [['0.09531017980432493']]
+  legend-engine values ['0.09531017980432493'] vs golden ['0.09531017980432493'] -> legend-engine PASSES (exact Float equality)
+  lite (inferred): {'1': '0.09531017980432492'}
+  CLASS: (c) real difference (legend-engine passes, values differ)
