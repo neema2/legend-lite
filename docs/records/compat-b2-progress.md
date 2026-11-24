@@ -62,9 +62,53 @@ in a cloud container and pass run unprivileged, `tools/postgres/as_unprivileged.
 **A wrong value fixed on the way** (on the base too): MongoDB printed 1e33 as `1` (Decimal128's 34 digits: `$round`
 keeps no fraction there, and the trailing-zero trim ate the integer's zeros).
 
-### Slice 4: an abstract Date held as a timestamp prints a DateTime's text
+### Slice 4: a date with a time prints lite's nine-digit DateTime text -- HELD (option C)
 
-(filled in below as it lands)
+**The finding (measured 2026-11-24 on DuckDB, SQLite and H2):** lite types every abstract-`Date` SQL slot `TIMESTAMP`
+(`lowering/PureSql`: "an ABSTRACT Date slot rides TIMESTAMP and decodes as a DateTime"), so a rule keyed on the slot
+(H14's D1, `Scalars.pureToString`) cannot tell a day from a midnight date-time. A `Date` column of days, which prints
+`2000-10-25` today on all three (as legend-pure does), printed `2000-10-25T00:00:00.000000000Z` under it. A mixed column
+already differs by database today: DuckDB and H2 print a day `2000-10-25 00:00:00`, SQLite `2000-10-25` (a parity gap,
+G2). H14's own record named the right rule ("the DateTime text when the value has a time, the day otherwise"); the
+spike met only tables whose values had times.
+
+**Decided (the B3 session, 2026-11-24, under the user's standing word "You don't need to ask me about moving tasks
+around if it's the right thing to do"; option C, presented as the recommendation):** the item waits until an abstract
+Date carries its kind beside the value (B3's one-equality step, the equality rule's "types known only at run time carry
+their type beside the value"); its text then follows the carried kind -- a day its day, a date-time the nine-digit text
+(S312 as amended 2026-11-22), one text on every database. Until then nothing changes, and today's day behaviour is
+pinned: `AbstractDateDayTextTest` (each lane). The D1 change and its probe are kept on the local branch `wip-slice4`,
+not landed.
+
+## B2a closed (2026-11-24)
+
+Items 1 and 3 done; item 2 (a relation's `toString` printed by the database on lite's route) moved to B2b by the
+user's ruling (option C, no temporary two-form facet); item 4 held as above.
+
+## B2b
+
+### S1: legend-pure's text of a relation written in Java from typed rows (2026-11-24)
+
+`edge/PureRelationText` writes a relation's `toString` (`#TDS`), `toString(rel, true)`, legend-engine's `toCSV` of a
+TDS, a TDS's `csv` property, and a program's literal `replace` calls on the printed text (the user, 2026-11-24); each
+rule read from the pinned sources (legend-engine 4.145.0's `toString.pure`, `s.pure`, `helperFunctions.pure`); a cell it
+has no rule for refused by name. `edge/PureRelationTextWriter` is a run's receiver: a relation's typed rows held in
+their order and printed once whole, the text handed on as one String (the door's receiver, S2, and the harness's lifted
+check, S4, take it).
+
+**Measured (2026-11-24):** `PureRelationTextParityTest`, each lane (DuckDB, H2, SQLite), the Java text against the
+edge's SQL text (`edge/RelationTextLowering`) for the same relation run in the edge's style: equal on Integer, String,
+Boolean, empty cells, Float (fractions, whole, small), StrictDate, DateTime (subsecond and whole), an abstract Date
+holding times, a String with a brace or a bracket and a quote, a name needing quotes, no rows, and a group's sum. **Two
+places where the edge's SQL text is WRONG and the printer writes legend-pure's:** an abstract Date column of days (the
+SQL keyed on the TIMESTAMP slot and wrote `2014-01-02T00:00:00.000+0000` on all three databases; the typed row carries
+the day, legend-pure prints `2014-01-02`), and a Float of 1e20 on SQLite (the SQL's shortest-digits decomposition wrote
+`9223372036854775807.0`, an integer cast saturating -- a wrong value). Both are pinned to legend-pure's text; they are
+corrected as B2b routes a relation's text through the printer.
+
+**Guards:** `JavaEvalLedgerTest`'s edge register lists the two new files with their reason; `WriterCarriageGuardTest`
+scans both and registers `PureRelationText`'s representation operations by name (a date's own precision, a text's
+escaping, a quoted name, an integer under a Float read as its decimal) -- the direct cost of B2 itself.
 
 ## Audits
 

@@ -154,6 +154,20 @@ class WriterCarriageGuardTest {
             // -- BigDecimal.valueOf -- and of a Decimal), in place of its plain digits. 2026-11-21 (the BE audit 3's S3):
             // that whole part is a Decimal's intValue, as upstream's CoreHelper.newDate takes it (a Double's is Java's
             // narrowing, no operation listed here) -- BigDecimal.valueOf and toBigInteger gone
+            // added 2026-11-24 (stage B's B2, B2b S1: legend-pure's text of a relation written in Java from typed rows at
+            // the edge, the plan of record's B2 and the user's ruling of 2026-11-19 ~18:12, "Yes record it"): the
+            // representation operations legend-pure's own printing performs, each read from the pinned sources -- a
+            // date's own carried precision, its day or its time of day (s.pure's toString and helperFunctions.pure's
+            // hasHour: atLeast); the escaping of a text by what the text holds (s.pure quotes a String holding a brace or
+            // a bracket, helperFunctions.pure's escapeCSVString one holding a comma, a quote, a line feed or a carriage
+            // return: contains), and a column name already quoted (toString.pure:28: startsWith); an integer the
+            // database held under a Float column read as the decimal it is, for the Float's shortest digits
+            // (new BigDecimal, exact). It decides nothing about a value: the database computed each one
+            Map.entry("PureRelationText.java", Map.ofEntries(
+                    Map.entry("atLeast", 2),
+                    Map.entry("contains(\"\")", 6),
+                    Map.entry("new BigDecimal", 1),
+                    Map.entry("startsWith(\"\")", 1))),
             Map.entry("RaiseWords.java", Map.ofEntries(
                     Map.entry("intValue", 1),
                     Map.entry("doubleValue", 1),
@@ -298,6 +312,10 @@ class WriterCarriageGuardTest {
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureV1Writer.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineAnswers.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/Presenter.java"));
+        // legend-pure's text of a relation written in Java from typed rows, and its run receiver (stage B's B2, B2b S1,
+        // 2026-11-24): scanned with the writers they are
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationText.java"));
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();
