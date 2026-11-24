@@ -21,10 +21,13 @@ import java.util.List;
  * compatibility changes a program only at the public type-check-to-plan boundary, by removing whole calls). The door
  * reads the typed query once and, where its last statement is a relation's {@code toString}, legend-engine's
  * relational test helper's {@code meta::relational::tests::csv::toCSV} of a TDS (helperFunctions.pure:198-232, a
- * native in lite: {@code PlatformTypes.TO_CSV}) or a TDS's {@code csv}, followed by any number of {@code replace} calls with literal
- * arguments, answers the query that computes the relation and the print the run's receiver performs
- * ({@link PureRelationTextWriter}). Anything else is not lifted: the query is the door's as it was. It computes no
- * value and plans nothing; the run computes the rows and the printer spells them.
+ * native in lite: {@code PlatformTypes.TO_CSV}) or a TDS's {@code csv}, over a relation whose columns the compiler
+ * knows, followed by any number of {@code replace} calls with literal arguments, answers the query that computes the
+ * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). Anything else is not lifted: the
+ * query is the door's as it was, and a print the door leaves is the edge's SQL text (RelationTextLowering), which
+ * differs from the printer's in the places PureRelationTextParityTest names until B2b routes every print through it
+ * (the progress record's S2). It computes no value and plans nothing; the run computes the rows and the printer spells
+ * them.
  */
 public final class PrintedRelations {
 
@@ -68,8 +71,8 @@ public final class PrintedRelations {
         }
         List<TypedSpec> lifted = new ArrayList<>(body.subList(0, body.size() - 1));
         lifted.add(printed.relation());
-        // the query's own planning options carried (withBody makes a query of the body alone)
-        return new Lifted(query.withBody(lifted).withOptions(query.options()), printed.form(), replaces);
+        // withBody keeps the query's model, options and parameters: only the body changes
+        return new Lifted(query.withBody(lifted), printed.form(), replaces);
     }
 
     /** legend-engine's relation functions' {@code toString} (toString.pure), the name the lowering matches too. */
@@ -78,10 +81,14 @@ public final class PrintedRelations {
     private record Printed(TypedSpec relation, PureRelationTextWriter.Form form) {
     }
 
-    /** {@code e} as a print of a relation the printer writes, or null. */
+    /** {@code e} as a print of a relation the printer writes, or null. Only a relation whose columns the compiler
+     *  knows is lifted ({@link #knownColumns}); the lowering's own special shapes stay the run's. */
     private static @com.legend.base.Nullable Printed printed(TypedSpec e) {
         if (e instanceof TypedNativeCall c) {
             String name = c.callee().qualifiedName();
+            if (c.args().isEmpty() || !knownColumns(c.args().get(0))) {
+                return null;
+            }
             if (name.equals(RELATION_TO_STRING)) {
                 // toString(rel, true) is not lifted (PureRelationText: its header would not be legend-pure's); the run
                 // answers it as it does today
@@ -95,19 +102,39 @@ public final class PrintedRelations {
                 if (c.args().size() == 1) {
                     return new Printed(c.args().get(0), PureRelationTextWriter.Form.TO_CSV);
                 }
-                if (c.args().size() == 2 && c.args().get(1) instanceof TypedCBoolean renderTdsNull) {
+                // toCSV(t, renderTdsNull), and toCSV(t, dateTimeFormat, dateFormat, renderTdsNull) with the default
+                // formats, which the helper's two-argument form passes (helperFunctions.pure:203-206) and the lowering
+                // reads as that form (RelationTextLowering.isDefaultCsvFormat); other formats are not lifted: the run
+                // answers them as it does today
+                boolean defaultFormats = c.args().size() == 4
+                        && RelationTextLowering.isDefaultCsvFormat(c.args().get(1), "%t{yyyy-MM-dd HH:mm:ss}")
+                        && RelationTextLowering.isDefaultCsvFormat(c.args().get(2), "%t{yyyy-MM-dd}");
+                if ((c.args().size() == 2 || defaultFormats)
+                        && c.args().get(c.args().size() - 1) instanceof TypedCBoolean renderTdsNull) {
                     return new Printed(c.args().get(0), renderTdsNull.value()
                             ? PureRelationTextWriter.Form.TO_CSV_TDS_NULL : PureRelationTextWriter.Form.TO_CSV);
                 }
-                // toCSV with its own date formats is not lifted: the run writes it as it does today
                 return null;
             }
             return null;
         }
+        // a TDS's csv over a relation, as the lowering reads it (Render.csvOverRelation); a read over a cast to a TDS
+        // class is the resolver's (Anchors.tdsCsvRead) and is not lifted
         if (e instanceof TypedPropertyAccess p && p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
-                && com.legend.compiler.element.type.Type.relationSchema(p.source().info().type()) != null) {
+                && knownColumns(p.source())) {
             return new Printed(p.source(), PureRelationTextWriter.Form.TDS_CSV);
         }
         return null;
+    }
+
+    /** Whether {@code relation} is a relation whose columns the compiler knows: a relation type with at least one
+     *  column and no column the database names when the plan runs. A raw grid ({@code executeInDb}, late bound), a
+     *  dynamic pivot whose columns nothing names and a relation of no columns are not: the lowering answers each by its
+     *  own rule (a raw grid's toCSV from the grid's report, a refusal by name otherwise;
+     *  RelationTextLowering.lowerToCsv and lowerToString), and the door leaves them to it. */
+    private static boolean knownColumns(TypedSpec relation) {
+        return com.legend.compiler.element.type.Type.relationSchema(relation.info().type())
+                instanceof com.legend.compiler.element.type.Type.RelationType schema
+                && !schema.columns().isEmpty() && schema.dynamicColumns().isEmpty();
     }
 }

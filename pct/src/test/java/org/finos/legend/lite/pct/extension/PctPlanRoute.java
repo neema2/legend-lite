@@ -163,7 +163,9 @@ final class PctPlanRoute {
                     PctBackend.executionSource(), PctBackend.planSessions(),
                     com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features, audience.style(),
                     new com.legend.result.Output.Rows(lifted.writer(text::add)), com.legend.result.Batcher.DEFAULT_CAPACITY);
-            PctCaseRecorder.onePlan(() -> onePlan(query, features));
+            // the plans compared are the ones the case ran: the relation's (the review of 54d922e92: the print's own
+            // query, which the product refuses at lowering, reported every lifted case as PRODUCT_REFUSES)
+            PctCaseRecorder.onePlan(() -> onePlan(lifted.relation(), features));
             if (text.size() != 1) {
                 throw new IllegalStateException("a printed relation answers one text; got " + text.size());
             }

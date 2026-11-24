@@ -143,10 +143,59 @@ fraction digit past the third (`.123456+0000`), where legend-engine's TestTDS re
 (`.123+0000`); the goldens hold whole seconds and milliseconds, which both rules print alike -- a register row for
 B2b's end.
 
+### S2: the door's lift of a final print (2026-11-24)
+
+`edge/PrintedRelations` reads a typed query once. It lifts the query where its last statement prints a relation and
+that relation's columns are known to the compiler. The prints it lifts:
+- a relation's `toString` (or `toString(rel, false)`);
+- the relational test helper's `toCSV` (`meta::relational::tests::csv::toCSV`, `PlatformTypes.TO_CSV`): its one- and
+  two-argument forms, and the four-argument form with the default formats, which the helper's two-argument form passes
+  and the lowering reads as that form;
+- a TDS's `csv` property.
+
+Any number of `replace` calls with literal arguments may follow the print. The lift answers the query that computes the
+relation (`TypedQuery.withBody`: model, options and parameters kept) and the print the run's receiver performs (S1's
+`PureRelationTextWriter`). These stay the run's, as today:
+- `toString(rel, true)`;
+- `toCSV` with other formats;
+- a `replace` whose target or replacement is no literal;
+- a print that is not the last step;
+- a `csv` read over a cast to a TDS class (the resolver's, `Anchors.tdsCsvRead`);
+- a relation whose columns the database names when the plan runs (a raw grid, a dynamic pivot whose columns nothing
+  names, a relation of no columns), which the lowering answers by its own rules.
+
+The plan of record's B2, E0 = A ("E0 - yes"), and the user's rulings of 2026-11-19 ~18:12 and 2026-11-24.
+
+**The doors, measured (2026-11-24):**
+- **PCT channel A** (`PctPlanRoute.execute`), for legend-pure's and legend-engine's audiences: a lifted case runs the
+  relation into the printer and answers its one String. Lite's own rules keep the run's answer (S5 prints a relation in
+  the database). **No PCT case ends in a print:** no channel A answer on any edge-net lane is a printed table. The
+  relation suites print on the host side, in the assert, which is S4's (the test-body `Printed` judgment, after B3).
+  `//pct:pct_duckdb`, `pct_sqlite`, `pct_h2`, `pct_duckdb_lite`, the engine lanes on DuckDB and H2, and `edge_net`
+  are unchanged: 67 of 67 pass, nothing moved. `PctPlanRoutePrintTest` runs the branch end to end: a day column
+  printed as legend-pure prints it, and `toCSV(true)` with a literal replace.
+- **pure/v1's execute: not wired.** It refuses every value answer today (`EngineAnswers.engine`, the Facts' value
+  refusal), so a lifted print has no envelope to answer in. legend-engine's envelope for a String value is S7's work,
+  read from the engine runner then, never guessed.
+- **The service test runner: not wired.** None of the 59 files in the pinned 4.145.0 sources that declare a Service ends
+  its query in a print, so nothing is measured there.
+
+**A window with two printers** (the review of 54d922e92). Until B2b routes every print through the printer (S4, then
+S5 and S6 delete `RelationTextLowering`), a print the door does not lift is still the edge's SQL text. Examples:
+`toString()->replace($s, ',')`, `toString()->length()`, a raw grid's `toCSV`. That text differs from the printer's
+where `PureRelationTextParityTest` names it:
+- an abstract Date column of days;
+- a Float of 1e20 on SQLite;
+- `-0.0`, `4.03e17` and `1e23`.
+
+The same relation can therefore print two ways, depending on whether what follows the print is a literal `replace`.
+No PCT or corpus case meets this today, since no case ends in a print at channel A. It closes with S4 and S6.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
 |---|---|---|---|
+| 2026-11-24 | B2b S2's design, `54d922e92`, a subagent, read-only, given the code, the plan of record and the tenets | no must-fix; lifted forms, the lifted query, the route's answer and the tenets clean. Should-fix: the one-plan measurement planned the print's query, not the relation's; a dynamic pivot's and a raw grid's prints lifted where the lowering refuses or answers them by its own rule; the four-argument toCSV with the default formats not lifted; the window with two printers unrecorded. Nits: a redundant `withOptions`; a `csv` over a cast not lifted (kept: the resolver's); toCSV's argument not checked to be a relation. Tests: toCSV's forms, the `csv` property, a non-literal replacement, the options, the kept statements, a dynamic pivot | all, in this round; the cast-wrapped `csv` stays the run's |
 | 2026-11-24 | B2a's end design audit, `96e7c1fc4..54f8be8e3`, a subagent, read-only, given the plan of record, the tenets and the record | no must-fix; verdict "sound to build B2b on". Should-fix: `heldAsInteger` left in the product for the edge alone; an integer-held Float above 2^53 printed per database; the integer-held text change not posted for the user's word; the record's slice 4 and slice 1 wording; the S311 row's cloud-lane, per-value and MongoDB claims; the edge's integer-held digits unpinned. Nits: stale javadocs, the gate wording, the ledger header | all, in this round (the user's word on the integer-held text asked) |
 | 2026-11-24 | B2b S1's diff (`54f8be8e3..527d3e8a9`), a subagent, read-only, given the code, the pinned sources and the requirement | 1 must-fix (the typed header's multiplicity); should-fix: the typed header's precise types, the date-time's digits against the edge's rule, legend-pure's Float formatter, a decimal under Float, a Number of integers' javadoc, toCSV's date-time cells against today's SQL, mixed columns; nits: dates the CSV cannot write, enumerations' quoting, the empty replace, the writer's refusals' timing | all, in this round; toCSV's date-time cells measured on the corpus at S4 |
 | 2026-11-24 | the fix round's diff (`527d3e8a9..41d52b690`), a narrow re-review, read-only | 1 must-fix: the integer-held Float's cast to DOUBLE on H2, Postgres, Snowflake and MongoDB lost digits on Postgres and MongoDB (15-digit casts) and the claim of one text everywhere was false; should-fix: that cast unpinned, the date rule's divergence from TestTDS's millisecond cut unrecorded; nits: a String in an Any column not quoted, a DecimalFormat per cell, two stale record lines. The printer's rules, the moves and the guards found clean | the cast reverted and the difference recorded; the rest fixed |

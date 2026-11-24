@@ -531,7 +531,9 @@ test_suite(
             # (2026-11-15, PR1's review: found in no lane)
             [":pct_channel_b_ledger_test", ":pct_channel_b_twice_guard_test"] +
             # channel A's one audience a run, its refusal planted (PR #127's review, 2026-11-19)
-            [":pct_route_audience_test"],
+            [":pct_route_audience_test"] +
+            # channel A's lifted print, end to end (stage B's B2b S2, 2026-11-24)
+            [":pct_route_print_test"],
 )
 
 # CHANNEL B ON EVERY LANE (2026-10-11, the user's ask): the same runner on each database a channel A lane runs on
@@ -728,6 +730,17 @@ junit_test(
     memory_mb = 512,
     size = "small",
     select = ["--select-class=org.finos.legend.lite.pct.extension.PctPlanRouteAudienceTest"],
+    runtime_deps = [":pct_tests_lib"],
+)
+
+# channel A's lifted print (stage B's B2b S2, 2026-11-24): a case whose last step prints a relation answers legend-pure's
+# text, printed in Java from the relation's typed rows at legend-pure's door (edge.PrintedRelations); no PCT case ends in a
+# print today (measured 2026-11-24), so this test is the branch's one run
+junit_test(
+    name = "pct_route_print_test",
+    memory_mb = 1024,
+    size = "small",
+    select = ["--select-class=org.finos.legend.lite.pct.extension.PctPlanRoutePrintTest"],
     runtime_deps = [":pct_tests_lib"],
 )
 

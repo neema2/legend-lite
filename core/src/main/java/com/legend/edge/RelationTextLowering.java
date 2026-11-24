@@ -140,8 +140,9 @@ final class RelationTextLowering implements RelationTexts {
     }
 
     /** The toCSV default-format pair — the zero-arg format fns or their
-     *  folded literal text. */
-    private static boolean isDefaultCsvFormat(
+     *  folded literal text. The door's lift reads the same pair
+     *  ({@link PrintedRelations}). */
+    static boolean isDefaultCsvFormat(
             com.legend.compiler.spec.typed.TypedSpec arg, String pattern) {
         if (arg instanceof com.legend.compiler.spec.typed.TypedCString cs) {
             return pattern.equals(cs.value());
