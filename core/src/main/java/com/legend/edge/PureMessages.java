@@ -3,8 +3,6 @@
 
 package com.legend.edge;
 
-import com.legend.sql.SqlExpr;
-
 /**
  * LEGEND-PURE'S SENTENCES OF A RAISE, WORDED IN JAVA AFTER THE RUN (stage B's B1, errors as records: the user's rulings
  * of 2026-11-20 ~16:40, "we should do B to keep the PCT", and ~17:00, the plan carries the error's facts and no words):
@@ -21,17 +19,9 @@ public final class PureMessages {
     private PureMessages() {
     }
 
-    /** A checked graph's defect cell, {@code CONSTRAINT_UNEVALUABLE}: not a raise but an ANSWER cell the edge's dialects
-     *  write as legend-engine's sentence (its milestoning/constraint words). Stage B's B2 moves it to the edge's
-     *  output formatting; until then it is planned text, as before. */
-    public static SqlExpr defectCell(SqlExpr.RaiseText r) {
-        if (r.kind() != com.legend.sql.RaiseKind.CONSTRAINT_UNEVALUABLE
-                || !(r.operands().get(0) instanceof SqlExpr.StringLit id)) {
-            throw new IllegalStateException("a defect cell is a constraint's, its id a text; this one is " + r.kind());
-        }
-        return new SqlExpr.StringLit("Unable to evaluate constraint [" + id.value()
-                + "]: data not available - check your mappings");
-    }
+    // (defectCell, a checked graph's defect cell in legend-engine's words, which the edge's twelve dialects wrote: gone
+    // 2026-11-24, stage B's B2b S3 -- byte-identical to the one catalog's sentence the product writes,
+    // ErrorKind.CONSTRAINT_UNEVALUABLE; Q7, "Q7 fine")
 
     /** A raised site's sentence: the one catalog's ({@code result.RaiseWords}, the user's ruling of 2026-11-21: lite
      *  says legend-pure's sentence wherever legend-pure has one, an in-body assert's failure aside -- the assert

@@ -1064,8 +1064,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
-            // a raise's message where a raise is not (a checked graph's defect row: CONSTRAINT_UNEVALUABLE), written as a
-            // raise's is (raiseMessage)
+            // a raise's message where a raise is not (a checked graph's defect row: CONSTRAINT_UNEVALUABLE,
+            // CONSTRAINT_VIOLATED), written as a raise's is (raiseMessage)
             case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
@@ -1234,8 +1234,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * site ({@link #site}), its kind and its operands the statement's site table's, never its text -- no
      * value cast to text, no concatenation, no parameter bound for one -- except {@link com.legend.sql.RaiseKind#USER_FAIL}'s,
      * the user's own message. exec reads the token back through the plan's table ({@code exec.RaisedErrors}). Every
-     * dialect, the compatibility edge's too, writes the site's token (stage B's B1, 2026-11-20); the edge overrides
-     * this only for a checked graph's defect cell, an answer's text ({@code edge.PureMessages#defectCell}).
+     * dialect, the compatibility edge's too, writes the site's token (stage B's B1, 2026-11-20); a checked graph's defect
+     * cell is the one catalog's sentence, as data, on every door (stage B's B2b S3, 2026-11-24: until then the edge's
+     * dialects wrote legend-engine's, byte-identical to the catalog's).
      */
     @SpellingArm
     protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {

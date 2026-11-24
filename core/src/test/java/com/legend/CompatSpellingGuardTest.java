@@ -57,6 +57,9 @@ class CompatSpellingGuardTest {
             "trying to get an element at offset", "Unable to compute sqrt of", "Cannot cast a collection of size",
             "can't be higher than the high bound", "Invalid day: ", "Cast exception: ", "range step must not be 0",
             "Unable to evaluate constraint",
+            // legend-pure's (and legend-engine's) default constraint sentence (stage B's B2b S3, 2026-11-24: until then
+            // a literal in resolver/GraphEmission.java, unlisted; now the one catalog's, listed so a product copy fails)
+            "violated in the Class",
             // narrowed 2026-11-12 (D1.1): the whole of lite's old insert sentence, so the product's own wording of an
             // index's raise (exec.RaisedErrors, "index out of bounds") is no hit
             "add(set, index, value): index out of bounds",
@@ -188,6 +191,9 @@ class CompatSpellingGuardTest {
             "error/ErrorKind.java | Unable to compute sqrt of | 1 | RULED",
             "error/ErrorKind.java | Unable to evaluate constraint | 1 | RULED",
             "error/ErrorKind.java | Unsupported number of bits to shift | 1 | RULED",
+            // stage B's B2b S3 (2026-11-24): legend-pure's default constraint sentence in the one catalog, RULED by the
+            // user's ruling of 2026-11-24 ("keep errors close to pure when cheap/fast", relayed by the orchestrator)
+            "error/ErrorKind.java | violated in the Class | 1 | RULED",
             "error/ErrorKind.java | add(set, index, value): index out of bounds | 1 | RULED",
             "error/ErrorKind.java | can't be higher than the high bound | 1 | RULED",
             "error/ErrorKind.java | range step must not be 0 | 1 | RULED",

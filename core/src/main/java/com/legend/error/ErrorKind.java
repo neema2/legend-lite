@@ -68,6 +68,11 @@ public enum ErrorKind implements ErrorCode {
     RANGE_STEP_ZERO(Form.any("range step must not be 0")),
     /** [the constraint's id]: legend-engine's. */
     CONSTRAINT_UNEVALUABLE(Form.any("Unable to evaluate constraint [%1$s]: data not available - check your mappings")),
+    /** [the constraint's id, its class's simple name]: legend-pure's (DefaultConstraintHandler.java:90,
+     *  {@code "Constraint :[" + ruleId + "] violated in the Class " + constraintClass.getName()}), legend-engine's alike
+     *  (stage B's B2b S3, 2026-11-24; the user's ruling of 2026-11-24, "keep errors close to pure when cheap/fast": until
+     *  then the resolver wrote legend-engine's sentence as a literal, GraphEmission's constMsgCol). */
+    CONSTRAINT_VIOLATED(Form.any("Constraint :[%1$s] violated in the Class %2$s")),
     /** [the native's name]: lite's own (no upstream text). */
     LIST_LENGTHS_DIFFER(Form.any("%1$s: the two value lists differ in length")),
     /** legend-pure has none (its maps take any key); legend-engine's on its reference database, DuckDB's own words,

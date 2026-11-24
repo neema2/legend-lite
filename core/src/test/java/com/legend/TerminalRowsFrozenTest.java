@@ -65,6 +65,10 @@ class TerminalRowsFrozenTest {
             Map.entry("error/ErrorKind.java | Unable to compute sqrt of | 1 | RULED", ONE_CATALOG),
             Map.entry("error/ErrorKind.java | Unable to evaluate constraint | 1 | RULED", ONE_CATALOG),
             Map.entry("error/ErrorKind.java | Unsupported number of bits to shift | 1 | RULED", ONE_CATALOG),
+            // stage B's B2b S3 (2026-11-24): legend-pure's default constraint sentence (DefaultConstraintHandler.java:90)
+            Map.entry("error/ErrorKind.java | violated in the Class | 1 | RULED", "the user's ruling of 2026-11-24"
+                    + " (\"keep errors close to pure when cheap/fast so don't have to reword everything on compatibility\";"
+                    + " relayed by the orchestrator for B2b S3): legend-pure's default constraint sentence is the catalog's"),
             Map.entry("error/ErrorKind.java | add(set, index, value): index out of bounds | 1 | RULED", ONE_CATALOG),
             Map.entry("error/ErrorKind.java | can't be higher than the high bound | 1 | RULED", ONE_CATALOG),
             Map.entry("error/ErrorKind.java | range step must not be 0 | 1 | RULED", ONE_CATALOG),

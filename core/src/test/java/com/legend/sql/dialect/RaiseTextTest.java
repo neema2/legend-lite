@@ -201,6 +201,9 @@ class RaiseTextTest {
                 + " so a computed n must be neither negative nor empty (docs/SEMANTICS_REGISTER.md S170)"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.CONSTRAINT_UNEVALUABLE, List.of(lit("posInt"))),
                 lit("Unable to evaluate constraint [posInt]: data not available - check your mappings"));
+        // stage B's B2b S3 (2026-11-24): legend-pure's default constraint sentence, the one catalog's
+        moved.put(new SqlExpr.RaiseText(RaiseKind.CONSTRAINT_VIOLATED, List.of(lit("posInt"), lit("Edge"))),
+                lit("Constraint :[posInt] violated in the Class Edge"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.USER_FAIL, List.of(lit("my own words"))), lit("my own words"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.MAP_KEYS_MISALIGNED, List.of()),
                 lit("The map key list does not align with the map value list."));

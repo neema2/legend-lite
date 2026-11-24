@@ -76,7 +76,16 @@ final class CheckedEnvelope {
         for (var cc : java.util.Objects.requireNonNull(
                 g.checkedConstraints(), "wrap() requires checked constraints")) {
             SqlExpr pred = render.apply(cc.predicate());
-            SqlExpr msg = render.apply(cc.message());
+            TypedFuncCol own = cc.message();
+            // a constraint with no ~message: the one catalog's sentence over its id and its class's simple name,
+            // legend-pure's (DefaultConstraintHandler.java:90; legend-engine's alike) -- DATA in the answer, worded at
+            // planning, the class's name a fact of the model (stage B's B2b S3, 2026-11-24, Q6: until then the
+            // resolver wrote legend-engine's sentence as a literal)
+            String simple = cc.definerFqn().substring(cc.definerFqn().lastIndexOf(':') + 1);
+            SqlExpr msg = own != null ? render.apply(own)
+                    : new SqlExpr.RaiseText(com.legend.sql.RaiseKind.CONSTRAINT_VIOLATED,
+                            List.of(new SqlExpr.StringLit(cc.id()), new SqlExpr.StringLit(simple)),
+                            com.legend.error.ErrorKind.CONSTRAINT_VIOLATED.sentence(List.of(cc.id(), simple)));
             cases.add(new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, pred),

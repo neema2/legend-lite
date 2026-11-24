@@ -181,8 +181,10 @@ class PlanTypesAreDataTest {
             // characters; a project's refusal sentence, now a record's code and values)
             // a checked graph's defect row: its kind's sentence as the answer's DATA (CheckedEnvelope builds the
             // envelope in SQL), not a raise -- the answer's writer words it once B2 writes the envelope from typed rows
-            Map.entry("SqlExpr$RaiseText.asData", "CONSTRAINT_UNEVALUABLE's sentence as a defect row's cell, the"
-                    + " checked envelope built in SQL -- B2 (upstream's printed text in Java from typed rows)"),
+            // (CONSTRAINT_VIOLATED's too since stage B's B2b S3, 2026-11-24: a constraint with no ~message)
+            Map.entry("SqlExpr$RaiseText.asData", "CONSTRAINT_UNEVALUABLE's and CONSTRAINT_VIOLATED's sentences as a"
+                    + " defect row's cell, the checked envelope built in SQL -- B2 (upstream's printed text in Java from"
+                    + " typed rows)"),
             // a failure with no record (a record and a message never ride together, Failure's constructor)
             // (its reason reworded 2026-11-21, item 3's S3: an assert's failure left it; the entry itself unchanged)
             Map.entry("Failure.message", "a failure with no record: an assert's failure is a record since item 3's S3"

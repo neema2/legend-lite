@@ -30,6 +30,9 @@ public enum RaiseKind {
     MATCH_FAILURE,
     RANGE_STEP_ZERO,
     CONSTRAINT_UNEVALUABLE,
+    /** A checked graph's defect of a constraint the row fails, where the constraint has no {@code ~message}: data in an
+     *  answer, never raised (stage B's B2b S3, 2026-11-24). */
+    CONSTRAINT_VIOLATED,
     LIST_LENGTHS_DIFFER,
     MAP_KEYS_MISALIGNED,
     MAP_KEY_NULL,
