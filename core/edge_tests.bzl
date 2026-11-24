@@ -79,6 +79,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/EngineSpansTest.java",
     # legend-pure's text of a relation in Java, each rule at the pinned sources' examples (stage B's B2b S1, 2026-11-24)
     "src/test/java/com/legend/edge/PureRelationTextTest.java",
+    # a program's final toString/toCSV of a relation lifted at the doors (stage B's B2b S2, 2026-11-24)
+    "src/test/java/com/legend/edge/PrintedRelationsTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     # legend-engine's template parameters, the edge's own table (the audit's J31, 2026-11-18)

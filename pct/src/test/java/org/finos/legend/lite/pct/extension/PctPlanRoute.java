@@ -150,6 +150,28 @@ final class PctPlanRoute {
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in the audience's style; a raise says the one catalog's sentence on every audience (stage B's BE,
         // 2026-11-21: until then RaisedWords reworded it for legend-pure's and legend-engine's)
+        // B2b S2 (stage B's B2, 2026-11-24; the plan of record's B2 and E0 = A, "E0 - yes": at legend-pure's and
+        // legend-engine's doors the edge removes a final toString()/toCSV() and hands the run a table printer as its
+        // receiver): a compatibility audience's case whose last step prints a relation answers legend-pure's text,
+        // printed in Java from the relation's typed rows (edge.PrintedRelations, edge.PureRelationText) -- lite's own
+        // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5)
+        com.legend.edge.PrintedRelations.Lifted lifted = audience == Audience.LITE ? null
+                : com.legend.edge.PrintedRelations.lift(query);
+        if (lifted != null) {
+            java.util.List<String> text = new java.util.ArrayList<>(1);
+            com.legend.Execution.run(lifted.relation(), com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    PctBackend.executionSource(), PctBackend.planSessions(),
+                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features, audience.style(),
+                    new com.legend.result.Output.Rows(lifted.writer(text::add)), com.legend.result.Batcher.DEFAULT_CAPACITY);
+            PctCaseRecorder.onePlan(() -> onePlan(query, features));
+            if (text.size() != 1) {
+                throw new IllegalStateException("a printed relation answers one text; got " + text.size());
+            }
+            ExecutionPlan.Column value = new ExecutionPlan.Column("value", "String",
+                    new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null);
+            return new Answer(ExecutionPlan.TdsResult.Shape.VALUE, new PlanRunner.Rows(java.util.List.of(value),
+                    java.util.List.of(java.util.List.<Object>of(text.get(0)))), query.resultType(), null, null);
+        }
         ExecutionPlan plan = com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)
