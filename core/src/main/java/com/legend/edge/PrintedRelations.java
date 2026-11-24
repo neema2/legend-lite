@@ -48,15 +48,22 @@ public final class PrintedRelations {
         }
     }
 
-    /** {@code query} lifted, or null where its last statement is no print of a relation this door lifts. */
-    public static @com.legend.base.Nullable Lifted lift(com.legend.TypedQuery query) {
-        List<TypedSpec> body = query.body();
-        if (body.isEmpty()) {
-            return null;
+    /** One expression read as a print of a relation: the relation, the print, and the literal {@code replace} calls
+     *  after it, in the program's order. */
+    public record Side(TypedSpec relation, PureRelationTextWriter.Form form, List<PureRelationText.Replace> replaces) {
+        public Side {
+            replaces = List.copyOf(replaces);
         }
-        TypedSpec last = body.get(body.size() - 1);
+    }
+
+    /** {@code e} read as a print of a relation this edge prints, or null: THE ONE RULE for a printed expression, which
+     *  the door's lift of a final statement ({@link #lift}) and B3's lift of a test body's printed side read alike (G1;
+     *  the orchestrator's request of 2026-11-24). A {@code replace} whose target or replacement is no literal, or a
+     *  print this edge does not write, is null. */
+    public static @com.legend.base.Nullable Side side(TypedSpec e) {
+        TypedSpec last = e;
         List<PureRelationText.Replace> replaces = new ArrayList<>();
-        // the replace calls, outermost first; each with literal arguments, else nothing is lifted
+        // the replace calls, outermost first; each with literal arguments, else nothing is read
         while (last instanceof TypedNativeCall c && c.callee().qualifiedName().equals(PlatformTypes.STRING_REPLACE)
                 && c.args().size() == 3) {
             if (!(c.args().get(1) instanceof TypedCString target) || !(c.args().get(2) instanceof TypedCString with)) {
@@ -66,13 +73,23 @@ public final class PrintedRelations {
             last = c.args().get(0);
         }
         Printed printed = printed(last);
-        if (printed == null) {
+        return printed == null ? null : new Side(printed.relation(), printed.form(), replaces);
+    }
+
+    /** {@code query} lifted, or null where its last statement is no print of a relation this door lifts ({@link #side}). */
+    public static @com.legend.base.Nullable Lifted lift(com.legend.TypedQuery query) {
+        List<TypedSpec> body = query.body();
+        if (body.isEmpty()) {
+            return null;
+        }
+        Side side = side(body.get(body.size() - 1));
+        if (side == null) {
             return null;
         }
         List<TypedSpec> lifted = new ArrayList<>(body.subList(0, body.size() - 1));
-        lifted.add(printed.relation());
+        lifted.add(side.relation());
         // withBody keeps the query's model, options and parameters: only the body changes
-        return new Lifted(query.withBody(lifted), printed.form(), replaces);
+        return new Lifted(query.withBody(lifted), side.form(), side.replaces());
     }
 
     /** legend-engine's relation functions' {@code toString} (toString.pure), the name the lowering matches too. */

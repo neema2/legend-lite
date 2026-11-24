@@ -71,7 +71,9 @@ public enum ErrorKind implements ErrorCode {
     /** [the constraint's id, its class's simple name]: legend-pure's (DefaultConstraintHandler.java:90,
      *  {@code "Constraint :[" + ruleId + "] violated in the Class " + constraintClass.getName()}), legend-engine's alike
      *  (stage B's B2b S3, 2026-11-24; the user's ruling of 2026-11-24, "keep errors close to pure when cheap/fast": until
-     *  then the resolver wrote legend-engine's sentence as a literal, GraphEmission's constMsgCol). */
+     *  then the resolver wrote legend-engine's sentence as a literal, GraphEmission's constMsgCol). A checked graph's
+     *  defect text, written by the lowering as data in the answer, never raised: no {@code sql.RaiseKind}
+     *  ({@link #isRaise}). */
     CONSTRAINT_VIOLATED(Form.any("Constraint :[%1$s] violated in the Class %2$s")),
     /** [the native's name]: lite's own (no upstream text). */
     LIST_LENGTHS_DIFFER(Form.any("%1$s: the two value lists differ in length")),
@@ -256,11 +258,13 @@ public enum ErrorKind implements ErrorCode {
     }
 
     /** Whether a statement raises the kind ({@code sql.RaiseKind} names it): every kind but the database's own
-     *  failures, a load's refused file ({@link #FILE_TOO_LARGE}, refused by the run before a statement) and a load's or
+     *  failures, a load's refused file ({@link #FILE_TOO_LARGE}, refused by the run before a statement), a load's or
      *  a payload's statement the database refused ({@link #LOAD_REFUSED}, {@link #PAYLOAD_REFUSED}: its words around
-     *  the database's). */
+     *  the database's) and a checked graph's violated constraint ({@link #CONSTRAINT_VIOLATED}: its defect text, data
+     *  in an answer). */
     public boolean isRaise() {
-        return !isDatabases() && this != FILE_TOO_LARGE && this != LOAD_REFUSED && this != PAYLOAD_REFUSED;
+        return !isDatabases() && this != FILE_TOO_LARGE && this != LOAD_REFUSED && this != PAYLOAD_REFUSED
+                && this != CONSTRAINT_VIOLATED;
     }
 
     /** A value the database computed and no plan holds, as every audience prints it (D1, register S389). */

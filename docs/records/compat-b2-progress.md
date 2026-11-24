@@ -24,6 +24,7 @@ pushed (a subagent that did not write the code, given the code and the measureme
 | 2026-11-24 (relayed ~13:43) | (the B3 session's direction) | F31, legend-engine's plain parse casts, moves into legend-engine's door rewrite (A3's pattern, EngineSubstitutes) when PurePrintForms goes, not to B4; the calendar's 41 toCSV-then-edit cases wait for the user's ruling after B3 step 1b (lite's text assumed; nothing depending on it lands) |
 | 2026-11-24 (relayed ~13:51) | "I think toString and toCsV with more string functions like replace should also be all considered part of the toString rewrite if that's a good idea / not crazy - that might also fix these lost tests?" | in a compatibility test body, a side starting with a relation's own toString/toCSV followed by further string functions is lifted too: the harness prints the rows with B2b's printer and substitutes the text for the call (amends ~18:12 for compatibility test bodies only) |
 | 2026-11-24 (relayed ~13:53) | "No I'm saying also do the replace in java too it's really just more string functions on the CSV" | a print followed by `replace` calls with literal arguments is one printing step in Java (the corpus's 41 calendar cases are all `toCSV(...)->replace('\n', ',')`): the printer's entry takes typed rows and a list of literal (target, replacement) pairs; anything else after a print falls back to the substituted text run as lite |
+| 2026-11-24 (relayed ~18:59) | "Int as float agree, parser bumps are always okay" | a Float the store holds as an integer prints a Float's text on lite's route (`1000000.0`), as slice 3 built it (S311's row records it); every parser-equivalence move with the tests' models approved, a standing word cited beside the floor's history (`PeRatchets.HISTORY`) |
 | 2026-11-24 ~06:20 | "Why are you asking questions like should I build oracle and raise limits? Could have been done ... if just kept building" | the direct, measured cost of a ruling already made is done and reported; only a new difference from upstream or a new semantics question goes to the orchestrator first |
 
 ## B2a
@@ -69,9 +70,9 @@ Snowflake and MongoDB and as its double elsewhere -- recorded in the S311 row as
 to DOUBLE on the four was built, then reverted on the independent re-review's must-fix: Postgres's and MongoDB's
 double-to-decimal casts keep 15 digits, so `1234567890123456` would have printed `1234567890123460.0`); the integer-held check
 the product no longer reads moved into the edge (`EdgePureOnlyTexts`; `ReprParts.heldAsInteger` and its two guard rows
-gone, a shrink); pinned: the edge's integer-held digits (`FloatTextTest.anIntegerHeldFloatsTextAtTheEdgeIsLegendEnginesCast`: the SQL each edge dialect writes for the product's node is legend-engine's plain cast, pinned with no fixture write, before B2b deletes the pass that keeps it), `format`'s `%f` of a whole value and a negative whole value. **For the
-user's word:** the integer-held Float's text on lite's route moved from `1000000` (legend-engine's cast) to `1000000.0`
-(Pure's, one text per type) -- the session's reading of the 2026-11-23 ruling, posted case by case. **Known, outside
+gone, a shrink); pinned: the edge's integer-held digits (`FloatTextTest.anIntegerHeldFloatsTextAtTheEdgeIsLegendEnginesCast`: the SQL each edge dialect writes for the product's node is legend-engine's plain cast, pinned with no fixture write, before B2b deletes the pass that keeps it), `format`'s `%f` of a whole value and a negative whole value. **Ruled by
+the user, 2026-11-24 ("Int as float agree"):** the integer-held Float's text on lite's route moved from `1000000`
+(legend-engine's cast) to `1000000.0` (Pure's, one text per type), the session's reading of the 2026-11-23 ruling. **Known, outside
 B2a:** a value whose static type is `Number` prints through `DECIMAL_TO_TEXT`, not `FLOAT_TO_TEXT`, so "one rule for
 every Float" holds for a value typed Float; a Number holding a double is the product track's (or B2b's printer reads
 it by its value at the edge).
@@ -205,13 +206,40 @@ other rule now.
 No PCT or corpus case meets the two-printer window today, since no case ends in a print at channel A. It closes with
 S4 and S6.
 
+### S3: a checked graph's defect sentences, the one catalog's on every door (2026-11-24)
+
+- **S3a (Q7, "Q7 fine").** The edge's twelve dialects overrode `raiseMessage` to write a checked graph's
+  `CONSTRAINT_UNEVALUABLE` defect cell in legend-engine's words (`PureMessages.defectCell`). That text is
+  byte-identical to the one catalog's sentence the product writes since BE. The overrides and `defectCell` are
+  deleted, so no edge dialect overrides `raiseMessage` now.
+- **S3b (Q6, "Q6 fine", read with the user's word of 2026-11-24 the orchestrator relayed: "keep errors close to pure
+  when cheap/fast so don't have to reword everything on compatibility").** A constraint with no `~message` no longer
+  carries a literal the resolver wrote (`GraphEmission.constMsgCol`, legend-engine's sentence in the core). Its
+  `CheckedConstraint.message` is null, and the lowering (`CheckedEnvelope`) writes the defect's message as the one
+  catalog's sentence: `ErrorKind.CONSTRAINT_VIOLATED`, "Constraint :[%1$s] violated in the Class %2$s". That is
+  legend-pure's own sentence (`DefaultConstraintHandler.java:90`, cited by the orchestrator), and legend-engine's
+  agrees. It is a plain literal in the plan, as the resolver's was. No audience rewords it, so the plan carries no
+  record; a `RaiseText` record was tried first and measured +2,398 characters of plan JSON on DuckDB's checked graph
+  fetches (the lean-SQL baseline, shrink-only). It is an `ErrorKind` that is never raised (`isRaise` excludes it), so
+  `RaiseKind` and the generated host tables are unchanged.
+- **No text changes on any door.** `GraphFetchCheckedIntegrationTest` keeps its pins, and the edge needs no
+  override.
+- **Guards:** `CompatSpellingGuardTest` lists "violated in the Class" and registers `error/ErrorKind.java`'s one hit
+  as RULED; `TerminalRowsFrozenTest` freezes the row with the ruling; `EdgeSpellingHookTest`'s edge arms no longer
+  list `raiseMessage` (a shrink). `ErrorKindTest` pins the sentence and that it is never raised. `TypedSpecChildrenTest`
+  pins a graph whose constraints mix a message and none.
+- **One rule for a printed side** (the orchestrator's request, G1): `PrintedRelations.side(TypedSpec)` reads one
+  expression as a print with its literal replaces. The door's `lift` and B3's test-body lift (`edge.UpstreamPrints`,
+  switching to it) read the same rule.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
 |---|---|---|---|
+| 2026-11-24 | B2b S3, `ba8acecdb`, a subagent, read-only | must-fix: the generated host tables (`lite-raise.ts`, `_type_facts.py`) list every `RaiseKind`, and a new one was added without regenerating them. Questions 1-5 clean: S3a's text byte-identical for every id; the old message a bare literal, the children walk in step, the simple name identical, the guard edits legitimate. Nits: two stale comments (`SqlExpr.RaiseText`, `RaiseTextTest`); the null message's children walk unpinned | the must-fix made moot: `CONSTRAINT_VIOLATED` is no `RaiseKind` (the gate also measured the record's plan growth, so the sentence is a plain literal); the comments corrected; the children walk pinned |
 | 2026-11-24 | B2b S2's fix round, `6fc717f9f` and `8551b293d`, a subagent, read-only | no must-fix; the four fixes confirmed (`knownColumns` is at least as strict as the lowering's special cases, and lifts a pivot whose columns a cast names), and the native-claims census right. Should-fix: a mixed (tagged) column passes `knownColumns`, so the door lifts its print and the printer refuses it where the SQL text answered it. Nits: the toCSV route test passed on either road; four unpinned shapes; the record's lane count and when the lanes ran; the predicate's home when `RelationTextLowering` goes | the mixed column measured: refused by name on both roads today (a tagged value reaches the renderer only at a value's root), pinned on both; the route test proves the lifted branch (a Float the two roads print differently); a pivot named by a cast pinned as lifted; the record corrected. The raw grid, the no-column relation and the zero-argument format functions (absent from lite's catalog) stay unpinned |
 | 2026-11-24 | B2b S2's design, `54d922e92`, a subagent, read-only, given the code, the plan of record and the tenets | no must-fix; lifted forms, the lifted query, the route's answer and the tenets clean. Should-fix: the one-plan measurement planned the print's query, not the relation's; a dynamic pivot's and a raw grid's prints lifted where the lowering refuses or answers them by its own rule; the four-argument toCSV with the default formats not lifted; the window with two printers unrecorded. Nits: a redundant `withOptions`; a `csv` over a cast not lifted (kept: the resolver's); toCSV's argument not checked to be a relation. Tests: toCSV's forms, the `csv` property, a non-literal replacement, the options, the kept statements, a dynamic pivot | all, in this round; the cast-wrapped `csv` stays the run's |
-| 2026-11-24 | B2a's end design audit, `96e7c1fc4..54f8be8e3`, a subagent, read-only, given the plan of record, the tenets and the record | no must-fix; verdict "sound to build B2b on". Should-fix: `heldAsInteger` left in the product for the edge alone; an integer-held Float above 2^53 printed per database; the integer-held text change not posted for the user's word; the record's slice 4 and slice 1 wording; the S311 row's cloud-lane, per-value and MongoDB claims; the edge's integer-held digits unpinned. Nits: stale javadocs, the gate wording, the ledger header | all, in this round (the user's word on the integer-held text asked) |
+| 2026-11-24 | B2a's end design audit, `96e7c1fc4..54f8be8e3`, a subagent, read-only, given the plan of record, the tenets and the record | no must-fix; verdict "sound to build B2b on". Should-fix: `heldAsInteger` left in the product for the edge alone; an integer-held Float above 2^53 printed per database; the integer-held text change not posted for the user's word; the record's slice 4 and slice 1 wording; the S311 row's cloud-lane, per-value and MongoDB claims; the edge's integer-held digits unpinned. Nits: stale javadocs, the gate wording, the ledger header | all, in this round; the integer-held text ruled by the user 2026-11-24 ("Int as float agree") |
 | 2026-11-24 | B2b S1's diff (`54f8be8e3..527d3e8a9`), a subagent, read-only, given the code, the pinned sources and the requirement | 1 must-fix (the typed header's multiplicity); should-fix: the typed header's precise types, the date-time's digits against the edge's rule, legend-pure's Float formatter, a decimal under Float, a Number of integers' javadoc, toCSV's date-time cells against today's SQL, mixed columns; nits: dates the CSV cannot write, enumerations' quoting, the empty replace, the writer's refusals' timing | all, in this round; toCSV's date-time cells measured on the corpus at S4 |
 | 2026-11-24 | the fix round's diff (`527d3e8a9..41d52b690`), a narrow re-review, read-only | 1 must-fix: the integer-held Float's cast to DOUBLE on H2, Postgres, Snowflake and MongoDB lost digits on Postgres and MongoDB (15-digit casts) and the claim of one text everywhere was false; should-fix: that cast unpinned, the date rule's divergence from TestTDS's millisecond cut unrecorded; nits: a String in an Any column not quoted, a DecimalFormat per cell, two stale record lines. The printer's rules, the moves and the guards found clean | the cast reverted and the difference recorded; the rest fixed |
 | 2026-11-24 | slice 3's diff (`96e7c1fc4..396961c73`), an independent subagent, read-only, given the code and the requirement | 5 must-fix: MongoDB printed `NaN.0`/`Infinity.0` (an unconditional `.0`); channel B's ledger row read `got "00.0"` (a slicing slip); channel B's lite Essential judge pins not re-pinned (+264); `MongoDbPlanTest`'s two product texts stale; a Float held as an integer printed `2` beside a computed `2.0` (one text per type broken). 1 should-fix: the probe's whole-value check too loose (a lost sign or a wrong digit count passed). Nits: stale javadocs, long lines. No defect in the shared helpers' SQL (simulated on every six-digit text kind, the non-finite texts included); the edge untouched | all, in `08e37643b` and the slice's last commit; the probe pins -2.0 and 1e20 exactly, and NaN and the infinities exactly |

@@ -63,6 +63,21 @@ class PrintedRelationsTest {
         assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->length()")));
     }
 
+    /** The one rule, read off one expression (B3's test-body lift reads it too): a print and its literal replaces, or
+     *  null. */
+    @Test
+    void theRuleReadsOneExpression() {
+        com.legend.compiler.spec.typed.TypedSpec printed =
+                typed("|" + REL + "->toString()->replace('x', 'y')").body().get(0);
+        PrintedRelations.Side side = PrintedRelations.side(printed);
+        assertNotNull(side);
+        assertEquals(PureRelationTextWriter.Form.TO_STRING, side.form());
+        assertEquals(List.of(new PureRelationText.Replace("x", "y")), side.replaces());
+        assertEquals(((com.legend.compiler.spec.typed.TypedNativeCall) ((com.legend.compiler.spec.typed.TypedNativeCall)
+                printed).args().get(0)).args().get(0), side.relation());
+        assertNull(PrintedRelations.side(typed("|" + REL + "->filter(r|$r.a == 1)").body().get(0)));
+    }
+
     @Test
     void toStringFalseIsToString() {
         PrintedRelations.Lifted lifted = PrintedRelations.lift(typed("|" + REL + "->toString(false)"));

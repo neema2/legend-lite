@@ -1263,8 +1263,8 @@ public sealed interface SqlExpr
     /**
      * A RAISE'S MESSAGE (phase D's D1.1, 2026-11-12): the kind of what a guard refuses ({@link RaiseKind}) and its
      * operands -- the values the refusal is about, typed SQL. The product's dialects write the kind's name alone, never
-     * an operand (a product error is its kind and where, never the value: no text built in SQL); the compatibility
-     * edge's dialects write legend-pure's sentence of the kind from its operands. Only {@link RaiseKind#USER_FAIL}'s one
+     * an operand (a product error is its kind and where, never the value: no text built in SQL); every door words a raise
+     * after the run from its site's record (stage B's B1, 2026-11-20). Only {@link RaiseKind#USER_FAIL}'s one
      * operand, the user's own message, is the product's to write. The message argument of {@code Call(ERROR, ...)}.
      * {@code asData}: where the kind's text is DATA in an answer rather than raised -- a checked graph's defect row --
      * the product's words for it, a fixed text known at planning (the error layer's {@code ErrorKind} sentence and
