@@ -1,0 +1,16 @@
+cases 135 {"compiled":132,"engineRefusedLiteJson":1,"baselineFails":0,"skipped":2,"prettySame":126,"prettyDiff":7,"standardSame":126,"standardDiff":7}
+ - CORE-basic-function-with-relation-tests.pure PRETTY: lite 500 / engine 200; first difference at line 1: lite "{\"code\":-1,\"message\":\"IllegalArgumentException: protocol JSON: function test data has no '" engine "###Data"
+ - CORE-basic-function-with-relation-tests.pure STANDARD: lite 500 / engine 200; first difference at line 1: lite "{\"code\":-1,\"message\":\"IllegalArgumentException: protocol JSON: function test data has no '" engine "###Data"
+ - CORE-basic-function-with-relational-tests.pure PRETTY: lite 500 / engine 200; first difference at line 1: lite "{\"code\":-1,\"message\":\"IllegalArgumentException: protocol JSON: function test data has no '" engine "###Data"
+ - CORE-basic-function-with-relational-tests.pure STANDARD: lite 500 / engine 200; first difference at line 1: lite "{\"code\":-1,\"message\":\"IllegalArgumentException: protocol JSON: function test data has no '" engine "###Data"
+ - CORE-function-test-variants.pure: engine 500 on legend-lite's JSON (on its own JSON: 200): {"code":-1,"message":"ClassCastException: class org.finos.legend.pure.generated.Root_meta_pure_metamodel_valuespecification_SimpleFunctionExpression_Impl cannot be cast to class org.finos.legend.pure.m3.coreinstance.meta
+ - CORE-function-test-variants.pure PRETTY: lite 500 / engine 200; first difference at line 1: lite "{\"code\":-1,\"message\":\"IllegalArgumentException: protocol JSON: function test data has no '" engine "###Data"
+ - CORE-function-test-variants.pure STANDARD: lite 500 / engine 200; first difference at line 1: lite "{\"code\":-1,\"message\":\"IllegalArgumentException: protocol JSON: function test data has no '" engine "###Data"
+ - STO_Relational-relational-connection-postprocessors.pure PRETTY: lite 200 / engine 200; first difference at line 54: lite "  timezone: '\\'US/Arizona\\'';" engine "  timezone: 'US/Arizona';"
+ - STO_Relational-relational-connection-postprocessors.pure STANDARD: lite 200 / engine 200; first difference at line 54: lite "  timezone: '\\'US/Arizona\\'';" engine "  timezone: 'US/Arizona';"
+ - STO_Relational-relational-connection-specs-and-auth.pure PRETTY: lite 200 / engine 200; first difference at line 84: lite "  timezone: '\\'UTC\\'';" engine "  timezone: 'UTC';"
+ - STO_Relational-relational-connection-specs-and-auth.pure STANDARD: lite 200 / engine 200; first difference at line 84: lite "  timezone: '\\'UTC\\'';" engine "  timezone: 'UTC';"
+ - STO_Relational-relational-connection-undefined-store.pure PRETTY: lite 200 / engine 200; first difference at line 152: lite "  timezone: '\\'US/Arizona\\'';" engine "  timezone: 'US/Arizona';"
+ - STO_Relational-relational-connection-undefined-store.pure STANDARD: lite 200 / engine 200; first difference at line 152: lite "  timezone: '\\'US/Arizona\\'';" engine "  timezone: 'US/Arizona';"
+ - STO_Relational-relational-connection.pure PRETTY: lite 200 / engine 200; first difference at line 191: lite "  timezone: '\\'America/New_York\\'';" engine "  timezone: 'America/New_York';"
+ - STO_Relational-relational-connection.pure STANDARD: lite 200 / engine 200; first difference at line 191: lite "  timezone: '\\'America/New_York\\'';" engine "  timezone: 'America/New_York';"

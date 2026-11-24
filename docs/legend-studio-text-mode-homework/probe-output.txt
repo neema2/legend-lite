@@ -1,0 +1,66 @@
+
+========== A. grammarToJson/model?returnSourceInformation=true, every Studio roundtrip case
+cases: 135 {"equal":124,"sourceInfoOnly":1,"other":8,"liteRefused":0,"engineRefused":2}
+element-level sourceInformation (what Studio indexes): {"equal":929,"differs":0,"liteMissing":0}
+  - CORE-basic-function-with-relation-tests.pure: differs at 6 path(s), e.g. $.elements[5].tests[0].testData[0]._type (engine only) | $.elements[5].tests[0].testData[0].elementPointer (engine only) | $.elements[5].tests[0].testData[0].packageableElementPointer (lite only) | $.elements[6].tests[0].testData[0]._type (engine only)
+  - CORE-basic-function-with-relational-tests.pure: differs at 3 path(s), e.g. $.elements[6].tests[0].testData[0]._type (engine only) | $.elements[6].tests[0].testData[0].elementPointer (engine only) | $.elements[6].tests[0].testData[0].packageableElementPointer (lite only)
+  - CORE-function-test-variants.pure: differs at 30 path(s), e.g. $.elements[3].tests[0].tests[1].assertions[0].expected._type | $.elements[3].tests[0].tests[1].assertions[0].expected.value (engine only) | $.elements[3].tests[0].tests[1].assertions[0].expected.function (lite only) | $.elements[3].tests[0].tests[1].assertions[0].expected.parameters (lite only)
+  - CORE-multiline-string-literals.pure: sourceInformation differs at 20 path(s), e.g. $.elements[0].constraints[0].sourceInformation.endColumn | $.elements[0].constraints[0].sourceInformation.endLine | $.elements[0].constraints[1].messageFunction.body[0].parameters[0].sourceInformation.endColumn
+  - DSL_DataQuality-relation-comparison-advanced.pure: differs at 3 path(s), e.g. $.elements[3].additionalColumnsToPersist (engine only) | $.elements[4].additionalColumnsToPersist (engine only) | $.elements[5].additionalColumnsToPersist (engine only)
+  - STO_GraphQL-empty-store-and-plain-connection.pure: engine 400 {"code":-1,"errorType":"PARSER","message":"'GraphQL' is not a known section parser","sourceInformation":{"endColumn":18,"endLine":2,"sourceId":"","startColumn":
+  - STO_GraphQL-store-connection-mapping.pure: engine 400 {"code":-1,"errorType":"PARSER","message":"'GraphQL' is not a known section parser","sourceInformation":{"endColumn":11,"endLine":26,"sourceId":"","startColumn"
+  - STO_Relational-relational-connection-postprocessors.pure: differs at 2 path(s), e.g. $.elements[3].connectionValue.timeZone | $.elements[7].connectionValue.timeZone
+  - STO_Relational-relational-connection-specs-and-auth.pure: differs at 1 path(s), e.g. $.elements[6].connectionValue.timeZone
+  - STO_Relational-relational-connection-undefined-store.pure: differs at 2 path(s), e.g. $.elements[9].connectionValue.timeZone | $.elements[10].connectionValue.timeZone
+  - STO_Relational-relational-connection.pure: differs at 1 path(s), e.g. $.elements[11].connectionValue.timeZone
+
+========== B. errors: status and payload, engine then lite
+
+-- parse: missing semicolon
+   engine 400: {"code":-1,"errorType":"PARSER","message":"Unexpected token '}'. Valid alternatives: ['=', ';']","sourceInformation":{"endColumn":1,"endLine":4,"sourceId":"","startColumn":1,"startLine":4},"status":"error","trace":"org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Unexpected token '}'. Valid alternatives: ['=', ';']\n\tat org.finos.legend.engine.language.pure.grammar.from.ParserErrorLis
+   lite   400: {"code":-1,"errorType":"PARSER","message":"[4:1] expected SEMI_COLON but found BRACE_CLOSE ('}')","status":"error"}
+
+-- parse: unknown section
+   engine 400: {"code":-1,"errorType":"PARSER","message":"'Bogus' is not a known section parser","sourceInformation":{"endColumn":16,"endLine":2,"sourceId":"","startColumn":8,"startLine":2},"status":"error","trace":"org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: 'Bogus' is not a known section parser\n\tat org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser.visitSection(PureGrammarP
+   lite   400: {"code":-1,"errorType":"PARSER","message":"[2:1] 'Bogus' is not a known section parser","status":"error"}
+
+-- parse: a GraphQL section (engine knows it, lite does not)
+   engine 400: {"code":-1,"errorType":"PARSER","message":"'GraphQL' is not a known section parser","sourceInformation":{"endColumn":11,"endLine":26,"sourceId":"","startColumn":1,"startLine":26},"status":"error","trace":"org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: 'GraphQL' is not a known section parser\n\tat org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser.visitSection(PureGr
+   lite   400: {"code":-1,"errorType":"PARSER","message":"[26:1] 'GraphQL' is not a known section parser","status":"error"}
+
+-- compile: unknown property type
+   engine 400: {"code":-1,"errorType":"COMPILATION","message":"Can't find type 'Strin'","sourceInformation":{"endColumn":13,"endLine":3,"sourceId":"","startColumn":9,"startLine":3},"status":"error","trace":"org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find type 'Strin'\n\tat org.finos.legend.engine.shared.core.operational.Assert.assertTrue(Assert.java:44)\n\tat org.finos.legend.engine.language.pure.compiler.toPureGraph.PureModel.getType(PureModel.java:987)\n\tat org.finos.legend.engine.la
+   lite   400: {"code":-1,"errorType":"COMPILATION","message":"[1:1] Unknown type: 'Strin' is not a known primitive, class, or enum","sourceInformation":{"endColumn":1,"endLine":4,"sourceId":"","startColumn":1,"startLine":1},"status":"error"}
+
+-- compile: unknown property in a derived property
+   engine 400: {"code":-1,"errorType":"COMPILATION","message":"Can't find property 'nme' in class 'model::A'","sourceInformation":{"endColumn":20,"endLine":4,"sourceId":"","startColumn":18,"startLine":4},"status":"error","trace":"org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find property 'nme' in class 'model::A'\n\tat org.finos.legend.engine.shared.core.operational.Assert.assertTrue(Assert.java:44)\n\tat org.finos.legend.engine.language.pure.compiler.toPureGraph.HelperModelBuilder.getOwn
+   lite   400: {"code":-1,"errorType":"COMPILATION","message":"in function 'model::A$prop$upper': class model::A has no property 'nme'","sourceInformation":{"endColumn":1,"endLine":5,"sourceId":"","startColumn":1,"startLine":1},"status":"error"}
+
+-- compile: function returns the wrong type
+   engine 400: {"code":-1,"errorType":"COMPILATION","message":"Error in function 'model::f__Integer_1_' - Type error: 'String' is not a subtype of 'Integer'","sourceInformation":{"endColumn":5,"endLine":3,"sourceId":"","startColumn":3,"startLine":3},"status":"error","trace":"org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Error in function 'model::f__Integer_1_' - Type error: 'String' is not a subtype of 'Integer'\n\tat org.finos.legend.engine.language.pure.compiler.toPureGraph.HelperModelBuilder.
+   lite   400: {"code":-1,"errorType":"COMPILATION","message":"in function 'model::f': declares return type Integer but body returns String (expected Integer, got String)","sourceInformation":{"endColumn":1,"endLine":4,"sourceId":"","startColumn":1,"startLine":1},"status":"error"}
+
+-- compile: a Pure class mapping with no ~src (lite refuses, register S21)
+   engine 200: {"message":"OK","defects":[]}
+   lite   400: {"code":-1,"errorType":"COMPILATION","message":"[8:1] Pure class mapping for 'model::A' in mapping 'model::M' declares no ~src, so it has no source extent to map from — such a mapping can be compiled and analysed but cannot produce rows","sourceInformation":{"endColumn":1,"endLine":14,"sourceId":"","startColumn":1,"startLine":8},"status":"error"}
+
+========== C. compile with a dependency: its elements as JSON, appended to the parsed project (as Studio sends it)
+   engine 200: {"message":"OK","defects":[]}
+   lite   400: {"code":-1,"errorType":"COMPILATION","message":"dep::Person: the model's section index lists no section for it","status":"error"}
+   without dep::Kind:
+   engine 400: {"code":-1,"errorType":"COMPILATION","message":"Can't find type 'dep::Kind'","sourceInformation":{"endColumn":17,"endLine":4,"sourceId":"","startColumn":9,"startLine":4},"status":"error","trace":"org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find type 'dep::Kind'\n\tat org.finos.legend.engine.shared.core.operational.Assert.assertTrue(Assert.java:44)\n\tat o
+   lite   400: {"code":-1,"errorType":"COMPILATION","message":"dep::Person: the model's section index lists no section for it","status":"error"}
+
+========== D. timings (ms, first run / second run; both processes already warm from A-C; Node 25, not a browser; no dependencies in the compile)
+largest case (CORE-sub-type-graph-fetch-tree.pure): 10692 chars, 10 elements
+   parse    lite 1 / 1 [200]   engine 8 / 7 [200]
+   compose  lite 6 / 1 [200]   engine 2 / 1 [200]   same text: true
+   compile  lite 19 / 11 [200]   engine 12 / 9 [200]
+synthetic: 500 classes, 100 functions: 161000 chars, 601 elements
+   parse    lite 28 / 27 [200]   engine 94 / 84 [200]
+   compose  lite 70 / 77 [200]   engine 25 / 17 [200]   same text: true
+   compile  lite 175 / 160 [200]   engine 58 / 41 [200]
+synthetic: 2,000 classes, 400 functions: 647650 chars, 2401 elements
+   parse    lite 128 / 127 [200]   engine 397 / 368 [200]
+   compose  lite 304 / 236 [200]   engine 65 / 50 [200]   same text: true
+   compile  lite 639 / 629 [200]   engine 162 / 143 [200]
