@@ -43,15 +43,6 @@ class PureRelationTextTest {
         assertEquals("#TDS\n   val,other,txt\n   1,2,aa\n   2,3,ee\n   3,2,eewe\n#", PureRelationText.tds(cols, rows));
     }
 
-    /** toString.pure's {@code testToStringWithTypesAndMuls}. */
-    @Test
-    void theTypedTdsTextOfToStringPuresTest() {
-        List<ExecutionPlan.Column> cols = List.of(col("val", "Integer"), col("other", "Integer"), col("txt", "String"));
-        List<List<Object>> rows = List.of(row(1L, 2L, "aa"), row(2L, 3L, "ee"), row(3L, 2L, "eewe"));
-        assertEquals("#TDS\n   val:Integer[0..1],other:Integer[0..1],txt:String[0..1]\n   1,2,aa\n   2,3,ee\n"
-                + "   3,2,eewe\n#", PureRelationText.tds(cols, rows, true));
-    }
-
     @Test
     void noRowsLeavesTheRowsSegmentEmpty() {
         assertEquals("#TDS\n   a\n\n#", PureRelationText.tds(List.of(col("a", "Integer")), List.of()));
@@ -64,22 +55,6 @@ class PureRelationTextTest {
         assertEquals("'my col'", PureRelationText.tdsName(" my col "));
         assertEquals("'x'", PureRelationText.tdsName("'x'"));
         assertEquals("'a__|__b'", PureRelationText.tdsName("a__|__b"));
-    }
-
-    @Test
-    void aMultiplicityPrintsAsPureWritesIt() {
-        assertEquals("1", PureRelationText.printedMultiplicity(new ExecutionPlan.Multiplicity(1, 1)));
-        assertEquals("0..1", PureRelationText.printedMultiplicity(new ExecutionPlan.Multiplicity(0, 1)));
-        assertEquals("*", PureRelationText.printedMultiplicity(new ExecutionPlan.Multiplicity(0, null)));
-        assertEquals("1..*", PureRelationText.printedMultiplicity(new ExecutionPlan.Multiplicity(1, null)));
-        assertEquals("2..5", PureRelationText.printedMultiplicity(new ExecutionPlan.Multiplicity(2, 5)));
-    }
-
-    @Test
-    void aTypedHeaderRefusesATypeItCannotPrintByName() {
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> PureRelationText.tds(
-                List.of(col("p", "my::Person")), List.of(), true));
-        assertTrue(e.getMessage().contains("my::Person"), e.getMessage());
     }
 
     // ---- s.pure: a cell --------------------------------------------------------------------------------------------
@@ -100,9 +75,9 @@ class PureRelationTextTest {
         assertEquals("it's, plain", PureRelationText.tdsCell("it's, plain", s));
     }
 
-    /** A value's {@code toString()}: an Integer's digits; a Float a double's shortest digits with a point always; a
-     *  whole number the database held under a Float column the Float it is declared; a Number column's integer its
-     *  digits and its fraction-kind value a Float; a Decimal at its scale; a Boolean; a date; a time. */
+    /** A value's {@code toString()}: an Integer's digits; a Float column's cell the double it is declared, whatever
+     *  kind the database held it in, written by legend-pure's Float print; a Number column's integer its digits and its
+     *  fraction-kind value a Float; a Decimal at its scale; a Boolean; a date; a time. */
     @Test
     void aValueIsLegendPuresPrint() {
         assertEquals("7", PureRelationText.value(7L, col("i", "Integer")));
@@ -111,6 +86,9 @@ class PureRelationTextTest {
         assertEquals("100000000000000000000.0", PureRelationText.value(1e20d, col("f", "Float")));
         assertEquals("2.0", PureRelationText.value(2L, col("f", "Float")));
         assertEquals("81.18", PureRelationText.value(new BigDecimal("81.180"), col("f", "Float")));
+        // a decimal the database held under a Float column is the double it is declared (the review of 2026-11-24)
+        assertEquals("0.3333333333333333", PureRelationText.value(new BigDecimal("0.333333333333333333"),
+                col("f", "Float")));
         assertEquals("3", PureRelationText.value(3L, col("n", "Number")));
         assertEquals("81.18", PureRelationText.value(new BigDecimal("81.180"), col("n", "Number")));
         assertEquals("1.50", PureRelationText.value(new BigDecimal("1.50"), col("d", "Decimal")));
@@ -119,23 +97,62 @@ class PureRelationTextTest {
                 col("t", "StrictTime")));
     }
 
-    /** A date: its day when it has no time; with one, three subsecond digits and {@code +0000} (legend-pure's TDS reads a
-     *  date back at the millisecond). */
+    /** legend-pure's Float print (CompiledSupport: {@code 0.0} for either zero, else {@code DecimalFormat("0.0")} with
+     *  340 fraction digits): the values where it differs from the shortest round-trip digits, as the review measured
+     *  them on JDK 21 (2026-11-24). */
     @Test
-    void aDateIsItsDayOrItsMillisecondInstant() {
+    void aFloatIsLegendPuresDecimalFormat() {
+        assertEquals("0.0", PureRelationText.pureFloat(-0.0d));
+        assertEquals("0.0", PureRelationText.pureFloat(0.0d));
+        assertEquals("-0.25", PureRelationText.pureFloat(-0.25d));
+        assertEquals("403018489792982720.0", PureRelationText.pureFloat(4.030184897929827E17));
+        assertEquals("99999999999999990000000.0", PureRelationText.pureFloat(1e23));
+        assertEquals("\u221E", PureRelationText.pureFloat(Double.POSITIVE_INFINITY));
+        assertEquals("0.3", PureRelationText.pureFloat(0.3d));
+        assertEquals("0.30000000000000004", PureRelationText.pureFloat(0.1d + 0.2d));
+    }
+
+    /** A date: its day when it has no time; with one, its seconds, at least three subsecond digits (the finer ones
+     *  without their trailing zeros) and {@code +0000} -- the edge's SQL composition's rule until B2b. */
+    @Test
+    void aDateIsItsDayOrItsTdsInstant() {
         assertEquals("2014-01-01", PureRelationText.date(new PureDateLiteral.StrictDate(2014, 1, 1)));
         assertEquals("2014-01-01T10:20:30.000+0000",
                 PureRelationText.date(new PureDateLiteral.DateWithSecond(2014, 1, 1, 10, 20, 30)));
-        assertEquals("2014-01-01T10:20:30.123+0000",
+        assertEquals("2014-01-01T10:20:30.500+0000",
+                PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "5")));
+        assertEquals("2014-01-01T10:20:30.1234+0000",
+                PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "1234")));
+        assertEquals("2014-01-01T10:20:30.123456789+0000",
                 PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "123456789")));
+    }
+
+    /** s.pure matches the value's runtime type: an enumeration's value is no String, so a brace in its name is not
+     *  quoted (lite carries the value as its name, under the enumeration's column). */
+    @Test
+    void anEnumerationsValueIsNotQuotedAsAString() {
+        assertEquals("{x}", PureRelationText.tdsCell("{x}", col("e", "my::Kind")));
+        assertEquals("'{x}'", PureRelationText.tdsCell("{x}", col("s", "String")));
     }
 
     @Test
     void aCellWithNoRuleIsRefusedByName() {
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+        com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> PureRelationText.value(List.of(1L), col("l", "Integer")));
-        assertTrue(e.getMessage().contains("'l'") && e.getMessage().contains("not defined at the edge"),
+        assertTrue(e.getMessage().contains("'l'") && e.getMessage().contains("not written at the edge"),
                 e.getMessage());
+        // a date toCSV's formats cannot write (legend-pure's format raises on a missing component)
+        assertThrows(com.legend.error.NotImplementedException.class, () -> PureRelationText.csvCell(
+                new PureDateLiteral.DateWithHour(2014, 1, 1, 10), col("d", "DateTime"), false));
+    }
+
+    /** A mixed column, whose cells a typed batch hands over without their kind's tag, is refused before any row. */
+    @Test
+    void aMixedColumnIsRefusedByName() {
+        ExecutionPlan.Column mixed = new ExecutionPlan.Column("m", "Any", new ExecutionPlan.Multiplicity(0, 1),
+                "TAGGED<INTEGER i, VARCHAR s>", null, null);
+        assertThrows(com.legend.error.NotImplementedException.class,
+                () -> PureRelationText.tds(List.of(mixed), List.of()));
     }
 
     // ---- helperFunctions.pure: toCSV, a TDS's csv ---------------------------------------------------------------
@@ -181,8 +198,8 @@ class PureRelationTextTest {
         assertEquals("b-1", PureRelationText.replaced("a-1", List.of(new PureRelationText.Replace("a", "b"))));
         assertEquals("cc", PureRelationText.replaced("aa", List.of(new PureRelationText.Replace("a", "b"),
                 new PureRelationText.Replace("b", "c"))));
-        assertThrows(IllegalArgumentException.class,
-                () -> PureRelationText.replaced("a", List.of(new PureRelationText.Replace("", "x"))));
+        // an empty target is Java's String.replace's, which Pure's replace is: before and after each character
+        assertEquals("xax", PureRelationText.replaced("a", List.of(new PureRelationText.Replace("", "x"))));
     }
 
     // ---- the writer: a run's receiver ----------------------------------------------------------------------------
@@ -197,6 +214,8 @@ class PureRelationTextTest {
         w.end();
         assertEquals(List.of("a,,"), got);
         assertThrows(IllegalStateException.class, w::end);
+        assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(PureRelationTextWriter.Form.TO_CSV,
+                List.of(), got::add).end());
         assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(
                 PureRelationTextWriter.Form.TO_STRING, List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.VALUE));
     }

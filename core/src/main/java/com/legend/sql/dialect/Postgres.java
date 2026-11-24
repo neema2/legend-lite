@@ -2709,7 +2709,8 @@ public class Postgres extends AnsiSqlRenderer {
     /** {@inheritDoc} The value's NUMERIC rounded to six places, trimmed: a NUMERIC holds every double, NaN and the infinities by Pure's names (measured on the embedded Postgres, 2026-11-15). */
     @Override
     @SpellingArm
-    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr operand) {
+        SqlExpr x = doubleIfIntegral(operand);
         return trimmedSix(writer, "rtrim", w -> w.append("CAST(ROUND(CAST(").expr(x, 0)
                 .append(" AS NUMERIC), 6) AS VARCHAR)"));
     }

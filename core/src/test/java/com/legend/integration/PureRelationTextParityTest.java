@@ -40,7 +40,14 @@ class PureRelationTextParityTest {
             "#TDS\n  i:Integer, s:String\n  1, x\n#->extend(~'my col': r|$r.i->toOne() * 2)",
             "#TDS\n  i:Integer, s:String\n  1, x\n#->filter(r|$r.i == 2)",
             "#TDS\n  g:String, f:Float\n  a, 1.5\n  a, 2.25\n  b, 3.0\n#->groupBy(~g, ~total: r|$r.f : s|$s->sum())"
-                    + "->sort(~g->ascending())");
+                    + "->sort(~g->ascending())",
+            // the review of 2026-11-24's carriers
+            "#TDS\n  i:Integer, t:DateTime\n  1, 2014-01-01T10:20:30.123456\n  2, 2014-01-01T10:20:30.5\n"
+                    + "  3, 2014-01-01T10:20:30.1234\n#->sort(~i->ascending())",
+            "#TDS\n  i:Integer, d:Decimal\n  1, 1.50\n  2, 2.0\n  3, -0.125\n#->sort(~i->ascending())",
+            "#TDS\n  i:Integer, n:Number\n  1, 21\n  2, 2.5\n#->sort(~i->ascending())",
+            "#TDS\n  i:Integer, f:Float\n  1, 1.5\n  2, 2.5\n#->groupBy(~i, ~a: r|$r.f : s|$s->average())"
+                    + "->sort(~i->ascending())");
 
     @Test
     void theJavaPrinterWritesTheEdgesSqlText() throws Exception {
@@ -78,7 +85,13 @@ class PureRelationTextParityTest {
      *       precision (the database answered a day), so the printer writes the day;</li>
      *   <li>a Float of 1e20 on SQLite: legend-pure prints {@code 100000000000000000000.0}; the SQL composition's
      *       shortest-digits decomposition wrote {@code 9223372036854775807.0} there (an integer cast that saturates), a
-     *       wrong value. DuckDB and H2 wrote the right text.</li>
+     *       wrong value. DuckDB and H2 wrote the right text;</li>
+     *   <li>the Floats where the databases' SQL texts disagree with each other and with legend-pure's print
+     *       ({@code CompiledSupport}'s {@code DecimalFormat("0.0")}): {@code -0.0} (DuckDB {@code -0.0}, H2 and SQLite
+     *       {@code 0.0}; legend-pure {@code 0.0}), {@code 4.030184897929827E17} (H2 {@code 403018489792982700.0}; legend-pure
+     *       {@code 403018489792982720.0}), {@code 1e23} (DuckDB {@code 99999999999999991611392.0}, H2
+     *       {@code 100000000000000000000000.0}, SQLite {@code 9223372036854775807.0}; legend-pure
+     *       {@code 99999999999999990000000.0}). The printer writes legend-pure's one text on every database.</li>
      * </ul>
      */
     @Test
@@ -92,6 +105,10 @@ class PureRelationTextParityTest {
             assertEquals("#TDS\n   i,f\n   1,100000000000000000000.0\n   2,-100000000000000000000.0\n#", printed(model,
                     "#TDS\n  i:Integer, f:Float\n  1, 100000000000000000000.0\n  2, -100000000000000000000.0\n#"
                             + "->sort(~i->ascending())", c), backend.name());
+            assertEquals("#TDS\n   i,f\n   1,0.0\n   2,403018489792982720.0\n   3,99999999999999990000000.0\n"
+                    + "   4,0.30000000000000004\n#", printed(model, "#TDS\n  i:Integer, f:Float\n  1, -0.0\n"
+                    + "  2, 403018489792982720.0\n  3, 1.0E23\n  4, 0.30000000000000004\n#->sort(~i->ascending())", c),
+                    backend.name());
         }
     }
 

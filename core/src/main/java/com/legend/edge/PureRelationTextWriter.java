@@ -26,8 +26,6 @@ public final class PureRelationTextWriter implements ResultSink {
     public enum Form {
         /** {@code toString(rel)}: the {@code #TDS} text. */
         TO_STRING,
-        /** {@code toString(rel, true)}: the {@code #TDS} text with each column's type and multiplicity. */
-        TO_STRING_TYPED,
         /** legend-engine's {@code toCSV(tds)}. */
         TO_CSV,
         /** legend-engine's {@code toCSV(tds, true)}: an empty cell {@code TDSNull}. */
@@ -39,7 +37,7 @@ public final class PureRelationTextWriter implements ResultSink {
     private final Form form;
     private final List<PureRelationText.Replace> replaces;
     private final Consumer<String> receiver;
-    private List<ExecutionPlan.Column> columns = List.of();
+    private @com.legend.base.Nullable List<ExecutionPlan.Column> columns;
     private final List<List<Object>> rows = new ArrayList<>();
     private boolean ended;
 
@@ -59,14 +57,16 @@ public final class PureRelationTextWriter implements ResultSink {
         }
     }
 
+    /** The columns, each one the printer writes, or the run refused by name before any row is read. */
     @Override
     public void columns(List<ExecutionPlan.Column> columns) {
+        PureRelationText.requirePrintable(columns);
         this.columns = List.copyOf(columns);
     }
 
     @Override
     public void batch(Batch batch) {
-        int width = columns.size();
+        int width = announced().size();
         for (int r = 0; r < batch.size(); r++) {
             List<Object> row = new ArrayList<>(width);
             for (int i = 0; i < width; i++) {
@@ -82,13 +82,22 @@ public final class PureRelationTextWriter implements ResultSink {
             throw new IllegalStateException("a result ends once");
         }
         ended = true;
+        List<ExecutionPlan.Column> cols = announced();
         String text = switch (form) {
-            case TO_STRING -> PureRelationText.tds(columns, rows);
-            case TO_STRING_TYPED -> PureRelationText.tds(columns, rows, true);
-            case TO_CSV -> PureRelationText.csv(columns, rows);
-            case TO_CSV_TDS_NULL -> PureRelationText.csv(columns, rows, true);
-            case TDS_CSV -> PureRelationText.tdsCsvProperty(columns, rows);
+            case TO_STRING -> PureRelationText.tds(cols, rows);
+            case TO_CSV -> PureRelationText.csv(cols, rows);
+            case TO_CSV_TDS_NULL -> PureRelationText.csv(cols, rows, true);
+            case TDS_CSV -> PureRelationText.tdsCsvProperty(cols, rows);
         };
         receiver.accept(PureRelationText.replaced(text, replaces));
+    }
+
+    /** The columns the run announced: a result always announces them before its rows and its end. */
+    private List<ExecutionPlan.Column> announced() {
+        List<ExecutionPlan.Column> announced = columns;
+        if (announced == null) {
+            throw new IllegalStateException("a result's columns are announced before its rows and its end");
+        }
+        return announced;
     }
 }

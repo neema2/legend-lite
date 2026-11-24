@@ -217,8 +217,7 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
             Map.entry("com.legend.lowering.ReprParts#dateLiteralText(com.legend.compiler.spec.typed.TypedSpec)",
                     "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
-            Map.entry("com.legend.lowering.ReprParts#heldAsInteger(com.legend.sql.SqlExpr)",
-                    "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
+            // (ReprParts#heldAsInteger left 2026-11-24, B2a's end design audit: the edge holds its own check; a shrink)
             Map.entry("com.legend.lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)",
                     "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
             Map.entry("com.legend.plan.EnumMappings#of(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",

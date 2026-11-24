@@ -512,23 +512,8 @@ public final class LiteralSpelling {
         // its digits, the same text while a whole value printed 2, and both styles shared the cast). The compatibility
         // edge writes legend-engine's in-query cast for this node (edge/PurePrintForms), so its text of such a column
         // is still the integer the database holds ('Quantity not in range: 1000000', measured on the corpus
-        // 2026-10-18). The judges' print reads heldAsInteger on its own (ReprParts).
+        // 2026-10-18). The judges' print of such a column at the edge is its digits (edge/EdgePureOnlyTexts).
         return SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x);
-    }
-
-    /** Whether {@code x} is a Float the STORE holds as an integer: a physical column the store declares integral
-     *  (the judges' print of it is its digits: {@code ReprParts.heldAsInteger}; its text is every Float's,
-     *  {@link #floatPrint}). */
-    static boolean heldAsInteger(SqlExpr x) {
-        return x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
-                && (c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
-                        || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
-                && isIntegral(t.type());
-    }
-
-    /** Whether {@code t} is one of the integral SQL kinds. */
-    private static boolean isIntegral(SqlType t) {
-        return t == SqlType.Scalar.INTEGER || t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.HUGEINT;
     }
 
     /** Decimal PRINT form: the value's cast text with the {@code D}

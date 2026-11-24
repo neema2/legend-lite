@@ -245,6 +245,9 @@ class CodeShapeGuardrailTest {
             // columns as announced, whether the one value column is to-one, the row count for the comma and the
             // to-one refusal
             "TdsObjectsWriter.columns", "TdsObjectsWriter.toOne", "TdsObjectsWriter.rows",
+            // legend-pure's text of a relation, a run's receiver (stage B's B2, B2b S1, 2026-11-24): the columns as
+            // announced and whether the result has ended -- the same one-answer cursor shape, scoped to one run
+            "PureRelationTextWriter.columns", "PureRelationTextWriter.ended",
             // the streamed answer's cardinality sink (com.legend.testexec.SideShapes.Cardinality, the doors, door 1, 2026-10-29): the rows
             // seen so far on their way to the writer, the same cursor shape, scoped to one answer's stream
             "SideShapes.rows",

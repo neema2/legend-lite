@@ -30,11 +30,6 @@ public final class ReprParts {
         return Scalars.pureToString(styled, t, x);
     }
 
-    /** Whether the store holds the Float {@code x} as an integer ({@code LiteralSpelling.heldAsInteger}). */
-    public static boolean heldAsInteger(SqlExpr x) {
-        return LiteralSpelling.heldAsInteger(x);
-    }
-
     /** A date literal's text as written, or null where {@code spec} is none ({@code Scalars.dateLiteralText}). */
     public static @com.legend.base.Nullable SqlExpr dateLiteralText(TypedSpec spec) {
         return Scalars.dateLiteralText(spec);

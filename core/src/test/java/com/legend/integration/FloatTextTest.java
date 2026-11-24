@@ -17,8 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * A FLOAT'S TEXT ON THE PRODUCT ROAD (phase D's D1.2, 2026-11-15; register S311, the user's ruling of 2026-11-10: "let's
- * go back to 6 ... and use decimal where need"): {@code toString} of a Float is six decimals with the trailing zeros and
- * a trailing point trimmed, the same text on each lane's database (DuckDB, H2, SQLite) -- a column's value and a
+ * go back to 6 ... and use decimal where need"; S311 amended by the user's ruling of 2026-11-23, "I think we do it as
+ * 2.0"): {@code toString} of a Float is six decimals with the trailing zeros trimmed, a whole value keeping one, the
+ * same text on each lane's database (DuckDB, H2, SQLite) -- a column's value and a
  * computed one. legend-pure's print form is the compatibility edge's ({@code edge.PurePrintForms}), pinned beside it.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
@@ -39,6 +40,10 @@ class FloatTextTest {
             assertEquals("0.333333", scalar(model, c, "|(1.0 / 3.0)->toString()"), backend.name());
             assertEquals("0.3", scalar(model, c, "|(0.1 + 0.2)->toString()"), backend.name());
             assertEquals("0.0", scalar(model, c, "|0.0000001->toString()"), backend.name());
+            // a negative whole value, and format's %f of a whole value: the same rule (B2a's end design audit, 2026-11-24)
+            assertEquals("-2.0", scalar(model, c, "|(-2.0 * 1.0)->toString()"), backend.name());
+            assertEquals("a 2.0 b", scalar(model, c, "|let x = 2.0 * 1.0; 'a %f b'->meta::pure::functions::string"
+                    + "::format([$x]);"), backend.name());
             // legend-pure's print form, at the compatibility edge
             assertEquals(List.of("1.5", "2.0", "-1.25"), column(Lean.runInStyle(model, "|" + ROWS
                     + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)", StorelessRuntime.RUNTIME, backend,
@@ -96,6 +101,38 @@ class FloatTextTest {
     private static String edge(String model, Connection c, String query) throws Exception {
         return Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, LaneFloor.backend(), com.legend.edge.PureText.UPSTREAM).rows()
                 .get(0).get(0).toString();
+    }
+
+    /** A Float the store holds as an integer, at the compatibility edge: legend-engine's in-query cast of the column,
+     *  its digits ({@code Quantity not in range: 1000000}, the corpus's validation showcase), where the product prints
+     *  every Float by one rule ({@code RelationalMappingIntegrationTest.testFloatHeldAsIntegerPrintsAFloatsText}).
+     *  Pinned 2026-11-24 (B2a's end design audit): the edge's pass over the product's Float text keeps it today, and B2b
+     *  deletes that pass, so its replacement must answer the same. */
+    @Test
+    void anIntegerHeldFloatsTextAtTheEdgeIsItsDigits() throws Exception {
+        TestBackend backend = LaneFloor.backend();
+        String model = """
+                ###Pure
+                Class model::P { id: Integer[1]; qty: Float[1]; }
+                ###Relational
+                Database store::DB ( Table T1 ( ID INTEGER, QTY INTEGER ) )
+                ###Mapping
+                Mapping model::M ( model::P: Relational { ~mainTable [store::DB] T1
+                    id: [store::DB] T1.ID, qty: [store::DB] T1.QTY } )
+                ###Connection
+                RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                Runtime test::RT { mappings: [ model::M ]; connections: [ store::DB: [ environment: store::Conn ] ]; }
+                """;
+        try (Connection c = backend.open(com.legend.edge.PureText.UPSTREAM)) {
+            try (java.sql.Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE T1 (ID INT, QTY INT)");
+                st.execute("INSERT INTO T1 VALUES (1, 2), (2, 1000000)");
+            }
+            assertEquals(List.of("2", "1000000"), column(Lean.runInStyle(model, "|model::P.all()->project(~[id:x|$x.id,"
+                    + " t:x|$x.qty->toString()])->sort(~id->ascending())->select(~t)", "test::RT", c,
+                    com.legend.edge.PureText.UPSTREAM)), backend.name());
+        }
     }
 
     private static String scalar(String model, Connection c, String query) throws Exception {
