@@ -2009,6 +2009,19 @@ class JavaEvalLedgerTest {
                             // writer, objects keyed by the presented column name, each cell legend-engine's token
                             // (CellText.engine); spells, decides nothing
                             "ServiceTestRunner.java", "TdsObjectsWriter.java",
+                            // legend-pure's text of a relation written in Java from lite's typed rows, and the run's
+                            // receiver that prints it (stage B's B2, B2b S1, 2026-11-24: the plan of record's B2, the
+                            // user's ~18:12 ruling of 2026-11-19, "Yes record it"; rule 3 and G6, small Java formatting
+                            // at the edge): spells each typed cell as legend-pure prints it, decides nothing, computes no
+                            // value (the database computed every cell); the one string operation it runs is the
+                            // program's literal replace calls on the printed text, the user's ruling of 2026-11-24
+                            // ~13:53 ("also do the replace in java too")
+                            "PureRelationText.java", "PureRelationTextWriter.java",
+                            // a program whose last step prints a relation, lifted at legend-pure's and legend-engine's
+                            // doors (stage B's B2, B2b S2, 2026-11-24: the plan of record's B2; E0 = A, 2026-11-20, "E0 -
+                            // yes"): reads the typed query, removes the final toString/toCSV and its literal replace
+                            // calls by TypedQuery.withBody -- whole calls removed, nothing planned, no value computed
+                            "PrintedRelations.java",
                             // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
                             // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds
                             // an ORDER BY the engine's insertion order implies -- a node for a node, no value met

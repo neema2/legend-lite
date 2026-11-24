@@ -166,8 +166,9 @@ public enum SqlFn {
      *  ("one canonical Float text outside the windows"). */
     FLOAT_SHORTEST_TEXT,
     /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
-     *  zeros and a trailing point trimmed, NaN and the infinities by name (the user's ruling of 2026-11-10, D_BRIEF
-     *  §1; phase D's D1.2, 2026-11-15) -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
+     *  zeros trimmed, a whole value keeping one ({@code 2.0}), NaN and the infinities by name (the user's ruling of
+     *  2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15; S311 amended by the user's ruling of 2026-11-23, "I think
+     *  we do it as 2.0") -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
      *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms) and
      *  {@link #FLOAT_SHORTEST_TEXT}, legend-pure's print form, for a relation text's cell (edge/RelationTextLowering;
      *  PR #118 fix round, 2026-11-18). */

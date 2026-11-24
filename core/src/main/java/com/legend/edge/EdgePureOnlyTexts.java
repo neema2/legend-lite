@@ -92,7 +92,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
         }
         if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
             // legend-pure's print form, the judges' %r of a Float; a value the store holds as an integer its digits
-            return com.legend.lowering.ReprParts.heldAsInteger(x)
+            return heldAsInteger(x)
                     ? new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
                     : SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, x);
         }
@@ -132,5 +132,19 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
                     typed instanceof com.legend.compiler.spec.typed.TypedCDate cd ? cd.value().canonicalText() : null);
         }
         return com.legend.lowering.ReprParts.dateLiteralText(typed);
+    }
+
+    /** Whether {@code x} is a Float the STORE holds as an integer: a physical column the store declares integral
+     *  (legend-engine's test {@code tradeTable.quantity} INT under the validation showcase's Float), read off the scan's
+     *  own column (origin PHYSICAL), never inferred. legend-pure's print of it is the integer the database holds, as
+     *  legend-engine's cast of the column writes it. Moved here 2026-11-24 from the lowering ({@code ReprParts},
+     *  {@code LiteralSpelling}): since B2a the product prints every Float by one rule, so this is the edge's question
+     *  alone (B2a's end design audit, 2026-11-24). */
+    private static boolean heldAsInteger(SqlExpr x) {
+        return x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
+                && (c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
+                        || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
+                && (t.type() == com.legend.sql.SqlType.Scalar.INTEGER || t.type() == com.legend.sql.SqlType.Scalar.BIGINT
+                        || t.type() == com.legend.sql.SqlType.Scalar.HUGEINT);
     }
 }

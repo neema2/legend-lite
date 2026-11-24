@@ -112,6 +112,34 @@ class TypedSpecChildrenTest {
         assertTrue(failures.isEmpty(), String.join("\n", failures));
     }
 
+    /** A checked constraint with no {@code ~message} contributes its predicate alone (stage B's B2b S3, 2026-11-24):
+     *  constraints with and without one, mixed, rebuild each lambda in its own place. */
+    @Test
+    void aCheckedConstraintWithNoMessageContributesItsPredicateAlone() throws Exception {
+        java.util.function.Function<String, TypedFuncCol> col =
+                v -> new TypedFuncCol(v, new TypedLambda(List.of(v), List.of(leaf()), one()));
+        var graph = new com.legend.compiler.spec.typed.TypedSerializeGraph(leaf(), "r", List.of(), List.of(), false,
+                false, null, one(), false, List.of(), List.of(), null, false, List.of(
+                        new com.legend.compiler.spec.typed.TypedSerializeGraph.CheckedConstraint("c1", col.apply("p1"),
+                                col.apply("m1"), "Error", "t::C"),
+                        new com.legend.compiler.spec.typed.TypedSerializeGraph.CheckedConstraint("c2", col.apply("p2"),
+                                null, "Error", "t::C"),
+                        new com.legend.compiler.spec.typed.TypedSerializeGraph.CheckedConstraint("c3", col.apply("p3"),
+                                col.apply("m3"), "Warn", "t::C")));
+        List<TypedSpec> kids = graph.children();
+        // the source, then c1's predicate and message, c2's predicate, c3's predicate and message
+        org.junit.jupiter.api.Assertions.assertEquals(6, kids.size());
+        org.junit.jupiter.api.Assertions.assertEquals(graph, graph.withChildren(kids));
+        List<TypedSpec> moved = new ArrayList<>(kids);
+        TypedLambda other = new TypedLambda(List.of("z"), List.of(leaf()), one());
+        moved.set(5, other);
+        var rebuilt = (com.legend.compiler.spec.typed.TypedSerializeGraph) graph.withChildren(moved);
+        var constraints = java.util.Objects.requireNonNull(rebuilt.checkedConstraints());
+        org.junit.jupiter.api.Assertions.assertNull(constraints.get(1).message());
+        org.junit.jupiter.api.Assertions.assertEquals(other,
+                java.util.Objects.requireNonNull(constraints.get(2).message()).fn());
+    }
+
     @Test
     void withChildrenRejectsArityDrift() throws Exception {
         // a dropped or extra child must throw, never rebuild skewed.

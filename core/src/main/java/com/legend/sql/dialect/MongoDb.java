@@ -2891,27 +2891,35 @@ public class MongoDb extends AnsiSqlRenderer {
     }
 
     /** {@inheritDoc} The value as a Decimal128 rounded to six places, whose text MongoDB writes plain with its six
-     *  decimals, then its trailing zeros and point trimmed ({@code $rtrim}): a double's own {@code $toString} writes an
-     *  exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
+     *  decimals, then its trailing zeros trimmed ({@code $rtrim}), a whole value keeping one ({@code 2.0}): a double's
+     *  own {@code $toString} writes an exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits, trimmed of the zeros
-        // and a point after them; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
-        // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
+        // the value rounded to six decimals as a Decimal128, its text. Below 1e34, plain digits: a text with a point is
+        // trimmed of its trailing zeros and then the point, and a text that is then an integer ends '.0', a whole value
+        // keeping one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and 2026-11-23, "2.0");
+        // NaN and the infinities keep their names (the independent audit of 2026-11-24: an unconditional '.0' printed
+        // NaN.0). Decimal128 holds 34 digits, so from 1e28 the rounding keeps fewer than six fraction digits and at
+        // 1e33 none: a text without a point is never trimmed (measured 2026-11-24: the trim had eaten 1e33's zeros,
+        // printing 1). From 1e34 the text is d.dddE+n, so the digits are spelled out -- the mantissa's digits, then n
+        // less its fraction's length of zeros -- never trimmed, then '.0', every such value being whole (measured
         // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
         writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
         MongoJson.op1(writer, "$toDecimal", x);
         return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
+                + " {\"$let\": {\"vars\": {\"t\": {\"$cond\": [{\"$lt\": [{\"$indexOfCP\": [\"$$s\", \".\"]}, 0]}, \"$$s\","
                 + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
-                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"
+                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}}]}},"
+                + " \"in\": {\"$concat\": [\"$$t\", {\"$cond\": [{\"$regexMatch\": {\"input\": \"$$t\","
+                + " \"regex\": \"^-?[0-9]+$\"}}, \".0\", \"\"]}]}}},"
                 + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
                 + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
                 + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"
                 + " \"in\": {\"$concat\": [{\"$replaceAll\": {\"input\": \"$$m\", \"find\": \".\", \"replacement\": \"\"}},"
                 + " {\"$reduce\": {\"input\": {\"$range\": [0, {\"$subtract\": [\"$$n\", {\"$cond\": [{\"$lt\": [\"$$p\", 0]},"
                 + " 0, {\"$subtract\": [{\"$subtract\": [{\"$strLenCP\": \"$$m\"}, \"$$p\"]}, 1]}]}]}]},"
-                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}]}}}}}]}}}}}");
+                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}, \".0\"]}}}}}]}}}}}");
     }
 }

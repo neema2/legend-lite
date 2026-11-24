@@ -1295,13 +1295,14 @@ final class ArchitectureTest {
             "com.legend.edge.PureListTexts com.legend.edge.RelationTextLowering",
             // C5 step A (2026-11-17, the orchestrator's ruling: one facade, each member listed, no #*): legend-pure's
             // representation (toRepresentation, an assert's message) is the edge's (edge.EdgePureOnlyTexts), and the
-            // product parts it is built from -- a concatenation, a Pure toString, an integer's held kind, a date
+            // product parts it is built from -- a concatenation, a Pure toString, a date
             // literal's text -- are the facade's (lowering.ReprParts); a date-time's text and the style's date-time
             // facet are the lowering's own readers, the same as RelationTextLowering's
             "lowering.ReprParts#cat([Lcom.legend.sql.SqlExpr;)", "com.legend.edge.EdgePureOnlyTexts",
             "lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
                     + "com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
-            "lowering.ReprParts#heldAsInteger(com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+            // (lowering.ReprParts#heldAsInteger left 2026-11-24, B2a's end design audit: since B2a the product prints
+            // every Float by one rule, so the integer-held question is the edge's alone, EdgePureOnlyTexts; a shrink)
             // the styled string entry's parts, asked by the edge's ResultEnvelopes facet (L-B.TypedJsonResult, the
             // orchestrator's ruling (A) of 2026-11-18, E-Java's ef7ee2b69d: the product hands its own parts -- a
             // relation's names, types' simple names and cells, the product's toJSON vocabulary, or a class root's objects

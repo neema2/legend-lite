@@ -293,14 +293,6 @@ public final class PureText {
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
-        }
     }
 
     /** H2, spelled as upstream spells it. */
@@ -329,14 +321,6 @@ public final class PureText {
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x, PurePrintForms.FloatLiteral.PRINT_AS_FLOAT), 0);
-        }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -375,14 +359,6 @@ public final class PureText {
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
-        }
     }
 
     /** Databricks, spelled as upstream spells it. */
@@ -406,14 +382,6 @@ public final class PureText {
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
-        }
     }
 
     /** Snowflake, spelled as upstream spells it. */
@@ -430,14 +398,6 @@ public final class PureText {
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
-        }
     }
 
     /** BigQuery, spelled as upstream spells it. */
@@ -453,14 +413,6 @@ public final class PureText {
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -486,14 +438,6 @@ public final class PureText {
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
-        }
     }
 
     /** MariaDB, spelled as upstream spells it. */
@@ -510,14 +454,6 @@ public final class PureText {
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
-        }
     }
 
     /** MySQL, spelled as upstream spells it. */
@@ -533,14 +469,6 @@ public final class PureText {
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -565,14 +493,6 @@ public final class PureText {
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
-        }
     }
 
     /** ClickHouse, spelled as upstream spells it. */
@@ -588,14 +508,6 @@ public final class PureText {
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -618,14 +530,6 @@ public final class PureText {
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
             return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
-
-        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
-         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
-         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
-        @Override
-        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 }

@@ -3548,7 +3548,9 @@ public class Snowflake extends AnsiSqlRenderer {
         writer.append("WHEN ABS(").expr(x, 0).append(") >= 1E32 THEN CAST(CAST(").expr(x, 0)
                 .append(" / POWER(10, FLOOR(LOG(10, ABS(").expr(x, 0)
                 .append("))) - 20) AS NUMBER(38, 0)) AS VARCHAR) || REPEAT('0', FLOOR(LOG(10, ABS(").expr(x, 0)
-                .append("))) - 20) ELSE ");
+                // a whole value keeps one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
+                // 2026-11-23): every value from 1e32 is whole
+                .append("))) - 20) || '.0' ELSE ");
         trimmedSix(writer, "RTRIM", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS NUMBER(38, 6)) AS VARCHAR)"));
         return writer.append(" END");
     }

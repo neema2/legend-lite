@@ -154,6 +154,24 @@ class WriterCarriageGuardTest {
             // -- BigDecimal.valueOf -- and of a Decimal), in place of its plain digits. 2026-11-21 (the BE audit 3's S3):
             // that whole part is a Decimal's intValue, as upstream's CoreHelper.newDate takes it (a Double's is Java's
             // narrowing, no operation listed here) -- BigDecimal.valueOf and toBigInteger gone
+            // added 2026-11-24 (stage B's B2, B2b S1: legend-pure's text of a relation written in Java from typed rows at
+            // the edge, the plan of record's B2 and the user's ruling of 2026-11-19 ~18:12, "Yes record it"): the
+            // representation operations legend-pure's own printing performs, each read from the pinned sources -- a
+            // date's own carried precision, its day or its time of day (s.pure's toString: atLeast; toCSV's hasHour is
+            // read from the value's own kind); the escaping of a text by what the text holds (s.pure quotes a String
+            // holding a brace or a bracket, helperFunctions.pure's escapeCSVString one holding a comma, a quote, a line
+            // feed or a carriage return: contains), and a column name already quoted (toString.pure:28: startsWith); a
+            // Float column's cell read as the double the column declares, whatever kind the database held it in (an
+            // integer, a decimal an aggregate collapsed to: doubleValue, as the edge's SQL cast it to DOUBLE and
+            // legend-engine's TDS reads it), and a Number column's decimal as the Float it prints as. 2026-11-24, the
+            // independent review of S1: the Float print became legend-pure's own (CompiledSupport's
+            // DecimalFormat("0.0")), and an integer under a Float is the double, not the exact decimal (new BigDecimal
+            // gone, doubleValue 5). It decides nothing about a value: the database computed each one
+            Map.entry("PureRelationText.java", Map.ofEntries(
+                    Map.entry("atLeast", 1),
+                    Map.entry("contains(\"\")", 6),
+                    Map.entry("doubleValue", 5),
+                    Map.entry("startsWith(\"\")", 1))),
             Map.entry("RaiseWords.java", Map.ofEntries(
                     Map.entry("intValue", 1),
                     Map.entry("doubleValue", 1),
@@ -298,6 +316,10 @@ class WriterCarriageGuardTest {
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureV1Writer.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineAnswers.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/Presenter.java"));
+        // legend-pure's text of a relation written in Java from typed rows, and its run receiver (stage B's B2, B2b S1,
+        // 2026-11-24): scanned with the writers they are
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationText.java"));
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();

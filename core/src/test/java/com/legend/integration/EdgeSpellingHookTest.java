@@ -153,22 +153,22 @@ class EdgeSpellingHookTest {
     }
 
     /** The arms each edge dialect overrides, by class. Each D step adds the arms it moves, dated; an arm that spells no
-     *  upstream text is a defect. {@code raiseMessage} (2026-11-12, D1.1): legend-pure's sentence of a raise
-     *  (edge.PureMessages), where the product writes the raise's kind. */
-    private static final Set<String> D1_1 = Set.of("raiseMessage");
+     *  upstream text is a defect. ({@code raiseMessage}, D1.1's arm of 2026-11-12, gone 2026-11-24 with stage B's B2b
+     *  S3: since B1 a raise is the product's site on every door, and its last use, a checked graph's defect cell, wrote
+     *  the one catalog's sentence byte for byte; no edge dialect overrides it.) */
 
-    /** D1.1's arm, and D1.2's (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of
-     *  a Float ({@code FLOAT_SHORTEST_TEXT}, edge.PurePrintForms) where the product writes its six decimals. */
-    private static final Set<String> D1_2 = Set.of("raiseMessage", "spellingPasses", "floatToText");
+    /** D1.2's arms (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of a Float
+     *  ({@code FLOAT_SHORTEST_TEXT}, edge.PurePrintForms) where the product writes its six decimals. */
+    private static final Set<String> D1_2 = Set.of("spellingPasses", "floatToText");
 
     /** D1.2's arms and MongoDB's {@code dateTimeFormat} (2026-11-15): legend-pure's {@code +0000} text of a date-time
      *  in its {@code $dateToString}s, where the product writes ISO with {@code Z}. */
-    private static final Set<String> D1_2_MONGO = Set.of("raiseMessage", "spellingPasses", "floatToText",
+    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses", "floatToText",
             "dateTimeFormat");
 
     /** D1.2's arms and DuckDB's {@code scanOrderPasses} (W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
      *  legend-engine's scan order ({@code edge.StableScanOrder}) for the corpus replay, where the product adds none. */
-    private static final Set<String> D1_2_SCAN_ORDER = Set.of("raiseMessage", "spellingPasses", "floatToText",
+    private static final Set<String> D1_2_SCAN_ORDER = Set.of("spellingPasses", "floatToText",
             "scanOrderPasses");
 
     /** THE EDGE'S IN-QUERY VARIANTS: the decisions an edge dialect takes because legend-engine computes inside the
@@ -197,9 +197,9 @@ class EdgeSpellingHookTest {
 
     /** DuckDB's and Postgres's raw arm too (Phase 6's B4 (ii), 2026-11-17): legend-engine's H2 text translated, where the
      *  product runs a raw statement as written. */
-    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("raiseMessage", "spellingPasses", "floatToText",
+    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("spellingPasses", "floatToText",
             "scanOrderPasses", "raw");
-    private static final Set<String> D1_2_RAW = Set.of("raiseMessage", "spellingPasses", "floatToText", "raw");
+    private static final Set<String> D1_2_RAW = Set.of("spellingPasses", "floatToText", "raw");
 
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
             Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", withRow21(D1_2)),

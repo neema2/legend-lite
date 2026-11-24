@@ -24,8 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A RAISE'S MESSAGE IS ITS KIND (phase D's D1.1, 2026-11-12; the orchestrator's addition 3): the product's dialects
  * write a {@link SqlExpr.RaiseText}'s kind's name and never its operands, so a raise's SQL is byte-identical with its
  * operands and without them -- no value's text built, no parameter bound for one -- on every database; the user's own
- * {@code fail} message is the one operand written. The compatibility edge's dialects write legend-pure's sentence
- * ({@code edge.PureMessages}).
+ * {@code fail} message is the one operand written. Every door, the compatibility edge's too, writes the same site; its
+ * sentence is worded after the run from the site's record (stage B's B1, 2026-11-20).
  */
 class RaiseTextTest {
 

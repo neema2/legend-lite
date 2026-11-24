@@ -585,8 +585,9 @@ final class GraphEmission {
      * constraints (own first, then supertypes'; the engine's
      * allConstraintsInHierarchy walk), each predicate/message inlined
      * through the row bindings like any leaf. The DEFINER class rides as
-     * {@code ruleDefinerPath}; a constraint without {@code ~message}
-     * takes the engine's default spelling (flatdata checked goldens). */
+     * {@code ruleDefinerPath}; a constraint without {@code ~message} has no
+     * message here: its defect's words are the one catalog's, written by the
+     * lowering (CheckedEnvelope; stage B's B2b S3, 2026-11-24). */
     private java.util.List<TypedSerializeGraph.CheckedConstraint>
             checkedConstraints(ClassSource cs,
             Map<String, String> slotPrefixes, Set<String> stripped,
@@ -616,8 +617,7 @@ final class GraphEmission {
                                         + con.name(), con.messageFqn().get(),
                                         cs, slotPrefixes, stripped, rowVar,
                                         rowType, context, toRow)
-                                : constMsgCol(con.name(), fqn, rowVar,
-                                        rowType),
+                                : null,
                         con.level() == com.legend.compiler.element
                                 .TypedConstraint.EnforcementLevel.WARN
                                 ? "Warn" : "Error",
@@ -642,17 +642,6 @@ final class GraphEmission {
         body = Pipelines.rewriteRowReads(body, cs.rowVar(), slotPrefixes,
                 stripped, toRow::apply);
         return rowFnCol(name, body, rowVar, rowType);
-    }
-
-    /** The engine's DEFAULT constraint message (no {@code ~message}). */
-    private static TypedFuncCol constMsgCol(String id, String definerFqn,
-            String rowVar, Type.RelationType rowType) {
-        String simple = definerFqn.substring(
-                definerFqn.lastIndexOf(':') + 1);
-        TypedSpec msg = new com.legend.compiler.spec.typed.TypedCString(
-                "Constraint :[" + id + "] violated in the Class " + simple,
-                ExprType.one(Type.Primitive.STRING));
-        return rowFnCol("constraintMsg$" + id, msg, rowVar, rowType);
     }
 
     private static TypedFuncCol rowFnCol(String name, TypedSpec body,

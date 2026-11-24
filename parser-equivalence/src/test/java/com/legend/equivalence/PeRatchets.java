@@ -30,7 +30,9 @@ public final class PeRatchets {
 
     /** Each move of a value, dated and with its reason (AGENTS.md: a pin moves only with one; the A delta audit's note
      *  16, 2026-11-11), written into the file as comments above the values. A move appends a line here in the change
-     *  that regenerates the file. */
+     *  that regenerates the file. THE USER'S STANDING WORD, 2026-11-24 (relayed by the orchestrator, verbatim: "Int as
+     *  float agree, parser bumps are always okay"): a parser-equivalence value moving with the tests' models is
+     *  approved; its line cites this word, and no move waits for another. */
     static final java.util.List<String> HISTORY = java.util.List.of(
             "own_corpus.matched 3090 -> 3091 (2026-11-09, 8ff49fc0): the follow-up audit's tests' models",
             "own_corpus.matched 3091 -> 3093 (2026-11-10, 59758819): the A2-A5 tests' models",
@@ -173,7 +175,22 @@ public final class PeRatchets {
                     + " 5's MappingNormalizerTest models, which Windows' parser_parity caught at 3338), match the"
                     + " reference grammar;"
                     + " measured by //parser-equivalence:update_ratchets; a floor rising, listed for the user's word at"
-                    + " the BE PR; UP)");
+                    + " the BE PR; UP)",
+            "own_corpus.matched 3344 -> 3345 (2026-11-24, B2a slice 3 on claude/compat-b2-nufdlk: the model of"
+                    + " RelationalMappingIntegrationTest.testFloatHeldAsIntegerPrintsAFloatsText, a Float property over"
+                    + " an INTEGER column (the independent audit's finding, one text per type), matches the reference"
+                    + " grammar; measured by //parser-equivalence:update_ratchets; a floor rising, approved by"
+                    + " the user's standing word of 2026-11-24 (\"parser bumps are always okay\"); UP)",
+            "own_corpus.matched 3345 -> 3350 (2026-11-24, B2a's end design audit's fixes on claude/compat-b2-nufdlk:"
+                    + " FloatTextTest.anIntegerHeldFloatsTextAtTheEdgeIsItsDigits's model -- a Class, a Database, a"
+                    + " Mapping, a Connection and a Runtime -- matches the reference grammar; measured by"
+                    + " //parser-equivalence:update_ratchets; a floor rising, approved by"
+                    + " the user's standing word of 2026-11-24 (\"parser bumps are always okay\"); UP)",
+            "own_corpus.matched 3350 -> 3345 (2026-11-24, the independent re-review's round on"
+                    + " claude/compat-b2-nufdlk: FloatTextTest's model gone, its pin a render of the edge's SQL with no"
+                    + " fixture write (FixtureWriteCensusTest), and the integer-held product pin moved into"
+                    + " RelationalMappingIntegrationTest.testManyColumnTypes, one model; measured by"
+                    + " //parser-equivalence:update_ratchets; DOWN)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
