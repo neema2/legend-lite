@@ -35,20 +35,15 @@ import java.util.Objects;
  *                            plan, so a plan read back from its JSON could not open its own session)
  *                            (the answer's refusal of no rows is the run's record since stage B's B1, 2026-11-20:
  *                            no {@code answerSizeWords})
- * @param words               the name of the words the plan's failures are worded in, as its style planned them
- *                            ({@link #LITE_WORDS}, or the compatibility edge's; census J29, 2026-11-18: a name, never a flag)
- *                            (census C1, the orchestrator's ruling of 2026-11-17: one choice per run, the style's at
- *                            planning and the run hook's at run -- the runner refuses a hook that words them otherwise)
+ *                            (the plan's {@code words}, the name of its audience's words: gone with item 3's S3,
+ *                            2026-11-21 -- a failure is a record of one catalog, so a plan no longer depends on its
+ *                            audience)
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts, String words) {
-
-    /** The name of lite's own words ({@code LiteHostWords}, {@code LiteFailureWords}). */
-    public static final String LITE_WORDS = "lite";
+        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts) {
 
     public TestPlan {
-        java.util.Objects.requireNonNull(words, "words");
         Objects.requireNonNull(session, "session");
         // the body's facts (C5-J item 2, 2026-11-15): what a runner reads of the body, data the plan carries
         Objects.requireNonNull(facts, "facts");
@@ -67,8 +62,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
-        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts,
-                words);
+        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts);
     }
 
     // (answerSizeWords and withAnswerSizeWords, the answer's refusal of no rows worded at planning: deleted with
@@ -259,6 +253,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                     if (each.message() != null) {
                         sideStatement(each.message(), out);
                     }
+                    elementMessages(each, out);
                 }
             }
             case Branch b -> {
@@ -303,6 +298,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                     if (each.message() != null) {
                         sideStatement(each.message(), out);
                     }
+                    elementMessages(each, out);
                 }
             }
             case Branch b -> {
@@ -328,6 +324,18 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         }
     }
 
+    /** An unrolled host verdict's elements' own caller's messages (item 3's S4 step 3, the user's decision 4): each a
+     *  side of the plan, read only where its element fails. */
+    private static void elementMessages(Verdict each, List<Node> out) {
+        if (each.host() != null && each.host().judgment() instanceof HostJudgment.Unrolled u) {
+            for (HostJudgment.Part part : u.parts()) {
+                if (part.message() != null) {
+                    sideStatement(part.message(), out);
+                }
+            }
+        }
+    }
+
     private static void sideStatement(Side side, List<Node> out) {
         switch (side) {
             case Side.Rows r -> out.add(r.result());
@@ -350,7 +358,9 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * plan-as-data design's step 3, 2026-11-08). Each {@link Verdict} is one assert.
      * {@code fused}: the group's wrapper over its verdicts' wrappers -- the verdict statements as ONE statement
      * answering one row per verdict, the verdict's index in the group first (the lowering's fusion, composed when the
-     * plan was made); null where the planner made none, and then each verdict's own wrapper runs. The test run sends
+     * plan was made); null where the planner made none, and then each verdict's own wrapper runs. {@code layout}: the
+     * database judge's fused statement's columns that hold each verdict's row, in its order (its columns shared by type
+     * across the members, item 3's S4, 2026-11-22); null on every other group. The test run sends
      * what the plan's judge asks ({@link Judge}) through the runner's open program; the runner judges nothing: the comparison rules and the messages are the judges' own code, reading the plan's
      * facts (the agreement's pairing among them, {@code agreement}). {@code roots}: the database judge's root loop of the segment this group closes (the plan-as-data
      * design's step 5, 2026-11-08), judged once the group's last verdict is in -- under the agreement judge, the
@@ -360,12 +370,34 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * assert of a group with no loop (a raising assert's, or one the database judge declines); empty otherwise.
      */
     public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-            @com.legend.base.Nullable Savepoint savepoint, @com.legend.base.Nullable RootLoop roots)
+            @com.legend.base.Nullable Savepoint savepoint, @com.legend.base.Nullable RootLoop roots,
+            @com.legend.base.Nullable List<List<Integer>> layout)
             implements TestStep {
         public Verdicts {
             verdicts = List.copyOf(verdicts);
             if (verdicts.isEmpty()) {
                 throw new IllegalArgumentException("a verdict group holds at least one verdict");
+            }
+            if (layout != null) {
+                // the database judge's fused statement (item 3's S4, 2026-11-22): a row per verdict, its member's
+                // number first; each verdict's row the fused columns its layout names, in its own order
+                layout = layout.stream().map(List::copyOf).toList();
+                if (fused == null || layout.size() != verdicts.size()) {
+                    throw new IllegalArgumentException("a fused layout of " + layout.size() + " members for "
+                            + verdicts.size() + " verdicts" + (fused == null ? " and no fused statement" : ""));
+                }
+                if (fused.columns().isEmpty() || !"__m".equals(fused.columns().get(0).name())) {
+                    throw new IllegalArgumentException("a fused layout over a statement whose first column is not the"
+                            + " member's number (__m)");
+                }
+                for (List<Integer> member : layout) {
+                    for (int c : member) {
+                        if (c < 1 || c >= fused.columns().size()) {
+                            throw new IllegalArgumentException("a member's row reads fused column " + c + " of "
+                                    + fused.columns().size() + " (the first is the member's number)");
+                        }
+                    }
+                }
             }
             if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
@@ -395,18 +427,18 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
          *  outside any transaction, or no failure of its statements is one the program survives but the fused
          *  statement's. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) {
-            this(verdicts, fused, null, null);
+            this(verdicts, fused, null, null, null);
         }
 
         /** A group that closes no database segment and pairs no assert. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
                 @com.legend.base.Nullable Savepoint savepoint) {
-            this(verdicts, fused, savepoint, null);
+            this(verdicts, fused, savepoint, null, null);
         }
 
         /** The same group closing a database segment, judged by {@code r} once its last verdict is in. */
         public Verdicts withRoots(@com.legend.base.Nullable RootLoop r) {
-            return new Verdicts(verdicts, fused, savepoint, r);
+            return new Verdicts(verdicts, fused, savepoint, r, layout);
         }
 
         /**
@@ -466,10 +498,13 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * function's sides, under the group's savepoint and binds what reading them RAISED (its message, line and column,
      * each absent where it raised nothing or carried no position) to the parameters {@link #RAISED_MESSAGE},
      * {@link #RAISED_LINE} and {@link #RAISED_COLUMN} before it runs the wrapper, the verdict statement comparing them.
+     * {@code inner}: where the asserted function IS one assert the database judge reads as a typed row (item 3's S4,
+     * 2026-11-21), that row's report -- the base is its row, and where its verdict fails, its failure, recorded from the
+     * row's values, is what the function raised; null otherwise.
      */
     public record Verdict(int id, String name, String arm, List<Side> base,
             @com.legend.base.Nullable Node wrapper, @com.legend.base.Nullable Side message, boolean raises,
-            @com.legend.base.Nullable Host host) {
+            @com.legend.base.Nullable Host host, RootLoop.@com.legend.base.Nullable Report inner) {
         /** The parameter a raising verdict's statement reads the message its base raised from (absent: none). */
         public static final String RAISED_MESSAGE = "__raised_message";
         /** The parameter a raising verdict's statement reads the raise's line from (absent: none or no position). */
@@ -500,6 +535,15 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                 throw new IllegalArgumentException("a raising verdict's statement compares what its base raised: it"
                         + " has one, and its message is the statement's");
             }
+            if (inner != null && (!raises || base.size() != 1)) {
+                throw new IllegalArgumentException("an inner assert's typed row is a raising verdict's one base side");
+            }
+        }
+
+        /** A verdict with its host facts and no inner typed row. */
+        public Verdict(int id, String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper,
+                @com.legend.base.Nullable Side message, boolean raises, @com.legend.base.Nullable Host host) {
+            this(id, name, arm, base, wrapper, message, raises, host, null);
         }
 
         /** A verdict that reads its base as any assert does. */
@@ -516,7 +560,12 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
         /** This verdict judged by the HOST judge with {@code h}'s facts. */
         public Verdict withHost(@com.legend.base.Nullable Host h) {
-            return new Verdict(id, name, arm, base, wrapper, message, raises, h);
+            return new Verdict(id, name, arm, base, wrapper, message, raises, h, inner);
+        }
+
+        /** This raising verdict's base an inner assert's typed row, recorded by {@code report} where it fails. */
+        public Verdict withInner(RootLoop.Report report) {
+            return new Verdict(id, name, arm, base, wrapper, message, raises, host, report);
         }
 
         /** A verdict whose failure message is its judge's own (the family's, or one the plan spelled). */
@@ -586,7 +635,9 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
          * 2026-10-30: "it's okay to join CONSTANT strings only"): the cells are the COMPILER's join of the program's
          * constant tokens ({@code 'a' + 'b'}, {@code joinStrings}, {@code replace} over literals, nothing else:
          * {@code compiler.spec.typed.Literals}, its admitted set pinned), not the tokens verbatim; a reader of the plan
-         * knows which.
+         * knows which. Since item 3's S7 (2026-11-23; the user's Q-D, superseding the 2026-10-30 ruling for compared
+         * sides) only a ruled carve-out's side is joined -- a caller's message, the compatibility edge's text verdicts
+         * until B3 ({@code testplan.HostSides.Fold}); a compared side holds the program's tokens, or is planned.
          */
         record Constant(List<Column> columns, List<List<String>> cells, boolean folded) implements Side {
             public Constant {

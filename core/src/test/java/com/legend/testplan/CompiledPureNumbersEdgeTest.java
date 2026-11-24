@@ -55,7 +55,8 @@ class CompiledPureNumbersEdgeTest {
                         "{|assertEquals(1.0D, 1)}")) {
                     AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(AssertFailed.class,
                             () -> run(c, body, compat), mode + " " + body);
-                    assertTrue(e.getMessage().startsWith("\nexpected: "), mode + " " + body + ": " + e.getMessage());
+                    // the catalog's words (item 3, 2026-11-21, Q15 = A); the verdict compiled legend-pure's
+                    assertTrue(e.getMessage().startsWith("expected "), mode + " " + body + ": " + e.getMessage());
                 }
             }
         }

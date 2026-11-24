@@ -279,8 +279,9 @@ public final class CellText {
      *  value with no time of day (a year, a month, a day, a StrictDate) or a column that holds days
      *  ({@link ExecutionPlan.Precision#DAY}) as its day; every time-bearing value -- a relation's timestamp cell, a value
      *  carried at the precision it was written, a value root's instant, a mixed column's winner, a nested value -- as
-     *  S312's six fraction digits and Z ({@link #productTime}), the one form the SQL's {@code DATETIME_TO_TEXT} writes
-     *  too (the orchestrator's W4 audit, 2026-11-16: "six digits and Z for every time-bearing product cell"; a value's
+     *  S312's nine fraction digits and Z ({@link #productTime}; amended 2026-11-22, the user: "always pretty print to
+     *  iso nanos"), the one form the SQL's {@code DATETIME_TO_TEXT} writes too (the orchestrator's W4 audit, 2026-11-16,
+     *  then six digits and Z for every time-bearing product cell; a value's
      *  written precision is the edge's, legend-pure's print form, the plan's decision log). */
     private static String productDate(PureDateLiteral d, String type, ExecutionPlan.Column c) {
         boolean own = type.equals(c.type());
@@ -296,14 +297,12 @@ public final class CellText {
         return d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? productTime(d) : dayText(d);
     }
 
-    /** The product's text of a relation's timestamp cell (register S312, the user's ruling of 2026-11-10: "ISO 8601
-     *  in UTC, six fraction digits and Z"; W4, 2026-11-16): what the SQL's {@code DATETIME_TO_TEXT} writes, so a cell
-     *  and a computed text agree. */
+    /** The product's text of a relation's timestamp cell (register S312, the user's ruling of 2026-11-10, amended
+     *  2026-11-22: "Yes always pretty print to iso nanos"): ISO 8601 in UTC, nine fraction digits and Z -- what the
+     *  SQL's {@code DATETIME_TO_TEXT} writes, so a cell and a computed text agree, and a cell carries its value exactly
+     *  (until 2026-11-22 six digits, or nine where the value was finer than a microsecond). */
     static String productTime(PureDateLiteral d) {
-        // the value's own spelling at nine fraction digits: six and Z (S312), or all nine where the value is finer than
-        // a microsecond -- a cell CARRIES its value, read back exactly (the orchestrator's MUST of 2026-11-16, the first
-        // full CI's Cypher parity: S312 cut every cell to six digits, and a Neo4j value's nanoseconds were lost)
-        return d.toCarriedDigits() + "Z";
+        return d.toNineDigits() + "Z";
     }
 
     /** A date's day ({@code yyyy-MM-dd}), or its own text where it is coarser than a day. */

@@ -116,8 +116,7 @@ public final class JudgePlans {
     static com.legend.testplan.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
         return new com.legend.testplan.VerdictBatch.Runner() {
             @Override
-            public ExecutionPlan.Node plan(SqlQuery statement, boolean fused, ExecutionPlan.Target on) {
-                Type.RelationType schema = fused ? VerdictSql.batchSchema() : VerdictSql.schema();
+            public ExecutionPlan.Node plan(SqlQuery statement, Type.RelationType schema, ExecutionPlan.Target on) {
                 return rowsPlan(statement, schema, env.withTarget(on));
             }
 
@@ -141,6 +140,11 @@ public final class JudgePlans {
             public int fusedBudget() {
                 return env.dialect().fusedStatementBudget();
             }
+
+            @Override
+            public int fusedMembers() {
+                return env.dialect().fusedMembers();
+            }
         };
     }
 
@@ -153,7 +157,7 @@ public final class JudgePlans {
      * {@link #tabular}); a cast over the pivot names them, and such a side is an ordinary relation (step 7).
      */
     static TypedSide evalSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env, boolean identity, boolean fold,
+            BodyDriver.ExecEnv env, boolean identity, HostSides.Fold fold,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>,
                     TypedSpec> hook) {
         TextCollector collecting = env.engineText();
@@ -166,7 +170,9 @@ public final class JudgePlans {
                 // OUR text as a side the step runs and reads (M10c item 8): deferred, where the collector admits it,
                 // else refused by the collector; the side's kind and its planned root name what the arm would
                 // evaluate (the unplanned-assert census)
-                return collecting.defer(value, p, identity, fold,
+                // (the edge's collector defers only the text sides of its SQL-text and plan-text verdicts, which it
+                // asks with the EDGE_TEXT fold -- Q-S7a's temporary carve-out; a side it defers is one of those)
+                return collecting.defer(value, p, identity, fold.any(),
                         hook == null ? null : hook instanceof AssertVerdicts.SpliceHook sh ? sh : hook::apply, env,
                         letPrefix, specs, p.kind()
                         + " " + (p.root() == null ? value.getClass().getSimpleName()
@@ -216,7 +222,7 @@ public final class JudgePlans {
     /** A side planned as {@link #evalSide} plans it, as a plan value: the constant the compiler answered (the
      *  program's tokens, or their join: {@code joined}), else the wrapped side's plan. */
     static PlannedSide plannedSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env, boolean identity, boolean fold,
+            BodyDriver.ExecEnv env, boolean identity, HostSides.Fold fold,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>,
                     TypedSpec> hook) {
         BodyDriver.PlannedValue pv = BodyDriver.planHostSide(value, letPrefix, specs, env, identity, fold, hook);

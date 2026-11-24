@@ -69,8 +69,24 @@ public final class TestPlanJson {
      *  in the test plan -- a planned failure carries no {@code where} (a planner method's name) and no kind of Java's
      *  own exceptions (a defect fails loud, never planned); 37 (stage B's BE, item 2, 2026-11-21): a database root's row
      *  and caller's message carry no refusal (a dialect's refusal refuses the body at planning, D: the slots were
-     *  always empty), a message's side is required, and the product's version 60 (no prose in the product plan). */
-    public static final int VERSION = 37;
+     *  always empty), a message's side is required, and the product's version 60 (no prose in the product plan); 38
+     *  (item 3, 2026-11-21, assert verdicts as records): a planned assert failure carries its record (an assert's
+     *  code and its values), a decided verdict's failure ({@code Decided.failure}) and a vector's ({@code
+     *  AllRows.failure}) are records, an unplanned message is its error's planned failure ({@code Messaged.unplanned}, and a database root's
+     *  {@code RootLoop.Root.unplanned}, required, null where none),
+     *  and the plan names no audience's words ({@code words} gone: one catalog); 39 (item 3's S4, 2026-11-21, the
+     *  database judge over typed values): a database root's row carries its typed report ({@code RootLoop.Row.report},
+     *  required, null for a seven-column row), and a fused verdict statement is one row, each member's columns under its
+     *  prefix; 40 (item 3's S4, 2026-11-22, the user: one column per type each assert reuses): the fused verdict
+     *  statement is a row per member, its number first, its columns shared by position and type, and the group carries
+     *  each member's columns ({@code Verdicts.layout}, absent where none); a database root's row carries its unrolled
+     *  element's own message or error ({@code RootLoop.Row.message}, {@code unplanned}) and an unrolled host part its
+     *  own message side ({@code HostJudgment.Part.message}, {@code messageShape}), the user's decision 4; 41 (item 3's S4
+     *  step 4, 2026-11-22: every assert typed or refused by name): a database root's row always carries its typed report
+     *  (the seven-column row gone), its families the last ones typed, and the host's membership its keys
+     *  ({@code HostJudgment.Contains.keys}) and an instanceOf its value's static class ({@code InstanceOf.valueClass}),
+     *  the audit of 946d16f2. */
+    public static final int VERSION = 41;
 
     private TestPlanJson() {
     }
@@ -120,7 +136,6 @@ public final class TestPlanJson {
         out.put("productVersion", PlanJson.VERSION);
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
-        out.put("words", plan.words());
         out.put("session", PlanJson.targetJson(plan.session()));
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("effects", plan.facts().effects());
@@ -190,6 +205,10 @@ public final class TestPlanJson {
                         // the host judge's facts, the judgment and the side shapes: the test plan's own codec
                         vo.put("host", HostJson.wHost(each.host()));
                     }
+                    if (each.inner() != null) {
+                        // an inner assert's typed row's report (item 3's S4)
+                        vo.put("inner", HostJson.wRsReport(each.inner()));
+                    }
                     verdicts.add(vo);
                 }
                 o.put("verdicts", verdicts);
@@ -203,6 +222,9 @@ public final class TestPlanJson {
                 }
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
+                }
+                if (v.layout() != null) {
+                    o.put("layout", new ArrayList<Object>(v.layout()));
                 }
             }
             case TestPlan.Branch b -> {
@@ -281,7 +303,7 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")), o.getString("words"));
+                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")));
     }
 
     private static BodyFacts factsOf(Json.Obj f) {
@@ -388,10 +410,11 @@ public final class TestPlanJson {
                     Json.Obj w = vo.getObjOr("wrapper", null);
                     Json.Obj m = vo.getObjOr("message", null);
                     Json.Obj h = vo.getObjOr("host", null);
+                    Json.Obj in = vo.getObjOr("inner", null);
                     verdicts.add(new TestPlan.Verdict(vo.getInt("id"), vo.getString("name"), vo.getString("arm"),
                             base, w == null ? null : PlanJson.nodeOf(w), m == null ? null : readSide(m),
                             vo.getBoolOr("raises", false),
-                            h == null ? null : HostJson.rHost(h)));
+                            h == null ? null : HostJson.rHost(h), in == null ? null : HostJson.rRsReport(in)));
                 }
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
@@ -399,7 +422,7 @@ public final class TestPlanJson {
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
                                 sp.getString("rollbackTo"), sp.getString("release")),
-                        roots == null ? null : HostJson.rRootLoop(roots));
+                        roots == null ? null : HostJson.rRootLoop(roots), readLayout(o));
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));
@@ -411,6 +434,22 @@ public final class TestPlanJson {
             throw new IllegalArgumentException(what + " is a typed result, not a " + o.getString("_type"));
         }
         return t;
+    }
+
+    /** A database judge's fused group's layout: each member's fused columns, or null where the group has none. */
+    private static @com.legend.base.Nullable List<List<Integer>> readLayout(Json.Obj o) {
+        if (!(o.getArrOr("layout", null) instanceof Json.Arr members)) {
+            return null;
+        }
+        List<List<Integer>> out = new ArrayList<>(members.items().size());
+        for (Json.Node m : members.items()) {
+            List<Integer> columns = new ArrayList<>();
+            for (Json.Node c : ((Json.Arr) m).items()) {
+                columns.add((int) ((Json.Num) c).longValue());
+            }
+            out.add(columns);
+        }
+        return out;
     }
 
     /** A verdict's side, or a branch's condition ({@code side}'s inverse). */

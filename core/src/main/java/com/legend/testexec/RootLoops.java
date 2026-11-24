@@ -31,15 +31,13 @@ import java.util.Set;
  */
 public final class RootLoops {
 
-    /** The verdict arm's reading of one row ({@code verdict, expected,
-     * actual, unjudged, lenient, holds, message}): returns where the row
-     * holds, raises the row's own message otherwise (the test-is-the-product
-     * plan's M8b: the polarity and the message are the statement's). A plain
-     * function the run hands {@link RootLoops} (the plan-as-data design's step
-     * 5, 2026-11-08: the batch no longer holds it; here since slice 5, 2026-11-09). */
+    /** The verdict arm's reading of one TYPED row (item 3's S4: its verdict and the values its report's family
+     *  reads): returns where the row holds, raises the record its report names otherwise. A plain function the run
+     *  hands {@link RootLoops} (the plan-as-data design's step 5, 2026-11-08: the batch no longer holds it; here since
+     *  slice 5, 2026-11-09). */
     @FunctionalInterface
     public interface Judge {
-        void judge(String name, List<Object> row);
+        void judge(String name, List<Object> row, RootLoop.Report report);
     }
 
     // (RowAppeal, a verdict row's APPEAL -- block-compiler rung 2a, consulted when the row failed: deleted with the
@@ -184,7 +182,7 @@ public final class RootLoops {
                             // the row's turn since hole 5 of 2026-11-08: deleted with the row's field, A4 of the
                             // compatibility program, stage A ratified by the user 2026-11-19)
                             spoke = true;
-                            row(p, judge, rejected);
+                            row(p, judge, rejected, messages, reader);
                         }
                         case RootLoop.Judged j -> {
                             // a verdict decided at planning, counted at its turn as a row is at its judgment
@@ -222,7 +220,18 @@ public final class RootLoops {
                 return;
             }
             RootLoop.Message message = r.message();
-            if (messages && message != null && failure instanceof com.legend.error.AssertFailed af
+            if (r.unplanned() != null && failure instanceof com.legend.error.AssertFailed af
+                    && af.unjudgedReason() == null) {
+                // computing the caller's message raises: that error is the outcome, as upstream's (item 3, the user's
+                // lazy rule; the host judge's HostJudgment.Messaged#unplanned)
+                RuntimeException raised = Failures.raised(r.unplanned());
+                if (!(raised instanceof com.legend.error.AssertFailed || raised instanceof com.legend.error.DataError)) {
+                    // an error of another class is no verdict: raised unreported, as the host's AssertRuns lets it
+                    // pass (the S2+S3 fixes' audit, 2026-11-21: until then reported as a failed verdict)
+                    throw raised;
+                }
+                failure = raised;
+            } else if (messages && message != null && failure instanceof com.legend.error.AssertFailed af
                     && af.unjudgedReason() == null) {
                 failure = messaged(r.listenerName(), message, reader);
             }
@@ -238,7 +247,8 @@ public final class RootLoops {
         /** {@code p} judged: its row (a member the dialect cannot spell refuses the body at planning, D).
          *  (A row's ruled comparison decided at planning raised here where the generic row failed until A4 of the
          *  compatibility program, stage A ratified by the user 2026-11-19.) */
-        private void row(RootLoop.Row p, Judge judge, com.legend.error.@com.legend.base.Nullable DataError rejected) {
+        private void row(RootLoop.Row p, Judge judge, com.legend.error.@com.legend.base.Nullable DataError rejected,
+                boolean messages, @com.legend.base.Nullable SideReader reader) {
             List<Object> row = rows.get(p.verdict());
             if (row == null && rejected != null) {
                 // the segment's fused statement was rejected: its database error is this root's failure, raised at its
@@ -249,7 +259,20 @@ public final class RootLoops {
                 // an absent row is the runner's defect (a member the dialect cannot spell refuses the body at planning)
                 throw new IllegalStateException(p.name() + ": the runner answered no row for a verdict of the plan");
             }
-            judge.judge(p.name(), row);
+            try {
+                judge.judge(p.name(), row, p.report());
+            } catch (com.legend.error.AssertFailed failed) {
+                RootLoop.Report report = p.report();
+                if (failed.unjudgedReason() != null || (p.unplanned() == null && (p.message() == null || !messages))) {
+                    throw failed;
+                }
+                // an unrolled element's own caller's message (the user's decision 4, item 3's S4 step 3), as the host's
+                // HostJudgments.unrolledOf: its error raised, or its text read now, the element having failed -- the
+                // catalog's MESSAGE record, whole as upstream raises it (AssertRecords.atIndex frames any other
+                // record). A DataError reading it is raised as it is.
+                throw AssertRecords.atIndex(p.unplanned() != null ? Failures.raised(p.unplanned())
+                        : messaged(p.name(), java.util.Objects.requireNonNull(p.message()), reader), report.index());
+            }
         }
     }
 
@@ -282,7 +305,10 @@ public final class RootLoops {
                 return new IllegalStateException(listenerName + ": the message's statement answered "
                         + rows.rows().size() + " rows");
             }
-            return new com.legend.error.AssertFailed(String.valueOf(rows.rows().get(0).get(6)));
+            // the caller's own message, a value the program computed: the catalog's MESSAGE record, as the host's
+            // HostJudgments.messagedOf (item 3's S4 step 3)
+            return new com.legend.error.AssertFailed(com.legend.error.AssertKind.MESSAGE.record(
+                    java.util.Map.of("message", String.valueOf(rows.rows().get(0).get(0)))));
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             return e;
         } catch (java.io.IOException e) {

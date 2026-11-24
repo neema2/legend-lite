@@ -1576,8 +1576,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> nullSafeArm(writer, c, false);
-            case NULL_SAFE_EQUAL -> nullSafeArm(writer, c, true);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafeArm(writer, c);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case LPAD -> padWithSpace(writer, "lpad", c.args());
             case RPAD -> padWithSpace(writer, "rpad", c.args());
@@ -1877,13 +1876,14 @@ public class BigQuery extends AnsiSqlRenderer {
     }
 
     /** The null-safe arms of {@link #call}: a NULL composite's JSON text is 'null', no composite value's is. */
-    private SqlWriter nullSafeArm(SqlWriter writer, SqlExpr.Call c, boolean equal) {
+    private SqlWriter nullSafeArm(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
+        boolean equal = c.fn() == SqlFn.NULL_SAFE_EQUAL;
         if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
             return writer.append("(TO_JSON_STRING(").expr(a.get(0), 0).append(equal ? ") = " : ") <> ")
                     .append("TO_JSON_STRING(").expr(a.get(1), 0).append("))");
         }
-        return equal ? notDistinctFrom(writer, a) : distinctFrom(writer, a);
+        return nullSafe(writer, c);
     }
 
     /** The {@code IN} arm of {@link #call}. */

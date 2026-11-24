@@ -51,21 +51,15 @@ public final class VerdictBatch {
      * the frame definitions the sides reference at its head. */
     @FunctionalInterface
     public interface Fusion {
-        /** {@code members}' rows as one statement, {@code frames} at its head. */
-        SqlQuery fuse(List<SqlQuery> members, Map<String, SqlQuery> frames);
+        /** {@code members}' rows as one statement, {@code frames} at its head: a row per member, its columns shared by
+         *  position and type with the others', each member's {@code schemas} its own (item 3's S4, 2026-11-22). */
+        com.legend.lowering.VerdictSql.Batch fuse(List<SqlQuery> members,
+                List<com.legend.compiler.element.type.Type.RelationType> schemas, Map<String, SqlQuery> frames);
     }
 
     // (Either, the lowering's one row over a generic verdict row and its ruled row -- 2026-11-06, VerdictSql.either --
     // deleted with the ruled comparison, A4 of the compatibility program, stage A ratified by the user 2026-11-19: its
     // one caller, the rendered-text rule's rows fallback, left the database judge with legend-pure's comparison rules)
-
-    /** The lowering's self-contained form of a verdict row (M8b): the assert's polarity and its failure message
-     *  composed in the statement, so the judge reads holds and message and the plan carries nothing about the
-     *  assert. */
-    @FunctionalInterface
-    public interface SelfContained {
-        SqlQuery wrap(SqlQuery row, String name, boolean wantEqual);
-    }
 
     /** The plan side's PLANNER for a verdict statement (the planner-driver seam program's S2e, 2026-10-30; until then
      *  its runner): {@code statement} as a typed-rows plan of the verdict schema ({@code fused}: the batch schema, an
@@ -76,7 +70,8 @@ public final class VerdictBatch {
          *  target the database of the session {@code on} it runs on (the body's, or the graph's system database beside
          *  it: per-statement routing, 2026-11-03 -- until then a verdict over the system store on a server engine was
          *  planned against the body's target, so the database judge left such a body to the walk). */
-        ExecutionPlan.Node plan(SqlQuery statement, boolean fused, ExecutionPlan.Target on);
+        ExecutionPlan.Node plan(SqlQuery statement, com.legend.compiler.element.type.Type.RelationType schema,
+                ExecutionPlan.Target on);
 
         /** Whether {@code statement} reads a raw grid's report, so its wrapper is keyed and never fused (the keys are
          *  one grid's columns; the planner-driver seam program's S3c, 2026-10-30). */
@@ -88,6 +83,12 @@ public final class VerdictBatch {
         /** The most characters a fused statement may have on the body's database ({@code SqlDialect
          *  .fusedStatementBudget}); a longer group is planned as several fused statements. */
         default int fusedBudget() {
+            return Integer.MAX_VALUE;
+        }
+
+        /** The most members one fused statement may hold on the body's database ({@code SqlDialect.fusedMembers}): a
+         *  member is a branch of its {@code UNION ALL}; a larger group is halved as an over-budget one is. */
+        default int fusedMembers() {
             return Integer.MAX_VALUE;
         }
 
@@ -118,7 +119,12 @@ public final class VerdictBatch {
 
     /** A deferred verdict row. (Its ruled comparison {@code orElse}, its appeal and its decline went with A4 of the compatibility program, stage A ratified by the user 2026-11-19:
      *  the rendered-text rule's rows fallback and the edge's engine-text rows left the database judge.) */
-    private record Pending(int ix, String name, SqlQuery query, ExecutionPlan.Target on) implements Step {
+    /** A deferred verdict row: its statement, its typed member's columns' schema and its report (item 3's S4). */
+    private record Pending(int ix, String name, SqlQuery query, ExecutionPlan.Target on,
+            com.legend.compiler.element.type.Type.RelationType schema, RootLoop.Report report,
+            @com.legend.base.Nullable SqlQuery message, ExecutionPlan.@com.legend.base.Nullable Target messageOn,
+            com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned)
+            implements Step {
     }
 
     /** A root resolved before any row: a static decision, an unjudged raise, a planned raise ({@code reported}: the
@@ -133,6 +139,8 @@ public final class VerdictBatch {
         /** The caller's message where it READS ({@link #message}): its row, sent only where the root fails. */
         @com.legend.base.Nullable SqlQuery message;
         ExecutionPlan.@com.legend.base.Nullable Target messageOn;
+        /** The caller's message's error where computing it raises ({@link #unplanned}). */
+        com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned;
 
         Root(String listenerName) {
             this.listenerName = listenerName;
@@ -162,12 +170,29 @@ public final class VerdictBatch {
     private final Fusion fusion;
     /** The body's verdict ids: each verdict this batch plans takes the next. */
     private final VerdictIds ids;
-    private final SelfContained selfContained;
     private final Runner runner;
     private final List<Root> roots = new ArrayList<>();
     /** The sentence frame the rows deferred now are planned under (lite's own rules): an unrolled quantifier's element
      *  index (-1 for none) and whether they are {@code assertIsNot}'s (#28). One field, set and restored by scope. */
-    private record Scope(int elementIndex, boolean isNot) {
+    private record Scope(int elementIndex, boolean isNot, @com.legend.base.Nullable SqlQuery message,
+            ExecutionPlan.@com.legend.base.Nullable Target messageOn,
+            com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned) {
+        /** The element in scope's caller's message where it READS (its row, its session), or where computing it
+         *  raises (its error): carried by the element's own row, read or raised only where THAT element fails (item
+         *  3's S4 step 3, the user's decision 4, 2026-11-22); none outside an element. */
+        Scope(int elementIndex, boolean isNot) {
+            this(elementIndex, isNot, null, null, null);
+        }
+
+        /** Whether an element's message waits for the element's row. */
+        boolean pending() {
+            return message != null || unplanned != null;
+        }
+
+        /** The same scope, its element's message taken. */
+        Scope taken() {
+            return new Scope(elementIndex, isNot);
+        }
     }
 
     private Scope scope = new Scope(-1, false);
@@ -175,32 +200,49 @@ public final class VerdictBatch {
     /** Rows deferred until the returned restore runs are {@code assertIsNot}'s. */
     public Runnable asIsNot() {
         Scope before = scope;
-        scope = new Scope(before.elementIndex(), true);
-        return () -> scope = before;
+        scope = new Scope(before.elementIndex(), true, before.message(), before.messageOn(), before.unplanned());
+        // an element's message still waiting is carried back out, for its element's scope to take or refuse
+        return () -> scope = new Scope(before.elementIndex(), before.isNot(), scope.message(), scope.messageOn(),
+                scope.unplanned());
     }
 
     /** Rows deferred until the returned scope closes are an unrolled quantifier's element {@code index}: lite's
-     *  sentence names it ({@code AssertSentence.AT_INDEX}). */
-    public Runnable atElement(int index) {
+     *  sentence names it ({@code FrameKind.AT_INDEX}). */
+    public ElementScope atElement(int index) {
         Scope before = scope;
         scope = new Scope(index, before.isNot());
-        return () -> scope = before;
+        return () -> {
+            boolean pending = scope.pending();
+            scope = before;
+            if (pending) {
+                // an element whose message no row of it carried (decided at planning, or a row S4 has not typed)
+                throw new com.legend.error.NotImplementedException("an unrolled element's caller's message that reads"
+                        + " or raises, over an element no typed row judges: not planned");
+            }
+        };
     }
+
+    /** An unrolled element's scope ({@link #atElement}), closed by a try-with-resources: where the element's planning
+     *  raised, its own error stands and the scope's refusal rides it suppressed (the S4 step 3 audit's LOW 4,
+     *  2026-11-22: a {@code finally} replaced the element's error with the refusal). */
+    @FunctionalInterface
+    public interface ElementScope extends AutoCloseable {
+        /** No batch: nothing to restore. */
+        ElementScope NONE = () -> { };
+
+        @Override
+        void close();
+    }
+
     private @com.legend.base.Nullable Root current;
     /** The frames the body's asserts read by reference: name → the frame's
      * plan (leg 3.4 step 2), defined once per body. */
     private final Map<String, SqlQuery> frames = new LinkedHashMap<>();
 
 
-    /** The batch's words of a failure (census J29): an unrolled element named as they name it. */
-    private final com.legend.lowering.VerdictWords words;
-
-    public VerdictBatch(Fusion fusion, SelfContained selfContained, Runner runner,
-            VerdictIds ids, com.legend.lowering.VerdictWords words) {
+    public VerdictBatch(Fusion fusion, Runner runner, VerdictIds ids) {
         this.ids = ids;
-        this.words = words;
         this.fusion = fusion;
-        this.selfContained = selfContained;
         this.runner = runner;
     }
 
@@ -237,14 +279,61 @@ public final class VerdictBatch {
      *  where the assert fails, and its evaluation's error is the test's; the assert bar, 2026-11-04). */
     public void message(SqlQuery row, ExecutionPlan.Target on) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        if (scope.elementIndex() >= 0) {
+            // an unrolled element's own message, its row's (decision 4)
+            scope = new Scope(scope.elementIndex(), scope.isNot(), row, on, scope.unplanned());
+            return;
+        }
+        if (r.unplanned != null || r.message != null && !r.message.equals(row)) {
+            // a root carries ONE caller's message: an unrolled quantifier's elements whose messages differ, or one that
+            // raises beside one that reads, are each element's own (S4 carries a message per step; the S2+S3 fixes'
+            // audit, 2026-11-21: until then the last element's message silently stood for every element's)
+            throw oneMessagePerRoot(r);
+        }
         r.message = row;
         r.messageOn = on;
     }
 
-    /** {@code query}, the open root's verdict row. (Its overload with an appeal and a decline, the edge's engine-text
-     *  rows', went with A4 of the compatibility program, stage A ratified by the user 2026-11-19.) */
-    public void defer(String name, boolean wantEqual, SqlQuery query, ExecutionPlan.Target on) {
+    /** The open root's caller's message raises {@code error} where it is computed, an error upstream raises at run:
+     *  raised in place of the root's failure where the root fails, and only there (item 3, 2026-11-21, the user's lazy
+     *  rule; until then lite's sentence around the error's text as the verdict row's message). */
+    public void unplanned(com.legend.testexecutionplan.Failure error) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        if (scope.elementIndex() >= 0) {
+            // an unrolled element's message's error: raised only where THAT element fails, by its own row (decision 4;
+            // the S2+S3 fixes' audit, 2026-11-21: one slot per root replaced a later element's failure)
+            scope = new Scope(scope.elementIndex(), scope.isNot(), scope.message(), scope.messageOn(), error);
+            return;
+        }
+        if (r.unplanned != null || r.message != null) {
+            throw oneMessagePerRoot(r);
+        }
+        r.unplanned = error;
+    }
+
+    /** The refusal of a second caller's message on one root, by name: the body is refused at planning. */
+    private static com.legend.error.NotImplementedException oneMessagePerRoot(Root r) {
+        return new com.legend.error.NotImplementedException("the database judge carries one caller's message per"
+                + " assert: " + r.listenerName + "'s elements each have a message that reads or raises");
+    }
+
+    /**
+     * A TYPED verdict member (item 3's S4, 2026-11-21, the user's Q-A): {@code row}, one row of the columns
+     * {@code schema} declares -- its verdict, under the assert's polarity, then the typed values its {@code report}'s
+     * family reads, written where the verdict fails -- deferred on the open root. Nothing wraps it: the run records its
+     * failure from its values (RootLoops, by the report). An unrolled quantifier's element frames the report at its
+     * index.
+     */
+    public void deferTyped(String name, SqlQuery row, com.legend.compiler.element.type.Type.RelationType schema,
+            RootLoop.Report report, ExecutionPlan.Target on) {
+        Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        if (scope.isNot()) {
+            // assertIsNot's (#28): its failure the IS_NOT record of the actual side, as the host's negated judgment's
+            report = new RootLoop.Report(report.family() == RootLoop.Family.EQUALS_TAGGED
+                    || report.family() == RootLoop.Family.SAME_ELEMENTS_TAGGED ? RootLoop.Family.IS_NOT_TAGGED
+                    : report.family() == RootLoop.Family.EQUALS_DOCUMENTS ? RootLoop.Family.IS_NOT_DOCUMENTS
+                    : RootLoop.Family.IS_NOT, report.want(), report.e(), report.a(), report.fixed(), report.index());
+        }
         int ix = 0;
         for (Root x : roots) {
             for (Step s : x.steps) {
@@ -253,20 +342,16 @@ public final class VerdictBatch {
                 }
             }
         }
-        // the row self-contained (M8b): its polarity and its message in the statement, nothing of the assert kept
-        SqlQuery row = selfContained.wrap(scope.isNot() ? com.legend.lowering.VerdictSql.withIsNotHint(query) : query, name,
-                wantEqual);
-        if (scope.elementIndex() >= 0) {
-            // an unrolled quantifier's element, named as the words name it (lite's: by its zero-based index)
-            row = com.legend.lowering.VerdictSql.atIndex(row, scope.elementIndex(), words);
-        }
-        r.steps.add(new Pending(ix, name, row, on));
+        r.steps.add(new Pending(ix, name, row, on, schema,
+                scope.elementIndex() >= 0 ? report.atElement(scope.elementIndex()) : report, scope.message(),
+                scope.messageOn(), scope.unplanned()));
+        scope = scope.taken();
     }
 
     /** The batch's one root as ONE statement (the user's ruling S135, 2026-11-05: an assert inside assertError is a
      *  statement that raises its own failure): its one verdict row, self-contained, with the batch's frames at its head
      *  and the session it reads; or the failure it was decided with at planning; null where the batch holds no root,
-     *  several, a root of several steps or a caller's message that reads
+     *  several, a root of several steps, a caller's message that reads, or a verdict row whose message raises
      *  (no one row decides it alone). */
     public @com.legend.base.Nullable Sole sole() {
         // a static verdict's count (Judged) is no step of the one statement: the statement is the assert's, its census
@@ -277,20 +362,30 @@ public final class VerdictBatch {
             return null;
         }
         Step step = steps.get(0);
+        com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned = roots.get(0).unplanned;
         if (step instanceof Pending p) {
-            return new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on());
+            // a row whose failure is its message's error raises that error where it fails, which a raising row cannot
+            // spell: no one row decides it, so the assertError is refused by name (the S2+S3 fixes' audit, HIGH,
+            // 2026-11-21: until then the row raised its own failure and the error was dropped)
+            // (an unrolled element's own message, decision 4, is likewise no one row's: refused the same way)
+            return unplanned != null || p.message() != null || p.unplanned() != null ? null
+                    : new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on(), p.schema(),
+                            p.report());
         }
         if (step instanceof Resolved r && r.reported() && r.failure().kind() == com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED
                 && r.failure().unjudgedReason() == null) {
-            return new Sole.Decided(r.failure());
+            // the assert fails at planning, so its message's error, where computing it raises, is the outcome (the
+            // user's lazy rule, as RootLoops raises it)
+            return new Sole.Decided(unplanned != null ? unplanned : r.failure());
         }
         return null;
     }
 
     /** {@link #sole}'s answer: a verdict row the database computes, or a failure decided at planning. */
     public sealed interface Sole permits Sole.Row, Sole.Decided {
-        /** The verdict row ({@code VerdictSql.schema}'s columns) and the session it reads. */
-        record Row(SqlQuery query, ExecutionPlan.Target on) implements Sole {
+        /** The typed verdict row, its schema and report, and the session it reads. */
+        record Row(SqlQuery query, ExecutionPlan.Target on, com.legend.compiler.element.type.Type.RelationType schema,
+                RootLoop.Report report) implements Sole {
         }
 
         /** The assert's failure, decided at planning. */
@@ -391,7 +486,8 @@ public final class VerdictBatch {
             if (r.message == null) {
                 continue;
             }
-            Ahead a = planAhead(r.listenerName, r.message, java.util.Objects.requireNonNull(r.messageOn));
+            Ahead a = planAhead(r.listenerName, r.message, com.legend.lowering.VerdictSql.messageSchema(),
+                    java.util.Objects.requireNonNull(r.messageOn));
             if (a.refused() != null) {
                 throw a.refused();
             }
@@ -424,7 +520,7 @@ public final class VerdictBatch {
             // statement held every member, and Postgres's refusal of testAdjustByMinutesBigNumber's second expected
             // literal was blamed on the first assert, which the host held
             for (List<Pending> run : raisingRuns(ps)) {
-                ExecutionPlan.TdsResult fusedPlan;
+                Fused fusedPlan;
                 try {
                     fusedPlan = fusedOf(run, g.getKey());
                 } catch (com.legend.sql.DialectCapability e) {
@@ -440,8 +536,7 @@ public final class VerdictBatch {
                     }
                     continue;
                 }
-                for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(run, fusedPlan,
-                        g.getKey())) {
+                for (Map.Entry<List<Pending>, Fused> part : withinBudget(run, fusedPlan, g.getKey())) {
                     List<TestPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
                     for (Pending p : part.getKey()) {
                         TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
@@ -449,8 +544,8 @@ public final class VerdictBatch {
                         verdicts.add(v);
                         members.put(v.id(), p);
                     }
-                    out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue(), runner.savepoint()),
-                            g.getKey(), false));
+                    out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue().plan(), runner.savepoint(),
+                            null, part.getValue().layout()), g.getKey(), false));
                 }
             }
         }
@@ -458,22 +553,36 @@ public final class VerdictBatch {
         // 2026-11-07: the root loop sends nothing outside the plan -- the split rung's run-time retry and its
         // statements planned outside the plan are deleted)
         for (Pending u : unspelled) {
-            com.legend.sql.DialectCapability refused = planAhead(u.name(), u.query(), u.on()).refused();
+            com.legend.sql.DialectCapability refused = planAhead(u.name(), u.query(), u.schema(), u.on()).refused();
             if (refused == null) {
                 throw new IllegalStateException(u.name() + ": a member left out of its fused statement as unspelled"
                         + " whose own statement the dialect spells");
             }
             throw refused;
         }
-        List<Group> placed = carried(batch, out, members, messages);
-        return new Planned(placed, loop(batch, placed, members, messages));
+        // an unrolled element's own message that READS (decision 4): planned as its row's side, carried on its verdict
+        Map<Integer, TestPlan.Side> rowMessages = new HashMap<>();   // by the member's ix
+        for (Root r : batch) {
+            for (Step st : r.steps) {
+                if (st instanceof Pending p && p.message() != null) {
+                    Ahead a = planAhead(p.name(), p.message(), com.legend.lowering.VerdictSql.messageSchema(),
+                            java.util.Objects.requireNonNull(p.messageOn()));
+                    if (a.refused() != null) {
+                        throw a.refused();
+                    }
+                    rowMessages.put(p.ix(), sideOf(java.util.Objects.requireNonNull(a.plan())));
+                }
+            }
+        }
+        List<Group> placed = carried(batch, out, members, messages, rowMessages);
+        return new Planned(placed, loop(batch, placed, members, messages, rowMessages));
     }
 
     /** The segment's roots as the plan's data (the plan-as-data design's step 5, 2026-11-08): each root's rows by the
      *  verdict that reads them, its decided outcomes, its caller's message -- what {@link RootLoops} judges at run. A
      *  row's and a message's refusal slots are empty since D (a dialect's refusal refuses the body at planning). */
     private RootLoop loop(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
-            Map<Integer, TestPlan.Side> messages) {
+            Map<Integer, TestPlan.Side> messages, Map<Integer, TestPlan.Side> rowMessages) {
         Map<Integer, Integer> verdictOf = new HashMap<>();   // a member's ix -> the id of the verdict reading its row
         members.forEach((id, p) -> verdictOf.put(p.ix(), id));
         List<RootLoop.Root> roots = new ArrayList<>(batch.size());
@@ -484,8 +593,12 @@ public final class VerdictBatch {
                 steps.add(switch (s) {
                     case Pending p -> {
                         Integer id = verdictOf.get(p.ix());
+                        TestPlan.Side own = rowMessages.get(p.ix());
                         yield new RootLoop.Row(p.name(), java.util.Objects.requireNonNull(id,
-                                () -> p.name() + ": a member with no verdict reading its row"));
+                                () -> p.name() + ": a member with no verdict reading its row"), p.report(),
+                                own == null ? null : new RootLoop.Message(own, groups.stream()
+                                        .flatMap(g -> g.step().verdicts().stream())
+                                        .anyMatch(v -> own.equals(v.message()))), p.unplanned());
                     }
                     case Resolved rv -> new RootLoop.Decided(rv.failure(), rv.reported());
                     case Judged j -> new RootLoop.Judged();
@@ -498,7 +611,7 @@ public final class VerdictBatch {
                 message = new RootLoop.Message(side, groups.stream().flatMap(g -> g.step().verdicts().stream())
                         .anyMatch(v -> side.equals(v.message())));
             }
-            roots.add(new RootLoop.Root(r.listenerName, steps, message));
+            roots.add(new RootLoop.Root(r.listenerName, steps, message, r.unplanned));
         }
         return new RootLoop(roots, fragments);
     }
@@ -507,12 +620,18 @@ public final class VerdictBatch {
      *  2026-11-07: until then the message rode the root's first pending member, which a refused member or a root
      *  decided at planning left in no group); {@code members} keyed by the verdicts as rebuilt. */
     private static List<Group> carried(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
-            Map<Integer, TestPlan.Side> messages) {
+            Map<Integer, TestPlan.Side> messages, Map<Integer, TestPlan.Side> rowMessages) {
         Map<Integer, TestPlan.Side> carry = new HashMap<>();   // by the member's ix
         java.util.Set<Integer> grouped = new java.util.HashSet<>();
         for (Pending p : members.values()) {
             grouped.add(p.ix());
         }
+        // an element's own message rides its own verdict (decision 4)
+        rowMessages.forEach((ix, side) -> {
+            if (grouped.contains(ix)) {
+                carry.put(ix, side);
+            }
+        });
         for (int k = 0; k < batch.size(); k++) {
             TestPlan.Side side = messages.get(k);
             if (side == null) {
@@ -520,6 +639,12 @@ public final class VerdictBatch {
             }
             for (Step step : batch.get(k).steps) {
                 if (step instanceof Pending p && grouped.contains(p.ix())) {
+                    if (carry.containsKey(p.ix())) {
+                        // a verdict carries one message: the root's and its first element's own, refused by name
+                        throw new com.legend.error.NotImplementedException(batch.get(k).listenerName
+                                + ": an assert's caller's message and its first element's own message, both reading"
+                                + " the database, on one verdict");
+                    }
                     carry.put(p.ix(), side);
                     break;
                 }
@@ -543,8 +668,8 @@ public final class VerdictBatch {
                 // the same verdict with its message: the same id, so its member stands
                 verdicts.add(withMessage);
             }
-            out.add(new Group(new TestPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint()),
-                    g.on(), g.keyed()));
+            out.add(new Group(new TestPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint(), null,
+                    g.step().layout()), g.on(), g.keyed()));
         }
         return out;
     }
@@ -554,9 +679,10 @@ public final class VerdictBatch {
             com.legend.sql.@com.legend.base.Nullable DialectCapability refused) {
     }
 
-    private Ahead planAhead(String name, SqlQuery query, ExecutionPlan.Target on) {
+    private Ahead planAhead(String name, SqlQuery query, com.legend.compiler.element.type.Type.RelationType schema,
+            ExecutionPlan.Target on) {
         try {
-            return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), false, on), null);
+            return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), schema, on), null);
         } catch (com.legend.sql.DialectCapability e) {
             return new Ahead(null, e);
         }
@@ -597,7 +723,7 @@ public final class VerdictBatch {
         for (Pending p : keyed) {
             try {
                 TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
-                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false, on));
+                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), p.schema(), on));
                 verdicts.add(v);
                 members.put(v.id(), p);
             } catch (com.legend.sql.DialectCapability e) {
@@ -654,12 +780,13 @@ public final class VerdictBatch {
      *  ({@link Runner#fusedBudget}) -- {@code ps} halved, each half fused and halved again until it fits or is one
      *  member: the same members in their order, each part a fused group of its own, all planned here (2026-11-05, PCT
      *  round 22: ClickHouse's analyzer over 50 asserts of nested instances, 1.3M characters). */
-    private List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> withinBudget(List<Pending> ps,
-            ExecutionPlan.TdsResult fused, ExecutionPlan.Target on) {
-        if (ps.size() == 1 || fused.sql().statement().length() <= runner.fusedBudget()) {
+    private List<Map.Entry<List<Pending>, Fused>> withinBudget(List<Pending> ps,
+            Fused fused, ExecutionPlan.Target on) {
+        if (ps.size() == 1 || ps.size() <= runner.fusedMembers()
+                && fused.plan().sql().statement().length() <= runner.fusedBudget()) {
             return List.of(Map.entry(ps, fused));
         }
-        List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> out = new ArrayList<>();
+        List<Map.Entry<List<Pending>, Fused>> out = new ArrayList<>();
         int half = ps.size() / 2;
         for (List<Pending> part : List.of(ps.subList(0, half), ps.subList(half, ps.size()))) {
             out.addAll(withinBudget(part, fusedOf(part, on), on));
@@ -667,13 +794,20 @@ public final class VerdictBatch {
         return out;
     }
 
+    /** A fused statement as planned, and each member's columns in it. */
+    private record Fused(ExecutionPlan.TdsResult plan, List<List<Integer>> layout) {
+    }
+
     /** {@code ps}'s fused statement. */
-    private ExecutionPlan.TdsResult fusedOf(List<Pending> ps, ExecutionPlan.Target on) {
+    private Fused fusedOf(List<Pending> ps, ExecutionPlan.Target on) {
         List<SqlQuery> ms = new ArrayList<>(ps.size());
+        List<com.legend.compiler.element.type.Type.RelationType> schemas = new ArrayList<>(ps.size());
         for (Pending p : ps) {
             ms.add(p.query());
+            schemas.add(p.schema());
         }
-        return typed(runner.plan(fusion.fuse(ms, frames), true, on));
+        com.legend.lowering.VerdictSql.Batch batch = fusion.fuse(ms, schemas, frames);
+        return new Fused(typed(runner.plan(batch.query(), batch.schema(), on)), batch.layout());
     }
 
     private static ExecutionPlan.TdsResult typed(ExecutionPlan.Node plan) {

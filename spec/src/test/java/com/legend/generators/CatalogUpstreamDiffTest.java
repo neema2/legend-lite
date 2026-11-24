@@ -246,6 +246,9 @@ class CatalogUpstreamDiffTest {
     // substrAsGiven's two overloads, lite-INTERNAL and the compiler's own -- the database's own SUBSTRING over Pure's
     // indexes corrected as legend-engine's processSubstr corrects them, which the legend-engine door's engine rewrite
     // alone writes, for substr and the corrected substring; upstream declares no such function
+    // 80 -> 80 (2026-11-23, item 3's S6; the user's Q-C = C1 and Q-S6): meta::legend::lite::assertFailedText replaced one
+    // for one by meta::legend::lite::assertRaise(kind), lite-INTERNAL and the compiler's own -- an in-body guard's raise
+    // of its assert kind where its caller gives no message; upstream declares no such function
     private static final int NOT_UPSTREAM_MAX = 80;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;

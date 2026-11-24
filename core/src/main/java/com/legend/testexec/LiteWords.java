@@ -4,7 +4,7 @@
 package com.legend.testexec;
 
 import com.legend.base.Nullable;
-import com.legend.error.AssertSentence;
+import com.legend.error.AssertKind;
 import com.legend.values.PureDateLiteral;
 
 import java.math.BigDecimal;
@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * THE HOST JUDGE'S OWN SENTENCES UNDER LITE'S RULES (the user's judge model, 2026-11-17: lite picks its own best
- * messages; the orchestrator's rulings of that day): a failed assert's message is its {@link AssertSentence} row, each
+ * messages; the orchestrator's rulings of that day): a failed assert's message is its {@link AssertKind} row, each
  * slot a value written as the PRODUCT writes it -- the same text the database judge's statement builds in SQL from the
  * same row, so the two isolated judges agree on the message as on the verdict (their comparison is the drift guard).
  * Test-side text, the judge's: never a writer of the product's output (R3).
@@ -36,6 +36,11 @@ public final class LiteWords {
         if (v instanceof Map<?, ?> m) {
             return instance(m, instanceClass);
         }
+        if (v instanceof String json && com.legend.result.RowDecode.VARIANT.equals(instanceClass)) {
+            // a Variant's value carried as its JSON text is written as JSON, never as a quoted String (the audit of
+            // 581a93cb and 386db8fe, 2026-11-23)
+            return value(variantTexts(List.of(json)).get(0), null);
+        }
         return switch (v) {
             case null -> "[]";
             case String s -> quoted(s);
@@ -48,9 +53,66 @@ public final class LiteWords {
             case Boolean b -> b.toString();
             case PureDateLiteral d -> dateText(d);
             case List<?> l -> values(l, instanceClass);
+            case VariantText vt -> vt.json();
+            case EnumName en -> en.name();
             default -> throw new com.legend.error.NotImplementedException(
                     "lite's message text for " + v.getClass().getName() + " is not modeled");
         };
+    }
+
+    /** A value of a kind of its own: equal only to a value of its own kind and text, never to a String, a number or a
+     *  Boolean of the same text ({@code Equality.same}). */
+    public sealed interface Kinded permits VariantText, EnumName {
+        /** The value's place in a multiset's sort: equal values share it (never printed). */
+        String sortKey();
+    }
+
+    /** A Variant's value in a record: its JSON text, written as JSON (never a quoted String). */
+    public record VariantText(String json) implements Kinded {
+        @Override
+        public String sortKey() {
+            return json;
+        }
+    }
+
+    /** An enumeration's value, carried as its name: its enumeration and its name, never its name's String (register
+     *  S169, retired by the user's ruling "false, matching"; the final audit of c758fe95, 2026-11-23: the host had
+     *  called {@code t::E.A} the String 'A'). Written as its name. */
+    public record EnumName(String enumeration, String name) implements Kinded {
+        @Override
+        public String sortKey() {
+            return enumeration.concat(name);
+        }
+    }
+
+    /** An enumeration side's values as both judges carry them, each an {@link EnumName}, where the other side's kind is
+     *  known to be a String or an enumeration -- never against a side typed Any, which may hold the enumeration carried
+     *  by its name (a table's cell: legend-engine's corpus asserts it equal, as Pure does; the corpus run of the final
+     *  audit's fixes, 2026-11-23); any other side's as they are. */
+    public static List<Object> enumNames(com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts side,
+            com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts other, List<Object> carried) {
+        if (side == null || !(side.kind() instanceof com.legend.testexecutionplan.KindClass.Enum en) || other == null
+                || !(other.kind() == com.legend.testexecutionplan.KindClass.Primitive.STRING
+                        || other.kind() instanceof com.legend.testexecutionplan.KindClass.Enum)) {
+            return carried;
+        }
+        List<Object> out = new java.util.ArrayList<>(carried.size());
+        for (Object v : carried) {
+            out.add(v instanceof String s ? new EnumName(en.fqn(), s) : v);
+        }
+        return out;
+    }
+
+    /** A Variant side's values as both judges carry them, each its JSON text; a NULL there is JSON {@code null} (a
+     *  Variant side holds no absent value: an empty side has no row; the audit of 8477c703, H2 and SQLite read JSON
+     *  null back as NULL). */
+    public static List<Object> variantTexts(List<Object> carried) {
+        List<Object> out = new java.util.ArrayList<>(carried.size());
+        for (Object v : carried) {
+            out.add(new VariantText(v == null ? "null" : v instanceof String s ? canonJson(s, false)
+                    : com.legend.sql.Json.canonical(v)));
+        }
+        return out;
     }
 
     /** One value's text, no instance class. */
@@ -80,11 +142,6 @@ public final class LiteWords {
     public static String pairSide(List<?> values, List<?> other, @Nullable String instanceClass) {
         return values.size() == 1 && other.size() == 1 ? value(values.get(0), instanceClass)
                 : values(values, instanceClass);
-    }
-
-    /** {@code row}'s sentence filled: each slot's text by name. */
-    public static String sentence(AssertSentence row, Map<String, String> slots) {
-        return row.fill(slots);
     }
 
     /** A String JSON-style: quoted, a backslash, a quote, a newline, a tab and a carriage return escaped. */
@@ -126,7 +183,7 @@ public final class LiteWords {
     }
 
     /** A value's KIND as lite's sentence names it where two values' texts tie
-     *  ({@link com.legend.error.AssertSentence#EQUALS_KINDS}): Integer, Float, Decimal, String, Boolean, StrictDate,
+     *  ({@link com.legend.error.AssertKind#EQUALS_KINDS}): Integer, Float, Decimal, String, Boolean, StrictDate,
      *  DateTime, an instance's class; a collection its elements' one kind, else Any. */
     public static String kind(@Nullable Object v, @Nullable String instanceClass) {
         return switch (v) {
@@ -137,10 +194,12 @@ public final class LiteWords {
             case Double d -> "Float";
             case Float f -> "Float";
             case BigDecimal d -> "Decimal";
-            case String s -> "String";
+            case String s -> com.legend.result.RowDecode.VARIANT.equals(instanceClass) ? "Variant" : "String";
             case Boolean b -> "Boolean";
             case PureDateLiteral d -> d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? "DateTime"
                     : d.precision().atLeast(PureDateLiteral.Precision.DAY) ? "StrictDate" : "Date";
+            case EnumName en -> en.enumeration();   // its path: two enumerations' values of one name told apart
+            case VariantText vt -> "Variant";
             case Map<?, ?> m -> m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE) instanceof String t ? t
                     : instanceClass == null ? "Any" : instanceClass;
             case List<?> l -> {
@@ -161,10 +220,11 @@ public final class LiteWords {
 
     /** {@code EQUALS} over two written sides, or {@code EQUALS_KINDS} where their texts tie (the orchestrator's ruling,
      *  2026-11-17): each side's kind after it, and where both are DateTimes, each one's precision too. */
-    public static String equalsSentence(String e, String a, java.util.function.Supplier<String> eKind,
-            java.util.function.Supplier<String> aKind, @Nullable Object eValue, @Nullable Object aValue) {
+    public static com.legend.error.ErrorRecord equalsRecord(String e, String a,
+            java.util.function.Supplier<String> eKind, java.util.function.Supplier<String> aKind,
+            @Nullable Object eValue, @Nullable Object aValue) {
         if (!e.equals(a)) {
-            return com.legend.error.AssertSentence.EQUALS.fill(Map.of("expected", e, "actual", a));
+            return com.legend.error.AssertKind.EQUALS.record(Map.of("expected", e, "actual", a));
         }
         String ek = eKind.get();
         String ak = aKind.get();
@@ -173,19 +233,19 @@ public final class LiteWords {
             ek = ek + ", " + ed.precision().name().toLowerCase(java.util.Locale.ROOT);
             ak = ak + ", " + ad.precision().name().toLowerCase(java.util.Locale.ROOT);
         }
-        return com.legend.error.AssertSentence.EQUALS_KINDS.fill(Map.of("expected", e, "expectedKind", ek,
+        return com.legend.error.AssertKind.EQUALS_KINDS.record(Map.of("expected", e, "expectedKind", ek,
                 "actual", a, "actualKind", ak));
     }
 
     /** A date's product text: its day where it has no time of day ({@code yyyy-MM-dd}, or its own text where coarser
-     *  than a day), else ISO 8601 in UTC with six fraction digits and {@code Z} (S312). */
+     *  than a day), else ISO 8601 in UTC with nine fraction digits and {@code Z} (S312, amended 2026-11-22). */
     public static String dateText(PureDateLiteral d) {
         if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
             return com.legend.result.CellText.dayText(d);
         }
         java.time.LocalDateTime t = d.toInstantFloor();
-        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ", t.getYear(),
-                t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano() / 1000);
+        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%09dZ", t.getYear(),
+                t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano());
     }
 
     /** A JSON document as the database judge's canon writes it in a message (the orchestrator's ruling, 2026-11-17:

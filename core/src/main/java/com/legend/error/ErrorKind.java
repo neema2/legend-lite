@@ -18,7 +18,10 @@ package com.legend.error;
  * {@code INSERT_OUT_OF_BOUNDS}, {@code LIST_LENGTHS_DIFFER}, the S170 window frame, and the refusals of a value a
  * database cannot hold (S138, S181, a load's width): each its own kind and sentence, its facts the operands -- a
  * database's name, a function's, a count (stage B's BE-P, 2026-11-21: until then three kinds whose operand was the
- * place's prose).
+ * place's prose). And an in-body assert's failure ({@code ASSERT_TRUE}, {@code ASSERT_FALSE}, {@code ASSERT_NOT_EMPTY}):
+ * the assert catalog's own sentences where legend-pure says "Assert failed" (item 3's S6; the user's Q15 = A, lite's
+ * assert-failure words on every route, and the tenet of 2026-11-23: lite's own where it is better, the compatibility
+ * edge re-spelling upstream's only where a test needs it).
  */
 public enum ErrorKind implements ErrorCode {
     /** rem's and quotient's, the dividend its operand (legend-pure's CompiledSupport); Integer / Integer's, no operand:
@@ -104,6 +107,14 @@ public enum ErrorKind implements ErrorCode {
     /** [the second, the digits kept]: lite's own (S181), a date()'s fractional second. */
     SECOND_FRACTION_NOT_KEPT(Form.of(2, "the second %1$s has more than %2$s fraction digits, which a date()'s fractional"
             + " second keeps: refused, never cut (S181)")),
+    /** [the database, the digits it reads], or [the database, the first day, the last day] it holds to the
+     *  nanosecond: lite's own (S181, S399), a date-time an assert compares. */
+    JUDGED_INSTANT_NOT_HELD(Form.of(2, "a date-time an assert compares has more fraction digits than %1$s reads in it"
+            + " (%2$s): refused, never cut (S181)"), Form.of(3, "a date-time an assert compares to the nanosecond is"
+            + " outside the days %1$s holds to the nanosecond (%2$s to %3$s): refused (S181)")),
+    /** []: lite's own, an Any value an assert compares that holds a JSON object or array. */
+    JUDGED_TREE_NOT_TYPED(Form.of(0, "an Any value an assert compares holds a JSON object or array, which the database"
+            + " judge compares by no typed value: refused")),
     /** [the table's column count]: lite's own, a CSV record wider than its table (a load). */
     CSV_TOO_WIDE(Form.of(1, "a record of the CSV file has more cells than its table's %1$s column(s)")),
     /** legend-engine's rows()/_range() assert, verbatim (#81's frame guard). */
@@ -115,7 +126,16 @@ public enum ErrorKind implements ErrorCode {
             + " (docs/SEMANTICS_REGISTER.md S170)")),
     /** [the start, the end, the length]: legend-pure's String.substring raise, Java's own words (S383). */
     SUBSTRING_OUT_OF_RANGE(Form.any("Range [%1$s, %2$s) out of bounds for length %3$s")),
-    /** {@code fail(message)}: the user's own message is the error's text; this word only where none was given. */
+    /** An in-body assert's failure with no message of its caller's (item 3's S6): the one catalog's sentence of the
+     *  assert's kind (lite's words, the user's Q15 = A and Q-S6 -- one catalog for an assert's failure wherever it
+     *  fails). No values: a raise carries facts fixed at planning, never a value the database computed. */
+    ASSERT_TRUE(Form.of(0, AssertKind.TRUE.template())),
+    /** {@code assertFalse}'s, as {@link #ASSERT_TRUE}. */
+    ASSERT_FALSE(Form.of(0, AssertKind.FALSE.template())),
+    /** {@code assertNotEmpty}'s, as {@link #ASSERT_TRUE}. */
+    ASSERT_NOT_EMPTY(Form.of(0, AssertKind.NOT_EMPTY.template())),
+    /** {@code fail(message)}: the user's own message is the error's text. ({@code fail()} with none raises
+     *  {@link #ASSERT_TRUE} since item 3's S6; the bare form stays for a plan that names the kind with no operand.) */
     USER_FAIL(Form.of(0, "fail"), Form.any("fail: %1$s")),
     /** A failure the database raised with no site of lite's (phase D's Phase 2, item 4, 2026-11-16; the user's ruling:
      *  "I'm good with database only giving the database message too"): its message is the database's own, verbatim,

@@ -109,6 +109,21 @@
 > guessed. A divergence that is not a row is a defect; a row the user did not
 > rule is a defect too. People bringing a legend-engine project read the
 > recorded differences as one page: `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`.
+> **Amended 2026-11-22 (the user, "Yes good"; the full wording in
+> `docs/records/compat-rules-of-record-2026-11-19.md`, last section): the core
+> follows Pure; compatibility lives at the edge.** The core takes Pure's
+> meaning whenever there is a choice (a reasoned departure where Pure's answer
+> is an artifact of its implementation, as a ruled register row). Where
+> matching Pure would need disproportionate SQL -- a CASE tree per dialect, a
+> subquery per value, a table function; a cast or one native function per
+> value is proportionate -- for a rare or cosmetic difference, the core takes
+> the database's native typed answer and records it (a register row and a
+> known-quirks table the both-judges runs read, grown only by the user's
+> word). Never accepted for cost: a verdict that flips on ordinary inputs, data
+> lost, a NULL where Pure raises. Core presentation is one product spelling
+> per type (program text by the database's cheapest native expression; returned
+> typed values by the result writer, which never changes them); upstream's
+> spellings and legend-engine's departures from Pure belong to the edge.
 >
 > **The six tenets (adopted by the user, 2026-11-19: "Adopt tenets yes";
 > `docs/records/compat-rules-of-record-2026-11-19.md`) `[CONVENTION until B5's
@@ -153,6 +168,29 @@
 > constants and facts fixed by the types, never row data. **Error records:** a
 > raised error's record is lite's typed output, so compatibility may word
 > upstream's sentence in Java from it (tenet 3).
+>
+> **The equality rule — strict typing (ruled by the user, 2026-11-24: "Love it";
+> `docs/records/compat-stage-b-plan-2026-11-24.md`) `[CONVENTION until B3 step 3]`.**
+> Two values are equal only when they have the same type and the same value; a
+> value is what it denotes, not how it was written. Decided as a tenet, never by
+> matching upstream's answers (the user: "We just should decide our tenets").
+> - **Different types never compare.** Where the types are known when the query is
+>   compiled (literals, columns, parameters, computed expressions), comparing two
+>   different types is a compile error naming the fix: Integer, Float and Decimal are
+>   three types; a day and a date-time; an enumeration and a String; two unrelated
+>   classes. `==`, `!=`, `in`, `contains`, `indexOf`, the deduplications, joins and
+>   ordering (`<`, `max`, `min`, `sort`) all hold to it.
+> - **Types known only at run time** (`Any`, `Number`, the abstract `Date`, a generic
+>   position) carry their type beside the value; equal means the same type and the
+>   same value, and a mixed list orders by value, then by type.
+> - **Within one type, the value, not its spelling:** a Decimal by its number (S139),
+>   a date-time by its instant (S399).
+> - **Classes:** the run-time class is part of the value — the same class, then the
+>   keys of a keyed class or the identity of a keyless one.
+> - **Arithmetic keeps its typed promotion** (`1 + 1.5` is a Float): computing is not
+>   comparing.
+> - **Upstream's looseness lives at the doors:** legend-pure's door rewrites a
+>   cross-type `==` to `false`, legend-engine's to the database's comparison.
 >
 > **World-map tenet — ratified 2026-09-03 (`docs/WORLD_MAP.md`,
 > `docs/TENET_CHARTER.md` Clause 6):** Pure code is NATIVES (one Java SQL

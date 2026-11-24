@@ -38,8 +38,8 @@ final class ChannelBLane {
 
     /** E-5d, the PCT half: {@code suite}'s judge SQL held to its pins by the product's rule (growth fails, a shrink past
      *  1% re-pins: bazel run //pct:update_ratchets), on the reference lane under lite's own rules and BOTH, the pins' own
-     *  mode (the LITE-PCT lane's since A4 of the compatibility program, stage A ratified by the user 2026-11-19); each suite's
-     *  reference test calls it after its ledger. */
+     *  mode (the LITE-PCT lane's since A4 of the compatibility program, stage A ratified by the user 2026-11-19); {@link
+     *  #judge} calls it after the lane's ledger. */
     static void judgeSqlHeld(String suite) {
         if (ChannelB.measuresJudgeSql()) {
             long[] j = ChannelB.judgeSql();
@@ -91,6 +91,10 @@ final class ChannelBLane {
         // let a failure change kind, or a body the closed walk refused, pass unseen): every failure a row of the lane's
         // ledger with its text, every row's test failing (ChannelBLedger, ledger.tsv)
         ChannelBLedger.judge(lane + " " + suite, out, ChannelBLedger.of(lane, suite));
+        // the judge SQL's pins, held where they are measured: the LITE-PCT lane (2026-11-23, item 3's final round: the
+        // call sat at the end of each suite's census, after the early return this lane takes since 4fb8ee8b, and the
+        // compatibility lanes measure none -- so no lane held the pins, which went stale; a no-op on every other lane)
+        judgeSqlHeld(suite);
 
         // (the label-lie pin, SqlTypeCensus.mismatchCount() == 0, deleted 2026-11-09: its census had no feeder -- probe()
         // lost its last caller -- so it read zero by construction, a dead gate; the census is deleted)

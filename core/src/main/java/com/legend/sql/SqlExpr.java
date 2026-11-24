@@ -44,6 +44,12 @@ public sealed interface SqlExpr
     public static final String SYNTHETIC_ID = "__id";
     public static final String SYNTHETIC_TYPE = "__type";
 
+    /** Whether {@code e} is a call that makes a row per element (UNNEST): a projection of it changes its select's rows,
+     *  so its value is read from outside the select, never in place (item 3's S4, the judge's typed side rows). */
+    static boolean expandsRows(SqlExpr e) {
+        return e instanceof Call c && c.fn() == SqlFn.UNNEST;
+    }
+
     /**
      * Whether {@code e}'s value is its operands' alone, evaluating it raises nothing and it keeps its select's rows, so
      * a pass may drop it unread or move where it is evaluated (2026-11-04): no raising function ({@link SqlFn#RAISING}),
@@ -1026,6 +1032,10 @@ public sealed interface SqlExpr
         DIALECT("dialect"),
         /** The test road's verdict statement (the judges'; never a product query's). */
         JUDGE("judge"),
+        /** The test road's verdict statement where a compared value carries a digit of a second past the microsecond
+         *  (a literal's, read from the plan: VerdictSql.nanos): the judge's instant read to the nanosecond, refused by
+         *  name where the database holds no such instant (register S399; S181 and the user's rule of 2026-11-22). */
+        JUDGE_NANOS("judge_nanos"),
         /** A fused verdict row's UNUSED slot (E-5c; 2026-11-15, ClickHouse's round 53): another member's column, held
          *  by this member's row as a placeholder of that column's type and never read. A NULL where the database can
          *  hold one; the type's own default where it cannot (ClickHouse's Map and Tuple). */

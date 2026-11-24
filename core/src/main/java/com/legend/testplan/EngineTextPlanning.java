@@ -122,15 +122,18 @@ import java.util.List;
         return new TextPlanned(check);
     }
 
+    // the edge's fold (its {@code fold} flag, at each door below): its SQL-text and plan-text verdicts' texts may be the
+    // compiler's join of their literals -- a TEMPORARY carve-out (item 3's S7, the user's Q-S7a of 2026-11-22), deleted
+    // by B3
     public static HostSides.Ask ask(TypedSpec arg, boolean identity, boolean fold,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.@com.legend.base.Nullable ExecEnv at) {
-        return new HostSides.Ask(arg, identity, fold, hook, at);
+        return new HostSides.Ask(arg, identity, fold ? HostSides.Fold.EDGE_TEXT : HostSides.Fold.NONE, hook, at);
     }
 
     /** An ask planned under the step's environment. */
     public static HostSides.Ask ask(TypedSpec arg, boolean identity, boolean fold,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        return new HostSides.Ask(arg, identity, fold, hook);
+        return new HostSides.Ask(arg, identity, fold ? HostSides.Fold.EDGE_TEXT : HostSides.Fold.NONE, hook);
     }
 
     public static HostSides.Check check(List<HostSides.Ask> asks, com.legend.testexecutionplan.HostJudgment judgment) {
@@ -142,13 +145,13 @@ import java.util.List;
     public static TypedSide evalSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env, boolean identity, boolean fold,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        return JudgePlans.evalSide(value, letPrefix, specs, env, identity, fold, hook);
+        return JudgePlans.evalSide(value, letPrefix, specs, env, identity, fold ? HostSides.Fold.EDGE_TEXT : HostSides.Fold.NONE, hook);
     }
 
     public static JudgePlans.PlannedSide plannedSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env, boolean identity, boolean fold,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        return JudgePlans.plannedSide(value, letPrefix, specs, env, identity, fold, hook);
+        return JudgePlans.plannedSide(value, letPrefix, specs, env, identity, fold ? HostSides.Fold.EDGE_TEXT : HostSides.Fold.NONE, hook);
     }
 
     public static com.legend.testexecutionplan.TestPlan.Side side(JudgePlans.PlannedSide p) {

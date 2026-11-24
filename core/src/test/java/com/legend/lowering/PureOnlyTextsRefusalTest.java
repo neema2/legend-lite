@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * THE PRODUCT REFUSES EACH OF legend-pure's ONLY TEXTS BY NAME (census B8, HookRulingTest's RULED entry; C5's step A,
- * 2026-11-17, the orchestrator's condition on VerdictSql's HOOK-RULED line): every member of {@link PureOnlyTexts} --
+ * 2026-11-17, the orchestrator's condition on VerdictSql's HOOK-RULED line, gone with item 3's S0 2026-11-21): every
+ * member of {@link PureOnlyTexts} --
  * representationOf and formatR among them -- is reached only through the style's facet, asked with its call's refusal,
  * and the product's style (both {@link Styled#PRODUCT} and the one {@code PlanStyle.PRODUCT} configures) throws that
  * refusal before any member is reached. The member list is pinned, so a new member is seen and given its refusal here.
@@ -59,8 +60,8 @@ class PureOnlyTextsRefusalTest {
         }
     }
 
-    /** representationOf's two product call sites (Scalars' toRepresentation, VerdictSql's compatibility message) ask
-     *  with this refusal: its sentence and phase. */
+    /** representationOf's product call site (Scalars' toRepresentation; VerdictSql's compatibility message, the second,
+     *  went with item 3's S0, 2026-11-21) asks with this refusal: its sentence and phase. */
     @Test
     void representationsRefusalIsNamed() {
         ModelException e = assertThrows(ModelException.class,

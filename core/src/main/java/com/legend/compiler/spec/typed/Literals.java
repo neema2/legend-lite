@@ -23,9 +23,30 @@ public final class Literals {
     private Literals() {
     }
 
+    /** The program's constant TOKENS verbatim -- a String, a Number, or a List of those, no operation applied
+     *  ({@link #bare}) -- or null: what a COMPARED side may take from the compiler (item 3's S7, the user's Q-D of
+     *  2026-11-21: a compared constant the compiler would have to join is the database's to compute). */
+    public static @com.legend.base.Nullable Object tokens(TypedSpec e, List<TypedSpec> lets) {
+        return bare(e, lets) ? fold(e, lets) : null;
+    }
+
+    /** The constant {@code e} folds to, joins included ({@code +}, {@code joinStrings}, {@code replace} over
+     *  literals), or null -- for the RULED CARVE-OUTS alone (the user's Q-D of 2026-11-21 and Q-S7a/Q-S7b of
+     *  2026-11-22): an effect's SQL or DDL text, a seed's CSV, the test-data generator's load text, a caller's message
+     *  (a final print), and, until B3, the compatibility edge's SQL-text and plan-text goldens. Each caller is pinned
+     *  ({@code LiteralJoinCensusTest}); a compared value takes {@link #tokens}. */
+    public static @com.legend.base.Nullable Object joined(TypedSpec e, List<TypedSpec> lets) {
+        return fold(e, lets);
+    }
+
+    /** Whether {@code e} is a literal-only expression over {@code lets} (its value read by no one: a predicate). */
+    public static boolean isConstant(TypedSpec e, List<TypedSpec> lets) {
+        return fold(e, lets) != null;
+    }
+
     /** The constant value of {@code e} — a String, a Number, or a List of those — or
      * null when {@code e} is not a literal-only expression over {@code lets}. */
-    public static @com.legend.base.Nullable Object fold(TypedSpec e, List<TypedSpec> lets) {
+    private static @com.legend.base.Nullable Object fold(TypedSpec e, List<TypedSpec> lets) {
         return switch (e) {
             case TypedCString s -> s.value();
             case TypedCInteger i -> i.value();

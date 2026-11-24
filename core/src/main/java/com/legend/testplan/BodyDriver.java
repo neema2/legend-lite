@@ -156,7 +156,7 @@ public final class BodyDriver {
                     failureMessage, appealOn, verdictIds, appeals);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
-         *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
+         *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runTyped}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
             return new ExecEnv(plan, target, options, verdictBatch,
@@ -220,10 +220,8 @@ public final class BodyDriver {
     /** The body's verdict batch: the fusion (flat WITH + UNION ALL), the judge, and the runner that sends each
      * statement as a plan (JudgePlans, step 6). */
     static com.legend.testplan.VerdictBatch newVerdictBatch(ExecEnv env) {
-        return new com.legend.testplan.VerdictBatch(com.legend.lowering.VerdictSql::batch,
-                (row, name, wantEqual) -> com.legend.lowering.VerdictSql.selfContained(row, name, wantEqual,
-                        DatabaseJudge.words(env)), JudgePlans.runner(env),
-                env.verdictIds(), DatabaseJudge.words(env));
+        return new com.legend.testplan.VerdictBatch(com.legend.lowering.VerdictSql::batch, JudgePlans.runner(env),
+                env.verdictIds());
     }
 
     /** Whether {@code nc} is a native of the asserts package, asked by its declaration: the verdict family's members
@@ -643,14 +641,15 @@ public final class BodyDriver {
         return com.legend.resolver.StagedRows.storeOf(body, env.ctx(), env.runtimeFqn());
     }
 
-    /** The folded constant as the result the wire would have produced, or null. */
+    /** The constant {@code fold} admits as the result the wire would have produced, or null: the program's tokens, or
+     *  for a ruled carve-out their join ({@link HostSides.Fold}). */
     private static @com.legend.base.Nullable TypedSide foldedSide(TypedSpec value,
-            java.util.List<TypedSpec> lets) {
-        Object v = com.legend.compiler.spec.typed.Literals.fold(value, lets);
-        return switch (v) {
+            java.util.List<TypedSpec> lets, HostSides.Fold fold) {
+        return switch (fold.joins() ? com.legend.compiler.spec.typed.Literals.joined(value, lets)
+                : com.legend.compiler.spec.typed.Literals.tokens(value, lets)) {
             case null -> null;
             case java.util.List<?> l -> new TypedSide.Collection(new java.util.ArrayList<>(l), value.info().type().typeName());
-            default -> new TypedSide.Scalar(v, value.info().type().typeName());
+            case Object v -> new TypedSide.Scalar(v, value.info().type().typeName());
         };
     }
 
@@ -736,12 +735,12 @@ public final class BodyDriver {
      *  read value's as the database holds both). The plan JudgePlans runs. */
     static PlannedValue planHostSide(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env, boolean identity, boolean fold,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env, boolean identity, HostSides.Fold fold,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         java.util.List<TypedSpec> inlined = com.legend.planner.BodyPlanner.inlinedSide(value, letPrefix, specs, env.plan(), hook);
-        TypedSide constant = fold ? foldedSide(inlined.get(inlined.size() - 1),
-                inlined.subList(0, inlined.size() - 1)) : null;
+        TypedSide constant = fold.any() ? foldedSide(inlined.get(inlined.size() - 1),
+                inlined.subList(0, inlined.size() - 1), fold) : null;
         if (constant != null) {
             return new PlannedValue(null, constant, null, !com.legend.compiler.spec.typed.Literals.bare(
                     inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1)));
@@ -754,7 +753,7 @@ public final class BodyDriver {
         } finally {
             EngineTextGates.restoreMarking(env, priorOrigin);
         }
-        if (fold && b.answered() == null) {
+        if (fold.any() && b.answered() == null) {
             // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
             TypedSide folded = LiteralFold.fold(b.root());
             if (folded != null) {
@@ -835,7 +834,8 @@ public final class BodyDriver {
      *  evaluation through the pipeline deleted; a SQL text built at run time is S133's text hole). */
     static String evalStringArg(java.util.List<TypedSpec> body, TypedSpec arg,
             ExecEnv env) {
-        if (com.legend.compiler.spec.typed.Literals.fold(arg, body.subList(0, body.size() - 1)) instanceof String folded) {
+        // an effect's text sent as written, or a seed's CSV: a ruled carve-out (Q-D, 2026-11-21)
+        if (com.legend.compiler.spec.typed.Literals.joined(arg, body.subList(0, body.size() - 1)) instanceof String folded) {
             return folded;
         }
         throw new IllegalStateException("an effect native's String argument that does not fold at planning (a"

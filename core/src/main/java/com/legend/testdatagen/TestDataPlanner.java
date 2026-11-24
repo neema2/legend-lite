@@ -5,6 +5,7 @@ package com.legend.testdatagen;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.error.AssertFailed;
+import com.legend.error.AssertKind;
 import com.legend.error.NotImplementedException;
 import com.legend.lineage.ScanRelations;
 import com.legend.model.DatabaseDefinition;
@@ -758,21 +759,16 @@ public final class TestDataPlanner {
             Queries queries) {
         List<ScanRelations.Rel> roots = ScanRelations.relTree(ctx, query, mappingFqn);
         if (roots.size() != 1) {
-            throw new AssertFailed(viewRoot
-                    ? "Seed data generation currently supports queries with a single root table/view (unions are not"
-                            + " supported)"
-                    : "Seed data generation currently supports queries with a single root (got: " + roots.size()
-                            + ")");
+            throw new AssertFailed(viewRoot ? AssertKind.SEED_SINGLE_ROOT_VIEW.record()
+                    : AssertKind.SEED_SINGLE_ROOT.record(java.util.Map.of("count", Integer.toString(roots.size()))));
         }
         // a set operation at the query's root is two roots for upstream's relation tree (one per branch), whose
         // lineage lite's relation tree does not split: refused with upstream's words, its count the branches' (the
         // B2d.3 audit's L6, 2026-11-12 -- until then refused as keys that cannot be carried)
         SqlQuery lowered = queries.lowered(query);
         if (lowered instanceof com.legend.sql.SqlUnion u) {
-            throw new AssertFailed(viewRoot
-                    ? "Seed data generation currently supports queries with a single root table/view (unions are not"
-                            + " supported)"
-                    : "Seed data generation currently supports queries with a single root (got: " + branches(u) + ")");
+            throw new AssertFailed(viewRoot ? AssertKind.SEED_SINGLE_ROOT_VIEW.record()
+                    : AssertKind.SEED_SINGLE_ROOT.record(java.util.Map.of("count", Integer.toString(branches(u)))));
         }
         ScanRelations.Rel root = roots.get(0);
         String db = root.db();
@@ -781,8 +777,7 @@ public final class TestDataPlanner {
             if (!viewRoot) {
                 // upstream's words (the B2d.3 audit's L9): the root node's type()->makeString(), the relation tree
                 // node's class, whose name Pure's toString answers (TDG:222)
-                throw new AssertFailed("Seed data generation currently supports queries with a root table"
-                        + " (unions/views are not supported, got: RelationTree)");
+                throw new AssertFailed(AssertKind.SEED_ROOT_TABLE.record());
             }
             ScanRelations.Rel base = ScanRelations.viewExpansion(ctx, db, table).tree();
             db = base.db();
@@ -980,8 +975,7 @@ public final class TestDataPlanner {
         List<String> nonNull = def.columns().stream().filter(c -> c.notNull() && !long1000(c.dataType()))
                 .map(DatabaseDefinition.ColumnDefinition::name).toList();
         if (nonNull.isEmpty()) {
-            throw new AssertFailed("Table : " + table + " must have atleast 1 primary key or non-null column to"
-                    + " utilise this feature");
+            throw new AssertFailed(AssertKind.SEED_TABLE_KEYS.record(java.util.Map.of("table", table)));
         }
         return nonNull;
     }
@@ -1132,16 +1126,17 @@ public final class TestDataPlanner {
         for (Expected e : expected) {
             boolean defaultSchema = "default".equals(e.schema());
             if (!defaultSchema && !hasSchema(ctx, dbFqn, e.schema(), new java.util.HashSet<>())) {
-                return fails(lead + "There should be exactly 1 schema with name " + e.schema() + " found in the"
-                        + " provided runtime database(s) [" + dbFqn + "] at the given connection.");
+                // the catalog's words, the CSV seed's (item 3's S1 audit, M1: one catalog, no second copy)
+                return fails(lead + AssertKind.CSV_SCHEMA_NOT_FOUND.record(Map.of("schema", e.schema(), "databases",
+                        dbFqn)).sentence());
             }
             // the default schema's table by its schema too: a bare name would find a named schema's table of that name
             // (upstream's schema('default')->table(T) does not; the B2d.3 audit's L1)
             DatabaseDefinition.TableDefinition def = ctx.findTableDefinition(dbFqn, e.schema() + "." + e.table())
                     .orElse(null);
             if (def == null) {
-                return fails(lead + "Table \"" + e.table() + "\" not found in Schema \"" + e.schema()
-                        + "\" in Database(s) " + dbFqn);
+                return fails(lead + AssertKind.CSV_TABLE_NOT_FOUND.record(Map.of("table", e.table(), "schema", e.schema(),
+                        "databases", dbFqn)).sentence());
             }
             List<String> header = new ArrayList<>(e.header().size());
             for (String h : e.header()) {
@@ -1153,8 +1148,8 @@ public final class TestDataPlanner {
                     }
                 }
                 if (col == null) {
-                    return fails(lead + "Column \"" + h + "\" not found in Table \"" + e.table()
-                            + "\" in Database(s) " + dbFqn);
+                    return fails(lead + AssertKind.CSV_COLUMN_NOT_FOUND.record(Map.of("column", h, "table", e.table(),
+                            "database", dbFqn)).sentence());
                 }
                 header.add(col.name());
             }

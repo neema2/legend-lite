@@ -29,11 +29,33 @@ public final class HostSides {
     private HostSides() {
     }
 
+    /**
+     * What the compiler may answer for a side without a statement (item 3's S7, the user's Q-D of 2026-11-21 and
+     * Q-S7a/Q-S7b of 2026-11-22: Java never computes a value the program compares). {@link #NONE}: nothing, the side is
+     * planned. {@link #TOKENS}: the program's constant tokens verbatim ({@code Literals.tokens}); a join of them is the
+     * database's to compute. {@link #MESSAGE}: a caller's failure message, a final print, its literals joined
+     * ({@code Literals.joined}, a ruled carve-out). {@link #EDGE_TEXT}: the compatibility edge's SQL-text and plan-text
+     * verdicts' texts, their literals joined -- a TEMPORARY carve-out (Q-S7a), deleted by B3.
+     */
+    public enum Fold {
+        NONE, TOKENS, MESSAGE, EDGE_TEXT;
+
+        /** Whether a constant is answered at all. */
+        public boolean any() {
+            return this != NONE;
+        }
+
+        /** Whether the answer may be the compiler's join of the program's literals. */
+        public boolean joins() {
+            return this == MESSAGE || this == EDGE_TEXT;
+        }
+    }
+
     /** One side an arm asks for: the argument and the flags {@link JudgePlans#evalSide} took for it. */
-    public record Ask(TypedSpec arg, boolean identity, boolean fold,
+    public record Ask(TypedSpec arg, boolean identity, Fold fold,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.@com.legend.base.Nullable ExecEnv at) {
         /** An ask planned under the step's environment. */
-        Ask(TypedSpec arg, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+        Ask(TypedSpec arg, boolean identity, Fold fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
             this(arg, identity, fold, hook, null);
         }
     }
@@ -86,11 +108,12 @@ public final class HostSides {
                 || m.innerSides() != check.asks().size() - 1) {
             return null;
         }
-        // the message's planning failure is read for its text alone, never raised: its text, not a failure record
-        // (the slice 1 audit, 2026-11-08: a class off the closed list must not fail here) -- the assert's whole failure
-        // text, planned (AssertMessages.unevaluated; slice 5, 2026-11-09: the run spells no message of its own)
+        // the message's error, planned as data and raised in place of the assert's failure where the assert fails, and
+        // only there (item 3, 2026-11-21, the user's ruling: the message lazy, its error the outcome; until then lite's
+        // sentence around the error's text, AssertMessages.unevaluated). An error upstream raises at run alone: any
+        // other refuses the body (D, Failures.planned)
         return new Check(check.asks().subList(0, m.innerSides()), new HostJudgment.Messaged(m.inner(), m.innerSides(),
-                com.legend.compiler.spec.AssertMessages.unevaluated(String.valueOf(failure.getMessage()))));
+                com.legend.testexecutionplan.Failures.planned(failure, "an assert's message")));
     }
 
     /** An arm's sides PLANNED, in its order: one verdict's base and what shaping each needs once it ran; {@code on}

@@ -1321,13 +1321,9 @@ final class ArchitectureTest {
             // user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4) (a guard
             // moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
-            // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
-            // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
-            // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
-            // the frame's shape it reads, the canons
-            "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
-                    + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
-            "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            // (census J29's legend-pure words of the database judge's failures, the edge's UpstreamVerdictWords, and the
+            // product parts it read -- VerdictSql#represented, gone at item 3's S0, and VerdictSql#quoted: gone from this
+            // census 2026-11-21, item 3's S3, a shrink, with UpstreamVerdictWords)
             // (VerdictWords$Reads#CANONS until 2026-11-18, then VerdictReads#CANONS -- the enum left the two-form kind
             // for its own type, the GUARD stream's re-cut on train 15 1931d419b1 -- deleted with legend-pure's canon
             // reading in A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the
@@ -4020,11 +4016,9 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.DatabaseVerdicts")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostForms")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostForms")
-            // the host judge's words of a failed assert (census J29, train 14's 21a9734475; registered 2026-11-18 by the
-            // GUARD stream's re-cut on train 15 1931d419b1, where this rule first met them): the run hook HostForms
-            // names, the kind and lite's form; each words a verdict over Equality's typed grids, never decides one
-            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostWords")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostWords")
+            // the host judge's failed asserts as records (census J29's HostWords and LiteHostWords until 2026-11-21, item
+            // 3's S2): each a record of a verdict over Equality's typed grids, never deciding one
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.AssertRecords")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
             // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
@@ -5174,5 +5168,57 @@ final class ArchitectureTest {
     void theHookRuleBitesAPlantedStyle() {
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(PlantedUpstreamStyle.class.getName()),
                 upstreamSidesOutsideTheEdge(new ClassFileImporter().importClasses(PlantedUpstreamStyle.class)));
+    }
+
+    /**
+     * R1 OF ITEM 3 (docs/records/compat-assert-records-2026-11-21.md section 6, S5, 2026-11-23): THE DATABASE JUDGE IS
+     * LITE'S FLOW'S ALONE. Its classes -- the verdict statements' builder, the judge's planners, its batch, its run's
+     * reader and the root loops -- reach no class of the compatibility edge and no style's two-form table: the host
+     * judge is the only judge in compatibility (rule 4 of the compatibility program's rules of record, the user's words
+     * of 2026-11-19), so nothing the database judge plans or reads may depend on an audience. HostOnlyCompatibilityTest
+     * holds the run half (a compatibility style refuses the database judge by name); this holds the code half.
+     */
+    @Test
+    void theDatabaseJudgeReachesNoEdge() {
+        // the database judge's classes, by name (their nested classes with them); a literal, so GuardNamesExistTest
+        // reads it (S6's round, 2026-11-23: a name handed in went unread)
+        theDatabaseJudgeReachesNoEdgeRule(noClasses().that().haveNameMatching("com\\.legend\\.(lowering\\.VerdictSql|"
+                + "testplan\\.(DatabaseJudge|DatabaseAsserts|VerdictBatch)|testexec\\.(DatabaseVerdicts|RootLoops))(\\$.*)?"))
+                .check(CORE_PROD_CLASSES);
+    }
+
+    static com.tngtech.archunit.lang.ArchRule theDatabaseJudgeReachesNoEdgeRule(
+            com.tngtech.archunit.lang.syntax.elements.GivenClassesConjunction judge) {
+        // transitively, and the plan style's audience channel itself -- asking a style for a facet or a two-form table
+        // (the audit of 8477c703: the rule read direct dependencies alone, and named no call)
+        return judge
+            .should().transitivelyDependOnClassesThat().resideInAPackage("com.legend.edge..")
+            .orShould().transitivelyDependOnClassesThat().haveFullyQualifiedName("com.legend.testplan.PlanStyleFacets")
+            .orShould().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a plan style asked for a facet or a two-form table",
+                    (com.tngtech.archunit.core.domain.JavaMethodCall call) ->
+                            call.getTargetOwner().isAssignableTo(com.legend.database.PlanStyle.class)
+                                    && (call.getName().equals("facet") || call.getName().equals("twoForm"))))
+            .because("the database judge is lite's flow's alone: the host judge is the only judge in compatibility"
+                    + " (item 3's R1)");
+    }
+
+    /** R1 bites: a planted class matched as a judge class that names a style's two-form table is caught. */
+    @Test
+    void theDatabaseJudgeRuleBitesAPlantedReach() {
+        var planted = new ClassFileImporter().importClasses(PlantedStyleReach.class);
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> theDatabaseJudgeReachesNoEdgeRule(
+                noClasses().that().belongToAnyOf(PlantedStyleReach.class)).check(planted));
+    }
+
+    // (onlyTheHostJudgeReadsAVariantDocument and its bite test, 2026-11-23 -> deleted the same day with the class it
+    // guarded: testexec.JsonDocument went when register S401 was ruled by the user, 2026-11-23, "Okay" -- two whole
+    // Variants are refused by name at planning, so neither judge compares two Variant documents)
+
+    /** A class that names a style's two-form table, as a database judge class must not. */
+    static final class PlantedStyleReach {
+        static Class<?> styles() {
+            return com.legend.testplan.PlanStyleFacets.class;
+        }
     }
 }

@@ -7,7 +7,8 @@ package com.legend.error;
  * WHERE AN ERROR PASSED THROUGH, AS DATA (stage B's BE, the one error model, 2026-11-21): the context lite's compiler
  * adds around an error raised inside it -- the function whose body it was, the calls it was inlined through -- each a
  * frame of the error's record ({@link ErrorRecord.Frame}), worded around the inner error by lite's templates, a text
- * before it and a text after it. Until BE these were the wrappers' stated texts (B1's prefix and suffix).
+ * before it and a text after it -- and, since item 3 (2026-11-21), the element of a quantified assert whose failure
+ * it frames ({@link #AT_INDEX}). Until BE these were the wrappers' stated texts (B1's prefix and suffix).
  */
 public enum FrameKind implements ErrorCode {
     /** The body of a function: its name. */
@@ -22,7 +23,10 @@ public enum FrameKind implements ErrorCode {
     INLINED_VIA("", " [inlined via %1$s]"),
     /** A relation function's body whose columns are not its declared type's: the function, the body's columns, the
      *  declared type, its columns. */
-    BODY_ANSWERS("the body of %1$s answers %2$s where its declared %3$s has %4$s: ", "");
+    BODY_ANSWERS("the body of %1$s answers %2$s where its declared %3$s has %4$s: ", ""),
+    /** A quantified assert's failing element (item 3, 2026-11-21: until then AssertSentence's AT_INDEX row, a sentence
+     *  inside a sentence): its zero-based index, the one {@code ->at(i)} takes, after the element's own failure. */
+    AT_INDEX("", " at index %1$s");
 
     private final String before;
     private final String after;

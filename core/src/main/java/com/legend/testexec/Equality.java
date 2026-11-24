@@ -142,12 +142,18 @@ public final class Equality {
     public static boolean same(Typed et, Typed at, HostRules rules) {
         Object e = et.value();
         Object a = at.value();
-        if (e == null || a == null) {
-            return e == a;
+        // a Variant is never the same as a String, a number or a Boolean of the same text (Pure's classifier is part of
+        // the value; the audit of c2217801, 2026-11-23); two Variants are refused at planning (register S401, ruled by
+        // the user 2026-11-23: legend-pure's identity), so two Variant values never meet here, and one equals nothing
+        // (the narrow review of f9e74256: equal JSON had been called equal); an enumeration's value is carried as its
+        // enumeration and name (LiteWords.EnumName, register S169), equal to the same enumeration's same name alone
+        if (e == null || a == null || e instanceof LiteWords.Kinded || a instanceof LiteWords.Kinded) {
+            return e == null && a == null || e instanceof LiteWords.EnumName && e.equals(a);
         }
         if ((e instanceof Map<?, ?> || e instanceof List<?>)
                 && (a instanceof Map<?, ?> || a instanceof List<?>)) {
-            return structural(e, a, rules);
+            // an object is never an array (the audit of c2217801: [] against {} recursed through the leaf without end)
+            return (e instanceof Map<?, ?>) == (a instanceof Map<?, ?>) && structural(e, a, rules);
         }
         Kind ek = effectiveKind(et);
         Kind ak = effectiveKind(at);
@@ -215,7 +221,7 @@ public final class Equality {
         if (ek == Kind.BOOLEAN) {
             return e.equals(a);
         }
-        return e.equals(a);   // dates: the literal's own equality
+        return rules.forms().equalDates(e, a);   // dates: the run hook's form (register S399)
     }
 
     private static boolean structural(Object e, Object a, HostRules rules) {
@@ -238,21 +244,17 @@ public final class Equality {
         return true;
     }
 
-    /** The engine's {@code assertSameElements}: sort both sides by the
-     * value order, then ordered. */
+    /** The engine's {@code assertSameElements}: sort both sides by the value order, then ordered -- legend-pure's
+     *  {@code assertEquals($expected->sort(), $actual->sort())} (assertSameElements.pure:11). An instance or a map has
+     *  no value order: those are matched as a multiset, each expected one to an equal actual one, never lined up by
+     *  their text (the instances design's HIGH, 2026-11-22: two instances whose fields are one value written two ways,
+     *  {@code 1.5D} and {@code 1.50D}, sorted apart by their text and failed a pair the database judge holds). */
     public static boolean sameElements(List<Typed> e, List<Typed> a, HostRules rules) {
-        return ordered(sorted(e), sorted(a), rules);
-    }
-
-    /** True when every element of {@code needle} has an equal in
-     * {@code hay} (membership, the contains / forAll family). */
-    public static boolean contains(List<Typed> hay, Typed needle, HostRules rules) {
-        for (Typed h : hay) {
-            if (same(needle, h, rules)) {
-                return true;
-            }
-        }
-        return false;
+        List<Typed> es = sorted(e), as = sorted(a);
+        int k = (int) es.stream().takeWhile(t -> !(t.value() instanceof Map<?, ?>)).count();
+        return e.size() == a.size() && k == as.stream().takeWhile(t -> !(t.value() instanceof Map<?, ?>)).count()
+                && ordered(es.subList(0, k), as.subList(0, k), rules)
+                && rowMultiset(es.subList(k, es.size()), as.subList(k, as.size()), 1, rules);
     }
 
     /** A grid's flat cells paired with their COLUMN kinds (cycling per
@@ -311,6 +313,7 @@ public final class Equality {
             case Boolean b -> 3;
             case com.legend.values.PureDateLiteral d -> 4;
             case Map<?, ?> m -> 5;
+            case LiteWords.Kinded k -> 6;   // a Variant's JSON, an enumeration's value (S401, S169)
             default -> throw new Unjudged("sort over " + v.getClass().getName());
         };
     }
@@ -323,7 +326,8 @@ public final class Equality {
             case String s -> s;
             case Boolean b -> b;
             case com.legend.values.PureDateLiteral d -> d.toInstantFloor();
-            default -> String.valueOf(v);   // maps: stable text order
+            case LiteWords.Kinded k -> k.sortKey();   // equal values sort together (LiteWords.Kinded)
+            default -> "";   // instances and maps: no order of their own (sameElements matches them)
         };
     }
 

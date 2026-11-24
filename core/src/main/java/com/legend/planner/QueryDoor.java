@@ -233,10 +233,12 @@ public final class QueryDoor {
         return inner;
     }
 
-    /** An assert's call: a verdict function, {@code fail} aside (a raise; by its declarations). */
+    /** An assert's call: a verdict function, {@code fail} and an in-body assert's raise aside (raises; by their
+     *  declarations). */
     private static boolean isAssert(TypedSpec n) {
         return StatementEffects.isVerdictCall(n) && !(n instanceof TypedNativeCall nc
-                && Pure.AT_ASSERTS_FAIL.contains(nc.callee().id()));
+                && (Pure.AT_ASSERTS_FAIL.contains(nc.callee().id())
+                        || Pure.AT_LEGEND_LITE_ASSERT_RAISE.contains(nc.callee().id())));
     }
 
     /** Whether the runtime {@code fqn} binds a connection that declares test data (its connection's seeds). */

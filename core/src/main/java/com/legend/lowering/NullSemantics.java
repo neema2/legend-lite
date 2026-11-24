@@ -123,6 +123,12 @@ final class NullSemantics {
                 && (ops.get(0) instanceof SqlExpr.NullLit || ops.get(1) instanceof SqlExpr.NullLit)) {
             return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
         }
+        if (n.args().size() == 2) {
+            // two whole Variants, or a Variant and an Any the plan cannot see, or a Variant among other values: only
+            // identity decides (register S401), refused by name (VariantEquality.between; its DISJOINT pairs the
+            // Lowerer folds before this, InstanceEquality.disjointAnswer)
+            com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1));
+        }
         if (ops.size() == 2
                 && ops.get(0) instanceof SqlExpr.Column
                 && ops.get(1) instanceof SqlExpr.Column

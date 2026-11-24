@@ -6,7 +6,7 @@ package com.legend.edge;
 import com.legend.testexecutionplan.AssertListener;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
-import static com.legend.testexecutionplan.Verdicts.fail;
+import static com.legend.edge.SqlTextReferee.fail;
 import static com.legend.edge.SqlTextReferee.isPopulationGolden;
 import static com.legend.edge.SqlTextReferee.stripChainedPlanWarning;
 import static com.legend.edge.SqlTextReferee.scalarString;

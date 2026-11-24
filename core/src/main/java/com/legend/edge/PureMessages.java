@@ -34,7 +34,8 @@ public final class PureMessages {
     }
 
     /** A raised site's sentence: the one catalog's ({@code result.RaiseWords}, the user's ruling of 2026-11-21: lite
-     *  says legend-pure's sentence wherever legend-pure has one), the same the run says. */
+     *  says legend-pure's sentence wherever legend-pure has one, an in-body assert's failure aside -- the assert
+     *  catalog's, Q15 = A), the same the run says. */
     public static String worded(com.legend.executionplan.ExecutionPlan.Site site) {
         return com.legend.result.RaiseWords.sentence(site);
     }
@@ -118,6 +119,8 @@ public final class PureMessages {
             case com.legend.error.CompileKind k -> upstream(k, values);
             // a run's error with no site: the catalog's sentence (a load's refused file legend-engine's, FILE_TOO_LARGE)
             case com.legend.error.ErrorKind k -> k.sentence(values);
+            // a failed assert: lite's catalog on every route (the user's Q15 = A, 2026-11-20; item 3, 2026-11-21)
+            case com.legend.error.AssertKind k -> k.sentence(values);
             case com.legend.error.FrameKind f -> throw new IllegalStateException("an error's code is never a frame's: "
                     + f);
         });

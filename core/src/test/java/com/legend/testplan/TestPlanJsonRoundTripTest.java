@@ -37,6 +37,10 @@ import org.junit.jupiter.api.Test;
  */
 class TestPlanJsonRoundTripTest {
 
+    /** A typed row's report (item 3's S4: every database row is typed). */
+    private static final RootLoop.Report CONDITION = new RootLoop.Report(RootLoop.Family.CONDITION, true, null, null,
+            null, -1);
+
     private static final ExecutionPlan.Multiplicity ONE = new ExecutionPlan.Multiplicity(1, 1);
     private static final Failure FAILURE = new Failure(Failure.Kind.NOT_IMPLEMENTED, "refused", null, null, null);
 
@@ -52,7 +56,50 @@ class TestPlanJsonRoundTripTest {
     private static final Failure FILE_FAILURE = new Failure(Failure.Kind.DATA, null, null, null, null,
             com.legend.error.ErrorRecord.of(com.legend.error.ErrorKind.FILE_TOO_LARGE,
                     List.of("/big.csv", "1048577", "1048577", "1")));
+    /** A planned assert failure's record (item 3, 2026-11-21): its kind and values, an element's inside its index's
+     *  frame; no message rides it. */
+    private static final Failure ASSERT_FAILURE = new Failure(Failure.Kind.ASSERT_FAILED, null, null, null, null,
+            com.legend.error.AssertKind.EQUALS.record(java.util.Map.of("expected", "1", "actual", "2")).framed(
+                    new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.AT_INDEX, List.of("0"))));
     private static final Assertion ASSERTION = new Assertion("assertEquals", "equality", true, null);
+
+    /** A planned assert failure is raised at its turn as the assert's failure over the same record, its message the
+     *  catalog's sentence (item 3, 2026-11-21). */
+    @Test
+    void aPlannedAssertFailureIsRaisedAsItsRecord() {
+        RuntimeException e = com.legend.testexecutionplan.Failures.raised(ASSERT_FAILURE);
+        org.junit.jupiter.api.Assertions.assertTrue(e instanceof com.legend.error.AssertFailed, e.getClass().getName());
+        org.junit.jupiter.api.Assertions.assertEquals(ASSERT_FAILURE.record(),
+                ((com.legend.error.AssertFailed) e).record());
+        org.junit.jupiter.api.Assertions.assertEquals("expected 1, got 2 at index 0", e.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals(ASSERT_FAILURE, com.legend.testexecutionplan.Failures.of(
+                (com.legend.error.AssertFailed) e, "the test"));
+    }
+
+    /** A failure refuses a record not its kind's code, and a record beside a decline's reason (the S1 audit's L5). */
+    @Test
+    void anAssertFailureRefusesARecordNotAnAssertsOrBesideADecline() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> new Failure(
+                Failure.Kind.ASSERT_FAILED, null, null, null, null, com.legend.error.ErrorRecord.of(
+                        com.legend.error.ErrorKind.DIVIDE_BY_ZERO, List.of())));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> new Failure(
+                Failure.Kind.ASSERT_FAILED, null, null, null, "a decline", ASSERT_FAILURE.record()));
+    }
+
+    /** A plan whose assert record holds other than its sentence's slots is refused as it is read (the S1 audit's L5). */
+    @Test
+    void anAssertRecordOfTheWrongArityIsRefusedOnRead() {
+        TestPlan.Verdict v = new TestPlan.Verdict(1, "v1", "arm", List.of(constant()), null, null, false,
+                new TestPlan.Host(ASSERTION, new HostJudgment.Raise(ASSERT_FAILURE), List.of(shape())));
+        TestPlan plan = new TestPlan(List.of(), List.of(new TestPlan.Verdicts(List.of(v), null, null)),
+                TestPlan.Judge.HOST, Map.of(), Map.of(), false, anyTarget(),
+                new com.legend.testexecutionplan.BodyFacts(true, false, true, "A"));
+        String json = com.legend.testexecutionplan.TestPlanJson.write(plan);
+        String one = json.replaceFirst("\\[\"1\",\\s*\"2\"\\]", "[\"1\"]");
+        org.junit.jupiter.api.Assertions.assertNotEquals(json, one, "the record's two values were found");
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> com.legend.testexecutionplan.TestPlanJson.read(one));
+    }
 
     @Test
     void everyRecordReadsBackEqual() {
@@ -77,12 +124,14 @@ class TestPlanJsonRoundTripTest {
         RootLoop roots = new RootLoop(List.of(
                 // (a refused row and a refused message went 2026-11-21, stage B's BE: a dialect's refusal refuses the
                 // body at planning, D)
-                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1), new RootLoop.Row("second", 2)),
+                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, CONDITION), new RootLoop.Row("second", 2, CONDITION)),
                         new RootLoop.Message(constant(), true)),
                 new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
-                        new RootLoop.Message(constant(), false))),
+                        new RootLoop.Message(constant(), false)),
+                // a caller's message whose computing raises: its error rides the root, no message (item 3, 2026-11-21)
+                new RootLoop.Root("assertSize", List.of(new RootLoop.Row("third", 3, CONDITION)), null, FILE_FAILURE)),
                 Map.of("fragment", "reason"));
-        TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots);
+        TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots, null);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
         Map<Integer, List<Extension>> byStep = new LinkedHashMap<>();
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),
@@ -91,8 +140,7 @@ class TestPlanJsonRoundTripTest {
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words",
                 null)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
-                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
-                TestPlan.LITE_WORDS);
+                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"));
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }
@@ -107,7 +155,9 @@ class TestPlanJsonRoundTripTest {
         HostJudgment.Keys keys = new HostJudgment.Keys(tree, null, true, false, Map.of("my::D", nested));
         HostJudgment.Part part = new HostJudgment.Part(ASSERTION, new HostJudgment.Size(true), 2);
         return List.of(
-                new HostJudgment.AllRows("allRows", true, "message"),
+                new HostJudgment.AllRows("allRows", true, com.legend.error.AssertKind.MESSAGE.record(
+                        java.util.Map.of("message", "a caller's message"))),
+                new HostJudgment.AllRows("allRows", false, com.legend.error.AssertKind.FALSE.record()),
                 new HostJudgment.Rows("rows", true, List.of(new HostJudgment.RowArg.Whole(),
                         new HostJudgment.RowArg.Field("f"), new HostJudgment.RowArg.Literal("Long", "1")),
                         "my::C", null, new HostJudgment.Pairing.Zip(new HostJudgment.Pairing.Arm(0),
@@ -117,15 +167,17 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.GridPair("grid", true, false),
                 new HostJudgment.Size(false),
                 new HostJudgment.Contains(e, new HostJudgment.SideFacts(null, new KindClass.Enum("my::E"), false,
-                        false, false, "E", "E")),
+                        false, false, "E", "E"), keys),
                 new HostJudgment.Tolerance(),
                 new HostJudgment.Condition("condition", false),
                 new HostJudgment.Subset("subset", true),
                 new HostJudgment.Empty(true),
                 new HostJudgment.Eq(e, a, keys),
-                new HostJudgment.InstanceOf("my::C", Set.of("my::C", "my::B")),
+                new HostJudgment.InstanceOf("my::C", Set.of("my::C", "my::B"), "my::C"),
                 new HostJudgment.Is("is"),
-                new HostJudgment.Decided(true, "held"),
+                new HostJudgment.Decided(true, null),
+                new HostJudgment.Decided(false, com.legend.error.AssertKind.EQUALS.record(
+                        java.util.Map.of("expected", "a::A", "actual", "a::B"))),
                 new HostJudgment.SameElements(e, new HostJudgment.SideFacts("my::F", new KindClass.Element("my::F"),
                         false, false, false, "F", "F"), true, keys),
                 new HostJudgment.Equals("equals", true, false, true, e, a, keys,
@@ -135,10 +187,12 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Raise(FAILURE),
                 new HostJudgment.Raise(COMPILE_FAILURE),
                 new HostJudgment.Raise(FILE_FAILURE),
+                new HostJudgment.Raise(ASSERT_FAILURE),
                 new HostJudgment.EdgeJudged(new com.legend.edge.EngineTextJudgment("text", "golden", "ours", false, "decline"), 1,
                         "origin", true),
                 new HostJudgment.AssertError("expected", 3L, null, FAILURE, part),
-                new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"),
+                new HostJudgment.Messaged(new HostJudgment.Size(true), 1, FILE_FAILURE),
+                new HostJudgment.Messaged(new HostJudgment.Size(true), 1),
                 new HostJudgment.Negated(new HostJudgment.Size(false), "NOT_SIZE"));
     }
 

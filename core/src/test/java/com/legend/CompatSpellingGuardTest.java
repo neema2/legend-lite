@@ -92,8 +92,8 @@ class CompatSpellingGuardTest {
             "createTableRowIdentifiers(", "createRowIdentifier([",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
             "TDSNull",
-            // legend-pure's assert sentences (census J29, 2026-11-18: the host judge's are the edge's EdgeHostWords; a
-            // planted one in a product source turns this guard red)
+            // legend-pure's assert sentences (census J29, 2026-11-18; since item 3's S2, 2026-11-21, no source holds them:
+            // one catalog of lite's words on every route, Q15 = A; a planted one in a product source turns this guard red)
             "No error was thrown", "Expected non-empty collection", "Execution error message mismatch",
             "Execution error line mismatch", "Execution error column mismatch", "^Assert failed$",
             "should not equal", " does not contain ", "is not equivalent to", "the element references differ",
@@ -193,14 +193,14 @@ class CompatSpellingGuardTest {
             "error/ErrorKind.java | range step must not be 0 | 1 | RULED",
             "error/ErrorKind.java | trying to get an element at offset | 1 | RULED",
             "result/RaiseWords.java | +0000 | 1 | RULED",
-            // census J29 (2026-11-18): "Assert failed", legend-pure's assert.pure default, as the compiler plans an in-body
-            // guard's message where the guard gives none -- RULED STAYS by the orchestrator at J29 (the GUARD stream's
-            // re-cut triage). The user's R1 (2026-11-18, PR #118, "For 118 r1-r3 are fine") covers `assert`: its default
-            // is lite's sentence in the product, Pure.Lite.ASSERT_FAILED_TEXT worded by the plan's style (VerdictQueries'
-            // row went with it). The six other in-body guards (assertTrue, assertFalse, assertEquals, assertNotEquals,
-            // assertEmpty, assertNotEmpty) keep these words on both roads: their lite wording is queued for the user's
-            // ruling after the merge, so this row stays STAYS until then
-            "compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
+            // (compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS: gone 2026-11-23, item 3's S6 -- the user's Q-C =
+            // C1 and Q-S6, the six other guards' lite wording the R1 note queued: an in-body guard with no message of its
+            // caller's raises its assert kind (ASSERT_TRUE, ASSERT_FALSE, ASSERT_NOT_EMPTY), a site the one catalog words
+            // on every route (Q15 = A); the plan carries no sentence, and the plan style's assertFailed went with it)
+            // item 3's S8 (2026-11-22): assertError's "nothing was raised" text, legend-pure's native's own message, which
+            // its matcher reads (AssertError.java:62, CoreGen.java:350, assertError.pure:74): an assertError expecting it
+            // passes, as upstream -- Pure's semantics, not a word; RULED by the user, Q-B ("Q-S8 okay", 2026-11-22)
+            "testexecutionplan/HostJudgment.java | No error was thrown | 1 | RULED",
             // (compiler/spec/VerdictQueries.java | Assert failed | STAYS: gone 2026-11-18, PR #118's fix round, N2 -- the
             // user's R1, "For 118 r1-r3 are fine": the product's default is lite's own sentence; a vector assert with no
             // message fails in the run's words, legend-pure's "Assert failed" the edge's alone)
@@ -478,7 +478,7 @@ class CompatSpellingGuardTest {
      *  owns) and nothing else: a sentence, a separator or a print form here would be upstream's format back in the
      *  product, which the LITERALS list above cannot see unless it is listed. File, then its census line. */
     static final Map<String, String> WORDED_BY_HOOK = Map.of(
-            "testexec/PureAsserts.java", "J17 2026-11-18 (its words EdgePureWords', through PureWords)");
+            "testexec/PureAsserts.java", "J17 2026-11-18 (its failures records of the one catalog since item 3's S2)");
 
     @Test
     void theHookWordedClassesWriteNoWord() throws IOException {

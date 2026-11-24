@@ -189,10 +189,12 @@ Database types planned with it: H2.
 | `REPEAT_VALUE` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `LIST_BOOL_AND` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `LIST_BOOL_OR` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` |  | 0 |
+| `IS_DISTINCT_FROM` | emulated | `nullSafe` |  | 0 |
 | `ALL_DISTINCT` | refused | `collection isDistinct reached a dialect without a list encoding` | `via AnsiSqlRenderer.allDistinct` | 0 |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
+| `NULL_SAFE_EQUAL` | emulated | `nullSafe` |  | 3 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | spelled | `formatdatetime` |  | 193 |
 | `STRPTIME` | spelled | `parsedatetime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
@@ -386,10 +388,12 @@ Database types planned with it: Postgres.
 | `REPEAT_VALUE` | emulated | `array_fill(…, ARRAY[CAST(… AS INTEGER)])` |  | 0 |
 | `LIST_BOOL_AND` | emulated | `overReduce: …bool_and()` | `via Postgres.listCall` | 0 |
 | `LIST_BOOL_OR` | emulated | `overReduce: …bool_or()` | `via Postgres.listCall` | 0 |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` |  | 7 |
+| `IS_DISTINCT_FROM` | emulated | `nullSafe` |  | 7 |
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
+| `NULL_SAFE_EQUAL` | emulated | `nullSafe` |  | 3 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | refused | `to_timestamp(text, fmt) is lenient and zone-bound; not yet probed against the reference reached Postgres:` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
@@ -583,10 +587,12 @@ Database types planned with it: Snowflake.
 | `REPEAT_VALUE` | emulated | `repeatValue` |  | 0 |
 | `LIST_BOOL_AND` | emulated | `nonEmpty: …NOT ARRAY_CONTAINS(TO_VARIANT(FALSE), …)` | `via Snowflake.list` | 0 |
 | `LIST_BOOL_OR` | emulated | `nonEmpty: …ARRAY_CONTAINS(TO_VARIANT(TRUE), …)` | `via Snowflake.list` | 0 |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` |  | 0 |
+| `IS_DISTINCT_FROM` | emulated | `nullSafe` |  | 0 |
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
+| `NULL_SAFE_EQUAL` | emulated | `nullSafe` |  | 3 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftimeArm` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(…)) AS TIMESTAMP_NTZ)` |  | 4 |
@@ -780,10 +786,12 @@ Database types planned with it: Trino.
 | `REPEAT_VALUE` | emulated | `repeat(…, greatest(…, 0))` |  | 0 |
 | `LIST_BOOL_AND` | emulated | `overRows` | `via Trino.listCall` | 0 |
 | `LIST_BOOL_OR` | emulated | `overRows` | `via Trino.listCall` | 0 |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` |  | 0 |
+| `IS_DISTINCT_FROM` | emulated | `nullSafe` |  | 0 |
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
+| `NULL_SAFE_EQUAL` | emulated | `nullSafe` |  | 3 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(9))` |  | 4 |
@@ -981,6 +989,8 @@ Database types planned with it: BigQuery.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | emulated | `nullSafeArm` |  | 3 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafeArm` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `nullSafeArm` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `nullSafeArm` |  | 0 |
 | `STRFTIME` | emulated | `strftimeArm` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `DATETIME(CAST(… AS TIMESTAMP))` |  | 4 |
@@ -1174,10 +1184,12 @@ Database types planned with it: Databricks.
 | `REPEAT_VALUE` | emulated | `array_repeat(…, CAST(… AS INT))` |  | 0 |
 | `LIST_BOOL_AND` | emulated | `overRows` | `via Databricks.listCall` | 0 |
 | `LIST_BOOL_OR` | emulated | `overRows` | `via Databricks.listCall` | 0 |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` |  | 0 |
+| `IS_DISTINCT_FROM` | emulated | `nullSafe` |  | 0 |
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
+| `NULL_SAFE_EQUAL` | emulated | `nullSafe` |  | 3 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
@@ -1371,10 +1383,12 @@ Database types planned with it: DuckDB.
 | `REPEAT_VALUE` | emulated | `list_transform(range(…), _i -> …)` | `via DuckDb.listCall` | 0 |
 | `LIST_BOOL_AND` | emulated | `list_aggregate(…, 'bool_and')` | `via DuckDb.listCall` | 0 |
 | `LIST_BOOL_OR` | emulated | `list_aggregate(…, 'bool_or')` | `via DuckDb.listCall` | 0 |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` |  | 0 |
+| `IS_DISTINCT_FROM` | emulated | `nullSafe` |  | 0 |
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
+| `NULL_SAFE_EQUAL` | emulated | `nullSafe` |  | 3 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `sameLists: list_sort` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `sameLists: list_sort` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | spelled | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
@@ -1572,6 +1586,8 @@ Database types planned with it: ClickHouse.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | emulated | `coalesce(… = …, isNull(…) AND isNull(…))` |  | 3 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `NOT coalesce(… = …, isNull(…) AND isNull(…))` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `sameValues` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `sameValues` |  | 0 |
 | `STRFTIME` | emulated | `composed in a block` | `via ClickHouse.temporal` | 193 |
 | `STRPTIME` | emulated | `composed in a block` | `via ClickHouse.temporal` | 0 |
 | `PARSE_DATE` | emulated | `parseDateTime64BestEffort(…, 6, 'UTC')` | `via ClickHouse.temporal` | 4 |
@@ -1622,13 +1638,13 @@ Database types planned with it: SQLite.
 | `IN` | emulated | `in` |  | 6 |
 | `COALESCE` | emulated | `by its operands: composed / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `parseInt` |  | 11 |
-| `CONCAT` | emulated | `flattenConcat, asText: concat(, …)` |  | 756 |
+| `CONCAT` | emulated | `concatParts, flattenConcat` |  | 756 |
 | `LENGTH` | emulated | `asText: length(…)` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
 | `LOWER` | spelled | `lower` |  | 3 |
 | `GREATEST` | emulated | `nullSkipping: …max` |  | 52 |
 | `LEAST` | emulated | `nullSkipping: …min` |  | 8 |
-| `CONCAT_JOIN` | emulated | `asText: concat(, …)` |  | 0 |
+| `CONCAT_JOIN` | emulated | `concatParts` |  | 0 |
 | `CONCAT_WS` | spelled | `concat_ws` |  | 0 |
 | `LIST_FILTER` | emulated | `composed in a block` | `via SQLite.lists` | 23 |
 | `LIST_TRANSFORM` | emulated | `composed in a block` | `via SQLite.lists` | 31 |
@@ -1765,10 +1781,12 @@ Database types planned with it: SQLite.
 | `REPEAT_VALUE` | emulated | `json: (WITH RECURSIVE __g(__n) AS (SELECT 1 UNION ALL SELECT __n + 1 FROM __g WHERE...` | `via SQLite.lists` | 0 |
 | `LIST_BOOL_AND` | emulated | `overRows` | `via SQLite.lists` | 0 |
 | `LIST_BOOL_OR` | emulated | `overRows` | `via SQLite.lists` | 0 |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` |  | 7 |
+| `IS_DISTINCT_FROM` | emulated | `nullSafe` |  | 7 |
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
+| `NULL_SAFE_EQUAL` | emulated | `nullSafe` |  | 3 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `nullSafe` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `nullSafe` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `nullSafe` |  | 0 |
 | `STRFTIME` | emulated | `strftimeArm` |  | 193 |
 | `STRPTIME` | refused | `SQLite parses ISO text only reached SQLite:` |  | 0 |
 | `PARSE_DATE` | emulated | `parsedDate` |  | 4 |
@@ -1966,6 +1984,8 @@ Database types planned with it: MariaDB.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | spelled | `an operator (<=>)` |  | 3 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `(NOT (… <=> …))` |  | 10 |
+| `SAME_IN_ORDER` | emulated | `sameValues` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `sameValues` |  | 0 |
 | `STRFTIME` | emulated | `strftimeArm` |  | 193 |
 | `STRPTIME` | refused | `a date parsed by a DuckDB format has no measured spelling reached :` |  | 0 |
 | `PARSE_DATE` | emulated | `parsedDate` |  | 4 |
@@ -2163,6 +2183,8 @@ Database types planned with it: MySQL.
 | `ALL_DISTINCT` | emulated | `allDistinct` | `as MariaDb` | 0 |
 | `NULL_SAFE_EQUAL` | spelled | `an operator (<=>)` | `as MariaDb` | 3 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `(NOT (… <=> …))` | `as MariaDb` | 10 |
+| `SAME_IN_ORDER` | emulated | `sameValues` | `as MariaDb` | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `sameValues` | `as MariaDb` | 0 |
 | `STRFTIME` | emulated | `strftimeArm` | `as MariaDb` | 193 |
 | `STRPTIME` | refused | `a date parsed by a DuckDB format has no measured spelling reached :` | `as MariaDb` | 0 |
 | `PARSE_DATE` | emulated | `parsedDate` | `as MariaDb` | 4 |
@@ -2360,6 +2382,8 @@ Database types planned with it: MongoDB.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | emulated | `$eq` |  | 0 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `$ne` |  | 0 |
+| `SAME_IN_ORDER` | refused | `a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert` |  | 0 |
+| `SAME_IN_ANY_ORDER` | refused | `a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 0 |
 | `STRPTIME` | emulated | `{"$dateFromString": {"dateString": …, "format": …}}` |  | 0 |
 | `PARSE_DATE` | emulated | `{"$dateFromString": {"dateString": …}}` |  | 0 |

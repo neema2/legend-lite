@@ -204,8 +204,12 @@ final class HostJson {
         List<String> values = strings(field(o, "values", "ErrorRecord"));
         // its values its code's sentence's, refused here by name, never first where the sentence is said (the BE audit
         // 5's L6, 2026-11-21)
-        // at least its sentence's: a compile kind may carry facts its sentence does not print (MAIN_TABLE_*'s second;
-        // the BE audit 6's L-2, 2026-11-21: an exact count refused a record lite builds)
+        // an assert's record holds its sentence's slots exactly (item 3, 2026-11-21)
+        if (code instanceof com.legend.error.AssertKind k && values.size() != k.arity()) {
+            throw new IllegalArgumentException("a record of " + k.qualified() + " has " + k.arity() + " values: " + o);
+        }
+        // a compile kind's at least its sentence's: it may carry facts its sentence does not print (MAIN_TABLE_*'s
+        // second; the BE audit 6's L-2, 2026-11-21: an exact count refused a record lite builds)
         if (code instanceof com.legend.error.CompileKind c && values.size() < c.arity()) {
             throw new IllegalArgumentException("a record of " + c.qualified() + " has at least " + c.arity()
                     + " values: " + o);
@@ -344,15 +348,14 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("wantTrue", x.wantTrue());
-        o.put("message", x.message());
+        o.put("failure", wRecord(x.failure()));
         return o;
     }
 
     static HostJudgment.AllRows rHjAllRows(Json.Obj o) {
         String v_name = str(field(o, "name", "AllRows"));
         boolean v_wantTrue = bool(field(o, "wantTrue", "AllRows"));
-        String v_message = str(field(o, "message", "AllRows"));
-        return new HostJudgment.AllRows(v_name, v_wantTrue, v_message);
+        return new HostJudgment.AllRows(v_name, v_wantTrue, rRecord(obj(field(o, "failure", "AllRows"))));
     }
 
     static Map<String, Object> wHjRows(HostJudgment.Rows x) {
@@ -428,13 +431,15 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("collection", wSideFacts(x.collection()));
         o.put("value", wSideFacts(x.value()));
+        o.put("keys", wKeys(x.keys()));
         return o;
     }
 
     static HostJudgment.Contains rHjContains(Json.Obj o) {
         HostJudgment.SideFacts v_collection = rSideFacts(obj(field(o, "collection", "Contains")));
         HostJudgment.SideFacts v_value = rSideFacts(obj(field(o, "value", "Contains")));
-        return new HostJudgment.Contains(v_collection, v_value);
+        HostJudgment.Keys v_keys = rKeys(obj(field(o, "keys", "Contains")));
+        return new HostJudgment.Contains(v_collection, v_value, v_keys);
     }
 
     static Map<String, Object> wHjTolerance(HostJudgment.Tolerance x) {
@@ -502,13 +507,15 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("typeName", x.typeName() == null ? null : x.typeName());
         o.put("acceptedTypes", new ArrayList<Object>(x.acceptedTypes()));
+        o.put("valueClass", x.valueClass() == null ? null : x.valueClass());
         return o;
     }
 
     static HostJudgment.InstanceOf rHjInstanceOf(Json.Obj o) {
         @Nullable String v_typeName = absent(o, "typeName", "InstanceOf") ? null : str(o.get("typeName"));
         java.util.Set<String> v_acceptedTypes = new java.util.LinkedHashSet<>(readList(field(o, "acceptedTypes", "InstanceOf"), n0 -> str(n0)));
-        return new HostJudgment.InstanceOf(v_typeName, v_acceptedTypes);
+        @Nullable String v_valueClass = absent(o, "valueClass", "InstanceOf") ? null : str(o.get("valueClass"));
+        return new HostJudgment.InstanceOf(v_typeName, v_acceptedTypes, v_valueClass);
     }
 
     static Map<String, Object> wHjIs(HostJudgment.Is x) {
@@ -525,14 +532,15 @@ final class HostJson {
     static Map<String, Object> wHjDecided(HostJudgment.Decided x) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("held", x.held());
-        o.put("message", x.message() == null ? null : x.message());
+        o.put("failure", x.failure() == null ? null : wRecord(x.failure()));
         return o;
     }
 
     static HostJudgment.Decided rHjDecided(Json.Obj o) {
         boolean v_held = bool(field(o, "held", "Decided"));
-        @Nullable String v_message = absent(o, "message", "Decided") ? null : str(o.get("message"));
-        return new HostJudgment.Decided(v_held, v_message);
+        com.legend.error.@Nullable ErrorRecord v_failure = absent(o, "failure", "Decided") ? null
+                : rRecord(obj(o.get("failure")));
+        return new HostJudgment.Decided(v_held, v_failure);
     }
 
     static Map<String, Object> wHjSameElements(HostJudgment.SameElements x) {
@@ -662,14 +670,15 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("inner", wHostJudgment(x.inner()));
         o.put("innerSides", x.innerSides());
-        o.put("unplanned", x.unplanned() == null ? null : x.unplanned());
+        o.put("unplanned", x.unplanned() == null ? null : wFailure(x.unplanned()));
         return o;
     }
 
     static HostJudgment.Messaged rHjMessaged(Json.Obj o) {
         HostJudgment v_inner = rHostJudgment(obj(field(o, "inner", "Messaged")));
         int v_innerSides = Math.toIntExact(num(field(o, "innerSides", "Messaged")));
-        @Nullable String v_unplanned = absent(o, "unplanned", "Messaged") ? null : str(o.get("unplanned"));
+        @Nullable Failure v_unplanned = absent(o, "unplanned", "Messaged") ? null
+                : rFailure(obj(o.get("unplanned")));
         return new HostJudgment.Messaged(v_inner, v_innerSides, v_unplanned);
     }
 
@@ -794,6 +803,8 @@ final class HostJson {
         o.put("assertion", wAssertion(x.assertion()));
         o.put("judgment", wHostJudgment(x.judgment()));
         o.put("asks", x.asks());
+        o.put("message", x.message() == null ? null : TestPlanJson.side(x.message()));
+        o.put("messageShape", x.messageShape() == null ? null : wSideShape(x.messageShape()));
         return o;
     }
 
@@ -801,7 +812,11 @@ final class HostJson {
         Assertion v_assertion = rAssertion(obj(field(o, "assertion", "Part")));
         HostJudgment v_judgment = rHostJudgment(obj(field(o, "judgment", "Part")));
         int v_asks = Math.toIntExact(num(field(o, "asks", "Part")));
-        return new HostJudgment.Part(v_assertion, v_judgment, v_asks);
+        TestPlan.@Nullable Side v_message = absent(o, "message", "Part") ? null
+                : TestPlanJson.readSide(obj(o.get("message")));
+        @Nullable SideShape v_shape = absent(o, "messageShape", "Part") ? null
+                : rSideShape(obj(o.get("messageShape")));
+        return new HostJudgment.Part(v_assertion, v_judgment, v_asks, v_message, v_shape);
     }
 
     static Map<String, Object> wRootLoop(RootLoop x) {
@@ -822,6 +837,7 @@ final class HostJson {
         o.put("listenerName", x.listenerName());
         o.put("steps", list(x.steps(), e0 -> wRootStep(e0)));
         o.put("message", x.message() == null ? null : wRlMessage(x.message()));
+        o.put("unplanned", x.unplanned() == null ? null : wFailure(x.unplanned()));
         return o;
     }
 
@@ -829,7 +845,8 @@ final class HostJson {
         String v_listenerName = str(field(o, "listenerName", "Root"));
         List<RootLoop.Step> v_steps = readList(field(o, "steps", "Root"), n0 -> rRootStep(obj(n0)));
         RootLoop.@Nullable Message v_message = absent(o, "message", "Root") ? null : rRlMessage(obj(o.get("message")));
-        return new RootLoop.Root(v_listenerName, v_steps, v_message);
+        @Nullable Failure v_unplanned = absent(o, "unplanned", "Root") ? null : rFailure(obj(o.get("unplanned")));
+        return new RootLoop.Root(v_listenerName, v_steps, v_message, v_unplanned);
     }
 
     static Map<String, Object> wRlMessage(RootLoop.Message x) {
@@ -849,13 +866,41 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("verdict", x.verdict());
+        o.put("report", wRsReport(x.report()));
+        o.put("message", x.message() == null ? null : wRlMessage(x.message()));
+        o.put("unplanned", x.unplanned() == null ? null : wFailure(x.unplanned()));
         return o;
     }
 
     static RootLoop.Row rRsRow(Json.Obj o) {
         String v_name = str(field(o, "name", "Row"));
         int v_verdict = Math.toIntExact(num(field(o, "verdict", "Row")));
-        return new RootLoop.Row(v_name, v_verdict);
+        RootLoop.Report v_report = rRsReport(obj(field(o, "report", "Row")));
+        RootLoop.@Nullable Message v_message = absent(o, "message", "Row") ? null : rRlMessage(obj(o.get("message")));
+        @Nullable Failure v_unplanned = absent(o, "unplanned", "Row") ? null : rFailure(obj(o.get("unplanned")));
+        return new RootLoop.Row(v_name, v_verdict, v_report, v_message, v_unplanned);
+    }
+
+    static Map<String, Object> wRsReport(RootLoop.Report x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("family", x.family().name());
+        o.put("want", x.want());
+        o.put("e", x.e() == null ? null : wSideFacts(x.e()));
+        o.put("a", x.a() == null ? null : wSideFacts(x.a()));
+        o.put("fixed", x.fixed() == null ? null : wRecord(x.fixed()));
+        o.put("index", x.index());
+        return o;
+    }
+
+    static RootLoop.Report rRsReport(Json.Obj o) {
+        RootLoop.Family v_family = RootLoop.Family.valueOf(str(field(o, "family", "Report")));
+        boolean v_want = bool(field(o, "want", "Report"));
+        HostJudgment.@Nullable SideFacts v_e = absent(o, "e", "Report") ? null : rSideFacts(obj(o.get("e")));
+        HostJudgment.@Nullable SideFacts v_a = absent(o, "a", "Report") ? null : rSideFacts(obj(o.get("a")));
+        com.legend.error.@Nullable ErrorRecord v_fixed = absent(o, "fixed", "Report") ? null
+                : rRecord(obj(o.get("fixed")));
+        int v_index = Math.toIntExact(num(field(o, "index", "Report")));
+        return new RootLoop.Report(v_family, v_want, v_e, v_a, v_fixed, v_index);
     }
 
     static Map<String, Object> wRsDecided(RootLoop.Decided x) {

@@ -93,20 +93,39 @@ final class TestRunTest {
                 + "' AS actual, CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient", verdictColumns());
     }
 
+    /** A fused statement of two members: a row per member, its number first, its columns shared by position and type
+     *  (item 3's S4, 2026-11-22: two seven-column members write the same five columns). */
     private static ExecutionPlan.TdsResult fused(String sql) {
+        List<ExecutionPlan.Column> columns = new ArrayList<>();
+        columns.add(col("__m", "Integer", "INTEGER"));
+        List<ExecutionPlan.Column> verdict = verdictColumns();
+        for (int k = 0; k < verdict.size(); k++) {
+            ExecutionPlan.Column c = verdict.get(k);
+            columns.add(new ExecutionPlan.Column("__s" + k, c.type(), c.multiplicity(), c.slot(), null, null));
+        }
+        return relation(sql, columns);
+    }
+
+    /** Each member's row in {@link #fused}'s columns: the five shared columns after the member's number. */
+    private static final List<List<Integer>> LAYOUT = List.of(List.of(1, 2, 3, 4, 5), List.of(1, 2, 3, 4, 5));
+
+    /** The HOST judge's side batch (HostSideBatch): its rows, each its side's index first -- a statement of its own,
+     *  not the database judge's fused row. */
+    private static ExecutionPlan.TdsResult hostBatch() {
         List<ExecutionPlan.Column> columns = new ArrayList<>();
         columns.add(col("ix", "Integer", "INTEGER"));
         columns.addAll(verdictColumns());
-        return relation(sql, columns);
+        return relation("SELECT 0 AS ix, TRUE AS verdict, 'x' AS expected, 'x' AS actual,"
+                + " CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient", columns);
     }
 
     /** A hand-made plan's body facts (C5-J item 2, 2026-11-15: the plan carries them): no effects, no seeds, verdicts. */
     private static final com.legend.testexecutionplan.BodyFacts FACTS =
             new com.legend.testexecutionplan.BodyFacts(false, false, true, "A");
 
-    private static final String FUSED = "SELECT 0 AS ix, TRUE AS verdict, 'x' AS expected, 'x' AS actual,"
-            + " CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient"
-            + " UNION ALL SELECT 1, FALSE, 'a', 'b', CAST(NULL AS VARCHAR), FALSE";
+    private static final String FUSED = "SELECT 1 AS __m, FALSE AS __s0, 'a' AS __s1, 'b' AS __s2,"
+            + " CAST(NULL AS VARCHAR) AS __s3, FALSE AS __s4"
+            + " UNION ALL SELECT 0, TRUE, 'x', 'x', CAST(NULL AS VARCHAR), FALSE";
 
     /** Two asserts: one holding, one not; each with a base of one rows side and one constant side. */
     private static TestPlan.Verdicts group(ExecutionPlan.TdsResult fused) {
@@ -118,7 +137,9 @@ final class TestRunTest {
                 List.of(left, right), wrapper(true, "x", "x"));
         TestPlan.Verdict second = new TestPlan.Verdict(nextVerdictId(), "assertEquals@3", "assertEquals",
                 List.of(left, right), wrapper(false, "a", "b"));
-        return new TestPlan.Verdicts(List.of(first, second), fused);
+        // the database judge's fused statement carries each member's columns; the host's side batch none
+        boolean database = fused != null && fused.columns().get(0).name().equals("__m");
+        return new TestPlan.Verdicts(List.of(first, second), fused, null, null, database ? LAYOUT : null);
     }
 
     /** What the judges and the program's sink received, in order. */
@@ -187,7 +208,7 @@ final class TestRunTest {
 
     /** {@code steps} as a test plan judged by {@code judge}, read back from its JSON as written. */
     private static TestPlan plan(TestPlan.Judge judge, TestPlan.TestStep... steps) {
-        TestPlan plan = new TestPlan(List.of(), List.of(steps), judge, Map.of(), Map.of(), false, target, FACTS, TestPlan.LITE_WORDS);
+        TestPlan plan = new TestPlan(List.of(), List.of(steps), judge, Map.of(), Map.of(), false, target, FACTS);
         assertEquals(plan, TestPlanJson.read(TestPlanJson.write(plan)), "the plan reads back as written");
         return plan;
     }
@@ -308,7 +329,7 @@ final class TestRunTest {
     @DisplayName("host judging: each verdict's sides as typed rows, a constant side its text cells; nothing fused is sent")
     void hostJudgingHandsTheSides() throws IOException {
         Recording sink = new Recording();
-        run(plan(TestPlan.Judge.HOST, group(fused(FUSED))), sessions(), sink);
+        run(plan(TestPlan.Judge.HOST, group(hostBatch())), sessions(), sink);
         assertEquals(List.of("sides assertEquals@2", "sides assertEquals@3"), sink.events);
         List<PlanRunner.Rows> first = sink.sides.get(0);
         assertEquals(2, first.size());
@@ -363,7 +384,7 @@ final class TestRunTest {
                 new TestPlan.Run(new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", target))),
                 new TestPlan.Verdicts(List.of(g.verdicts().get(0), g.verdicts().get(1), third), g.fused()),
                 new TestPlan.Run(relation("SELECT 7 AS value", List.of(col("value", "Integer", "INTEGER"))))),
-                TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target, FACTS, TestPlan.LITE_WORDS);
+                TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target, FACTS);
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"verdicts\"") && json.contains("\"_type\":\"keyedRows\"")
@@ -437,7 +458,7 @@ final class TestRunTest {
         TestPlan plan = new TestPlan(List.of(), List.of(
                 new TestPlan.Branch(condition, List.of(oneVerdict("then@1", "SELECT 1 AS value"), inner),
                         List.of(oneVerdict("else@1", "SELECT 2 AS value")))), TestPlan.Judge.HOST, Map.of(), Map.of(),
-                false, target, FACTS, TestPlan.LITE_WORDS);
+                false, target, FACTS);
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"branch\""), json);
@@ -483,14 +504,14 @@ final class TestRunTest {
         TestPlan.Run write = new TestPlan.Run(new ExecutionPlan.Update(ExecutionPlan.Sql.of(
                 "INSERT INTO m3b_w VALUES (1)", target), null));
         TestPlan.Verdicts held = group(fused(FUSED));
-        TestPlan.Verdicts guarded = new TestPlan.Verdicts(held.verdicts(), held.fused(), sp);
+        TestPlan.Verdicts guarded = new TestPlan.Verdicts(held.verdicts(), held.fused(), sp, null, held.layout());
         Recording ran = new Recording();
         run(plan(TestPlan.Judge.DATABASE, write, guarded), sessions(), ran);
         assertEquals(2, ran.verdictRows.size());
         assertEquals(0, count("m3b_sp"), "no savepoint statement around the fused statement");
         TestPlan.Verdicts rejected = group(fused("SELECT * FROM no_such_table_m3b"));
         assertThrows(com.legend.error.DataError.class, () -> run(plan(TestPlan.Judge.DATABASE, write,
-                new TestPlan.Verdicts(rejected.verdicts(), rejected.fused(), sp)), sessions(),
+                new TestPlan.Verdicts(rejected.verdicts(), rejected.fused(), sp, null, rejected.layout())), sessions(),
                 new Recording()));
         assertEquals(0, count("m3b_sp"), "the rejection sent no savepoint statement and ran no wrapper");
     }

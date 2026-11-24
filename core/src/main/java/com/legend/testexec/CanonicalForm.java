@@ -64,6 +64,11 @@ public final class CanonicalForm {
             // text alone is injective). A java.sql or java.time temporal reaching
             // here is a fetch-seam LEAK and reports as unmodeled-kind residue.
             case com.legend.values.PureDateLiteral d -> new Result.Text(d.canonicalText());
+            // an enumeration's value and a Variant, values of their own kinds on the host (register S169, S401): an
+            // enumeration renders its name and a Variant its JSON, pure's toString of each (BigQuery's warm lane on
+            // f9e74256: an enumeration had reached the residue arm once the host carried it as its own kind)
+            case LiteWords.EnumName en -> new Result.Text(en.name());
+            case LiteWords.VariantText vt -> new Result.Text(vt.json());
             default -> new Result.Residue(
                     "unmodeled-kind:" + v.getClass().getSimpleName());
         };

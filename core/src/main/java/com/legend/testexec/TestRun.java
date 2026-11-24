@@ -246,6 +246,20 @@ final class TestRun {
                 throw (RuntimeException) e;
             });
             RuntimeException raised = caught[0];
+            if (raised == null && each.inner() != null) {
+                // the asserted function IS one assert read as a typed row (item 3's S4): where it fails, its failure,
+                // recorded from the row's values by the host's builders, is what the function raised
+                List<List<Object>> rows = java.util.Objects.requireNonNull(sides).get(0).rows();
+                if (rows.size() != 1) {
+                    throw new IllegalStateException(each.name() + ": an inner assert's row answered " + rows.size()
+                            + " rows");
+                }
+                try {
+                    DatabaseVerdicts.typedVerdictOf(each.name(), rows.get(0), each.inner());
+                } catch (com.legend.error.AssertFailed e) {
+                    raised = e;
+                }
+            }
             TestPlan.Judge judge = plan.judge();
             if (judge == TestPlan.Judge.HOST) {
                 if (raised != null) {
@@ -289,16 +303,22 @@ final class TestRun {
             if (fused != null) {
                 // no savepoint guards it: a rejection fails the program, whose transaction is rolled back whole
                 try {
-                    for (List<Object> row : open.read(fused, null, Map.of()).rows()) {
-                        if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
-                            throw new IllegalStateException("a fused verdict row's first cell is the verdict's index:"
-                                    + " " + (row.isEmpty() ? "no cell" : row.get(0)));
+                    // a row per member, its number first, its columns shared by position and type: each member's
+                    // row the columns its layout names (item 3's S4, 2026-11-22, the user: one column per type each
+                    // assert reuses; 2026-11-21 to 22, one wide row, each member's columns under its prefix)
+                    List<List<Integer>> layout = java.util.Objects.requireNonNull(group.layout(),
+                            "a fused verdict group with no layout");
+                    for (List<Object> answered : open.read(fused, null, Map.of()).rows()) {
+                        int m = ((Number) answered.get(0)).intValue();
+                        if (m < 0 || m >= layout.size()
+                                || rows.put(m, layout.get(m).stream().map(answered::get).toList()) != null) {
+                            throw new IllegalStateException("the fused verdict statement answered member " + m
+                                    + " of " + layout.size() + " twice or out of range");
                         }
-                        rows.put(index.intValue(), row.subList(1, row.size()));
                     }
                     if (rows.size() != group.verdicts().size()) {
                         throw new IllegalStateException("the fused verdict statement answered " + rows.size()
-                                + " rows for " + group.verdicts().size() + " verdicts");
+                                + " members for " + group.verdicts().size() + " verdicts");
                     }
                     judges.fused(group, null);
                 } catch (DataError e) {

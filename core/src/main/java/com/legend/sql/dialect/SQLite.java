@@ -82,6 +82,12 @@ public class SQLite extends AnsiSqlRenderer {
         return 500_000;
     }
 
+    /** {@inheritDoc} -- SQLite: SQLITE_MAX_COMPOUND_SELECT, 500 terms of a compound SELECT by default. */
+    @Override
+    public int fusedMembers() {
+        return 500;
+    }
+
     /**
      * SQLite (<a href="https://sqlite.org/lang_keywords.html">lang_keywords</a>)
      * &mdash; the ANSI baseline rendering with SQLite's reserved-word list.
@@ -887,6 +893,13 @@ public class SQLite extends AnsiSqlRenderer {
         if (t == SqlType.Scalar.DOUBLE && x instanceof SqlExpr.FloatLit) {
             return w -> w.expr(x, 0);
         }
+        // a Decimal as a JSON number of the text its cell is written with (deliveredValue: its scale's digits, the
+        // database's printf), never the REAL's fifteen-digit JSON, which wrote 1D as 1.0 and lost digits past fifteen
+        // (item 3's S4, batch 2's audit, HIGH 2: until then a list's decimals read back otherwise than its cells)
+        if (t instanceof SqlType.Decimal d) {
+            SqlExpr text = deliveredValue(x, d);
+            return w -> w.append("json(").expr(text, 0).append(")");
+        }
         return jsonOf(w -> w.expr(x, 0), t);
     }
 
@@ -1309,10 +1322,50 @@ public class SQLite extends AnsiSqlRenderer {
                 .expr(args.get(0), 0).append(" END)");
     }
 
+    /** A judged date-time text's second where SQLite's date functions read none -- a year outside 0000 to 9999, which
+     *  they answer NULL (the precision audit's H2, 2026-11-22: two such NULLs compared equal) -- its own day and time
+     *  as written, to the second ({@code __it.t}: the text, its 'T' a space and its day's fields padded). */
+    private static final String WIDE_YEAR_SECOND = "CASE WHEN instr(__it.t, ' ') = 0 THEN __it.t || ' 00:00:00' ELSE"
+            + " substr(__it.t, 1, instr(__it.t, ' ') + 5) || CASE WHEN substr(__it.t, instr(__it.t, ' ') + 6, 1) = ':'"
+            + " THEN substr(__it.t, instr(__it.t, ' ') + 6, 3) ELSE ':00' END END";
+
+    /** {@inheritDoc} Never here: a date-time is held as its text, which the judge's own arm reads in one form
+     *  ({@link #variantAwareCast}). */
+    @Override
+    protected boolean judgesAsHeld(SqlExpr.Cast c) {
+        return false;
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         SqlType target = c.target();
         SqlExpr v = c.value();
+        if (target == SqlType.Scalar.TIMESTAMP && judged(c)) {
+            // a judge's instant (register S399): a date-time is held here as its text, so it is read in one form,
+            // 'YYYY-MM-DD HH:MM:SS.fffffffff', and two texts of one instant compare equal (the dates audit's HIGH 3,
+            // 2026-11-22: until then '10:00:00.5' was not '10:00:00.50'); every digit a date-time here carries is
+            // compared -- nine, the digits a literal and a load keep here (literalFractionDigits,
+            // timestampColumnDigits; S181 refuses more) -- never cut (the user's rule of 2026-11-22)
+            SqlType from = typeOf(v);
+            SqlWriter.Piece t = from == SqlType.Scalar.DATE ? w -> w.append("(").expr(v, 0).append(" || ' 00:00:00')")
+                    : from == SqlType.Scalar.TIMESTAMP ? w -> w.expr(v, 0) : padded(dateTimeText(w -> w.expr(v, 0)));
+            // its fraction the run of digits after the point (a zone after it is no digit of it); one with a nonzero
+            // digit past its ninth refused, never cut
+            String f = "substr(__i0.t, instr(__i0.t, '.') + 1)";
+            return writer.append("(SELECT CASE WHEN __it.t IS NULL THEN NULL WHEN length(__it.d) > 9 AND ltrim(substr("
+                    + "__it.d, 10), '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE coalesce(strftime("
+                    + "'%Y-%m-%d %H:%M:%S', __it.t), " + WIDE_YEAR_SECOND + ") || '.' || substr(__it.d || '000000000', 1,"
+                    + " 9) END FROM (SELECT __i0.t AS t, CASE WHEN"
+                    + " instr(__i0.t, '.') > 0 THEN substr(" + f + ", 1, length(" + f + ") - length(ltrim(" + f
+                    + ", '0123456789'))) ELSE '' END AS d FROM (SELECT ").piece(t).append(" AS t) AS __i0) AS __it)");
+        }
+        if (target == SqlType.Scalar.DATE && judged(c)) {
+            // a judged day: SQLite's date() of its text, or, for a year outside 0000 to 9999 where date() answers NULL,
+            // the text's own day (the precision audit's H2, 2026-11-22)
+            SqlWriter.Piece t = typeOf(v) == SqlType.Scalar.DATE ? w -> w.expr(v, 0) : padded(dateTimeText(w -> w.expr(v, 0)));
+            return writer.append("(SELECT coalesce(date(__dd.t), CASE WHEN instr(__dd.t, ' ') > 0 THEN substr(__dd.t, 1,"
+                    + " instr(__dd.t, ' ') - 1) ELSE __dd.t END) FROM (SELECT ").piece(t).append(" AS t) AS __dd)");
+        }
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
             return writer.expr(v, 0);
         }
@@ -1646,8 +1699,7 @@ public class SQLite extends AnsiSqlRenderer {
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
-            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
@@ -1738,9 +1790,8 @@ public class SQLite extends AnsiSqlRenderer {
 
             // ---- strings
             // NULL-skipping, as DuckDB's concat (SQLite's concat, 3.44)
-            case CONCAT -> writer.append("concat(").join(flattenConcat(a), ", ", (w, x) -> w.piece(asText(x)))
-                    .append(")");
-            case CONCAT_JOIN -> writer.append("concat(").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
+            case CONCAT -> writer.piece(concatParts(flattenConcat(a)));
+            case CONCAT_JOIN -> writer.piece(concatParts(a));
             // the product's join of a row's cells: concat_ws skips a NULL part with its separator (SQLite 3.44 on;
             // measured on 3.47, Phase 3)
             // each part is already a text: written as it is (asText would cast it again, round 75's lean note)
@@ -2288,6 +2339,21 @@ public class SQLite extends AnsiSqlRenderer {
             case TYPEOF -> throw wall(c.fn(), "its type names are SQLite's storage classes");
             default -> throw new IllegalStateException("not a list call: " + c.fn());
         };
+    }
+
+    /** SQLite's {@code concat} over {@code parts}, NULL-skipping as DuckDB's: at most 100 arguments to one call (SQLite's
+     *  limit on a function's arguments; the audit of 8477c703: a join of 101 literals refused), more nested in calls of
+     *  100 -- a concat of concats is the same text. */
+    private SqlWriter.Piece concatParts(List<SqlExpr> parts) {
+        int limit = 100;
+        if (parts.size() <= limit) {
+            return w -> w.append("concat(").join(parts, ", ", (x, p) -> x.piece(asText(p))).append(")");
+        }
+        List<SqlWriter.Piece> chunks = new java.util.ArrayList<>();
+        for (int at = 0; at < parts.size(); at += limit) {
+            chunks.add(concatParts(parts.subList(at, Math.min(parts.size(), at + limit))));
+        }
+        return w -> w.append("concat(").join(chunks, ", ", SqlWriter::piece).append(")");
     }
 
     /** The lists concatenated, NULL ones as empty, each element re-held as its type. */

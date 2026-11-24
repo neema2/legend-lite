@@ -61,12 +61,9 @@ class VerdictChannelRegisterTest {
             "core/src/main/java/com/legend/testexec/HostForms.java",
             // its product form's own class (GUARD's C.9, 2026-11-17)
             "core/src/main/java/com/legend/testexec/LiteHostForms.java",
-            // 2026-11-18 (census J29): the host judge's words, a hook over the verdict's own facts -- its signature names
-            // the typed grids (Equality.Typed), lite's form words them, the edge's legend-pure form sorts them by the
-            // judge's own order (PureAsserts.sorted) and decides nothing
-            "core/src/main/java/com/legend/testexec/HostWords.java",
-            "core/src/main/java/com/legend/testexec/LiteHostWords.java",
-            "core/src/main/java/com/legend/edge/EdgeHostWords.java");
+            // 2026-11-18 (census J29): the host judge's words over the verdict's own facts, deciding nothing
+            // (HostWords and its two forms until 2026-11-21, item 3's S2: the host judge's failed asserts as records)
+            "core/src/main/java/com/legend/testexec/AssertRecords.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");

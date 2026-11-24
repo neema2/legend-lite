@@ -115,6 +115,18 @@ public final class Program {
                 edgeRun);
     }
 
+    /** {@code body} PLANNED over {@code model}, typed as {@link #run} types it, never run: the test plan, its data. */
+    public static com.legend.testexecutionplan.TestPlan plan(String model, String body,
+            @com.legend.base.Nullable String runtime, ExecuteOptions options) {
+        ModelContext ctx = Compiler.compileModel(model);
+        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(body);
+        List<com.legend.protocol.spec.ValueSpecification> statements =
+                parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
+                        ? lf.body() : List.of(parsed);
+        return TestExecution.planBody(Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
+                new com.legend.model.ImportScope(List.of()), ctx)), runtime, options);
+    }
+
     private static Report run(ModelContext ctx, String body, @com.legend.base.Nullable String runtime,
             com.legend.exec.SessionSource sessions, ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
         List<Verdict> verdicts = new ArrayList<>();

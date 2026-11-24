@@ -131,6 +131,10 @@ public final class CanonicalDivergence {
             case Boolean b -> "boolean";
             case String s -> "string";
             case com.legend.values.PureDateLiteral d -> "temporal";
+            // an enumeration's value compares within its enumeration alone, a Variant as a Variant (S169, S401; the
+            // round on the narrow review's fixes: once render named them, testDayOfWeek's enumeration reached here)
+            case LiteWords.EnumName en -> "enumeration\u0000" + en.enumeration();
+            case LiteWords.VariantText vt -> "variant";
             // unreachable: keyOf calls this only for values render()
             // accepted, and render's default is Residue — throwing keeps
             // the no-plausible-bucket rule (Charter C2.4)

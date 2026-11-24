@@ -260,8 +260,7 @@ class HookRulingTest {
         var step = new com.legend.testexecutionplan.TestPlan.Verdicts(List.of(verdict), null, null);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
-                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"),
-                com.legend.testexecutionplan.TestPlan.LITE_WORDS);
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"));
     }
 
 
@@ -368,9 +367,7 @@ class HookRulingTest {
                 com.legend.planner.ActivityTexts.class,
                 // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
                 com.legend.lowering.LoweringForms.class,
-                // VerdictWords (census J29, 2026-11-18: the database judge's words of a failure; census C1's
-                // FailureWords, which named whose words they were by a flag, went with it)
-                com.legend.lowering.VerdictWords.class,
+                // (VerdictWords, census J29's: left 2026-11-21, item 3's S3 -- one catalog words every assert failure)
                 // DatabaseSettingsForm (the audit's J22, RULED by the user 2026-11-17: a database's settings)
                 com.legend.sql.dialect.DatabaseSettingsForm.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
@@ -428,18 +425,8 @@ class HookRulingTest {
         assertTrue(edgeForms != com.legend.lowering.ProductLoweringForms.INSTANCE
                 && edgeForms.getClass().getPackageName().equals("com.legend.edge"),
                 "the edge answers its own lowering forms: " + edgeForms.getClass());
-        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.VerdictWords.class,
-                com.legend.lowering.LiteVerdictWords.INSTANCE) == com.legend.lowering.LiteVerdictWords.INSTANCE,
-                "the product plans lite's words");
-        assertEquals(com.legend.testexecutionplan.TestPlan.LITE_WORDS, com.legend.lowering.LiteVerdictWords.NAME,
-                "lite's words carry one name in the plan");
-        Object edgeWords = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.VerdictWords.class,
-                com.legend.lowering.LiteVerdictWords.INSTANCE);
-        assertTrue(edgeWords != com.legend.lowering.LiteVerdictWords.INSTANCE
-                && edgeWords.getClass().getPackageName().equals("com.legend.edge"),
-                "the edge plans legend-pure's words: " + edgeWords.getClass());
-        assertEquals(com.legend.edge.EdgeHostWords.NAME, ((com.legend.lowering.VerdictWords) edgeWords).name(),
-                "the planning and run words of the edge carry one name");
+        // (VerdictWords' two forms -- lite's for the product, legend-pure's for the edge, one name in the plan -- went
+        // 2026-11-21, item 3's S3: one catalog words every assert failure, so the style answers no words)
         // census J29's reads() went with A4 of the compatibility program (stage A ratified by the user 2026-11-19;
         // moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down")): the database judge
         // plans for the product alone, so it reads each side WRITTEN, as lite's sentences do

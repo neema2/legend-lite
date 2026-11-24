@@ -34,7 +34,7 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
     /** The kinds of failure a record rides: the classes that are lite's errors with a record (stage B's BE,
      *  2026-11-21; one list for the record's check and {@link Failures#of}'s reading of it). */
     static final java.util.Set<Kind> RECORDED = java.util.Set.of(Kind.MODEL, Kind.TYPE_INFERENCE, Kind.RESOLUTION,
-            Kind.MAPPING_RESOLUTION, Kind.SCHEMA_INVARIANT, Kind.ISLAND_SYNTAX, Kind.DATA);
+            Kind.MAPPING_RESOLUTION, Kind.SCHEMA_INVARIANT, Kind.ISLAND_SYNTAX, Kind.DATA, Kind.ASSERT_FAILED);
 
     /** A failure with no record, its message its own. */
     public Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
@@ -58,14 +58,25 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
             }
             // a data failure's record a run's code, a compile failure's a compile's: Failures.raised rebuilds the error
             // its kind names over the record (the BE audit 5's L6, 2026-11-21)
-            if ((kind == Kind.DATA) != (record.code() instanceof com.legend.error.ErrorKind)
-                    || kind != Kind.DATA && !(record.code() instanceof com.legend.error.CompileKind)) {
+            // an assert's failure its record an assert's code (item 3, 2026-11-21)
+            boolean codeIsKinds = switch (kind) {
+                case DATA -> record.code() instanceof com.legend.error.ErrorKind;
+                case ASSERT_FAILED -> record.code() instanceof com.legend.error.AssertKind;
+                case MODEL, TYPE_INFERENCE, RESOLUTION, MAPPING_RESOLUTION, SCHEMA_INVARIANT, ISLAND_SYNTAX ->
+                        record.code() instanceof com.legend.error.CompileKind;
+                case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, DIALECT_CAPABILITY, NOT_A_CONSTANT -> false;
+            };
+            if (!codeIsKinds) {
                 throw new IllegalArgumentException("a " + kind + " failure's record is not its kind's code: "
                         + record.code().qualified());
             }
             if (message != null) {
                 throw new IllegalArgumentException("a failure with its record carries no message of its own (the"
                         + " record's sentence is its message): " + kind);
+            }
+            if (unjudgedReason != null) {
+                throw new IllegalArgumentException("an unjudged decline is not a record (the database judge's refusal"
+                        + " of an assert's shape): " + kind);
             }
         }
     }

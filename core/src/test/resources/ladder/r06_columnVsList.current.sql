@@ -1,27 +1,24 @@
 WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
-  FROM T AS frame_r__t0), __e_0 AS (SELECT CAST(value AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn, concat('"', replace(replace(replace(replace(replace(CAST(value AS VARCHAR), '\', '\\'), '"', '\"'), '
-', '\n'), '	', '\t'), '
-', '\r'), '"') AS __w, value AS __o
+  FROM T AS frame_r__t0), __e_0 AS (SELECT value AS __o, ROW_NUMBER() OVER () AS __rn
   FROM (
     SELECT UNNEST(list_filter(['a', 'b', 'c'], x -> x IS NOT NULL)) AS value
   ) AS side
-  WHERE value IS NOT NULL), __a_0 AS (SELECT CAST(u_map__name AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn, concat('"', replace(replace(replace(replace(replace(CAST(u_map__name AS VARCHAR), '\', '\\'), '"', '\"'), '
-', '\n'), '	', '\t'), '
-', '\r'), '"') AS __w, u_map__name AS __o
+  WHERE value IS NOT NULL), __a_0 AS (SELECT u_map__name AS __o, ROW_NUMBER() OVER () AS __rn
   FROM (
     SELECT frame_r_t0.NAME AS u_map__name
     FROM frame_r AS frame_r_t0
     WHERE frame_r_t0.NAME IS NOT NULL
   ) AS side
-  WHERE u_map__name IS NOT NULL), __se_0 AS (SELECT CASE WHEN s.__n = 0 THEN '[]' WHEN s.__n = 1 THEN s.__one ELSE concat('[', s.__joined, ']') END AS __text, s.__nulls AS __nulls, s.__trees AS __trees, s.__n AS __n, s.__onew AS __onew, concat('[', coalesce(s.__joinedw, ''), ']') AS __listw
+  WHERE u_map__name IS NOT NULL)
+SELECT 0 AS __m, w.__h AS __s0, CASE WHEN w.__h THEN NULL ELSE w.__x0 END AS __s1, CASE WHEN w.__h THEN NULL ELSE w.__x1 END AS __s2
+FROM (
+  SELECT (list_sort(e.__l) IS NOT DISTINCT FROM list_sort(a.__l)) AS __h, e.__l AS __x0, a.__l AS __x1
   FROM (
-    SELECT COUNT(__e.__rn) AS __n, MIN(CASE WHEN __e.__rn = 1 THEN __e.__c END) AS __one, STRING_AGG(__e.__c, ', ' ORDER BY __e.__c ASC) AS __joined, COUNT(CASE WHEN __e.__c IS NULL THEN 1 END) AS __nulls, COUNT(CASE WHEN strpos(__e.__c, 'tree') > 0 THEN 1 END) AS __trees, MIN(CASE WHEN __e.__rn = 1 THEN __e.__w END) AS __onew, STRING_AGG(__e.__w, ', ' ORDER BY __e.__rn ASC) AS __joinedw
-    FROM __e_0 AS __e
-  ) AS s), __sa_0 AS (SELECT CASE WHEN s.__n = 0 THEN '[]' WHEN s.__n = 1 THEN s.__one ELSE concat('[', s.__joined, ']') END AS __text, s.__nulls AS __nulls, s.__trees AS __trees, s.__n AS __n, s.__onew AS __onew, concat('[', coalesce(s.__joinedw, ''), ']') AS __listw
-  FROM (
-    SELECT COUNT(__a.__rn) AS __n, MIN(CASE WHEN __a.__rn = 1 THEN __a.__c END) AS __one, STRING_AGG(__a.__c, ', ' ORDER BY __a.__c ASC) AS __joined, COUNT(CASE WHEN __a.__c IS NULL THEN 1 END) AS __nulls, COUNT(CASE WHEN strpos(__a.__c, 'tree') > 0 THEN 1 END) AS __trees, MIN(CASE WHEN __a.__rn = 1 THEN __a.__w END) AS __onew, STRING_AGG(__a.__w, ', ' ORDER BY __a.__rn ASC) AS __joinedw
+    SELECT LIST(__a.__o ORDER BY __a.__rn ASC) AS __l
     FROM __a_0 AS __a
-  ) AS s)
-SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('expected the elements ', e.__listw, ' in any order, got ', a.__listw) AS __message
-FROM __sa_0 AS a
-CROSS JOIN __se_0 AS e
+  ) AS a
+  CROSS JOIN (
+    SELECT LIST(__e.__o ORDER BY __e.__rn ASC) AS __l
+    FROM __e_0 AS __e
+  ) AS e
+) AS w

@@ -38,6 +38,17 @@ class VerdictBatchSplitRungTest {
 
     private static final OutputCol V = new OutputCol("v", SqlType.Scalar.INTEGER, false);
 
+    /** A typed member's schema: its one column (item 3's S4: every member is typed). */
+    private static final com.legend.compiler.element.type.Type.RelationType SCHEMA =
+            new com.legend.compiler.element.type.Type.RelationType(List.of(
+                    new com.legend.compiler.element.type.Type.RelationType.Column("v",
+                            com.legend.compiler.element.type.Type.Primitive.INTEGER,
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+
+    private static final com.legend.testexecutionplan.RootLoop.Report REPORT =
+            new com.legend.testexecutionplan.RootLoop.Report(com.legend.testexecutionplan.RootLoop.Family.CONDITION,
+                    true, null, null, null, -1);
+
     /** A member's statement, told apart by its one literal. */
     private static SqlQuery member(long n) {
         return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.IntLit(n), "v", V)), false,
@@ -51,8 +62,9 @@ class VerdictBatchSplitRungTest {
     /** The dialect refuses every fused statement, and member 3's own statement. */
     private static final VerdictBatch.Runner RUNNER = new VerdictBatch.Runner() {
         @Override
-        public ExecutionPlan.Node plan(SqlQuery statement, boolean fused, ExecutionPlan.Target on) {
-            if (fused) {
+        public ExecutionPlan.Node plan(SqlQuery statement,
+                com.legend.compiler.element.type.Type.RelationType schema, ExecutionPlan.Target on) {
+            if (schema.columns().stream().anyMatch(c -> c.name().equals(com.legend.lowering.VerdictSql.MEMBER))) {
                 throw new DialectCapability("no fused statement on this dialect");
             }
             if (literal(statement) == 3) {
@@ -79,16 +91,23 @@ class VerdictBatchSplitRungTest {
     };
 
     private static VerdictBatch batch() {
-        return new VerdictBatch((members, frames) -> members.get(0), (row, name, wantEqual) -> row, RUNNER,
-                new VerdictIds(), com.legend.lowering.LiteVerdictWords.INSTANCE);
+        // the fused statement stands in as the first member's under the fused schema's member column, which the runner
+        // refuses (each member its own statement)
+        return new VerdictBatch((members, schemas, frames) -> new com.legend.lowering.VerdictSql.Batch(members.get(0),
+                new com.legend.compiler.element.type.Type.RelationType(List.of(
+                        new com.legend.compiler.element.type.Type.RelationType.Column(
+                                com.legend.lowering.VerdictSql.MEMBER,
+                                com.legend.compiler.element.type.Type.Primitive.INTEGER,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE))),
+                members.stream().map(m -> List.<Integer>of()).toList()), RUNNER, new VerdictIds());
     }
 
     @Test
     void membersTheDialectSpellsAloneAreEachPlannedTheirOwnStatement() {
         VerdictBatch batch = batch();
         batch.open("a");
-        batch.defer("a1", true, member(1), ON);
-        batch.defer("a2", true, member(2), ON);
+        batch.deferTyped("a1", member(1), SCHEMA, REPORT, ON);
+        batch.deferTyped("a2", member(2), SCHEMA, REPORT, ON);
         batch.close();
         VerdictBatch.Planned planned = batch.plan();
         List<VerdictBatch.Group> groups = planned.groups();
@@ -105,10 +124,10 @@ class VerdictBatchSplitRungTest {
     void aMemberTheDialectCannotSpellAloneRefusesTheBodyAtPlanning() {
         VerdictBatch batch = batch();
         batch.open("a");
-        batch.defer("a1", true, member(1), ON);
+        batch.deferTyped("a1", member(1), SCHEMA, REPORT, ON);
         batch.close();
         batch.open("b");
-        batch.defer("b1", true, member(3), ON);
+        batch.deferTyped("b1", member(3), SCHEMA, REPORT, ON);
         batch.close();
         DialectCapability refused = assertThrows(DialectCapability.class, batch::plan,
                 "a refusal refuses the body, the run would reach it or not");

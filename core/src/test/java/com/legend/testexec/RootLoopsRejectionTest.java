@@ -27,11 +27,15 @@ class RootLoopsRejectionTest {
     private static final TestPlan.Verdict SECOND = new TestPlan.Verdict(2, "assertEquals@2", "equals", List.of(), null,
             null);
 
+    /** A typed row's report (item 3's S4: every database row is typed). */
+    private static final RootLoop.Report CONDITION = new RootLoop.Report(RootLoop.Family.CONDITION, true, null, null,
+            null, -1);
+
     private static RootLoops.Run run() {
         return new RootLoops.Run(new RootLoop(List.of(
-                new RootLoop.Root("assertEquals@1", List.of(new RootLoop.Row("assertEquals@1", 1)),
+                new RootLoop.Root("assertEquals@1", List.of(new RootLoop.Row("assertEquals@1", 1, CONDITION)),
                         null),
-                new RootLoop.Root("assertEquals@2", List.of(new RootLoop.Row("assertEquals@2", 2)),
+                new RootLoop.Root("assertEquals@2", List.of(new RootLoop.Row("assertEquals@2", 2, CONDITION)),
                         null)), Map.of()));
     }
 
@@ -45,7 +49,7 @@ class RootLoopsRejectionTest {
         run.fused(REFUSED);
         List<Object> judged = new java.util.ArrayList<>();
         DataError raised = assertThrows(DataError.class, () -> run.judgeRejected(REFUSED, null, null, false,
-                (name, row) -> judged.add(name)));
+                (name, row, report) -> judged.add(name)));
         assertSame(REFUSED, raised);
         // the first assert was judged on its row before the second raised the database's error
         assertEquals(List.of("assertEquals@1"), judged);
@@ -59,7 +63,7 @@ class RootLoopsRejectionTest {
         run.received(SECOND, List.of(true));
         List<Object> judged = new java.util.ArrayList<>();
         assertSame(REFUSED, assertThrows(DataError.class, () -> run.judgeRejected(REFUSED, null, null, false,
-                (name, row) -> judged.add(name))));
+                (name, row, report) -> judged.add(name))));
         assertEquals(List.of("assertEquals@1", "assertEquals@2"), judged);
     }
 
@@ -68,6 +72,6 @@ class RootLoopsRejectionTest {
         RootLoops.Run run = run();
         run.received(FIRST, List.of(true));
         run.received(SECOND, List.of(true));
-        assertDoesNotThrow(() -> run.judge(null, null, false, (name, row) -> { }));
+        assertDoesNotThrow(() -> run.judge(null, null, false, (name, row, report) -> { }));
     }
 }

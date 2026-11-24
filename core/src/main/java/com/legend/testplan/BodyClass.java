@@ -1020,7 +1020,7 @@ public enum BodyClass {
      *  {@code print}, a handle (M5f's audit B3: any other value statement is a check the walk holds and labels). */
     static boolean plansNoStep(TypedSpec statement, List<TypedSpec> lets, ModelContext ctx) {
         if (statement instanceof TypedLet let) {
-            return Literals.fold(let.value(), lets) != null || BodyPlanner.handleType(let.value(), ctx) != null;
+            return Literals.isConstant(let.value(), lets) || BodyPlanner.handleType(let.value(), ctx) != null;
         }
         return literal(statement) || BodyPlanner.handleType(statement, ctx) != null
                 || statement instanceof TypedNativeCall call && NativeFn.Effect.isInertDiagnostic(call.callee().id());
@@ -1229,7 +1229,7 @@ public enum BodyClass {
                 continue;
             }
             if (statement instanceof TypedLet && i < body.size() - 1
-                    && Literals.fold(value, body.subList(0, i)) instanceof String) {
+                    && Literals.joined(value, body.subList(0, i)) instanceof String) {
                 // a text the planner folds ('insert into ... ' + '(' + ...: a literal concatenation), which a later
                 // effect reads as its text -- the effect's own rule folds it the same way (literalEffect); the corpus
                 // burn-down, 2026-11-06: the aggregation-aware setUp's calendar insert
@@ -1298,7 +1298,7 @@ public enum BodyClass {
      *  its statement names for the database to read (the user's ruling, 2026-11-06). */
     static boolean literalEffect(TypedNativeCall call, List<TypedSpec> lets) {
         for (TypedSpec arg : EffectPlanner.stringArgs(call)) {
-            if (!(Literals.fold(arg, lets) instanceof String)) {
+            if (!(Literals.joined(arg, lets) instanceof String)) {
                 return false;
             }
         }

@@ -692,8 +692,7 @@ public class H2 extends AnsiSqlRenderer {
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(part(a.get(0)) == com.legend.sql.DatePart.WEEK
                     ? "iso_week" : datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
             case CURRENT_USER_FN -> writer.append("current_user");
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
-            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
@@ -1217,9 +1216,18 @@ public class H2 extends AnsiSqlRenderer {
                 .append(desc ? " DESC" : "").append(")");
     }
 
-    /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}. */
+    /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}. H2 2.5.252 rewrites an
+     *  ORDERED {@code JSON_ARRAYAGG} nested anywhere in a derived table with its null clause BEFORE its {@code ORDER BY}
+     *  and then refuses its own text ("expected )"; probed 2026-11-22, item 3's S4, on a derived table, a scalar
+     *  subquery inside one, and a grouped one: every form fails, a top-level one passes). So an ordered list of a value
+     *  the typing proves never NULL is written with no null clause (ABSENT and NULL ON NULL agree where no NULL
+     *  arrives: the database judge's typed lists, which drop their NULLs); every other list keeps NULL ON NULL, its
+     *  [null] element DuckDB's (the S4 audit's MEDIUM 3: the omission scoped to the ordered form H2 cannot spell). */
     private SqlWriter listOfValues(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
-        writer.append("JSON_ARRAYAGG(").expr(r.args().get(0), 0);
+        SqlExpr value = r.args().get(0);
+        boolean neverNull = !r.orderBy().isEmpty() && value.type() instanceof com.legend.sql.TypeFact.Typed t
+                && !t.nullable();
+        writer.append("JSON_ARRAYAGG(").expr(value, 0);
         if (!r.orderBy().isEmpty()) {
             writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
                     .append(k.ascending() ? " ASC" : " DESC")
@@ -1227,7 +1235,7 @@ public class H2 extends AnsiSqlRenderer {
                             : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
                                     ? " NULLS FIRST" : " NULLS LAST"));
         }
-        return writer.append(" NULL ON NULL)");
+        return writer.append(neverNull ? ")" : " NULL ON NULL)");
     }
 
     /** Banker's ROUND (probed on 2.1.214 against DuckDB ROUND_EVEN over
@@ -1319,8 +1327,32 @@ public class H2 extends AnsiSqlRenderer {
         return w -> w.append("CASE WHEN ").piece(matches).append(" THEN ").expr(x, 0).append(" END");
     }
 
+    /** Whether {@code v} navigates a value H2 carries as JSON (a variant's path, a struct's field): its result is JSON,
+     *  read as a typed value only through a cast ({@link #variantAwareCast}). */
+    private static boolean navigation(SqlExpr v) {
+        return v instanceof SqlExpr.Call call && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
+                || v instanceof SqlExpr.StructGet;
+    }
+
+    /** {@inheritDoc} Not a navigation's: H2 holds it as JSON ({@link #navigation}). */
+    @Override
+    protected boolean judgesAsHeld(SqlExpr.Cast c) {
+        return super.judgesAsHeld(c) && !navigation(c.value());
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && judged(c)) {
+            // a judge's instant written as its text (register S399; S181, the user's rule of 2026-11-22): read as a
+            // TIMESTAMP(9), every digit a literal here keeps -- H2's cast to TIMESTAMP rounds a seventh -- and a text
+            // with a nonzero digit past the ninth refused, never rounded (a value H2 types as a date-time is compared
+            // as it holds it: judgesAsHeld); a field of a struct H2 carries as JSON read as its text first
+            SqlExpr v = navigation(c.value())
+                    ? new SqlExpr.Cast(c.value(), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
+                    : c.value();
+            return judgedText(writer, v, 9, w -> w.append("REGEXP_LIKE(").expr(v, 0).append(", '" + digitPast(9) + "')"),
+                    w -> w.append("CAST(").expr(v, 0).append(" AS TIMESTAMP(9))"));
+        }
         // a double's Float literal is H2's double already (floatLiteral: CAST(x AS DOUBLE PRECISION)): its cast to a
         // double is the identity, never written again (S20's waste look, 2026-11-17)
         if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.value() instanceof SqlExpr.FloatLit f && f.isDouble()
@@ -1352,10 +1384,11 @@ public class H2 extends AnsiSqlRenderer {
         // with them). H2 has no JSON_VALUE. A number or a boolean is its text; a JSON null is SQL's NULL (its text the
         // word null, where a JSON string "null" is quoted); a decimal target takes the text as a scalar one does (the
         // lane round 33's stress finding, 2026-11-10)
-        boolean navigation = c.value() instanceof SqlExpr.Call call
-                && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
-                || c.value() instanceof SqlExpr.StructGet;
-        if (navigation && (c.target() instanceof com.legend.sql.SqlType.Scalar
+        // (a value typed JSON -- a variant, an Any's carrier -- read as a number, a decimal or a Boolean the same way:
+        // H2 refuses the direct cast, the audit of 2026-11-22; its VARCHAR cast stays the JSON text, the variant's)
+        boolean jsonValue = c.value().type() instanceof com.legend.sql.TypeFact.Typed jt
+                && jt.type() == com.legend.sql.SqlType.Scalar.JSON && c.target() != com.legend.sql.SqlType.Scalar.VARCHAR;
+        if ((navigation(c.value()) || jsonValue) && (c.target() instanceof com.legend.sql.SqlType.Scalar
                 || c.target() instanceof com.legend.sql.SqlType.Decimal)) {
             writer.append("CAST(CASE WHEN CAST(").expr(c.value(), 0).append(" AS VARCHAR) LIKE '\"%' THEN STRINGDECODE(")
                     .append("SUBSTRING(CAST(").expr(c.value(), 0).append(" AS VARCHAR), 2, LENGTH(CAST(")
@@ -1427,6 +1460,11 @@ public class H2 extends AnsiSqlRenderer {
      *  the base renderer's wall. */
     @Override
     protected SqlWriter variantGet(SqlWriter writer, List<SqlExpr> args) {
+        if (args.get(1) instanceof SqlExpr.StringLit root && root.value().equals("$")) {
+            // the root is the value itself (a Variant read as its text: CastPolicy; item 3's S4: until 2026-11-22 the
+            // field "$", which H2 reads as no member)
+            return writer.append("(").expr(args.get(0), 0).append(")");
+        }
         if (args.get(1) instanceof SqlExpr.StringLit key) {
             return writer.append("(").expr(args.get(0), 7).append(").\"")
                     .append(key.value().replace("\"", "\"\"")).append("\"");

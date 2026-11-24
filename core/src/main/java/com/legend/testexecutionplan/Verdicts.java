@@ -20,23 +20,8 @@ public final class Verdicts {
 
 
 
-    /** One-line first-difference sketch of two rendered texts (failure
-     * message position — the full texts drown the diagnosis). */
-    public static String firstTextDiff(String e, String a) {
-        String[] el = e.split("\n", -1);
-        String[] al = a.split("\n", -1);
-        if (el.length != al.length) {
-            return "line-count " + el.length + " != " + al.length
-                    + " (expected first line: " + el[0] + ")";
-        }
-        for (int i = 0; i < el.length; i++) {
-            if (!el[i].equals(al[i])) {
-                return "line " + i + ": expected <" + el[i] + "> got <"
-                        + al[i] + ">";
-            }
-        }
-        return "texts differ only in leniency-adjudicated cells";
-    }
+    // (firstTextDiff, a first-difference sketch of two rendered texts: moved 2026-11-21, item 3's S2, to the edge's
+    // referee, its one caller since the host judge's rendered-text failure became a catalog record)
 
     public static List<Object> decodeSideValues(
             @com.legend.base.Nullable TypedSide r) {
@@ -73,10 +58,11 @@ public final class Verdicts {
                 "Boolean");
     }
 
-    public static TypedSide fail(String message) {
-        // the seam: verdicts speak the platform vocabulary
-        throw new com.legend.error.AssertFailed(message);
+    /** A failed assert, as its record (item 3, 2026-11-21): the catalog words it. */
+    public static TypedSide fail(com.legend.error.ErrorRecord failure) {
+        throw new com.legend.error.AssertFailed(failure);
     }
+
 
 
 
@@ -105,8 +91,7 @@ public final class Verdicts {
     }
 
     public static TypedSide decided(HostJudgment.Decided d) {
-        return d.held() ? ok()
-                : fail(java.util.Objects.requireNonNull(d.message(), "a failed verdict's message"));
+        return d.held() ? ok() : fail(java.util.Objects.requireNonNull(d.failure(), "a failed verdict's record"));
     }
 
 

@@ -65,14 +65,18 @@ public sealed interface DateFmt {
 
     static final List<DateFmt> ISO_MICRO = concat(ISO_LOCAL, new Text("."), Part.SUBSEC_MICRO);
 
-    /** The product's text of a DateTime (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15): ISO
-     *  8601 in UTC, six fraction digits and {@code Z} ({@code 2024-01-02T10:30:00.123456Z}). */
-    static final List<DateFmt> ISO_MICRO_Z = concat(ISO_MICRO, new Text("Z"));
+
 
     /** The VALUE-READ wire spelling (disagree-9 burn): a wire temporal
      * cell read into the pure value domain carries NINE subsecond
      * digits — the engine's own decode ({@code %09d}). */
     static final List<DateFmt> ISO_NANO = concat(ISO_LOCAL, new Text("."), Part.SUBSEC_NANO);
+
+    /** The product's text of a DateTime (register S312, the user's ruling of 2026-11-10, amended 2026-11-22: "Yes always
+     *  pretty print to iso nanos"): ISO 8601 in UTC, NINE fraction digits and {@code Z}
+     *  ({@code 2024-01-02T10:30:00.123456789Z}); a database whose date-time holds microseconds writes its last three
+     *  zeros. Until 2026-11-22 six digits, which cut a value's nanoseconds. */
+    static final List<DateFmt> ISO_NANO_Z = concat(ISO_NANO, new Text("Z"));
 
     private static List<DateFmt> concat(List<DateFmt> head, DateFmt... tail) {
         java.util.List<DateFmt> out = new java.util.ArrayList<>(head);

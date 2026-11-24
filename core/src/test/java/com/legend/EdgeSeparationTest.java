@@ -163,9 +163,8 @@ class EdgeSeparationTest {
             // planner's configuration, the facet list)
             Map.entry("com.legend.lowering.PureOnlyTexts -> (stands in a product package)", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
-            // C5 step A (2026-11-17): an assert message's element text, legend-pure's representation, asked of the facet
-            // with its refusal (the lowering's VerdictSql, as Scalars asks it for toRepresentation)
-            Map.entry("com.legend.lowering.VerdictSql -> com.legend.lowering.PureOnlyTexts", "C5 HOOK-RULED 2026-11-17"),
+            // (lowering.VerdictSql -> lowering.PureOnlyTexts, C5 step A's (2026-11-17): gone 2026-11-21, item 3's S0, a
+            // shrink -- the database judge plans for lite's flow alone and asks the facet nothing)
             // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
             // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),

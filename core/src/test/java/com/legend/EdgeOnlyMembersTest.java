@@ -123,11 +123,8 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: a typed call to the platform's string::plus, lite's own building block (the orchestrator's ruling)"),
             Map.entry("com.legend.builtin.NativeFn$OperatorRun#fqn()",
                     "2026-11-18: an operator run's platform name, lite's own (the orchestrator's ruling)"),
-            // ruled READ_API by the orchestrator (2026-11-18, ~07:20, on E-Java's proposal): the product judge's own total
-            // order (pure's sort(): numbers, strings, booleans, temporals), a public face over Equality.sorted that the
-            // product's PureAssertsTest reads too; the edge's EdgeHostWords sorts assertSameElements' words by it
-            Map.entry("com.legend.testexec.PureAsserts#sorted(java.util.List)",
-                    "2026-11-18: the product judge's own total order over Any, pure's sort() (the orchestrator's ruling)"),
+            // (PureAsserts#sorted, READ_API by the orchestrator's ruling of 2026-11-18: gone 2026-11-21, item 3's S2, with
+            // its one caller, the edge's EdgeHostWords -- a shrink)
             // the orchestrator's ruling at J40 (2026-11-18, E-Java's 185d54a494): a plan connection's facts stay READ_API,
             // its engine spelling the edge's printer's -- left the edge's alone to read when planText moved (train 16)
             Map.entry("com.legend.compiler.spec.typed.ExecutionContext$PlanConnection#className()",

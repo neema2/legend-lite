@@ -41,8 +41,9 @@ class RaiseTextGuardTest {
 
     /** By file: how many raises stand that are not a RaiseText, and why. Shrink-only; a row moves with its date. */
     static final Map<String, Integer> EXEMPT = Map.of(
-            // the judges' raises (test road): the verdict row's own message column, the untracked identity's sentence
-            "lowering/VerdictSql.java", 1,
+            // the judges' raises (test road): the untracked identity's sentence ("lowering/VerdictSql.java", 1 -> 0,
+            // 2026-11-22, item 3's S4 step 4, a shrink under the user's standing word for cleanups: the verdict row's
+            // message column went with the sentence rows)
             "lowering/CanonicalRenderSql.java", 1,
             // the typed helpers' bodies: their message parameter IS a SqlExpr.RaiseText (PureSql.raise,
             // Scalars.guarded)

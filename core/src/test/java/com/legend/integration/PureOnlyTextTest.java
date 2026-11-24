@@ -50,28 +50,25 @@ class PureOnlyTextTest {
         }
     }
 
-    /** An assert in a lambda body with no message of its caller's (the user's R1, 2026-11-18, PR #118's fix round, N2):
-     *  the product raises lite's sentence; the compatibility edge, legend-pure's "Assert failed" (assert.pure) -- one
-     *  native the plan's style words at lowering ({@code Pure.Lite.ASSERT_FAILED_TEXT}). */
+    /** An assert in a lambda body with no message of its caller's (item 3's S6, 2026-11-23; the user's Q-C = C1, Q-S6
+     *  and Q15 = A): it raises its assert kind, worded by the one catalog on every route -- the product's and the
+     *  compatibility edge's the same sentence (until then the edge wrote legend-pure's "Assert failed", the user's R1 of
+     *  2026-11-18). The kinds per guard and the plan's site: {@code exec.InBodyAssertRaiseTest}. */
     @Test
-    void anInBodyAssertsDefaultIsLitesSentenceAndLegendPuresOnTheEdge() throws Exception {
+    void anInBodyAssertRaisesItsKindOnBothRoads() throws Exception {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("Class s::P { name: String[1]; }\n");
-        String query = "|#TDS\n  x:Integer\n  -1\n#->extend(~y: r|if($r.x > 0, |$r.x, {|assert($r.x == 0); 0;}))";
         try (Connection c = backend.open()) {
-            Exception product = assertThrows(Exception.class, () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c));
-            assertEquals("expected true, got false", product.getMessage(), backend.name());
-            Exception edge = assertThrows(Exception.class, () -> Lean.runInStyle(model, query, StorelessRuntime.RUNTIME,
-                    backend, com.legend.edge.PureText.UPSTREAM));
-            assertEquals("Assert failed", edge.getMessage(), backend.name());
-            // the six other guards keep their text on both roads: R1 ruled assert's default alone (the re-review of
-            // 373e42960, 2026-11-18)
-            for (String guard : List.of("assertFalse($r.x < 0)", "assertEquals(0, $r.x)")) {
-                String other = "|#TDS\n  x:Integer\n  -1\n#->extend(~y: r|if($r.x > 0, |$r.x, {|" + guard + "; 0;}))";
-                assertEquals("Assert failed", assertThrows(Exception.class,
-                        () -> Lean.run(model, other, StorelessRuntime.RUNTIME, c)).getMessage(), guard);
-                assertEquals("Assert failed", assertThrows(Exception.class, () -> Lean.runInStyle(model, other,
-                        StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM)).getMessage(), guard);
+            for (List<String> guard : List.of(List.of("assert($r.x == 0)", "expected true, got false"),
+                    List.of("assertFalse($r.x < 0)", "expected false, got true"),
+                    List.of("assertEquals(0, $r.x)", "expected true, got false"))) {
+                String query = "|#TDS\n  x:Integer\n  -1\n#->extend(~y: r|if($r.x > 0, |$r.x, {|" + guard.get(0)
+                        + "; 0;}))";
+                assertEquals(guard.get(1), assertThrows(Exception.class,
+                        () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c)).getMessage(), guard.get(0));
+                assertEquals(guard.get(1), assertThrows(Exception.class, () -> Lean.runInStyle(model, query,
+                        StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM)).getMessage(),
+                        guard.get(0));
             }
         }
     }

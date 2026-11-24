@@ -21,6 +21,14 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
         return integerAndDecimal && String.valueOf(e).equals(String.valueOf(a));
     }
 
+    /** Legend-pure's date equality: a date is its components and its subsecond as written
+     *  ({@code AbstractPureDate.equals}, AbstractPureDate.java:30-59), so a written precision is part of its value
+     *  (register S399: the compatibility routes answer Pure's way; until then the host's one rule). */
+    @Override
+    public boolean equalDates(Object e, Object a) {
+        return e.equals(a);
+    }
+
     /** The units in the last place two Floats may differ by and be equal: compiled legend-pure's 2 (S15/S132). */
     public static final int FLOAT_ULPS = 2;
 
@@ -60,9 +68,11 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
         return ok;
     }
 
+    /** legend-pure's words of a caught error (K10 of the edge audit, 2026-11-18): a raise of a planned site worded
+     *  from its site's record, after the run (stage B's B1, 2026-11-20: {@link PureMessages#worded}); any other error
+     *  its own message -- the edge's one wording of an error, the pure/v1 routes' too. */
     @Override
-    public com.legend.testexec.HostWords words() {
-        // the compatibility rules: legend-pure's words
-        return EdgeHostWords.INSTANCE;
+    public String caught(RuntimeException error, com.legend.testexec.EdgeHearing hearing) {
+        return PureMessages.compile(error);
     }
 }

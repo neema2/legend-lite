@@ -37,18 +37,18 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 82 | 80 | 50 | 18 | 30 |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 76 | 128 | 8 | 18 | 37 |
-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 95 | 111 | 6 | 18 | 40 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 84 | 123 | 5 | 18 | 40 |
-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 71 | 129 | 12 | 18 | 37 |
-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 97 | 108 | 7 | 18 | 38 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 147 | 65 | 0 | 18 | 46 |
-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 65 | 140 | 7 | 18 | 38 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 58 | 147 | 7 | 18 | 40 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 54 | 150 | 8 | 18 | 39 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 54 | 150 | 8 | 18 | 39 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 200 | 12 | 18 | 200 |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 82 | 82 | 50 | 18 | 32 |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 76 | 130 | 8 | 18 | 39 |
+| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 95 | 113 | 6 | 18 | 42 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 84 | 125 | 5 | 18 | 42 |
+| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 71 | 131 | 12 | 18 | 39 |
+| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 97 | 110 | 7 | 18 | 40 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 147 | 67 | 0 | 18 | 48 |
+| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 65 | 142 | 7 | 18 | 40 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 58 | 149 | 7 | 18 | 42 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 54 | 152 | 8 | 18 | 41 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 54 | 152 | 8 | 18 | 41 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 200 | 14 | 18 | 200 |
 
 ## Functions
 
@@ -223,6 +223,8 @@ input).
 | `ALL_DISTINCT` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
 | `NULL_SAFE_EQUAL` | E | E | E | E | E | E | E | E | E | S | S | E· |
 | `NULL_SAFE_NOT_EQUAL` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `SAME_IN_ORDER` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R |
+| `SAME_IN_ANY_ORDER` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R |
 | `STRFTIME` | S | E | E | E | E | E | E | E | E | E | E | E· |
 | `STRPTIME` | S· | R | E· | E· | E· | E· | S· | E· | R | R | R | E· |
 | `PARSE_DATE` | E | E | E | E | E | E | E | E | E | E | E | E· |

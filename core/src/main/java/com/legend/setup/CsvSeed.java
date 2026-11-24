@@ -286,12 +286,12 @@ public final class CsvSeed {
         String dbNames = String.join(", ", dbFqns);
         if (!defaultSchema && dbFqns.stream().noneMatch(db -> schemaDeclared(ctx, db, schema,
                 new java.util.HashSet<>()))) {
-            throw new com.legend.error.AssertFailed("There should be exactly 1 schema with name " + schema
-                    + " found in the provided runtime database(s) [" + dbNames + "] at the given connection.");
+            throw new com.legend.error.AssertFailed(com.legend.error.AssertKind.CSV_SCHEMA_NOT_FOUND.record(
+                    java.util.Map.of("schema", schema, "databases", dbNames)));
         }
         if (!tableDeclared) {
-            throw new com.legend.error.AssertFailed("Table \"" + table + "\" not found in Schema \"" + schema
-                    + "\" in Database(s) " + dbNames);
+            throw new com.legend.error.AssertFailed(com.legend.error.AssertKind.CSV_TABLE_NOT_FOUND.record(
+                    java.util.Map.of("table", table, "schema", schema, "databases", dbNames)));
         }
     }
 
@@ -562,8 +562,8 @@ public final class CsvSeed {
                 }
             }
             if (found == null) {
-                throw new com.legend.error.AssertFailed("Column \"" + c + "\" not found in Table \"" + table
-                        + "\" in Database(s) " + dbFqn);
+                throw new com.legend.error.AssertFailed(com.legend.error.AssertKind.CSV_COLUMN_NOT_FOUND.record(
+                        java.util.Map.of("column", c, "table", table, "database", dbFqn)));
             }
             out.add(found);
         }

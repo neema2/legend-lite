@@ -266,9 +266,11 @@ final class Scalars {
         // types the call as the position) it casts to that carrier
         for (com.legend.model.FunctionId f : Pure.AT_ASSERTS_FAIL) {
             RULES.put(f, (n, args) -> {
-                // USER_FAIL: the user's own message, the one operand the product writes (D1.1)
-                SqlExpr raised = PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.USER_FAIL,
-                        List.of(args.isEmpty() ? new SqlExpr.StringLit("fail") : args.get(0))), n.pos());
+                // USER_FAIL: the user's own message, the one operand the product writes (D1.1); fail() with none is
+                // legend-pure's assert(false) (fail.pure), its condition's failure (item 3's S6, the user's Q-S6c)
+                SqlExpr raised = PureSql.raise(args.isEmpty()
+                        ? new SqlExpr.RaiseText(com.legend.sql.RaiseKind.ASSERT_TRUE, List.of())
+                        : new SqlExpr.RaiseText(com.legend.sql.RaiseKind.USER_FAIL, List.of(args.get(0))), n.pos());
                 return n.info().type() instanceof Type.Primitive p
                         && p != Type.Primitive.BOOLEAN
                         ? new SqlExpr.Cast(raised, PureSql.type(p), SqlExpr.Reason.RAISE)
@@ -499,15 +501,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> overCells(n)
                     ? args.stream().<SqlExpr>map(c -> SqlExpr.Call.of(SqlFn.IS_NULL, c))
                             .reduce((a, b) -> SqlExpr.Call.of(SqlFn.AND, a, b)).orElseThrow()
-                    : args.get(0) instanceof SqlExpr.TaggedList tl
-                    ? SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
-                    : listValued(n.args().get(0))
-                    ? new SqlExpr.Call(SqlFn.EQUAL, List.of(
-                            SqlExpr.Call.of(SqlFn.COALESCE,
-                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
-                                    new SqlExpr.IntLit(0)),
-                            new SqlExpr.IntLit(0)))
-                    : new SqlExpr.Call(SqlFn.IS_NULL, args));
+                    : emptiness(n.args().get(0), args.get(0)));
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_NOT_EMPTY) {
             RULES.put(f, (n, args) -> overCells(n)
@@ -1549,6 +1543,12 @@ final class Scalars {
                         .multiplicity() instanceof Multiplicity.Bounded pb
                         && pb.upper() != null && pb.upper() <= 1);
                 if (listCallee || n.args().get(0).info().type() != Type.Primitive.STRING) {
+                    // a Variant's position: among Variants only identity decides (register S401), refused by name;
+                    // among values of other types alone it is never found
+                    if (com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1))
+                            == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
+                        return new SqlExpr.IntLit(-1);
+                    }
                     // LIST indexOf: 0-based, -1 on a miss; the operand
                     // conforms to the list contract by stamp (asList)
                     // and COMPACTS on the value lane (§5 positional
@@ -1684,6 +1684,13 @@ final class Scalars {
                 if (isToOne(n.args().get(0))) {
                     return new SqlExpr.ArrayLit(List.of(args.get(0)));
                 }
+                if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
+                    // Variants deduplicated by equality (the elements, or a key's values): only identity decides
+                    // (register S401), refused by name
+                    com.legend.compiler.spec.typed.VariantEquality.refuseAmong(n.args().size() == 3
+                            && n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedLambda k
+                            && !k.body().isEmpty() ? k.body().get(k.body().size() - 1) : n.args().get(0));
+                }
                 // a MIXED list (track L, 2026-10-29): the first position of each element kept -- by the element's
                 // kind and value, or by the comparator over the elements at two positions (the binding convention:
                 // the lambda's parameters are the elements at the positions it ranges over)
@@ -1760,9 +1767,15 @@ final class Scalars {
                 // audit §4: the same to-one guard its synonym
                 // removeDuplicates always had (a [0..1] value hit the
                 // list-lambda binder)
-                (n, args) -> isToOne(n.args().get(0))
-                        ? new SqlExpr.ArrayLit(List.of(args.get(0)))
-                        : ListEncodings.orderedDedup(args.get(0)));
+                (n, args) -> {
+                    if (isToOne(n.args().get(0))) {
+                        return new SqlExpr.ArrayLit(List.of(args.get(0)));
+                    }
+                    // Variants deduplicated by equality (union too, desugared to it): only identity decides
+                    // (register S401), refused by name
+                    com.legend.compiler.spec.typed.VariantEquality.refuseAmong(n.args().get(0));
+                    return ListEncodings.orderedDedup(args.get(0));
+                });
         // print/println inside an expression (map(r|println(...))): the
         // NO-OP doctrine (BodyDriver's print arm) — the value is
         // the Nil[0] cell, NULL; the argument is pure SQL computation and
@@ -2114,6 +2127,10 @@ final class Scalars {
                     throw new IllegalStateException(
                             "removeDuplicatesBy expects (values, key-function)");
                 }
+                if (n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedLambda k && !k.body().isEmpty()) {
+                    // Variant keys compared by equality: only identity decides (register S401), refused by name
+                    com.legend.compiler.spec.typed.VariantEquality.refuseAmong(k.body().get(k.body().size() - 1));
+                }
                 SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
                 if (mixed != null) {
                     return TaggedLists.dedupBy(mixed, key);   // track L: the key over the element at each position
@@ -2230,6 +2247,12 @@ final class Scalars {
                 boolean collCallee = !(n.callee().parameters().get(0)
                         .multiplicity() instanceof Multiplicity.Bounded pb0
                         && pb0.upper() != null && pb0.upper() <= 1);
+                if (collCallee && args.size() == 2 && com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0),
+                        n.args().get(1)) == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
+                    // a Variant's membership by equality: among Variants only identity decides (register S401),
+                    // refused by name (VariantEquality.between); among values of other types alone, never a member
+                    return new SqlExpr.BoolLit(false);
+                }
                 if (collCallee) {
                     args = new java.util.ArrayList<>(args);
                     args.set(0, PureSql.asList(args.get(0),
@@ -2430,12 +2453,15 @@ final class Scalars {
                     new SqlExpr.Call(SqlFn.IS_DISTINCT_FROM, args));
         }
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.IS_DISTINCT__T_MANY)) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    ? new SqlExpr.BoolLit(true)
-                    : SqlExpr.Call.of(SqlFn.ALL_DISTINCT,
-                            PureSql.asList(args.get(0),
-                                    !CollectionLanes.c1Literal(
-                                            n.args().get(0)))));
+            RULES.put(f, (n, args) -> {
+                if (isToOne(n.args().get(0))) {
+                    return new SqlExpr.BoolLit(true);
+                }
+                // Variants compared by equality: only identity decides (register S401), refused by name
+                com.legend.compiler.spec.typed.VariantEquality.refuseAmong(n.args().get(0));
+                return SqlExpr.Call.of(SqlFn.ALL_DISTINCT, PureSql.asList(args.get(0),
+                        !CollectionLanes.c1Literal(n.args().get(0))));
+            });
         }
         // parseInteger is 64-BIT (PCT pins Long.MIN/MAX round-trips) —
         // the SqlFn.PARSE_INT semantic entry lets each dialect spell it:
@@ -2651,6 +2677,12 @@ final class Scalars {
                                         .apply(n, args),
                                 new SqlExpr.BoolLit(false)));
         RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY), (n, args) -> {
+            // a Variant's membership: among Variants only identity decides (register S401), refused by name; among
+            // values of other types alone, never a member
+            if (com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1))
+                    == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
+                return new SqlExpr.BoolLit(false);
+            }
             // TYPE-aware membership: a kind-mismatched needle is never a
             // member — static FALSE, not a DB error.
             if (MixedEncoding.kindMismatch(n.args().get(0).info().type(),
@@ -2854,6 +2886,22 @@ final class Scalars {
      * beyond one. Relation columns are at most [0..1], so to-many here means
      * a collection expression (toMany(@T), literal lists, split, ...).
      */
+    /** Whether {@code spec}'s values, lowered as {@code lowered}, are none: a mixed list's size, a list's length (a
+     *  NULL list none), a scalar's NULL. */
+    static SqlExpr emptiness(TypedSpec spec, SqlExpr lowered) {
+        return lowered instanceof SqlExpr.TaggedList tl
+                ? SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
+                : listValued(spec)
+                ? new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, lowered), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0)))
+                : new SqlExpr.Call(SqlFn.IS_NULL, List.of(lowered));
+    }
+
+    /** Whether both sides' values are none ({@link #emptiness} of each). */
+    static SqlExpr bothEmpty(TypedSpec a, SqlExpr la, TypedSpec b, SqlExpr lb) {
+        return SqlExpr.Call.of(SqlFn.AND, emptiness(a, la), emptiness(b, lb));
+    }
+
     private static boolean listValued(TypedSpec arg) {
         return arg.info().multiplicity().isMany();
     }

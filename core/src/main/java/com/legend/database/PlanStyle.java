@@ -47,7 +47,7 @@ public interface PlanStyle {
     <F> F twoForm(Class<F> kind, F productForm);
 
     /** A graph fetch's key argument that is a date, from its written text (no zone): the product's text of the type
-     *  (a DateTime ISO 8601 in UTC with six fraction digits and {@code Z}, a date as written), the edge legend-engine's
+     *  (a DateTime ISO 8601 in UTC with nine fraction digits and {@code Z}, a date as written), the edge legend-engine's
      *  ({@code +0000} after a time) (phase D's D1.2, 2026-11-15; register S312). */
     String graphKeyDate(String written);
 
@@ -130,9 +130,9 @@ public interface PlanStyle {
     };
 
     /** A literal date's written text ({@code 2023-10-15}, {@code 2023-10-15T10}, {@code 2023-10-15T10:30:00.5}) as the
-     *  product's text of its type: a date with no time as written; a DateTime ISO 8601 in UTC with six fraction digits
-     *  and {@code Z}, its missing parts zero, a finer fraction cut to six (the literal is already in UTC). A constant
-     *  spelled at planning, as its written text was (register S312). */
+     *  product's text of its type: a date with no time as written; a DateTime ISO 8601 in UTC with nine fraction digits
+     *  and {@code Z}, its missing parts zero (the literal is already in UTC; a tenth digit is refused when the literal is
+     *  lowered). A constant spelled at planning, as its written text was (register S312, amended 2026-11-22). */
     private static String dateTimeText(String written) {
         int t = written.indexOf('T');
         if (t < 0) {
@@ -142,7 +142,13 @@ public interface PlanStyle {
         String seconds = hms.length > 2 ? hms[2] : "00";
         int dot = seconds.indexOf('.');
         String whole = dot < 0 ? seconds : seconds.substring(0, dot);
-        String fraction = ((dot < 0 ? "" : seconds.substring(dot + 1)) + "000000").substring(0, 6);
+        String written9 = dot < 0 ? "" : seconds.substring(dot + 1);
+        if (written9.length() > 9 && !written9.substring(9).matches("0*")) {
+            // a digit past the ninth is never cut (the audit of 2026-11-22): refused, as the literal's lowering refuses it
+            throw new com.legend.error.NotImplementedException("a date-time's text holds nine fraction digits: "
+                    + written + " has a nonzero digit past the ninth");
+        }
+        String fraction = (written9 + "000000000").substring(0, 9);
         return written.substring(0, t) + "T" + hms[0] + ":" + (hms.length > 1 ? hms[1] : "00") + ":" + whole + "."
                 + fraction + "Z";
     }

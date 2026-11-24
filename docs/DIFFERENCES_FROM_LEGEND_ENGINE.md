@@ -286,6 +286,50 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:** count pending; the nested cases are counted before B2 is built.
 - **Register:** a row comes with B2.
 
+### 15. Two date-times at the same instant are equal, whatever their written precision (item 3, stage B)
+- **You write** `assertEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)`, or compare a literal written to the
+  second with a timestamp column's value.
+- **legend-pure** says not equal: a date's written precision is part of its value (`AbstractPureDate.equals`).
+  **legend-engine** reads every timestamp back at nine subsecond digits, so a literal written to the second fails
+  against its own column (73 expected failures in its relational PCT manifests). **read**
+- **Lite's product** compares a date by its kind and its instant, as the database does: equal. A day is never a
+  date-time, and a year never a year-month, as in Pure. **measured** (`AssertBarTest`)
+- **The other face:** `assertNotEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)` fails in lite's product,
+  where legend-pure passes it; so do `assertNotEq` and `assertNotContains` of such a pair.
+- **Every subsecond digit a value carries is compared**, up to nine. A date-time literal with a nonzero tenth digit is
+  refused when the query is planned (register S181); lite never cuts or rounds a digit.
+- **On DuckDB**, an assert whose values have nanoseconds compares them in DuckDB's nanosecond timestamp, which holds
+  the days 1677-09-22 to 2262-04-10; a value outside them in such an assert is refused by name. Any other date-time
+  assert compares to the microsecond, in every year, and refuses by name a value with a digit past the sixth.
+- **A year and a year-month** compare by their numbers, and a Date's kind (year, year-month, day, date-time) is read
+  from how it is built, in every year.
+- **On legend-engine's and legend-pure's doors** lite keeps Pure's answer (the host judge's compatibility forms).
+- Register S399.
+
+### 16. Two whole Variants are not compared (item 3)
+- **You write** `fromJson('{"a": 1}') == fromJson('{"a":1}')`, `assertEquals` over two Variants, or `contains`, `in`,
+  `indexOf`, `removeDuplicates`, `distinct`, `union` or `isDistinct` over a list holding Variants.
+- **legend-pure** compares two Variants by identity: two documents built apart are never equal, whatever they hold.
+  A Variant is never equal to a number or a String. **read** **asked** (legend-pure's compiled runtime)
+  **legend-engine** compares a Variant column with its database's own `=`, and refuses `fromJson` when it plans. **read**
+- **Lite** refuses the comparison by name: a database cannot compute identity. Compare a path (`get`), a typed value
+  (`to(@T)`), or the JSON text (`toString()`, a Variant's JSON text in lite: lite has no `toJson` over a Variant) instead. A Variant against a value of another type is not equal, as in
+  Pure, read through every expression typed `Any` to where its values come from (a cast, a list, an `if`, `first`,
+  `filter`, `map`, ...); a Variant inside a list of other values, or held in a `Pair`, a `List` or a `Map` (in a member
+  declared `Any` too), or in a key declared Variant, compared by equality is refused too. The one difference from legend-pure: the same Variant compared with itself, which Pure
+  answers true and lite refuses. Not yet refused: a relation's `distinct`, `groupBy` or join over a Variant column,
+  and a value typed `Any` that comes from a variable or a stored property, which use the database's own equality. **measured** (`AssertBarTest`)
+- Register S401.
+
+### 17. A failed assert's words are lite's (item 3, until B2)
+- **You write** an assert that fails: `assertEquals(1, 2)`, `assertContains([1, 2], 3)`, `assert(false)`.
+- **legend-pure** says "Assert failed", or `expected: 1` and `actual:   2` on two lines, or `[1, 2] does not contain 3`;
+  legend-engine's runs print the same. **read**
+- **Lite** says "expected 1, got 2", "expected [1, 2] to contain 3": one catalog of words, written from the values
+  both judges compared, on every route. Whether a test passes or fails is unchanged on every lane. **measured**
+- **When:** item 3; B2 writes legend-pure's words at the compatibility edge.
+- Register S398.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,

@@ -41,10 +41,10 @@ h2	JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select
 # 2026-11-09 (P4, D1): a Date parameter is a timestamp, as upstream writes it on every database but BigQuery: a
 # StrictDate value answers as a midnight date-time, where the query with the StrictDate literal answers the date.
 # Upstream's own outcome (D1); posted to the user with the two above.
-h2	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000Z\r\n2,2024-01-02T00:00:00.000000Z\r\n3,2024-01-02T00:00:00.000000Z\r\n
-h2	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000Z"},{"ID":2,"d":"2024-01-02T00:00:00.000000Z"},{"ID":3,"d":"2024-01-02T00:00:00.000000Z"}]
-duckdb	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000Z\r\n2,2024-01-02T00:00:00.000000Z\r\n3,2024-01-02T00:00:00.000000Z\r\n
-duckdb	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000Z"},{"ID":2,"d":"2024-01-02T00:00:00.000000Z"},{"ID":3,"d":"2024-01-02T00:00:00.000000Z"}]
+h2	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000000Z\r\n2,2024-01-02T00:00:00.000000000Z\r\n3,2024-01-02T00:00:00.000000000Z\r\n
+h2	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000000Z"},{"ID":2,"d":"2024-01-02T00:00:00.000000000Z"},{"ID":3,"d":"2024-01-02T00:00:00.000000000Z"}]
+duckdb	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000000Z\r\n2,2024-01-02T00:00:00.000000000Z\r\n3,2024-01-02T00:00:00.000000000Z\r\n
+duckdb	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000000Z"},{"ID":2,"d":"2024-01-02T00:00:00.000000000Z"},{"ID":3,"d":"2024-01-02T00:00:00.000000000Z"}]
 # 2026-11-09 (the correctness re-audit's 1; the user's ruling that day, "Duckdb timestamp is fine, later we need a
 # nanosecond pure type"): a DateTime parameter on DuckDB is upstream's microsecond TIMESTAMP, where lite's own literal
 # keeps a nanosecond digit (TIMESTAMP_NS). 2026-11-10 (S181 RULED, A7): a value of a finer digit than the slot keeps

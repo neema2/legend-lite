@@ -21,9 +21,14 @@ final class BodyRun {
     private final EdgeHearing hearing;
     /** How many messaged asserts are being judged (nested: an assert inside a messaged one's helper). */
     private int messaged;
+    /** The program's reader while it runs, as its sink holds it (an unrolled element's caller's message read through
+     *  it where that element fails: item 3's S4 step 3); a final view of the sink's own field, never a second copy (the
+     *  code-shape guard's explicit mutable state). */
+    private final java.util.function.Supplier<@Nullable SideReader> reader;
 
-    BodyRun(EdgeHearing hearing) {
+    BodyRun(EdgeHearing hearing, java.util.function.Supplier<@Nullable SideReader> reader) {
         this.hearing = hearing;
+        this.reader = reader;
     }
 
     EdgeHearing hearing() {
@@ -36,12 +41,30 @@ final class BodyRun {
      *  2026-11-20); any other error its own message. */
     String caughtMessage(RuntimeException e) {
         // whose words: the run hook's (census J29, 2026-11-18), never a branch of the judge's
-        return hearing.hostForms().words().caught(e, hearing);
+        return hearing.hostForms().caught(e, hearing);
     }
 
     /** The listener the run's judges tell: the caller's, its reports kept back while an appeal is held. */
     @Nullable AssertListener listener() {
         return hearing.listener();
+    }
+
+    /** An unrolled element's caller's message (item 3's S4 step 3, the user's decision 4): {@code side} read through
+     *  the program's reader and shaped only when the judge asks, its element having failed; null where it has none. */
+    java.util.function.@Nullable Supplier<TypedSide> message(
+            com.legend.testexecutionplan.TestPlan.@Nullable Side side,
+            com.legend.testexecutionplan.@Nullable SideShape shape) {
+        return side == null || shape == null ? null : () -> SideShapes.shape(shape, read(side));
+    }
+
+    /** {@code side} read now, through the program's reader: a part's caller's message, its element having failed. */
+    com.legend.exec.PlanRunner.Rows read(com.legend.testexecutionplan.TestPlan.Side side) {
+        SideReader r = java.util.Objects.requireNonNull(reader.get(), "a side read on demand with no program running");
+        try {
+            return r.read(side);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     /** A messaged assert is being judged until the scope closes. */

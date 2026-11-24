@@ -164,6 +164,29 @@ seven-family "regression" that does not exist. It cost an hour and a false
 check the flag before reading the scoreboard. Prefer `tools/allgates.sh`,
 which cannot make this mistake.
 
+## Item 3's word moves re-recorded, 2026-11-23 -- the corpus's witnesses and the edge goldens (lite's assert words, Q15 = A)
+
+The user's Q15 = A (2026-11-20): lite's own assert-failure words on every route, provided no test's verdict moves. Item 3
+moved the words of failures that already failed; nothing passed that failed, nothing failed that passed:
+- **`{duckdb,h2}-accepted-roster.txt`, witnesses only** (no row joins or leaves; each divergence the same): the 19
+  test-data-generator SQL-text divergences (S193) now read `expected "select top 20` (the record's EQUALS sentence;
+  legend-pure's `expected: 'select top 20` until then); `testDateTimeInclusiveRangeQuery` reads
+  `within 0.0, got [[2014-12-04T21:00:00.000000000Z]]` (the WITHIN_TOLERANCE rows sentence, the same one row against
+  the golden's two); DuckDB's `testCheckedWithCircularConstraints` reads the actual's first object with no defect
+  (`got [{"defects":[],"value":{"firstName":"Ann"...`), the golden's constraint defect still absent from ours. Without
+  the new witnesses the corpus read the 21 (20 on H2) as ordinary failures: the bisect put the move at 053e0d57 (S2,
+  the host judge's failures as records), the words alone.
+- **`edge/corpus_{duckdb,h2}_host_judge-host.tsv`** (`bazel run //spec:update_edge_corpus`): 54 DuckDB and 64 H2 rows'
+  failure texts in lite's words, no verdict column changed.
+- **`testToSqlGenerationFirstDayOfWeek`'s assert row gone on both lanes** (its witness `2014-11-30` unchanged): its
+  `assertEquals` in an unrolled `map` element carries a caller's message, which item 3's S4 step 3 (e2877f87, bisected)
+  kept with the element; the edge's SQL-text appeal, decided after the run, refuses by name a failure whose message it
+  cannot read after the run (`Appeals.failed`), so the test fails as that refusal and no row is written for its assert.
+  The verdict is the same (an accepted divergence). A fix that handed the edge the assert's failure as a function was
+  reverted by the user's word (2026-11-23): the fix wanted is a planning-time decision in the edge, pending the user.
+- **PCT channel B `ledger.tsv`:** the acos/asin rows' texts on every lane (duckdb and sqlite measured; the eight other
+  databases' derived from their old rows, to be confirmed by each database's warm lane) and SQLite's date-diff row.
+
 ## The ord registers emptied, 2026-11-20 -- a sorted chain with unmappable keys compared in sequence (the compat program's next item 3)
 
 The user, 2026-11-20 ~13:10: "Yes need to do result order next" (after "Result order can't match why").

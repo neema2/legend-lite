@@ -513,7 +513,7 @@ class QueryRunRoute(Served):
                              '{"name":"s","type":"String"},{"name":"b","type":"Boolean"},'
                              '{"name":"day","type":"StrictDate"},{"name":"at","type":"DateTime"}],"rows":['
                              '[9007199254740993,10000000000000000.0,"12.30","é",true,"2024-01-02",'
-                             '"2024-01-02T03:04:05.120000Z"],'
+                             '"2024-01-02T03:04:05.120000000Z"],'
                              '[null,0.1,"-0.05",null,false,null,null]]}')
 
     def test_each_refusal_is_lites_by_its_kind(self):

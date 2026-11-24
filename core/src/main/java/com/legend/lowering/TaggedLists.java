@@ -622,6 +622,11 @@ final class TaggedLists {
      * {@code TAGGED<kind slot, ...>} with the list's multiplicity, and the decoders read each row as a tagged value.
      */
     static SqlSelect root(SqlExpr.TaggedList tl, TypedSpec spec, String alias) {
+        return root(tl, PureSql.nullable(spec.info().multiplicity()), alias);
+    }
+
+    /** {@link #root}, the column's nullability given ({@code nullable}): a list the judge reads, not a query's root. */
+    static SqlSelect root(SqlExpr.TaggedList tl, boolean nullable, String alias) {
         List<SqlType.Tagged.Slot> slots = tl.slots();
         SqlType.Tagged carrier = new SqlType.Tagged(slots);
         if (tl.rows() != null) {
@@ -636,7 +641,7 @@ final class TaggedLists {
             }
             List<SqlSelect.Projection> out = new ArrayList<>();
             out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null, SqlExpr.Reason.CARRIER), carrier, SqlExpr.Reason.CARRIER), "value",
-                    new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
+                    new OutputCol("value", carrier, nullable)));
             for (int k = 0; k < slots.size(); k++) {
                 String name = SqlType.Tagged.slotColumn("value", k);
                 out.add(new SqlSelect.Projection(cell.apply(SqlExpr.TaggedList.ROW_CHANNEL(k)), name,
@@ -656,7 +661,7 @@ final class TaggedLists {
         SqlExpr index = SqlExpr.Call.of(SqlFn.MINUS, tl.tagAt(p), new SqlExpr.IntLit(1));
         List<SqlSelect.Projection> out = new ArrayList<>();
         out.add(new SqlSelect.Projection(new SqlExpr.Cast(index, carrier, SqlExpr.Reason.CARRIER), "value",
-                new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
+                new OutputCol("value", carrier, nullable)));
         for (int k = 0; k < slots.size(); k++) {
             String name = SqlType.Tagged.slotColumn("value", k);
             out.add(new SqlSelect.Projection(tl.channelAt(k, p), name,

@@ -96,16 +96,8 @@ public final class TestRunner {
             // judges tell the caller's listener through it, its reports kept back while an appeal is held
             // (the edge's hearing, opened for this run: census C2, 2026-11-17; the product's refuses an appeal by name)
             EdgeHearing appeals = edgeRun.open(plan, callers, execution);
-            String hookWords = appeals.hostForms().words().name();
-            if (!plan.words().equals(hookWords)) {
-                // one choice per run (census C1, the orchestrator's ruling of 2026-11-17): the plan's style and the run's
-                // hook word its failures alike -- a mixed run is refused by name, never judged half one way
-                throw new IllegalArgumentException("a test plan worded in " + plan.words() + "'s words is run with a run"
-                        + " hook whose words are " + hookWords + "'s: the style and the hook go together (the edge's"
-                        + " style with the edge's hook)");
-            }
-            // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
-            BodyRun run = new BodyRun(appeals);
+            // (the plan's words against the run hook's, census C1's check: gone with item 3, 2026-11-21 -- one catalog
+            // words every assert failure, so a run has no words of its own to match)
             AssertListener listener = appeals.listener();
             ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.writerFor(plan.answerShape())
                     : null;
@@ -115,7 +107,7 @@ public final class TestRunner {
             // one, leased for the run), opened when a step first asks
             try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 SystemDatabase.Leases systemSessions = leases;
-                Moved moved = new Moved(plan, edge, answer, early, listener, run);
+                Moved moved = new Moved(plan, edge, answer, early, listener, appeals);
                 PlanSessions.Source sessions = PlanSessions.marked(PlanSessions.of(session, systemSessions), origin);
                 try {
                     TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved, execution);
@@ -182,7 +174,7 @@ public final class TestRunner {
 
         Moved(TestPlan planned, com.legend.testexecutionplan.Edge edge,
                 @Nullable Output answer, @Nullable ResultSink early, @Nullable AssertListener listener,
-                BodyRun run) {
+                EdgeHearing appeals) {
             if (!edge.records() && !planned.extensionsByStep().isEmpty()) {
                 // records planned for the edge (the compatibility rules' ledger texts, a raise site's words) with no
                 // edge to hand them: the plan was made for another run, refused by name, never run with its records
@@ -191,7 +183,9 @@ public final class TestRunner {
                         + planned.extensionsByStep().keySet() + " run with no edge");
             }
             this.planned = planned;
-            this.run = run;
+            // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each
+            // explicitly; it reads the program's reader as this sink holds it
+            this.run = new BodyRun(appeals, () -> reader);
             this.edge = edge;
             this.answer = answer;
             this.early = early;
@@ -254,8 +248,10 @@ public final class TestRunner {
             if (hostStep != null && verdict.wrapper() != null) {
                 // an assertError's verdict the database judges (S135): its row is its statement's, judged alone at its
                 // step -- the host's facts name the assert it reports under
-                com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(), java.util.Objects.requireNonNull(row,
-                        "an assertError's verdict statement answered no row"), listener, run.hearing().hostForms().words());
+                com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(),
+                        (com.legend.testexecutionplan.HostJudgment.AssertError) com.legend.testexecutionplan.HostJudgment
+                                .core(hostStep.judgment()), java.util.Objects.requireNonNull(row,
+                        "an assertError's verdict statement answered no row"), listener);
                 lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
                 return;
             }
@@ -280,9 +276,9 @@ public final class TestRunner {
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }
 
-        /** The database judge's verdict arm over one root's row. */
-        private void databaseVerdict(String name, List<Object> row) {
-            com.legend.testexec.DatabaseVerdicts.verdictOf(name, row, this.run.hearing().hostForms().words());
+        /** The database judge's verdict arm over one root's row: a typed row by its report (item 3's S4). */
+        private void databaseVerdict(String name, List<Object> row, com.legend.testexecutionplan.RootLoop.Report report) {
+            com.legend.testexec.DatabaseVerdicts.typedVerdictOf(name, row, report);
         }
 
         /** A fused statement's word, counted; a rejected one's segment judged at once on the rejection, handed to the

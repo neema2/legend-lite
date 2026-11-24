@@ -138,7 +138,10 @@ public final class StatementEffects {
                 ? nc.callee().qualifiedName()
                 : n instanceof TypedUserCall uc
                         ? uc.callee().qualifiedName() : null;
-        return callee != null && com.legend.compiler.element.type.PlatformTypes.isVerdictFunction(callee);
+        // an in-body assert's raise is the assert's own (item 3's S6: the guard with no message of its caller's, which
+        // was fail(...) until then; the audit of e13a9c6d, 2026-11-23)
+        return callee != null && (com.legend.compiler.element.type.PlatformTypes.isVerdictFunction(callee)
+                || com.legend.builtin.Pure.Lite.ASSERT_RAISE.equals(callee));
     }
 
     /** Does {@code n} REACH a node {@code p} accepts -- itself, a node under it, or a node of the compiled body of a

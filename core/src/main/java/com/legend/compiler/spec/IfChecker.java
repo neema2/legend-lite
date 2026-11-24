@@ -163,7 +163,8 @@ final class IfChecker {
         TypedSpec last = t.synth(stmts.get(stmts.size() - 1), env);
         var fail = (com.legend.compiler.spec.typed.TypedNativeCall)
                 java.util.Objects.requireNonNull(first, "first");
+        // the fail's own place kept (the audit of e13a9c6d: an assertError over the body reads it)
         return new com.legend.compiler.spec.typed.TypedNativeCall(
-                fail.callee(), fail.args(), last.info());
+                fail.callee(), fail.args(), last.info(), fail.pos());
     }
 }

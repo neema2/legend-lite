@@ -316,6 +316,24 @@ public final class LiteralSpelling {
      * {@code UNNEST(list_filter([TIMESTAMP '...', ...], λ))} collection
      * — rebuilt with each literal's OWN TEXT (see
      * {@link #writtenTemporalText}). Null = not that shape. */
+    /** {@code iso}, a date-time literal's text, refused by name where it has a nonzero digit of a second past the
+     *  ninth: no database lite runs on keeps more (S181, never cut; the instances audit's H-A, 2026-11-22: a list's
+     *  literal, written as text, reached a host that cut it). */
+    private static String keptNine(String iso) {
+        int dot = iso.indexOf('.');
+        if (dot >= 0) {
+            int end = dot + 1;
+            while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
+                end++;
+            }
+            if (iso.substring(dot + 1, end).replaceAll("0+$", "").length() > 9) {
+                throw new com.legend.sql.DialectCapability("the date-time " + iso + " has more than 9 fraction digits;"
+                        + " no database keeps more than 9: refused, never cut (S181)");
+            }
+        }
+        return iso;
+    }
+
     private static @com.legend.base.Nullable SqlExpr staticTemporalText(SqlExpr e,
             boolean bareOk) {
         // NEGATIVE (BC) years stay on the TIMESTAMP path everywhere —
@@ -323,7 +341,7 @@ public final class LiteralSpelling {
         // parse takes no leading minus (testAdjustByMinutesBigNumber)
         if (bareOk && e instanceof SqlExpr.TimestampLit ts
                 && !ts.iso().startsWith("-")) {
-            return new SqlExpr.StringLit(ts.iso().replace(' ', 'T'));
+            return new SqlExpr.StringLit(keptNine(ts.iso()).replace(' ', 'T'));
         }
         if (e instanceof SqlExpr.Call c
                 && (c.fn() == SqlFn.UNNEST || c.fn() == SqlFn.LIST_FILTER)
@@ -346,8 +364,8 @@ public final class LiteralSpelling {
                                 && !t.iso().startsWith("-"))) {
             List<SqlExpr> out = new java.util.ArrayList<>();
             for (SqlExpr x : a.elements()) {
-                out.add(new SqlExpr.StringLit(((SqlExpr.TimestampLit) x)
-                        .iso().replace(' ', 'T')));
+                out.add(new SqlExpr.StringLit(keptNine(((SqlExpr.TimestampLit) x)
+                        .iso()).replace(' ', 'T')));
             }
             return new SqlExpr.ArrayLit(out);
         }
@@ -355,8 +373,7 @@ public final class LiteralSpelling {
     }
 
     /** {@code text}, a Decimal's text, without the value lane's D-suffixed carrier's mark ({@code 1D} -> {@code 1}; a
-     *  database's own text never ends in D): lite's message text of a store-read Decimal ({@link LiteText}; PR #118 fix
-     *  round, 2026-11-18) and, over the value's printed text, {@link #decimalCanon}'s. */
+     *  database's own text never ends in D): over the value's printed text, {@link #decimalCanon}'s. */
     static SqlExpr withoutDecimalMark(SqlExpr text) {
         return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, text, new SqlExpr.StringLit("[Dd]$"), new SqlExpr.StringLit(""));
     }

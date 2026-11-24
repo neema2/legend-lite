@@ -24,7 +24,9 @@ import org.junit.jupiter.api.Test;
  * against the same expression wrapped so it must lower to SQL ({@code ->toOne()}, which the fold does not admit).
  * Admitting a fourth operation is a ruling, then a green leg here, then the ledger's pin
  * ({@code JavaEvalLedgerTest.theCompilersLiteralFoldJoinsConstantsAlone}), never an argument. A value the database
- * answered is never an input: an expression over a query does not fold.
+ * answered is never an input: an expression over a query does not fold. Since item 3's S7 (2026-11-23, the user's
+ * Q-D, which supersedes the 2026-10-30 ruling for compared sides) the join serves the ruled carve-outs alone
+ * ({@code LiteralJoinCensusTest}); this parity pin still holds for them.
  */
 class LiteralsParityTest {
     private static final String MODEL = """
@@ -49,7 +51,7 @@ class LiteralsParityTest {
             """;
 
     private static Object folded(ModelContext ctx, String query) {
-        return Literals.fold(Compiler.query(ctx, query).expression(), List.of());
+        return Literals.joined(Compiler.query(ctx, query).expression(), List.of());
     }
 
     private static Object viaSql(String query, Connection c) {

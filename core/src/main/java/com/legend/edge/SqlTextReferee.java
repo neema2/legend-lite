@@ -169,8 +169,15 @@ public final class SqlTextReferee {
     /** A text that differs from its golden, in clean mode: the assert's failure, the first difference named. */
     public static com.legend.testexecutionplan.TypedSide textsDiffer(String name, String golden, String ours,
             @com.legend.base.Nullable String decline) {
-        return com.legend.testexecutionplan.Verdicts.fail(name + " (sql-text): our text differs from the golden" + (decline != null ? " (" + decline + ")"
-                : "") + ": " + com.legend.testexecutionplan.Verdicts.firstTextDiff(golden, ours));
+        return fail(name + " (sql-text): our text differs from the golden" + (decline != null ? " (" + decline + ")"
+                : "") + ": " + firstTextDiff(golden, ours));
+    }
+
+    /** The SQL-text referee's failure, in its own words (B3's: no record in the product's catalog). Moved here from
+     *  {@code Verdicts} when the database judge's last planned sentence went and the edge was its one caller (the final
+     *  audit of c758fe95, 2026-11-23). */
+    static com.legend.testexecutionplan.TypedSide fail(String message) {
+        throw new com.legend.error.AssertFailed(message);
     }
 
     /** The engine's index-less {@code sqlRemoveFormatting($res)} over a
@@ -227,5 +234,24 @@ public final class SqlTextReferee {
 
     private static ExprType scalar(Type t) {
         return new ExprType(t, Multiplicity.Bounded.ONE);
+    }
+
+    /** One-line first-difference sketch of two rendered texts (failure
+     * message position — the full texts drown the diagnosis); moved here from testexecutionplan.Verdicts 2026-11-21
+     * (item 3's S2), this its one caller. */
+    private static String firstTextDiff(String e, String a) {
+        String[] el = e.split("\n", -1);
+        String[] al = a.split("\n", -1);
+        if (el.length != al.length) {
+            return "line-count " + el.length + " != " + al.length
+                    + " (expected first line: " + el[0] + ")";
+        }
+        for (int i = 0; i < el.length; i++) {
+            if (!el[i].equals(al[i])) {
+                return "line " + i + ": expected <" + el[i] + "> got <"
+                        + al[i] + ">";
+            }
+        }
+        return "texts differ only in leniency-adjudicated cells";
     }
 }

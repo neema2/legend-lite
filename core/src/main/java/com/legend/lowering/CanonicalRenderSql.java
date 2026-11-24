@@ -805,9 +805,7 @@ public final class CanonicalRenderSql {
         }
         SqlExpr k = SqlExpr.Column.derived(null, "__k");
         SqlExpr kLeaf = taggedLeaf(k, mt.key(), null);
-        SqlExpr vLeaf = taggedLeaf(SqlExpr.Call.of(SqlFn.LIST_GET,
-                SqlExpr.Call.of(SqlFn.MAP_EXTRACT, v, k),
-                new SqlExpr.IntLit(1)), mt.value(), null);
+        SqlExpr vLeaf = taggedLeaf(valueAtKey(v), mt.value(), null);
         if (kLeaf == null || vLeaf == null) {
             return null;
         }
@@ -818,10 +816,7 @@ public final class CanonicalRenderSql {
                         new SqlExpr.StringLit(", ")),
                 SqlExpr.Call.of(SqlFn.CONCAT, vLeaf,
                         new SqlExpr.StringLit("]")));
-        SqlExpr entries = SqlExpr.Call.of(SqlFn.LIST_SORT,
-                SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                        SqlExpr.Call.of(SqlFn.MAP_KEYS, v),
-                        new SqlExpr.Lambda(List.of("__k"), entry)));
+        SqlExpr entries = sortedEntries(v, entry);
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, v),
                 new SqlExpr.NullLit())),
@@ -829,6 +824,19 @@ public final class CanonicalRenderSql {
                         new SqlExpr.StringLit("_type"),
                         new SqlExpr.StringLit(fqn),
                         new SqlExpr.StringLit("entries"), entries)), SqlExpr.Reason.PRINT);
+    }
+
+    /** A map's entries sorted, each {@code entry}, an expression over the key, {@code __k} (and the map): the one
+     *  reading of a map's entries in key order, its canon's and its typed member's (VerdictSql.typedCollections). */
+    static SqlExpr sortedEntries(SqlExpr map, SqlExpr entry) {
+        return SqlExpr.Call.of(SqlFn.LIST_SORT, SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                SqlExpr.Call.of(SqlFn.MAP_KEYS, map), new SqlExpr.Lambda(List.of("__k"), entry)));
+    }
+
+    /** A map's value at the key {@code __k}, its entry's ({@link #sortedEntries}). */
+    static SqlExpr valueAtKey(SqlExpr map) {
+        return SqlExpr.Call.of(SqlFn.LIST_GET, SqlExpr.Call.of(SqlFn.MAP_EXTRACT, map,
+                SqlExpr.Column.derived(null, "__k")), new SqlExpr.IntLit(1));
     }
 
     /** One key LEAF: a nested keyed instance recurses (JSON-typed,

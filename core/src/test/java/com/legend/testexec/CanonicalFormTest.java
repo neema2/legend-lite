@@ -98,6 +98,9 @@ class CanonicalFormTest {
         // fetch-seam leak detector: a java.time temporal is RESIDUE
         assertEquals("unmodeled-kind:LocalDate",
                 residue(java.time.LocalDate.of(2014, 1, 1)));
+        // an enumeration's value and a Variant, the host's own kinds: their name and their JSON (pure's toString)
+        assertEquals("A", text(new LiteWords.EnumName("p::E", "A")));
+        assertEquals("{\"a\":1}", text(new LiteWords.VariantText("{\"a\":1}")));
     }
 
     /** H1 testListToString: multi-element sides take the list form;

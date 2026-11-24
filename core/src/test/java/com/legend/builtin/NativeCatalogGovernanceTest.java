@@ -188,6 +188,9 @@ class NativeCatalogGovernanceTest {
         // + 1 and end - start as SQL arithmetic, no range check) -- lite-internal, its one producer the legend-engine
         // door's engine rewrite (for substr and the corrected substring), its one product claimer Scalars
         // (ClaimRegistryTest.substrAsGivensOneProductClaimerIsScalars)
+        // 42 -> 42 (2026-11-23, item 3's S6; the user's Q-C = C1 and Q-S6): assertFailedText (37 -> 38 above) replaced
+        // one for one by assertRaise(kind), the in-body guard's raise of its assert kind where its caller gives no
+        // message -- a site the catalog words, so the plan carries no sentence
         assertTrue(Pure.INTERNAL_DESUGAR.size() <= 42,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/

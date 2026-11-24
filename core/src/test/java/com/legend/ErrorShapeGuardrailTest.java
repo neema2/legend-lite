@@ -188,9 +188,11 @@ class ErrorShapeGuardrailTest {
             // (1: the arm raises the same at its turn), and its planning pass records the gate's raise as the root's
             // wall (1). Nothing swallowed
             // 2 -> 3 (2026-11-04, the assert bar): a caller's message the database judge cannot plan is no refusal of
-            // the assert -- upstream evaluates the message only where the assert fails -- so its planning failure
-            // becomes the verdict's failure text (AssertMessages.unevaluated), raised where the row does not hold.
-            // Nothing swallowed: the failure is the assert's message
+            // the assert -- upstream evaluates the message only where the assert fails. Until item 3's S3 its planning
+            // failure became the verdict's failure text (AssertMessages.unevaluated, deleted); since then (2026-11-21)
+            // the catch plans the message's error as data on the verdict's root, RootLoop.Root#unplanned, raised in
+            // place of the assert's failure where the root fails: the user's lazy rule. Nothing swallowed; the count
+            // unchanged
             Map.entry("AssertVerdicts.java", 3),
             // 0 -> 1 (2026-11-04, the assert bar): HostSides.planChecked -- a check whose sides fail to plan is
             // planned again without its caller's message where the message is what raised (planning its own sides

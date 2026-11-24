@@ -74,8 +74,10 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     }
 
     /** {@code collection} and {@code value}: the two sides' static facts, an instance's {@code instanceOf} half in the
-     *  failure message (2026-11-05, the assert bar: a list of pairs printed {@code instanceOf ?}). */
-    record Contains(SideFacts collection, SideFacts value) implements HostJudgment {
+     *  failure message (2026-11-05, the assert bar: a list of pairs printed {@code instanceOf ?}); {@code keys} the
+     *  keyed-class facts membership restricts by, as the equality's ({@link Equals#keys}: upstream's {@code contains}
+     *  is its {@code equal}, a keyed class by its keys, any other instance by its identity; the audit of 946d16f2). */
+    record Contains(SideFacts collection, SideFacts value, Keys keys) implements HostJudgment {
     }
 
     record Tolerance() implements HostJudgment {
@@ -83,8 +85,14 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
 
     /** A quantified assert's VECTOR judgment (the test-is-the-product plan's M10c item 5): the one side is the
      *  predicate vector the database computes over the source's elements; the assert holds when every row is
-     *  {@code wantTrue}, else it fails with {@code message} (the element arm's own words). */
-    record AllRows(String name, boolean wantTrue, String message) implements HostJudgment {
+     *  {@code wantTrue}, else it fails with {@code failure}, decided at planning: the caller's own message as the
+     *  program wrote it ({@code AssertKind.MESSAGE}), or with none the condition's ({@code TRUE}, {@code FALSE}) --
+     *  a record of the one catalog (item 3, 2026-11-21: until then the default's sentence, planned in the plan's
+     *  audience's words). */
+    record AllRows(String name, boolean wantTrue, com.legend.error.ErrorRecord failure) implements HostJudgment {
+        public AllRows {
+            assertsRecord(failure);
+        }
     }
 
     /** A quantified {@code assertEquals} / {@code assertEqWithinTolerance} over a source's ROWS, judged row by row as
@@ -135,8 +143,22 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     }
 
     /** One element's planned assert inside an unrolled quantifier, or the assert inside an {@code assertError}: its
-     *  facts, its judgment, and how many of the step's sides it reads. */
-    record Part(Assertion assertion, HostJudgment judgment, int asks) {
+     *  facts, its judgment, and how many of the step's sides it reads; {@code message}, its caller's message where it
+     *  READS -- a side the runner never reads on its own, read through the run's reader only where this part fails
+     *  (item 3's S4 step 3, the user's decision 4: upstream evaluates an element's message only where that element
+     *  fails), shaped by {@code messageShape}. */
+    record Part(Assertion assertion, HostJudgment judgment, int asks, TestPlan.@Nullable Side message,
+            @Nullable SideShape messageShape) {
+        public Part {
+            if ((message == null) != (messageShape == null)) {
+                throw new IllegalArgumentException("a part's message and its shape come together");
+            }
+        }
+
+        /** A part whose caller's message, if any, is one of its asks. */
+        public Part(Assertion assertion, HostJudgment judgment, int asks) {
+            this(assertion, judgment, asks, null, null);
+        }
     }
 
     /** {@code assert(cond)} / {@code assertFalse(cond)} on the identity lane. */
@@ -156,8 +178,10 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
 
     /** {@code assertInstanceOf(v, type)}: the type's name and the classes it accepts -- itself and its subtree,
      *  the model's subtype relation read at planning; a null name where the type argument is no reference (the
-     *  judgment declines the side it read: the walk's generic path). */
-    record InstanceOf(@Nullable String typeName, java.util.Set<String> acceptedTypes) implements HostJudgment {
+     *  judgment declines the side it read: the walk's generic path); {@code valueClass} the value's static class, the
+     *  class of an instance whose data names none (a layout of one class: the audit of 946d16f2), null for any other. */
+    record InstanceOf(@Nullable String typeName, java.util.Set<String> acceptedTypes, @Nullable String valueClass)
+            implements HostJudgment {
         public InstanceOf {
             acceptedTypes = Collections.unmodifiableSet(new java.util.LinkedHashSet<>(acceptedTypes));
         }
@@ -167,8 +191,17 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     record Is(String name) implements HostJudgment {
     }
 
-    /** A verdict decided at planning with no side (two type identities, the same let-bound instance). */
-    record Decided(boolean held, @Nullable String message) implements HostJudgment {
+    /** A verdict decided at planning with no side (two type identities, the same let-bound instance): its failure a
+     *  record of the one catalog where it does not hold (item 3, 2026-11-21: until then its sentence). */
+    record Decided(boolean held, com.legend.error.@Nullable ErrorRecord failure) implements HostJudgment {
+        public Decided {
+            if (held != (failure == null)) {
+                throw new IllegalArgumentException("a decided verdict carries its failure exactly where it fails");
+            }
+            if (failure != null) {
+                assertsRecord(failure);
+            }
+        }
     }
 
     record SameElements(SideFacts e, SideFacts a, boolean gridPair, Keys keys) implements HostJudgment {
@@ -204,11 +237,12 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
      *  {@code compiler.spec.AssertMessages}): {@code inner} judges the first {@code innerSides} sides, the family's
      *  check over the base overload; the side after them is the message, a String the plan read -- a failure of
      *  {@code inner} raises its text, as upstream's {@code assert(condition, | message)} does. {@code unplanned}: the
-     *  message is no side -- its planning failed (a message reading what the planner cannot plan), and this is the
-     *  assert's whole failure text where {@code inner} fails, naming that failure ({@code AssertMessages.unevaluated},
-     *  spelled at planning since 2026-11-09), as upstream evaluates the message only there (2026-11-04, the assert
-     *  bar). */
-    record Messaged(HostJudgment inner, int innerSides, @Nullable String unplanned) implements HostJudgment {
+     *  message is no side -- computing it raises an error upstream raises at run, found while planning, and that
+     *  error is raised in place of the assert's failure where {@code inner} fails, and only there: upstream evaluates
+     *  the message only where the assert fails (2026-11-04, the assert bar). A record, never a sentence (item 3,
+     *  2026-11-21, the user's ruling: the message lazy, its error the outcome; until then lite's sentence around the
+     *  error's, {@code AssertMessages.unevaluated}). */
+    record Messaged(HostJudgment inner, int innerSides, @Nullable Failure unplanned) implements HostJudgment {
         /** The message a side the plan reads. */
         public Messaged(HostJudgment inner, int innerSides) {
             this(inner, innerSides, null);
@@ -237,6 +271,18 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
      *  error was thrown". */
     record AssertError(String expected, @Nullable Long line, @Nullable Long column, @Nullable Failure caught,
             @Nullable Part inner) implements HostJudgment {
+        /** What {@code assertError}'s function hands its matcher where it raised nothing: legend-pure's native throws
+         *  this message and catches it (interpreted {@code AssertError.java:62}, compiled {@code CoreGen.java:350},
+         *  matched by {@code assertError.pure:74}), so an assertError that expects it passes. Pure's semantics, the text
+         *  the matcher reads, not a word (item 3's S8; Q-B, the user's ruling of 2026-11-22, "Q-S8 okay"). */
+        private static final String UNRAISED = "No error was thrown";
+
+        /** Whether {@code message} is {@link #UNRAISED}: read through here, never as a constant another class inlines
+         *  into its own pool (CompatConstantPoolTest). */
+        public static boolean expectsUnraised(String message) {
+            return UNRAISED.equals(message);
+        }
+
         /** f's body a value: the error a side raises is the answer. */
         public AssertError(String expected, @Nullable Long line, @Nullable Long column, @Nullable Failure caught) {
             this(expected, line, column, caught, null);
@@ -251,5 +297,14 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
      *  ({@code counted}). The product runs none: its run refuses it by name ({@code NoEdgeRun}). */
     record EdgeJudged(Extension judgment, int appeal, @Nullable String sideOrigin, boolean counted)
             implements HostJudgment {
+    }
+
+    /** A planned assert failure's record is an assert's code: refused by name as the plan is made or read, never first
+     *  where the assert fails (the S2+S3 audit's LOW, 2026-11-21). */
+    private static void assertsRecord(com.legend.error.ErrorRecord failure) {
+        if (!(failure.code() instanceof com.legend.error.AssertKind)) {
+            throw new IllegalArgumentException("a planned assert failure's record is an assert's code: "
+                    + failure.code().qualified());
+        }
     }
 }

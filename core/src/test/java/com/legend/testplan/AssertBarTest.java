@@ -100,6 +100,41 @@ class AssertBarTest {
             new Probe("forAll-decimal-vs-integer", "{|range(1, 3)->forAll(i | assertEquals(1D, $i))}",
                     "expected 1 (Decimal), got 1 (Integer) at index 0"),
             new Probe("forAll-over-nothing", "{|[1, 2]->filter(x | $x > 5)->forAll(i | assertEquals($i, 99))}", null),
+            // an element's own caller's message (item 3's S4 step 3, the user's decision 4, 2026-11-22): read only where
+            // THAT element fails, the failure whole as upstream raises it -- the element 1 holds, so its message, which
+            // reads past the list's end, is never read (until then both judges dropped it: "expected 1, got 0 at
+            // index 1")
+            new Probe("forAll-element-message-reads",
+                    "{|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", "10"),
+            // a mixed-kind list keeps each element's kind (register S127, the user's ruling of 2026-11-04): an Integer
+            // and a Float are never equal, whatever a database's own list equality coerces (DuckDB types both
+            // literals DOUBLE[]; the user, 2026-11-22)
+            new Probe("mixed-kind-lists-differ", "{|assertEquals([1, 2.5, 3], [1.0, 2.5, 3])}",
+                    "expected [1, 2.5, 3], got [1.0, 2.5, 3]"),
+            new Probe("mixed-kind-lists-equal", "{|assertEquals([1, 2.5, 3], [1, 2.5, 3])}", null),
+            // a String whose text starts with a bracket is a String, written quoted, never read as a JSON carrier (the
+            // S4 audit's HIGH 1, 2026-11-22: written as minified JSON until then, assertEq's differently per judge)
+            new Probe("string-with-a-bracket", "{|assertEquals('[a b]', '[c]')}", "expected \"[a b]\", got \"[c]\""),
+            new Probe("eq-string-with-a-brace", "{|assertEq('{a}', '{b}')}", "expected \"{a}\", got \"{b}\""),
+            new Probe("forAll-element-literal-message", "{|[1, 2]->forAll(i | assertEquals(1, $i, 'mine'))}", "mine"),
+            // the same over a row the database judge has not typed (a Decimal against an Integer, decided false at
+            // planning; dates): the caller's message whole on every judge (the S4 step 3 audit's HIGH, 2026-11-22:
+            // "mine at index 0" on the database judge until then)
+            new Probe("forAll-element-message-cross-kinds", "{|[1, 2]->forAll(i | assertEquals(1D, $i, 'mine'))}",
+                    "mine"),
+            new Probe("forAll-element-message-dates",
+                    "{|[%2020-01-01, %2020-01-02]->forAll(d | assertEquals(%2020-01-02, $d, 'mine'))}", "mine"),
+            new Probe("forAll-element-message-holds",
+                    "{|let l = [10]; [1, 1]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", null),
+            // a rendered text is a String, compared as one under every judge (item 3's S4, phase 2, the user's Q-A):
+            // the golden computed by the database too, never joined in Java
+            new Probe("rendered-join-holds", "{|assertEquals('a,b', ['a', 'b']->joinStrings(','))}", null),
+            new Probe("rendered-join-golden-folded", "{|assertEquals('a' + ',' + 'b', ['a', 'b']->joinStrings(','))}",
+                    null),
+            new Probe("rendered-join-fails", "{|assertEquals('a;b', ['a', 'b']->joinStrings(','))}",
+                    "expected \"a;b\", got \"a,b\""),
+            new Probe("rendered-makeString-fails", "{|assertEquals('[1|2]', [1, 2]->makeString('[', '|', ']') + '!')}",
+                    "expected \"[1|2]\", got \"[1|2]!\""),
             new Probe("forAll-zip-computed-arguments",
                     "{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}", null),
             new Probe("assertInstanceOf-custom-message", "{|assertInstanceOf(1, Integer, 'msg')}", null),
@@ -178,12 +213,53 @@ class AssertBarTest {
             // a DateTime written as upstream's toRepresentation writes it, '%' + its toString: a value with a minute
             // carries +0000, a written fraction its digits (the engine runner, 2026-11-04)
             new Probe("assertEquals-datetimes-message", "{|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:01)}",
-                    "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T10:00:01.000000Z"),
-            new Probe("assertEquals-datetime-precision-message",
-                    "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}",
-                    "expected 2020-01-01T10:00:00.000000Z (DateTime, subsecond), got 2020-01-01T10:00:00.000000Z (DateTime, second)"),
+                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T10:00:01.000000000Z"),
+            // register S399 (the user's ruling of 2026-11-22): lite's product compares a date by its kind and its
+            // instant, so two date-times at one instant are equal whatever their written precision (legend-pure: not
+            // equal, AbstractPureDate.java:30-59; the compatibility routes keep Pure's answer, CompiledPureHostForms)
+            new Probe("assertEquals-datetime-precision-is-no-value",
+                    "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}", null),
+            new Probe("datetime-trailing-zeros-equal", "{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}",
+                    null),
+            new Probe("datetime-hour-equals-its-instant", "{|assertEquals(%2020-01-01T10, %2020-01-01T10:00:00)}", null),
+            new Probe("datetime-literal-against-computed",
+                    "{|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:00.000, %2020-01-01T11:00:00]->at(0))}",
+                    null),
+            new Probe("datetime-literal-against-computed-fails",
+                    "{|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:01]->at(0))}",
+                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T10:00:01.000000000Z"),
+            // the kinds stay apart (S399, as legend-pure): a day is no date-time, a year no year-month
+            new Probe("strictdate-is-no-datetime", "{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}",
+                    "expected 2020-01-01, got 2020-01-01T00:00:00.000000000Z"),
+            new Probe("strictdate-against-computed", "{|assertEquals(%2020-01-02, [%2020-01-01, %2020-01-02]->at(1))}",
+                    null),
             new Probe("assertEquals-datetime-hour-message", "{|assertEquals(%2020-01-01T10, %2020-01-01T11)}",
-                    "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T11:00:00.000000Z"),
+                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T11:00:00.000000000Z"),
+            // contains and the subset fold compare a date-time by its instant too (the dates audit's HIGH 1, 2026-11-22:
+            // they compared the written texts on the database judge)
+            new Probe("contains-datetime-by-instant", "{|assertContains([%2020-01-01T10:00:00.5,"
+                    + " %2020-01-02T00:00:00.5], %2020-01-01T10:00:00.50)}", null),
+            new Probe("contains-datetime-second-against-written-list", "{|assertContains([%2020-01-01T10:00:00.000,"
+                    + " %2020-01-02T00:00:00.5], %2020-01-01T10:00:00)}", null),
+            new Probe("subset-datetime-by-instant", "{|assert([%2020-01-01T10:00:00.5]->forAll(e |"
+                    + " [%2020-01-01T10:00:00.50, %2020-01-02T10]->contains($e)))}", null),
+            new Probe("contains-strictdate", "{|assertContains([%2020-01-01, %2020-01-02], %2020-01-02)}", null),
+            // an empty side (Nil) against a typed one: the same only where both are empty (item 3's S4, 2026-11-22)
+            new Probe("empty-against-filtered-empty", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
+            new Probe("empty-against-filtered-values", "{|assertEquals([], [1, 2]->filter(x | $x > 1))}",
+                    "expected [], got [2]"),
+            new Probe("empty-against-strings", "{|assertEquals([], ['a', 'b']->filter(x | $x == 'c'))}", null),
+            new Probe("empty-against-dates", "{|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))}", null),
+            // a side the types say holds nothing (Nil), its emptiness typed (item 3's S4)
+            new Probe("nil-side-empty", "{|assertEmpty([]->limit(2))}", null),
+            new Probe("nil-side-not-empty", "{|assertNotEmpty([]->drop(1))}", "expected at least one value, got none"),
+            // assertInstanceOf decided by the value's static type: the value and the type ride the failure, the
+            // host's record (item 3's S4)
+            new Probe("instanceOf-decided-holds", "{|assertInstanceOf(1 + 1, Integer)}", null),
+            new Probe("instanceOf-decided-fails", "{|assertInstanceOf('x', Integer)}",
+                    "expected an instance of Integer, got \"x\""),
+            new Probe("instanceOf-decided-fails-number", "{|assertInstanceOf(2.5, String)}",
+                    "expected an instance of String, got 2.5"),
             // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
             // '<id instanceOf path>', its path the raw class's
             new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
@@ -222,10 +298,36 @@ class AssertBarTest {
             // assertIs over two primitives: compiled pure's `left == right`, their values (the engine runner)
             new Probe("assertIs-primitives-holds", "{|assertIs('a', 'a')}", null),
             new Probe("assertIs-primitives-fails", "{|assertIs(1, 2)}", "expected 1, got 2"),
+            // the forAll-contains fold of an assert's condition fails as the condition does, under every judge (the
+            // S2+S3 fixes' audit, 2026-11-21: the host wrote a contains record, the database judge a frame of its own)
+            new Probe("assert-subset-fails", "{|assert([1, 3]->forAll(e | [1, 2]->contains($e)))}",
+                    "expected true, got false"),
+            new Probe("assertFalse-subset-fails", "{|assertFalse([1]->forAll(e | [1, 2]->contains($e)))}",
+                    "expected false, got true"),
             // an if closing the body whose other side is the literal true
             new Probe("branch-true-side-last", "{|if(1 == 2, |assertEquals(1, 1), |true);}", null),
             new Probe("branch-true-side-last-fails", "{|if(1 == 1, |assertEquals(1, 2), |true);}",
-                    "expected 1, got 2"));
+                    "expected 1, got 2"),
+            // assertError when nothing is raised (item 3's S8, Q-B): legend-pure's matcher reads its own "nothing was
+            // raised" text, so expecting it passes, the inner-assert form too; any other expected text fails NO_ERROR
+            new Probe("assertError-expects-unraised", "{|assertError(|1, 'No error was thrown')}", null),
+            new Probe("assertError-inner-assert-unraised",
+                    "{|assertError(|assertEquals(1, 1), 'No error was thrown')}", null),
+            new Probe("assertError-nothing-raised", "{|assertError(|1, 'boom')}",
+                    "expected the error \"boom\", got none"),
+            // the table member (item 3's S4, 2026-11-22): the database's verdict over the typed cells, each grid's rows
+            // riding its failure as typed row structs for the host's record -- one record under every judge, the
+            // grids whose columns differ included (until then the database judge's sentence of its own)
+            new Probe("tdsEquivalent-holds", "{|assertTdsEquivalent(#TDS\n  id, v\n  1, 2.00\n  2, 3.001\n#, #TDS\n"
+                    + "  id, v\n  1, 2.0\n  2, 3.0\n#, 0.01)}", null),
+            new Probe("tdsEquivalent-fails", "{|assertTdsEquivalent(#TDS\n  id, v\n  1, 2.5\n#, #TDS\n"
+                    + "  id, v\n  1, 2.0\n#, 0.01)}", "expected the rows [[1, 2.5]] within 0.01, got [[1, 2.0]]"),
+            new Probe("tdsEquivalent-text-cells", "{|assertTdsEquivalent(#TDS\n  id, s\n  1, x\n#, #TDS\n"
+                    + "  id, s\n  1, y\n#, 0.01)}", "expected the rows [[1, \"x\"]] within 0.01, got [[1, \"y\"]]"),
+            new Probe("tdsEquivalent-row-count", "{|assertTdsEquivalent(#TDS\n  id\n  1\n  2\n#, #TDS\n"
+                    + "  id\n  1\n#, 0.01)}", "expected the rows [[1], [2]] within 0.01, got [[1]]"),
+            new Probe("tdsEquivalent-columns-differ", "{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n"
+                    + "  ix\n  1\n#, 0.01)}", "expected the rows [[1]] within 0.01, got [[1]]"));
 
     /** A probe that answers a value: its body and the value upstream answers. */
     private record Answer(String id, String body, Object value) { }
@@ -271,6 +373,23 @@ class AssertBarTest {
                 String said = outcome(c, "{|let x = [1, 2]; assertEmpty([1], | $x->at(5)->toString());}", mode);
                 assertTrue(said.startsWith("DataError: The system is trying to get an element at offset 5 where the"
                         + " collection is of size "), mode + ": " + said);
+            }
+        }
+    }
+
+    /** An assertError over one assert whose own message raises: where the assert fails, that error is what f raised,
+     *  so the assertError holds under the host judge; the database judge refuses the body by name (a raising row cannot
+     *  raise another error, until S4), never dropping the error into the assert's own failure (the S2+S3 fixes' audit,
+     *  HIGH, 2026-11-21). */
+    @Test
+    void anAssertErrorOverAnAssertWhoseMessageRaisesCatchesThatError() throws Exception {
+        String body = "{|let x = [1, 2]; assertError(|assertEmpty([1], | $x->at(5)->toString()),"
+                + " 'The system is trying to get an element at offset 5 where the collection is of size 2');}";
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                String said = outcome(c, body, mode);
+                assertTrue(mode == com.legend.testplan.PlanningOptions.JudgeMode.HOST ? said.equals("pass")
+                        : said.contains("the program road does not plan this body"), mode + ": " + said);
             }
         }
     }
@@ -323,6 +442,12 @@ class AssertBarTest {
             ###Pure
             Class p::P { id: Integer[1]; d: Decimal[1]; }
             Class p::Q { id: Integer[1]; e: Decimal[1]; }
+            Class p::K { <<equality.Key>> id: Integer[1]; <<equality.Key>> at: DateTime[1]; note: String[1]; }
+            Class p::KN { <<equality.Key>> k: p::K[1]; <<equality.Key>> f: Float[1]; }
+            Class p::N { name: String[1]; }
+            Enum p::E { A, B }
+            Class p::KA { <<equality.Key>> a: Any[1]; }
+            Class p::KVN { <<equality.Key>> id: Integer[1]; v: Variant[1]; }
             ###Relational
             Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER) Table U (ID INTEGER PRIMARY KEY, E DECIMAL(10,2)) )
             ###Mapping
@@ -388,6 +513,704 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** Each body one outcome under every judge on each database the platform runs in-process, the host's there the
+     *  reference (item 3's S4, batch 2's audit, 2026-11-22: an empty side on SQLite, whose list of no rows is
+     *  {@code []}; Decimal literals' digits on SQLite, a REAL there; the cross-kind pairs a carrier check declined). The
+     *  databases may answer apart (SQLite's REAL keeps fifteen digits; DuckDB's and SQLite's list of Decimals is one
+     *  scale): the product's facts, not the judges'. */
+    @Test
+    void eachBodyIsOneOutcomeUnderEveryJudgeOnEachDatabase() throws Exception {
+        List<String> bodies = List.of(
+                "{|assertEquals([], [])}",
+                "{|assertEquals([], [1, 2]->filter(x | $x > 5))}",
+                "{|assertEquals([], [1, 2]->filter(x | $x > 1))}",
+                "{|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))}",
+                "{|assertNotEquals([], [1, 2]->filter(x | $x > 5))}",
+                "{|assertEmpty([1, 2]->filter(x | $x > 5))}",
+                "{|assertEmpty([1, 2]->filter(x | $x > 1))}",
+                "{|assertEquals([1, 2]->filter(x | $x > 5), [1.5]->filter(x | $x > 5.0))}",
+                "{|assertEquals(2.5D, 1D)}",
+                "{|assertEquals(1D, 2D)}",
+                "{|assertEquals(1D, 1)}",
+                "{|assertEquals(123456789012345.67D, 1D)}",
+                "{|assertEquals([0.1234567890123456789D], [1D])}",
+                "{|assertEquals([1.0D, 10.125D], [1.0D, 10.125D])}",
+                "{|assertEquals([1.0D, 10.125D], [1.0D])}",
+                "{|assertEquals(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}",
+                "{|assertEquals(2.5, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}",
+                // tagged values (a Number's max, a mixed list): each value its kind and its value (item 3's S4)
+                "{|assertEquals(2.5, max([1, 2.5]))}",
+                "{|assertEquals(1, max([1, 0.5]))}",
+                "{|assertEquals(1.0, max([1, 0.5]))}",
+                "{|assertEquals(0.5, min([1, 0.5]))}",
+                "{|assertNotEquals(1, max([1, 0.5]))}",
+                // a side the types say holds nothing
+                "{|assertEmpty([]->limit(2))}",
+                "{|assertNotEmpty([]->drop(1))}",
+                // Pairs, on the seven-column row (a JSON carrier compares written text: batch 4's audit, H1; a Pair with
+                // a DateTime or a Decimal field fails on H2's seven-column row, pre-existing, the remaining shapes)
+                "{|assertEquals(pair(1, 'a'), pair(1, 'a'))}",
+                "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
+                "{|assertEquals([pair(1, 'a'), pair(2, 'b')], [pair(1, 'b'), pair(2, 'b')])}",
+                "{|assertSameElements([pair(1, 'a'), pair(2, 'b')], [pair(2, 'b'), pair(1, 'a')])}",
+                // Decimals of several scales in a tagged list: each recorded at its own scale (batch 3's audit, H1)
+                "{|assertEquals([1, 3.50D], [2, 3.5D])}",
+                "{|assertEquals([2, 10.125D], [1, 1.5D])}",
+                "{|assertEquals([1, 1.5D, 10.125D], [1, 1.5D, 10.12D])}",
+                "{|assertEquals([3, 1.0, 2]->sort(), [1.0, 2, 3])}",
+                // dates at the judge's instant (register S399; the dates round, 2026-11-22): one instant whatever its
+                // written precision, to the microsecond, SQLite's date-time texts included
+                "{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}",
+                "{|assertNotEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)}",
+                "{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456)}",
+                "{|assertEquals(%2020-01-01T10, %2020-01-01T10:00:00)}",
+                "{|assertContains([%2020-01-01T10:00:00.5, %2020-01-02T00:00:00.5], %2020-01-01T10:00:00.50)}",
+                "{|assertEquals(%2020-01-01T10:00:00.123456789, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())}",
+                "{|assertEquals(%2020-01-01T10:00, [%2019-01-01, %2020-01-01T10:00:00]->max())}",
+                // a Date written as its text (a partial date, a mixed Date list's element): each value its kind, as
+                // its text says, and its value (the dates audit's HIGH 2)
+                "{|assertEquals(%2020-01, [%2020-01, %2021-01]->at(0))}",
+                "{|assertEquals(%2020, [%2020, %2021]->at(1))}",
+                "{|assertEquals(%2020-01, [%2020-01-01, %2021-01]->at(0))}",
+                "{|assertEquals(%2020-01-01T10:00:00, [%2019-01, %2020-01-01T10:00:00.000]->at(1))}",
+                "{|assertNotEquals(%2020-01-01, [%2019-01, %2020-01-01]->at(1))}",
+                // assertIsNot over a tagged value: its record un-tagged (batch 3's audit, H2)
+                "{|assertIsNot(3, [1, 2.0, 3]->max())}",
+                "{|assertIsNot(4, [1, 2.0, 3]->max())}");
+        List<String> wrong = new ArrayList<>();
+        for (String body : bodies) {
+            for (var backend : TestBackends.inProcess()) {
+                String reference = null;
+                var database = backend.type();
+                String on = MAPPED_ON.formatted(database);
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, body, "p::RT", database, ExecuteOptions.NONE.withJudgeMode(mode),
+                                com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (reference == null) {
+                        reference = got;
+                    } else if (!reference.equals(got)) {
+                        wrong.add(database + " " + mode + " " + body + " -> " + oneLine(got) + " (reference: "
+                                + oneLine(reference) + ")");
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one outcome under every judge on each database:\n  " + String.join("\n  ",
+                wrong));
+    }
+
+    /** Failing asserts of every family, the bodies the two checks below run (item 3's S5). */
+    private static final List<String> FAILING = List.of(
+            "{|assertEquals(1, 2)}", "{|assertEquals([1, 2], [2, 1])}", "{|assertEquals('a', 'b')}",
+            "{|assertEquals(1.5D, 2.5D)}", "{|assertEquals(%2020-01-01, %2020-01-02)}",
+            "{|assertSameElements([1, 2], [1, 3])}", "{|assertNotEquals(1, 1)}", "{|assertSize([1, 2], 3)}",
+            "{|assertEmpty([1])}", "{|assertNotEmpty([]->cast(@Integer))}", "{|assertContains([1, 2], 3)}",
+            "{|assertNotContains([1, 2], 2)}", "{|assertEqWithinTolerance(1.0, 2.0, 0.1)}", "{|assert(1 == 2)}",
+            "{|assertFalse(1 == 1)}", "{|assertInstanceOf(1, String)}", "{|assert(1 == 2, | 'my message')}",
+            "{|assertEquals([1, 'a'], [1, 'b'])}", "{|assertJsonStringsEqual('{\"a\":1}', '{\"a\":2}')}",
+            "{|[1, 2]->forAll(i | assertEquals(1, $i))}",
+            "{|assertEquals('1'->fromJson(), 2)}",
+            // two primitives of different kinds, and an enumeration against its name's String (the final audit of
+            // c758fe95: the database judge's cross-kind gate had failed with a planned sentence and no record)
+            "{|assertEquals('1', 1)}", "{|assertSameElements(['1'], [1])}", "{|assertEq(true, 1)}",
+            "{|assertEquals(p::E.A, 'A')}",
+            "{|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue,"
+                    + " []).values, [1, 3])}");
+
+    /** ONE CATALOG (item 3's S5, docs/records/compat-assert-records-2026-11-21.md section 6): every failed assert on
+     *  lite's road, under every judge, is a record of the one catalog and its message is that record's sentence --
+     *  no judge words a failure of its own. A refusal by name (an unjudged decline) is not a failure and carries
+     *  none. */
+    @Test
+    void everyFailureIsItsRecordsSentence() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        int checked = 0;
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            for (String body : FAILING) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    try {
+                        Program.runFresh(MAPPED_ON.formatted(database), body, "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        wrong.add(database + " " + mode + " " + body + " -> passed (a FAILING body)");
+                    } catch (AssertFailed f) {
+                        if (f.unjudgedReason() != null) {
+                            continue;
+                        }
+                        checked++;
+                        if (f.record() == null) {
+                            wrong.add(database + " " + mode + " " + body + " -> no record: " + oneLine(f.getMessage()));
+                        } else if (!f.getMessage().equals(f.record().sentence())) {
+                            wrong.add(database + " " + mode + " " + body + " -> \"" + oneLine(f.getMessage())
+                                    + "\" is not its record's \"" + oneLine(f.record().sentence()) + "\"");
+                        }
+                    } catch (com.legend.sql.DialectCapability | com.legend.error.NotImplementedException refused) {
+                        // a refusal by name (a database without a carrier for the shape): no failure, no record
+                    } catch (RuntimeException other) {
+                        wrong.add(database + " " + mode + " " + body + " -> " + oneLine(other.toString()));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one catalog:\n  " + String.join("\n  ", wrong));
+        // a floor: most runs fail with a record (measured 188 of 198, 2026-11-23, the audit of 8477c703), so the check
+        // reads records, never passes on refusals alone
+        assertTrue(checked >= 150, "records checked: " + checked);
+    }
+
+    /** NO PROSE IN A STATEMENT (item 3's S5): the database judge plans no catalog sentence -- no template's fixed text
+     *  ("expected ", ", got ", " to contain ", ...) is in any planned statement or plan field of a failing assert's
+     *  plan; the sentence is written from the record after the run, by the one printer. */
+    @Test
+    void noPlannedStatementHoldsACatalogSentence() throws Exception {
+        List<String> fragments = new ArrayList<>();
+        for (com.legend.error.AssertKind k : com.legend.error.AssertKind.values()) {
+            for (String part : k.template().split("\\{[^}]*\\}")) {
+                // a template's fixed text with its spaces, of two words or a joint (", got "): a lone word -- a slot's
+                // name, "expected" -- is a record's data in the plan, never prose (the audit of 8477c703: the EQUALS
+                // sentence's joint had gone unchecked)
+                if (part.strip().length() >= 4 && part.contains(" ") && !part.strip().matches("[a-z]+")) {
+                    fragments.add(part);
+                }
+            }
+        }
+        List<String> wrong = new ArrayList<>();
+        int read = 0;
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            for (String body : FAILING) {
+                String plan;
+                read++;
+                try {
+                    plan = com.legend.testexecutionplan.TestPlanJson.write(Program.plan(MAPPED_ON.formatted(database),
+                            body, "p::RT", ExecuteOptions.NONE.withJudgeMode(
+                                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)));
+                } catch (RuntimeException refused) {
+                    read--;
+                    continue;   // refused at planning, by name: nothing planned
+                }
+                for (String f : fragments) {
+                    if (plan.contains(f)) {
+                        wrong.add(database + " " + body + " plans the catalog's text \"" + f + "\"");
+                    }
+                }
+            }
+        }
+        assertTrue(!fragments.isEmpty() && wrong.isEmpty(), "no prose in a statement:\n  " + String.join("\n  ", wrong));
+        // a floor: most bodies plan (measured 61 of 66, 2026-11-23), so the check reads plans, never passes on none
+        assertTrue(read >= 50, "plans read: " + read);
+    }
+
+    /** Two sides of several set implementations (a metamodel's documents gathered into one JSON array), in order, under
+     *  every judge on every in-process database (the audit of 3f2fe452: the side's order was numbered inside the
+     *  documents' aggregate, which neither DuckDB nor H2 runs). Its model holds no test data: a metamodel query reads
+     *  the system database alone. */
+    @Test
+    void aMetamodelPairOfSeveralSetsIsOneOutcome() throws Exception {
+        String model = """
+                ###Pure
+                Class ext::A { id: Integer[1]; aName: String[1]; }
+                Class ext::B extends ext::A { bName: String[1]; }
+                ###Relational
+                Database p::DB ( Table ABC (id INTEGER PRIMARY KEY, aName VARCHAR(20), bName VARCHAR(20)) )
+                ###Mapping
+                Mapping p::M ( ext::A[a] : Relational { id : [p::DB]ABC.id, aName : [p::DB]ABC.aName } )
+                Mapping p::M2 ( include p::M
+                    ext::B[b2] extends [a] : Relational { bName : [p::DB]ABC.bName } )
+                ###Connection
+                RelationalDatabaseConnection p::C { store: p::DB; type: %s; specification: LocalH2 { }; auth: DefaultH2; }
+                ###Runtime
+                Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+                """;
+        String m = "p::M->meta::pure::mapping::rootClassMappingByClass";
+        String m2 = "p::M2->meta::pure::mapping::rootClassMappingByClass";
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals(" + m + "(ext::A)->concatenate(" + m + "(ext::B)), " + m + "(ext::A)->concatenate(" + m
+                + "(ext::B)))}", "pass");
+        want.put("{|assertEquals(" + m + "(ext::A)->concatenate(" + m + "(ext::B)), " + m2 + "(ext::A)->concatenate("
+                + m2 + "(ext::B)))}", "AssertFailed");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(model.formatted(database), e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!got.startsWith(e.getValue())) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "a metamodel pair:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** A Decimal literal's typed member on every database the platform runs in-process (item 3's S4, 2026-11-22): its
+     *  written scale rides its SQL type and the reader restores it where the driver drops it (SQLite holds a REAL), so
+     *  the record writes {@code 1.50} on every database; two Decimals compare by value (register S139). */
+    @Test
+    void aDecimalLiteralIsOneOutcomeOnEveryDatabase() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals([1.50D, 2.0D], [1.50D, 2.0D])}", "pass");
+        want.put("{|assertEquals(1.50D, 1.5D)}", "pass");
+        want.put("{|assertEquals([1.50D], [2.50D])}", "AssertFailed: expected 1.50, got 2.50");
+        want.put("{|assertEquals([1.50D, 2.25D], [1.50D])}", "AssertFailed: expected [1.50, 2.25], got [1.50]");
+        // a list of Decimals at its database's own scale (S400 as amended by the user's ruling of 2026-11-22, the core
+        // follows Pure and takes the database's native answer for a cosmetic difference): DuckDB and SQLite give the
+        // list one type, H2 keeps each element's (Pure's answer); the verdict is the same everywhere (S139)
+        want.put("{|assertEquals([1.0D, 10.125D], [1.0D])}", "AssertFailed: expected [1.000, 10.125], got [1.0]"
+                + "|H2=AssertFailed: expected [1.0, 10.125], got [1.0]");
+        want.put("{|assertEquals([1.0D, 10.125D], [1.000D, 10.125D])}", "pass");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    int own = e.getValue().indexOf("|" + database + "=");
+                    String expected = own >= 0 ? e.getValue().substring(own + database.toString().length() + 2)
+                            : e.getValue().split("\\|", 2)[0];
+                    if (!expected.equals(got)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one outcome under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** A date-time is compared at every subsecond digit it carries, on every database the platform runs in-process
+     *  and under every judge (register S399; S181 and the user's rule of 2026-11-22, "if something has nanos we either
+     *  compare properly or refuse if cannot; otherwise compare with micro fidelity"): nanoseconds are compared where
+     *  the database holds them, and never cut. */
+    @Test
+    void aDateTimeIsComparedAtEveryDigitItCarries() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456)}", "AssertFailed");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.1234567890)}", "pass");
+        want.put("{|assertNotEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456788)}", "pass");
+        want.put("{|assertEquals([%2020-01-01T10:00:00.123456789], [%2020-01-01T10:00:00.123456])}", "AssertFailed");
+        want.put("{|assertEquals([%2020-01-01T10:00:00.123456789], [%2020-01-01T10:00:00.123456789])}", "pass");
+        want.put("{|assertContains([%2020-01-01T10:00:00.123456789], %2020-01-01T10:00:00.123456)}", "AssertFailed");
+        // (a mixed Date list's max is refused by name on H2 today: a gap of its dialect, docs/DIFFERENCES_FROM_LEGEND_ENGINE.md)
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())}",
+                "AssertFailed|H2=DialectCapability: LIST_POSITION");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456, [%2019-01, %2020-01-01T10:00:00.123456789]->at(1))}",
+                "AssertFailed");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.5, [%2019-01, %2020-01-01T10:00:00.500]->at(1))}", "pass");
+        // an assert with no nanoseconds is read to the microsecond in every year (legend-pure's adjust tests' years)
+        want.put("{|assertEquals(%2407-05-19T19:15:12, %2407-05-19T19:15:12.000)}", "pass");
+        want.put("{|assertEquals(%1624-12-10T04:44:48, %1624-12-10T04:44:49)}", "AssertFailed");
+        // the precision audit (2026-11-22): a written Date's kind by its structure, in every year (H1); a date-time
+        // outside SQLite's 0000 to 9999 (H2); a nanosecond assert beside another assert's year past 2262 (H3); a tenth
+        // digit refused at planning (M1); a String that spells a date-time no nanosecond (M2); a record as written (M4)
+        want.put("{|assertEquals(%0999, %0998)}", "AssertFailed");
+        want.put("{|assertEquals(%25489, %25488)}", "AssertFailed");
+        want.put("{|assertEquals(%-2020, %-2021)}", "AssertFailed");
+        want.put("{|assertEquals(%25489-01, %25489-02)}", "AssertFailed");
+        want.put("{|assertNotEquals(%25489, %25488)}", "pass");
+        want.put("{|assertEquals(%0999, %0999)}", "pass");
+        want.put("{|assertEquals(%25489-01-01T10:00:00, %25488-01-01T10:00:00)}", "AssertFailed");
+        want.put("{|assertEquals(%25489-01-01T10:00:00, %25489-01-01T10:00:00.000)}", "pass");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456789);"
+                + " assertEquals(%2407-01-01T10:00:00, %2407-01-01T10:00:01);}", "AssertFailed");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.0000000001, %2020-01-01T10:00:00.0000000002)}",
+                "DialectCapability");
+        want.put("{|assertEquals(%2407-05-19T19:15:12, if('2020-01-01T10:00:00.1234567' == 'x', |%2000-01-01T00:00:00,"
+                + " |%2407-05-19T19:15:12))}", "pass");
+        want.put("{|assertEquals(%2020-01-01T10:30, %2020-01-01T10:30:00.000000001)}", "AssertFailed");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    String expected = e.getValue();
+                    int other = expected.indexOf("|" + database + "=");
+                    expected = other >= 0 ? expected.substring(other + database.toString().length() + 2)
+                            : expected.contains("|") ? expected.substring(0, expected.indexOf('|')) : expected;
+                    if (!got.startsWith(expected)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "every digit compared:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** Instances of one class compared as rows of typed leaves on every database the platform runs in-process, under
+     *  every judge (item 3's S4, instances, 2026-11-22): a keyed class by its classifier and its keys (a nested keyed
+     *  instance's keys in its place; a non-key property no part of it), a keyless class by its identity (S111), a Pair
+     *  by its two values; in order, or as a multiset where the elements are the same in any order. */
+    @Test
+    void instancesAreComparedByTheirKeysOrTheirIdentity() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        // (a model class's instance is refused by name on H2 today, under every judge: its dialect has no list encoding
+        // for the instance's carrier -- a gap of the dialect, docs/DIFFERENCES_FROM_LEGEND_ENGINE.md)
+        String k1 = "^p::K(id=1, at=%2020-01-01T10:00:00.5, note='a')";
+        want.put("{|assertEquals(" + k1 + ", ^p::K(id=1, at=%2020-01-01T10:00:00.500, note='b'))}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(" + k1 + ", ^p::K(id=2, at=%2020-01-01T10:00:00.5, note='a'))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(" + k1 + ", ^p::K(id=1, at=%2020-01-01T10:00:00.6, note='a'))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertNotEquals(" + k1 + ", ^p::K(id=2, at=%2020-01-01T10:00:00.5, note='a'))}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(^p::KN(k=" + k1 + ", f=1.5), ^p::KN(k=^p::K(id=1, at=%2020-01-01T10:00:00.5,"
+                + " note='z'), f=1.5))}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(^p::KN(k=" + k1 + ", f=1.5), ^p::KN(k=" + k1 + ", f=2.5))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertSameElements([" + k1 + ", ^p::K(id=2, at=%2020-01-01T10:00:00, note='c')], [^p::K(id=2,"
+                + " at=%2020-01-01T10:00:00.000, note='d'), " + k1 + "])}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|let x = ^p::P(id=1, d=1.5D); assertEquals($x, $x);}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(^p::P(id=1, d=1.5D), ^p::P(id=1, d=1.5D))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(pair(1, 'a'), pair(1, 'a'))}", "pass");
+        want.put("{|assertEquals(pair(1, 2.5), pair(1, 2.5))}", "pass");
+        want.put("{|assertEquals(pair(1, true), pair(1, false))}", "AssertFailed");
+        want.put("{|assertEquals(pair(1, 1.50D), pair(1, 1.5D))}", "pass");
+        want.put("{|assertEquals(pair(pair(1, 'a'), 2), pair(pair(1, 'b'), 2))}", "AssertFailed");
+        want.put("{|assertSameElements([pair(1, 'a'), pair(2, 'b')], [pair(2, 'b'), pair(1, 'a')])}", "pass");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    String expected = e.getValue();
+                    int other = expected.indexOf("|" + database + "=");
+                    expected = other >= 0 ? expected.substring(other + database.toString().length() + 2)
+                            : expected.contains("|") ? expected.substring(0, expected.indexOf('|')) : expected;
+                    if (!got.startsWith(expected)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "instances by keys or identity:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** The last families typed (item 3's S4, 2026-11-22): values typed Any compared by their JSON kind and value; nested
+     *  lists and maps as their database holds them (DuckDB natively; a database carrying them as JSON refuses by name
+     *  under the database judge, never compares their text); a list literal's nanoseconds read to the nanosecond; an
+     *  identity assert over two Pairs no value comparison. Each body's outcome per database and judge. */
+    @Test
+    void theLastFamiliesAreTypedOrRefusedByName() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        // Any: a JSON-carried side against a typed or a tagged one
+        want.put("{|assertEquals([1, 'a'], [1, 'a']->cast(@Any))}", "pass");
+        want.put("{|assertEquals([1, 'a'], [1, 'b']->cast(@Any))}", "AssertFailed");
+        want.put("{|assertEquals([1, 'a'], [1.0, 'a']->cast(@Any))}", "AssertFailed");
+        // register S401 (ruled by the user 2026-11-23, "Okay"): legend-pure compares two Variants by identity, which a
+        // database cannot compute, so an equality between two whole Variants -- or a Variant and an Any the plan cannot
+        // see -- is refused by name, under every judge and in the product's == and membership alike; a Variant against a
+        // value of another type is not equal, as in Pure, decided by the types
+        String refused = "NotImplementedException: an equality between two whole Variants is not computed";
+        for (String two : List.of("{|assertEquals('1'->fromJson(), '1'->fromJson())}",
+                "{|assertEquals('1'->fromJson(), '2'->fromJson())}", "{|assertEquals(1->toVariant(), 1->toVariant())}",
+                "{|assertEquals('{\"a\":1,\"b\":2}'->fromJson(), '{\"b\":2,\"a\":1}'->fromJson())}",
+                "{|assertNotEquals('\"1\"'->fromJson(), '1'->fromJson())}",
+                "{|assertSameElements(['1'->fromJson()], ['1'->fromJson()])}",
+                "{|assertContains(['1'->fromJson()], '1'->fromJson())}",
+                // two Variants cast to Any are Variants (read through the casts, VariantEquality.seen)
+                "{|assertEquals('{\"a\":1}'->fromJson()->cast(@Any), '{\"a\":1}'->fromJson())}",
+                // a Variant among a collection's other values (the audit of 581a93cb and 386db8fe, 2026-11-23): the
+                // database would compare it with the other side's values
+                "{|assertEquals(['1'->fromJson(), 2], [1, 2])}", "{|assertContains(['a', '\"b\"'->fromJson()], 'b')}",
+                "{|assertSameElements([1, 2], ['1'->fromJson(), 2])}",
+                // the identity asserts and their negations name the refusal, never a generic one (the same audit)
+                "{|assertNotEq('1'->fromJson(), '2'->fromJson())}", "{|assertIs('1'->fromJson(), '1'->fromJson())}",
+                "{|assertIsNot('1'->fromJson(), '2'->fromJson())}",
+                // the product's equality and membership
+                "{|assert('1'->fromJson() == '1'->fromJson())}", "{|assert('1'->fromJson() != '2'->fromJson())}",
+                "{|assert(['1'->fromJson()]->contains('1'->fromJson()))}",
+                "{|assert('1'->fromJson()->in(['1'->fromJson()]))}",
+                "{|assert(['1'->fromJson(), 2]->contains(1))}", "{|assert(['1'->fromJson(), 2] == [1, 2])}",
+                "{|assert('1'->fromJson()->cast(@Any) == '1'->fromJson()->cast(@Any))}",
+                // the product's deduplications, union desugared to distinct (the same audit)
+                "{|assert(['1'->fromJson(), 2, '1'->fromJson()]->removeDuplicates()->size() == 3)}",
+                "{|assert(['1'->fromJson(), '1'->fromJson()]->distinct()->size() == 2)}",
+                "{|assert(['1'->fromJson(), '2'->fromJson()]->isDistinct())}",
+                "{|assert(['1'->fromJson()]->union(['1'->fromJson()])->size() == 2)}",
+                "{|assert([1, 2]->removeDuplicatesBy(x | '1'->fromJson())->size() == 2)}",
+                // a Variant reached through any expression typed Any, and one held in a Pair or a List (the final audit
+                // of c758fe95: only casts, literals and concatenations had been read)
+                "{|assert(if(true, |'1'->fromJson(), |2) == 1)}", "{|assert(['1'->fromJson(), 2]->filter(x | true)->contains(1))}",
+                "{|assert([2]->add('1'->fromJson())->contains(1))}", "{|assertContains(['1'->fromJson(), 2]->map(x | $x), 1)}",
+                "{|assert(pair(1, '1'->fromJson()) == pair(1, 1))}", "{|assertEquals(list(['1'->fromJson()]), list([1]))}",
+                "{|assertEquals(1, ['1'->fromJson(), 2]->filter(x | true)->at(0))}",
+                // an if's Boolean branch is a value, never a condition (the narrow review of f9e74256: it had been
+                // skipped, the side read as a Variant alone and called unequal to true)
+                "{|assertEquals(true, if(true, |true, |'1'->fromJson()))}",
+                "{|assert(if(true, |true, |'1'->fromJson()) == true)}",
+                // a Variant held in a member declared Any of a Pair the plan builds (the same review)
+                "{|assert(pair(1, '1'->fromJson()->cast(@Any)) == pair(1, 1->cast(@Any)))}")) {
+            want.put(two, refused);
+        }
+        // an object literal holding a Variant in a property its equality never reads: a keyed class by its keys (the
+        // review of a39883f3: every property had been read, and the comparison refused); H2 has no list encoding for
+        // the keyed instances' rows, as before the change
+        want.put("{|assertEquals(^p::KVN(id=1, v='1'->fromJson()), ^p::KVN(id=1, v='2'->fromJson()))}",
+                "pass|H2=DialectCapability");
+        want.put("{|assert(^p::KVN(id=1, v='1'->fromJson()) != ^p::KVN(id=2, v='1'->fromJson()))}",
+                "pass|H2=DialectCapability");
+        // an index, a count and a map's parameter are not values of the side (the same review: they had been counted,
+        // and the equality refused)
+        want.put("{|assert(!(['1'->fromJson()]->cast(@Any)->at(0) == 'a'))}", "pass");
+        want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))}", "pass");
+        want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->map(x | $x)->contains('a'))}", "pass");
+        // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
+        // the record, a NULL among them JSON null (the audit of 8477c703); H2's JSON array aggregate drops a JSON null,
+        // so its database judge's record lists none there -- recorded, the verdict the same
+        want.put("{|assertEquals([], 'null'->fromJson())}", "AssertFailed: expected [], got [null]"
+                + "|H2/DATABASE=AssertFailed|H2/BOTH=JudgesDisagree");
+        want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected [], got [1]");
+        // a Variant is never a value of another type, its text's included (the audit of c2217801; S401)
+        want.put("{|assertEquals('\"abc\"'->fromJson(), 'abc')}", "AssertFailed");
+        want.put("{|assertEquals('1'->fromJson(), 1)}", "AssertFailed");
+        want.put("{|assert('1'->fromJson() == 1)}", "AssertFailed");
+        want.put("{|assertFalse('\"a\"'->fromJson() == 'a')}", "pass");
+        // decided by the types under every judge, read through casts, the record writing a Variant as JSON with its kind
+        // (the audit of 581a93cb and 386db8fe: the database judge had answered UNJUDGED, the host "got \"1\" (String)")
+        String variantOne = "AssertFailed: expected 1 (Integer), got 1 (Variant)";
+        want.put("{|assertEquals(1, '1'->fromJson())}", variantOne);
+        want.put("{|assertEquals(1, '1'->fromJson()->cast(@Any))}", variantOne);
+        want.put("{|assertEquals(1->cast(@Any), '1'->fromJson())}", variantOne);
+        want.put("{|assertEq(1, '1'->fromJson())}", variantOne);
+        want.put("{|assertNotEquals(1, '1'->fromJson())}", "pass");
+        want.put("{|assertNotEquals(true, 'true'->fromJson())}", "pass");
+        want.put("{|assert(!'1'->fromJson()->in([1, 2]))}", "pass");
+        want.put("{|assert(![1, 2]->contains('1'->fromJson()))}", "pass");
+        want.put("{|assert([1, 2]->indexOf('1'->fromJson()) == -1)}", "pass");
+        want.put("{|assertFalse('1'->fromJson()->cast(@Any) == 1)}", "pass");
+        // two empty sides are equal whatever their types (Pure's [] == []; the same audit's M1)
+        want.put("{|assert('{}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
+        want.put("{|assertFalse('{\"a\":1}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
+        // two primitives of different kinds: one record under every judge (the database judge's typed pair, never a
+        // planned sentence); an enumeration is never its name's String (register S169, the user's "false, matching")
+        want.put("{|assertEquals('1', 1)}", "AssertFailed: expected \"1\", got 1");
+        want.put("{|assertEquals(true, 1)}", "AssertFailed: expected true, got 1");
+        want.put("{|assertNotEquals('1', 1)}", "pass");
+        want.put("{|assertEquals(p::E.A, 'A')}", "AssertFailed: expected A, got \"A\"");
+        want.put("{|assertNotEquals(p::E.A, 'A')}", "pass");
+        want.put("{|assertEq(p::E.A, 'A')}", "AssertFailed: expected A, got \"A\"");
+        want.put("{|assertEquals([p::E.A, p::E.B], [p::E.A, p::E.B])}", "pass");
+        // a multiset of enumerations sorts them (the host's sort had no order for them: legend-engine's corpus on H2)
+        want.put("{|assertSameElements([p::E.A, p::E.B], [p::E.B, p::E.A])}", "pass");
+        // values holding both days and date-times: their days cannot be told apart in the database (S399); read
+        // through a map too (the narrow review of f9e74256); a function's result keeps its kind (at's day is a day)
+        String mixedDays = "NotImplementedException: values holding both days and date-times are not compared";
+        want.put("{|assertContains([%2020-01-01T00:00, %2020-01-02]->map(x | $x), %2020-01-02T00:00)}", mixedDays);
+        want.put("{|assertEquals(%2020-01-02T00:00, [%2020-01-02, %2020-01-01T00:00]->at(0))}",
+                "AssertFailed: expected 2020-01-02T00:00:00.000000000Z, got 2020-01-02");
+        want.put("{|assertContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)}", mixedDays);
+        want.put("{|assertEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])}", mixedDays);
+        // a Variant's membership among values of other types: the host's answer; the database judge has no typed form
+        // for it, refused by name (recorded, register S401)
+        String noTypedForm = "AssertFailed: assertNotContains: UNJUDGED in database mode";
+        want.put("{|assertNotContains([1, 2], '1'->fromJson())}", "pass|DuckDB/DATABASE=" + noTypedForm + "|DuckDB/BOTH="
+                + noTypedForm + "|H2/DATABASE=" + noTypedForm + "|H2/BOTH=" + noTypedForm + "|SQLite/DATABASE="
+                + noTypedForm + "|SQLite/BOTH=" + noTypedForm);
+        want.put("{|assertEquals(1.0, (0.5 + 0.5)->cast(@Any))}", "pass");
+        want.put("{|assertEquals(true, 'true'->fromJson()->to(@Boolean))}", "pass");
+        // a graph's size and emptiness (its root objects): typed, its failures the host's records
+        want.put("{|assertSize(execute(|p::P.all(), p::M, p::RT.runtimeValue, []).values, 1)}", "pass");
+        want.put("{|assertSize(execute(|p::P.all(), p::M, p::RT.runtimeValue, []).values, 2)}", "AssertFailed");
+        want.put("{|assertNotEmpty(execute(|p::P.all(), p::M, p::RT.runtimeValue, []).values)}", "pass");
+        want.put("{|assertEmpty(execute(|p::P.all()->filter(x | $x.id > 5), p::M, p::RT.runtimeValue, []).values)}",
+                "pass");
+        want.put("{|assertEmpty(execute(|p::P.all(), p::M, p::RT.runtimeValue, []).values)}", "AssertFailed");
+        // eq over a Map is identity, never its values (the audit's M6): refused by name, as the host refuses it
+        want.put("{|assertEq(newMap([pair('a', 1)]), newMap([pair('a', 1)]))}",
+                "NotImplementedException|H2/HOST=DataError");
+        // nested lists and maps
+        want.put("{|assertEquals(list([1, 2]), list([1, 2]))}", "pass|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|H2=DataError|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertEquals(list([1, 2]), list([2, 1]))}",
+                "AssertFailed|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|H2=DataError|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertEquals(newMap([pair('a', 1), pair('b', 2)]), newMap([pair('b', 2), pair('a', 1)]))}",
+                "pass|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|H2=DataError|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertEquals(newMap([pair('a', 1)]), newMap([pair('a', 2)]))}",
+                "AssertFailed|H2/DATABASE=DialectCapability|H2/BOTH=DialectCapability|H2=DataError|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        // a list literal's nanoseconds (the instances audit's H-A) and a tenth digit refused when planned
+        want.put("{|assertEquals([%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00], [%2020-01-01T10:00:00.123456789,"
+                + " %2020-01-01T10:00:00.000])}", "pass|H2=DialectCapability|SQLite=DialectCapability");
+        want.put("{|assertContains([%2020-01-01T10:00:00.123456789], %2020-01-01T10:00:00.123456789)}", "pass");
+        want.put("{|assertEquals([%2020-01-01T10:00:00.0000000001, %2020-01-01T10:00:00],"
+                + " [%2020-01-01T10:00:00.0000000002, %2020-01-01T10:00:00])}", "DialectCapability");
+        // a nanosecond adjust is a nanosecond assert (the instances audit's M-a)
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456, %2020-01-01T10:00:00.123456->adjust(789,"
+                + " DurationUnit.NANOSECONDS))}", "AssertFailed|H2=DialectCapability|SQLite=DialectCapability");
+        // the audit of 946d16f2: bodies that passed at its base, typed now
+        want.put("{|assertContains([1, 2.5], 2.5)}", "pass");
+        want.put("{|assertContains([1, 2.5], 2)}", "AssertFailed");
+        // (SQLite holds no exact decimal: its Decimal arithmetic refused, never approximated)
+        want.put("{|assertEqWithinTolerance(1.0D, 1.05D, 0.1D)}",
+                "pass|SQLite/DATABASE=DialectCapability|SQLite/BOTH=DialectCapability");
+        want.put("{|assertNotEquals(1->cast(@Any), 'a'->cast(@Any))}", "pass");
+        want.put("{|assertNotEquals([1]->cast(@Any), [1.0]->cast(@Any))}", "pass");
+        want.put("{|assertNotEquals(p::N, p::K)}", "pass");
+        want.put("{|assertEmpty([1, 'a']->filter(x | false))}", "pass");
+        // a wider table against a list: its cells row-major, each of its column's kind (the product's flatten)
+        String grid = "execute(|p::Q.all()->project([x | $x.id, x | $x.id->toString()], ['id', 's'])->sort('id'), p::M,"
+                + " p::RT.runtimeValue, []).values";
+        want.put("{|assertEquals([1, '1', 2, '2'], " + grid + ")}", "pass");
+        want.put("{|assertEquals([1, '1', 2, '3'], " + grid + ")}", "AssertFailed");
+        // the audit of 3f2fe452: a wider table's cells in the table's own order (a descending sort read descending); a
+        // class reference against itself cast to Class<Any> one reference; a store-read Decimal carried as its text
+        // against a Decimal literal refused by name, never its text joined against a number
+        String desc = "execute(|p::Q.all()->project([x | $x.id, x | $x.id->toString()], ['id', 's'])->sort(descending('id')),"
+                + " p::M, p::RT.runtimeValue, []).values";
+        want.put("{|assertEquals([2, '2', 1, '1'], " + desc + ")}", "pass");
+        want.put("{|assertEquals([1, '1', 2, '2'], " + desc + ")}", "AssertFailed");
+        want.put("{|assertEquals(p::Q, p::Q->cast(@Class<Any>))}", "pass");
+        want.put("{|assertNotEquals(p::Q, p::Q->cast(@Class<Any>))}", "AssertFailed");
+        String unjudged = "AssertFailed: assertContains: UNJUDGED";
+        want.put("{|assertContains(p::Q.all().e, 1.5D)}", "pass|DuckDB/DATABASE=" + unjudged + "|DuckDB/BOTH=" + unjudged
+                + "|H2/DATABASE=" + unjudged + "|H2/BOTH=" + unjudged + "|SQLite/DATABASE=" + unjudged + "|SQLite/BOTH="
+                + unjudged);
+        // membership is upstream's equal: a keyed class by its keys, any other instance by its identity (H2: a model
+        // class's instances refused by name by the database judge; a keyless class's identity under every judge)
+        String k = "^p::K(id=1, at=%2020-01-01T10:00:00.5, note='a')";
+        want.put("{|assertContains([" + k + "], " + k.replace("'a'", "'b'") + ")}", "pass|H2/DATABASE=DialectCapability: LIST_GET|H2/BOTH=DialectCapability: LIST_GET");
+        want.put("{|assertContains([" + k + "], " + k.replace("id=1", "id=2") + ")}", "AssertFailed|H2/DATABASE=DialectCapability: LIST_GET|H2/BOTH=DialectCapability: LIST_GET");
+        want.put("{|assertContains([^p::N(name='x')], ^p::N(name='x'))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|let n = ^p::N(name='x'); assertContains([$n], $n);}", "pass|H2=DialectCapability: LIST_GET");
+        // an instance whose data names no class is of its static class
+        want.put("{|assertInstanceOf(^p::N(name='x'), p::N)}",
+                "pass|H2/DATABASE=DialectCapability: LIST_GET|H2/BOTH=DialectCapability: LIST_GET");
+        want.put("{|assertInstanceOf(^p::N(name='x'), p::K)}",
+                "AssertFailed|H2/DATABASE=DialectCapability: LIST_GET|H2/BOTH=DialectCapability: LIST_GET");
+        List<String> wrong = new ArrayList<>();
+        List<String> seen = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    seen.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    String expected = e.getValue();
+                    int byMode = expected.indexOf("|" + database + "/" + mode + "=");
+                    if (byMode >= 0) {
+                        expected = expected.substring(byMode + database.toString().length() + mode.toString().length()
+                                + 3);
+                    }
+                    int other = byMode >= 0 ? -1 : expected.indexOf("|" + database + "=");
+                    expected = other >= 0 ? expected.substring(other + database.toString().length() + 2)
+                            : expected.contains("|") ? expected.substring(0, expected.indexOf('|')) : expected;
+                    if (expected.contains("|")) {
+                        expected = expected.substring(0, expected.indexOf('|'));
+                    }
+                    if (!got.startsWith(expected)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "the last families:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** Two tables compared (assertTdsEquivalent, assertEquals, assertNotEquals) on every database the platform runs
+     *  in-process (item 3's S4, tables, 2026-11-22): the database's verdict over the typed cells, each grid's rows riding
+     *  a failure as its database carries a list of rows (DuckDB's LIST of STRUCT; H2's and SQLite's JSON) for the host's
+     *  record -- one outcome under every judge. */
+    @Test
+    void aTableComparisonIsOneOutcomeOnEveryDatabase() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertTdsEquivalent(#TDS\n  id, v\n  1, 2.00\n  2, 3.001\n#, #TDS\n  id, v\n  1, 2.0\n  2, 3.0\n#,"
+                + " 0.01)}", "pass");
+        want.put("{|assertTdsEquivalent(#TDS\n  id, v, s\n  1, 2.5, x\n#, #TDS\n  id, v, s\n  1, 2.0, x\n#, 0.01)}",
+                "AssertFailed: expected the rows [[1, 2.5, \"x\"]] within 0.01, got [[1, 2.0, \"x\"]]");
+        want.put("{|assertTdsEquivalent(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n#, 0.01)}",
+                "AssertFailed: expected the rows [[1], [2]] within 0.01, got [[1]]");
+        want.put("{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#, 0.01)}",
+                "AssertFailed: expected the rows [[1]] within 0.01, got [[1]]");
+        // two grids compared by assertEquals: in any order unless the actual is sorted, each by its own columns
+        want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}", "pass");
+        want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n#, #TDS\n  id, s\n  1, z\n#)}",
+                "AssertFailed: expected [[1, \"x\"]], got [[1, \"z\"]]");
+        want.put("{|assertEquals(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n  2\n#->sort(~id->descending()))}",
+                "AssertFailed: expected [[1], [2]], got [[2], [1]]");
+        want.put("{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#)}", "AssertFailed: expected [[1]], got [[1]]");
+        want.put("{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  1.0\n#)}",
+                "AssertFailed: expected [[1]], got [[1.0]]");
+        want.put("{|assertNotEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  2\n#)}", "pass");
+        // a Float cell written as its carrier holds it, the host's rows' carrier (the table slice's audit, M1)
+        want.put("{|assertEquals(#TDS\n  v\n  2.50\n#, #TDS\n  v\n  2.6\n#)}", "AssertFailed: expected [[2.5]], got [[2.6]]");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!e.getValue().equals(got)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one outcome under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
     /** An hour-precision DateTime ({@code date(y, m, d, h)} against its literal, legend-pure's testDateFromHour) under
      *  lite's own rules (track A5, 2026-11-19, from the compatibility judges homework): the database judge's message
      *  read the side's text carrier as a timestamp, which DuckDB refused at the hour alone ("invalid timestamp field
@@ -399,23 +1222,24 @@ class AssertBarTest {
         want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 14))}", "pass");
         want.put("{|assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))}", "pass");
         want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 15))}",
-                "AssertFailed: expected 2015-04-16T14:00:00.000000Z, got 2015-04-16T15:00:00.000000Z");
+                "AssertFailed: expected 2015-04-16T14:00:00.000000000Z, got 2015-04-16T15:00:00.000000000Z");
         want.put("{|assertEquals(%2015-04-16T14:30, date(2015, 4, 16, 14, 31))}",
-                "AssertFailed: expected 2015-04-16T14:30:00.000000Z, got 2015-04-16T14:31:00.000000Z");
-        // Pure keeps a DateTime's precision (the orchestrator's ruling 3, 2026-11-19): an hour is not its minute --
-        // legend-pure's DateWithHour.getMinute() is -1 where a minute's is 0 (m4 PureDate.equals, the pinned jar), so
-        // %2015-04-16T14 == %2015-04-16T14:00 is false, under every judge (the text read to its minute is the message's
-        // alone, never the comparison's)
-        want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "AssertFailed: expected"
-                + " 2015-04-16T14:00:00.000000Z (DateTime, hour), got 2015-04-16T14:00:00.000000Z (DateTime, minute)");
-        want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
-        want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}", "pass");
+                "AssertFailed: expected 2015-04-16T14:30:00.000000000Z, got 2015-04-16T14:31:00.000000000Z");
+        // register S399 (the user's ruling of 2026-11-22, superseding in the product the orchestrator's ruling 3 of
+        // 2026-11-19): lite's product compares a date-time by its instant, so an hour equals its minute at one instant,
+        // under every judge (legend-pure: not equal, DateWithHour.getMinute() is -1 where a minute's is 0; the
+        // compatibility routes keep that answer, CompiledPureHostForms.equalDates)
+        want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
+        want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}",
+                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z");
+        want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}",
+                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z");
         // no text carrier holds a zone for the message's read to its minute to trip on (PR #127's review, 2026-11-19):
         // a zoned minute is normalised to GMT at parse (PureDateLiteral, as legend-pure's DateFormat.parsePureDate),
         // and a zone on an hour is refused at parse
         want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 13, 30))}", "pass");
         want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 14, 30))}",
-                "AssertFailed: expected 2015-04-16T13:30:00.000000Z, got 2015-04-16T14:30:00.000000Z");
+                "AssertFailed: expected 2015-04-16T13:30:00.000000000Z, got 2015-04-16T14:30:00.000000000Z");
         want.put("{|assertEquals(%2015-04-16T14+0100, date(2015, 4, 16, 13))}", "ParseException: [1:16] invalid date"
                 + " literal '%2015-04-16T14+0100': expected ':' after hour at position 13 in '2015-04-16T14+0100'");
         List<String> wrong = new ArrayList<>();
@@ -496,6 +1320,34 @@ class AssertBarTest {
                 org.junit.jupiter.api.Assertions.assertEquals(1L, sent, "one fused statement: " + body);
             }
         }
+    }
+
+    /** RULE 4, Q-D (item 3's S7, 2026-11-23): a COMPARED side the compiler would have to join is the database's to
+     *  compute -- planned, never a joined constant -- and still judged the same on every judge; a caller's message (a
+     *  final print) keeps its literals' join, marked {@code folded} in the plan; a joined assertError expected text and
+     *  a joined JSON golden under the database judge are refused by name. */
+    @Test
+    void aComparedJoinIsTheDatabasesAndAMessageKeepsItsJoin() throws Exception {
+        String model = StorelessRuntime.with(MODEL, Databases.PLATFORM);
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                assertEquals("pass", outcome(c, "{|assertEquals('ab', 'a' + 'b')}", mode), mode + ": a compared join");
+                assertEquals("AssertFailed: got it", outcome(c, "{|assertEquals('ab', 'a' + 'c', 'got ' + 'it')}", mode),
+                        mode + ": a caller's joined message");
+                String joinedError = outcome(c, "{|assertError(|fail('ab'), 'a' + 'b')}", mode);
+                assertTrue(joinedError.startsWith("NotImplementedException") && joinedError.contains("join of literals"),
+                        mode + ": a joined expected text refused by name: " + joinedError);
+            }
+            String json = outcome(c, "{|assertJsonStringsEqual('{\"a\":' + '1}', '{\"a\":1}')}",
+                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+            assertTrue(json.contains("not one literal"), "a joined JSON golden refused by name: " + json);
+        }
+        String compared = com.legend.testexecutionplan.TestPlanJson.write(Program.plan(model,
+                "{|assertEquals('ab', 'a' + 'b')}", StorelessRuntime.RUNTIME, ExecuteOptions.NONE));
+        assertTrue(!compared.contains("\"folded\":true"), "a compared join is no joined constant: " + compared);
+        String messaged = com.legend.testexecutionplan.TestPlanJson.write(Program.plan(model,
+                "{|assertEquals('ab', 'a' + 'c', 'got ' + 'it')}", StorelessRuntime.RUNTIME, ExecuteOptions.NONE));
+        assertTrue(messaged.contains("\"folded\":true"), "a caller's message keeps its join: " + messaged);
     }
 
     private static void record(String id, List<String> wrong, List<String> missed, List<String> closed) {

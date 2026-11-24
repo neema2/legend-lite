@@ -74,15 +74,23 @@ final class AssertRuns {
             // raised where the walk raises it, before the arm is entered: no census, no listener (S1)
             throw com.legend.testexecutionplan.Failures.raised(before);
         }
+        return reported(a, listener, () -> judge(a, h.judgment(), sides, message, run));
+    }
+
+    /** {@code judged} run as {@code a}'s verdict, counted and reported: entered, its verdict to {@code listener} (none:
+     *  run alone), a failure counted as raised, any other exit counted as raised. */
+    private static @com.legend.base.Nullable TypedSide reported(com.legend.testexecutionplan.Assertion a,
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
+            java.util.function.Supplier<@com.legend.base.Nullable TypedSide> judged) {
         if (listener == null) {
             enter(a);
-            return judge(a, h.judgment(), sides, message, run);
+            return judged.get();
         }
         com.legend.diagnostics.VerdictCensus.sqlEnter();
         boolean settled = false;
         try {
             enter(a);
-            TypedSide v = judge(a, h.judgment(), sides, message, run);
+            TypedSide v = judged.get();
             settled = true;
             if (v != null) {
                 listener.verdict(a.listenerName(), true, null);
@@ -105,34 +113,16 @@ final class AssertRuns {
 
     /** {@code a}'s verdict ROW, the database judge's own statement's (an assertError's, S135, 2026-11-05), judged at
      *  its step and counted and reported as {@link #judgedAtItsStep} counts and reports a host verdict: entered, its
-     *  verdict to the listener, a failure counted as raised. The row's polarity and message decide. */
-    static void judgedRowAtItsStep(com.legend.testexecutionplan.Assertion a, List<Object> row,
-            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, HostWords words) {
-        if (listener == null) {
-            enter(a);
-            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row, words);
-            return;
-        }
-        com.legend.diagnostics.VerdictCensus.sqlEnter();
-        boolean settled = false;
-        try {
-            enter(a);
-            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row, words);
-            settled = true;
-            listener.verdict(a.listenerName(), true, null);
-        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-            settled = true;
-            com.legend.diagnostics.VerdictCensus.sqlRaised();
-            if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
-                listener.unjudged(a.listenerName(), af.unjudgedReason());
-            }
-            listener.verdict(a.listenerName(), false, e.getMessage());
-            throw e;
-        } finally {
-            if (!settled) {
-                com.legend.diagnostics.VerdictCensus.sqlRaised();
-            }
-        }
+     *  verdict to the listener, a failure counted as raised. The row's verdict decides (the database's); its failure
+     *  the record {@link DatabaseVerdicts#errorOfRow} names over the raised values the row carries (item 3's S4). */
+    static void judgedRowAtItsStep(com.legend.testexecutionplan.Assertion a,
+            com.legend.testexecutionplan.HostJudgment.AssertError ae, List<Object> row,
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
+        reported(a, listener, () -> {
+            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(a.name());
+            DatabaseVerdicts.errorOfRow(ae, row);
+            return com.legend.testexecutionplan.Verdicts.ok();
+        });
     }
 
     /** A verdict row's evidence column for a message: at most 600

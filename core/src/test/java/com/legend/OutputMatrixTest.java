@@ -77,10 +77,10 @@ class OutputMatrixTest {
             // product's (register S312: UTC, six fraction digits and Z; Pure's +0000 and written precision are the
             // compatibility edge's), a value root and a relation's timestamp cell alike
             new Kind("datetime_whole", "|%2024-01-02T10:30:00", "|" + T + "%2024-01-02T10:30:00)->select(~[v])",
-                    "2024-01-02T10:30:00.000000Z", "2024-01-02T10:30:00.000000Z"),
+                    "2024-01-02T10:30:00.000000000Z", "2024-01-02T10:30:00.000000000Z"),
             new Kind("datetime_millis", "|%2024-01-02T10:30:00.123",
-                    "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123000Z",
-                    "2024-01-02T10:30:00.123000Z"),
+                    "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123000000Z",
+                    "2024-01-02T10:30:00.123000000Z"),
             new Kind("datetime_nanos", "|%2024-01-02T10:30:00.123456789",
                     "|" + T + "%2024-01-02T10:30:00.123456789)->select(~[v])",
                     // a cell CARRIES the value exactly (the user's §10 items 3 and 5, 2026-11-16: "The value itself is

@@ -270,7 +270,7 @@ final class HostAsserts implements TestDoor.Asserts {
             BodyDriver.@Nullable ExecEnv bodyEnv, AssertBranch.Parts parts, List<TypedSpec> letPrefix,
             Map<String, BodyDriver.ExecFrame> frames) {
         TestPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, typed.specs(), env, false,
-                false, null).side();
+                HostSides.Fold.NONE, null).side();
         HostAsserts then = plan(AssertBranch.body(typed, parts.then()), runtime, env, bodyEnv, letPrefix, frames);
         HostAsserts otherwise = then == null ? null
                 : plan(AssertBranch.body(typed, parts.otherwise()), runtime, env, bodyEnv, letPrefix, frames);
@@ -466,7 +466,7 @@ final class HostAsserts implements TestDoor.Asserts {
         }
         List<HostSides.Ask> asks = new ArrayList<>(working.size());
         for (TypedSpec side : working) {
-            asks.add(new HostSides.Ask(side, false, false, hook));
+            asks.add(new HostSides.Ask(side, false, HostSides.Fold.NONE, hook));
         }
         HostSides.Planned sides;
         com.legend.testexecutionplan.@Nullable Failure caught = null;
@@ -522,9 +522,32 @@ final class HostAsserts implements TestDoor.Asserts {
         for (JudgePlans.PlannedSide p : sides.sides()) {
             shapes.add(JudgePlans.shapeOf(p, env.options().style()));
         }
+        HostJudgment judgment = assertion.check().judgment();
+        if (judgment instanceof HostJudgment.Unrolled u) {
+            // each unrolled element's caller's message that reads leaves the base for its own part: read only where
+            // THAT element fails, as upstream evaluates it (item 3's S4 step 3, the user's decision 4, 2026-11-22)
+            List<TestPlan.Side> b = new java.util.ArrayList<>();
+            List<com.legend.testexecutionplan.SideShape> sh = new java.util.ArrayList<>();
+            List<HostJudgment.Part> parts = new java.util.ArrayList<>(u.parts().size());
+            int at = 0;
+            for (HostJudgment.Part part : u.parts()) {
+                int n = part.asks();
+                boolean lazy = part.judgment() instanceof HostJudgment.Messaged m && m.unplanned() == null
+                        && n == m.innerSides() + 1;
+                int kept = lazy ? n - 1 : n;
+                b.addAll(base.subList(at, at + kept));
+                sh.addAll(shapes.subList(at, at + kept));
+                parts.add(lazy ? new HostJudgment.Part(part.assertion(), part.judgment(), kept, base.get(at + kept),
+                        shapes.get(at + kept)) : part);
+                at += n;
+            }
+            base = b;
+            shapes = sh;
+            judgment = new HostJudgment.Unrolled(parts);
+        }
         TestPlan.Verdict verdict = new TestPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
                 assertion.name(), base, null, message).withHost(new TestPlan.Host(AssertVerdicts.assertionOf(assertion),
-                assertion.check().judgment(), shapes));
+                judgment, shapes));
         return new Planned(assertion, sides, new TestPlan.Verdicts(List.of(verdict), null, savepoint));
     }
 

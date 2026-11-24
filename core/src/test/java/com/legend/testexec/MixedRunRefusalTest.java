@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.testexec;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.Compiler;
 import com.legend.ExecuteOptions;
@@ -17,9 +15,9 @@ import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
 /**
- * A MIXED RUN IS REFUSED BY NAME (census C1, the orchestrator's ruling of 2026-11-17: one choice per run -- the plan's
- * style and the run's hook word a failure together, never the rules): each mismatch planted, the product's style heard
- * by the edge's hook and the edge's style by the product's. The defect this closes: a lite run handed the edge's hook
+ * EACH STYLE RUNS WITH ITS OWN HOOK. Until item 3's S2 (2026-11-21) a mixed run was refused by name (census C1, the
+ * orchestrator's ruling of 2026-11-17: one choice per run -- the plan's style and the run's hook word a failure together,
+ * never the rules); one catalog now words every assert failure, so the refusal had no subject left. The defect this closes: a lite run handed the edge's hook
  * was judged by compiled legend-pure's equality and words on the host while its database judge wrote lite's.
  */
 class MixedRunRefusalTest {
@@ -36,21 +34,9 @@ class MixedRunRefusalTest {
         }
     }
 
-    @Test
-    void theProductsStyleHeardByTheEdgesHookIsRefused() {
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> run(ExecuteOptions.NONE, com.legend.edge.AppealRun.with(null)));
-        assertTrue(e.getMessage().contains("worded in lite's words") && e.getMessage().contains("go together"),
-                e.getMessage());
-    }
-
-    @Test
-    void theEdgesStyleHeardByTheProductsHookIsRefused() {
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> run(ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM), NoEdgeRun.NONE));
-        assertTrue(e.getMessage().contains("worded in legend-pure's words") && e.getMessage().contains("go together"),
-                e.getMessage());
-    }
+    // (theProductsStyleHeardByTheEdgesHookIsRefused and theEdgesStyleHeardByTheProductsHookIsRefused: gone 2026-11-21,
+    // item 3's S2 -- the refusal pinned census C1's "one choice per run: the plan's style and the run's hook word a failure
+    // together, never the rules"; one catalog words every assert failure, so a run has no words of its own to match)
 
     @Test
     void eachStyleWithItsOwnHookRuns() throws Exception {

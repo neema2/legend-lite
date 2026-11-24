@@ -62,6 +62,11 @@ final class SideOrdinal {
 
     /** {@code q} with the ordinal its plan defines, or null where it defines none. */
     static @com.legend.base.Nullable SqlQuery defined(SqlQuery q) {
+        if (q.outputs().stream().anyMatch(o -> o.name().equals(ORD))) {
+            // numbered already (a side's plan its reader numbered): its ordinal kept, never a second one beside it (the
+            // audit of 3f2fe452's fixes: H2 refuses the duplicate column)
+            return q;
+        }
         if (q instanceof com.legend.sql.SqlUnion u && u.all()) {
             return branchOrder(u);
         }
@@ -71,7 +76,12 @@ final class SideOrdinal {
         if (!s.orderBy().isEmpty()) {
             // a key that is a window's answer takes no place in another window's order: numbered outside, as a DISTINCT
             // select is (it would count the ordinal among its distinct columns), by its keys where they are outputs
-            if (!s.distinct() && s.orderBy().stream().noneMatch(k -> windowed(windowKey(s, k)))) {
+            // (a grouped or AGGREGATING select's window would read a column its aggregate consumed: numbered outside
+            // too -- the audit of 3f2fe452, a metamodel's documents gathered into one JSON array, "must be in the GROUP
+            // BY list" on H2 and DuckDB)
+            boolean grouped = !s.groupBy().isEmpty() || s.having() != null
+                    || s.projections().stream().anyMatch(p -> aggregates(p.expr()));
+            if (!s.distinct() && !grouped && s.orderBy().stream().noneMatch(k -> windowed(windowKey(s, k)))) {
                 return numberedInside(s);
             }
             List<SqlSelect.SortKey> keys = outputKeys(s);
@@ -161,7 +171,7 @@ final class SideOrdinal {
             return false;
         }
         return e instanceof com.legend.sql.SqlAgg.Reducer || e instanceof SqlExpr.OrderedListAgg
-                || e.children().stream().anyMatch(SideOrdinal::aggregates);
+                || e instanceof SqlExpr.JsonArrayAgg || e.children().stream().anyMatch(SideOrdinal::aggregates);
     }
 
     /** Whether {@code q} is a UNION ALL, or a select that keeps its one derived source's rows in order over one. */
