@@ -182,19 +182,8 @@ public final class CanonicalDivergence {
     // (decimalScaleOnly, the count of Decimal pairs equal in value but not in scale under compiled legend-pure's
     // scale-sensitive rule: deleted 2026-11-24 with that rule, B3 step 1a -- a Decimal compares by value on every route)
 
-    /** OPEN_REGISTER §5 / X6: a byte-differing Double pair the DECLARED
-     * 2-ULP dialect-arithmetic policy adjudicated equal (cross-dialect
-     * libm last-ULP drift — H2-derived corpus goldens vs DuckDB
-     * transcendentals). Counted so the R3 census can retire or ratify
-     * the policy from its real witness set. */
-    public static void sqlUlpPolicy(String detail) {
-        Census.inc(Census.Key.SQL_ULP_POLICY);
-        sample(new Row("sqlUlpPolicy", true, detail));
-    }
-
-    public static long sqlUlpPolicyCount() {
-        return Census.count(Census.Key.SQL_ULP_POLICY);
-    }
+    // (sqlUlpPolicy, the count of Double pairs a 2-ULP policy called equal: no caller since S15's deletion, removed
+    // 2026-11-24, the review of B3 step 1b)
 
     // ── V7 (docs/V7_ASSERT_VERDICT_CHARTER.md §4.1): the corpus DUAL
     // CHANNEL census — the harness's host verdict vs the production
@@ -468,8 +457,7 @@ public final class CanonicalDivergence {
     public static String summary() {
         return "agree=" + Census.count(Census.Key.DIVERGENCE_AGREE) + " disagree=" + Census.count(Census.Key.DIVERGENCE_DISAGREE)
                 + " residue=" + Census.count(Census.Key.DIVERGENCE_RESIDUE)
-                + " | sql-verdict ulp-policy=" + Census.count(Census.Key.SQL_ULP_POLICY)
-                + " row-order-canon=" + Census.count(Census.Key.ROW_ORDER_CANON)
+                + " | sql-verdict row-order-canon=" + Census.count(Census.Key.ROW_ORDER_CANON)
 ;
     }
 
@@ -487,7 +475,7 @@ public final class CanonicalDivergence {
 
     public static void reset() {
         Census.reset(Census.Key.DIVERGENCE_AGREE, Census.Key.DIVERGENCE_DISAGREE, Census.Key.DIVERGENCE_RESIDUE,
-                Census.Key.SQL_ULP_POLICY, Census.Key.ROW_ORDER_CANON);
+                Census.Key.ROW_ORDER_CANON);
         SAMPLES.clear();
         DISAGREE_SAMPLES.clear();
         V7_FORMS.clear();

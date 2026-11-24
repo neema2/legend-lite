@@ -85,11 +85,8 @@ public final class EqualToJson {
             if (decimal(en).compareTo(decimal(an)) == 0) {
                 return null;
             }
-            // the referee's 2-ULP policy for the database's C-library doubles (the compatibility rules' bound)
-            if (com.legend.edge.CompiledPureHostForms.withinUlps(en.doubleValue(), an.doubleValue())) {
-                com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-json " + en + " ~ " + an);
-                return null;
-            }
+            // (a 2-ULP tolerance here went 2026-11-24, B3 step 1b's review: legend-engine's JsonNodeComparator compares
+            // numbers exactly, compareNumbers 4.145.0 :153-177)
             return path + " expected " + en + ", got " + an;
         }
         if (e instanceof String es && a instanceof String as) {

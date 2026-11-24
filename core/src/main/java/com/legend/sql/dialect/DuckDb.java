@@ -1271,6 +1271,15 @@ public class DuckDb extends AnsiSqlRenderer {
      * ({@code ->>} strips JSON quoting) — the swap lives HERE, in rendering,
      * not in the IR.
      */
+    /** A Float literal as DuckDB's double: the double itself, its exponent form, which DuckDB reads correctly rounded
+     *  (its DECIMAL-to-DOUBLE cast is not: B3 step 1b, 2026-11-24); a negative one in parentheses, so a minus before it
+     *  never writes {@code --}, a comment (the review of step 1b). */
+    @Override
+    protected SqlWriter.Piece floatLiteralAsDouble(SqlExpr.FloatLit f) {
+        String d = doubleLiteral(f.value());
+        return w -> w.append(d.startsWith("-") ? "(" + d + ")" : d);
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && c.reason() == SqlExpr.Reason.JUDGE) {
@@ -1352,7 +1361,7 @@ public class DuckDb extends AnsiSqlRenderer {
             // is 0.09531017980432492, one unit in the last place below the literal's double; measured on DuckDB 1.5.6,
             // B3 step 1b, 2026-11-24 -- an assert's expected Float on the compatibility route, whose literal is written
             // as a decimal, compared one ULP off the database's own ln). The value the literal names, nothing computed.
-            return writer.append(doubleLiteral(f.value()));
+            return writer.piece(floatLiteralAsDouble(f));
         }
         return super.variantAwareCast(writer, c);
     }

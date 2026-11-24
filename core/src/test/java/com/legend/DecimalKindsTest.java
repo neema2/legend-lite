@@ -155,19 +155,19 @@ class DecimalKindsTest {
             AssertFailed kind = assertThrows(AssertFailed.class,
                     () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
             // lite's own sentence, each value its product text (the user's judge model, 2026-11-17)
-            assertEquals("expected 0.3, got 0.30", kind.getMessage());
+            assertEquals("expected: 0.3, actual: 0.30", kind.getMessage());
             assertThrows(AssertFailed.class, () -> judged(c, "|assertEquals(0.4D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
         }
     }
 
     @Test
     @DisplayName("a Float compares exactly on every route (0.1 + 0.2 is not 0.3; the compatibility route's 2-ULP tolerance went 2026-11-24)")
-    void floatEqualityIsExactInCleanMode() throws Exception {
+    void floatEqualityIsExactOnEveryRoute() throws Exception {
         String body = "|assertEquals(0.3, " + ROW_ONE + ".fa + " + ROW_ONE + ".fb)";
         try (Connection c = seeded()) {
             AssertFailed exact = assertThrows(AssertFailed.class, () -> judged(c, body));
             // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17)
-            assertEquals("expected 0.3, got 0.30000000000000004", exact.getMessage());
+            assertEquals("expected: 0.3, actual: 0.30000000000000004", exact.getMessage());
             // the edge's door exactly too since B3 step 1b (2026-11-24: legend-engine compares exactly)
             assertThrows(AssertFailed.class, () -> com.legend.testing.EdgeProgram.run(model(), body, "m::RT", c));
         }

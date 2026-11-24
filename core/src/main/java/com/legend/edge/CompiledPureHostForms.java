@@ -15,7 +15,8 @@ package com.legend.edge;
 public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
     INSTANCE;
 
-    /** The units in the last place two Floats may differ by and be equal: compiled legend-pure's 2 (S15/S132). */
+    /** The units in the last place two Floats may differ by and be equal: compiled legend-pure's 2 -- S132's printed
+     *  texts alone since S15's deletion (2026-11-24), and the corpus referee's own comparison. */
     public static final int FLOAT_ULPS = 2;
 
     // (equalFloatsApart, two Floats within FLOAT_ULPS equal on the host judge's compatibility route, S15: deleted

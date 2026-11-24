@@ -1426,12 +1426,20 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append("(").piece(dividedAsDouble(a.get(0))).append(" / ").piece(dividedAsDouble(a.get(1))).append(")");
     }
 
+    /** A Float literal of the DECIMAL kind as a double where an operator needs one: {@code CAST(x AS DOUBLE)}; a
+     *  dialect whose decimal-to-double cast is not correctly rounded writes the double itself (DuckDB: B3 step 1b's
+     *  review, 2026-11-24). */
+    protected SqlWriter.Piece floatLiteralAsDouble(SqlExpr.FloatLit f) {
+        return w -> w.append("CAST(").expr(f, 0).append(" AS DOUBLE)");
+    }
+
     /** {@code x} as a double: a double's Float literal as it is (the dialect writes it as its double: S20's DOUBLE kind),
      *  any other operand cast (S20's waste look, 2026-11-17: H2 wrote CAST(CAST(1.75 AS DOUBLE PRECISION) AS DOUBLE)). */
-    private static SqlWriter.Piece dividedAsDouble(SqlExpr x) {
-        return x instanceof SqlExpr.FloatLit f && f.isDouble() && Double.isFinite(f.value())
-                ? w -> w.expr(x, 0)
-                : w -> w.append("CAST(").expr(x, 0).append(" AS DOUBLE)");
+    private SqlWriter.Piece dividedAsDouble(SqlExpr x) {
+        if (x instanceof SqlExpr.FloatLit f && Double.isFinite(f.value())) {
+            return f.isDouble() ? w -> w.expr(x, 0) : floatLiteralAsDouble(f);
+        }
+        return w -> w.append("CAST(").expr(x, 0).append(" AS DOUBLE)");
     }
 
     /** Pure's mod: the remainder with the divisor's sign, {@code MOD(MOD(x, y) + y, y)}. */
