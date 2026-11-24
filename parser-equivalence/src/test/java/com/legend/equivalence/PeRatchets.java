@@ -173,7 +173,11 @@ public final class PeRatchets {
                     + " 5's MappingNormalizerTest models, which Windows' parser_parity caught at 3338), match the"
                     + " reference grammar;"
                     + " measured by //parser-equivalence:update_ratchets; a floor rising, listed for the user's word at"
-                    + " the BE PR; UP)");
+                    + " the BE PR; UP)",
+            "own_corpus.matched 3344 -> 3345 (2026-11-24, B2a slice 3 on claude/compat-b2-nufdlk: the model of"
+                    + " RelationalMappingIntegrationTest.testFloatHeldAsIntegerPrintsAFloatsText, a Float property over"
+                    + " an INTEGER column (the independent audit's finding, one text per type), matches the reference"
+                    + " grammar; measured by //parser-equivalence:update_ratchets; a floor rising; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
