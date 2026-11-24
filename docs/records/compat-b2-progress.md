@@ -273,6 +273,23 @@ The verdict: sound to continue. What it asked, and where each stands:
   date-time cells (gap 4) -- each with the expression, legend-pure's answer read from the pinned sources,
   legend-engine's, lite's, and the cases each moves.
 
+### S4 prepared: the two date-time questions, read from the pinned sources (2026-11-24)
+
+- **(a) A date-time cell past the millisecond in a relation's `toString`.** legend-engine's relation TDS (the Pure
+  runtime's `TestTDS`, which a `#TDS` literal builds in PCT's reference run) stores a date-time as epoch nanoseconds
+  and reads it back to the millisecond: `DateFunctions.fromDate(new Date(value / 1000000))` (legend-engine 4.145.0,
+  `legend-engine-pure-runtime-java-extension-shared-functions-relation/.../TestTDS.java:209`). Its print is
+  therefore `2014-01-01T10:20:30.123+0000` for `...30.123456`. Lite's printer keeps every digit,
+  `2014-01-01T10:20:30.123456+0000`, as the edge's SQL does today. Pure's DateTime carries any number of fraction
+  digits, so the cut is the TDS storage's artifact: a reasoned departure, posted for the user's word with the cases it
+  moves once S4 has measured them.
+- **(b) Gap 4, a `toCSV` date-time cell.** The helper writes `format('%t{yyyy-MM-dd HH:mm:ss}', $date)` and
+  escapes it (legend-engine 4.145.0, `core_relational/relational/helperFunctions/helperFunctions.pure:238-243`; its
+  two-argument form passes `SimpleDateTimeFormat()`, `dateExtension.pure:384-387`). The printer writes exactly that.
+  Only the edge's SQL diverged (Pure's TDS text), so (b) is a correction, not a departure: no register row. No
+  relational-store test in the pinned sources asserts a `toCSV` date-time cell (a grep of the 231 `toCSV` uses for a
+  date-time literal finds none), so S4 expects to move no corpus case; it measures that through B3's lift.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
