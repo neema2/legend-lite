@@ -108,6 +108,8 @@ class PureRelationTextTest {
         assertEquals("403018489792982720.0", PureRelationText.pureFloat(4.030184897929827E17));
         assertEquals("99999999999999990000000.0", PureRelationText.pureFloat(1e23));
         assertEquals("\u221E", PureRelationText.pureFloat(Double.POSITIVE_INFINITY));
+        assertEquals("-\u221E", PureRelationText.pureFloat(Double.NEGATIVE_INFINITY));
+        assertEquals("NaN", PureRelationText.pureFloat(Double.NaN));
         assertEquals("0.3", PureRelationText.pureFloat(0.3d));
         assertEquals("0.30000000000000004", PureRelationText.pureFloat(0.1d + 0.2d));
     }
@@ -133,6 +135,7 @@ class PureRelationTextTest {
     void anEnumerationsValueIsNotQuotedAsAString() {
         assertEquals("{x}", PureRelationText.tdsCell("{x}", col("e", "my::Kind")));
         assertEquals("'{x}'", PureRelationText.tdsCell("{x}", col("s", "String")));
+        assertEquals("'{x}'", PureRelationText.tdsCell("{x}", col("a", RowDecode.ANY)));
     }
 
     @Test

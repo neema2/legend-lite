@@ -49,7 +49,7 @@ text (`LiteralSpelling.floatPrint`); the edge's text of it stays legend-engine's
 
 | Where | What moved |
 |---|---|
-| core (`//core:core_tests`, the SQLite and H2 lanes) | 5 cases re-pinned: `FloatTextTest.aFloatsTextIsSixDecimalsTrimmed` (DuckDB, H2, SQLite), `TypeInferenceIntegrationTest.testFloatToStringWithNegativeExponent` (each lane), `AuditRound3Test.floatReprLargeBand`, `BigQueryDialectTest`, `SnowflakeDialectTest`; `MongoDbPlanTest`'s two product texts; a new case, `RelationalMappingIntegrationTest.testFloatHeldAsIntegerPrintsAFloatsText` |
+| core (`//core:core_tests`, the SQLite and H2 lanes) | 5 cases re-pinned: `FloatTextTest.aFloatsTextIsSixDecimalsTrimmed` (DuckDB, H2, SQLite), `TypeInferenceIntegrationTest.testFloatToStringWithNegativeExponent` (each lane), `AuditRound3Test.floatReprLargeBand`, `BigQueryDialectTest`, `SnowflakeDialectTest`; `MongoDbPlanTest`'s two product texts; a new case, `RelationalMappingIntegrationTest.testManyColumnTypes` (a BIGINT under a Float property, `42.0`) |
 | PCT under lite's rules | `testFloatToStringWithExcessTrailingZeros`, `testFloatToStringWithPositiveExponent` pass and leave the LiteRules Essential ledger and channel B's duckdb-lite rows; `testFloatToStringWithNegativeExponent`'s text `0` becomes `0.0` |
 | compatibility lanes | unchanged: `pct_duckdb` (5 suites), `pct_sqlite` (5), `pct_h2`, channel B (5), `//spec:corpus_duckdb`, `//spec:corpus_h2` |
 | `//core:product_raise_probe` | every Float text right on DuckDB, H2, SQLite, Postgres, MariaDB, MySQL, ClickHouse, Trino, MongoDB; the arithmetic cases still failing on ClickHouse, Trino and Postgres fail identically on the base |
@@ -64,12 +64,12 @@ container and pass run unprivileged (`tools/postgres/as_unprivileged.sh`); then 
 **A wrong value fixed on the way** (on the base too): MongoDB printed 1e33 as `1` (Decimal128's 34 digits: `$round`
 keeps no fraction there, and the trailing-zero trim ate the integer's zeros).
 
-**After B2a's end design audit (2026-11-24):** an integer-held Float above 2^53 printed exactly on H2, Postgres,
-Snowflake and MongoDB and as its double elsewhere: those four now read it as the double it is
-(`AnsiSqlRenderer.doubleIfIntegral`), one text everywhere, Pure's meaning (a Float is a double); the integer-held check
+**After B2a's end design audit (2026-11-24):** an integer-held Float above 2^53 prints exactly on H2, Postgres,
+Snowflake and MongoDB and as its double elsewhere -- recorded in the S311 row as a known difference by database (a cast
+to DOUBLE on the four was built, then reverted on the independent re-review's must-fix: Postgres's and MongoDB's
+double-to-decimal casts keep 15 digits, so `1234567890123456` would have printed `1234567890123460.0`); the integer-held check
 the product no longer reads moved into the edge (`EdgePureOnlyTexts`; `ReprParts.heldAsInteger` and its two guard rows
-gone, a shrink); pinned: the edge's integer-held digits (`FloatTextTest.anIntegerHeldFloatsTextAtTheEdgeIsItsDigits`,
-before B2b deletes the pass that keeps them), `format`'s `%f` of a whole value and a negative whole value. **For the
+gone, a shrink); pinned: the edge's integer-held digits (`FloatTextTest.anIntegerHeldFloatsTextAtTheEdgeIsLegendEnginesCast`: the SQL each edge dialect writes for the product's node is legend-engine's plain cast, pinned with no fixture write, before B2b deletes the pass that keeps it), `format`'s `%f` of a whole value and a negative whole value. **For the
 user's word:** the integer-held Float's text on lite's route moved from `1000000` (legend-engine's cast) to `1000000.0`
 (Pure's, one text per type) -- the session's reading of the 2026-11-23 ruling, posted case by case. **Known, outside
 B2a:** a value whose static type is `Number` prints through `DECIMAL_TO_TEXT`, not `FLOAT_TO_TEXT`, so "one rule for
@@ -103,8 +103,7 @@ user's ruling (option C, no temporary two-form facet); item 4 held as above.
 
 ### S1: legend-pure's text of a relation written in Java from typed rows (2026-11-24)
 
-`edge/PureRelationText` writes a relation's `toString` (`#TDS`), `toString(rel, true)`, legend-engine's `toCSV` of a
-TDS, a TDS's `csv` property, and a program's literal `replace` calls on the printed text (the user, 2026-11-24); each
+`edge/PureRelationText` writes a relation's `toString` (`#TDS`), legend-engine's `toCSV` of a TDS, a TDS's `csv` property, and a program's literal `replace` calls on the printed text (the user, 2026-11-24); each
 rule read from the pinned sources (legend-engine 4.145.0's `toString.pure`, `s.pure`, `helperFunctions.pure`); a cell it
 has no rule for refused by name. `edge/PureRelationTextWriter` is a run's receiver: a relation's typed rows held in
 their order and printed once whole, the text handed on as one String (the door's receiver, S2, and the harness's lifted
@@ -138,7 +137,11 @@ integers and fractions, a group's average.
 
 **Guards:** `JavaEvalLedgerTest`'s edge register lists the two new files with their reason; `WriterCarriageGuardTest`
 scans both and registers `PureRelationText`'s representation operations by name (a date's own precision, a text's
-escaping, a quoted name, an integer under a Float read as its decimal) -- the direct cost of B2 itself.
+escaping, a quoted name, a Float column's cell read as the double it declares) -- the direct cost of B2 itself.
+**A known divergence the printer keeps, as the SQL did** (the re-review, 2026-11-24): a date-time's text keeps every
+fraction digit past the third (`.123456+0000`), where legend-engine's TestTDS reads a date to the millisecond
+(`.123+0000`); the goldens hold whole seconds and milliseconds, which both rules print alike -- a register row for
+B2b's end.
 
 ## Audits
 
@@ -146,4 +149,5 @@ escaping, a quoted name, an integer under a Float read as its decimal) -- the di
 |---|---|---|---|
 | 2026-11-24 | B2a's end design audit, `96e7c1fc4..54f8be8e3`, a subagent, read-only, given the plan of record, the tenets and the record | no must-fix; verdict "sound to build B2b on". Should-fix: `heldAsInteger` left in the product for the edge alone; an integer-held Float above 2^53 printed per database; the integer-held text change not posted for the user's word; the record's slice 4 and slice 1 wording; the S311 row's cloud-lane, per-value and MongoDB claims; the edge's integer-held digits unpinned. Nits: stale javadocs, the gate wording, the ledger header | all, in this round (the user's word on the integer-held text asked) |
 | 2026-11-24 | B2b S1's diff (`54f8be8e3..527d3e8a9`), a subagent, read-only, given the code, the pinned sources and the requirement | 1 must-fix (the typed header's multiplicity); should-fix: the typed header's precise types, the date-time's digits against the edge's rule, legend-pure's Float formatter, a decimal under Float, a Number of integers' javadoc, toCSV's date-time cells against today's SQL, mixed columns; nits: dates the CSV cannot write, enumerations' quoting, the empty replace, the writer's refusals' timing | all, in this round; toCSV's date-time cells measured on the corpus at S4 |
+| 2026-11-24 | the fix round's diff (`527d3e8a9..41d52b690`), a narrow re-review, read-only | 1 must-fix: the integer-held Float's cast to DOUBLE on H2, Postgres, Snowflake and MongoDB lost digits on Postgres and MongoDB (15-digit casts) and the claim of one text everywhere was false; should-fix: that cast unpinned, the date rule's divergence from TestTDS's millisecond cut unrecorded; nits: a String in an Any column not quoted, a DecimalFormat per cell, two stale record lines. The printer's rules, the moves and the guards found clean | the cast reverted and the difference recorded; the rest fixed |
 | 2026-11-24 | slice 3's diff (`96e7c1fc4..396961c73`), an independent subagent, read-only, given the code and the requirement | 5 must-fix: MongoDB printed `NaN.0`/`Infinity.0` (an unconditional `.0`); channel B's ledger row read `got "00.0"` (a slicing slip); channel B's lite Essential judge pins not re-pinned (+264); `MongoDbPlanTest`'s two product texts stale; a Float held as an integer printed `2` beside a computed `2.0` (one text per type broken). 1 should-fix: the probe's whole-value check too loose (a lost sign or a wrong digit count passed). Nits: stale javadocs, long lines. No defect in the shared helpers' SQL (simulated on every six-digit text kind, the non-finite texts included); the edge untouched | all, in `08e37643b` and the slice's last commit; the probe pins -2.0 and 1e20 exactly, and NaN and the infinities exactly |

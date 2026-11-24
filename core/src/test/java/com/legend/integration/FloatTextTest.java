@@ -105,34 +105,27 @@ class FloatTextTest {
 
     /** A Float the store holds as an integer, at the compatibility edge: legend-engine's in-query cast of the column,
      *  its digits ({@code Quantity not in range: 1000000}, the corpus's validation showcase), where the product prints
-     *  every Float by one rule ({@code RelationalMappingIntegrationTest.testFloatHeldAsIntegerPrintsAFloatsText}).
-     *  Pinned 2026-11-24 (B2a's end design audit): the edge's pass over the product's Float text keeps it today, and B2b
-     *  deletes that pass, so its replacement must answer the same. */
+     *  every Float by one rule ({@code RelationalMappingIntegrationTest.testManyColumnTypes}, {@code 42.0}). Pinned
+     *  2026-11-24 (B2a's end design audit) at the SQL each edge dialect writes for the product's node, so that no fixture
+     *  is written: the edge's pass over the product's Float text keeps it today, and B2b deletes that pass, so its
+     *  replacement must write the same. */
     @Test
-    void anIntegerHeldFloatsTextAtTheEdgeIsItsDigits() throws Exception {
+    void anIntegerHeldFloatsTextAtTheEdgeIsLegendEnginesCast() {
+        com.legend.sql.SqlExpr qty = com.legend.sql.SqlExpr.Column.of("t", "QTY", com.legend.sql.SqlType.Scalar.BIGINT,
+                true, com.legend.sql.OutputCol.Origin.PHYSICAL);
+        // the lane's own database (each lane runs it: DuckDB, H2, SQLite)
         TestBackend backend = LaneFloor.backend();
-        String model = """
-                ###Pure
-                Class model::P { id: Integer[1]; qty: Float[1]; }
-                ###Relational
-                Database store::DB ( Table T1 ( ID INTEGER, QTY INTEGER ) )
-                ###Mapping
-                Mapping model::M ( model::P: Relational { ~mainTable [store::DB] T1
-                    id: [store::DB] T1.ID, qty: [store::DB] T1.QTY } )
-                ###Connection
-                RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
-                ###Runtime
-                Runtime test::RT { mappings: [ model::M ]; connections: [ store::DB: [ environment: store::Conn ] ]; }
-                """;
-        try (Connection c = backend.open(com.legend.edge.PureText.UPSTREAM)) {
-            try (java.sql.Statement st = c.createStatement()) {
-                st.execute("CREATE TABLE T1 (ID INT, QTY INT)");
-                st.execute("INSERT INTO T1 VALUES (1, 2), (2, 1000000)");
-            }
-            assertEquals(List.of("2", "1000000"), column(Lean.runInStyle(model, "|model::P.all()->project(~[id:x|$x.id,"
-                    + " t:x|$x.qty->toString()])->sort(~id->ascending())->select(~t)", "test::RT", c,
-                    com.legend.edge.PureText.UPSTREAM)), backend.name());
-        }
+        com.legend.sql.dialect.SqlDialect edge = com.legend.edge.PureText.dialect(backend.type());
+        assertEquals(edge.render(select(new com.legend.sql.SqlExpr.Cast(qty, com.legend.sql.SqlType.Scalar.VARCHAR,
+                        com.legend.sql.SqlExpr.Reason.USER))),
+                edge.render(select(com.legend.lowering.LiteralSpelling.floatPrint(qty))), backend.name());
+    }
+
+    private static com.legend.sql.SqlSelect select(com.legend.sql.SqlExpr e) {
+        return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(e, "v", null)), false,
+                new com.legend.sql.SqlSource.Table("T1", "t", List.of(new com.legend.sql.OutputCol("QTY",
+                        com.legend.sql.SqlType.Scalar.BIGINT, true)), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of());
     }
 
     private static String scalar(String model, Connection c, String query) throws Exception {

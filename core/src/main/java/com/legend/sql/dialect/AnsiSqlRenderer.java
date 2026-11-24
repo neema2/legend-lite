@@ -1546,17 +1546,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     @SpellingArm
     protected abstract SqlWriter floatToText(SqlWriter writer, SqlExpr x);
 
-    /** {@code x} as a double where the database holds it as an integer (a Float the store keeps in an integral column):
-     *  a Float is a double (Pure's meaning), so a dialect whose six-decimal text reads its operand exactly (H2's and
-     *  Snowflake's decimal casts, Postgres's NUMERIC, MongoDB's Decimal128) reads such a value as the double it is,
-     *  as every other dialect does through {@link #asDouble} -- an integer above 2^53 rounds the same everywhere (B2a's
-     *  end design audit, 2026-11-24); any other operand is itself. */
-    protected static SqlExpr doubleIfIntegral(SqlExpr x) {
-        return x.type() instanceof com.legend.sql.TypeFact.Typed t && (t.type() == com.legend.sql.SqlType.Scalar.INTEGER
-                || t.type() == com.legend.sql.SqlType.Scalar.BIGINT || t.type() == com.legend.sql.SqlType.Scalar.HUGEINT)
-                ? new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT) : x;
-    }
-
     /** {@code x} as a double: itself where its fact is one (a column, a computed double), else cast -- a format call's
      *  {@code %f} reads no integer and no decimal, and a six-decimal text is trimmed only where it has its six
      *  digits (a literal is cast too: DuckDB reads {@code 1.5} as a DECIMAL). */

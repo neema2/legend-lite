@@ -3537,8 +3537,7 @@ public class Snowflake extends AnsiSqlRenderer {
      *  (Snowflake's NaN equals itself and exceeds every number; the brief's measurement, D_BRIEF §1). */
     @Override
     @SpellingArm
-    protected SqlWriter floatToText(SqlWriter writer, SqlExpr operand) {
-        SqlExpr x = doubleIfIntegral(operand);
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
         writer.append("CASE WHEN ").expr(x, 0).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CASE WHEN ")
                 .expr(x, 0).append(" = 'NaN'::FLOAT THEN 'NaN' WHEN ").expr(x, 0)
                 .append(" > 0 THEN 'Infinity' ELSE '-Infinity' END ");

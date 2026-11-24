@@ -1612,8 +1612,7 @@ public class H2 extends AnsiSqlRenderer {
     /** {@inheritDoc} The value's six-decimal DECIMAL text, trimmed; H2's NaN and infinities, which no DECIMAL holds, as its own text of them, Java's (NaN exceeds every number, so one test finds the three; measured on 2.5.252, 2026-11-15). */
     @Override
     @SpellingArm
-    protected SqlWriter floatToText(SqlWriter writer, SqlExpr operand) {
-        SqlExpr x = doubleIfIntegral(operand);
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
         writer.append("CASE WHEN ABS(").expr(x, 0).append(") > 1.7976931348623157E308 THEN CAST(").expr(x, 0)
                 .append(" AS VARCHAR) ELSE ");
         trimmedSix(writer, "rtrim", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS DECIMAL(1000, 6)) AS VARCHAR)"));

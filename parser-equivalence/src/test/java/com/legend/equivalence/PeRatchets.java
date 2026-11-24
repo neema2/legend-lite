@@ -183,7 +183,12 @@ public final class PeRatchets {
                     + " FloatTextTest.anIntegerHeldFloatsTextAtTheEdgeIsItsDigits's model -- a Class, a Database, a"
                     + " Mapping, a Connection and a Runtime -- matches the reference grammar; measured by"
                     + " //parser-equivalence:update_ratchets; a floor rising, listed for the user's word at the B2 PR;"
-                    + " UP)");
+                    + " UP)",
+            "own_corpus.matched 3350 -> 3345 (2026-11-24, the independent re-review's round on"
+                    + " claude/compat-b2-nufdlk: FloatTextTest's model gone, its pin a render of the edge's SQL with no"
+                    + " fixture write (FixtureWriteCensusTest), and the integer-held product pin moved into"
+                    + " RelationalMappingIntegrationTest.testManyColumnTypes, one model; measured by"
+                    + " //parser-equivalence:update_ratchets; DOWN)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

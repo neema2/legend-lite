@@ -99,8 +99,8 @@ public final class PureRelationText {
 
     /** A cell, legend-engine's {@code s(value, type)} (s.pure:21-38): an empty one {@code null}, or {@code 'null'}
      *  under a Variant column; a Variant its text quoted with {@code '}, {@code \} and {@code '} escaped; a String --
-     *  the value's runtime type, so a String column's, never an enumeration's, whose value lite carries as its name --
-     *  holding <code>{</code> or {@code [} quoted the same way, any other String as it is; anything else its
+     *  the value's runtime type, so a String or an Any column's, never an enumeration's, whose value lite carries as its
+     *  name -- holding <code>{</code> or {@code [} quoted the same way, any other String as it is; anything else its
      *  {@code toString()} ({@link #value}). */
     static String tdsCell(@com.legend.base.Nullable Object v, ExecutionPlan.Column c) {
         boolean variant = c.type().equals(RowDecode.VARIANT);
@@ -113,7 +113,7 @@ public final class PureRelationText {
             }
             return quoted(json);
         }
-        if (v instanceof String s && c.type().equals("String")) {
+        if (v instanceof String s && (c.type().equals("String") || c.type().equals(RowDecode.ANY))) {
             return s.contains("{") || s.contains("[") ? quoted(s) : s;
         }
         return value(v, c);
@@ -261,6 +261,8 @@ public final class PureRelationText {
         if (d == 0.0d) {
             return "0.0";
         }
+        // a format per value: a DecimalFormat is not safe to share, and the printer holds no static state
+        // (DanglingStateGuardTest); NaN prints NaN and the infinities the infinity sign, signed, as legend-pure's do
         java.text.DecimalFormat format = new java.text.DecimalFormat("0.0",
                 java.text.DecimalFormatSymbols.getInstance(java.util.Locale.ENGLISH));
         format.setMaximumFractionDigits(340);
@@ -272,7 +274,11 @@ public final class PureRelationText {
      * at least three fraction digits (the first three, then any finer ones without their trailing zeros), and
      * {@code +0000}: the rule the edge's SQL composition wrote until B2b ({@code dateTimeTextTds}, measured on 35
      * goldens of channel B's relation and standard suites, 2026-10-18; legend-engine's {@code testDayOfWeek_Relation}
-     * prints a TDS literal's {@code 1985-01-12T06:30:00Z} as {@code 1985-01-12T06:30:00.000+0000}).
+     * prints a TDS literal's {@code 1985-01-12T06:30:00Z} as {@code 1985-01-12T06:30:00.000+0000}). A known divergence
+     * it keeps, as the SQL did: legend-engine's TestTDS reads a date to the millisecond
+     * ({@code DateFunctions.fromDate(new Date(nanos / 1000000))}), so a finer value prints {@code .123+0000} there and
+     * {@code .123456+0000} here; the goldens hold whole seconds and milliseconds, which both rules print alike (the
+     * independent re-review of 2026-11-24; recorded in docs/records/compat-b2-progress.md for B2b's register rows).
      */
     static String date(PureDateLiteral d) {
         if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {

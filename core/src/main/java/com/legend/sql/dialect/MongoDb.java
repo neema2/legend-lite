@@ -2906,7 +2906,7 @@ public class MongoDb extends AnsiSqlRenderer {
         // less its fraction's length of zeros -- never trimmed, then '.0', every such value being whole (measured
         // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
         writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
-        MongoJson.op1(writer, "$toDecimal", doubleIfIntegral(x));
+        MongoJson.op1(writer, "$toDecimal", x);
         return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
                 + " {\"$let\": {\"vars\": {\"t\": {\"$cond\": [{\"$lt\": [{\"$indexOfCP\": [\"$$s\", \".\"]}, 0]}, \"$$s\","
