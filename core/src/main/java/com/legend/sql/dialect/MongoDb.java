@@ -2896,19 +2896,23 @@ public class MongoDb extends AnsiSqlRenderer {
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits, trimmed of the zeros, a
-        // whole value keeping one ('.000000' marked '.#' before the trim, the mark a '0' after; S311 amended, the user's
-        // rulings of 2026-11-19 ~18:05 and 2026-11-23, "2.0"); from 1e34 every value is whole and ends '.0'; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
+        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits -- a text with a point
+        // trimmed of its trailing zeros and then the point, and any text without a point then ending '.0', a whole value
+        // keeping one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and 2026-11-23, "2.0").
+        // Decimal128 holds 34 digits, so from 1e28 the rounding keeps fewer than six fraction digits and at 1e33 none:
+        // its text then has no point, and is never trimmed (measured 2026-11-24: the trim had eaten 1e33's zeros,
+        // printing 1). From 1e34 every value is whole and ends '.0'; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
         // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
         // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
         writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
         MongoJson.op1(writer, "$toDecimal", x);
         return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
-                + " {\"$replaceAll\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\":"
-                + " {\"$replaceAll\": {\"input\": \"$$s\", \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}},"
-                + " \"find\": \".000000\", \"replacement\": \".#\"}}, \"chars\": \"0\"}}, \"find\": \"#\","
-                + " \"replacement\": \"0\"}},"
+                + " {\"$let\": {\"vars\": {\"t\": {\"$cond\": [{\"$lt\": [{\"$indexOfCP\": [\"$$s\", \".\"]}, 0]}, \"$$s\","
+                + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
+                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}}]}},"
+                + " \"in\": {\"$concat\": [\"$$t\", {\"$cond\": [{\"$lt\": [{\"$indexOfCP\": [\"$$t\", \".\"]}, 0]},"
+                + " \".0\", \"\"]}]}}},"
                 + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
                 + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
                 + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"

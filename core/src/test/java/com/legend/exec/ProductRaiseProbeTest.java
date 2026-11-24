@@ -148,9 +148,9 @@ class ProductRaiseProbeTest {
         }
         // 5a. a WHOLE Float keeps one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
         // 2026-11-23, "I think we do it as 2.0"), the large-magnitude forms too (Snowflake from 1e32, MySQL from 1e60,
-        // MongoDB from 1e34): each prints its integer digits, as many as its magnitude (S311's noise is the register's),
-        // then ".0" -- never an exponent, never a bare integer
-        String[] wholes = {"-2.0", "1.0E20", "1.0E33", "1.0E61", "1.0E300"};
+        // MongoDB from 1e34): each prints its integer digits, as many as its magnitude or one fewer (a double just below
+        // its power of ten: S311's noise is the register's), then ".0" -- never an exponent, never a bare integer
+        String[] wholes = {"-2.0", "1.0E20", "1.0E28", "1.0E30", "1.0E33", "1.0E61", "1.0E300"};
         Object big = run(backend, "a whole Float's text", "|#TDS\n  i:Integer, x:Float\n"
                 + java.util.stream.IntStream.range(0, wholes.length).mapToObj(i -> "  " + i + ", " + wholes[i] + "\n")
                         .collect(java.util.stream.Collectors.joining())
@@ -167,7 +167,7 @@ class ProductRaiseProbeTest {
             for (int i = 0; i < wholes.length; i++) {
                 String g = i < got.size() ? got.get(i) : null;
                 int digits = new java.math.BigDecimal(wholes[i]).abs().toBigInteger().toString().length();
-                if (g == null || !g.matches("-?[0-9]{" + digits + "}\\.0")) {
+                if (g == null || !g.matches("-?[0-9]{" + (digits - 1) + "," + digits + "}\\.0")) {
                     wrong.add("a whole Float's text of " + wholes[i] + ": " + g + " (want " + digits + " digits, then .0)");
                 }
             }
