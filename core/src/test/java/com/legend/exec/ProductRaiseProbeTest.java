@@ -114,7 +114,7 @@ class ProductRaiseProbeTest {
         // 4. a print site: a Float's text (D1.2, register S311): six decimals, trimmed, the same on every database
         Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
-        if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2\"},"
+        if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2.0\"},"
                 + "{\"t\":\"-1.25\"}]")) {
             wrong.add("a Float's text: " + describe(text));
         }
@@ -143,6 +143,32 @@ class ProductRaiseProbeTest {
                 String want = floatText(Double.parseDouble(values[i]));
                 if (!want.equals(g)) {
                     wrong.add("a Float's text of " + values[i] + ": " + g + " (want " + want + ")");
+                }
+            }
+        }
+        // 5a. a WHOLE Float keeps one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
+        // 2026-11-23, "I think we do it as 2.0"), the large-magnitude forms too (Snowflake from 1e32, MySQL from 1e60,
+        // MongoDB from 1e34): each prints its integer digits, as many as its magnitude (S311's noise is the register's),
+        // then ".0" -- never an exponent, never a bare integer
+        String[] wholes = {"-2.0", "1.0E20", "1.0E33", "1.0E61", "1.0E300"};
+        Object big = run(backend, "a whole Float's text", "|#TDS\n  i:Integer, x:Float\n"
+                + java.util.stream.IntStream.range(0, wholes.length).mapToObj(i -> "  " + i + ", " + wholes[i] + "\n")
+                        .collect(java.util.stream.Collectors.joining())
+                + "#->sort(~i->ascending())->extend(~t: r|$r.x->toOne()->toString())->select(~t)->from("
+                + StorelessRuntime.RUNTIME + ")");
+        if (!(big instanceof String b5)) {
+            wrong.add("a whole Float's text: " + describe(big));
+        } else {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"t\":\"([^\"]*)\"").matcher(b5);
+            List<String> got = new ArrayList<>();
+            while (m.find()) {
+                got.add(m.group(1));
+            }
+            for (int i = 0; i < wholes.length; i++) {
+                String g = i < got.size() ? got.get(i) : null;
+                int digits = new java.math.BigDecimal(wholes[i]).abs().toBigInteger().toString().length();
+                if (g == null || !g.matches("-?[0-9]{" + digits + "}\\.0")) {
+                    wrong.add("a whole Float's text of " + wholes[i] + ": " + g + " (want " + digits + " digits, then .0)");
                 }
             }
         }
@@ -380,9 +406,11 @@ class ProductRaiseProbeTest {
     /** The product's text of {@code x} (register S311): its shortest round-trip digits, rounded half up to six places,
      *  trailing zeros trimmed, a zero unsigned. */
     static String floatText(double x) {
+        // S311 amended (the user's rulings of 2026-11-19 ~18:05 and 2026-11-23): a whole value keeps one fraction digit
         String t = new java.math.BigDecimal(Double.toString(x)).setScale(6, java.math.RoundingMode.HALF_UP)
                 .stripTrailingZeros().toPlainString();
-        return t.equals("-0") || new java.math.BigDecimal(t).signum() == 0 ? "0" : t;
+        String unsigned = t.equals("-0") || new java.math.BigDecimal(t).signum() == 0 ? "0" : t;
+        return unsigned.contains(".") ? unsigned : unsigned + ".0";
     }
 
     /** A Decimal row: its one value is {@code want} exactly (by {@code compareTo}), or the database's named refusal of a
