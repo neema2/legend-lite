@@ -162,7 +162,10 @@ relation (`TypedQuery.withBody`: model, options and parameters kept) and the pri
 - a print that is not the last step;
 - a `csv` read over a cast to a TDS class (the resolver's, `Anchors.tdsCsvRead`);
 - a relation whose columns the database names when the plan runs (a raw grid, a dynamic pivot whose columns nothing
-  names, a relation of no columns), which the lowering answers by its own rules.
+  names), and a relation with no columns. The lowering answers each by its own rules.
+
+The lift reads the lowering's own predicate for the default formats (`RelationTextLowering.isDefaultCsvFormat`). When
+S5 and S6 delete `RelationTextLowering`, the predicate moves to `PrintedRelations`.
 
 The plan of record's B2, E0 = A ("E0 - yes"), and the user's rulings of 2026-11-19 ~18:12 and 2026-11-24.
 
@@ -171,8 +174,9 @@ The plan of record's B2, E0 = A ("E0 - yes"), and the user's rulings of 2026-11-
   relation into the printer and answers its one String. Lite's own rules keep the run's answer (S5 prints a relation in
   the database). **No PCT case ends in a print:** no channel A answer on any edge-net lane is a printed table. The
   relation suites print on the host side, in the assert, which is S4's (the test-body `Printed` judgment, after B3).
-  `//pct:pct_duckdb`, `pct_sqlite`, `pct_h2`, `pct_duckdb_lite`, the engine lanes on DuckDB and H2, and `edge_net`
-  are unchanged: 67 of 67 pass, nothing moved. `PctPlanRoutePrintTest` runs the branch end to end: a day column
+  The lanes were measured on `54d922e92`, before `6fc717f9f` narrowed the lift; the narrowing only lifts less, and
+  nothing was lifted. The lanes are `//pct:pct_duckdb`, `pct_sqlite`, `pct_h2`, `pct_duckdb_lite`, the engine lanes on
+  DuckDB and H2, and `edge_net`. All 67 of their test targets pass and no ledger or golden moved. `PctPlanRoutePrintTest` runs the branch end to end: a day column
   printed as legend-pure prints it, and `toCSV(true)` with a literal replace.
 - **pure/v1's execute: not wired.** It refuses every value answer today (`EngineAnswers.engine`, the Facts' value
   refusal), so a lifted print has no envelope to answer in. legend-engine's envelope for a String value is S7's work,
@@ -189,12 +193,23 @@ where `PureRelationTextParityTest` names it:
 - `-0.0`, `4.03e17` and `1e23`.
 
 The same relation can therefore print two ways, depending on whether what follows the print is a literal `replace`.
-No PCT or corpus case meets this today, since no case ends in a print at channel A. It closes with S4 and S6.
+
+**A mixed column** (the review of `6fc717f9f` asked whether the door lifts a print the SQL text answered). A column
+whose cells a mixed selection tags by kind is known only once the query is planned, so the door cannot see it. Today
+such a column is refused by name on both roads: `extend(~m:x|[1, 2.5]->max())` printed is refused when the SQL is
+rendered ("a tagged value reached the renderer"), lifted or not, because a tagged value reaches the renderer only at a
+value's root. `PctPlanRoutePrintTest.aMixedSelectionInAColumnIsRefusedOnBothRoads` pins both roads. The printer's own
+refusal of a tagged column (`requirePrintable`) waits for the day a relation's column can be one, so this case needs no
+other rule now.
+
+No PCT or corpus case meets the two-printer window today, since no case ends in a print at channel A. It closes with
+S4 and S6.
 
 ## Audits
 
 | When | Scope | Findings | Fixed |
 |---|---|---|---|
+| 2026-11-24 | B2b S2's fix round, `6fc717f9f` and `8551b293d`, a subagent, read-only | no must-fix; the four fixes confirmed (`knownColumns` is at least as strict as the lowering's special cases, and lifts a pivot whose columns a cast names), and the native-claims census right. Should-fix: a mixed (tagged) column passes `knownColumns`, so the door lifts its print and the printer refuses it where the SQL text answered it. Nits: the toCSV route test passed on either road; four unpinned shapes; the record's lane count and when the lanes ran; the predicate's home when `RelationTextLowering` goes | the mixed column measured: refused by name on both roads today (a tagged value reaches the renderer only at a value's root), pinned on both; the route test proves the lifted branch (a Float the two roads print differently); a pivot named by a cast pinned as lifted; the record corrected. The raw grid, the no-column relation and the zero-argument format functions (absent from lite's catalog) stay unpinned |
 | 2026-11-24 | B2b S2's design, `54d922e92`, a subagent, read-only, given the code, the plan of record and the tenets | no must-fix; lifted forms, the lifted query, the route's answer and the tenets clean. Should-fix: the one-plan measurement planned the print's query, not the relation's; a dynamic pivot's and a raw grid's prints lifted where the lowering refuses or answers them by its own rule; the four-argument toCSV with the default formats not lifted; the window with two printers unrecorded. Nits: a redundant `withOptions`; a `csv` over a cast not lifted (kept: the resolver's); toCSV's argument not checked to be a relation. Tests: toCSV's forms, the `csv` property, a non-literal replacement, the options, the kept statements, a dynamic pivot | all, in this round; the cast-wrapped `csv` stays the run's |
 | 2026-11-24 | B2a's end design audit, `96e7c1fc4..54f8be8e3`, a subagent, read-only, given the plan of record, the tenets and the record | no must-fix; verdict "sound to build B2b on". Should-fix: `heldAsInteger` left in the product for the edge alone; an integer-held Float above 2^53 printed per database; the integer-held text change not posted for the user's word; the record's slice 4 and slice 1 wording; the S311 row's cloud-lane, per-value and MongoDB claims; the edge's integer-held digits unpinned. Nits: stale javadocs, the gate wording, the ledger header | all, in this round (the user's word on the integer-held text asked) |
 | 2026-11-24 | B2b S1's diff (`54f8be8e3..527d3e8a9`), a subagent, read-only, given the code, the pinned sources and the requirement | 1 must-fix (the typed header's multiplicity); should-fix: the typed header's precise types, the date-time's digits against the edge's rule, legend-pure's Float formatter, a decimal under Float, a Number of integers' javadoc, toCSV's date-time cells against today's SQL, mixed columns; nits: dates the CSV cannot write, enumerations' quoting, the empty replace, the writer's refusals' timing | all, in this round; toCSV's date-time cells measured on the corpus at S4 |

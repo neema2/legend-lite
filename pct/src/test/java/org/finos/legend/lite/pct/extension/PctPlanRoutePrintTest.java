@@ -31,10 +31,33 @@ class PctPlanRoutePrintTest {
 
     @Test
     void theHelpersToCsvAndItsLiteralReplacesAreApplied() throws Exception {
+        // a Float of 1e23: legend-pure prints 99999999999999990000000.0, the edge's SQL text on DuckDB
+        // 99999999999999991611392.0 (PureRelationTextParityTest), so the text proves the lifted branch ran
         PctPlanRoute.Answer answer = PctPlanRoute.execute("",
-                "|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#->sort(~i->ascending())"
+                "|#TDS\n  i:Integer, f:Float\n  1, 1.0E23\n  2, \n#->sort(~i->ascending())"
                         + "->meta::relational::tests::csv::toCSV(true)->replace('\\n', ';')");
         assertEquals(ExecutionPlan.TdsResult.Shape.VALUE, answer.shape());
-        assertEquals(List.of(List.of("i,s;1,a;2,TDSNull;")), answer.rows().rows());
+        assertEquals(List.of(List.of("i,f;1,99999999999999990000000.0;2,TDSNull;")), answer.rows().rows());
+    }
+
+    /** A MIXED SELECTION IN A COLUMN (the review of 6fc717f9f, 2026-11-24, asked whether the door lifts a print the
+     *  edge's SQL text answered): a relation whose column holds a mixed max is refused by name on both roads today --
+     *  the lifted print (the relation run alone) and a print the door does not lift (the edge's SQL text, here a
+     *  print that is not the last step) -- since a tagged value reaches the renderer only at a value's root. The
+     *  printer's own refusal of a tagged column (PureRelationText.requirePrintable) waits for the day a relation's
+     *  column can be one. */
+    @Test
+    void aMixedSelectionInAColumnIsRefusedOnBothRoads() {
+        String relation = "|#TDS\n  i:Integer\n  1\n#->extend(~m:x|[1, 2.5]->max())";
+        for (String tail : List.of("->toString()", "->toString()->length()")) {
+            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
+                    () -> PctPlanRoute.execute("", relation + tail), tail);
+            String chain = "";
+            for (Throwable t = refused; t != null; t = t.getCause()) {
+                chain += t.getMessage() + " | ";
+            }
+            org.junit.jupiter.api.Assertions.assertTrue(chain.contains("a tagged value reached the renderer"),
+                    tail + ": " + chain);
+        }
     }
 }

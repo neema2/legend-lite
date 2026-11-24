@@ -112,6 +112,9 @@ class PrintedRelationsTest {
         String pivot = "|#TDS\nYR,CITY,TREES\n2000,NYC,1\n2000,SF,2\n#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())";
         assertNull(PrintedRelations.lift(typed(pivot + "->toString()")));
         assertNull(PrintedRelations.lift(typed(pivot + CSV + "()")));
+        // a pivot whose columns a cast names is an ordinary relation: its columns the compiler's, lifted
+        assertEquals(PureRelationTextWriter.Form.TO_STRING, form(pivot + "->cast(@meta::pure::metamodel::relation"
+                + "::Relation<(YR:Integer, 'NYC__|__total':Integer, 'SF__|__total':Integer)>)->toString()"));
     }
 
     @Test
