@@ -206,6 +206,23 @@ whose product overloads pass the identity). The test planner asks no style for a
   `NoEdgeRun`, `Appeals`), the S144 ArchUnit rule and its plant (left with their subject), the grammar's census and
   field-shape entries, `JudgeJsonTest`'s json-simple cases; `JudgeJsonTest` pins the strict reading and the door.
 
+**Its independent review (47786d4c, read-only, 2026-11-24): no HIGH.**
+- MEDIUM M1: nothing checks that a body planned under the compatibility rules went through the door -- the style, the
+  run hook and the door are chosen apart; six test-only routes plan in upstream's style without the door (none holds a
+  body the door would change, so nothing fails today), and a harness could admit a product-rules body. Fix in step
+  2b, with the prepare/run split: ONE audience choice for a harness (the style, the run hook and the door together),
+  so they cannot be chosen apart; until then the gap is recorded here.
+- LOW, fixed: L1, a trailing empty literal crashed S144's cleaning (the quote now dropped from the last piece that
+  holds it; pinned in `JudgeJsonTest`); L2, S137 rewrote a relation at any multiplicity (now only at `[1]`; any other
+  refused by name -- the same behaviour the deleted two-form had, older than step 2). L3, facts stated on the admitted
+  body: consistent with the plan's own facts; no verdict moves. L4, the `TestObserver.admitted` hook: an interim seam
+  until step 2b replaces it with the audience choice (the user's "do whatever order and split of work makes the most
+  sense", 2026-11-24).
+- NITs, fixed: register S137's message text and S144's narrow reach written out; the edge census line for
+  `UpstreamTestBodies` names S144's literal parse. Left: `JsonGrammar` has one implementer now (removed with step 5,
+  which rebuilds the judges' readers); the step's commit message says "the test planner asks no style for a body any
+  more" -- for S137; it still asks for the dialect and the test-data printing.
+
 **Found while building (open, for step 2's engine rewrites):** legend-engine's door rewrite of today
 (`edge/PureMeaningRewrite`, A3: store-bound `substring`, `indexOf`, `substr`, `toOne` sent to the database's own
 function, as legend-engine sends them) runs on the server's pure/v1 routes alone; no test body reaches it, so the corpus
@@ -218,3 +235,32 @@ through the meaning rewrite.
 **Found while building:** the product's host judge also compares a graph-fetch JSON root read with no sort as a
 multiset (`HostJudgment.Json.incidentalRoot`, planned from `OrderView`) and an unsorted `Equals` by its `incidental`
 flag -- step 4 (order) replaces them.
+
+## Step 1b -- legend-engine's own answers (2026-11-24)
+
+Prepared by a read-only research pass (every value read from the pinned sources), then asked of legend-engine 4.145.0
+itself, on its DuckDB 1.3.0, on lite's DuckDB 1.5.6 and on its H2 2.1.214, from the tests' own model, data and lambdas
+(`docs/records/compat-b3-homework/oracle-1b/`: the answers, the requests, the scripts). Upstream compares exactly
+(`CompiledSupport.eq`, no tolerance) and prints a Float as its shortest digits (`primitiveToString(double)`).
+
+| Tests | legend-engine's answer | Class |
+|---|---|---|
+| DuckDB, the 14 `calendarAggregations` tests (`testAnnualizedValue`, `testCmeValue`, `testP12MtdValue`, `testP12WtdValue`, `testP4WaValue`, `testP4WtdValue`, `testP52WtdValue`, `testPmaValue`, `testPrioryearValue`, `testPymtdValue`, `testPyqtdValue`, `testPytdValue`, `testQtdValue`, `testYtdValue`) | FAILS each on DuckDB 1.3.0 and 1.5.6, with the digits lite gets (`6.840000000000002`, ...); passes on its H2 | agrees with lite: the goldens are H2's decimal arithmetic |
+| H2 `testAnnualizedValue`, `testPmaValue` | passes; lite's value read as a double is the golden, its database prints more digits | printing: B2's printer through the lift (step 2b) |
+| H2 `testCmeValue` | passes; Campus printing, Lateral 2 ULP apart | Lateral a real difference: lite's IEEE division (the user, 2026-09-19, "keep it ieee") |
+| DuckDB `mapping::sqlFunction::log::testProject`, `::testFilter` | PASSES: DuckDB's `ln(1.1)` is `0.09531017980432493`, the golden | a LITE BUG, below |
+
+**The lite bug the tolerance hid.** Measured with the corpus runner's SQL dump: lite's SQL is legend-engine's
+(`SELECT ln(t0.float1)`), and the database answers `...493`; the assert's expected Float was sent as
+`CAST(0.09531017980432493 AS DOUBLE)` (the compatibility route writes a Float literal as legend-engine does, a decimal),
+and DuckDB's DECIMAL-to-DOUBLE cast is not correctly rounded -- `...492`, one ULP low (probed on DuckDB 1.5.6:
+`CAST(0.09531017980432493 AS DOUBLE)` gives `...492`; `9.531017980432493e-2` and `CAST('0.09531017980432493' AS DOUBLE)`
+give `...493`). Fixed in DuckDB's dialect (product and edge): a Float literal cast to DOUBLE is written as the double
+itself, its exponent form (`0.09531017980432493E0`), which DuckDB reads exactly; the corpus's `log::testProject` then
+passes by exact equality (the tolerance no longer fires). Pinned: `DuckDbRenderTest.aFloatLiteralCastToDoubleIsTheDouble`.
+
+**Brought to the user (2026-11-24) before deleting:** S15 (the 2-ULP Float tolerance) after the literal fix (no test
+depends on it then); roster entries with reasons for the 14 DuckDB calendar tests ("an H2-specific golden; legend-engine
+on DuckDB fails it the same way") and `testCmeValue`'s Lateral cell (the IEEE ruling); S132 (the Float tolerance in a
+printed text) deleted once the lift and B2's printer land, so the two H2 printing tests pass rather than being rostered.
+

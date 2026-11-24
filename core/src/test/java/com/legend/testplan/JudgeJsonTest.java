@@ -50,6 +50,11 @@ class JudgeJsonTest {
                     com.legend.testbackend.StorelessRuntime.RUNTIME, c).passed());
             assertThrows(RuntimeException.class, () -> com.legend.testing.Program.run(model, body,
                     com.legend.testbackend.StorelessRuntime.RUNTIME, c));
+            // a trailing empty literal: the quote is dropped from the last piece that holds it (the review of step 2's
+            // L1, 2026-11-24: it was trimmed from the empty piece, past its start)
+            org.junit.jupiter.api.Assertions.assertTrue(com.legend.testing.EdgeProgram.run(model,
+                    "|assertJsonStringsEqual('[1]\"' + '', '[1]')", com.legend.testbackend.StorelessRuntime.RUNTIME, c)
+                    .passed());
         }
     }
 

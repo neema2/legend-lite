@@ -98,7 +98,17 @@ public final class UpstreamTestBodies {
                     || !strict(text.substring(0, text.length() - 1))) {
                 return node;   // strict JSON reads it, or the quote is not the only difference: the judge decides
             }
-            com.legend.compiler.spec.typed.TypedCString last = pieces.get(pieces.size() - 1);
+            // the piece that holds the text's last character: the last one that is not empty (the review of B3 step
+            // 2's L1, 2026-11-24: a trailing '' was trimmed past its start)
+            com.legend.compiler.spec.typed.TypedCString last = null;
+            for (int i = pieces.size() - 1; i >= 0 && last == null; i--) {
+                if (!pieces.get(i).value().isEmpty()) {
+                    last = pieces.get(i);
+                }
+            }
+            if (last == null) {
+                return node;
+            }
             com.legend.compiler.spec.typed.TypedCString trimmed = new com.legend.compiler.spec.typed.TypedCString(
                     last.value().substring(0, last.value().length() - 1), last.info());
             List<TypedSpec> args = new java.util.ArrayList<>(call.args());
@@ -169,6 +179,16 @@ public final class UpstreamTestBodies {
                 && (fn == NativeFn.Verdict.ASSERT_SIZE || fn == NativeFn.Verdict.ASSERT_EMPTY
                         || fn == NativeFn.Verdict.ASSERT_NOT_EMPTY)
                 && !call.args().isEmpty() && Type.isRelation(call.args().get(0).info().type())) {
+            if (!com.legend.compiler.element.type.Multiplicity.Bounded.ONE.equals(call.args().get(0).info().multiplicity())) {
+                // upstream counts each relation the collection holds: one relation is one value; any other
+                // multiplicity is refused by name, never rewritten to a count it does not have (the review of B3 step
+                // 2's L2, 2026-11-24)
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
+                        fn.bareName() + " over a collection of relations ("
+                                + call.args().get(0).info().multiplicity().text() + "): upstream counts the relations it"
+                                + " holds, which the compatibility door does not rewrite; say what the test means with"
+                                + " size()");
+            }
             if (fn == NativeFn.Verdict.ASSERT_EMPTY) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
                         "assertEmpty over a relation: upstream counts the relation as ONE value, so it fails with a"

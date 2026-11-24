@@ -2098,8 +2098,10 @@ class JavaEvalLedgerTest {
                             // the test-body door (B3 step 2, 2026-11-24, renamed from UpstreamRelationCounting, the
                             // edge's form of the two-form RelationCounting kind since census C1, 2026-11-17): a body
                             // rewritten as upstream's runners read it before it is planned -- a relation passed to
-                            // assertSize/assertNotEmpty counted as ONE value (register S137); a typed tree rewritten,
-                            // nothing evaluated
+                            // assertSize/assertNotEmpty counted as ONE value (register S137), and an assertJsonStringsEqual
+                            // golden's stray trailing quote dropped where strict JSON reads its literals only without it
+                            // (register S144: the literals' text parsed to decide, never a value computed); a typed tree
+                            // rewritten
                             "UpstreamTestBodies.java",
                             // an engine-text assert's comparison, the edge's own record in the plan (census C3,
                             // 2026-11-17: moved out of the product's HostJudgment) -- data, nothing evaluated
