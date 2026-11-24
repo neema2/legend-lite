@@ -7,8 +7,10 @@ package com.legend.edge;
  * THE EDGE'S FORM OF THE RUN HOOK'S {@link com.legend.testexec.HostForms} (census C1's step 2c, the orchestrator's ruling
  * of 2026-11-17: moved from {@code testexec.Equality}): what is left of compatibility's own host rules while B3 lands its
  * one rulebook, lite's (E1 withdrawn 2026-11-20 ~21:00). Its crossing, date and Decimal rules went 2026-11-24 (B3
- * step 1: they moved no test); the Float tolerance (S15/S132) goes once the tests it carries are placed against
- * legend-engine's own answer; the caught error's words are presentation and stay.
+ * step 1a: they moved no test), and its Float tolerance for two values (S15) the same day (B3 step 1b: legend-engine
+ * compares exactly, and the two tests it carried were a lite bug, fixed); the 2-ULP bound stays for S132's printed
+ * texts until B3's lift (and for the referee's and EqualToJson's own comparisons); the caught error's words are
+ * presentation.
  */
 public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
     INSTANCE;
@@ -16,17 +18,8 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
     /** The units in the last place two Floats may differ by and be equal: compiled legend-pure's 2 (S15/S132). */
     public static final int FLOAT_ULPS = 2;
 
-    /** Two Floats within {@link #FLOAT_ULPS} ULP are equal (S15/S132; train 17, 2026-11-18: moved from
-     *  testexec.Equality). */
-    @Override
-    public boolean equalFloatsApart(double e, double a) {
-        boolean within = withinUlps(e, a);
-        if (within) {
-            // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
-            com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);
-        }
-        return within;
-    }
+    // (equalFloatsApart, two Floats within FLOAT_ULPS equal on the host judge's compatibility route, S15: deleted
+    // 2026-11-24, B3 step 1b)
 
     /** Two finite doubles within {@code FLOAT_ULPS * ulp(max(|x|, |y|))} (moved from testexec.Equality, train 17,
      *  2026-11-18). */

@@ -20,8 +20,8 @@ import org.junit.jupiter.api.Test;
  * THE COMPATIBILITY RULES' HOST EQUALITY, an edge test (census C1's K14 and step 2c, the orchestrator's rulings of
  * 2026-11-17: a test of upstream's behaviour is an edge test, judged through the edge's door, never by calling the host
  * judge's equality itself). Since B3 step 1a of the compatibility program (2026-11-24: one rulebook, lite's), the edge's
- * door judges numbers and Decimals by lite's rules, as lite's own runs do; only the Float's 2-ULP tolerance (S15) is
- * still the edge's, until step 1b places its tests against legend-engine's own answers.
+ * door judges numbers, Decimals and Floats by lite's rules, as lite's own runs do (the Float's 2-ULP tolerance, S15,
+ * went with step 1b the same day: legend-engine compares exactly).
  */
 class EqualityCompatEdgeTest {
 
@@ -50,8 +50,9 @@ class EqualityCompatEdgeTest {
     @Test
     void theEdgesDoorHoldsTwoUlpsAndComparesDecimalsByValue() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            // registers S15/S132: the 2-ULP tolerance is still the edge's, until B3 step 1b
-            holds(c, "|assertEquals(0.3, 0.1 + 0.2)");
+            // register S15: a Float compared exactly on the edge's door too since B3 step 1b (2026-11-24; until then
+            // compiled legend-pure's 2-ULP tolerance there)
+            fails(c, "|assertEquals(0.3, 0.1 + 0.2)");
             // register S139: a Decimal by value, its scale not part of it -- on the edge's door too since B3 step 1a
             // (2026-11-24; until then compiled legend-pure's scale-sensitive equals there)
             holds(c, "|assertEquals(3.0D, 3.00D)");

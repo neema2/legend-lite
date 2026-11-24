@@ -193,9 +193,10 @@ public final class Equality {
             if (decimal(en).compareTo(decimal(an)) == 0) {
                 return true;   // the carriers agree exactly (digits kept)
             }
-            // two Floats whose values differ: the run hook's form (train 17, 2026-11-18) -- lite's exact (S15/S132, the
-            // user's ruling of 2026-11-05: "I like our clean float"), the edge's compiled legend-pure 2 ULP
-            return e instanceof Double de && a instanceof Double da && rules.forms().equalFloatsApart(de, da);
+            // two Floats whose values differ are never equal, on every route (S15, the user's ruling of 2026-11-05: "I like
+            // our clean float"; the compatibility routes' 2-ULP tolerance deleted 2026-11-24, B3 step 1b: legend-engine
+            // compares exactly, and the two tests it carried were a lite bug, a DuckDB literal cast one ULP low, fixed)
+            return false;
         }
         if (ek == Kind.STRING) {
             // two Strings compare exactly, as legend-pure's equal does, under every rule set and both judges (2026-11-06,

@@ -108,8 +108,8 @@ class EqualityWorldsConformanceTest {
         // register S20 (the user's ruling "yes on IEEE", 2026-11-05; built 2026-11-17, Phase 5b): a Float literal is the
         // double in the product, so the database adds 0.1 + 0.2 as legend-pure's compiled runtime does
         // (0.30000000000000004), and clean mode compares a Float EXACTLY (S15/S132): the two worlds agree. Until S20 the
-        // literals were DECIMALs (the numeric charter's Rule 1) and World 2 answered true. The 2-ULP tolerance is
-        // compatibility mode's alone, pinned by the edge's
+        // literals were DECIMALs (the numeric charter's Rule 1) and World 2 answered true. The compatibility routes'
+        // 2-ULP tolerance went 2026-11-24 (B3 step 1b): exact on every route, pinned by the edge's
         // EqualityCompatEdgeTest.
         agree(false, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d);
         // X2 (VERDICT_RULE_AUDIT): in-SQL '=' is SCALE-BLIND for

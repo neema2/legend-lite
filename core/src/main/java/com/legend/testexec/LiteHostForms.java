@@ -5,8 +5,8 @@ package com.legend.testexec;
 
 /**
  * THE PRODUCT'S FORM OF {@link HostForms} (GUARD's C.9, the orchestrator's ruling of 2026-11-17: a two-form kind is
- * types only, its product form a class of its own beside it): a Float compared exactly, and a caught error in lite's
- * words. Its number-kind and Decimal forms went with B3 step 1a, 2026-11-24 (the judge's own rules on every route, in
+ * types only, its product form a class of its own beside it): a caught error in lite's words (its Float form went
+ * 2026-11-24, B3 step 1b: a Float compared exactly on every route). Its number-kind and Decimal forms went with B3 step 1a, 2026-11-24 (the judge's own rules on every route, in
  * {@code Equality}); its date rule stays here, the judge's on every route, until step 5.
  */
 public enum LiteHostForms implements HostForms {
@@ -31,12 +31,6 @@ public enum LiteHostForms implements HostForms {
         com.legend.values.PureDateLiteral.Precision p = d.precision();
         return p.atLeast(com.legend.values.PureDateLiteral.Precision.HOUR)
                 ? com.legend.values.PureDateLiteral.Precision.HOUR : p;
-    }
-
-    /** Lite compares a Float exactly (S15/S132, the user's ruling of 2026-11-05: "I like our clean float"). */
-    @Override
-    public boolean equalFloatsApart(double e, double a) {
-        return false;
     }
 
     /** Lite's words of a caught error: its own message (K10). */
