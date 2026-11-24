@@ -18,3 +18,5 @@ query/node_modules
 .git
 .claude
 .idea
+#   .venv: uv's environment for an editor (`uv sync`); thousands of files that are no part of the build.
+.venv

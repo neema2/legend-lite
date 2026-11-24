@@ -25,5 +25,9 @@ core/javac.*.args
 __pycache__/
 *.pyc
 
+# uv's environment (`uv sync`, for an editor: the build uses Bazel's own) and Ruff's cache
+/.venv/
+.ruff_cache/
+
 # Bazel
 /bazel-*

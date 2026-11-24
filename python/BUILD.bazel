@@ -13,6 +13,7 @@ load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/java_run:defs.bzl", "java_run")
+load("//tools/lint:linters.bzl", "ruff_test", "ty_test")
 load(
     "//tools/platforms:defs.bzl",
     "COMPILER_LIBRARY_PLATFORMS",
@@ -1110,6 +1111,67 @@ build_test(
     name = "tools_build_test",
     targets = [":repl"],
     target_compatible_with = _PLATFORMS,
+)
+
+# RUFF AND TY HOLD THE PACKAGE (2026-11-23; tools/lint/linters.bzl, their settings //:pyproject.toml's): every Python
+# target here -- the libraries, the tests, the REPL -- with no finding from Ruff's default rules and none from ty. A
+# target added to this package is added here. Not on Windows: rules_lint's actions are bash
+# (aspect-build/rules_lint#1029). Formatting is held beside them by //tools/format:format_test.
+_PYTHON_TARGETS = [
+    ":bindings_test",
+    ":compiler",
+    ":edge",
+    ":edge_test",
+    ":engine_package",
+    ":engine_test",
+    ":frames_test",
+    ":headless",
+    ":headless_test",
+    ":host",
+    ":host_sql_test",
+    ":iceberg_table",
+    ":legend_lite",
+    ":loader",
+    ":markets_test",
+    ":model_test",
+    ":notebook",
+    ":notebook_test",
+    ":planned_guard_test",
+    ":planned_test",
+    ":repl",
+    ":run",
+    ":run_closure_test",
+    ":seam",
+    ":ts_builder_test",
+    ":wheel_test",
+]
+
+_LINT_PLATFORMS = compatible_with([
+    "linux_aarch64",
+    "linux_x86_64",
+    "macos_arm64",
+    "macos_x86_64",
+])
+
+# every Python file of the package, for the formatter's check (//tools/format:format_test)
+filegroup(
+    name = "python_sources",
+    srcs = glob(["**/*.py"]),
+    visibility = ["//tools/format:__pkg__"],
+)
+
+ruff_test(
+    name = "ruff_test",
+    size = "small",
+    srcs = _PYTHON_TARGETS,
+    target_compatible_with = _LINT_PLATFORMS,
+)
+
+ty_test(
+    name = "ty_test",
+    size = "small",
+    srcs = _PYTHON_TARGETS,
+    target_compatible_with = _LINT_PLATFORMS,
 )
 
 guards_package()

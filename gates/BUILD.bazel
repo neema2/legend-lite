@@ -188,6 +188,11 @@ test_suite(
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",
         "//tools/python:lock_matches_pyproject",
+        # Python's formatter, linter and type checker over legend-lite's package (2026-11-23): Ruff's format, Ruff's
+        # default rules and ty, each with nothing to say (Linux and macOS; tools/lint, tools/format)
+        "//tools/format:format_test",
+        "//python:ruff_test",
+        "//python:ty_test",
         "//scripts/corpus:density_gate",
         "//scripts/corpus:executed_gate",
         "//scripts/corpus:stacking_gate",

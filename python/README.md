@@ -6,9 +6,9 @@ with bindings on Python's standard library alone (ctypes, json, decimal).
 ```python
 import legend_lite as ll
 
-tree = ll.parse("|#>{trades::DB.TRADES}#->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])")
+tree = ll.parse('|#>{trades::DB.TRADES}#->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])')
 ll.relation_type(model_text, tree)  # the compiler's columns and types
-ll.plan(model_text, tree, "trades::RT").sql  # the compiler's SQL
+ll.plan(model_text, tree, 'trades::RT').sql  # the compiler's SQL
 ll.print_tree(tree)  # back to Pure text
 ```
 
@@ -30,7 +30,7 @@ across `os.fork`: start child processes with multiprocessing's `spawn` method.
 
 ```python
 frames = ll.Frames()  # one duckdb-python database
-trades = frames.register("trades", df)  # a pandas or polars frame, an Arrow table, ...
+trades = frames.register('trades', df)  # a pandas or polars frame, an Arrow table, ...
 trades.execute("->filter(x|$x.desk == 'FX')->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])")  # pyarrow.Table
 trades.model, trades.runtime, trades.accessor  # the model the compiler plans it against
 ```
@@ -59,7 +59,7 @@ not a column (`reset_index()` keeps it as one).
 import legend_lite as ll
 
 cube = ll.show(df)  # DataCube in a browser tab (under the cell in a notebook); show() returns at once
-df.loc[0, "qty"] = 5  # the cube's next query sees it (in a notebook, it re-queries after the cell)
+df.loc[0, 'qty'] = 5  # the cube's next query sees it (in a notebook, it re-queries after the cell)
 cube.update(new_df)  # a new frame: the open cube shows it by itself
 cube.close()
 ```
@@ -141,3 +141,20 @@ repository's own Python (3.12); `//datacube:python_engine_test`, DataCube itself
 Chromium, in a tab and as notebook cubes; and `//datacube:jupyterlab_test` and `//datacube:marimo_test`, the wheel and
 a real JupyterLab or marimo installed into a fresh environment as a developer installs them, a notebook run in the
 pinned Chromium.
+
+## Working on the package
+
+The package is formatted and linted by [Ruff](https://docs.astral.sh/ruff/) (its default rules) and type-checked by
+[ty](https://docs.astral.sh/ty/), all through Bazel, on Linux and macOS; their settings are the repository's
+`pyproject.toml`, and the gate holds all three (`//tools/format:format_test`, `//python:ruff_test`, `//python:ty_test`).
+
+```sh
+bazel run //tools/format                      # format, in place
+bazel build --config=lint //python/...        # Ruff's findings, each with its fix where it has one
+bazel build --config=typecheck //python/...   # ty's findings
+bazel test //tools/format:format_test //python:ruff_test //python:ty_test
+```
+
+The packages the repository's Python uses are `pyproject.toml`'s `dependencies`, each pinned; `uv.lock` holds every one
+they bring, with hashes, and Bazel's pip hub reads it. After changing a dependency: `bazel run //:uv_lock.update`
+(Bazel's own uv; the network). `uv sync` makes an editor the same environment from the same lock.

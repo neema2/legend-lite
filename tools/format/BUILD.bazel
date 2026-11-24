@@ -1,5 +1,6 @@
-load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
+load("@aspect_rules_lint//format:defs.bzl", "format_multirun", "format_test")
 load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/platforms:defs.bzl", "compatible_with")
 
 # THE FORMATTER (2026-11-23): `bazel run //tools/format` rewrites the Python files Ruff holds (//:pyproject.toml says
 # which: python/ so far) in place; `bazel run //tools/format:format.check` only says what it would change. Python
@@ -7,6 +8,29 @@ load("//tools/guards:defs.bzl", "guards_package")
 format_multirun(
     name = "format",
     python = "@aspect_rules_lint//format:ruff",
+)
+
+# The gate's check: the package's Python files are as the formatter writes them, read with the settings beside them
+# (in the sandbox: the files are listed, so the result is cached). A directory Ruff comes to hold adds its files here.
+# Not on Windows: rules_lint's formatter script is bash.
+format_test(
+    name = "format_test",
+    size = "small",
+    srcs = [
+        "//:pyproject.toml",
+        "//python:python_sources",
+    ],
+    # .gitattributes marks no Python file as generated, and a sandbox has no git to ask: with the check on, git's
+    # failure there left the test nothing to read, and it passed whatever the files held
+    disable_git_attribute_checks = True,
+    fix_target = ":format",
+    python = "@aspect_rules_lint//format:ruff",
+    target_compatible_with = compatible_with([
+        "linux_aarch64",
+        "linux_x86_64",
+        "macos_arm64",
+        "macos_x86_64",
+    ]),
 )
 
 guards_package()
