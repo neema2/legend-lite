@@ -3953,33 +3953,19 @@ final class ArchitectureTest {
     // spelling carrier, its parser and the decoders' arms are deleted; a mixed value is a tagged value, read in its
     // slot, and no cell is parsed by its text's shape.)
 
-    /** Register S144's reader of upstream's JSON grammar is the two judges' alone (the user, 2026-11-07: "keep it
-     *  isolated"): no product class reads JSON through it. It moved to the edge (census C1, 2026-11-17:
-     *  {@code com.legend.edge.JsonSimpleGrammar}; the product's form, {@code testexecutionplan.JudgeJson}, reads strict
-     *  JSON), so no product class may name it -- the judges included. Until 2026-11-17 the rule named the deleted driver
-     *  package's JudgeJson and so read nothing (the edge audit's K16); repointed then at the grammar where it lives.
-     *  Redundant by design (the review of 11de9ae229, 2026-11-18): the BUILD wall and EdgeSeparationTest's CODE guard
-     *  already refuse any product dependency on an edge class; this keeps S144's own name on it. Which EDGE classes may
-     *  read the lenient grammar (PureText, Appeals today) is not scoped here. */
-    @Test
-    void theCompatibilityJsonReaderIsTheJudgesAlone() {
-        compatibilityJsonRule().check(CORE_PROD_CLASSES);
-    }
+    // (theCompatibilityJsonReaderIsTheJudgesAlone, register S144's rule that no product class read json-simple's
+    // grammar, edge.JsonSimpleGrammar: left with its subject 2026-11-24, B3 step 2 of the compatibility program -- the
+    // grammar is deleted, the judges read strict JSON on every route, and the two goldens it read past are cleaned at the
+    // edge's test-body door before planning)
 
-    static com.tngtech.archunit.lang.ArchRule compatibilityJsonRule() {
-        return noClasses()
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.edge\\.JsonSimpleGrammar(\\$.*)?")
-            .as("S144: json-simple's grammar is the edge's, read by no product class");
-    }
-
-    /** The two rules repointed by the edge audit's K16 (2026-11-17) each bite a planted product class: one that reads a
-     *  canonical instrument outside the verdict seam, one that reads the edge's json-simple grammar
-     *  ({@code planner.PlantedVerdictReach}). Each failure names the planted class. */
+    /** The rule repointed by the edge audit's K16 (2026-11-17) bites a planted product class that reads a canonical
+     *  instrument outside the verdict seam ({@code planner.PlantedVerdictReach}); the failure names the planted class.
+     *  (Its twin for S144, json-simple's grammar, left with its subject 2026-11-24, B3 step 2.) */
     @Test
     void theRepointedJudgeRulesBite() {
         JavaClasses planted = new ClassFileImporter().importClasses(com.legend.planner.PlantedVerdictReach.class);
         org.junit.jupiter.api.Assertions.assertEquals(1, planted.size(), "the planted class is imported");
-        for (com.tngtech.archunit.lang.ArchRule rule : java.util.List.of(compatibilityJsonRule(), hostVerdictRule())) {
+        for (com.tngtech.archunit.lang.ArchRule rule : java.util.List.of(hostVerdictRule())) {
             AssertionError e = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
                     () -> rule.check(planted), rule.getDescription());
             org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("com.legend.planner.PlantedVerdictReach"),

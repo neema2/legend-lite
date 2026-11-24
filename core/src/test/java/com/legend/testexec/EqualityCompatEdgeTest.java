@@ -18,8 +18,10 @@ import org.junit.jupiter.api.Test;
 
 /**
  * THE COMPATIBILITY RULES' HOST EQUALITY, an edge test (census C1's K14 and step 2c, the orchestrator's rulings of
- * 2026-11-17: a test of upstream's behaviour is an edge test, judged through the edge's door -- the run hook's
- * {@code HostForms} and the plan's rules -- never by calling the host judge's equality itself).
+ * 2026-11-17: a test of upstream's behaviour is an edge test, judged through the edge's door, never by calling the host
+ * judge's equality itself). Since B3 step 1a of the compatibility program (2026-11-24: one rulebook, lite's), the edge's
+ * door judges numbers and Decimals by lite's rules, as lite's own runs do; only the Float's 2-ULP tolerance (S15) is
+ * still the edge's, until step 1b places its tests against legend-engine's own answers.
  */
 class EqualityCompatEdgeTest {
 
@@ -36,22 +38,25 @@ class EqualityCompatEdgeTest {
     }
 
     @Test
-    void compatibilityModeEqualsAnIntegerAndADecimalByTheirTexts() throws Exception {
-        // register S127: compiled legend-pure's CompiledSupport.eq -- 1D == 1 by text, a Float equal to neither
+    void theEdgesDoorComparesNumberKindsByLitesRule() throws Exception {
+        // register S127: two numbers of different kinds are never equal -- on the edge's door too since B3 step 1a
+        // (2026-11-24; until then compiled legend-pure's CompiledSupport.eq there, 1D == 1 by text)
         try (Connection c = TestBackends.platform().open()) {
-            holds(c, "|assertEquals(1D, 1)");
+            fails(c, "|assertEquals(1D, 1)");
             fails(c, "|assertEquals(1.0, 1)");
         }
     }
 
     @Test
-    void compatibilityModeHoldsTwoUlpsAndTheEngineSeamsScaleSensitiveEquals() throws Exception {
+    void theEdgesDoorHoldsTwoUlpsAndComparesDecimalsByValue() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            // registers S20/S132: the 2-ULP tolerance is compatibility mode's alone
+            // registers S15/S132: the 2-ULP tolerance is still the edge's, until B3 step 1b
             holds(c, "|assertEquals(0.3, 0.1 + 0.2)");
-            // register S139 (X2, VERDICT_RULE_AUDIT: engine Decimal equality is getValue().equals): scale-sensitive
-            fails(c, "|assertEquals(3.0D, 3.00D)");
-            fails(c, "|assertEquals(1.50D, 1.5D)");
+            // register S139: a Decimal by value, its scale not part of it -- on the edge's door too since B3 step 1a
+            // (2026-11-24; until then compiled legend-pure's scale-sensitive equals there)
+            holds(c, "|assertEquals(3.0D, 3.00D)");
+            holds(c, "|assertEquals(1.50D, 1.5D)");
+            fails(c, "|assertEquals(1.5D, 1.51D)");
         }
     }
 }

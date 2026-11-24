@@ -3,24 +3,21 @@
 
 package com.legend.testexec;
 
-
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * HOST MODE — the one judge (docs/JUDGING_TWO_MODES_2026_09_17.md §2, step 2).
  *
  * <p>One class decides every equality the host answers. It receives values
  * PAIRED WITH THEIR DECLARED KIND ({@link Typed}) and answers the engine's
- * own rules, literally: same kind, then equal by value — Integer exact,
- * Decimal by the engine's scale-sensitive equals, Float exact with ONE declared leniency (two
- * units in the last place of the larger magnitude, Double × Double, finite,
- * COUNTED every time it fires), String / Boolean / dates exact; collections
+ * rules: same kind, then equal by value — Integer exact, Decimal by value
+ * (S139), Float exact (the edge's 2-ULP tolerance, S15, asked of the run hook
+ * until B3 step 1b), String / Boolean exact, dates by kind and instant (S399);
+ * one rulebook on every route since B3 step 1a (2026-11-24); collections
  * ordered or as a multiset as the assertion says (the engine's
  * {@code assertSameElements} = sort, then ordered); class instances and maps
  * structurally through the same leaf; the two JSON comparators the engine
@@ -178,9 +175,6 @@ public final class Equality {
             return toBigInteger(e).equals(toBigInteger(a));
         }
         if (ek == Kind.DECIMAL) {
-            // the engine's assert seam: getValue().equals — SCALE-SENSITIVE
-            // (VERDICT_RULE_AUDIT X2; the equality-worlds fixture pins
-            // 3.0D ≠ 3.00D in World 1, while SQL '=' is scale-blind)
             if (!(e instanceof Number en && a instanceof Number an)) {
                 return false;
             }

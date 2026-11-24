@@ -179,19 +179,8 @@ public final class CanonicalDivergence {
         return List.copyOf(DISAGREE_SAMPLES);
     }
 
-    /** A Decimal pair equal in value but not in scale (3.0D vs 3.00D):
-     * unequal under the engine's assert seam (host mode), equal under a
-     * scale-normalized canon — the D5 amendment's witness count. */
-
-    public static void decimalScaleOnly() {
-        Census.inc(Census.Key.DECIMAL_SCALE_ONLY);
-        sample(new Row("decimalScaleOnly", false,
-                "[" + com.legend.base.Attribution.now() + "]"));
-    }
-
-    public static long decimalScaleOnlyCount() {
-        return Census.count(Census.Key.DECIMAL_SCALE_ONLY);
-    }
+    // (decimalScaleOnly, the count of Decimal pairs equal in value but not in scale under compiled legend-pure's
+    // scale-sensitive rule: deleted 2026-11-24 with that rule, B3 step 1a -- a Decimal compares by value on every route)
 
     /** OPEN_REGISTER §5 / X6: a byte-differing Double pair the DECLARED
      * 2-ULP dialect-arithmetic policy adjudicated equal (cross-dialect

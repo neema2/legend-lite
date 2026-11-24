@@ -303,7 +303,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   assert compares to the microsecond, in every year, and refuses by name a value with a digit past the sixth.
 - **A year and a year-month** compare by their numbers, and a Date's kind (year, year-month, day, date-time) is read
   from how it is built, in every year.
-- **On legend-engine's and legend-pure's doors** lite keeps Pure's answer (the host judge's compatibility forms).
+- **On legend-engine's and legend-pure's doors** the same rule since 2026-11-24 (one rulebook for the judge; until then
+  Pure's answer, the host judge's compatibility forms; no compatibility test's verdict moved).
 - Register S399.
 
 ### 16. Two whole Variants are not compared (item 3)

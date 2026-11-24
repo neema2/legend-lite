@@ -50,6 +50,12 @@ public interface TestObserver extends AssertListener {
      *  observer states its run, so no observer is the product's by omission. */
     com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase test);
 
+    /** A typed body, or a setup's, as this observer's audience reads it, before it is planned (B3 step 2 of the
+     *  compatibility program, 2026-11-24): the product's the body itself; the compatibility edge's, its test-body door
+     *  ({@code edge.UpstreamTestBodies.admitted}: upstream's reading, rewritten once before planning, so the planner and
+     *  the run read lite's rules alone). No default, as {@link #edgeRun}: every observer states its audience. */
+    com.legend.TypedQuery admitted(com.legend.TypedQuery body);
+
     /** The body is about to execute; {@code effectful} says the platform
      *  found statement effects in it (an attempt a referee may mark). */
     default void bodyStarting(com.legend.exec.Sessions.Session conn, boolean effectful) {
@@ -79,6 +85,11 @@ public interface TestObserver extends AssertListener {
         @Override
         public com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase test) {
             return com.legend.testexec.NoEdgeRun.NONE;
+        }
+
+        @Override
+        public com.legend.TypedQuery admitted(com.legend.TypedQuery body) {
+            return body;
         }
     };
 }

@@ -41,10 +41,13 @@ public final class EdgeProgram {
         return compat(com.legend.testplan.PlanningOptions.JudgeMode.HOST);
     }
 
-    /** {@code body} run on the edge's door: the compatibility rules' {@code options}, heard by the edge's run. */
+    /** {@code body} run on the edge's door: typed, then admitted by the edge's test-body door (upstream's reading of a
+     *  body, {@code edge.UpstreamTestBodies}: B3 step 2, 2026-11-24), planned under the compatibility rules'
+     *  {@code options} and heard by the edge's run. */
     public static Program.Report run(String model, String body, @com.legend.base.Nullable String runtime,
             java.sql.Connection c, ExecuteOptions options) {
-        return Program.run(model, body, runtime, c, options, com.legend.edge.AppealRun.with(null));
+        return Program.run(model, body, runtime, c, options, com.legend.edge.AppealRun.with(null),
+                com.legend.edge.UpstreamTestBodies::admitted);
     }
 
     /** The last statement's side of {@code body} run on the edge's door with {@code options} (the edge's style and its
@@ -57,7 +60,8 @@ public final class EdgeProgram {
     /** {@code body} run on the edge's door with a session of its own per use ({@link Program#runFresh}). */
     public static Program.Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
             ExecuteOptions options) {
-        return Program.runFresh(model, body, runtime, options, com.legend.edge.AppealRun.with(null));
+        return Program.runFresh(model, body, runtime, options, com.legend.edge.AppealRun.with(null),
+                com.legend.edge.UpstreamTestBodies::admitted);
     }
 
     /** {@link #run} under {@link #compat()}. */

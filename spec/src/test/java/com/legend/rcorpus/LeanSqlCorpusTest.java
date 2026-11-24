@@ -57,8 +57,9 @@ class LeanSqlCorpusTest {
             List<ExecutionPlan.Node> productNodes = new ArrayList<>();
             try {
                 var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
-                TestPlan plan = com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
-                        MinimalCorpus.RUNTIME, options);
+                // admitted by the edge's test-body door, as the corpus's runner admits it (B3 step 2, 2026-11-24)
+                TestPlan plan = com.legend.TestExecution.planBody(com.legend.edge.UpstreamTestBodies.admitted(
+                        Compiler.queryResolved(corpus.context(), resolved)), MinimalCorpus.RUNTIME, options);
                 steps(plan.steps(), productSql, productNodes);
             } catch (RuntimeException e) {
                 if (!com.legend.leansql.LeanSqlBaseline.isRefusal(e)) {

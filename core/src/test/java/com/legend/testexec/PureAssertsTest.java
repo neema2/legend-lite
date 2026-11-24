@@ -170,8 +170,8 @@ class PureAssertsTest {
     @Test
     @DisplayName("policy: Decimal by value in lite (S139)")
     void numericPolicies() {
-        // register S139 (the user's ruling, 2026-11-05): lite compares a Decimal by value; compatibility mode's
-        // scale-sensitive equals (X2) is the edge's, EqualityCompatEdgeTest
+        // register S139 (the user's ruling, 2026-11-05): a Decimal by value, on every route since B3 step 1a (2026-11-24;
+        // until then the edge's scale-sensitive equals, X2)
         assertTrue(same(
                 new BigDecimal("1.50"), new BigDecimal("1.5")));
         assertTrue(same(
@@ -195,8 +195,8 @@ class PureAssertsTest {
         assertTrue(same(d,
                 com.legend.values.PureDateLiteral.parse("2014-01-01")));
         // register S399 (the user's ruling of 2026-11-22): lite's product compares a date-time by its instant, so one
-        // instant at two written precisions is one value (legend-pure's PureDate.equals is precision-sensitive; the
-        // every route since B3's one rulebook, 2026-11-24); a day is never a date-time
+        // instant at two written precisions is one value (legend-pure's PureDate.equals is precision-sensitive; lite's
+        // rule on every route since B3's one rulebook, 2026-11-24); a day is never a date-time
         assertTrue(same(
                 com.legend.values.PureDateLiteral.parse("2014-01-01T10:00"),
                 com.legend.values.PureDateLiteral.parse("2014-01-01T10:00:00")));

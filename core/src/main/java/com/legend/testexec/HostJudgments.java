@@ -312,7 +312,7 @@ final class HostJudgments {
             case HostJudgment.Decided d -> decided(d);
             case HostJudgment.SameElements s -> sameElementsOf(s, sides, rules, run);
             case HostJudgment.Equals e -> equalsOf(e, sides, rules, run);
-            case HostJudgment.Json js -> jsonOf(js, sides, rules, run.hearing().json());
+            case HostJudgment.Json js -> jsonOf(js, sides, rules, com.legend.testexecutionplan.JudgeJson.STRICT);
             case HostJudgment.Rendered r -> renderedOf(r, sides, run.hearing().renderedTexts());
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
             case HostJudgment.EdgeJudged e -> run.judged(e, sides);
@@ -834,9 +834,9 @@ final class HostJudgments {
         if (ejson == null || ajson == null) {
             return null;   // non-[1]-string shape: generic path
         }
-        // the GOLDEN side parses first and names itself when it does not: both texts read by the run's JSON grammar
-        // (register S144; census C1, 2026-11-17: the product's strict form, upstream's json-simple the edge's, through
-        // the run's hearing -- the milestoned graph-fetch goldens end in a stray `"` json-simple reads past)
+        // the GOLDEN side parses first and names itself when it does not: both texts read as strict JSON on every route
+        // (register S144; B3 step 2, 2026-11-24: upstream's json-simple grammar went from the run, and the two milestoned
+        // graph-fetch goldens that end in a stray `"` json-simple read past are cleaned at the edge's test-body door)
         Object expected;
         try {
             expected = grammar.read(ejson);

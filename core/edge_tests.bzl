@@ -58,7 +58,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
-    # upstream's JSON grammar, the edge's form of JsonGrammar (census C1, 2026-11-17)
+    # the judges' strict JSON and the edge's test-body door cleaning the two goldens json-simple read past (register
+    # S144; until 2026-11-24, B3 step 2, upstream's JSON grammar, the edge's form of JsonGrammar, census C1)
     "src/test/java/com/legend/testplan/JudgeJsonTest.java",
     # the edge's refusal of a non-constant text side, recorded by its kind (train 17, 2026-11-18: NotAConstant moved to
     # com.legend.edge, raised by its text collector)
@@ -66,7 +67,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/PlannerSurfaceTest.java",
     # census C1's K14 (the orchestrator, 2026-11-17): upstream's behaviour tested on the edge's door
     "src/test/java/com/legend/RelationCountAssertsEdgeTest.java",
-    "src/test/java/com/legend/testplan/CompiledPureNumbersEdgeTest.java",
+    "src/test/java/com/legend/testplan/NumberKindsEdgeTest.java",
     "src/test/java/com/legend/testplan/RenderedTextEdgeTest.java",
     # G10 (2026-11-17): an assert whose sides both raise, under the compatibility rules on the edge's door too
     "src/test/java/com/legend/testplan/HostSideOrderTest.java",

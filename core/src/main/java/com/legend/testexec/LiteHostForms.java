@@ -5,19 +5,20 @@ package com.legend.testexec;
 
 /**
  * THE PRODUCT'S FORM OF {@link HostForms} (GUARD's C.9, the orchestrator's ruling of 2026-11-17: a two-form kind is
- * types only, its product form a class of its own beside it). Lite's form (register S127, the user's ruling of
- * 2026-11-04): two numbers of different kinds are never equal -- the type is part of the value.
+ * types only, its product form a class of its own beside it): a Float compared exactly, and a caught error in lite's
+ * words. Its number-kind and Decimal forms went with B3 step 1a, 2026-11-24 (the judge's own rules on every route, in
+ * {@code Equality}); its date rule stays here, the judge's on every route, until step 5.
  */
 public enum LiteHostForms implements HostForms {
     STRICT;
-
-
 
     /** Lite compares two dates by their kind and their instant (register S399, the user's ruling of 2026-11-22: a
      *  year, a year-month, a day and a date-time are kinds never equal across; two date-times at one instant are equal
      *  whatever their written precision, as {@code ==} compares them in the database). Every digit each carries is
      *  compared (the user's rule of 2026-11-22: nanoseconds compared where they are held, refused by name where the
-     *  database cannot read them -- S181 -- never cut). */
+     *  database cannot read them -- S181 -- never cut). The judge's own rule on every route since B3 step 1a
+     *  (2026-11-24): no longer a hook form, it stays here until step 5 (the one equality) rebuilds the judge's rules
+     *  (moving it into {@code Equality} would grow that file past its ledger pin). */
     public boolean equalDates(Object e, Object a) {
         if (e instanceof com.legend.values.PureDateLiteral ed && a instanceof com.legend.values.PureDateLiteral ad) {
             return kind(ed) == kind(ad) && ed.toInstantFloor().equals(ad.toInstantFloor());

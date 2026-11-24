@@ -16,11 +16,13 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * COMPILED LEGEND-PURE'S NUMBER EQUALITY on the edge's door (register S127; census C1's K14, the orchestrator's ruling
- * of 2026-11-17: a test of upstream's behaviour is an edge test -- moved from {@code AssertBarTest}): the compatibility
- * rules, the edge's plan style and the edge's run.
+ * NUMBER EQUALITY on the edge's door (register S127; census C1's K14, the orchestrator's ruling of 2026-11-17: a test
+ * of upstream's behaviour is an edge test -- moved from {@code AssertBarTest}): the compatibility rules, the edge's plan
+ * style and the edge's run. Since B3 step 1a of the compatibility program (2026-11-24: one rulebook, lite's) the door
+ * judges number kinds by lite's rule, as lite's own runs do; until then compiled legend-pure's (an Integer and a
+ * Decimal equal by their texts, {@code CompiledSupport.eq}), and this class was {@code CompiledPureNumbersEdgeTest}.
  */
-class CompiledPureNumbersEdgeTest {
+class NumberKindsEdgeTest {
     private static final String MODEL = """
             ###Pure
             Class t::Person { name: String[1]; }
@@ -40,22 +42,20 @@ class CompiledPureNumbersEdgeTest {
                 StorelessRuntime.RUNTIME, c, options);
     }
 
-    /** BACKWARDS-COMPATIBILITY MODE (register S127, the user's ruling of 2026-11-04: "the principled fix for the
-     *  product, then compiled for backwards compatible"): compiled legend-pure's number equality -- an Integer and a
-     *  Decimal equal by their texts, a Float equal to neither (CompiledSupport.eq; the engine asked:
-     *  upstream-api/s127-number-equality.txt) -- under every judge alike. */
+    /** Register S127: two numbers of different kinds are never equal, on the edge's door as in lite's own runs (B3
+     *  step 1a, 2026-11-24; the user's ruling of 2026-11-04 had kept compiled legend-pure's rule there, "the principled
+     *  fix for the product, then compiled for backwards compatible", until B3's one rulebook -- E1 withdrawn
+     *  2026-11-20 -- and measured to move no compatibility verdict on PCT channel B or the corpus). */
     @Test
-    void backwardsCompatibilityModeComparesNumbersAsCompiledPureDoes() throws Exception {
+    void theEdgesDoorComparesNumberKindsByLitesRule() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                 ExecuteOptions compat = com.legend.testing.EdgeProgram.compat(mode);
-                run(c, "{|assertEquals(1D, 1)}", compat);
-                run(c, "{|assertEquals(3, 3D)}", compat);
-                for (String body : List.of("{|assertEquals(1.5, 1.5D)}", "{|assertEquals(1, 1.0)}",
-                        "{|assertEquals(1.0D, 1)}")) {
+                for (String body : List.of("{|assertEquals(1D, 1)}", "{|assertEquals(3, 3D)}",
+                        "{|assertEquals(1.5, 1.5D)}", "{|assertEquals(1, 1.0)}", "{|assertEquals(1.0D, 1)}")) {
                     AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(AssertFailed.class,
                             () -> run(c, body, compat), mode + " " + body);
-                    // the catalog's words (item 3, 2026-11-21, Q15 = A); the verdict compiled legend-pure's
+                    // the catalog's words (item 3, 2026-11-21); the verdict lite's
                     assertTrue(e.getMessage().startsWith("expected "), mode + " " + body + ": " + e.getMessage());
                 }
             }
@@ -63,10 +63,9 @@ class CompiledPureNumbersEdgeTest {
     }
 
     /** A Decimal property over an INTEGER column (PR #118 fix round, 2026-11-18, G2; AssertBarTest's product half): on
-     *  the edge, compiled legend-pure's rule decides it -- the Integer 1 and the property's Decimal 1 equal by their texts
-     *  -- under every judge alike: one verdict per assert (assertEq and assertIs hold, assertNotEq and assertIsNot fail).
-     *  The failures' legend-pure words still differ by judge on this shape (the value's %r: the host's "1" for the map's
-     *  integer carrier, the database's "1DD" for the property's D-suffixed carrier): reported open, not pinned here. */
+     *  the edge, lite's rule decides it since B3 step 1a (2026-11-24) -- the Integer 1 and the property's Decimal 1 are
+     *  two kinds, never equal (S127) -- under every judge alike: one verdict per assert (assertEq and assertIs fail,
+     *  assertNotEq and assertIsNot hold). Until then compiled legend-pure's rule: equal by their texts. */
     private static final String MAPPED = """
             ###Pure
             Class p::P { id: Integer[1]; d: Decimal[1]; }
@@ -87,7 +86,7 @@ class CompiledPureNumbersEdgeTest {
         for (String side : List.of("p::P.all()->filter(x | $x.id == 1)->toOne().d", "p::P.all()->map(x | $x.d)->toOne()")) {
             for (String fn : List.of("assertEq", "assertIs", "assertNotEq", "assertIsNot")) {
                 String body = "{|" + fn + "(1, " + side + ")}";
-                String want = fn.endsWith("Not") || fn.endsWith("NotEq") ? "AssertFailed" : "pass";
+                String want = fn.endsWith("Not") || fn.endsWith("NotEq") ? "pass" : "AssertFailed";
                 for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                     String got;
                     try {

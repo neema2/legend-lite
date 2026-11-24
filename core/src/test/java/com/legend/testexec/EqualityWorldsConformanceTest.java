@@ -123,8 +123,8 @@ class EqualityWorldsConformanceTest {
         // cross-primitive-kind FALSE; SQL '=' coerces TRUE
         diverge(false, true, "8", "8D", 8L, new java.math.BigDecimal("8"),
                 "SQL numeric coercion vs engine same-kind-only eq");
-        // register S139 (the user's ruling, 2026-11-05): lite's own rules compare a Decimal by value, so the two worlds
-        // agree; compatibility mode keeps the engine assert seam's scale-sensitive equals (EqualityCompatEdgeTest)
+        // register S139 (the user's ruling, 2026-11-05): a Decimal by value, so the two worlds agree -- on every route
+        // since B3 step 1a (2026-11-24; until then the edge kept the engine assert seam's scale-sensitive equals)
         agree(true, "3.0d", "3.00d", new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));
     }
 }

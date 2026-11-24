@@ -346,14 +346,13 @@ class HookRulingTest {
         // DateTimeTexts (census B9, 2026-11-17: a DateTime's text in a message); ListTexts (census B8, 2026-11-17,
         // TEXT_FORMS: a list's text, the product's JSON form, the edge's legend-pure one); JsonGrammar (census C1,
         // 2026-11-17, register S144: a judge's JSON grammar, the product's strict JSON, the edge's json-simple);
-        // RelationCounting (census C1, 2026-11-17, register S137: the product refuses a relation counted as one, the
-        // edge counts it as upstream does)
+        // (RelationCounting, census C1, 2026-11-17, register S137: left 2026-11-24, B3 step 2 -- the planner refuses a
+        // relation counted as one, upstream's count a body rewritten by the edge's test-body door before planning)
         assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class,
                 // A4 of the compatibility program (stage A ratified by the user 2026-11-19; moved down by the user's
                 // ruling of 2026-11-19 ~20:45 ("Approved to move guards down"); rule 4 of the rules of record):
                 // JsonGrammar, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts and GoldenNullWord
                 // left with the database judge's compatibility arms (each was asked by the database judge alone)
-                com.legend.compiler.spec.RelationCounting.class,
                 // TestDataPlanner.Printing (census C1, 2026-11-17, L9: a test-data timestamp's text)
                 com.legend.testdatagen.TestDataPlanner.Printing.class,
                 // ExecutedValues (train 17 item 2, 2026-11-18: a serialized root's string-entry value -- refused in the
@@ -392,12 +391,6 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.ListTexts.class,
                 com.legend.lowering.ProductListTexts.INSTANCE) != com.legend.lowering.ProductListTexts.INSTANCE,
                 "the edge answers legend-pure's list text");
-        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.compiler.spec.RelationCounting.class,
-                com.legend.compiler.spec.RelationCountAsserts.REFUSED)
-                == com.legend.compiler.spec.RelationCountAsserts.REFUSED, "the product refuses a relation counted as one");
-        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.compiler.spec.RelationCounting.class,
-                com.legend.compiler.spec.RelationCountAsserts.REFUSED) == com.legend.edge.UpstreamRelationCounting.INSTANCE,
-                "the edge counts a relation as upstream does");
         // Printing's members (J7/K12 of the edge audit, 2026-11-17): the product answers lite's form; the edge its own,
         // the server routes' rules a third form of the edge's (edge.TestDataRoutes.ROUTE), never a boolean in the product
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testdatagen.TestDataPlanner.Printing.class,

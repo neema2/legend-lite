@@ -6,7 +6,9 @@ package com.legend.testexec;
 /**
  * WHAT THE HOST JUDGE JUDGES A VERDICT BY (census C1's step 2c, 2026-11-17): the run hook's behaviours
  * ({@link HostForms}, the hearing's), carried through the host judge's comparisons. The plan's judging rules went
- * 2026-11-18 (train 17, the orchestrator's ruling): a Float's tolerance and a Decimal's scale are the forms' now.
+ * 2026-11-18 (train 17, the orchestrator's ruling): a Float's tolerance and a Decimal's scale were the forms' then; the
+ * Decimal's scale went 2026-11-24 (B3 step 1a: a Decimal by value on every route), the Float's tolerance goes with
+ * step 1b.
  */
 public record HostRules(HostForms forms) {
 

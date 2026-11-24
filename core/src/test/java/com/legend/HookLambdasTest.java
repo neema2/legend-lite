@@ -86,11 +86,9 @@ class HookLambdasTest {
                     + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
                     Set.of("com.legend.planner.ExecutedValues", "(twoForm reaches 1)")),
             // (TestDoor#planned: the plan's words, VerdictWords' name, went 2026-11-21, item 3's S3)
-            // the test planner: a relation counted by an assert (S137); a test-data timestamp's text (L9)
-            Map.entry("com.legend.testplan.TestPlanner#lifted(com.legend.TypedQuery,"
-                    + " com.legend.testplan.PlanningOptions)",
-                    Set.of("com.legend.compiler.spec.RelationCounting", "com.legend.platform.PlanOption",
-                            "(twoForm reaches 1)")),
+            // the test planner: a test-data timestamp's text (L9); (TestPlanner#lifted, a relation counted by an assert,
+            // S137: no style asked since 2026-11-24, B3 step 2 -- upstream's count is the edge's test-body door's, a body
+            // rewritten before planning, edge.UpstreamTestBodies; a guard moving down)
             Map.entry("com.legend.testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String,"
                     + " com.legend.testplan.PlanningOptions)", Set.of("com.legend.testdatagen.TestDataPlanner$Printing",
                     "(twoForm reaches 1)")));
@@ -103,7 +101,8 @@ class HookLambdasTest {
             // of the kind into its own class (Lite*, ProductLoweringForms) -- the same forms, renamed
             // the two-form kinds' product forms: a relation counted by an assert, refused (S137); a list's text, a JSON
             // array (F's B8); a judge's JSON grammar, strict JSON (S144); two number kinds compared (S127)
-            Map.entry("com.legend.compiler.spec.RelationCountAsserts", Set.of("com.legend.compiler.spec.RelationCounting")),
+            // (RelationCountAsserts -> RelationCounting: gone 2026-11-24, B3 step 2 -- the kind deleted, the planner's
+            // refusal a static check and upstream's count the edge's test-body door's; a guard moving down)
             Map.entry("com.legend.lowering.ProductListTexts", Set.of("com.legend.lowering.ListTexts")),
             // (JudgeJson -> JsonGrammar: no hook type's implementer now -- JsonGrammar is no two-form kind since the
             // database judge reads strict JSON directly, and the host judge's grammar is the edge hearing's to answer;
@@ -126,7 +125,8 @@ class HookLambdasTest {
             // 59719a0153's train, train 11; HookRulingTest pins the kind; measured 2026-11-18)
             Map.entry("com.legend.sql.dialect.ProductDatabaseSettings", Set.of("com.legend.sql.dialect.DatabaseSettingsForm")),
             // the run's forms' product forms (J36 of the edge audit, 2026-11-18, RUN_FORMS): a cell's, S312's dates and a
-            // structure's JSON (CellText.PRODUCT); lite's host judge, two number kinds never equal (S127); lite's
+            // structure's JSON (CellText.PRODUCT); lite's host forms, a Float exact and a caught error's own words (its S127
+            // number-kind rule went to the judge itself 2026-11-24, B3 step 1a); lite's
             // rendered-text rule, two strings that differ never held
             Map.entry("com.legend.result.CellText$1", Set.of("com.legend.result.CellText$Forms")),
             Map.entry("com.legend.testexec.LiteHostForms", Set.of("com.legend.testexec.HostForms")),

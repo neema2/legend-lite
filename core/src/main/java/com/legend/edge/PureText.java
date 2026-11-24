@@ -126,10 +126,6 @@ public final class PureText {
                 // (J7/K12 of the edge audit, 2026-11-17: the rest of the form the function's, lite's own)
                 return kind.cast(TestDataRoutes.FUNCTION);
             }
-            if (kind == com.legend.compiler.spec.RelationCounting.class) {
-                // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (S137; census C1)
-                return kind.cast(UpstreamRelationCounting.INSTANCE);
-            }
             if (kind == com.legend.planner.ActivityTexts.class) {
                 // legend-engine's text, as its activity records the SQL it generated: its upstream plan facet's (J40.PlanStyle,
                 // 2026-11-18; until then the planner computed both texts and PlanStyle.activitySql picked this one)

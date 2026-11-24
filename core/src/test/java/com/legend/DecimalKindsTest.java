@@ -32,9 +32,10 @@ import org.junit.jupiter.api.Test;
  *   <li>{@code Float} is an IEEE double: compiled Pure carries it as {@code double}, and a DOUBLE column computes
  *       {@code 0.1 + 0.2} as {@code 0.30000000000000004}.</li>
  * </ul>
- * Equality: lite's own rules compare two Decimals by value, as the database's {@code ==} does (S139, the user's
- * ruling of 2026-11-05); compatibility mode compares them by value AND scale, as both Pure runtimes do
- * ({@code BigDecimal.equals}); a Float never equals a Decimal. The model's declarations are refused as the
+ * Equality: two Decimals compare by value, as the database's {@code ==} does (S139, the user's ruling of 2026-11-05),
+ * on every route since B3 step 1a of the compatibility program (2026-11-24: one rulebook, lite's; until then the
+ * compatibility routes compared value AND scale, as both Pure runtimes do, {@code BigDecimal.equals}); a Float never
+ * equals a Decimal. The model's declarations are refused as the
  * engine's compiler refuses them (CompileContext.newGenericType, its messages): a primitive takes exactly the type
  * variable values it declares, each of its variable's type. Each case runs on the platform's engine
  * (a lane's floor re-spells the connection for its database), under the lane's judge.
@@ -144,14 +145,13 @@ class DecimalKindsTest {
     }
 
     @Test
-    @DisplayName("lite compares a Decimal by value (0.3D is the column's 0.30, S139); compatibility mode by value and scale, as Pure; a Float never equals a Decimal")
+    @DisplayName("a Decimal compares by value on every route (0.3D is the column's 0.30, S139); a Float never equals a Decimal")
     void decimalEqualityByRules() throws Exception {
         String scaled = "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)";
         try (Connection c = seeded()) {
             assertTrue(judged(c, scaled).passed());
-            AssertFailed scale = assertThrows(AssertFailed.class, () -> com.legend.testing.EdgeProgram.run(model(), scaled, "m::RT", c));
-            // (item 3, 2026-11-21: the catalog's words on every route (Q15 = A); the verdict compatibility's, scale and all)
-            assertEquals("expected 0.3, got 0.30", scale.getMessage());
+            // the edge's door by lite's rule too since B3 step 1a (2026-11-24; until then by value and scale there)
+            assertTrue(com.legend.testing.EdgeProgram.run(model(), scaled, "m::RT", c).passed());
             AssertFailed kind = assertThrows(AssertFailed.class,
                     () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
             // lite's own sentence, each value its product text (the user's judge model, 2026-11-17)
@@ -176,7 +176,7 @@ class DecimalKindsTest {
     @DisplayName("a cast to Numeric(10, 2) is a type assertion: the value as it is, scale and all (S140)")
     void castKeepsTheValue() throws Exception {
         try (Connection c = seeded()) {
-            // judged under the compatibility rules, which compare a Decimal's scale too: 1.25D stays 1.25D
+            // judged under the compatibility rules (a Decimal by value since B3 step 1a, 2026-11-24): 1.25D stays 1.25D
             assertTrue(com.legend.testing.EdgeProgram.run(model(), "|assertEquals(1.25D, 1.25D->cast(@Numeric(10, 2)))",
                     "m::RT", c).passed());
         }

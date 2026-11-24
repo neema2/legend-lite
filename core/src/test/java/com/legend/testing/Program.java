@@ -93,8 +93,17 @@ public final class Program {
      *  {@code NoEdgeRun.NONE}, or the edge's run for a test of the compatibility rules (an edge test, census C1's K14). */
     public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
             ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
+        return run(model, body, runtime, c, options, edgeRun, java.util.function.UnaryOperator.identity());
+    }
+
+    /** {@link #run(String, String, String, Connection, ExecuteOptions, com.legend.testexec.EdgeRun)} with the body
+     *  passed through {@code door} once it is typed, before it is planned: the product's harness the body itself, the
+     *  edge's ({@link EdgeProgram}) the compatibility edge's test-body door (B3 step 2, 2026-11-24). */
+    public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
+            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun,
+            java.util.function.UnaryOperator<com.legend.TypedQuery> door) {
         return run(Compiler.compileModel(LaneFloor.model(model, c)), body, runtime,
-                com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), options, edgeRun);
+                com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), options, edgeRun, door);
     }
 
     /** {@code body} run with a session of its own per use, each opened on the platform's database (isolated BOTH: a
@@ -105,6 +114,17 @@ public final class Program {
         return runFresh(model, body, runtime, com.legend.database.Databases.PLATFORM, options, edgeRun);
     }
 
+    /** {@link #runFresh(String, String, String, ExecuteOptions, com.legend.testexec.EdgeRun)} with the body passed
+     *  through {@code door} before it is planned ({@link #run(String, String, String, Connection, ExecuteOptions,
+     *  com.legend.testexec.EdgeRun, java.util.function.UnaryOperator)}). */
+    public static Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
+            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun,
+            java.util.function.UnaryOperator<com.legend.TypedQuery> door) {
+        return run(Compiler.compileModel(model), body, runtime, new com.legend.exec.SessionSource.Fresh(
+                com.legend.testbackend.TestBackends.of(com.legend.database.Databases.PLATFORM)::open), options, edgeRun,
+                door);
+    }
+
     /** {@link #runFresh(String, String, String, ExecuteOptions, com.legend.testexec.EdgeRun)}, each session opened on
      *  {@code database}. */
     public static Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
@@ -112,7 +132,7 @@ public final class Program {
             com.legend.testexec.EdgeRun edgeRun) {
         return run(Compiler.compileModel(model), body, runtime,
                 new com.legend.exec.SessionSource.Fresh(com.legend.testbackend.TestBackends.of(database)::open), options,
-                edgeRun);
+                edgeRun, java.util.function.UnaryOperator.identity());
     }
 
     /** {@code body} PLANNED over {@code model}, typed as {@link #run} types it, never run: the test plan, its data. */
@@ -128,7 +148,8 @@ public final class Program {
     }
 
     private static Report run(ModelContext ctx, String body, @com.legend.base.Nullable String runtime,
-            com.legend.exec.SessionSource sessions, ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
+            com.legend.exec.SessionSource sessions, ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun,
+            java.util.function.UnaryOperator<com.legend.TypedQuery> door) {
         List<Verdict> verdicts = new ArrayList<>();
         AssertListener listener = new AssertListener() {
             @Override
@@ -148,7 +169,7 @@ public final class Program {
         // reader a query's answer is read by (the doors, 2026-10-29; until then the collected side re-read here)
         java.io.StringWriter out = new java.io.StringWriter();
         Lean.Capturing sink = new Lean.Capturing(out);
-        TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, sessions, listener, edgeRun,
+        TestExecution.runProgram(door.apply(Compiler.queryResolved(ctx, resolved)), runtime, sessions, listener, edgeRun,
                 options, new com.legend.result.Output.Rows(sink));
         return new Report(List.copyOf(verdicts), sink.answered());
     }

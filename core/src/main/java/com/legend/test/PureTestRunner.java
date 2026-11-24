@@ -228,8 +228,8 @@ public final class PureTestRunner implements AutoCloseable {
             com.legend.testexec.EdgeRun edgeRun) {
         // a setup asserts nothing, so it hears no appeal; it is heard by the body's own hook, which goes with the run's
         // style (census C1, the orchestrator's ruling of 2026-11-17: one choice per run)
-        TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
-                edgeRun, options);
+        TestExecution.runFixture(TestExecution.planBody(observer.admitted(Compiler.queryResolved(ctx, call)), runtimeFqn,
+                options), target, edgeRun, options);
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
@@ -288,7 +288,8 @@ public final class PureTestRunner implements AutoCloseable {
         try {
             // the body's facts as the test planner states them, data: the record its plan carries (C5-J item 2,
             // 2026-11-15: until then the planner's ProgramFacts, read here)
-            facts = TestExecution.facts(Compiler.queryResolved(ctx, resolved));
+            // (the body as the observer's audience reads it: B3 step 2, 2026-11-24, the edge's test-body door)
+            facts = TestExecution.facts(observer.admitted(Compiler.queryResolved(ctx, resolved)));
         } catch (RuntimeException e) {
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
                 e.printStackTrace();   // the typing phase, under the same flag as execution
@@ -346,7 +347,8 @@ public final class PureTestRunner implements AutoCloseable {
                 // the body planned whole, nothing told to anyone; then run, its listener told each verdict at its
                 // turn (2026-11-10: no fixture is provided between the halves -- the corpus's and the stress lanes'
                 // verdicts measured unmoved without one, census M9)
-                planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved), runtimeFqn, options);
+                planned = TestExecution.planBody(observer.admitted(Compiler.queryResolved(ctx, resolved)), runtimeFqn,
+                        options);
                 TestExecution.runBody(planned, conn,
                         new AssertListener() {
                             @Override

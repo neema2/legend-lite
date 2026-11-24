@@ -36,9 +36,9 @@ import java.util.List;
     public static final List<Class<?>> TWO_FORMS = List.of(com.legend.lowering.DateTimeTexts.class,
             // a list's text (F's B8, 2026-11-17: TEXT_FORMS left the MIR): the product's JSON array, the edge's [a, b]
             com.legend.lowering.ListTexts.class,
-            // how a test counts a relation passed to assertSize/assertEmpty/assertNotEmpty (census C1, 2026-11-17,
-            // register S137): the product refuses it, the edge counts it as one value
-            com.legend.compiler.spec.RelationCounting.class,
+            // (RelationCounting, how a test counts a relation passed to assertSize/assertEmpty/assertNotEmpty, census
+            // C1's of 2026-11-17, register S137: left 2026-11-24, B3 step 2 -- the planner refuses it, and upstream's
+            // count is a body rewritten by the edge's test-body door before planning, edge.UpstreamTestBodies)
             // a test-data generator's timestamp text (census C1, 2026-11-17, L9): the product's clean form, the
             // edge's legend-engine test-data CSV
             com.legend.testdatagen.TestDataPlanner.Printing.class,

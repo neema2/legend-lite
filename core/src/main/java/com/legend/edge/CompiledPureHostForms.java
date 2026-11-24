@@ -3,7 +3,6 @@
 
 package com.legend.edge;
 
-
 /**
  * THE EDGE'S FORM OF THE RUN HOOK'S {@link com.legend.testexec.HostForms} (census C1's step 2c, the orchestrator's ruling
  * of 2026-11-17: moved from {@code testexec.Equality}): what is left of compatibility's own host rules while B3 lands its

@@ -36,9 +36,9 @@ public interface EdgeHearing {
     // (raisedWords, legend-pure's words of a planned site looked up in the plan's records (K10b): deleted 2026-11-20
     // with stage B's B1 -- the edge's words of a raise read its site's record, HostForms#caught)
 
-    /** How the run's host judge reads a JSON text (census C1, 2026-11-17): the product's strict form, upstream's
-     *  json-simple grammar at the edge. */
-    com.legend.testexecutionplan.JsonGrammar json();
+    // (json, how the run's host judge read a JSON text, census C1, 2026-11-17: deleted 2026-11-24, B3 step 2 of the
+    // compatibility program -- the judge reads strict JSON on every route, and the two goldens json-simple read past are
+    // cleaned at the edge's test-body door before planning, edge.UpstreamTestBodies, register S144)
 
     /** Whether a rendered text that differs from its golden is held (census C1, 2026-11-17): the product's
      *  {@link LiteRenderedTexts#STRINGS}, upstream's ruled comparison at the edge. */

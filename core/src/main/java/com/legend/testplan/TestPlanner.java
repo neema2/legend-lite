@@ -241,12 +241,12 @@ public final class TestPlanner {
 
     /** {@code given} as every road sees it: the lift (the asserts-as-plan-nodes program, step 4: an assert in a value's
      *  position is a statement of its own at its place, true where it stood), and register S137 (the user's ruling,
-     *  2026-11-05: a relation passed to assertSize, assertEmpty or assertNotEmpty is ONE value upstream -- lite's own
-     *  rules refuse it, the compatibility rules count it as upstream does). */
+     *  2026-11-05: a relation passed to assertSize, assertEmpty or assertNotEmpty is ONE value upstream -- the planner
+     *  refuses it by name; upstream's count is the compatibility edge's test-body door's, a body rewritten before it is
+     *  planned, edge.UpstreamTestBodies: B3 step 2, 2026-11-24, until then the plan style's two-form asked here). */
     private static TypedQuery lifted(TypedQuery given, PlanningOptions options) {
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
-        lifted = options.style().twoForm(com.legend.compiler.spec.RelationCounting.class,
-                com.legend.compiler.spec.RelationCountAsserts.REFUSED).counted(lifted);
+        com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
         TypedQuery out = lifted == given.body() ? given : given.withBody(lifted);
         // the run's planning options reach the body's own statements (its lets, checks and answer, which
         // ProductStatements plans by the query's options) as they reach its asserts (the planner's env): the final

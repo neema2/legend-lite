@@ -13,18 +13,14 @@ import java.util.List;
  * A RELATION COUNTED AS ONE VALUE (register S137, the user's ruling of 2026-11-05): upstream's {@code assertSize},
  * {@code assertEmpty} and {@code assertNotEmpty} take a collection ({@code Any[*]}), so over a relation they count the
  * relation itself -- {@code assertEmpty($rel)} always fails and {@code assertNotEmpty($rel)} always passes, whatever
- * rows it holds. The edge's form of {@link RelationCounting} does that ({@code com.legend.edge.UpstreamRelationCounting},
- * census C1, 2026-11-17); lite's own runs refuse the three over a relation at planning, naming the assert that says what
- * the test means ({@link #refuse}).
+ * rows it holds. Lite's planner refuses the three over a relation, naming the assert that says what the test means
+ * ({@link #refuse}). Upstream's count is the compatibility edge's test-body door's ({@code
+ * com.legend.edge.UpstreamTestBodies}, B3 step 2, 2026-11-24: a body rewritten before planning; until then the plan
+ * style's two-form {@code RelationCounting}, census C1 of 2026-11-17, asked during planning).
  */
-public enum RelationCountAsserts implements RelationCounting {
-    /** The product's form: the three refused over a relation. */
-    REFUSED;
+public final class RelationCountAsserts {
 
-    @Override
-    public List<TypedSpec> counted(List<TypedSpec> body) {
-        refuse(body);
-        return body;
+    private RelationCountAsserts() {
     }
 
     /** Refuses an {@code assertSize}, {@code assertEmpty} or {@code assertNotEmpty} over a relation anywhere in

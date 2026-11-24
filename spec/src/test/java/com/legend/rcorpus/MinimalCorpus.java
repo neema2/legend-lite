@@ -616,6 +616,12 @@ public final class MinimalCorpus {
         }
 
         @Override
+        public com.legend.TypedQuery admitted(com.legend.TypedQuery body) {
+            // legend-engine's tests read as its runner reads them: the edge's test-body door (B3 step 2, 2026-11-24)
+            return com.legend.edge.UpstreamTestBodies.admitted(body);
+        }
+
+        @Override
         public void bodyStarting(com.legend.exec.Sessions.Session conn, boolean effectful) {
             // the harness's own referee brackets the attempt on the driver's connection: the session's, asked for it
             try {
