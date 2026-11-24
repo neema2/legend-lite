@@ -177,7 +177,7 @@ class OneSendTest(unittest.TestCase):
         # the method is reached (a name bound to it, getattr), outside a run it is refused by name before anything is
         # submitted; nothing may be called on this one, so a submit would fail otherwise
         engine = warehouse.Warehouse.__new__(warehouse.Warehouse)
-        sends = (engine.arrow_chunks, engine.arrow_chunks)
+        sends = (engine.arrow_chunks, getattr(engine, "arrow_chunks"))  # noqa: B009 -- the second way of reaching it, on purpose
         for reached in sends:
             with self.assertRaisesRegex(Unframed, r"sent to the warehouse only inside a run"):
                 next(reached(from_plan("SELECT 1")))

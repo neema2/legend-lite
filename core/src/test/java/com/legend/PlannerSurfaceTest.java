@@ -1696,6 +1696,13 @@ class PlannerSurfaceTest {
             }
             rows.put(row.group(1), r);
         }
+        // 2026-11-23, the Python tooling task: Ruff's formatter wraps a row longer than its width over several lines,
+        // which the one-line pattern above does not read -- so a row opened and not read is named, never passed over
+        for (String opened : found(plannerSource, "(?m)^    \"(\\w+)\": \\(")) {
+            if (!rows.containsKey(opened)) {
+                out.add("a Python planner kind's row not written on one line: " + opened);
+            }
+        }
         listedAs(out, "a Python planner kind", rows.keySet(), PY_KINDS.keySet());
         rows.forEach((kind, r) -> {
             if (PY_KINDS.containsKey(kind) && !PY_KINDS.get(kind).equals(r)) {

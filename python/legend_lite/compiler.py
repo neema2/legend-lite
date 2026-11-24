@@ -19,7 +19,7 @@ from ._plans import (
     Column,
     Plan,
     PlanParamsRefused,
-    host_rows,  # noqa: F401 -- read from this module by others
+    host_rows,  # noqa: F401 -- a name this module has carried: kept for whoever imports it from here
     plan_binding,
     plan_params,  # noqa: F401
     statement_params,  # noqa: F401 -- read from this module by others

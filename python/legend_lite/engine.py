@@ -66,7 +66,7 @@ from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
 from ._home import (
     THIS_USER,
     Settings,
-    home,  # noqa: F401 -- read from this module by others
+    home,  # noqa: F401 -- a name this module has carried: kept for whoever imports it from here
     model_home_folder,
     pages_folder,
     queries_folder,
@@ -1725,7 +1725,7 @@ class Engine:
             with headless.turn(), self.frames.holding():
                 headless.call("forget", json.dumps({"table": table}))
                 self.frames.forget_file(table)
-        except Exception:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
+        except Exception:  # noqa: BLE001 -- any failure leaves the file served, tried again at the next sweep
             traceback.print_exc()
             return
         self.keeper.gone(sha256, "files")
@@ -2445,7 +2445,7 @@ class Engine:
         for watcher in watchers:
             try:
                 watcher(name, version)
-            except Exception:  # noqa: BLE001 -- the caller is owed an answer: any failure is said or logged here, never raised
+            except Exception:  # noqa: BLE001 -- whatever a watcher raises, the frame's other pages are still told
                 # one watcher failing is its own bug: the frame's other pages are still told
                 traceback.print_exc()
 

@@ -2688,7 +2688,7 @@ class Timeseries(Tile):
             answer = session.engine().answer("POST", "/plan.json", "", _json.dumps(asked))
         said = json.loads(answer.body)
         if not (isinstance(said, dict) and isinstance(said.get("plan"), str)):
-            raise ValueError(answer.body.decode("utf-8", errors="replace"))  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
+            raise ValueError(answer.body.decode("utf-8", errors="replace"))  # noqa: TRY004 -- the engine's own refusal, in its words: a ValueError as this API's others are
         return {"pure": compiler.print_tree(tree), "sql": compiler.read_planned(said["plan"]).sql}
 
     def code(self, language: str = "python") -> str:

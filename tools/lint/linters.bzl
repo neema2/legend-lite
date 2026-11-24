@@ -1,7 +1,7 @@
 """Ruff and ty over the Python targets (2026-11-23): rules_lint's aspects, each on the binary that release pins,
 both reading //:pyproject.toml.
 
-Report without failing: `bazel build --config=lint //python/...` (Ruff), `--config=typecheck` (ty); the configs are
+By hand, a finding failing the build: `bazel build --config=lint //python/...` (Ruff), `--config=typecheck` (ty); the configs are
 .bazelrc's. Held in the gate by the tests below: `ruff_test(name = ..., srcs = [<py targets>])`, and `ty_test`.
 """
 
