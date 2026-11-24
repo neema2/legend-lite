@@ -77,6 +77,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
     "src/test/java/com/legend/edge/EngineSpansTest.java",
+    # legend-pure's text of a relation in Java, each rule at the pinned sources' examples (stage B's B2b S1, 2026-11-24)
+    "src/test/java/com/legend/edge/PureRelationTextTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     # legend-engine's template parameters, the edge's own table (the audit's J31, 2026-11-18)
@@ -115,6 +117,9 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/integration/EmbeddedDataKindsTest.java",
     "src/test/java/com/legend/integration/FloatLiteralKindTest.java",
     "src/test/java/com/legend/integration/FloatTextTest.java",
+    # legend-pure's text of a relation in Java against the edge's SQL text, carrier by carrier, on each lane (stage B's
+    # B2b S1, 2026-11-24)
+    "src/test/java/com/legend/integration/PureRelationTextParityTest.java",
     "src/test/java/com/legend/integration/GraphKeyTextTest.java",
     "src/test/java/com/legend/integration/JoinedTextTest.java",
     # the edge golden net's missing cases, EDGE-1 to EDGE-3 on DuckDB and H2 under both edge styles (S0 of the

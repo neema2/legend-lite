@@ -2009,6 +2009,12 @@ class JavaEvalLedgerTest {
                             // writer, objects keyed by the presented column name, each cell legend-engine's token
                             // (CellText.engine); spells, decides nothing
                             "ServiceTestRunner.java", "TdsObjectsWriter.java",
+                            // legend-pure's text of a relation written in Java from lite's typed rows, and the run's
+                            // receiver that prints it (stage B's B2, B2b S1, 2026-11-24: the plan of record's B2, the
+                            // user's ~18:12 ruling of 2026-11-19, "Yes record it"; rule 3 and G6, small Java formatting
+                            // at the edge): spells each typed cell as legend-pure prints it, decides nothing, computes no
+                            // value (the database computed every cell)
+                            "PureRelationText.java", "PureRelationTextWriter.java",
                             // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
                             // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds
                             // an ORDER BY the engine's insertion order implies -- a node for a node, no value met
