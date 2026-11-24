@@ -1536,8 +1536,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /**
      * A Float's text ({@link com.legend.sql.SqlFn#FLOAT_TO_TEXT}; the user's ruling of 2026-11-10, D_BRIEF §1, phase
-     * D's D1.2, 2026-11-15): six decimals, the trailing zeros and then a trailing point trimmed ({@code 1.5},
-     * {@code 2}, {@code 0.333333}), NaN and the infinities by name ({@code NaN}, {@code Infinity},
+     * D's D1.2, 2026-11-15): six decimals, the trailing zeros trimmed, a whole value keeping one ({@code 1.5},
+     * {@code 2.0}, {@code 0.333333}; S311 amended by the user's ruling of 2026-11-23), NaN and the infinities by
+     * name ({@code NaN}, {@code Infinity},
      * {@code -Infinity}). Each dialect writes it in one format call (measured on each database: register S311); the
      * compatibility edge writes legend-pure's print form instead. A function-call form: no parenthesis is needed.
      */
@@ -1557,8 +1558,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  trailing trim {@code trim} names ({@code rtrim}, {@code RTRIM}), a whole value keeping one: {@code 2.000000} is
      *  {@code 2.0}, {@code 0.300000} is {@code 0.3} (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
      *  2026-11-23, "I think we do it as 2.0": a whole value's {@code .000000} is marked {@code .#} before the trim and
-     *  the mark written {@code 0} after it, the value still read once). Six digits always follow the point, so no digit before it is cut. A
-     *  negative value that rounds to zero ({@code -0.000000}: -1e-7, -0.0) is {@code 0}, its sign dropped -- one form on
+     *  the mark written {@code 0} after it, the value still read once). Six digits always follow the point, so no
+     *  digit before it is cut. A negative value that rounds to zero ({@code -0.000000}: -1e-7, -0.0) is {@code 0.0},
+     *  its sign dropped -- one form on
      *  every database (the orchestrator's round 56, 2026-11-15: DuckDB, SQLite, ClickHouse, Trino, MySQL, MongoDB and
      *  Databricks printed {@code -0}, MariaDB, Postgres and H2 {@code 0}); the whole six-digit text alone matches. */
     protected static SqlWriter trimmedSix(SqlWriter writer, String trim, java.util.function.Consumer<SqlWriter> text) {

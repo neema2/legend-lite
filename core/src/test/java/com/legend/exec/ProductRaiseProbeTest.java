@@ -148,8 +148,11 @@ class ProductRaiseProbeTest {
         }
         // 5a. a WHOLE Float keeps one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
         // 2026-11-23, "I think we do it as 2.0"), the large-magnitude forms too (Snowflake from 1e32, MySQL from 1e60,
-        // MongoDB from 1e34): each prints its integer digits, as many as its magnitude or one fewer (a double just below
-        // its power of ten: S311's noise is the register's), then ".0" -- never an exponent, never a bare integer
+        // MongoDB from 1e34): its sign, its integer digits, then ".0" -- never an exponent, never a bare integer. -2.0
+        // and 1e20 are exact doubles, pinned exactly; a larger value's digits are S311's noise, by database (the
+        // double's exact digits, as DuckDB, SQLite and ClickHouse print them, or the decimal's, as H2, Postgres and
+        // Trino do), so its digit count lies between the double's and the decimal's (the independent audit of
+        // 2026-11-24: one count for every value let a lost sign or a wrong digit count through)
         String[] wholes = {"-2.0", "1.0E20", "1.0E28", "1.0E30", "1.0E33", "1.0E61", "1.0E300"};
         Object big = run(backend, "a whole Float's text", "|#TDS\n  i:Integer, x:Float\n"
                 + java.util.stream.IntStream.range(0, wholes.length).mapToObj(i -> "  " + i + ", " + wholes[i] + "\n")
@@ -166,17 +169,30 @@ class ProductRaiseProbeTest {
             }
             for (int i = 0; i < wholes.length; i++) {
                 String g = i < got.size() ? got.get(i) : null;
-                int digits = new java.math.BigDecimal(wholes[i]).abs().toBigInteger().toString().length();
-                if (g == null || !g.matches("-?[0-9]{" + (digits - 1) + "," + digits + "}\\.0")) {
-                    wrong.add("a whole Float's text of " + wholes[i] + ": " + g + " (want " + digits + " digits, then .0)");
+                java.math.BigDecimal decimal = new java.math.BigDecimal(wholes[i]);
+                java.math.BigInteger exact = new java.math.BigDecimal(Double.parseDouble(wholes[i])).toBigInteger();
+                String sign = decimal.signum() < 0 ? "-" : "";
+                int a = decimal.abs().toBigInteger().toString().length();
+                int b = exact.abs().toString().length();
+                boolean right = exact.equals(decimal.toBigInteger())
+                        ? (sign + decimal.abs().toBigInteger() + ".0").equals(g)
+                        : g != null && g.matches(java.util.regex.Pattern.quote(sign) + "[1-9][0-9]{" + (Math.min(a, b) - 1)
+                                + "," + (Math.max(a, b) - 1) + "}\\.0");
+                if (!right) {
+                    wrong.add("a whole Float's text of " + wholes[i] + ": " + g + " (want " + sign + Math.min(a, b)
+                            + " to " + Math.max(a, b) + " digits, then .0)");
                 }
             }
         }
-        // 5b. NaN's text (S311, ruled 2026-11-10: NaN): "NaN" where the database holds it, else the kind by name
-        // (S138's NaN kinds: a database that holds no NaN), never another text (the P2 checkpoint audit's case)
-        Object nan = run(backend, "NaN's text", "|#TDS\n  x:String\n  NaN\n#->extend(~t: r|"
-                + "$r.x->toOne()->parseFloat()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
-        if (!(nan instanceof String n5 && n5.contains("NaN"))) {
+        // 5b. NaN's and the infinities' text (S311, ruled 2026-11-10: NaN, Infinity, -Infinity): exactly the name where
+        // the database holds the value, else the kind by name (S138's NaN kinds: a database that holds no NaN), never
+        // another text (the P2 checkpoint audit's case; exact since the independent audit of 2026-11-24, whose case
+        // was MongoDB's NaN.0)
+        Object nan = run(backend, "NaN's text", "|#TDS\n  i:Integer, x:String\n  1, NaN\n  2, Infinity\n  3, -Infinity\n#"
+                + "->sort(~i->ascending())->extend(~t: r|$r.x->toOne()->parseFloat()->toString())->select(~t)->from("
+                + StorelessRuntime.RUNTIME + ")");
+        if (!(nan instanceof String n5 && n5.replace(" ", "").equals("[{\"t\":\"NaN\"},{\"t\":\"Infinity\"},"
+                + "{\"t\":\"-Infinity\"}]"))) {
             if (nan instanceof Throwable) {
                 expectKindIn(wrong, "NaN's text", nan, NOT_HELD);
             } else {

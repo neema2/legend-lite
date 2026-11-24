@@ -31,7 +31,8 @@ class FloatTextTest {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
         try (Connection c = backend.open()) {
-            // a whole value keeps one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0": a whole value keeps one fraction digit; B2a, 2026-11-24)
+            // a whole value keeps one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it
+            // as 2.0"; B2a, 2026-11-24)
             assertEquals(List.of("1.5", "2.0", "-1.25", "1234567.89", "100000000000000000000.0"),
                     column(Lean.run(model, "|" + ROWS + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)",
                             StorelessRuntime.RUNTIME, c)), backend.name());

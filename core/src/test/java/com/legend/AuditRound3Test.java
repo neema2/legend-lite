@@ -198,7 +198,8 @@ class AuditRound3Test {
         assertEquals("0.000000013421",
                 scalarAtTheEdge("|0.000000013421->toString()").toString());
         // the product's text (register S311, the user's ruling of 2026-11-10): six decimals, trimmed, a whole value
-        // keeping one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0": a whole value keeps one fraction digit; B2a, 2026-11-24)
+        // keeping one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0"; B2a,
+        // 2026-11-24)
         assertEquals("1000000000000000000.0", scalar("|1000000000000000000.0->toString()").toString());
         assertEquals("1.5", scalar("|1.5->toString()").toString());
         assertEquals("0.0", scalar("|0.000000013421->toString()").toString());

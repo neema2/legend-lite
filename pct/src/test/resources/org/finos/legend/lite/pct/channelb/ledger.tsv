@@ -817,8 +817,9 @@ duckdb-lite	Standard	meta::pure::functions::math::tests::wavg::testSimpleGroupBy
 # toString and format of a Float or a DateTime: the product's own text, ruled -- a Float's six decimals, trimmed (S311, the user's ruling of 2026-11-10: 17.0 is 17, 1.3421e-8 is 0), a DateTime ISO 8601 in UTC with six fraction digits and Z (S312) -- where legend-pure's is 17.0 or 2014-01-01T00:00:00.000+0000 (2026-11-19; 7 rows)
 duckdb-lite	Essential	meta::pure::functions::string::tests::format::testSimpleFormatDate	AssertFailed: expected "the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000+0000", got "the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000000000Z"
 # (testFloatToStringWithExcessTrailingZeros and testFloatToStringWithPositiveExponent left 2026-11-24, a down move: a whole Float
-# keeps one fraction digit, S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0": a whole value keeps one fraction digit; B2a, 2026-11-24; NegativeExponent's text 0 became 0.0)
-duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent	AssertFailed: expected "0.000000013421", got "00.0"
+# keeps one fraction digit, S311 amended by the user's ruling of 2026-11-23, "I think we do it as 2.0" (B2a); NegativeExponent's
+# text 0 became 0.0; 5 of the 7 rows above remain)
+duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent	AssertFailed: expected "0.000000013421", got "0.0"
 duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testSimpleDateToString	AssertFailed: expected "2014-01-02T01:54:27.352+0000", got "2014-01-02T01:54:27.352000000Z"
 duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString	AssertFailed: expected "2014-01-01T00:00:00.0000+0000", got "2014-01-01T00:00:00.000000000Z"
 duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testDateTimeToString	AssertFailed: expected "2014-01-01T00:00:00.000+0000", got "2014-01-01T00:00:00.000000000Z"

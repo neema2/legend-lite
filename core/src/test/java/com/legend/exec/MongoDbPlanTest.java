@@ -438,8 +438,10 @@ class MongoDbPlanTest {
                 System.out.println("[mongodb-number-text] spelled " + e.getKey() + " -> " + r);
             }
             assertEquals("2.0", got.get("text of 2.0"));
-            assertEquals("100000000000000000000", got.get("the product's text of 1e20"));
-            assertEquals("0", got.get("the product's text of 1.5e-8"));
+            // a whole value keeps one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it
+            // as 2.0"; B2a, 2026-11-24)
+            assertEquals("100000000000000000000.0", got.get("the product's text of 1e20"));
+            assertEquals("0.0", got.get("the product's text of 1.5e-8"));
             assertEquals("100000000000000000000.0", got.get("Pure's print of 1e20"));
             assertEquals("0.000000015", got.get("Pure's print of 1.5e-8"));
         }

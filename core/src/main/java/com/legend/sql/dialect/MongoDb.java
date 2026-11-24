@@ -2891,18 +2891,19 @@ public class MongoDb extends AnsiSqlRenderer {
     }
 
     /** {@inheritDoc} The value as a Decimal128 rounded to six places, whose text MongoDB writes plain with its six
-     *  decimals, then its trailing zeros and point trimmed ({@code $rtrim}): a double's own {@code $toString} writes an
-     *  exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
+     *  decimals, then its trailing zeros trimmed ({@code $rtrim}), a whole value keeping one ({@code 2.0}): a double's
+     *  own {@code $toString} writes an exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits -- a text with a point
-        // trimmed of its trailing zeros and then the point, and any text without a point then ending '.0', a whole value
-        // keeping one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and 2026-11-23, "2.0").
-        // Decimal128 holds 34 digits, so from 1e28 the rounding keeps fewer than six fraction digits and at 1e33 none:
-        // its text then has no point, and is never trimmed (measured 2026-11-24: the trim had eaten 1e33's zeros,
-        // printing 1). From 1e34 every value is whole and ends '.0'; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
-        // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
+        // the value rounded to six decimals as a Decimal128, its text. Below 1e34, plain digits: a text with a point is
+        // trimmed of its trailing zeros and then the point, and a text that is then an integer ends '.0', a whole value
+        // keeping one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and 2026-11-23, "2.0");
+        // NaN and the infinities keep their names (the independent audit of 2026-11-24: an unconditional '.0' printed
+        // NaN.0). Decimal128 holds 34 digits, so from 1e28 the rounding keeps fewer than six fraction digits and at
+        // 1e33 none: a text without a point is never trimmed (measured 2026-11-24: the trim had eaten 1e33's zeros,
+        // printing 1). From 1e34 the text is d.dddE+n, so the digits are spelled out -- the mantissa's digits, then n
+        // less its fraction's length of zeros -- never trimmed, then '.0', every such value being whole (measured
         // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
         writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
         MongoJson.op1(writer, "$toDecimal", x);
@@ -2911,8 +2912,8 @@ public class MongoDb extends AnsiSqlRenderer {
                 + " {\"$let\": {\"vars\": {\"t\": {\"$cond\": [{\"$lt\": [{\"$indexOfCP\": [\"$$s\", \".\"]}, 0]}, \"$$s\","
                 + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
                 + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}}]}},"
-                + " \"in\": {\"$concat\": [\"$$t\", {\"$cond\": [{\"$lt\": [{\"$indexOfCP\": [\"$$t\", \".\"]}, 0]},"
-                + " \".0\", \"\"]}]}}},"
+                + " \"in\": {\"$concat\": [\"$$t\", {\"$cond\": [{\"$regexMatch\": {\"input\": \"$$t\","
+                + " \"regex\": \"^-?[0-9]+$\"}}, \".0\", \"\"]}]}}},"
                 + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
                 + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
                 + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"

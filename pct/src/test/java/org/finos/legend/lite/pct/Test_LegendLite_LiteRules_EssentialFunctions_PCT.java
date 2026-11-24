@@ -36,7 +36,8 @@ public class Test_LegendLite_LiteRules_EssentialFunctions_PCT extends PCTReportC
             one("meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-01T00:00:00.0000+0000'\nactual:   '2014-01-01T00:00:00.000000000Z'\""),
             one("meta::pure::functions::string::tests::toString::testSimpleDateToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-02T01:54:27.352+0000'\nactual:   '2014-01-02T01:54:27.352000000Z'\""),
             // (testFloatToStringWithExcessTrailingZeros and testFloatToStringWithPositiveExponent left 2026-11-24: a whole
-            // Float keeps one fraction digit, S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0": a whole value keeps one fraction digit; B2a, 2026-11-24; NegativeExponent's text 0 became 0.0)
+            // Float keeps one fraction digit, S311 amended by the user's ruling of 2026-11-23, "I think we do it as 2.0"
+            // (B2a); NegativeExponent's text 0 became 0.0)
             one("meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent_Function_1__Boolean_1_", "\"\nexpected: '0.000000013421'\nactual:   '0.0'\""),
             // (2026-11-20, the stage-A batch: A3 piece 2 gave substring Pure's 0-based meaning in the core, so under lite's
             // rules substring::testStart, testStartEnd, sort::testSimpleSortWithKey and testSimpleSortWithFunctionVariables

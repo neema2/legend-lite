@@ -123,7 +123,8 @@ class SnowflakeDialectTest {
                 com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
         // below 1e32 NUMBER(38, 6), the -0.000000 of a value rounding to zero written 0.000000; from 1e32 the leading
         // digits and zeros (round 56, 2026-11-15), then .0; below, a whole value's .000000 marked .# before the trim
-        // and written 0 after (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0": a whole value keeps one fraction digit; B2a, 2026-11-24)
+        // and written 0 after (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0"; B2a,
+        // 2026-11-24)
         assertTrue(product.contains("REPLACE(RTRIM(REPLACE(REPLACE(CAST(CAST(\"t\".\"x\" AS NUMBER(38, 6)) AS VARCHAR),"
                 + " '-0.000000', '0.000000'), '.000000', '.#'), '0'), '#', '0')")
                 && product.contains("WHEN ABS(\"t\".\"x\") >= 1E32 THEN")
