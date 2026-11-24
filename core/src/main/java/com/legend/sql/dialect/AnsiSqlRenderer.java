@@ -1553,16 +1553,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 : new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT);
     }
 
-    /** {@code text} -- a value's fixed-point text with six fraction digits -- with its trailing zeros, then a trailing
-     *  point, dropped, by the trailing trim {@code trim} names ({@code rtrim}, {@code RTRIM}): {@code 2.000000} is
-     *  {@code 2}, {@code 0.300000} is {@code 0.3}. Six digits always follow the point, so no digit before it is cut. A
+    /** {@code text} -- a value's fixed-point text with six fraction digits -- with its trailing zeros dropped by the
+     *  trailing trim {@code trim} names ({@code rtrim}, {@code RTRIM}), a whole value keeping one: {@code 2.000000} is
+     *  {@code 2.0}, {@code 0.300000} is {@code 0.3} (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
+     *  2026-11-23, "I think we do it as 2.0": a whole value's {@code .000000} is marked {@code .#} before the trim and
+     *  the mark written {@code 0} after it, the value still read once). Six digits always follow the point, so no digit before it is cut. A
      *  negative value that rounds to zero ({@code -0.000000}: -1e-7, -0.0) is {@code 0}, its sign dropped -- one form on
      *  every database (the orchestrator's round 56, 2026-11-15: DuckDB, SQLite, ClickHouse, Trino, MySQL, MongoDB and
      *  Databricks printed {@code -0}, MariaDB, Postgres and H2 {@code 0}); the whole six-digit text alone matches. */
     protected static SqlWriter trimmedSix(SqlWriter writer, String trim, java.util.function.Consumer<SqlWriter> text) {
-        writer.append(trim).append("(").append(trim).append("(");
+        writer.append("REPLACE(").append(trim).append("(REPLACE(");
         unsignedZero(writer, text);
-        return writer.append(", '0'), '.')");
+        return writer.append(", '.000000', '.#'), '0'), '#', '0')");
     }
 
     /** {@code text}, a six-digit fixed-point text, with {@code -0.000000} written {@code 0.000000} ({@link #trimmedSix}):
@@ -1576,9 +1578,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** {@link #trimmedSix} spelled by the SQL standard's trailing trim ({@code TRIM(TRAILING '0' FROM ...)}), for a
      *  database whose {@code RTRIM} takes no character. */
     protected static SqlWriter trimmedSixStandard(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
-        writer.append("TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM ");
+        writer.append("REPLACE(TRIM(TRAILING '0' FROM REPLACE(");
         unsignedZero(writer, text);
-        return writer.append("))");
+        return writer.append(", '.000000', '.#')), '#', '0')");
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----

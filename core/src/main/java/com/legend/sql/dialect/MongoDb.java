@@ -2896,22 +2896,25 @@ public class MongoDb extends AnsiSqlRenderer {
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits, trimmed of the zeros
-        // and a point after them; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
+        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits, trimmed of the zeros, a
+        // whole value keeping one ('.000000' marked '.#' before the trim, the mark a '0' after; S311 amended, the user's
+        // rulings of 2026-11-19 ~18:05 and 2026-11-23, "2.0"); from 1e34 every value is whole and ends '.0'; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
         // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
         // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
         writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
         MongoJson.op1(writer, "$toDecimal", x);
         return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
-                + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
-                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"
+                + " {\"$replaceAll\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\":"
+                + " {\"$replaceAll\": {\"input\": \"$$s\", \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}},"
+                + " \"find\": \".000000\", \"replacement\": \".#\"}}, \"chars\": \"0\"}}, \"find\": \"#\","
+                + " \"replacement\": \"0\"}},"
                 + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
                 + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
                 + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"
                 + " \"in\": {\"$concat\": [{\"$replaceAll\": {\"input\": \"$$m\", \"find\": \".\", \"replacement\": \"\"}},"
                 + " {\"$reduce\": {\"input\": {\"$range\": [0, {\"$subtract\": [\"$$n\", {\"$cond\": [{\"$lt\": [\"$$p\", 0]},"
                 + " 0, {\"$subtract\": [{\"$subtract\": [{\"$strLenCP\": \"$$m\"}, \"$$p\"]}, 1]}]}]}]},"
-                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}]}}}}}]}}}}}");
+                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}, \".0\"]}}}}}]}}}}}");
     }
 }

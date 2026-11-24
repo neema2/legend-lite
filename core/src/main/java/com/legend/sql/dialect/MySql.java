@@ -438,7 +438,9 @@ public class MySql extends MariaDb {
         super.floatToText(writer, x);
         writer.append(" ELSE CONCAT(REPLACE(FORMAT(").expr(d, 0).append(" / POW(10, FLOOR(LOG10(ABS(").expr(d, 0)
                 .append("))) - 20), 0, 'en_US'), ',', ''), REPEAT('0', FLOOR(LOG10(ABS(").expr(d, 0)
-                .append("))) - 20)) END");
+                // a whole value keeps one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
+                // 2026-11-23): every value from 1e60 is whole
+                .append("))) - 20), '.0') END");
         return writer;
     }
 }
