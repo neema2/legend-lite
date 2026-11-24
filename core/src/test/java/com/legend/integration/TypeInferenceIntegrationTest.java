@@ -175,8 +175,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                         "test::TestRuntime", backend(), com.legend.edge.PureText.UPSTREAM);
                 boolean floatLiteralCast = com.legend.testing.LaneFloor.backend().name().equals("h2");
                 assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", result.rows().get(0).get(0).toString());
-                // the product's text (register S311): six decimals, trimmed -- below 0.0000005, 0
-                assertEquals("0", Lean.run(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
+                // the product's text (register S311): six decimals, trimmed -- below 0.0000005, 0.0 (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0": a whole value keeps one fraction digit; B2a, 2026-11-24)
+                assertEquals("0.0", Lean.run(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
                         "test::TestRuntime", connection).rows().get(0).get(0).toString());
         }
 

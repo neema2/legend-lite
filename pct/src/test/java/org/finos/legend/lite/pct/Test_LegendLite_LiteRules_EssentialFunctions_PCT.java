@@ -32,12 +32,12 @@ public class Test_LegendLite_LiteRules_EssentialFunctions_PCT extends PCTReportC
             // sentence is legend-pure's, so each test answers as its COMPAT row says)
             // legend-pure's print of a value (a Float's toString, a DateTime's toString and format): lite's own text, the product's (S118; the user's ruling of 2026-11-10 on a Float's text) (2026-11-19)
             one("meta::pure::functions::string::tests::toString::testDateTimeToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-01T00:00:00.000+0000'\nactual:   '2014-01-01T00:00:00.000000000Z'\""),
-            one("meta::pure::functions::string::tests::toString::testFloatToStringWithExcessTrailingZeros_Function_1__Boolean_1_", "\"\nexpected: '17.0'\nactual:   '17'\""),
-            one("meta::pure::functions::string::tests::toString::testFloatToStringWithPositiveExponent_Function_1__Boolean_1_", "\"\nexpected: '134210000.0'\nactual:   '134210000'\""),
             one("meta::pure::functions::string::tests::format::testSimpleFormatDate_Function_1__Boolean_1_", "\"\nexpected: 'the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000+0000'\nactual:   'the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000000000Z'\""),
             one("meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-01T00:00:00.0000+0000'\nactual:   '2014-01-01T00:00:00.000000000Z'\""),
             one("meta::pure::functions::string::tests::toString::testSimpleDateToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-02T01:54:27.352+0000'\nactual:   '2014-01-02T01:54:27.352000000Z'\""),
-            one("meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent_Function_1__Boolean_1_", "\"\nexpected: '0.000000013421'\nactual:   '0'\""),
+            // (testFloatToStringWithExcessTrailingZeros and testFloatToStringWithPositiveExponent left 2026-11-24: a whole
+            // Float keeps one fraction digit, S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0": a whole value keeps one fraction digit; B2a, 2026-11-24; NegativeExponent's text 0 became 0.0)
+            one("meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent_Function_1__Boolean_1_", "\"\nexpected: '0.000000013421'\nactual:   '0.0'\""),
             // (2026-11-20, the stage-A batch: A3 piece 2 gave substring Pure's 0-based meaning in the core, so under lite's
             // rules substring::testStart, testStartEnd, sort::testSimpleSortWithKey and testSimpleSortWithFunctionVariables
             // pass and their 4 rows left; a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move

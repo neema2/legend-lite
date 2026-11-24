@@ -81,9 +81,10 @@ class BigQueryDialectTest {
     @Test
     void aFloatsTextIsSixDecimalsTrimmed() {
         String sql = render(SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, X), null);
-        // a negative value that rounds to zero is 0 (round 56, 2026-11-15: its -0.000000 written 0.000000 first)
-        assertTrue(sql.contains("REPLACE(REPLACE(RTRIM(RTRIM(REPLACE(FORMAT('%.6f', `t`.`x`), '-0.000000', '0.000000'),"
-                + " '0'), '.'), 'nan', 'NaN'),"
+        // a negative value that rounds to zero is 0.0 (round 56, 2026-11-15: its -0.000000 written 0.000000 first); a
+        // whole value's .000000 marked .# before the trim and written 0 after (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0": a whole value keeps one fraction digit; B2a, 2026-11-24)
+        assertTrue(sql.contains("REPLACE(REPLACE(REPLACE(RTRIM(REPLACE(REPLACE(FORMAT('%.6f', `t`.`x`), '-0.000000',"
+                + " '0.000000'), '.000000', '.#'), '0'), '#', '0'), 'nan', 'NaN'),"
                 + " 'inf', 'Infinity')"), sql);
         assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, sql);
         assertFalse(sql.contains("(SELECT"), sql);
