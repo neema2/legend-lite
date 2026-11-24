@@ -55,3 +55,37 @@ that answer: S131's twelve compare an unordered result as ordered text, so any e
 (agrees with lite); S15's two and S132's fourteen DuckDB rows are DuckDB's own Float results (the same double from
 any engine on DuckDB: agrees with lite); S132's three H2 rows are a printing difference (H2 2.5's Decimal text), which
 B2b's Java printer from typed rows may fix.
+
+## The build order (2026-11-24), from the plan of record and the map of today's compatibility paths
+
+The map (a read-only research pass, 2026-11-24): compatibility reaches a test body in three places -- the plan style
+(`edge/PureText.UPSTREAM`'s facets, `testplan/PlanStyleFacets` KINDS and TWO_FORMS: most are printed text, B2's), the
+edge's options (`CompatEdge`: the referee's ledger records and seeds) and the run hook (`edge/Appeals`: `judged`,
+`json`, `renderedTexts`, `hostForms`, `writing`, `decide`, `afterFailure`). The harnesses that ask for it: PCT channel B
+(`ChannelB`, `COMPAT_OPTIONS`), the corpus (`MinimalCorpus` and core's `PureTestRunner`), `LeanSqlCorpusTest`, the
+edge's test helpers (`EdgeProgram`). The engine door's rewrite (`edge/PureMeaningRewrite`, A3) runs on the server
+routes alone; no test-body path applies it.
+
+1. **Step 1a -- three host rules go** (Integer against Decimal, dates as written, Decimal scale): measured to move
+   nothing; the host judge reads lite's rule for each on every route; `HostForms` keeps the Float tolerance (until 1b)
+   and the caught error's words. Round running.
+2. **Step 1b -- the leniencies S15, S132 and S131 removed**, by the plan of record's own procedure: each of the 31
+   tests they carry (DuckDB 28, H2 3) placed against legend-engine 4.145.0's own answer on that database (the oracle,
+   a research subagent once the Bazel tree is free), classed, and the counts and names brought to the user before the
+   rules are deleted (`CompiledPureHostForms.equalFloatsApart`, `edge/UpstreamRenderedTexts`, the `renderedTexts()`
+   hook). Not a door rewrite: S131 is a leniency lite added, as S15 and S132 are (the 11-20 ruling); lite's own
+   judge stays exact (the 11-05 ruling).
+3. **Step 2 -- the test-body door.** A public edge entry the harnesses call between typing and planning, rewriting the
+   typed body: S137 moved there from the test planner's two-form (`RelationCounting`, `TestPlanner.java:248`,
+   `UpstreamRelationCounting`); S144 as an input rewrite of the two goldens' JSON literals, with `JsonSimpleGrammar`
+   and the `json()` hook deleted.
+4. **Step 3 -- the SQL-text fallback becomes harness code** (the assert's query through the public `from()` door after
+   the body, its rows against the referee's golden rows), deleting `Appeals`, `SqlTextRuns`, `EngineTextPlanning`,
+   `SqlTextVerdicts` and the appeal plumbing; the test runner's public prepare and run halves; Q16b's 7 shapes
+   (R1's post-processor runtimes in the product, the 3 inline mappings), Q16c, `assertError` catching the size
+   refusals.
+5. **Step 4 -- the one equality** (strict typing; `docs/records/compat-stage-b-plan-2026-11-24.md`).
+
+Each step: measure first, build here, an independent review in a subagent before the push, the lanes it touches, and
+a record of the review's findings here.
+
