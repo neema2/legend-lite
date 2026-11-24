@@ -84,6 +84,16 @@ independent review, the lanes and the warm lanes at each push, this record.
   asserts to the explicitly order-free form before planning; the judge's one rulebook compares in order where the test
   asks for order and as a multiset where the test says order does not matter.
 
+**The check cadence (2026-11-24, after the user's "Are we doing test runs and audits too frequently? Or right pace for
+fast and safe dev loop"):** (1) a fast check right after editing -- the guards, the census and the touched packages,
+5-15 minutes -- before any full round; (2) one full round per step (PCT channel B on DuckDB, SQLite and H2 under both
+rule sets, both corpora, the lean-SQL measure, the edge net, the guards, the touched core packages and the edge tests),
+after its review's fixes, not before and after; (3) one independent review per step, started at its push and run beside
+the next work, its fixes batched into the next commit; design reviews for the large designs (the lift, order, the one
+equality); (4) the warm lanes (Snowflake, Databricks, BigQuery) only for a change that could differ by database --
+dialect or SQL rendering, a judge's rule over values a database carries, a tolerance deleted -- and at each milestone;
+(5) CI on every operating system at a milestone, through B3's pull request.
+
 **The steps, in order:**
 1. **One rulebook in the judge.** 1a: compiled legend-pure's Integer-against-Decimal, as-written date and Decimal-scale
    rules go (S127, S399, S139) -- done, `3994b835`. 1b: the Float leniencies S15 (2 ULP) and S132 (Float digits in
