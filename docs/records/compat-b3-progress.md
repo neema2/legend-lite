@@ -35,4 +35,23 @@ Next, by the plan: ask the oracle (the engine runner, legend-engine 4.145.0) for
 on DuckDB, class them (agrees with lite / float printing / a real difference), and bring the counts and names to the
 user before the rule is deleted.
 
-**Run 2: `renderedTexts()` switched to lite's as well (S131, S132):** running.
+**Run 2: `renderedTexts()` switched to lite's as well (S131, S132),** on the same lanes and head. **No PCT verdict
+moves on any lane. The corpus moves 28 DuckDB tests and 3 H2 tests**, every one from PASS to FAIL:
+
+| Leniency | DuckDB corpus | H2 corpus |
+|---|---|---|
+| S131 (an unsorted actual compared as a multiset) | 12: the right rows in another order -- `advanced::structure::testQualifierWithForkAndOrWithInline`, `::testQualifierWithLineAndOrWithInLine`, `mapping::classMappingFilterWithInnerJoin::testMergeForClassMappingInnerJoinFilter`, `::testMergeForClassMappingInnerJoinFilter1`, `mapping::distinct::testDistinctMappingWithFullDenormSelfJoins`, `mapping::union::specialUnion::testGroupBy`, `::testProjectWithPostTdsOperations`, `postProcessor::testSqlRealiasFreeMarker`, `projection::function::concatenate::testConcatenateWithFilter`, `projection::view::testUnionOnViewsMapping`, `::testViewOnView`, `validation::showcase::standalone::validateAllConstraints` | 0 |
+| S132 (Float tokens in a rendered text within 2 ULP) | 14: `functions::pureToSqlQuery::calendarAggregations::*` -- DuckDB's Float arithmetic printed with its last digits (`6.840000000000002` against the golden's `6.84`) | 3: `calendarAggregations::testAnnualizedValue`, `::testCmeValue`, `::testPmaValue` -- H2 2.5 prints the Decimal with more digits (`9.81285067873303158` against `9.812850678733032`) |
+| S15 (two Floats within 2 ULP) | 2: `mapping::sqlFunction::log::testFilter`, `::testProject` | 0 |
+
+(The plan of record's H6, 2026-11-19: DuckDB S131 38 decisions, S132 14, S15 2; H2 S131 4, S132 3 -- S131's count has
+fallen since, the rest as measured then.)
+
+**The oracle step, by the plan:** legend-engine's own answer to each moved test on that database. These are
+legend-engine's relational tests, written for its H2 (2.1.214); legend-engine does not run them on DuckDB, so no answer
+is on record and the engine runner (which runs testable suites) does not run them as they are: asking means a small
+harness that runs the test functions through legend-engine 4.145.0 on DuckDB. The expected classes, to be confirmed by
+that answer: S131's twelve compare an unordered result as ordered text, so any engine on DuckDB returns DuckDB's order
+(agrees with lite); S15's two and S132's fourteen DuckDB rows are DuckDB's own Float results (the same double from
+any engine on DuckDB: agrees with lite); S132's three H2 rows are a printing difference (H2 2.5's Decimal text), which
+B2b's Java printer from typed rows may fix.
