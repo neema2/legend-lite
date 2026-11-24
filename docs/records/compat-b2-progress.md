@@ -290,6 +290,23 @@ The verdict: sound to continue. What it asked, and where each stands:
   relational-store test in the pinned sources asserts a `toCSV` date-time cell (a grep of the 231 `toCSV` uses for a
   date-time literal finds none), so S4 expects to move no corpus case; it measures that through B3's lift.
 
+### S4: measured through B3's lift (2026-11-24, on B3's step 2b, `9b1e194fd`, merged here as a fast-forward)
+
+B3's step 2b routes every printed assert side through this branch's rule (`PrintedRelations.side`) and printer
+(`PureRelationTextWriter`); its round was green (292 of 293). The two date-time questions, counted over the pinned
+4.145.0 sources (a source scan, narrower than a run):
+- **(a), digits past the millisecond in a printed table: no case moves.** No PCT relation suite holds a date-time with
+  a nonzero digit past the millisecond (their nine-digit date-times are all `.000000000`, which both rules print
+  `.000`), and no printed expectation in the relational store's tests holds one. The difference stays real for such a
+  value (`#TDS t:DateTime 2014-01-01T10:20:30.123456#->toString()`: legend-engine's TDS `...30.123+0000`, lite
+  `...30.123456+0000`), so it goes to the user as a departure with zero cases moved.
+- **(b), gap 4: no case moves.** No `toCSV` expectation in the relational store's tests holds a date-time cell.
+- **Not the printer's, for B3:** the two places the relational corpus meets a value past the millisecond are
+  comparisons, not prints. `relation/tests.pure`'s `testDateTimeInclusiveRangeQuery` (lines ~1220-1232) and the test
+  beside it (~1250) compare a database value `.123456789` with an expected `#TDS` literal's `.123+0000` through
+  `assertTdsEquivalent`: equal under legend-engine's TDS (read to the millisecond), unequal under lite's rule of every
+  digit the database holds (S181, S399). That is the equality rule's, B3's to check.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
