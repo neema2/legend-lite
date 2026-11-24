@@ -101,6 +101,15 @@ flags so doesn't become a mess". Ruled in its strict, door-only form:
 for constant String and Boolean; `format()` and `toString()` are the database's in the product; compatibility's Java
 works only from lite's typed output.
 
+## The equality rule: strict typing (the user, 2026-11-24, "Love it")
+
+Two values are equal only when they have the same type and the same value; a value is what it denotes, not how it was
+written. Different types never compare: a compile error where the types are known, the type carried beside the value
+where it is not; ordering holds to the same rule; within one type a Decimal compares by its number (S139) and a
+date-time by its instant (S399); arithmetic keeps its typed promotion; upstream's looseness lives at the doors. Decided as
+a tenet ("We just should decide our tenets"), not by matching anyone's answers. The full statement: AGENTS.md ("The
+equality rule"); the design and its cost: `docs/records/compat-stage-b-plan-2026-11-24.md`. Built by B3 step 3.
+
 ## How the program's plan stands against them (checked 2026-11-19 ~15:25)
 
 - **Stage A:** A1 (the nets), A2 (legend-engine's SQL spelling deleted), A3 (`substring`/`indexOf` computed Pure's way

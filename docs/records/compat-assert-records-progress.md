@@ -1004,3 +1004,12 @@ host and database judges on DuckDB, H2 and SQLite (4,728 verdict pairs), plus 10
 - Outputs: the session's scratchpad `eq-measure/` (corpus.json, runs/class_table.txt, runs/direction_table.txt,
   runs/classified.json, pq.table.txt, pq.summary.txt).
 
+## What comes after item 3 (2026-11-24)
+
+Written down at the user's request: `docs/records/compat-stage-b-plan-2026-11-24.md` -- item 3 frozen and landed; B3
+step 1 (one host rulebook), step 2 (the doors: legend-engine's `==` rewrite at planning, the referee out of the test
+plans), step 3 (one equality); B2 in parallel. Decision 3 ruled (an enumeration is never a String in the core; legend-
+engine's door keeps engine's answer); then the equality's semantics ruled as a tenet: strict typing everywhere --
+the same type and the same value, a compile error where the types are known, ordering held to the same rule, Decimals
+by value and date-times by instant within their types (the user, 2026-11-24: "Love it").
+
