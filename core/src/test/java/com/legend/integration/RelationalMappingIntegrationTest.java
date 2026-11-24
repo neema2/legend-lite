@@ -158,6 +158,23 @@ class RelationalMappingIntegrationTest {
             assertEquals(2, r.rowCount());
         }
 
+        /** A Float the store holds as an integer (a Float property over an INTEGER column) prints every Float's text,
+         *  a whole value keeping one fraction digit: S311 amended by the user's ruling of 2026-11-23 ("I think we do it
+         *  as 2.0"; B2a, 2026-11-24 -- until then a plain cast printed its digits, 2, where a computed 2.0 printed 2.0
+         *  after the ruling: one text per type, the independent audit's finding). */
+        @Test
+        @DisplayName("Float property over an INTEGER column prints a Float's text")
+        void testFloatHeldAsIntegerPrintsAFloatsText() throws SQLException {
+            sql("CREATE TABLE T1 (ID INT, QTY INT)",
+                "INSERT INTO T1 VALUES (1, 2), (2, 1000000)");
+            String m = singleTableModel("P", "T1", "store::DB", "model::M",
+                    "Class model::P { id: Integer[1]; qty: Float[1]; }",
+                    "ID INTEGER, QTY INTEGER",
+                    "id: [store::DB] T1.ID, qty: [store::DB] T1.QTY");
+            var r = exec(m, "model::P.all()->project(~[id:x|$x.id, t:x|$x.qty->toString()])->sort(~id->ascending())");
+            assertEquals(List.of("2.0", "1000000.0"), colStr(r, 1));
+        }
+
         @Test
         @DisplayName("Boolean column mapping")
         void testBooleanColumn() throws SQLException {
