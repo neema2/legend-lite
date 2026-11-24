@@ -59,9 +59,9 @@ class PureOnlyTextTest {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("Class s::P { name: String[1]; }\n");
         try (Connection c = backend.open()) {
-            for (List<String> guard : List.of(List.of("assert($r.x == 0)", "expected true, got false"),
-                    List.of("assertFalse($r.x < 0)", "expected false, got true"),
-                    List.of("assertEquals(0, $r.x)", "expected true, got false"))) {
+            for (List<String> guard : List.of(List.of("assert($r.x == 0)", "Assert failed"),
+                    List.of("assertFalse($r.x < 0)", "Assert failed"),
+                    List.of("assertEquals(0, $r.x)", "Assert failed"))) {
                 String query = "|#TDS\n  x:Integer\n  -1\n#->extend(~y: r|if($r.x > 0, |$r.x, {|" + guard.get(0)
                         + "; 0;}))";
                 assertEquals(guard.get(1), assertThrows(Exception.class,

@@ -55,6 +55,9 @@ class CompatConstantPoolTest {
     private static final String ONE_CATALOG_FOLDED = "folded in its own file: a sentence of the one catalog written"
             + " across lines; RULED, the user's ruling of 2026-11-21 (stage B's BE), the register's row of the file";
 
+    private static final String ASSERT_CATALOG_FOLDED = "folded in its own file: an assert sentence of the catalog"
+            + " written across lines; RULED, the user's rulings of 2026-11-24 (B3 step 3), the register's row of the file";
+
     /** The hits no class's own source accounts for, "top class | spelling" (the register's spelling), each with its
      *  reason. Measured 2026-11-17. */
     static final Map<String, String> POOL_ONLY = Map.ofEntries(
@@ -82,7 +85,11 @@ class CompatConstantPoolTest {
             Map.entry("com.legend.error.CompileKind | Invalid window frame boundary", ONE_CATALOG_FOLDED),
             Map.entry("com.legend.error.ErrorKind | Invalid window frame boundary", ONE_CATALOG_FOLDED),
             Map.entry("com.legend.error.ErrorKind | can't be higher than the high bound", ONE_CATALOG_FOLDED),
-            Map.entry("com.legend.error.ErrorKind | trying to get an element at offset", ONE_CATALOG_FOLDED));
+            Map.entry("com.legend.error.ErrorKind | trying to get an element at offset", ONE_CATALOG_FOLDED),
+            // the assert catalog's two assertError sentences, written across two lines in their own file: the
+            // register's RULED rows of error/AssertKind.java (B3 step 3, the user's rulings of 2026-11-24)
+            Map.entry("com.legend.error.AssertKind | Execution error message mismatch", ASSERT_CATALOG_FOLDED),
+            Map.entry("com.legend.error.AssertKind | No error was thrown", ASSERT_CATALOG_FOLDED));
 
     // ---- the matching ------------------------------------------------------------------------------------------
 

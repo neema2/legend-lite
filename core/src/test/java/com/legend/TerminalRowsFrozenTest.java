@@ -29,6 +29,11 @@ class TerminalRowsFrozenTest {
     private static final String ONE_CATALOG = "the one catalog, the user's ruling of 2026-11-21 (stage B's BE):"
             + " upstream's sentence wherever upstream has one";
 
+    /** The assert catalog's rows: the user's rulings of 2026-11-24 (B3 step 3). */
+    private static final String ASSERT_CATALOG = "the assert catalog in legend-pure's words, the user's rulings of"
+            + " 2026-11-24 (B3 step 3): \"keep errors close to pure when cheap/fast so don't have to reword everything on"
+            + " compatibility\"; one line, lite's value forms in the slots (\"Agree with both proposals\")";
+
     /** Every terminal row, "file | spelling | count | step", with its ruling: its count frozen with it (the review of
      *  5911e970e1, 2026-11-17: a terminal row keyed without its count grew unseen, since the census counts no terminal
      *  row). */
@@ -38,6 +43,16 @@ class TerminalRowsFrozenTest {
             // item 3's S8: assertError's "nothing was raised" text, Pure's semantics (the user's Q-B, 2026-11-22)
             Map.entry("testexecutionplan/HostJudgment.java | No error was thrown | 1 | RULED", "Q-B, the user's ruling of"
                     + " 2026-11-22 (\"Q-S8 okay\"): an assertError expecting legend-pure's unraised text passes, as upstream"),
+            // the assert catalog: legend-pure's assert sentences in error/AssertKind.java (B3 step 3)
+            Map.entry("error/AssertKind.java | Assert failed | 2 | RULED", ASSERT_CATALOG),
+            Map.entry("error/AssertKind.java | Execution error column mismatch | 1 | RULED", ASSERT_CATALOG),
+            Map.entry("error/AssertKind.java | Execution error line mismatch | 1 | RULED", ASSERT_CATALOG),
+            Map.entry("error/AssertKind.java | Execution error message mismatch | 2 | RULED", ASSERT_CATALOG),
+            Map.entry("error/AssertKind.java | Expected non-empty collection | 1 | RULED", ASSERT_CATALOG),
+            Map.entry("error/AssertKind.java | No error was thrown | 1 | RULED", ASSERT_CATALOG),
+            Map.entry("error/AssertKind.java | Should not be identical to | 1 | RULED", ASSERT_CATALOG),
+            Map.entry("error/AssertKind.java | does not contain | 1 | RULED", ASSERT_CATALOG),
+            Map.entry("error/AssertKind.java | should not equal | 2 | RULED", ASSERT_CATALOG),
             Map.entry("error/CompileKind.java | Can't find | 6 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Default values are supported only | 1 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Duplicated class mappings | 1 | RULED", ONE_CATALOG),

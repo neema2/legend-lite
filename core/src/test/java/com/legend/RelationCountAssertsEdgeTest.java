@@ -52,7 +52,7 @@ class RelationCountAssertsEdgeTest {
         com.legend.error.AssertFailed size = assertThrows(com.legend.error.AssertFailed.class,
                 () -> run("|assertSize(" + TWO_ROWS + ", 2)"));
         // (item 3, 2026-11-21: the catalog's words on every route, Q15 = A; the count upstream's, one value)
-        assertTrue(size.getMessage().contains("expected size 2, got 1"), size.getMessage());
+        assertTrue(size.getMessage().contains("expected size: 2, actual size: 1"), size.getMessage());
         // upstream fails it with '%s is not empty' printing the relation itself, a text lite does not spell: refused
         ModelException empty = assertThrows(ModelException.class, () -> run("|assertEmpty(" + TWO_ROWS + ")"));
         assertTrue(empty.getMessage().contains("which lite does not spell"), empty.getMessage());

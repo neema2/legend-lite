@@ -55,18 +55,18 @@ class IsolatedRunTest {
 
     @Test
     void agreeingFailedRunsRethrowTheHostsOwnFailure() {
-        RuntimeException hostFailure = new IllegalStateException("expected 1, got 2");
+        RuntimeException hostFailure = new IllegalStateException("expected: 1, actual: 2");
         RuntimeException thrown = assertThrows(RuntimeException.class, () -> IsolatedRun.conclude(
-                run(hostFailure, false, "expected 1, got 2"),
-                run(new IllegalStateException("expected 1, got 2"), false, "expected 1, got 2"), null));
+                run(hostFailure, false, "expected: 1, actual: 2"),
+                run(new IllegalStateException("expected: 1, actual: 2"), false, "expected: 1, actual: 2"), null));
         assertSame(hostFailure, thrown);
     }
 
     @Test
     void aDifferentMessageRaisesJudgesDisagreeQuotingBoth() {
         IsolatedRun.JudgesDisagree e = assertThrows(IsolatedRun.JudgesDisagree.class, () -> IsolatedRun.conclude(
-                run(null, false, "expected 1, got 2"), run(null, false, "expected 1, got 3"), null));
-        assertTrue(e.getMessage().contains("\"expected 1, got 2\"") && e.getMessage().contains("\"expected 1, got 3\""),
+                run(null, false, "expected: 1, actual: 2"), run(null, false, "expected 1, got 3"), null));
+        assertTrue(e.getMessage().contains("\"expected: 1, actual: 2\"") && e.getMessage().contains("\"expected 1, got 3\""),
                 e.getMessage());
     }
 

@@ -179,12 +179,12 @@ RAISE_FORMS: dict[str, list[dict[str, object]]] = {
         {'arity': -1, 'emptySlot': -1, 'template': 'Range [%1$s, %2$s) out of bounds for length %3$s', 'slots': [], 'shape': 'TEMPLATE'},
     ],
     'ASSERT_TRUE': [
-        {'arity': 0, 'emptySlot': -1, 'template': 'expected true, got false', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': 0, 'emptySlot': -1, 'template': 'Assert failed', 'slots': [], 'shape': 'TEMPLATE'},
     ],
     'ASSERT_FALSE': [
-        {'arity': 0, 'emptySlot': -1, 'template': 'expected false, got true', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': 0, 'emptySlot': -1, 'template': 'Assert failed', 'slots': [], 'shape': 'TEMPLATE'},
     ],
     'ASSERT_NOT_EMPTY': [
-        {'arity': 0, 'emptySlot': -1, 'template': 'expected at least one value, got none', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': 0, 'emptySlot': -1, 'template': 'Expected non-empty collection', 'slots': [], 'shape': 'TEMPLATE'},
     ],
 }

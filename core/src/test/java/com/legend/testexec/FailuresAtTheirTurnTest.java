@@ -34,7 +34,7 @@ class FailuresAtTheirTurnTest {
     void anErrorUpstreamRaisesAtRunIsPlannedAtItsTurn() {
         Failure database = Failures.planned(new DataError("division by zero"), "the test");
         assertEquals(Failure.Kind.DATA, database.kind());
-        Failure decided = Failures.planned(new AssertFailed("expected 1, got 2"), "the test");
+        Failure decided = Failures.planned(new AssertFailed("expected: 1, actual: 2"), "the test");
         assertEquals(Failure.Kind.ASSERT_FAILED, decided.kind());
         // the window frame: legend-engine's rows()/_range() assert, raised when the frame is built (rows.pure)
         Failure frame = Failures.planned(new ModelException(LegendCompileException.Phase.TYPE,

@@ -1337,9 +1337,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer;
     }
 
-    /** {@code -x}. */
+    /** {@code -x}; {@code -(x)} when x's text starts with a minus, which after this one would write {@code --}, a
+     *  comment (B3 step 1b's review, 2026-11-24). */
     protected final SqlWriter negation(SqlWriter writer, List<SqlExpr> a) {
-        return writer.append("-").expr(a.get(0), 7);
+        SqlExpr x = a.get(0);
+        return writesLeadingMinus(x) ? writer.append("-(").expr(x, 0).append(")") : writer.append("-").expr(x, 7);
+    }
+
+    /** Whether {@code x}'s text starts with a minus: a negative number literal, written bare, or a negation. */
+    protected boolean writesLeadingMinus(SqlExpr x) {
+        return switch (x) {
+            case SqlExpr.IntLit i -> i.value() < 0;
+            case SqlExpr.FloatLit f -> Math.copySign(1.0, f.value()) < 0;
+            case SqlExpr.DecimalLit d -> d.value().signum() < 0;
+            case SqlExpr.Call c -> c.fn() == SqlFn.NEGATE;
+            default -> false;
+        };
     }
 
     /** {@code x IS NULL}. */

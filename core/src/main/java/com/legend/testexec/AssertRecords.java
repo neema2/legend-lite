@@ -145,7 +145,8 @@ final class AssertRecords {
     }
 
     static ErrorRecord notEqual(List<Object> e, List<Object> a, @Nullable String aClass) {
-        return record(AssertKind.NOT_EQUALS, "actual", LiteWords.pairSide(a, e, aClass));
+        return record(AssertKind.NOT_EQUALS, "expected", LiteWords.pairSide(e, a, null), "actual",
+                LiteWords.pairSide(a, e, aClass));
     }
 
     static ErrorRecord sameElements(List<Object> e, List<Object> a, @Nullable String eClass, @Nullable String aClass) {
@@ -225,7 +226,7 @@ final class AssertRecords {
      *  database judge's typed row structs, item 3's S4). */
     static ErrorRecord grids(List<? extends List<?>> e, List<? extends List<?>> a, boolean wantEqual) {
         return wantEqual ? record(AssertKind.EQUALS, "expected", rowsText(e), "actual", rowsText(a))
-                : record(AssertKind.NOT_EQUALS, "actual", rowsText(a));
+                : record(AssertKind.NOT_EQUALS, "expected", rowsText(e), "actual", rowsText(a));
     }
 
     static ErrorRecord size(@Nullable Object expected, long actual) {
@@ -245,7 +246,8 @@ final class AssertRecords {
 
     static ErrorRecord negated(String kind, List<Object> first, List<Object> second) {
         return switch (kind) {
-            case "NOT_EQ" -> record(AssertKind.NOT_EQUALS, "actual", LiteWords.side(second, null));
+            case "NOT_EQ" -> record(AssertKind.NOT_EQUALS, "expected", LiteWords.side(first, null), "actual",
+                    LiteWords.side(second, null));
             case "IS_NOT" -> record(AssertKind.IS_NOT, "actual", LiteWords.side(second, null));
             // the sides are the collection's, then the value's (planContains)
             case "NOT_CONTAINS" -> record(AssertKind.NOT_CONTAINS, "collection", LiteWords.values(first, null),

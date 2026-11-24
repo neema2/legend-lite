@@ -274,3 +274,58 @@ depends on it then); roster entries with reasons for the 14 DuckDB calendar test
 on DuckDB fails it the same way") and `testCmeValue`'s Lateral cell (the IEEE ruling); S132 (the Float tolerance in a
 printed text) deleted once the lift and B2's printer land, so the two H2 printing tests pass rather than being rostered.
 
+**Step 1b landed and checked (2026-11-24):** pushed `a770240b` (the literal fix, legend-engine's answers, S15 deleted,
+the lean-SQL baseline re-pinned: 21 rows, every one a shrink). Its round green on the Bazel tree; the warm lanes on
+a770240b -- Snowflake, Databricks, BigQuery, ten suites each under both rule sets: nothing moved, every ledger row
+matching, every canon line `ulp-policy=0` (no cloud Float sat one or two ULP from a test's expected value). Its
+independent review: no HIGH; MEDIUM M1 (the division operator's cast text bypassed DuckDB's literal form) and M2
+(`edge.EqualToJson`'s own 2-ULP tolerance, where legend-engine compares exactly) fixed in `5450ac7a` with the LOWs
+(registers S15 and S132 amended, DuckDB's own decimal-to-double coercion of a 16-17-digit literal recorded as a gap, the
+dead ULP census removed); Trino's compatibility route and ClickHouse's product route, whose Float literals are
+decimals, to be probed.
+
+
+## Step 3 -- the assert catalog in legend-pure's words (built 2026-11-24)
+
+The user's rulings of 2026-11-24: "keep errors close to pure when cheap/fast so don't have to reword everything on
+compatibility"; the values in the sentences in lite's own forms, and one line ("Agree with both proposals"). Each
+sentence read from the pinned legend-pure sources (`docs/records/compat-b3-homework/catalog-words-vs-legend-pure.md`).
+`error/AssertKind`'s templates, on every route:
+
+| Kind | Sentence |
+|---|---|
+| EQUALS | `expected: {expected}, actual: {actual}` |
+| EQUALS_KINDS | `expected: {expected} ({expectedKind}), actual: {actual} ({actualKind})` (lite's kinds kept, ruled) |
+| NOT_EQUALS | `{expected} should not equal {actual}` |
+| SIZE / NOT_SIZE | `expected size: {expected}, actual size: {actual}` / `size should not equal: {size}` |
+| CONTAINS / NOT_CONTAINS | `{collection} does not contain {value}` / `{collection} should not contain {value}` |
+| EMPTY / NOT_EMPTY | `{collection} is not empty` / `Expected non-empty collection` |
+| TRUE / FALSE | `Assert failed` |
+| IS / IS_NOT | `expected: {expected}, actual: {actual}` / `Should not be identical to: {actual}` |
+| JSON_EQUALS | `JSON strings don't represent semantically same object, expected: {expected}, actual: {actual}` |
+| ERROR / NO_ERROR | `Execution error message mismatch. The actual message was {actual} where the expected message was:{expected}` (NO_ERROR's actual `"No error was thrown"`) |
+| ERROR_LINE / ERROR_COLUMN | `Execution error line mismatch. Actual: {actual} where expected: {expected}` (column alike) |
+
+Kept lite's own (legend-pure has no sentence of its own, or lite's carries more): SAME_ELEMENTS, SAME_INSTANCE,
+INSTANCE_OF, TDS_EQUIVALENT, WITHIN_TOLERANCE, ERROR_NO_POSITION. NOT_EQUALS now carries both sides, as legend-pure's
+"X should not equal Y" prints them (the record's builders pass the expected side; `HostJudgments` 659 -> 660, dated).
+
+**Guards:** the nine legend-pure spellings are RULED rows of the spelling register (`CompatSpellingGuardTest`) and of
+the frozen terminal set (`TerminalRowsFrozenTest`, ruling `ASSERT_CATALOG`); the two assertError sentences written
+across two lines are pinned in the constant-pool guard (`CompatConstantPoolTest`, folded). **Re-recorded:** about 20
+core tests' expected sentences; channel B's ledger (63 rows, eleven lanes: the rows' texts converted frame by frame,
+nothing else moved); the corpus's accepted-divergence witnesses (39 rows: `expected "select top 20` ->
+`expected: "select top 20`, and one JSON witness `got [` -> `actual: [`); the generated goldens (the edge contract, the
+Python and engine-client generated files, the edge corpus and relational corpus outputs).
+
+**With it, step 1b's review follow-up:** the review's fix wrote a negative Float literal cast to DOUBLE in parentheses
+on DuckDB so a minus before it never writes `--` (a comment) -- 2 characters per negative literal, which grew three
+lean-SQL families. Replaced by the precise rule: a negation parenthesizes an operand whose text starts with a minus (a
+negative literal, a negation, DuckDB's bare double), every dialect; the literal itself bare, as every negative literal
+is written. The lean-SQL baseline and query capture unchanged; pinned in `DuckDbRenderTest`.
+
+**And the audience object** (step 2's review M1, the lift design's "one audience choice"): `com.legend.test.Audience`
+(the plan options, the run hook, the door, together); `TestObserver.audience(test)` with no default (the product's is
+`Audience.PRODUCT`); `PureTestRunner` threads it to the setups, the body and the judge; the corpus's observer returns
+legend-engine's (the recorder and the referee, the upstream style, the door); `EdgeProgram.upstream` refuses a plan
+style that is not upstream's.

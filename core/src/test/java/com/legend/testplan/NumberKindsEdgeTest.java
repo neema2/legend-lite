@@ -56,7 +56,7 @@ class NumberKindsEdgeTest {
                     AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(AssertFailed.class,
                             () -> run(c, body, compat), mode + " " + body);
                     // the catalog's words (item 3, 2026-11-21); the verdict lite's
-                    assertTrue(e.getMessage().startsWith("expected "), mode + " " + body + ": " + e.getMessage());
+                    assertTrue(e.getMessage().startsWith("expected: "), mode + " " + body + ": " + e.getMessage());
                 }
             }
         }

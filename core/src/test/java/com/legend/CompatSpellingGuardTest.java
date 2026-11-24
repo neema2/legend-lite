@@ -173,6 +173,19 @@ class CompatSpellingGuardTest {
             // "no arm of"); "Division by zero" is legend-pure's interpreted runtime (Java's BigDecimal; the compiled one
             // prints the divisor, finding F46); "Cast exception: " is Cast.java's for both kinds. The lite-own kinds (S138's
             // and S181's refusals, the load's width, INSERT_OUT_OF_BOUNDS, LIST_LENGTHS_DIFFER) spell nothing listed here
+            // the assert catalog's sentences, legend-pure's own where cheap (B3 step 3, the user's rulings of 2026-11-24:
+            // "keep errors close to pure when cheap/fast so don't have to reword everything on compatibility", and
+            // "Agree with both proposals" -- one line, lite's value forms in the slots); read from the pinned legend-pure
+            // sources (platform/pure/essential/tests/*.pure), docs/records/compat-b3-homework/catalog-words-vs-legend-pure.md
+            "error/AssertKind.java |  does not contain  | 1 | RULED",
+            "error/AssertKind.java | Assert failed | 2 | RULED",
+            "error/AssertKind.java | Execution error column mismatch | 1 | RULED",
+            "error/AssertKind.java | Execution error line mismatch | 1 | RULED",
+            "error/AssertKind.java | Execution error message mismatch | 2 | RULED",
+            "error/AssertKind.java | Expected non-empty collection | 1 | RULED",
+            "error/AssertKind.java | No error was thrown | 1 | RULED",
+            "error/AssertKind.java | Should not be identical to | 1 | RULED",
+            "error/AssertKind.java | should not equal | 2 | RULED",
             "error/ErrorKind.java | Cannot cast a collection of size | 2 | RULED",
             "error/ErrorKind.java | Cannot divide  | 1 | RULED",
             "error/ErrorKind.java | Cast exception:  | 2 | RULED",

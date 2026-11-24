@@ -39,16 +39,16 @@ class InBodyAssertRaiseTest {
     private record Case(String guard, RaiseKind kind, String sentence) {
     }
 
-    private static final String TRUE = "expected true, got false";
+    private static final String TRUE = "Assert failed";
 
     private static final List<Case> CASES = List.of(
             new Case("assert($r.x == 0)", RaiseKind.ASSERT_TRUE, TRUE),
-            new Case("assertFalse($r.x < 0)", RaiseKind.ASSERT_FALSE, "expected false, got true"),
+            new Case("assertFalse($r.x < 0)", RaiseKind.ASSERT_FALSE, "Assert failed"),
             new Case("assertEquals(0, $r.x)", RaiseKind.ASSERT_TRUE, TRUE),
             new Case("assertNotEquals(-1, $r.x)", RaiseKind.ASSERT_TRUE, TRUE),
             new Case("assertEmpty($r.x)", RaiseKind.ASSERT_TRUE, TRUE),
             new Case("assertNotEmpty(if($r.x > 0, |$r.x, |[]))", RaiseKind.ASSERT_NOT_EMPTY,
-                    "expected at least one value, got none"),
+                    "Expected non-empty collection"),
             new Case("fail()", RaiseKind.ASSERT_TRUE, TRUE));
 
     private static String query(String guard) {

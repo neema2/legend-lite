@@ -10,7 +10,14 @@ import java.util.Map;
 /**
  * A FAILED ASSERT'S CODE, AND LITE'S SENTENCE OF IT: ONE CATALOG FOR EVERY ROUTE (item 3 of the compatibility program,
  * 2026-11-21: assert verdicts as records; the user's Q15 = A of 2026-11-20, "lite's own assert-failure words on every
- * route"). The fourth family of the one error model ({@link ErrorCode}, beside {@link CompileKind}, {@link ErrorKind}
+ * route"). Since B3 step 3 (2026-11-24) a sentence is legend-pure's own wherever it is cheap (the user: "keep errors
+ * close to pure when cheap/fast so don't have to reword everything on compatibility"), read from the pinned legend-pure
+ * sources (platform/pure/essential/tests/*.pure; legend-engine's for JSON_EQUALS), on one line (legend-pure's
+ * leading and inner line breaks dropped), with lite's own value forms in its slots; lite's own where legend-pure has
+ * none, or where it needs what lite does not carry: EQUALS_KINDS (lite's value form has no D to tell 1 from 1D),
+ * SAME_ELEMENTS (legend-pure sorts both sides), SAME_INSTANCE (a runtime id), INSTANCE_OF (one slot more),
+ * TDS_EQUIVALENT (the printed table), WITHIN_TOLERANCE (legend-pure prints no delta), ERROR_NO_POSITION (legend-pure's
+ * is an incidental cast failure). The homework: docs/records/compat-b3-homework/catalog-words-vs-legend-pure.md. The fourth family of the one error model ({@link ErrorCode}, beside {@link CompileKind}, {@link ErrorKind}
  * and {@link FrameKind}): a failed assert is an {@link ErrorRecord} of one of these and its values; the sentence is
  * made from the record at the last step. Item 3's end state is that no plan holds an assert's sentence; until its S4
  * the database judge's verdict row still writes one in SQL from this table, and the compatibility edge's appeal path
@@ -32,21 +39,21 @@ import java.util.Map;
  * 2026-11-21 ~02:40).
  */
 public enum AssertKind implements ErrorCode {
-    EQUALS("expected {expected}, got {actual}"),
+    EQUALS("expected: {expected}, actual: {actual}"),
     /** Two values whose texts tie (the orchestrator's ruling, 2026-11-17): each side's kind after it. */
-    EQUALS_KINDS("expected {expected} ({expectedKind}), got {actual} ({actualKind})"),
-    NOT_EQUALS("expected a value other than {actual}"),
+    EQUALS_KINDS("expected: {expected} ({expectedKind}), actual: {actual} ({actualKind})"),
+    NOT_EQUALS("{expected} should not equal {actual}"),
     SAME_ELEMENTS("expected the elements {expected} in any order, got {actual}"),
-    SIZE("expected size {expected}, got {actual}"),
-    NOT_SIZE("expected a size other than {size}"),
-    CONTAINS("expected {collection} to contain {value}"),
-    NOT_CONTAINS("expected {collection} not to contain {value}"),
-    EMPTY("expected no values, got {collection}"),
-    NOT_EMPTY("expected at least one value, got none"),
-    TRUE("expected true, got false"),
-    FALSE("expected false, got true"),
-    IS("expected the same instance as {expected}, got {actual}"),
-    IS_NOT("expected an instance other than {actual}"),
+    SIZE("expected size: {expected}, actual size: {actual}"),
+    NOT_SIZE("size should not equal: {size}"),
+    CONTAINS("{collection} does not contain {value}"),
+    NOT_CONTAINS("{collection} should not contain {value}"),
+    EMPTY("{collection} is not empty"),
+    NOT_EMPTY("Expected non-empty collection"),
+    TRUE("Assert failed"),
+    FALSE("Assert failed"),
+    IS("expected: {expected}, actual: {actual}"),
+    IS_NOT("Should not be identical to: {actual}"),
     /** assertIs over two element references, no operand to name (the orchestrator's ruling, 2026-11-17). */
     SAME_INSTANCE("expected the same instance"),
     INSTANCE_OF("expected an instance of {type}, got {actual}"),
@@ -54,12 +61,15 @@ public enum AssertKind implements ErrorCode {
      *  other cell equal -- so no "in any order". */
     TDS_EQUIVALENT("expected the rows {expected} within {delta}, got {actual}"),
     WITHIN_TOLERANCE("expected {expected} within {delta}, got {actual}"),
-    JSON_EQUALS("expected the JSON {expected}, got {actual}"),
-    ERROR("expected the error {expected}, got {actual}"),
-    NO_ERROR("expected the error {expected}, got none"),
+    JSON_EQUALS("JSON strings don't represent semantically same object, expected: {expected}, actual:"
+            + " {actual}"),
+    ERROR("Execution error message mismatch. The actual message was {actual} where the expected message"
+            + " was:{expected}"),
+    NO_ERROR("Execution error message mismatch. The actual message was \"No error was thrown\" where the expected message"
+            + " was:{expected}"),
     // census J29 (2026-11-18): assertError's line and column, lite's own
-    ERROR_LINE("expected the error at line {expected}, got line {actual}"),
-    ERROR_COLUMN("expected the error at column {expected}, got column {actual}"),
+    ERROR_LINE("Execution error line mismatch. Actual: {actual} where expected: {expected}"),
+    ERROR_COLUMN("Execution error column mismatch. Actual: {actual} where expected: {expected}"),
     /** assertError's line or column asked of an error that carries no source position (a native database error, or a
      *  raise emission without provenance): item 3, 2026-11-21, until then a sentence outside the catalog, the same on
      *  both judges. */

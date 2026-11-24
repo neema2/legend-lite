@@ -1272,12 +1272,23 @@ public class DuckDb extends AnsiSqlRenderer {
      * not in the IR.
      */
     /** A Float literal as DuckDB's double: the double itself, its exponent form, which DuckDB reads correctly rounded
-     *  (its DECIMAL-to-DOUBLE cast is not: B3 step 1b, 2026-11-24); a negative one in parentheses, so a minus before it
-     *  never writes {@code --}, a comment (the review of step 1b). */
+     *  (its DECIMAL-to-DOUBLE cast is not: B3 step 1b, 2026-11-24); a negative one bare, as every negative literal is
+     *  written, a negation before it parenthesizing it ({@link #writesLeadingMinus}). */
     @Override
     protected SqlWriter.Piece floatLiteralAsDouble(SqlExpr.FloatLit f) {
         String d = doubleLiteral(f.value());
-        return w -> w.append(d.startsWith("-") ? "(" + d + ")" : d);
+        return w -> w.append(d);
+    }
+
+    /** A Float literal cast to DOUBLE is written bare here ({@link #floatLiteralAsDouble}): a negative one starts with
+     *  a minus. */
+    @Override
+    protected boolean writesLeadingMinus(SqlExpr x) {
+        if (x instanceof SqlExpr.Cast c && c.target() == com.legend.sql.SqlType.Scalar.DOUBLE
+                && c.value() instanceof SqlExpr.FloatLit f && Double.isFinite(f.value())) {
+            return Math.copySign(1.0, f.value()) < 0;
+        }
+        return super.writesLeadingMinus(x);
     }
 
     @Override

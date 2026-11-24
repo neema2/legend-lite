@@ -400,6 +400,15 @@ class DuckDbRenderTest {
                 SqlExpr.Reason.USER)));
         assertEquals("1.5E0", renderExpr(new SqlExpr.Cast(SqlExpr.FloatLit.of(1.5, SqlExpr.FloatLit.Kind.DOUBLE),
                 SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER)));
+        // a negative one bare, as every negative literal is written; a negation before it parenthesizes it, never
+        // writing --, a comment (the review of step 1b), and so for a negative literal and a negation under a negation
+        SqlExpr minusTwo = new SqlExpr.Cast(SqlExpr.FloatLit.of(-2.0, SqlExpr.FloatLit.Kind.DECIMAL),
+                SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER);
+        assertEquals("-2.0E0", renderExpr(minusTwo));
+        assertEquals("-(-2.0E0)", renderExpr(SqlExpr.Call.of(SqlFn.NEGATE, minusTwo)));
+        assertEquals("-(-2)", renderExpr(SqlExpr.Call.of(SqlFn.NEGATE, new SqlExpr.IntLit(-2))));
+        assertEquals("-(-t0.AGE)", renderExpr(SqlExpr.Call.of(SqlFn.NEGATE, SqlExpr.Call.of(SqlFn.NEGATE, col("AGE")))));
+        assertEquals("-t0.AGE", renderExpr(SqlExpr.Call.of(SqlFn.NEGATE, col("AGE"))));
     }
 
     private String renderExpr(SqlExpr e) {

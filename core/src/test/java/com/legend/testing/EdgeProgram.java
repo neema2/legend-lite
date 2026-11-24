@@ -46,8 +46,18 @@ public final class EdgeProgram {
      *  {@code options} and heard by the edge's run. */
     public static Program.Report run(String model, String body, @com.legend.base.Nullable String runtime,
             java.sql.Connection c, ExecuteOptions options) {
-        return Program.run(model, body, runtime, c, options, com.legend.edge.AppealRun.with(null),
+        return Program.run(model, body, runtime, c, upstream(options), com.legend.edge.AppealRun.with(null),
                 com.legend.edge.UpstreamTestBodies::admitted);
+    }
+
+    /** {@code options} if they plan in upstream's style, else refused by name: a body the edge's door admitted is
+     *  upstream's reading, never planned by the product's rules (the review of B3 step 2's M1, 2026-11-24). */
+    private static ExecuteOptions upstream(ExecuteOptions options) {
+        if (options.planning().style() != com.legend.edge.PureText.UPSTREAM) {
+            throw new IllegalArgumentException("the edge's door admits a body for upstream's reading; its options plan"
+                    + " in " + options.planning().style() + ", not upstream's style (EdgeProgram.compat or upstream)");
+        }
+        return options;
     }
 
     /** The last statement's side of {@code body} run on the edge's door with {@code options} (the edge's style and its
@@ -60,7 +70,7 @@ public final class EdgeProgram {
     /** {@code body} run on the edge's door with a session of its own per use ({@link Program#runFresh}). */
     public static Program.Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
             ExecuteOptions options) {
-        return Program.runFresh(model, body, runtime, options, com.legend.edge.AppealRun.with(null),
+        return Program.runFresh(model, body, runtime, upstream(options), com.legend.edge.AppealRun.with(null),
                 com.legend.edge.UpstreamTestBodies::admitted);
     }
 

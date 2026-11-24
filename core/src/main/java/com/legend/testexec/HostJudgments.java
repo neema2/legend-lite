@@ -882,7 +882,8 @@ final class HostJudgments {
                 return com.legend.testexecutionplan.Verdicts.fail(j.wantEqual()
                         ? record(com.legend.error.AssertKind.EQUALS, "expected", LiteWords.quoted(et), "actual",
                                 LiteWords.quoted(at))
-                        : record(com.legend.error.AssertKind.NOT_EQUALS, "actual", LiteWords.quoted(at)));
+                        : record(com.legend.error.AssertKind.NOT_EQUALS, "expected", LiteWords.quoted(et), "actual",
+                                LiteWords.quoted(at)));
             }
             if (j.counted()) {
                 com.legend.diagnostics.VerdictCensus.sqlRoute(name, "rendered-text");

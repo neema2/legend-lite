@@ -1877,7 +1877,9 @@ class BodyRouterParityTest {
         // lite's own sentence (the user's judge model, 2026-11-17): the actual after its last ", got ", JSON-quoted; on
         // the edge's run (a body binding legend-engine's plan handle) legend-pure's, after "\nactual:   ", %r-quoted
         // (census C1, 2026-11-17: the edge's style and its hook write legend-pure's words together)
-        String marker = run.outcome.contains("\nactual:   ") ? "\nactual:   " : ", got ";
+        // (B3 step 3, 2026-11-24: the catalog's ", actual: ", legend-pure's frame on one line)
+        String marker = run.outcome.contains("\nactual:   ") ? "\nactual:   "
+                : run.outcome.contains(", actual: ") ? ", actual: " : ", got ";
         int from = run.outcome.lastIndexOf(marker);
         assertTrue(run.outcome.startsWith("AssertFailed") && from >= 0, "an assert's failure naming its actual: "
                 + run.outcome);
@@ -1885,7 +1887,7 @@ class BodyRouterParityTest {
         if (shown.startsWith("[") && shown.endsWith("]")) {
             shown = shown.substring(1, shown.length() - 1);   // a collection of the one text
         }
-        char quote = marker.equals(", got ") ? '"' : '\'';
+        char quote = marker.startsWith("\n") ? '\'' : '"';
         assertTrue(shown.length() >= 2 && shown.charAt(0) == quote && shown.charAt(shown.length() - 1) == quote,
                 "one text: " + shown);
         StringBuilder text = new StringBuilder();

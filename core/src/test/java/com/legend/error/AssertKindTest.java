@@ -21,10 +21,10 @@ class AssertKindTest {
 
     @Test
     void aRowFillsItsSlotsInOrder() {
-        assertEquals("expected 3, got 4", AssertKind.EQUALS.fill(Map.of("expected", "3", "actual", "4")));
-        assertEquals("expected [1, 2] not to contain 2",
+        assertEquals("expected: 3, actual: 4", AssertKind.EQUALS.fill(Map.of("expected", "3", "actual", "4")));
+        assertEquals("[1, 2] should not contain 2",
                 AssertKind.NOT_CONTAINS.fill(Map.of("collection", "[1, 2]", "value", "2")));
-        assertEquals("expected at least one value, got none", AssertKind.NOT_EMPTY.fill(Map.of()));
+        assertEquals("Expected non-empty collection", AssertKind.NOT_EMPTY.fill(Map.of()));
     }
 
     @Test
@@ -78,8 +78,8 @@ class AssertKindTest {
     void anElementsFailureIsFramedByItsIndex() {
         ErrorRecord r = AssertKind.EQUALS.record(Map.of("expected", "1", "actual", "2"))
                 .framed(new ErrorRecord.Frame(FrameKind.AT_INDEX, List.of("3")));
-        assertEquals("expected 1, got 2 at index 3", r.sentence());
-        assertEquals("expected 1, got 2 at index 3", new AssertFailed(r).getMessage());
+        assertEquals("expected: 1, actual: 2 at index 3", r.sentence());
+        assertEquals("expected: 1, actual: 2 at index 3", new AssertFailed(r).getMessage());
     }
 
     @Test
@@ -113,29 +113,29 @@ class AssertKindTest {
     @Test
     void everyTemplateIsPinned() {
         Map<AssertKind, String> pinned = Map.ofEntries(
-                Map.entry(AssertKind.EQUALS, "expected {expected}, got {actual}"),
-                Map.entry(AssertKind.EQUALS_KINDS, "expected {expected} ({expectedKind}), got {actual} ({actualKind})"),
-                Map.entry(AssertKind.NOT_EQUALS, "expected a value other than {actual}"),
+                Map.entry(AssertKind.EQUALS, "expected: {expected}, actual: {actual}"),
+                Map.entry(AssertKind.EQUALS_KINDS, "expected: {expected} ({expectedKind}), actual: {actual} ({actualKind})"),
+                Map.entry(AssertKind.NOT_EQUALS, "{expected} should not equal {actual}"),
                 Map.entry(AssertKind.SAME_ELEMENTS, "expected the elements {expected} in any order, got {actual}"),
-                Map.entry(AssertKind.SIZE, "expected size {expected}, got {actual}"),
-                Map.entry(AssertKind.NOT_SIZE, "expected a size other than {size}"),
-                Map.entry(AssertKind.CONTAINS, "expected {collection} to contain {value}"),
-                Map.entry(AssertKind.NOT_CONTAINS, "expected {collection} not to contain {value}"),
-                Map.entry(AssertKind.EMPTY, "expected no values, got {collection}"),
-                Map.entry(AssertKind.NOT_EMPTY, "expected at least one value, got none"),
-                Map.entry(AssertKind.TRUE, "expected true, got false"),
-                Map.entry(AssertKind.FALSE, "expected false, got true"),
-                Map.entry(AssertKind.IS, "expected the same instance as {expected}, got {actual}"),
-                Map.entry(AssertKind.IS_NOT, "expected an instance other than {actual}"),
+                Map.entry(AssertKind.SIZE, "expected size: {expected}, actual size: {actual}"),
+                Map.entry(AssertKind.NOT_SIZE, "size should not equal: {size}"),
+                Map.entry(AssertKind.CONTAINS, "{collection} does not contain {value}"),
+                Map.entry(AssertKind.NOT_CONTAINS, "{collection} should not contain {value}"),
+                Map.entry(AssertKind.EMPTY, "{collection} is not empty"),
+                Map.entry(AssertKind.NOT_EMPTY, "Expected non-empty collection"),
+                Map.entry(AssertKind.TRUE, "Assert failed"),
+                Map.entry(AssertKind.FALSE, "Assert failed"),
+                Map.entry(AssertKind.IS, "expected: {expected}, actual: {actual}"),
+                Map.entry(AssertKind.IS_NOT, "Should not be identical to: {actual}"),
                 Map.entry(AssertKind.SAME_INSTANCE, "expected the same instance"),
                 Map.entry(AssertKind.INSTANCE_OF, "expected an instance of {type}, got {actual}"),
                 Map.entry(AssertKind.TDS_EQUIVALENT, "expected the rows {expected} within {delta}, got {actual}"),
                 Map.entry(AssertKind.WITHIN_TOLERANCE, "expected {expected} within {delta}, got {actual}"),
-                Map.entry(AssertKind.JSON_EQUALS, "expected the JSON {expected}, got {actual}"),
-                Map.entry(AssertKind.ERROR, "expected the error {expected}, got {actual}"),
-                Map.entry(AssertKind.NO_ERROR, "expected the error {expected}, got none"),
-                Map.entry(AssertKind.ERROR_LINE, "expected the error at line {expected}, got line {actual}"),
-                Map.entry(AssertKind.ERROR_COLUMN, "expected the error at column {expected}, got column {actual}"),
+                Map.entry(AssertKind.JSON_EQUALS, "JSON strings don't represent semantically same object, expected: {expected}, actual: {actual}"),
+                Map.entry(AssertKind.ERROR, "Execution error message mismatch. The actual message was {actual} where the expected message was:{expected}"),
+                Map.entry(AssertKind.NO_ERROR, "Execution error message mismatch. The actual message was \"No error was thrown\" where the expected message was:{expected}"),
+                Map.entry(AssertKind.ERROR_LINE, "Execution error line mismatch. Actual: {actual} where expected: {expected}"),
+                Map.entry(AssertKind.ERROR_COLUMN, "Execution error column mismatch. Actual: {actual} where expected: {expected}"),
                 Map.entry(AssertKind.ERROR_NO_POSITION, "expected the error at a source position, got an error with none"),
                 Map.entry(AssertKind.MESSAGE, "{message}"),
                 Map.entry(AssertKind.SEED_SINGLE_ROOT_VIEW, "Seed data generation currently supports queries with a single root table/view (unions are not supported)"),

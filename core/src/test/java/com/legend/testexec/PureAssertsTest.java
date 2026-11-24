@@ -95,19 +95,19 @@ class PureAssertsTest {
     @Test
     @DisplayName("spec: testFailureAssertEquals — the exact message")
     void specFailureMessage() {
-        assertEquals("expected 1, got 2",
+        assertEquals("expected: 1, actual: 2",
                 eqMsg(List.of(1L), List.of(2L), LITE));
     }
 
     @Test
     @DisplayName("spec: testFailureAssertEqualsWithCollections — exact messages")
     void specFailureCollections() {
-        assertEquals("expected [1, 3, 2], got [2, 4, 1, 5]",
+        assertEquals("expected: [1, 3, 2], actual: [2, 4, 1, 5]",
                 eqMsg(List.of(1L, 3L, 2L),
                         List.of(2L, 4L, 1L, 5L), LITE));
-        assertEquals("expected [1, 2], got [2, 1]",
+        assertEquals("expected: [1, 2], actual: [2, 1]",
                 eqMsg(List.of(1L, 2L), List.of(2L, 1L), LITE));
-        assertEquals("expected [\"aaa\", 2], got [2, \"aaa\"]",
+        assertEquals("expected: [\"aaa\", 2], actual: [2, \"aaa\"]",
                 eqMsg(List.of("aaa", 2L),
                         List.of(2L, "aaa"), LITE));
     }
@@ -140,7 +140,7 @@ class PureAssertsTest {
     @DisplayName("spec: assertSize message form")
     void sizeMessage() {
         assertNull(sizeMsg(List.of(1L, 2L), 2));
-        assertEquals("expected size 3, got 2",
+        assertEquals("expected size: 3, actual size: 2",
                 sizeMsg(List.of(1L, 2L), 3));
     }
 

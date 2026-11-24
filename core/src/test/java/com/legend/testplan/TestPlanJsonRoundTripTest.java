@@ -71,7 +71,7 @@ class TestPlanJsonRoundTripTest {
         org.junit.jupiter.api.Assertions.assertTrue(e instanceof com.legend.error.AssertFailed, e.getClass().getName());
         org.junit.jupiter.api.Assertions.assertEquals(ASSERT_FAILURE.record(),
                 ((com.legend.error.AssertFailed) e).record());
-        org.junit.jupiter.api.Assertions.assertEquals("expected 1, got 2 at index 0", e.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals("expected: 1, actual: 2 at index 0", e.getMessage());
         org.junit.jupiter.api.Assertions.assertEquals(ASSERT_FAILURE, com.legend.testexecutionplan.Failures.of(
                 (com.legend.error.AssertFailed) e, "the test"));
     }

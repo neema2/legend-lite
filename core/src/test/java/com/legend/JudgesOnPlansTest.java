@@ -179,7 +179,7 @@ class JudgesOnPlansTest {
                             null, com.legend.testexec.NoEdgeRun.NONE,
                             ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH)));
             // lite's own sentence, both judges' (the user's judge model, 2026-11-17)
-            assertEquals("expected 1, got 2", failed.getMessage());
+            assertEquals("expected: 1, actual: 2", failed.getMessage());
             assertEquals(-1, failed.getMessage().indexOf("DISAGREE"), failed.getMessage());
         }
     }
