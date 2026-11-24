@@ -43,7 +43,7 @@ class TerminalRowsFrozenTest {
             // item 3's S8: assertError's "nothing was raised" text, Pure's semantics (the user's Q-B, 2026-11-22)
             Map.entry("testexecutionplan/HostJudgment.java | No error was thrown | 1 | RULED", "Q-B, the user's ruling of"
                     + " 2026-11-22 (\"Q-S8 okay\"): an assertError expecting legend-pure's unraised text passes, as upstream"),
-            // the assert catalog: legend-pure's assert sentences in error/AssertKind.java (B3 step 3)
+            // the assert catalog: legend-pure's assert sentences in error/AssertKind.java (B3 step 3, 2026-11-24: the user's rulings, ASSERT_CATALOG)
             Map.entry("error/AssertKind.java | Assert failed | 2 | RULED", ASSERT_CATALOG),
             Map.entry("error/AssertKind.java | Execution error column mismatch | 1 | RULED", ASSERT_CATALOG),
             Map.entry("error/AssertKind.java | Execution error line mismatch | 1 | RULED", ASSERT_CATALOG),

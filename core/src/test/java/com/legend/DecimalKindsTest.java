@@ -139,7 +139,7 @@ class DecimalKindsTest {
         try (Connection c = seeded()) {
             assertTrue(judged(c, "|assertEquals(0.30D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)").passed());
             assertTrue(judged(c, "|assertEquals(1.00D, m::Price.all()->map(p|$p.a)->sum())").passed());
-            assertTrue(judged(c, "|assertEquals([1], m::Price.all()->filter(p|$p.b == 0.2D)->map(p|$p.id))")
+            assertTrue(judged(c, "|assertEquals([1], m::Price.all()->filter(p|$p.b == 0.2D)->map(p|$p.id)->sort())")
                     .passed());
         }
     }
@@ -187,7 +187,7 @@ class DecimalKindsTest {
     @DisplayName("a list of Decimals compares by value in lite (the column's 0.10s are 0.1D, S139)")
     void decimalListByValue() throws Exception {
         try (Connection c = seeded()) {
-            assertTrue(judged(c, "|assertEquals([0.1D, 0.1D], m::Price.all()->filter(p|$p.id <= 2)->map(p|$p.a))")
+            assertTrue(judged(c, "|assertEquals([0.1D, 0.1D], m::Price.all()->filter(p|$p.id <= 2)->map(p|$p.a)->sort())")
                     .passed());
         }
     }

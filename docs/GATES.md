@@ -22589,10 +22589,28 @@ docs/records/compat-b3-progress.md, step 2b. Every roster and register change be
   legend-pure's own now, where the edge's SQL text differed).
 - **`h2-unordered-register.txt` +1:** `testGroupByWithFilterFunction_noDatePath` (now passing, its rows compared as a
   multiset: an unordered chain, generated).
-- **`duckdb-engine-order-register.txt` -44 / +1:** the register names a test whose BODY statements the test lane's
-  scan-order emulation changed; a lifted side's read runs before the body (the emulation still applies to it), so 44
-  tests' changed statements left their bodies; + `inheritance::cross::testProjectAssociationTdsV2` (its read's frame
-  bound before the read, generated).
+- **`duckdb-engine-order-register.txt` -45 / +1 (976 -> 932 rows; corrected by step 2b's review, L2):** the register
+  names a test whose statements the test lane's scan-order emulation changed for an assert that needs the order; in the
+  de-registered tests the asserts became explicit `assertSameElements` (the door's order-free rewrites), so nothing needs
+  the order; + `inheritance::cross::testProjectAssociationTdsV2` (generated). The h2-unordered row's reason: an
+  unordered chain other than its first assert, whose query is sorted and still an exact `assertEquals`.
 - **PCT channel B's ledger -4 (h2 Relation):** `project::testSimpleProject`, `testSimpleProjectList`,
   `testSimpleProjectWithEmpty`, `composition::testFilterPostProject` pass: printed in Java, where the edge's SQL text
   needed a list function H2 has no encoding for.
+
+## 2026-11-24 — B3 step 4: an order-dependent assert of unordered rows refused by the product, explicit at the door
+
+The user's ruling (2026-11-24: "we don't let platform devs or users write tests that do not have a sort ... But we
+still need multi-set compare for backwards compatibility"). The test planner refuses an `assertEquals` or
+`assertNotEquals` of rows whose order the program does not define (`compiler/spec/OrderedAsserts`); the compatibility
+door rewrites upstream's to `assertSameElements` (`edge/UpstreamTestBodies.rowsOrderFree`); the host judge's incidental
+row multiset is deleted. Record: docs/records/compat-b3-progress.md, step 4. Every roster and golden change below:
+
+- **The edge corpus goldens (DuckDB, H2):** the asserts the door rewrote are recorded under their new kind,
+  `assertSameElements` where `assertEquals` stood; every verdict unmoved (PASS before and after).
+- **`duckdb-engine-order-register.txt` +1:** `tds::sort::testSimpleSortAscWithPreval` -- the order view reads
+  `preval`'s lambda now (step 2b's review, M4), so its sort is in sight (generated).
+- **PCT channel B's ledger +1 (duckdb-lite Standard):** `math::hashCode::tests::testHashCodeAggregate`, refused by the
+  rule on lite's own lane (its `assertEquals` of a map over a grouped relation); the compatibility lanes unmoved.
+- **The lean SQL ladder, r08 and r09:** the list compare is in order (`e.__l IS NOT DISTINCT FROM a.__l`), the
+  incidental multiset's `list_sort` gone with the judge's flag (regenerated).

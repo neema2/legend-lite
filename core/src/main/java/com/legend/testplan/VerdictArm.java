@@ -90,10 +90,10 @@ interface VerdictArm {
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
-    /** {@code assertEquals} / {@code assertNotEquals} after the text, rendered-text and grid-pair routes declined;
-     * {@code incidental}: the actual side's order is SQL arrival order (the judgment is order-insensitive);
-     * {@code gridPair}: a side is statically tabular. */
-    TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
+    /** {@code assertEquals} / {@code assertNotEquals} after the text, rendered-text and grid-pair routes declined, in
+     * order (a side with no defined order is refused before: OrderedAsserts, B3 step 4); {@code gridPair}: a side is
+     * statically tabular. */
+    TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args,
             boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 

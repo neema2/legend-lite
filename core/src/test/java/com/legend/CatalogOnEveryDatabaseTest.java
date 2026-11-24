@@ -85,7 +85,7 @@ class CatalogOnEveryDatabaseTest {
      *  catalog's, as the catalog's own engine plans them. */
     @Test
     void aSystemRoutedTestBodyRunsOnTheCatalogUnderEveryJudge() {
-        String body = "{| assertEquals(['Item'], " + CATALOG + "->map(r|$r.name));}";
+        String body = "{| assertEquals(['Item'], " + CATALOG + "->sort(~name->ascending())->map(r|$r.name));}";
         for (DatabaseType type : Databases.relational()) {
             var ctx = Compiler.compileModel(model(type));
             var onCatalog = Compiler.compileModel(model(catalogOf(type)));

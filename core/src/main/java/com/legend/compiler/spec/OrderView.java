@@ -46,8 +46,9 @@ public enum OrderView {
             // that reads them is compared in order, as upstream compares it (2026-11-04, the asserts-as-plan-nodes
             // program: assertEquals([3, 1, 2], [1, 2]->concatenate([3])) passed as a multiset where upstream fails it)
             com.legend.builtin.Pure.CONCATENATE__RELATION_1__RELATION_1.qualifiedName(),
-            com.legend.builtin.Pure.PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName(),
-            com.legend.builtin.Pure.AGGREGATE__RELATION_1__AGG_COL_SPEC_1.qualifiedName());
+            com.legend.builtin.Pure.PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName());
+    // (a relation's aggregate with no grouping: left ORDER_DESTROYING 2026-11-24, B3 step 4 -- its result is one row,
+    // whose order is defined; PCT's aggregate tests were refused as order-dependent on its strength)
 
     /** A collection's concatenate and union (2026-11-04, the asserts-as-plan-nodes program): the language's order --
      *  the first's elements, then the second's; union's first occurrences -- over its inputs', each read. */
@@ -139,6 +140,14 @@ public enum OrderView {
                         }
                     }
                 }
+                // preval(lambda, ...): the lambda itself, pre-folded at plan time (the review of B3 step 2b's M4,
+                // 2026-11-24: tds::sort::testSimpleSortAscWithPreval's sort was out of sight)
+                if (query instanceof TypedNativeCall pv
+                        && com.legend.builtin.NativeFn.Handle.of(pv.callee().id()).orElse(null)
+                                == com.legend.builtin.NativeFn.Handle.PREVAL
+                        && !pv.args().isEmpty()) {
+                    query = pv.args().get(0);
+                }
                 if (query instanceof com.legend.compiler.spec.typed.TypedLambda lam && !lam.body().isEmpty()) {
                     return of(lam.body().get(lam.body().size() - 1), lets, seen, hook);
                 }
@@ -195,6 +204,11 @@ public enum OrderView {
         // a graph fetch / serialize keeps its ROOT query's order (the
         // engine's graph result is the root SQL's arrival order; a nested
         // property's order is the mapping's, not the chain's)
+        // a relation's aggregate with no grouping (TypedAggregate) is one row, whose order is defined (B3 step 4,
+        // 2026-11-24: it left the order-destroying nodes below with its native above)
+        if (s instanceof com.legend.compiler.spec.typed.TypedAggregate) {
+            return OrderView.DEFINED;
+        }
         if (s instanceof com.legend.compiler.spec.typed.TypedGraphFetch gf) {
             return of(gf.source(), lets, seen, hook);
         }
@@ -208,7 +222,6 @@ public enum OrderView {
         // in SQL (a GROUP BY, a join, a UNION have none): the chain's
         // order is incidental past them unless a later sort names it
         if (s instanceof com.legend.compiler.spec.typed.TypedGroupBy
-                || s instanceof com.legend.compiler.spec.typed.TypedAggregate
                 || s instanceof com.legend.compiler.spec.typed.TypedJoin
                 || s instanceof com.legend.compiler.spec.typed.TypedAsOfJoin
                 || s instanceof com.legend.compiler.spec.typed.TypedConcatenate

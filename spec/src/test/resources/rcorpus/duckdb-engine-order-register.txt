@@ -866,6 +866,7 @@ engine-order meta::relational::tests::tds::sort::testDoubleSortMixed
 engine-order meta::relational::tests::tds::sort::testDoubleSortMixedChain
 engine-order meta::relational::tests::tds::sort::testSimpleSortAsc
 engine-order meta::relational::tests::tds::sort::testSimpleSortAscHelper
+engine-order meta::relational::tests::tds::sort::testSimpleSortAscWithPreval
 engine-order meta::relational::tests::tds::sort::testSimpleSortDesc
 engine-order meta::relational::tests::tds::sort::testSimpleSortDescHelper
 engine-order meta::relational::tests::tds::tabletds::testSimpleConcatenate

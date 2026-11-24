@@ -247,6 +247,7 @@ public final class TestPlanner {
     private static TypedQuery lifted(TypedQuery given, PlanningOptions options) {
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
         com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
+        com.legend.compiler.spec.OrderedAsserts.refuse(lifted);
         TypedQuery out = lifted == given.body() ? given : given.withBody(lifted);
         // the run's planning options reach the body's own statements (its lets, checks and answer, which
         // ProductStatements plans by the query's options) as they reach its asserts (the planner's env): the final

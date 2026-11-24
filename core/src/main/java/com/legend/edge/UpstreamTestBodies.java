@@ -44,8 +44,47 @@ public final class UpstreamTestBodies {
 
     /** {@code typed} as upstream's runners read it: the body rewritten (above), the query itself where nothing is. */
     public static com.legend.TypedQuery admitted(com.legend.TypedQuery typed) {
-        List<TypedSpec> read = joinsOrderFree(typed, jsonGoldensCleaned(countedAsOne(typed.body())));
+        List<TypedSpec> read = rowsOrderFree(typed, joinsOrderFree(typed, jsonGoldensCleaned(countedAsOne(typed.body()))));
         return read == typed.body() ? typed : typed.withBody(read);
+    }
+
+    /** {@code body} with each {@code assertEquals} one of whose sides has no defined order ({@code OrderView.INCIDENTAL}:
+     *  a store or frame read with no sort, or past a grouping, a join, a union) made {@code assertSameElements} of the
+     *  same two sides (B3 step 4, 2026-11-24: the user's "we still need multi-set compare for backwards compatibility",
+     *  made explicit at the door; until now the judges compared such a pair as a multiset on their own, register S131's
+     *  rows and grids). Lite's planner refuses the order-dependent form ({@code compiler.spec.OrderedAsserts}). A
+     *  printed or joined text is the lift's and {@link #joinsOrderFree}'s, which run first. The body itself where
+     *  nothing is rewritten. */
+    static List<TypedSpec> rowsOrderFree(com.legend.TypedQuery typed, List<TypedSpec> body) {
+        List<TypedSpec> out = new java.util.ArrayList<>(body.size());
+        List<TypedSpec> lets = new java.util.ArrayList<>();
+        boolean changed = false;
+        for (TypedSpec statement : body) {
+            TypedSpec r = rowOrderFree(typed, statement, lets);
+            changed |= r != statement;
+            out.add(r);
+            lets.add(r);
+        }
+        return changed ? out : body;
+    }
+
+    private static TypedSpec rowOrderFree(com.legend.TypedQuery typed, TypedSpec n, List<TypedSpec> lets) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall call && call.args().size() == 2
+                && NativeFn.Verdict.of(Calls.calleeIdOf(n)).orElse(null) == NativeFn.Verdict.ASSERT_EQUALS
+                && (com.legend.compiler.spec.OrderedAsserts.unorderedRows(call.args().get(0), lets)
+                        || com.legend.compiler.spec.OrderedAsserts.unorderedRows(call.args().get(1), lets))) {
+            return EngineSubstitutes.call(typed.context(), List.of(com.legend.model.FunctionId.of(
+                    com.legend.builtin.Pure.ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY)), call.args(), call.pos());
+        }
+        List<TypedSpec> kids = n.children();
+        List<TypedSpec> rebuilt = new java.util.ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = rowOrderFree(typed, k, lets);
+            changed |= r != k;
+            rebuilt.add(r);
+        }
+        return changed ? n.withChildren(rebuilt) : n;
     }
 
     /** {@code body} with each order-dependent comparison of a golden text and a join of a list whose order the program
@@ -75,12 +114,17 @@ public final class UpstreamTestBodies {
             NativeFn.Verdict fn = NativeFn.Verdict.of(Calls.calleeIdOf(n)).orElse(null);
             if (fn == NativeFn.Verdict.ASSERT_EQUALS || fn == NativeFn.Verdict.ASSERT_SAME_ELEMENTS) {
                 for (int side = 0; side < 2; side++) {
-                    String golden = literalText(call.args().get(1 - side));
+                    String golden = literalText(com.legend.compiler.spec.typed.Lets.bound(call.args().get(1 - side), lets));
                     // the join where it stands, or the let it is bound to (`let res = L->makeString(','); assertEquals(
                     // golden, $res)`: the corpus's testQualifierWithForkAndOrWithInline)
                     TypedSpec joined = com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets);
                     TypedSpec list = unorderedJoined(joined, lets);
-                    if (golden == null || list == null) {
+                    // an empty golden is left as written (an empty list joins to '' but '' splits to one piece); a
+                    // list moved from its let to the assert is never moved past a write (the review of step 2b's M2,
+                    // 2026-11-24). A separator inside a value is a known narrowing: the golden's pieces are compared
+                    // with the list's values, where upstream split both texts
+                    if (golden == null || list == null || golden.isEmpty()
+                            || joined != call.args().get(side) && writesSince(call.args().get(side), lets, typed)) {
                         continue;
                     }
                     String sep = ((com.legend.compiler.spec.typed.TypedCString)
@@ -132,6 +176,26 @@ public final class UpstreamTestBodies {
         return cell instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
                 && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable row
                 && row.name().equals(fn.parameters().get(0));
+    }
+
+    /** Whether a statement after the let {@code variable} is bound to (and before the assert) writes. */
+    private static boolean writesSince(TypedSpec variable, List<TypedSpec> lets, com.legend.TypedQuery typed) {
+        if (!(variable instanceof com.legend.compiler.spec.typed.TypedVariable v)) {
+            return false;
+        }
+        int at = -1;
+        for (int i = lets.size() - 1; i >= 0 && at < 0; i--) {
+            if (lets.get(i) instanceof com.legend.compiler.spec.typed.TypedLet l && l.name().equals(v.name())) {
+                at = i;
+            }
+        }
+        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+        for (int i = at + 1; i < lets.size(); i++) {
+            if (com.legend.compiler.spec.StatementEffects.containsEffect(lets.get(i), typed.specs(), memo)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The list {@code e} joins -- {@code L->joinStrings(sep)} or {@code L->makeString(sep)}, a literal separator, a
