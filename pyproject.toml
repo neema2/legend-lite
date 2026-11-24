@@ -1,7 +1,7 @@
 # The repository's Python workspace: the packages every Python target uses, and the Python tools' settings. Not a
 # package itself (python/ builds legend-lite's wheel, //python:wheel): uv reads it to write uv.lock, which pins
 # every package with its hashes and which Bazel's one pip hub (@pypi, MODULE.bazel) reads.
-# Change a dependency here, then `bazel run //tools/python:lock.update`.
+# Change a dependency here, then `bazel run //:uv_lock.update`.
 [project]
 name = "legend-lite-workspace"
 version = "0"
