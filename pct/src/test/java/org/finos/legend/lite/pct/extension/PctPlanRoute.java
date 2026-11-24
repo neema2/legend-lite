@@ -146,10 +146,6 @@ final class PctPlanRoute {
         java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
         // counted as chosen here, the text and the flags the run is handed, for the ENGINE lane's check (RouteAudience)
         RouteAudience.planned(audience == Audience.LEGEND_ENGINE && features.isEmpty());
-        // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
-        // a lane holding a session (a cloud's) asks the plan's answering target first
-        // planned in the audience's style; a raise says the one catalog's sentence on every audience (stage B's BE,
-        // 2026-11-21: until then RaisedWords reworded it for legend-pure's and legend-engine's)
         // B2b S2 (stage B's B2, 2026-11-24; the plan of record's B2 and E0 = A, "E0 - yes": at legend-pure's and
         // legend-engine's doors the edge removes a final toString()/toCSV() and hands the run a table printer as its
         // receiver): a compatibility audience's case whose last step prints a relation answers legend-pure's text,
@@ -174,6 +170,10 @@ final class PctPlanRoute {
             return new Answer(ExecutionPlan.TdsResult.Shape.VALUE, new PlanRunner.Rows(java.util.List.of(value),
                     java.util.List.of(java.util.List.<Object>of(text.get(0)))), query.resultType(), null, null);
         }
+        // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
+        // a lane holding a session (a cloud's) asks the plan's answering target first
+        // planned in the audience's style; a raise says the one catalog's sentence on every audience (stage B's BE,
+        // 2026-11-21: until then RaisedWords reworded it for legend-pure's and legend-engine's)
         ExecutionPlan plan = com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)

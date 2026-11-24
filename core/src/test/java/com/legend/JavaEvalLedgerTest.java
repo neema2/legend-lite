@@ -2013,7 +2013,9 @@ class JavaEvalLedgerTest {
                             // receiver that prints it (stage B's B2, B2b S1, 2026-11-24: the plan of record's B2, the
                             // user's ~18:12 ruling of 2026-11-19, "Yes record it"; rule 3 and G6, small Java formatting
                             // at the edge): spells each typed cell as legend-pure prints it, decides nothing, computes no
-                            // value (the database computed every cell)
+                            // value (the database computed every cell); the one string operation it runs is the
+                            // program's literal replace calls on the printed text, the user's ruling of 2026-11-24
+                            // ~13:53 ("also do the replace in java too")
                             "PureRelationText.java", "PureRelationTextWriter.java",
                             // a program whose last step prints a relation, lifted at legend-pure's and legend-engine's
                             // doors (stage B's B2, B2b S2, 2026-11-24: the plan of record's B2; E0 = A, 2026-11-20, "E0 -

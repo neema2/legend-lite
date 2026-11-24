@@ -203,6 +203,21 @@ value's root. `PctPlanRoutePrintTest.aMixedSelectionInAColumnIsRefusedOnBothRoad
 refusal of a tagged column (`requirePrintable`) waits for the day a relation's column can be one, so this case needs no
 other rule now.
 
+**The CSV prints, measured** (B2b's midpoint audit, 2026-11-24; `PureRelationTextParityTest`, DuckDB, H2 and
+SQLite):
+- The helper's `toCSV()` and `toCSV(true)`: the Java and SQL texts are equal on every measured carrier (Integer,
+  String, Boolean, an empty cell, Float, StrictDate, Decimal, Number, a quoted name, no rows, a group's sum and
+  average, several rows in no asked order), except a cell with a time of day. That cell is **gap 4**: the printer
+  writes helperFunctions' `SimpleDateTimeFormat` (`2014-01-01 10:20:30`), the edge's SQL Pure's TDS DateTime text
+  (`2014-01-01T10:20:30.123456+0000`). Pinned on both roads (`aToCsvsDateTimeCellIsTheWindowsGap4`). S4 reads it on the
+  corpus, with legend-pure's and legend-engine's answers from the pinned sources, and posts it for the user's word.
+- A TDS's `csv` property applies to a TDS value alone: after any relation function, `.csv` reads a column named csv.
+  The edge's SQL refuses a TDS literal's `csv` by name (its rows reach the renderer as a mixed list); the printer
+  writes legend-engine's text (`i, s\n3,c\n1,a\n2,TDSNull`), so the door's lift answers what the SQL refused. Pinned
+  (`aTdsLiteralsCsvIsRefusedByTheSqlAndWrittenByThePrinter`).
+- Not measured here: an integer-held or decimal-held Float in a CSV (no store in this test) and a to-many cell (no TDS
+  literal holds one; `docs/CSV_DIFFERENTIAL.md` mechanism 3). S4 measures both on the corpus.
+
 No PCT or corpus case meets the two-printer window today, since no case ends in a print at channel A. It closes with
 S4 and S6.
 
@@ -232,10 +247,37 @@ S4 and S6.
   expression as a print with its literal replaces. The door's `lift` and B3's test-body lift (`edge.UpstreamPrints`,
   switching to it) read the same rule.
 
+### B2b's midpoint design audit (2026-11-24)
+
+The verdict: sound to continue. What it asked, and where each stands:
+- The CSV prints were unmeasured: measured above.
+- `CONSTRAINT_UNEVALUABLE` rides as a record (`RaiseText.asData`) beside S3's plain literal. It stays: its
+  `asData` is the plan-types guard's registered prose residue (`PlanTypesAreDataTest.PROSE_RESIDUE`), which S7
+  removes by wording the defects in Java from typed rows; making it a literal now would close the residue by
+  relabelling it (G4). Agreed by the orchestrator, 2026-11-24.
+- **Carried into S5/S6's brief:** once `RelationTextLowering` is deleted, `PrintedRelations.side` needs a rule for the
+  shapes `knownColumns` leaves to it (a raw grid's toCSV is answered from the grid's report today; a dynamic pivot whose
+  columns nothing names): relax `knownColumns`, since the writer receives the columns at run time, or a named refusal
+  measured on the corpus.
+- **Carried into S4/S6's brief:** S6 deletes the value-print passes, so a last-step scalar print needs the same lift
+  and one legend-pure value printer (G1). Decide at S4 whether `Side` covers value prints and extract one value
+  printer, rather than adding a second Float printer.
+- Nits, fixed: the printer's String rule (a String cell is printed only where a column holds text; under a number, a
+  Boolean or a date it is refused by name, invariant 4); `JavaEvalLedgerTest`'s reason names the ruled Java `replace`;
+  `PctPlanRoute`'s comment back above the main run.
+- A nit recorded, not changed: a Number column's fractional cell arrives as a BigDecimal and prints as a Float, so a
+  Decimal held in a Number column loses its scale (`1.50D` prints `1.5`), as the SQL did. It belongs with slice 4's
+  "the type carried beside the value" item.
+- **For the user's word after S4's measurement** (the orchestrator puts them together): (a) the TDS date-time text's
+  digits past the millisecond (`.123456+0000`, where legend-engine's TestTDS cuts to `.123+0000`) and (b) toCSV's
+  date-time cells (gap 4) -- each with the expression, legend-pure's answer read from the pinned sources,
+  legend-engine's, lite's, and the cases each moves.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
 |---|---|---|---|
+| 2026-11-24 | B2b's MIDPOINT design audit, `54f8be8e3..607d24dcc`, a subagent, read-only, given the plan of record, the tenets and the record | verdict "sound to continue"; no must-fix. Should-fix: the CSV prints unmeasured against the SQL text; two mechanisms in one defect object; `side()` at S5/S6; legend-pure's value prints at S6. Nits: a String cell under any column type; the ledger's reason; a Decimal in a Number column; the route's comment; two differences not yet register rows | the CSV measured and pinned (gap 4; a TDS literal's csv); the record kept, with the orchestrator's agreement (G4); S5/S6 and S4/S6 items carried; the nits fixed or recorded; (a) and (b) for the user's word after S4 |
 | 2026-11-24 | B2b S3, `ba8acecdb`, a subagent, read-only | must-fix: the generated host tables (`lite-raise.ts`, `_type_facts.py`) list every `RaiseKind`, and a new one was added without regenerating them. Questions 1-5 clean: S3a's text byte-identical for every id; the old message a bare literal, the children walk in step, the simple name identical, the guard edits legitimate. Nits: two stale comments (`SqlExpr.RaiseText`, `RaiseTextTest`); the null message's children walk unpinned | the must-fix made moot: `CONSTRAINT_VIOLATED` is no `RaiseKind` (the gate also measured the record's plan growth, so the sentence is a plain literal); the comments corrected; the children walk pinned |
 | 2026-11-24 | B2b S2's fix round, `6fc717f9f` and `8551b293d`, a subagent, read-only | no must-fix; the four fixes confirmed (`knownColumns` is at least as strict as the lowering's special cases, and lifts a pivot whose columns a cast names), and the native-claims census right. Should-fix: a mixed (tagged) column passes `knownColumns`, so the door lifts its print and the printer refuses it where the SQL text answered it. Nits: the toCSV route test passed on either road; four unpinned shapes; the record's lane count and when the lanes ran; the predicate's home when `RelationTextLowering` goes | the mixed column measured: refused by name on both roads today (a tagged value reaches the renderer only at a value's root), pinned on both; the route test proves the lifted branch (a Float the two roads print differently); a pivot named by a cast pinned as lifted; the record corrected. The raw grid, the no-column relation and the zero-argument format functions (absent from lite's catalog) stay unpinned |
 | 2026-11-24 | B2b S2's design, `54d922e92`, a subagent, read-only, given the code, the plan of record and the tenets | no must-fix; lifted forms, the lifted query, the route's answer and the tenets clean. Should-fix: the one-plan measurement planned the print's query, not the relation's; a dynamic pivot's and a raw grid's prints lifted where the lowering refuses or answers them by its own rule; the four-argument toCSV with the default formats not lifted; the window with two printers unrecorded. Nits: a redundant `withOptions`; a `csv` over a cast not lifted (kept: the resolver's); toCSV's argument not checked to be a relation. Tests: toCSV's forms, the `csv` property, a non-literal replacement, the options, the kept statements, a dynamic pivot | all, in this round; the cast-wrapped `csv` stays the run's |

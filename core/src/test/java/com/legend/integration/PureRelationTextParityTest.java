@@ -47,7 +47,9 @@ class PureRelationTextParityTest {
             "#TDS\n  i:Integer, d:Decimal\n  1, 1.50\n  2, 2.0\n  3, -0.125\n#->sort(~i->ascending())",
             "#TDS\n  i:Integer, n:Number\n  1, 21\n  2, 2.5\n#->sort(~i->ascending())",
             "#TDS\n  i:Integer, f:Float\n  1, 1.5\n  2, 2.5\n#->groupBy(~i, ~a: r|$r.f : s|$s->average())"
-                    + "->sort(~i->ascending())");
+                    + "->sort(~i->ascending())",
+            // B2b's midpoint audit (2026-11-24): several rows in no order the program asks for -- each road's order
+            "#TDS\n  i:Integer, s:String\n  3, c\n  1, a\n  2, b\n#");
 
     @Test
     void theJavaPrinterWritesTheEdgesSqlText() throws Exception {
@@ -112,16 +114,108 @@ class PureRelationTextParityTest {
         }
     }
 
+    /**
+     * THE CSV PRINTS AGAINST THE EDGE'S SQL TEXT (B2b's midpoint audit, 2026-11-24: S2 lifts the helper's toCSV, which no
+     * measure compared): for each relation, the helper's {@code toCSV()} and {@code toCSV(true)}, the edge's SQL text
+     * against the Java printer's -- equal on each lane's database, but for a cell with a time of day, which is the
+     * window's gap 4 ({@link #aToCsvsDateTimeCellIsTheWindowsGap4}).
+     */
+    @Test
+    void theCsvPrintsAgainstTheEdgesSqlText() throws Exception {
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("");
+        List<String> differ = new ArrayList<>();
+        java.util.Map<PureRelationTextWriter.Form, String> forms = new java.util.LinkedHashMap<>();
+        forms.put(PureRelationTextWriter.Form.TO_CSV, "->meta::relational::tests::csv::toCSV()");
+        forms.put(PureRelationTextWriter.Form.TO_CSV_TDS_NULL, "->meta::relational::tests::csv::toCSV(true)");
+        try (Connection c = backend.open(PureText.UPSTREAM)) {
+            for (String rel : RELATIONS) {
+                if (rel.contains("DateTime") || rel.contains("d:Date\n")) {
+                    continue;   // a cell with a time of day: gap 4, pinned below
+                }
+                for (var form : forms.entrySet()) {
+                    String sql;
+                    String java;
+                    try {
+                        sql = Lean.runInStyle(model, "|" + rel + form.getValue(), StorelessRuntime.RUNTIME, c,
+                                PureText.UPSTREAM).rows().get(0).get(0).toString();
+                        java = printed(model, rel, c, form.getKey());
+                    } catch (RuntimeException e) {
+                        differ.add(form.getKey() + " " + rel.replace("\n", "\\n") + "\n  failed: " + e);
+                        continue;
+                    }
+                    if (!sql.equals(java)) {
+                        differ.add(form.getKey() + " " + rel.replace("\n", "\\n") + "\n  SQL:  "
+                                + sql.replace("\n", "\\n") + "\n  Java: " + java.replace("\n", "\\n"));
+                    }
+                }
+            }
+        }
+        assertEquals(List.of(), differ, backend.name());
+    }
+
+    /**
+     * THE WINDOW'S GAP 4 (measured 2026-11-24 on DuckDB, H2 and SQLite): a toCSV's cell with a time of day is
+     * helperFunctions' {@code SimpleDateTimeFormat} in the printer ({@code yyyy-MM-dd HH:mm:ss}: the seconds, no
+     * fraction, no zone) and Pure's TDS DateTime text in the edge's SQL; every other cell of the measured relations
+     * agrees. Held as measured until S4 reads it on the corpus and the user rules it (the progress record's S2 window).
+     */
+    @Test
+    void aToCsvsDateTimeCellIsTheWindowsGap4() throws Exception {
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("");
+        String rel = "#TDS\n  i:Integer, t:DateTime\n  1, 2014-01-01T10:20:30.123456\n  2, 2014-01-01T10:20:30.5\n#"
+                + "->sort(~i->ascending())";
+        try (Connection c = backend.open(PureText.UPSTREAM)) {
+            assertEquals("i,t\n1,2014-01-01T10:20:30.123456+0000\n2,2014-01-01T10:20:30.5+0000\n",
+                    Lean.runInStyle(model, "|" + rel + "->meta::relational::tests::csv::toCSV()",
+                            StorelessRuntime.RUNTIME, c, PureText.UPSTREAM).rows().get(0).get(0).toString(),
+                    backend.name());
+            assertEquals("i,t\n1,2014-01-01 10:20:30\n2,2014-01-01 10:20:30\n",
+                    printed(model, rel, c, PureRelationTextWriter.Form.TO_CSV), backend.name());
+        }
+    }
+
+    /**
+     * A TDS's {@code csv} property, measured where it applies (B2b's midpoint audit, 2026-11-24): on a TDS value -- after
+     * any relation function {@code .csv} reads a column named csv. The edge's SQL refuses a TDS literal's csv by name
+     * (its rows reach the renderer as a mixed list); the printer writes legend-engine's text, so the door's lift answers
+     * it (the progress record's S2 window).
+     */
+    @Test
+    void aTdsLiteralsCsvIsRefusedByTheSqlAndWrittenByThePrinter() throws Exception {
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("");
+        String rel = "#TDS\n  i:Integer, s:String\n  3, c\n  1, a\n  2, \n#";
+        try (Connection c = backend.open(PureText.UPSTREAM)) {
+            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> Lean.runInStyle(model,
+                    "|" + rel + ".csv", StorelessRuntime.RUNTIME, c, PureText.UPSTREAM));
+            String chain = "";
+            for (Throwable t = refused; t != null; t = t.getCause()) {
+                chain += t.getMessage() + " | ";
+            }
+            org.junit.jupiter.api.Assertions.assertTrue(chain.contains("a tagged list reached the renderer"), chain);
+            assertEquals("i, s\n3,c\n1,a\n2,TDSNull", printed(model, rel, c, PureRelationTextWriter.Form.TDS_CSV),
+                    backend.name());
+        }
+    }
+
     /** {@code rel}'s rows, run on {@code c} in the edge's style, printed by the Java printer. */
     private static String printed(String model, String rel, Connection c) throws Exception {
+        return printed(model, rel, c, PureRelationTextWriter.Form.TO_STRING);
+    }
+
+    /** {@code rel}'s rows, run on {@code c} in the edge's style, printed by the Java printer in {@code form}. */
+    private static String printed(String model, String rel, Connection c, PureRelationTextWriter.Form form)
+            throws Exception {
         List<String> text = new ArrayList<>();
         com.legend.Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)),
                                 "|" + rel).withOptions(Lean.TEST_OPTIONS), StorelessRuntime.RUNTIME,
                 com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
                 com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
                 com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(), PureText.UPSTREAM,
-                new com.legend.result.Output.Rows(new PureRelationTextWriter(PureRelationTextWriter.Form.TO_STRING,
-                        List.of(), text::add)), com.legend.result.Batcher.DEFAULT_CAPACITY);
+                new com.legend.result.Output.Rows(new PureRelationTextWriter(form, List.of(), text::add)),
+                com.legend.result.Batcher.DEFAULT_CAPACITY);
         if (text.size() != 1) {
             throw new IllegalStateException("the printer answered " + text.size() + " texts");
         }

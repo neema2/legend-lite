@@ -228,6 +228,10 @@ public final class PureRelationText {
      * </ul>
      * Anything else -- a list, a map, a structure -- is refused by name.
      */
+    /** The column types whose cell is never a text. */
+    private static final java.util.Set<String> NOT_TEXT = java.util.Set.of("Integer", "Float", "Decimal", "Number",
+            "Boolean", "Date", "StrictDate", "DateTime", "StrictTime");
+
     static String value(Object v, ExecutionPlan.Column c) {
         String type = c.type();
         if (type.equals("Float")) {
@@ -247,7 +251,9 @@ public final class PureRelationText {
             case Double d -> pureFloat(d);
             case BigDecimal d -> type.equals("Number") ? pureFloat(d.doubleValue()) : d.toPlainString();
             case Boolean x -> x.toString();
-            case String s -> s;
+            // a text where a column holds text (a String, an enumeration's name, Any, a Variant); under a number, a
+            // Boolean or a date it is no value this printer has a rule for (B2b's midpoint audit, 2026-11-24)
+            case String s when !NOT_TEXT.contains(type) -> s;
             case PureDateLiteral d -> date(d);
             case PureTimeLiteral t -> t.canonicalText();
             default -> throw refused("toString", v, c);
