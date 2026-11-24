@@ -6,6 +6,53 @@ and the equality's semantics -- strict typing everywhere (the user, 2026-11-24: 
 numbers by type and value ... if we say yes then we should actually be strict (same with timestamp == date)", then, on
 strict typing including ordering, "I like it" and "Love it").
 
+## Stage B in full
+
+The program's plan (`docs/records/compat-design-and-plan-plain-2026-11-19.md` on `claude/compat-program`, ruled
+2026-11-19 ~13:25, "Okay agree with all"), with what has happened since.
+
+| Item | What (the program's words) | How we know it worked (the program's) | State, 2026-11-24 |
+|---|---|---|---|
+| B1 | Errors become plain records; each side's formatter words them; upstream wording never enters lite's plans | every pinned error message unchanged except a short named list | **landed** (PR #131, "the one error model") |
+| item 3 | Assert verdicts as typed records in one catalog; the database judge over typed values | no verdict moves on any lane but ruled ones | **landing** (PR #132): CI green on a39883f3; one blocking fix from its review, in its last round |
+| B3 | The fallback and legend-pure-style checking move behind three narrow connections, with four small rewrites of legend-engine's test code at the door | both corpus result lists byte-identical | **next** (steps 1-3 below) |
+| B2 | Formatters replace SQL-built text (about 2,000 lines deleted): legend-pure's printed tables and values, legend-engine's result envelopes | PCT's 423 printed-table tests and legend-engine's result goldens byte-identical (prototyped: 431 of 431 on DuckDB, 342 of 342 on H2, 419 of 420 on SQLite, 427 of 430 on Postgres) | **B2a now, in parallel; B2b after B3 step 1** (below) |
+| B4 | Remove what is left: the legacy H2 settings, the float-literal and unchecked-maths switches (per D2), DataCube's legend-engine workarounds moved to its legend-engine side | each removal's moved tests listed before it lands | after B3 |
+| B5 | Delete the switch machinery itself, legend-engine's feature flags in the core included, and turn on the guards | the counts of switches (49 parameters, 50 calls) and of upstream code in the core (142 places) both read zero | last |
+
+**The order inside stage B, by the program's independent reviewer: B1, then B3, then B2** -- "the formatter prototype
+rides the very hooks B3 reshapes, so building B2 first would mean writing it twice". The user's 2026-11-24 order (B3,
+with B2 in parallel) keeps that: **B2 splits in two.**
+
+- **B2a, now, in parallel (lite's own route, the product side; touches no hook B3 reshapes):**
+  1. the product bug the B2 prototype exposed ("must be fixed first"; find it in the prototype's record on
+     `claude/compat-program`);
+  2. a relation's `toString()` printed by the database on lite's route, replacing today's refusal (rule 1; measured
+     2026-11-19, H14: 390 of PCT's 423 table tests pass on DuckDB, every database printing the same text);
+  3. a whole Float prints `2.0` (Q10 amended 2026-11-23, "I think we do it as 2.0");
+  4. a date with a time prints lite's standard `...000000Z` (the user, 2026-11-19 ~18:05).
+- **B2b, after B3 step 1 (the edge formatters, on the reshaped hooks):** legend-pure's printed tables (where a
+  relation's `toString` is the program's last step, the database returns typed rows and Java prints legend-pure's
+  text; where the text is used further in the query, the database computes lite's text and the difference is
+  recorded, ~18:12), legend-pure's printed values, legend-engine's result envelopes; S398 retired (legend-pure's assert
+  words written at the edge from item 3's records); about 2,000 lines of SQL-built text deleted.
+
+**B3 step 1, corrected (2026-11-24):** the second host rulebook is `edge/CompiledPureHostForms` (compiled
+legend-pure's), used by the compatibility routes; lite's is `testexec/LiteHostForms`. They differ in four rules:
+
+| Rule | compiled legend-pure (the edge's today) | lite's |
+|---|---|---|
+| an Integer against a Decimal | equal by their texts (`1D == 1`) | never equal (S127) |
+| two dates | equal as written | by kind and instant (S399) |
+| two Decimals | scale part of the value | by value (S139) |
+| two Floats | equal within 2 ULP (S15/S132) | exact ("I like our clean float") |
+
+So "one host rulebook, lite's" (item 3's record: E1 withdrawn 2026-11-20 ~21:00) moves compatibility verdicts wherever
+the rules differ. The step starts by measuring them (every compatibility lane with the edge's four rules switched to
+lite's, the edge's `caught` wording kept: it is presentation), posts the moves to the user, and then lands each as a
+door rewrite, a ledgered difference or a rule kept at the edge, as ruled. The program's measure for B3 is "both corpus
+result lists byte-identical".
+
 ## Why the order is what it is
 
 - **The cause of item 3's long tail.** Pure's equality is implemented three times: the product's lowering
