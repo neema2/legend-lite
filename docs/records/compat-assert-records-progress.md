@@ -915,9 +915,11 @@ c758fe95). Findings and fixes:
   The first cut also read a function's arguments; round 8 caught it refusing PCT's `max`, `min`, `greatest` and `least`
   over days and date-times (6 tests a lane), which lite answers -- a function's result keeps its own kind -- so the
   reader stops at a function call.
-- **M3:** a Variant held in a Pair's or an object's member declared `Any` (`pair(1, fromJson('1')->cast(@Any))`, an
-  object whose `Any` key holds a Variant) had been compared by the database (true; Pure: false); refused by name now,
-  in the product and both judges (S401, DIFFERENCES 16 updated).
+- **M3:** a Variant held in a Pair's member declared `Any` (`pair(1, fromJson('1')->cast(@Any))`) had been compared by
+  the database (true; Pure: false); refused by name now, in the product and both judges (S401, DIFFERENCES 16 updated).
+  The first cut also read every property of an object literal; the review of a39883f3 found it refusing objects whose
+  Variant sits in a property equality never reads (a keyed class compares by its keys, a keyless one by identity), so
+  objects are read no more and an object whose `Any` key holds a Variant stays a recorded gap (S401).
 - **LOW:** the host's `Equality` called two Variants with equal JSON equal (unreachable: two whole Variants are refused at
   planning); a Variant now equals nothing there. Recorded under S169: an enumeration carried through an `Any` side that
   holds other kinds, or a String cast to `Any` against an enumeration (the product's `==` and the judges disagree with
@@ -928,7 +930,8 @@ c758fe95). Findings and fixes:
   and H2: a recorded gap, closed by the one-equality work); this record's `PureAsserts.bare` slip and JudgmentFacts'
   raw count corrected. JudgmentFacts 356 -> 355 (a shrink).
 - Pinned in `AssertBarTest`: the `if` with a Boolean branch, `at(0)`, `take(1)` and `map` over Variants, the mixed days
-  through `map` (and `at`'s day failing as a day), the Pair and the object with a Variant in an `Any` member.
+  through `map` (and `at`'s day failing as a day), the Pair with a Variant in an `Any` member, and a keyed object with
+  a Variant outside its keys compared by its keys.
 - **The warm lanes on f9e74256** (MariaDB, MySQL, ClickHouse, Postgres, SQLite, MongoDB, Trino, H2, BigQuery, Snowflake,
   Databricks): no verdict moved against 386db8fe or main, and no ledger row is stale (the 33 rows re-recorded hold;
   Postgres' and MySQL's and ClickHouse's relation lanes, red on 386db8fe for their stale rows, are green). The channel B
@@ -965,6 +968,19 @@ c758fe95). Findings and fixes:
   0.0000005 -- one rule for scalars and tables (the 2026-11-19 table ruling's `2.0`). Measured today on DuckDB, H2 and
   SQLite: `(2.0 * 1.0)->toString()` prints `2`. B2 changes the printer (`SqlFn.FLOAT_SHORTEST_TEXT`'s decomposition,
   per dialect) and re-records what moves.
+
+## The review of a39883f3, under the freeze rule (2026-11-24)
+
+An independent reviewer read a39883f3 alone against a build of f9e74256, blocking only on a regression the commit
+introduced (the freeze rule, the user's of 2026-11-24). One: `VariantEquality.heldVariant` read every property of an
+object literal, so `^KVN(id=1, v=fromJson('1')) == ^KVN(id=1, v=fromJson('2'))` (keyed by `id`) and a keyless object
+holding a Variant were refused where f9e74256 answered them (true; false). Fixed: objects are not read (a keyed class
+compares by its keys, a keyless one by identity, S111); an object whose `Any` key holds a Variant is a recorded gap
+(S401, DIFFERENCES 16 corrected); pinned in `AssertBarTest`. By design, the user's call under the rule: a side mixing
+a Variant (or days and date-times) with other values is refused by name even where f9e74256 happened to answer right.
+For the register and the one-equality step: `pair(1, [fromJson('1'), 'a']->cast(@Any)->at(1)) == pair(1, 'a')` false
+on DuckDB; `pair(fromJson('1')->toString(), 1) == pair('1', 1)` false on SQLite; a keyed object's `indexOf` -1; the date
+reader stops at a list's `concatenate` and `add` (native calls); a map's parameter binding is by name.
 
 ## The measurement: the asserts against their Pure bodies over the product's `==` (2026-11-23)
 

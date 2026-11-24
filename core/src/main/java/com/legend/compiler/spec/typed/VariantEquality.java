@@ -49,7 +49,8 @@ public final class VariantEquality {
     /** The kinds of date {@code s}'s values are seen to have, read through a node typed Any or the abstract Date (a
      *  list literal of days and date-times is typed Date, the database carrying it as one kind: register S399) where
      *  it passes its values on unchanged -- a literal's members, an if's branches, a filter's, sort's, take's or
-     *  slice's list, a map's body, a cast, a concatenation -- never into a function's arguments: a function's result is
+     *  slice's list, a map's body, a cast, a relation's concatenation -- never into a function's arguments (a list's
+     *  {@code concatenate} and {@code add} included, native calls): a function's result is
      *  the value the database computes, its kind the plan's (round 8 of the narrow review's fixes: reading max's
      *  arguments refused PCT's max, min, greatest and least over days and date-times, which lite answers). */
     public static Set<Type> dateKinds(TypedSpec s) {
@@ -184,13 +185,14 @@ public final class VariantEquality {
         return Verdict.DISJOINT;
     }
 
-    /** Whether a value the plan builds -- an object literal, a pair or a list, reached through a collection literal,
-     *  a cast or an if -- holds a Variant among its members' values, at any depth: a member declared Any whose value
-     *  is a Variant too (the narrow review of f9e74256: {@code pair(1, fromJson('1')->cast(@Any))} and an object
-     *  whose Any key holds a Variant had been compared by the database). */
+    /** Whether a value the plan builds -- a pair, a list or a map, reached through a collection literal, a cast or an
+     *  if -- holds a Variant among its members' values, at any depth: a member declared Any whose value is a Variant
+     *  too (the narrow review of f9e74256: {@code pair(1, fromJson('1')->cast(@Any))} had been compared by the
+     *  database). Never an object literal's properties: a keyed class compares by its keys alone and a keyless one by
+     *  its identity (S111), so a Variant in another property is never compared (the review of a39883f3: reading every
+     *  property refused them); an object whose Any KEY holds a Variant is a recorded gap (S401). */
     private static boolean heldVariant(TypedSpec s) {
         return switch (s) {
-            case TypedNewInstance ni -> ni.properties().values().stream().anyMatch(VariantEquality::holds);
             case TypedNativeCall n when n.info().type() instanceof Type.GenericType ->
                     n.args().stream().anyMatch(VariantEquality::holds);
             case TypedCollection c -> c.elements().stream().anyMatch(VariantEquality::heldVariant);

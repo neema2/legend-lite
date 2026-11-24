@@ -447,6 +447,7 @@ class AssertBarTest {
             Class p::N { name: String[1]; }
             Enum p::E { A, B }
             Class p::KA { <<equality.Key>> a: Any[1]; }
+            Class p::KVN { <<equality.Key>> id: Integer[1]; v: Variant[1]; }
             ###Relational
             Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER) Table U (ID INTEGER PRIMARY KEY, E DECIMAL(10,2)) )
             ###Mapping
@@ -982,11 +983,17 @@ class AssertBarTest {
                 // skipped, the side read as a Variant alone and called unequal to true)
                 "{|assertEquals(true, if(true, |true, |'1'->fromJson()))}",
                 "{|assert(if(true, |true, |'1'->fromJson()) == true)}",
-                // a Variant held in a member declared Any of a Pair or an object the plan builds (the same review)
-                "{|assert(pair(1, '1'->fromJson()->cast(@Any)) == pair(1, 1->cast(@Any)))}",
-                "{|assertEquals(^p::KA(a='1'->fromJson()), ^p::KA(a='1'->fromJson()))}")) {
+                // a Variant held in a member declared Any of a Pair the plan builds (the same review)
+                "{|assert(pair(1, '1'->fromJson()->cast(@Any)) == pair(1, 1->cast(@Any)))}")) {
             want.put(two, refused);
         }
+        // an object literal holding a Variant in a property its equality never reads: a keyed class by its keys (the
+        // review of a39883f3: every property had been read, and the comparison refused); H2 has no list encoding for
+        // the keyed instances' rows, as before the change
+        want.put("{|assertEquals(^p::KVN(id=1, v='1'->fromJson()), ^p::KVN(id=1, v='2'->fromJson()))}",
+                "pass|H2=DialectCapability");
+        want.put("{|assert(^p::KVN(id=1, v='1'->fromJson()) != ^p::KVN(id=2, v='1'->fromJson()))}",
+                "pass|H2=DialectCapability");
         // an index, a count and a map's parameter are not values of the side (the same review: they had been counted,
         // and the equality refused)
         want.put("{|assert(!(['1'->fromJson()]->cast(@Any)->at(0) == 'a'))}", "pass");
