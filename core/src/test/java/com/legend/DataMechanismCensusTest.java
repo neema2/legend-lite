@@ -350,7 +350,9 @@ class DataMechanismCensusTest {
             "testDataSql(", "viewOperation(", "mountOperations(", "accessOperations(", "credentialOperations(",
             "credentialScope(", "secretBinds(", "op: 'secret'", "op: 'insert'", "TableSeed", "loadDataTables(",
             // Python (legend_lite)
-            "lite_test_data_sql", "statements['fill']",
+            // (2026-11-23, the Python tooling task: Ruff's formatter writes the package's strings double-quoted, so
+            // the deleted spelling is named both ways; an addition, nothing taken off)
+            "lite_test_data_sql", "statements['fill']", "statements[\"fill\"]",
             // 2026-11-12 (the user's rulings, "Demo has to go through platform", and the simple synthesize, S303): the
             // engine's Arrow load outside any plan and the rows the demo's page made for it (datacube/demo/boot.ts
             // generateTrades, src/sample-trades.ts sampleTrades) -- the sample made by the database as a planned load
