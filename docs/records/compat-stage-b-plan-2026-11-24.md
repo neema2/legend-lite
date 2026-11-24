@@ -8,8 +8,12 @@ strict typing including ordering, "I like it" and "Love it").
 
 ## Stage B in full
 
-The program's plan (`docs/records/compat-design-and-plan-plain-2026-11-19.md` on `claude/compat-program`, ruled
-2026-11-19 ~13:25, "Okay agree with all"), with what has happened since.
+**The detailed plan of record is `docs/records/compat-stage-b-plan-2026-11-20.md` on `claude/compat-program`** (557
+lines: B1, BE, B3, B2, B4, B5, B6, each with what changes, what it deletes, how it is proven, and every decision ruled,
+its time given; B3 written down whole at the user's ask of 2026-11-20 ~23:55, "write all the B3 stuff down so we dont
+forget"). It governs; this document adds only what was decided after it: item 3, the order below, B2's split, and the
+one equality as B3's last step with the strict-typing rule. The summary table is from the program's plain-English plan
+(`docs/records/compat-design-and-plan-plain-2026-11-19.md`, ruled 2026-11-19 ~13:25, "Okay agree with all").
 
 | Item | What (the program's words) | How we know it worked (the program's) | State, 2026-11-24 |
 |---|---|---|---|
@@ -37,7 +41,20 @@ with B2 in parallel) keeps that: **B2 splits in two.**
   recorded, ~18:12), legend-pure's printed values, legend-engine's result envelopes; S398 retired (legend-pure's assert
   words written at the edge from item 3's records); about 2,000 lines of SQL-built text deleted.
 
-**B3 step 1, corrected (2026-11-24):** the second host rulebook is `edge/CompiledPureHostForms` (compiled
+**B3, from the plan of record (2026-11-20), unchanged:** lite runs every test body as lite and the test planner plans
+nothing for compatibility; the judge has ONE rulebook, lite's (E1 withdrawn, ~21:00), and no compatibility code runs
+during the run -- compatibility changes the program only at the door, before planning (E0 = A), and formats output
+after it; the SQL-text fallback becomes harness code (the assert's query through the public `from()` door after the
+body, compared with the referee's golden rows); the test runner splits into public prepare and run halves; the input
+rewrites S137 (a relation's `assertSize`/`assertEmpty`/`assertNotEmpty` as legend-engine counts it) and S144 (the two
+goldens' JSON literals cleaned); the leniencies lite added -- S15, S132, S131 -- removed only after each test they carry
+is placed against legend-engine's own answer on that database (switch off on both corpus lanes; ask the engine runner;
+class each; counts and names to the user before deletion; H6 measured 0 PCT verdicts moving, the corpus DuckDB 69 and H2
+29); Q15, Q16b (reclaim all 7 shapes), Q16c, R1, Q4 as ruled; about 3,449 lines out of the core. **Added 2026-11-24:**
+legend-engine's door rewrites `==`, `!=`, `in` and `contains` to the database's comparison (neutral until the core's
+`==` changes), and the one equality (strict typing) as B3's last step.
+
+**B3's rulebook, measured again (2026-11-24):** the second host rulebook is `edge/CompiledPureHostForms` (compiled
 legend-pure's), used by the compatibility routes; lite's is `testexec/LiteHostForms`. They differ in four rules:
 
 | Rule | compiled legend-pure (the edge's today) | lite's |
