@@ -29,13 +29,16 @@ rides the very hooks B3 reshapes, so building B2 first would mean writing it twi
 with B2 in parallel) keeps that: **B2 splits in two.**
 
 - **B2a, now, in parallel (lite's own route, the product side; touches no hook B3 reshapes):**
-  1. the product bug the B2 prototype exposed ("must be fixed first"; find it in the prototype's record on
-     `claude/compat-program`);
-  2. a relation's `toString()` printed by the database on lite's route, replacing today's refusal (rule 1; measured
-     2026-11-19, H14: 390 of PCT's 423 table tests pass on DuckDB, every database printing the same text);
-  3. a whole Float prints `2.0` (Q10 amended 2026-11-23, "I think we do it as 2.0");
-  4. a date with a time prints lite's standard `...000000Z` (the user, 2026-11-19 ~18:05).
-- **B2b, after B3 step 1 (the edge formatters, on the reshaped hooks):** legend-pure's printed tables (where a
+  1. the product bug the B2 prototype exposed ("must be fixed first"): the window-in-list lowering, already fixed on
+     main (#128) -- verified, no code;
+  2. a whole Float prints `2.0` (Q10 amended 2026-11-23, "I think we do it as 2.0"; S311 amended);
+  3. a date with a time prints lite's standard text, ISO 8601 in UTC with nine fraction digits (S312 as amended by the
+     user 2026-11-22, "Yes always pretty print to iso nanos", superseding 2026-11-19's `...000000Z`).
+  **Held for B2b (the user, 2026-11-24, option C):** a relation's `toString()` printed by the database on lite's route
+  (rule 1; H14: 390 of PCT's 423 table tests pass on DuckDB this way). Landing it before B2b's presenter would either
+  change the compatibility routes' table text or need a temporary two-form facet and guard moves B2b would revert.
+- **B2b, after B3 step 1 (the edge formatters, on the reshaped hooks):** lite's own relation `toString()` in the
+  database (held from B2a), legend-pure's printed tables (where a
   relation's `toString` is the program's last step, the database returns typed rows and Java prints legend-pure's
   text; where the text is used further in the query, the database computes lite's text and the difference is
   recorded, ~18:12), legend-pure's printed values, legend-engine's result envelopes; S398 retired (legend-pure's assert
