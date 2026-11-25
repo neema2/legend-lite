@@ -16,10 +16,11 @@ import java.util.function.Function;
 /**
  * A RELATION'S TEXT, A LOWERING FACET OF THE PLAN STYLE (the separation census's B17, 2026-11-17; the orchestrator's
  * approval of the design note, the shape of {@code PlanStyle.facet}): {@code toCSV} (legend-pure's helperFunctions
- * CSV), a TDS's {@code csv} property and a relation's {@code toString} (its {@code #TDS} text) are legend-pure's texts
- * of rows, so their composition is the compatibility edge's ({@code edge.RelationTextLowering}); the product writes a
- * relation's rows by its result writers and refuses each by name AT LOWERING ({@code TextRefusals.relation}, the call site's words). The Lowerer asks the
- * planner's style for this facet only when it meets one of the three calls, carrying the call's own refusal.
+ * CSV) and a TDS's {@code csv} property are legend-pure's texts of rows, so their composition is the compatibility
+ * edge's ({@code edge.RelationTextLowering}); the product refuses each by name AT LOWERING
+ * ({@code TextRefusals.relation}, the call site's words). The Lowerer asks the planner's style for this facet only when
+ * it meets one of the two calls, carrying the call's own refusal. (A relation's {@code toString} left the facet with
+ * stage B's B2b S5a, 2026-11-24: lite's own text, computed by the database on every plan style, ProductRelationText.)
  *
  * <p>Its static members are the lowering's helpers the edge's composition reads (each forwards one call;
  * {@code ArchitectureTest.PLANNER_ENTRIES} lists each one the edge reaches, by its full signature, as
@@ -37,8 +38,6 @@ import java.util.function.Function;
     /** A TDS's {@code csv} property over a relation ({@code read}). */
     SqlExpr csvProperty(Styled styled, TypedPropertyAccess read, Function<TypedSpec, SqlSelect> relation, String alias);
 
-    /** A relation's {@code toString} ({@code tc}): its {@code #TDS} text. */
-    SqlExpr relationToString(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias);
 
     // (refused(what): moved 2026-11-17 to TextRefusals.relation, the call site words its refusal -- the
     // orchestrator's ruling: the hook holds its signatures and its product-helper forwarders alone)

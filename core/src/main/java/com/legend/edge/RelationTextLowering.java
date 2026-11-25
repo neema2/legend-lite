@@ -21,12 +21,14 @@ import java.util.List;
 /**
  * A RELATION'S TEXT, LEGEND-PURE'S, LOWERED (the separation census's B17, 2026-11-17: moved from the product's
  * {@code lowering.Render}, byte for byte, answering the plan style's {@link RelationTexts} facet): {@code toCSV}'s text
- * (legend-engine's {@code meta::relational::tests::csv::toCSV}, helperFunctions.pure:198-232), a TDS's {@code csv}
- * property and a relation's {@code toString} ({@code #TDS}), each composed in SQL over the relation's rows and marked
+ * (legend-engine's {@code meta::relational::tests::csv::toCSV}, helperFunctions.pure:198-232) and a TDS's {@code csv}
+ * property, each composed in SQL over the relation's rows and marked
  * {@link SqlFn#RELATION_TEXT} as before, so every later pass sees the tree it saw. The cell rule ({@code toCSVString}):
  * a NULL cell renders {@code ''} ({@code 'TDSNull'} under renderTdsNull); a date-kinded cell formats {@code yyyy-MM-dd};
  * a datetime formats then escapes; everything else is {@code toString()->escapeCSVString()} with RFC4180 double-quote
- * escaping.
+ * escaping. (A relation's {@code toString} left with stage B's B2b S5a, 2026-11-24: lite's own text, computed by the
+ * database on every plan style, {@code lowering.ProductRelationText}; legend-pure's text of a last step is the doors'
+ * Java printer's, {@code edge.PrintedRelations}.)
  */
 final class RelationTextLowering implements RelationTexts {
 
@@ -42,11 +44,6 @@ final class RelationTextLowering implements RelationTexts {
         return relationText(lowerTdsCsvProperty(styled, read, relation, alias), "a TDS's csv");
     }
 
-    @Override
-    public SqlExpr relationToString(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
-            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
-        return relationText(lowerToString(styled, tc, relation, alias), "toString");
-    }
 
     /** A relation's {@code text} ({@code what} it is): the text itself (B8, 2026-11-17: the RELATION_TEXT marker the
      *  edge's pass unwrapped is gone with the product's render-time refusal; the product refuses at lowering). */
@@ -308,62 +305,6 @@ final class RelationTextLowering implements RelationTexts {
                         new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
     }
 
-    /** The Lowerer's relation-toString dispatch target (engine
-     *  toString.pure:19-35): the '#TDS' text form, built by the DB.
-     *  typesAndMuls=true stays loud until a demand names it. */
-    static SqlExpr lowerToString(com.legend.lowering.Styled styled,
-            com.legend.compiler.spec.typed.TypedNativeCall tc,
-            java.util.function.Function<
-                    com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
-            String alias) {
-        if (tc.args().size() == 2
-                && (!(tc.args().get(1) instanceof
-                        com.legend.compiler.spec.typed.TypedCBoolean b)
-                        || b.value())) {
-            throw new com.legend.error.NotImplementedException(
-                    "relation toString(typesAndMuls) is lowered only for"
-                    + " the literal-false form");
-        }
-        // A RAW GRID's text: its columns exist only when the plan runs, and the '#TDS' composition writes its header
-        // from the compiler's columns -- refused by name (the seam program's S3c audit, 2026-10-31: it fell through to
-        // an internal "zero-column relation" error; toCSV over a raw grid is its report's texts, Render.gridCsv)
-        if (Type.relationSchema(tc.args().get(0).info().type()) instanceof Type.RelationType late
-                && late.isLateBound()) {
-            throw new com.legend.error.NotImplementedException("toString over a raw grid (executeInDb): its columns"
-                    + " exist only when the plan runs, and the text's header is written from the compiler's columns");
-        }
-        SqlSelect inner = relation.apply(tc.args().get(0));
-        // A PIVOT inner whose columns NOTHING names (its typed schema still carries the pivot's templates): the
-        // column list exists only once the database is asked -- DEFER the '#TDS' composition (the keyed form, the
-        // seam program's S3c). A pivot whose columns a cast names is an ordinary relation here: the compiler has its
-        // columns, and the composition is direct (the seam program's S3a, 2026-10-30; F10: until then ANY pivot
-        // deferred, and the six channel B composition bodies asked the database for columns the compiler had).
-        if (hasDynamicPivot(inner)
-                && Type.relationSchema(tc.args().get(0).info().type())
-                        instanceof Type.RelationType drt
-                && !drt.dynamicColumns().isEmpty()) {
-            throw dynamicPivotText();
-        }
-        java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
-        if (Type.relationSchema(tc.args().get(0).info().type())
-                instanceof Type.RelationType rt) {
-            for (Type.Column col : rt.columns()) {
-                byName.put(col.name(), col);
-            }
-        }
-        List<Type.Column> relCols = inner.outputs().stream()
-                .map(oc -> {
-                    Type.Column t = byName.get(oc.name());
-                    if (t == null) {
-                        throw new IllegalStateException("toString: output"
-                                + " column '" + oc.name()
-                                + "' has no typed relation column");
-                    }
-                    return t;
-                }).toList();
-        return new SqlExpr.ScalarSubquery(
-                tdsString(styled, inner, relCols, alias));
-    }
 
     /** Whether the select tree contains a PIVOT — static or dynamic:
      * either way the pivot's output columns are absent from the
@@ -388,61 +329,6 @@ final class RelationTextLowering implements RelationTexts {
         };
     }
 
-    /** The '#TDS' text (engine toString.pure:24-35): {@code #TDS\n} +
-     *  {@code '   '} + names (quoted unless simple:
-     *  {@code ^[a-zA-Z0-9_]+$} or already quote-bearing) + one
-     *  {@code '   '}-prefixed line per row + {@code \n#}; empty
-     *  relation = a blank rows segment. Cell = the engine's {@code s()}:
-     *  NULL prints {@code null}, a String containing '{'/'[' quotes
-     *  with backslash/quote escaping, everything else is the pure print
-     *  form. Header names are typed plan facts (charter clause 1). */
-    private static SqlSelect tdsString(com.legend.lowering.Styled styled, SqlSelect inner, List<Type.Column> relCols,
-            String rowAlias) {
-        List<OutputCol> cols = inner.outputs();
-        inner = withSortOutputs(inner);
-        String aggAlias = rowAlias + "_a";
-        if (cols.isEmpty()) {
-            throw new IllegalStateException(
-                    "toString over a zero-column relation");
-        }
-        StringBuilder hdr = new StringBuilder("   ");
-        for (int i = 0; i < cols.size(); i++) {
-            String name = cols.get(i).name().trim();
-            boolean simple = name.startsWith("'")
-                    || name.matches("^[a-zA-Z0-9_]+$");
-            if (i > 0) {
-                hdr.append(',');
-            }
-            hdr.append(simple ? name : "'" + name + "'");
-        }
-        SqlExpr line = new SqlExpr.StringLit("   ");
-        for (int i = 0; i < cols.size(); i++) {
-            SqlExpr c = tdsCell(styled,
-                    SqlExpr.Column.of(rowAlias, cols.get(i)),
-                    relCols.get(i).type(), cols.get(i).type());
-            line = i == 0 ? cat(line, c)
-                    : cat(line, new SqlExpr.StringLit(","), c);
-        }
-        List<SqlSelect.Projection> rowProjs = new ArrayList<>();
-        rowProjs.add(new SqlSelect.Projection(line, "_tds_line",
-                new OutputCol("_tds_line", SqlType.Scalar.VARCHAR, false)));
-        SqlExpr nl = new SqlExpr.StringLit("\n");
-        SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
-                new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(SqlExpr.Column.of(aggAlias, "_tds_line", SqlType.Scalar.VARCHAR, false, com.legend.sql.OutputCol.Origin.DERIVED), nl),
-                        false, hoistOrder(inner, cols, rowAlias, aggAlias,
-                                rowProjs)),
-                new SqlExpr.StringLit(""));
-        SqlExpr text = cat(new SqlExpr.StringLit("#TDS\n"
-                        + hdr + "\n"), rowsJoined,
-                new SqlExpr.StringLit("\n#"));
-        SqlSelect rows = SqlSelect.starOf(
-                        new SqlSource.Subselect(inner, rowAlias, null))
-                .withProjections(rowProjs);
-        return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
-                .withProjections(List.of(new SqlSelect.Projection(text, "tds",
-                        new OutputCol("tds", SqlType.Scalar.VARCHAR, false))));
-    }
 
     /** The engine {@code s()} cell (s.pure:23-38). */
     /** THE per-type cell PRINT FORMS — one owner (audit 2026-08-19:
@@ -498,13 +384,6 @@ final class RelationTextLowering implements RelationTexts {
         return slot == SqlType.Scalar.VARCHAR || slot == SqlType.Scalar.TEMPORAL_TEXT;
     }
 
-    /** Whether the DATE-family value prints date-only (a DATE slot) or
-     * as a full DateTime. */
-    private static boolean dateOnly(Type t, @com.legend.base.Nullable SqlType slot) {
-        return t == Type.Primitive.STRICT_DATE
-                || (t == Type.Primitive.DATE
-                        && slot == SqlType.Scalar.DATE);
-    }
 
     /** A relation text's cell as legend-pure PRINTS it: a Float its shortest round-trip text, {@link
      *  SqlFn#FLOAT_SHORTEST_TEXT} (legend-pure's toString of a TDS cell, DecimalFormat "0.0": 0.00001, 25000000.0),
@@ -516,74 +395,6 @@ final class RelationTextLowering implements RelationTexts {
                 ? SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, c.args().get(0)) : text;
     }
 
-    private static SqlExpr tdsCell(com.legend.lowering.Styled styled, SqlExpr c, Type t, SqlType slot) {
-        boolean variant = t instanceof Type.ClassType vc
-                && com.legend.compiler.element.type.PlatformTypes
-                        .isVariant(vc);
-        SqlExpr rendered;
-        if (variant) {
-            rendered = cat(new SqlExpr.StringLit("'"),
-                    SqlExpr.Call.of(SqlFn.REPLACE,
-                            SqlExpr.Call.of(SqlFn.REPLACE,
-                                    RelationTexts.pureToString(styled, t, c),
-                                    new SqlExpr.StringLit("\\"),
-                                    new SqlExpr.StringLit("\\\\")),
-                            new SqlExpr.StringLit("'"),
-                            new SqlExpr.StringLit("\\'")),
-                    new SqlExpr.StringLit("'"));
-        } else if (t == Type.Primitive.STRING) {
-            SqlExpr braced = SqlExpr.Call.of(SqlFn.OR,
-                    contains(c, "{"), contains(c, "["));
-            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(braced,
-                    cat(new SqlExpr.StringLit("'"),
-                            SqlExpr.Call.of(SqlFn.REPLACE,
-                                    SqlExpr.Call.of(SqlFn.REPLACE, c,
-                                            new SqlExpr.StringLit("\\"),
-                                            new SqlExpr.StringLit("\\\\")),
-                                    new SqlExpr.StringLit("'"),
-                                    new SqlExpr.StringLit("\\'")),
-                            new SqlExpr.StringLit("'")))),
-                    c, SqlExpr.Reason.PRINT);
-        } else if (dateOnly(t, slot)) {
-            rendered = strictDateText(c);
-        } else if (t == Type.Primitive.DATE_TIME
-                || t == Type.Primitive.DATE) {
-            // the missing arm the drift hid (witness testExtendMax/
-            // MinDate: raw '2026-01-07 00:00:00' where pure prints the
-            // ISO+ms+0000 form): a TDS cell's DateTime text has at least
-            // three fraction digits (LiteralSpelling.dateTimeTextTds)
-            rendered = dateTimeTextTds(c);
-        } else if ((t == Type.Primitive.NUMBER
-                        && (slot == null
-                                || slot instanceof SqlType.Decimal
-                                || slot == SqlType.Scalar.DOUBLE))
-                || (t == Type.Primitive.FLOAT
-                        && (slot == null
-                                || slot instanceof SqlType.Decimal
-                                || slot == SqlType.Scalar.DOUBLE
-                                || slot == SqlType.Scalar.BIGINT
-                                || slot == SqlType.Scalar.INTEGER
-                                || slot == SqlType.Scalar.HUGEINT))) {
-            // JUDGING_TWO_MODES §1 (numeric charter Rule 2, compiled
-            // reference): a Float-DECLARED TDS cell converts to DOUBLE once,
-            // here, whatever kind the database computed it in.
-            // a Number/Float cell on a FRACTION-KIND wire (a DECIMAL an
-            // aggregate collapsed to, or a DOUBLE): the pure print form
-            // is the Float spelling — a DECIMAL cast's fixed scale
-            // fabricates trailing zeros (81.180 where pure prints 81.18;
-            // witness testMax_Floats/Numbers_Relation_Aggregate).
-            // INTEGER slots (an all-int Number column) and the VARCHAR
-            // mixed-identity carrier keep their own spellings.
-            rendered = printedCell(RelationTexts.pureToString(styled, Type.Primitive.FLOAT,
-                    new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT)));
-        } else {
-            rendered = printedCell(RelationTexts.pureToString(styled, t, c));
-        }
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.IS_NULL, c),
-                new SqlExpr.StringLit(variant ? "'null'" : "null"))),
-                rendered, SqlExpr.Reason.PRINT);
-    }
 
     /** {@code inner} with every sort key among its outputs: a key the projection dropped ({@code SELECT a FROM
      *  ... ORDER BY h}, legal SQL whose order the hoist above must carry from outside the row subselect: the
@@ -736,34 +547,6 @@ final class RelationTextLowering implements RelationTexts {
         return SqlExpr.Call.of(SqlFn.OR, a, b);
     }
 
-    // legend-pure's date-time texts only a relation's text writes (moved from lowering.LiteralSpelling with B17's
-    // forwarders, 2026-11-17: the edge alone called them)
-    /**
-     * A DateTime cell's text in Pure's TDS text (a relation's {@code toString}): as
-     * {@code LiteralSpelling.dateTimeText}, with AT LEAST THREE fraction digits -- {@code 2024-01-02T10:30:00.000+0000} for a whole
-     * second, {@code .123} for a millisecond, {@code .123456789} for a nanosecond, finer trailing zeros trimmed. The
-     * reference is legend-engine's own test (core_functions_standard/date/extract/dayOfWeek.pure,
-     * {@code testDayOfWeek_Relation}): a TDS literal's {@code 1985-01-12T06:30:00Z} prints
-     * {@code 1985-01-12T06:30:00.000+0000} in the relation's text, where the value's own text (interpreted Pure's
-     * {@code toString} of {@code %1985-01-12T06:30:00}) has no fraction. Measured 2026-10-18 (the plan path
-     * program's step 6, channel B's relation and standard suites: 35 goldens spell the three digits), correcting
-     * step 2's one trimmed text for every cell.
-     */
-    private static SqlExpr dateTimeTextTds(SqlExpr x) {
-        SqlExpr nine = SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                new SqlExpr.FormatLit(java.util.List.of(DateFmt.Part.SUBSEC_NANO)));
-        SqlExpr three = SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(1), new SqlExpr.IntLit(3));
-        SqlExpr finer = SqlExpr.Call.of(SqlFn.RTRIM,
-                SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(4), new SqlExpr.IntLit(6)),
-                new SqlExpr.StringLit("0"));
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                                new SqlExpr.FormatLit(DateFmt.ISO_LOCAL)),
-                        SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), three),
-                                finer)),
-                new SqlExpr.StringLit("+0000"));
-    }
 
     /** A date value carried as its own text (a value root spelled at the precision it has: a year, a month, a day,
      *  an hour, a minute, a second or finer; with or without Pure's {@code %}; a literal's print form with its

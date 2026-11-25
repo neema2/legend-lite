@@ -397,11 +397,12 @@ class TaggedListTest {
                     + "'select 9 as Z', $c);\n"
                     + "$rs.rows->filter(r | [1, 'x'] == $r.values)->size()"
                     + " + $rs2.rows->map(x | $x.Z)->toOne()->cast(@Integer);"));
-            // a relation's text is the compatibility edge's: the product refuses any relation's toString at lowering,
-            // naming the call and its result writers (B17, 2026-11-17, the orchestrator's ruling of the moved test)
+            // a raw grid's text: the product writes a relation's toString in the database (stage B's B2b S5a,
+            // 2026-11-24), but a raw grid's columns exist only when the plan runs, so its text is refused by name (until
+            // then the product refused any relation's toString at lowering, B17)
             Exception text = assertThrows(Exception.class, () -> program(c, "$rs->toString();"));
-            assertTrue(String.valueOf(text.getMessage()).contains("toString of a relation is legend-pure's text")
-                    && text.getMessage().contains("result writers"), text.toString());
+            assertTrue(String.valueOf(text.getMessage()).contains("a relation's toString over a raw grid (executeInDb):"
+                    + " its columns exist only when the plan runs"), text.toString());
             // (on the edge a raw grid's text is refused by name: TaggedListEdgeTest, the edge's test -- F's census
             // line A5, 2026-11-17: a product test names no edge class)
         }

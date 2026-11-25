@@ -78,25 +78,10 @@ class FloatTextTest {
         }
     }
 
-    /** An edge relation's text prints a Float CELL as legend-pure prints it (DecimalFormat "0.0": its shortest round-trip
-     *  digits, plain), never as the in-query cast legend-engine writes for a Float's toString (PR #118 fix round,
-     *  2026-11-18: since 237bd8e5f DuckDB wrote 1e-05 and 1e+20, H2 1.0E-5 and 2.5E7). */
-    @Test
-    void anEdgeRelationsTextPrintsAFloatCellAsLegendPure() throws Exception {
-        TestBackend backend = LaneFloor.backend();
-        String model = backend.withStorelessRuntime("");
-        // OPEN on SQLite (reported 2026-11-18, not this fix's): a whole value past 2^63 prints as the 64-bit clamp,
-        // 9223372036854775807.0 -- FloatShortestText's whole-value arm casts through HUGEINT, SQLite's INTEGER -- so its
-        // lane reads the three values below it
-        List<String> values = new ArrayList<>(List.of("0.00001", "0.0005", "25000000.0"));
-        if (!backend.name().equals("sqlite")) {
-            values.add("100000000000000000000.0");
-        }
-        String rows = "#TDS\nx:Float\n" + String.join("\n", values) + "\n#";
-        assertEquals("#TDS\n   x\n   " + String.join("\n   ", values) + "\n#",
-                Lean.runInStyle(model, "|" + rows + "->sort(~x->ascending())->toString()", StorelessRuntime.RUNTIME,
-                        backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString(), backend.name());
-    }
+    // (anEdgeRelationsTextPrintsAFloatCellAsLegendPure: gone 2026-11-24, stage B's B2b S5a -- a relation's toString is
+    // lite's own text, computed by the database on every plan style; legend-pure's Float cell of a last-step table is
+    // the doors' Java printer's, pinned by PureRelationTextTest and
+    // PureRelationTextParityTest.whereTheEdgesSqlTextIsWrongTheJavaPrinterWritesLegendPures)
 
     private static String edge(String model, Connection c, String query) throws Exception {
         return Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, LaneFloor.backend(), com.legend.edge.PureText.UPSTREAM).rows()

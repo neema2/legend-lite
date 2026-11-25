@@ -83,8 +83,8 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
         java.util.Map<String, String> refusals = new java.util.LinkedHashMap<>();
         refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::relational::tests::csv::toCSV()",
                 "toCSV");
-        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::pure::functions::relation::toString()",
-                "toString");
+        // (a relation's toString: gone 2026-11-24, stage B's B2b S5a -- lite's own text, computed by the database,
+        // ProductRelationTextTest)
         refusals.put("|test::Person.all()->project([p | $p.name], ['name'])"
                 + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv", "a TDS's csv");
         refusals.forEach((query, what) -> {

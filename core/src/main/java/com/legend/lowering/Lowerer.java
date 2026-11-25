@@ -4313,12 +4313,13 @@ public final class Lowerer {
                     && Render.csvOverRelation(csvRead) ->
                 relationTexts.apply(() -> TextRefusals.relation("a TDS's csv")).csvProperty(styled(), csvRead, this::relation,
                         nextAlias());
-            // F4.2c (RENDER): relation toString — the '#TDS' text form
+            // a relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24: the user's
+            // rulings of 2026-11-19 ~18:05 and ~18:36) -- every plan style alike, its cells the product's
+            // (ProductRelationText); legend-pure's text of a last step is the doors' Java printer's (edge.PrintedRelations)
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(styled(), tc, this::relation,
-                        nextAlias());
+                ProductRelationText.of(tc, this::relation, nextAlias());
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is

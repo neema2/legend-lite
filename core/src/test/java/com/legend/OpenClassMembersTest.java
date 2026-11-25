@@ -55,7 +55,8 @@ class OpenClassMembersTest {
                     // relation types 2026-11-18 with E-SQL's J40 (9822fd89c8: DeferredTdsString out of the product MIR,
                     // the edge's relation text typing its own) -- train 17
                     "public abstract com.legend.sql.SqlExpr csvProperty(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedPropertyAccess, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
-                    "public abstract com.legend.sql.SqlExpr relationToString(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
+                    // (relationToString: gone 2026-11-24, stage B's B2b S5a -- a relation's toString is lite's own text,
+                    // computed by the database on every plan style, lowering.ProductRelationText; a shrink)
                     "public abstract com.legend.sql.SqlExpr toCsv(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
                     "public static com.legend.compiler.element.type.Type kindType(java.lang.String)",
                     "public static com.legend.sql.SqlExpr pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)")),

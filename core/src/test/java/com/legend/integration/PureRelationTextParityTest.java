@@ -51,31 +51,10 @@ class PureRelationTextParityTest {
             // B2b's midpoint audit (2026-11-24): several rows in no order the program asks for -- each road's order
             "#TDS\n  i:Integer, s:String\n  3, c\n  1, a\n  2, b\n#");
 
-    @Test
-    void theJavaPrinterWritesTheEdgesSqlText() throws Exception {
-        TestBackend backend = LaneFloor.backend();
-        String model = backend.withStorelessRuntime("");
-        List<String> differ = new ArrayList<>();
-        try (Connection c = backend.open(PureText.UPSTREAM)) {
-            for (String rel : RELATIONS) {
-                String sql;
-                String java;
-                try {
-                    sql = Lean.runInStyle(model, "|" + rel + "->toString()", StorelessRuntime.RUNTIME, c,
-                            PureText.UPSTREAM).rows().get(0).get(0).toString();
-                    java = printed(model, rel, c);
-                } catch (RuntimeException e) {
-                    differ.add(rel.replace("\n", "\\n") + "\n  failed: " + e);
-                    continue;
-                }
-                if (!sql.equals(java)) {
-                    differ.add(rel.replace("\n", "\\n") + "\n  SQL:  " + sql.replace("\n", "\\n") + "\n  Java: "
-                            + java.replace("\n", "\\n"));
-                }
-            }
-        }
-        assertEquals(List.of(), differ, backend.name());
-    }
+    // (theJavaPrinterWritesTheEdgesSqlText: gone 2026-11-24, stage B's B2b S5a -- the edge's SQL toString is deleted: a
+    // relation's toString is lite's own text, computed by the database on every plan style (ProductRelationTextTest),
+    // and legend-pure's text of a last step is the doors' Java printer's; its measure held until then, every carrier
+    // equal on each lane but the corrections below)
 
     /**
      * WHERE THE EDGE'S SQL TEXT IS WRONG, the Java printer writes legend-pure's (measured 2026-11-24 on each lane; B2b's

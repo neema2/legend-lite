@@ -49,15 +49,18 @@ class PctPlanRoutePrintTest {
     @Test
     void aMixedSelectionInAColumnIsRefusedOnBothRoads() {
         String relation = "|#TDS\n  i:Integer\n  1\n#->extend(~m:x|[1, 2.5]->max())";
-        for (String tail : List.of("->toString()", "->toString()->length()")) {
+        // the lifted print (the relation run alone) and a print the door does not lift (lite's own text, computed by the
+        // database since stage B's B2b S5a, 2026-11-24), each refused by name in its own words
+        java.util.Map<String, String> words = java.util.Map.of("->toString()", "a tagged value reached the renderer",
+                "->toString()->length()", "a relation's toString over a mixed column: its cells' kinds differ by row");
+        for (var tail : words.entrySet()) {
             Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
-                    () -> PctPlanRoute.execute("", relation + tail), tail);
+                    () -> PctPlanRoute.execute("", relation + tail.getKey()), tail.getKey());
             String chain = "";
             for (Throwable t = refused; t != null; t = t.getCause()) {
                 chain += t.getMessage() + " | ";
             }
-            org.junit.jupiter.api.Assertions.assertTrue(chain.contains("a tagged value reached the renderer"),
-                    tail + ": " + chain);
+            org.junit.jupiter.api.Assertions.assertTrue(chain.contains(tail.getValue()), tail.getKey() + ": " + chain);
         }
     }
 }
