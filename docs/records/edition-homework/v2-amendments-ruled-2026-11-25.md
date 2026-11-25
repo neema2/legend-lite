@@ -148,3 +148,13 @@ Measurement added: M7, a typed census of governed constructs in the corpus harne
       - H2's `equalAll` over an empty relation;
       - **H2's `mod` of a negative and `binFloor`: ruled not reproduced**, a regression in its Postgres-model path; legend-engine's own default writes floor-mod.
     - Open: DuckDB's LIKE escaping in startsWith/endsWith/contains with `_` or `%` (`testPersonToString`). If confirmed, it's a legend-engine bug users hit, not reproduced. One query settles it.
+23. **B2's state at the handover (2026-11-25, late night):**
+    - **toCSV exact:** built and reviewed as `SqlFn.FLOAT_FULL_TEXT`, one arm per dialect, each the database's own cast or format function. Snowflake uses its two casts in one CASE, the DECFLOAT branch reading a non-finite value as NULL.
+      - Measured exact: DuckDB, H2 and SQLite pinned; Postgres, MariaDB, MySQL, ClickHouse and Trino by probe; MongoDB on its lane.
+      - Snowflake, BigQuery and Databricks: a register note.
+    - **S7a (A):** built on top, with the plan format at v61.
+    - Its full round was running; B2 pushes when green.
+    - The engine runner's answers are recorded in `edition-homework/engine-java-part.md` on B2's push. `testBigFloatAbs`: legend-engine holds the double; the assert is true on H2 and DuckDB.
+    - **Side findings, handled by B3:**
+      - ClickHouse parses the Float literal `123456789.12345679` one ulp low (pre-existing; probably its `precise_float_parsing` setting): recorded as an F-row, not chased.
+      - S120's parenthesis was wrong (on JDK 21, DecimalFormat("0.0") and legend-engine's Java both write `123456789123456784.0`): a factual correction B2 lands with a dated note.
