@@ -318,7 +318,9 @@ class TaggedListTest {
                         com.legend.testplan.PlanningOptions.JudgeMode.DATABASE, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
                     Exception failed = assertThrows(Exception.class, () -> Program.last(
                             StorelessRuntime.with(MODEL, Databases.PLATFORM),
-                            let + "assertEquals(" + q[1] + ", $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
+                            // assertSameElements (B3 step 4, 2026-11-24: a raw grid's order is the SQL text's, which the
+                            // planner does not read, so an in-order assertEquals over it is refused)
+                            let + "assertSameElements(" + q[1] + ", $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
                             com.legend.ExecuteOptions.NONE.withJudgeMode(mode)), mode + " " + q[1]);
                     // lite's own sentence, each side in its own order, the same under every judge (the user's judge
                     // model and the orchestrator's ruling, 2026-11-17: neither judge sorts for the message)
@@ -365,15 +367,16 @@ class TaggedListTest {
             assertEquals(4L, program(c, "$rs.rows.values->size();"));
             assertEquals(true, program(c, "$rs.rows.values->contains('y');"));
             assertEquals(false, program(c, "$rs.rows.values->contains('1');"));
-            // under both judges (the database judge's canon over the cells as rows of a tagged value)
+            // under both judges (the database judge's canon over the cells as rows of a tagged value); order-free, as a
+            // raw grid's order is the SQL text's, which the planner does not read (B3 step 4, 2026-11-24)
             Lean.Result both = Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
-                    CONN_LET + "assertEquals([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
+                    CONN_LET + "assertSameElements([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
                     com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
             assertEquals(true, both.one());
             // and under the database judge alone (the core program's 100% check, 2026-11-04: under BOTH a database
             // decline is the host's to decide, so the BOTH case alone does not show the database judge decides it)
             Lean.Result database = Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
-                    CONN_LET + "assertEquals([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
+                    CONN_LET + "assertSameElements([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
                     com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
             assertEquals(true, database.one());
             // a row's cells read in a lambda are on the variant carrier: the literal list meets them there

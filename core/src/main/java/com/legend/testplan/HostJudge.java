@@ -316,8 +316,7 @@ final class HostJudge {
         out.add(source);
     }
 
-    static HostSides.Check planEquals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
-            boolean gridPair, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+    static HostSides.Check planEquals(String name, boolean wantEqual, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         HostJudgment.SideFacts e = facts(args.get(0));
         HostJudgment.SideFacts a = facts(args.get(1));
         HostJudgment.Keys keys = JudgmentFacts.keys(args.get(0), args.get(1), env.ctx());
@@ -326,7 +325,7 @@ final class HostJudge {
                 AssertVerdicts.wrappedRelationStamp(args.get(0), letPrefix),
                 AssertVerdicts.wrappedRelationStamp(args.get(1), letPrefix));
         return new HostSides.Check(List.of(canonAsk(com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(args.get(0)), hook), canonAsk(args.get(1), hook)),
-                new HostJudgment.Equals(name, wantEqual, incidental, gridPair, e, a, keys, flat));
+                new HostJudgment.Equals(name, wantEqual, gridPair, e, a, keys, flat));
     }
 
     static HostSides.Check planJsonStringsEqual(List<TypedSpec> args, List<TypedSpec> letPrefix,

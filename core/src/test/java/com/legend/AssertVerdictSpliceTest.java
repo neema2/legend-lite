@@ -284,31 +284,40 @@ class AssertVerdictSpliceTest {
     }
 
     @Test
-    @DisplayName("§8 leg 1 flat cells: ordered pass, row-swap passes under"
-            + " incidental order, CROSS-ROW SHUFFLE FAILS (row cohesion)")
+    @DisplayName("§8 leg 1 flat cells: the product refuses an unsorted read compared in order; sorted, the order is"
+            + " the verdict's; the compatibility door compares upstream's as an explicit assertSameElements")
     void flatCellsRowCohesion() throws Exception {
-        String prefix = "{|let result = execute(|e::Person.all()"
+        String unsorted = "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
                 + " e::M, e::RT.runtimeValue, []);";
+        String prefix = "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.name, p|$p.age], ['name','age'])->sort('name'),"
+                + " e::M, e::RT.runtimeValue, []);";
+        // B3 step 4 (2026-11-24): the rows' order is the database's arrival order, so the product refuses the ordered
+        // compare at planning, naming the fixes (OrderedAsserts; until then the host judge compared it as a row
+        // multiset)
+        com.legend.error.ModelException refused = assertThrows(com.legend.error.ModelException.class,
+                () -> runProduct(unsorted + " assertEquals(['p1', 30, 'p2', 40], $result.values.rows.values);}"));
+        assertTrue(String.valueOf(refused.getMessage()).contains("sort it, or say assertSameElements"),
+                refused.getMessage());
         Object ordered = runProduct(prefix
                 + " assertEquals(['p1', 30, 'p2', 40],"
                 + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, ordered);
-        // whole-row swap: DB arrival order is incidental — holds
-        Object swapped = runProduct(prefix
+        // sorted, a whole-row swap is a different order: it FAILS
+        assertThrows(com.legend.error.AssertFailed.class, () -> runProduct(prefix
                 + " assertEquals(['p2', 40, 'p1', 30],"
-                + " $result.values.rows.values);}").one();
-        assertEquals(Boolean.TRUE, swapped);
-        // cross-row CELL shuffle: same loose cells, broken row
-        // cohesion — must FAIL (audit 9)
+                + " $result.values.rows.values);}"));
+        // a cross-row CELL shuffle: same loose cells, broken rows -- FAILS
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> runProduct(prefix
                 + " assertEquals(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}"));
-        // upstream's words under either judge (2026-11-03, the core parity program: the host's "(TDSRow.values)"
-        // prefix was lite's)
-        assertTrue(String.valueOf(e.getMessage()).contains("expected the elements [\"p1\", 40, \"p2\", 30] in any order"),
-                e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains("p1"), e.getMessage());
+        // upstream's unsorted ordered compare at the compatibility door: made the explicit assertSameElements
+        // (edge.UpstreamTestBodies.rowsOrderFree), Pure's element multiset -- the row swap holds
+        assertEquals(Boolean.TRUE, run(unsorted + " assertEquals(['p2', 40, 'p1', 30],"
+                + " $result.values.rows.values);}").one());
     }
 
     @Test

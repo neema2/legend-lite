@@ -81,16 +81,16 @@ class JudgesOnPlansTest {
             new Case("assertNotEquals(1, 2)", true),
             // the store: scalars read through a relation, and grids
             new Case("assertEquals(3, " + T + "->size())", true),
-            new Case("assertEquals('b', " + T + "->filter(r|$r.ID == 2)->select(~NAME)->toOne().NAME)", true),
-            new Case("assertEquals(2.25D, " + T + "->filter(r|$r.ID == 2)->select(~PRICE)->toOne().PRICE)", true),
-            new Case("assertEquals(%2024-02-03, " + T + "->filter(r|$r.ID == 2)->select(~D)->toOne().D)", true),
+            new Case("assertEquals('b', " + T + "->filter(r|$r.ID == 2)->sort(~ID->ascending())->select(~NAME)->toOne().NAME)", true),
+            new Case("assertEquals(2.25D, " + T + "->filter(r|$r.ID == 2)->sort(~ID->ascending())->select(~PRICE)->toOne().PRICE)", true),
+            new Case("assertEquals(%2024-02-03, " + T + "->filter(r|$r.ID == 2)->sort(~ID->ascending())->select(~D)->toOne().D)", true),
             // a value root's timestamp in the judges' value lane: its digits trimmed, as the database judge's canon
             // spells it (a grid's cell keeps the engine's nine; step 7, 2026-10-18)
             new Case("assertEquals(%2024-02-03T11:00:00.123, " + T
-                    + "->filter(r|$r.ID == 2)->select(~TS)->toOne().TS)", true),
-            new Case("assertEquals(false, " + T + "->filter(r|$r.ID == 2)->select(~B)->toOne().B)", true),
+                    + "->filter(r|$r.ID == 2)->sort(~ID->ascending())->select(~TS)->toOne().TS)", true),
+            new Case("assertEquals(false, " + T + "->filter(r|$r.ID == 2)->sort(~ID->ascending())->select(~B)->toOne().B)", true),
             new Case("assertEquals(#TDS\n  ID, NAME\n  2, b\n#, " + T
-                    + "->filter(r|$r.ID == 2)->select(~[ID, NAME]))", true),
+                    + "->filter(r|$r.ID == 2)->select(~[ID, NAME])->sort(~ID->ascending()))", true),
             new Case("assertEquals(#TDS\n  ID\n  1\n  2\n  3\n#, " + T + "->select(~ID)->sort(~ID->ascending()))", true),
             // class instances: the host judge decodes each instance's structure and judges by Pure's rule -- two
             // keyless instances are distinct (identity), keyed instances equal on their keys -- and the database

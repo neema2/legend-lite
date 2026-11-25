@@ -522,9 +522,9 @@ class BodyRouterParityTest {
                     + " (2, 'New', date '2010-01-01', date '9999-12-31')");
     /** A frame over a business-temporal class (M9d): its eager run is the product's lowering of the temporal read. */
     private static final String EXECUTE_TEMPORAL = "meta::pure::router::execute(|x::TFirm.all(%2020-06-01)"
-            + "->project([t|$t.name], ['name']), x::M, x::RT.runtimeValue, [])";
-    private static final String EXECUTE = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']),"
-            + " x::M, x::RT.runtimeValue, [])";
+            + "->project([t|$t.name], ['name'])->sort('name'), x::M, x::RT.runtimeValue, [])";
+    private static final String EXECUTE = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name'])"
+            + "->sort('name'), x::M, x::RT.runtimeValue, [])";
     /** A class-rooted frame (the M9a audit's S2): the eager run is the product's lowering of an object read. */
     private static final String EXECUTE_CLASS = "meta::pure::router::execute(|x::Firm.all(), x::M, x::RT.runtimeValue,"
             + " [])";
@@ -674,7 +674,7 @@ class BodyRouterParityTest {
                         + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); assertSize($r.values.rows, 3);}",
                 // the M9a audit's S2: a class-rooted frame (the eager run an object read; its values the objects)
                 "{| let r = " + EXECUTE_CLASS + "; assertSize($r.values, 2); assertEquals(['Acme', 'Bolt'],"
-                        + " $r.values.name);}",
+                        + " $r.values.name->sort());}",
                 // the M9a audit's S4: a frame read only through a value let; a failing first assert, then a reader
                 "{| let r = " + EXECUTE + "; let n = $r.values.rows->size(); assertEquals(2, $n);}",
                 "{| let r = " + EXECUTE + "; assertEquals(['Acme'], $r.values.rows.values); assertSize($r.values.rows,"
@@ -1191,7 +1191,7 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void consumedElementReferencePrograms(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
-        String query = "|x::Firm.all()->project([f|$f.name], ['name'])";
+        String query = "|x::Firm.all()->project([f|$f.name], ['name'])->sort('name')";
         String inlineRuntime = "^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
                 + "element = x::DB, connection = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                 + "type = meta::relational::runtime::DatabaseType." + backend.type().name() + ")))";
@@ -1350,7 +1350,7 @@ class BodyRouterParityTest {
                         + EXECUTE + "; assertSize($r.values.rows, 2); " + EXEC
                         + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); assertSize($r.values.rows, 3);}",
                 "{| let r = " + EXECUTE_CLASS + "; assertSize($r.values, 2); assertEquals(['Acme', 'Bolt'],"
-                        + " $r.values.name);}",
+                        + " $r.values.name->sort());}",
                 // the activities: the SQL text, and the comment (the fused statement's own stamp)
                 "{| let r = " + EXECUTE + "; assertSize($r.activities, 1); assert($r.activities->at(0)->cast("
                         + "@meta::relational::mapping::RelationalActivity).sql->toOne()->startsWith('select'));}",

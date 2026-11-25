@@ -180,7 +180,7 @@ class TestPlanJsonRoundTripTest {
                         java.util.Map.of("expected", "a::A", "actual", "a::B"))),
                 new HostJudgment.SameElements(e, new HostJudgment.SideFacts("my::F", new KindClass.Element("my::F"),
                         false, false, false, "F", "F"), true, keys),
-                new HostJudgment.Equals("equals", true, false, true, e, a, keys,
+                new HostJudgment.Equals("equals", true, true, e, a, keys,
                         new HostJudgment.FlatFacts(true, false, false, true)),
                 new HostJudgment.Json(true),
                 new HostJudgment.Rendered("rendered", false, "form", null, "aForm", true, true),

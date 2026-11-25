@@ -308,7 +308,8 @@ bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGro
 bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
 bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
 # an ORDER BY past a DISTINCT: BigQuery refuses a sort key the DISTINCT does not select (pinned since 2026-10-21)
-bigquery	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	DataError: BigQueryException during runQuery ⏎ ORDER BY clause expression references _tds3.name which is not visible after SELECT DISTINCT
+# 2026-11-24, B3 step 2b (the lift): the row's alias re-recorded (_tds3 -> _tds0), the verdict unmoved -- the failing statement is now the printed side's read before the body (measured by its warm lane on 9b1e194f)
+bigquery	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	DataError: BigQueryException during runQuery ⏎ ORDER BY clause expression references _tds0.name which is not visible after SELECT DISTINCT
 # BigQuery has no Jaro-Winkler similarity
 bigquery	Unclassified	meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityEqual	DialectCapability: JARO_WINKLER reached BigQuery: BigQuery has no Jaro-Winkler similarity
 bigquery	Unclassified	meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual	DialectCapability: JARO_WINKLER reached BigQuery: BigQuery has no Jaro-Winkler similarity
@@ -326,14 +327,15 @@ databricks	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNum
 databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
 databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
 # a DISTINCT relation's sort key Spark cannot resolve after the DISTINCT (an unresolved column, sqlState 42703) -- channel A and the engine's Databricks manifest both pass it (true wire bugs pinned since 2026-10-12)
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
-databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
-databricks	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`str` cannot be resolved.
-databricks	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds3`.`id` cannot be resolved.
+# 2026-11-24, B3 step 2b (the lift): 8 databricks Relation rows' texts re-recorded, the verdicts unmoved -- the failing statement is now the printed side's read before the body, whose table alias is `_tds0` where the body's own statement named it `_tds2`/`_tds3` (the same UNRESOLVED_COLUMN: Databricks cannot ORDER BY the FROM alias after DISTINCT; measured by its warm lane on 9b1e194f)
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`str` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`id` cannot be resolved.
 
 # 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after total
 # separation complete"): refused, never cut (S181): the lane's database keeps 6 digits of a second; pending the
@@ -426,6 +428,10 @@ duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testAsOfJ
 duckdb-lite	Standard	meta::pure::functions::date::tests::max::testExtendMaxDate	actual: "#TDS\n   id,time,volume,maxDate\n   1,2026-01-07 00:00:00,820000,2026-01-09 01:00:00
 duckdb-lite	Standard	meta::pure::functions::date::tests::min::testExtendMinDate	actual: "#TDS\n   id,time,volume,minDate\n   1,2026-01-07 00:00:00,820000,2026-01-07 00:00:00
 duckdb-lite	Standard	meta::pure::functions::tests::date::testDayOfWeek_Relation	actual: "#TDS\n   date,dayOfWeek\n   1985-01-12 06:30:00,Saturday
+# 2026-11-24, B3 step 4 (the user's ruling of 2026-11-24: lite refuses a test that compares rows with no defined order in order --
+# "we don't let platform devs or users write tests that do not have a sort"): on lite's own lane upstream's test is planned by lite's
+# rules, and its assertEquals of a map over a grouped relation (testHashCodeAggregate's isNotEmpty flags) is refused by name
+duckdb-lite	Standard	meta::pure::functions::math::hashCode::tests::testHashCodeAggregate	ModelException: assertEquals compares in order, and its actual side's order is not defined
 # (16 rows gone 2026-11-21, stage B's BE, the one catalog: an assertError expects legend-pure's sentence and lite's
 # database now raises it -- testAtError, testSliceError, testNewDateError, the four date-part errors, testRemError,
 # testSquareRootError, testRangeStepError, the four window-frame boundaries, the two 62-bit shifts; a down move)

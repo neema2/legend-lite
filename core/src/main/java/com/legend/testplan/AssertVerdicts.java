@@ -517,15 +517,9 @@ public final class AssertVerdicts {
                     yield DatabaseJudge.unjudged(name,
                             "two grids whose schemas differ or are unknown: the database judge has no form for them");
                 }
-                // D3 — the ORDER VIEW: an INCIDENTAL-order actual side
-                // (unsorted store read / frame read) has SQL arrival
-                // order — engine goldens encode H2's, ours is DuckDB's
-                // — so both sides fetch with the CANONICAL-order riders
-                // and the judgment is order-insensitive (exactly the
-                // assertSameElements shape). SORTED/DEFINED sides stay
-                // strictly ordered.
-                boolean incidental = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
-                        == com.legend.compiler.spec.OrderView.INCIDENTAL;
+                // (the ORDER VIEW's incidental flag, an unsorted side compared as a multiset: deleted 2026-11-24, B3
+                // step 4 -- such an assertEquals is refused before it reaches here, compiler.spec.OrderedAsserts, and
+                // made an explicit assertSameElements at the compatibility door)
                 // §8 leg 1 — grid-ness is STATIC (the declared result
                 // shape, decided before execution — the ratified
                 // no-runtime-sniffing rule): a grid pair fetches in
@@ -535,7 +529,7 @@ public final class AssertVerdicts {
                 // host-side instead — semantics-free string sorting.
                 boolean gridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
-                yield arm.equals(name, wantEqual, args, incidental, gridPair, letPrefix, specs, env, hook);
+                yield arm.equals(name, wantEqual, args, gridPair, letPrefix, specs, env, hook);
             }
             case ASSERT_SAME_ELEMENTS -> {
                 if (args.size() < 2) {
@@ -923,11 +917,8 @@ public final class AssertVerdicts {
                         && com.legend.compiler.element.type.Type.isRelation(args.get(1).info().type())) {
                     yield HostJudge.planGridPair(name, wantEqual, args, letPrefix, hook);
                 }
-                boolean incidental = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
-                        == com.legend.compiler.spec.OrderView.INCIDENTAL;
                 boolean gridPair = tabularShaped(args.get(0)) || tabularShaped(args.get(1));
-                HostSides.Check equals = HostJudge.planEquals(name, wantEqual, args, incidental, gridPair, letPrefix,
-                        env, hook);
+                HostSides.Check equals = HostJudge.planEquals(name, wantEqual, args, gridPair, letPrefix, env, hook);
                 if (equals == null) {
                     unplanned(bare, specs, "equals: planEquals declined" + after + ": " + shapeOf(bare));
                 }

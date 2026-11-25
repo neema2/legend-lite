@@ -158,6 +158,50 @@ class UpstreamPrintsTest {
     }
 
     @Test
+    @DisplayName("an unordered table joined on one line by replace('\\n', ','): rows compared in any order, never cells"
+            + " (the review of step 2b's M3)")
+    void aJoinedUnorderedTableIsComparedByRows() throws Exception {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        String grouped = "let g = " + REL + "->groupBy(~name, ~n: x | $x.id : y | $y->count());";
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            UpstreamPrints.Reads reads = (query, answer) -> com.legend.TestExecution.runProgram(query,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                    com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE, answer);
+            // the rows in either order hold; a cell moved between rows does not
+            com.legend.TypedQuery holds = UpstreamPrints.read(com.legend.Compiler.query(ctx, "|" + grouped
+                    + " assertEquals('#TDS,   name,n,   B,1,   A,1,#', $g->toString()->replace('\\n', ','));"), false,
+                    reads);
+            com.legend.TestExecution.runProgram(holds, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                    com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            com.legend.TypedQuery fails = UpstreamPrints.read(com.legend.Compiler.query(ctx, "|" + grouped
+                    + " assertEquals('#TDS,   name,n,   B,A,   1,1,#', $g->toString()->replace('\\n', ','));"), false,
+                    reads);
+            org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.AssertFailed.class,
+                    () -> com.legend.TestExecution.runProgram(fails, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                            com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE));
+        }
+    }
+
+    @Test
+    @DisplayName("a body that writes, and a print inside a lambda, are left as written (the review of step 2b's M1)")
+    void writesAndLambdasAreLeftAsWritten() {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        UpstreamPrints.Reads never = (query, answer) -> {
+            throw new AssertionError("nothing is read");
+        };
+        UpstreamPrints.Printer printer = (side, read, r) -> "printed";
+        com.legend.TypedQuery printed = com.legend.Compiler.query(ctx,
+                "|let r = " + REL + "; assertEquals('x', $r->toString());");
+        assertSame(printed, UpstreamPrints.read(printed, true, never, printer));
+        com.legend.TypedQuery inLambda = com.legend.Compiler.query(ctx,
+                "|let r = " + REL + "; let f = {|$r->toString()}; assertEquals('x', $f->eval());");
+        assertSame(inLambda, UpstreamPrints.read(inLambda, false, never, printer));
+    }
+
+    @Test
     @DisplayName("no printer, or a body with no printed side: the query itself")
     void nothingSubstituted() {
         com.legend.compiler.element.ModelContext ctx = ctx();

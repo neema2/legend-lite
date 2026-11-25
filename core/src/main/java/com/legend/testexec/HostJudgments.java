@@ -87,8 +87,7 @@ final class HostJudgments {
      * AssertVerdicts.side (both-wrapped pairs took the grid-pair arm earlier). */
     static TypedSide tdsRowValuesVerdict(String name,
             boolean wantEqual, HostJudgment.FlatFacts flat,
-            SideFetch ef, SideFetch af,
-            boolean incidental, HostRules rules, BodyRun run) {
+            SideFetch ef, SideFetch af, HostRules rules, BodyRun run) {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         // audit 22b F2: raw cells (a bare .rows view) never equal a
@@ -109,21 +108,14 @@ final class HostJudgments {
         } else {
             List<com.legend.testexec.Equality.Typed> te = com.legend.testexec.Equality.grid(e, eKinds);
             List<com.legend.testexec.Equality.Typed> ta = com.legend.testexec.Equality.grid(a, aKinds);
+            // in order: a side with no defined order is refused before it reaches here (B3 step 4, 2026-11-24: the
+            // incidental-order row multiset deleted; the door makes upstream's an explicit assertSameElements)
             hostHeld = com.legend.testexec.Equality.ordered(te, ta, rules);
-            if (!hostHeld && incidental && e.size() == a.size()) {
-                // ROW COHESION (audit 9): the incidental-order fallback
-                // matches ROW TUPLES of the grid's width — cross-row
-                // cell shuffles must FAIL; width 1 = the pool multiset
-                TypedSide.Tabular g = af.grid() != null ? af.grid() : ef.grid();
-                int w = g != null ? g.columns().size() : 1;
-                hostHeld = com.legend.testexec.Equality.rowMultiset(
-                        te, ta, w > 1 && e.size() % w == 0 ? w : 1, rules);
-            }
         }
         return finish(name, wantEqual, hostHeld,
                 // raw cells against a whole TDS value never equal: the two sides as written (item 3, 2026-11-21: until
                 // then a sentence of its own outside the catalog)
-                () -> AssertRecords.rowValuesDiffer(e, a, !mixedFlatVsTds && incidental),
+                () -> AssertRecords.rowValuesDiffer(e, a, false),
                 () -> AssertRecords.notEqual(e, a, null, null));
     }
 
@@ -791,12 +783,11 @@ final class HostJudgments {
             HostRules rules, BodyRun run) {
         String name = j.name();
         boolean wantEqual = j.wantEqual();
-        boolean incidental = j.incidental();
         SideFetch ef = sideCanonOf(pair.get(0));
         SideFetch af = sideCanonOf(pair.get(1));
         // the FLAT-CELLS verdict (the host cell lattice)
         if (ef.grid() != null || af.grid() != null) {
-            return tdsRowValuesVerdict(name, wantEqual, j.flat(), ef, af, incidental, rules, run);
+            return tdsRowValuesVerdict(name, wantEqual, j.flat(), ef, af, rules, run);
         }
         // X5: a same-class KEYED pair restricts both sides to
         // the key tree — the engine's own equality relation for
@@ -810,20 +801,18 @@ final class HostJudgments {
         List<Object> a = both.get(1);
         List<com.legend.testexec.Equality.Typed> te = typedSide(e, j.e());
         List<com.legend.testexec.Equality.Typed> ta = typedSide(a, j.a());
-        boolean equal = incidental
-                ? com.legend.testexec.Equality.sameElements(te, ta, rules)
-                : com.legend.testexec.Equality.ordered(te, ta, rules);
+        boolean equal = com.legend.testexec.Equality.ordered(te, ta, rules);
         // R1a divergence instrument (CANONICAL_FORM_SPEC §0): the host lattice vs a canonical render of the same
         // values, measurement only (the byte verdict it once shadowed is deleted, P1, 2026-11-07)
         com.legend.testexec.CanonicalDivergence.probeEqual(
-                name, e, a, equal, incidental);
+                name, e, a, equal, false);
         // the message is the failed verdict's own sides, spelled -- no second, untyped comparison that could hold
         // where the typed one failed (the ledger audit's D4, 2026-11-16)
         // the record the one choice makes (AssertRecords.equality), as the database judge's run makes it
         return finish(name, wantEqual, equal,
-                () -> AssertRecords.equality(incidental, true, e, a, ef.values(), af.values(), j.e(),
+                () -> AssertRecords.equality(false, true, e, a, ef.values(), af.values(), j.e(),
                         j.a()),
-                () -> AssertRecords.equality(incidental, false, e, a, ef.values(), af.values(), j.e(),
+                () -> AssertRecords.equality(false, false, e, a, ef.values(), af.values(), j.e(),
                         j.a()));
     }
 

@@ -783,12 +783,12 @@ public final class DatabaseJudge {
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return DatabaseJudge.jsonStringsEqual(name, args, letPrefix, specs, env, hook);
         }
-        @Override public TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+        @Override public TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // 3.1b: grid sides route too (the statement frames the
             // peer by the grid's width; a grid PAIR is unjudged there)
             return databaseVerdict(name, wantEqual, args.get(0), args.get(1),
-                    letPrefix, specs, env, hook, incidental, false);
+                    letPrefix, specs, env, hook, false, false);
         }
         @Override public TypedSide gridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean sorted, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

@@ -207,7 +207,10 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     record SameElements(SideFacts e, SideFacts a, boolean gridPair, Keys keys) implements HostJudgment {
     }
 
-    record Equals(String name, boolean wantEqual, boolean incidental, boolean gridPair, SideFacts e, SideFacts a,
+    // (incidental, the actual side's order SQL arrival order compared as a multiset: deleted 2026-11-24, B3 step 4 --
+    // an assertEquals of a side with no defined order is refused by the product's planner (OrderedAsserts) and made
+    // an explicit assertSameElements at the compatibility door, edge.UpstreamTestBodies.rowsOrderFree)
+    record Equals(String name, boolean wantEqual, boolean gridPair, SideFacts e, SideFacts a,
             Keys keys, FlatFacts flat) implements HostJudgment {
     }
 

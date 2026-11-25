@@ -398,3 +398,48 @@ report:** each door lists every comparison it loosened -- the expression, the tw
 error -- write `my::Order.status == my::Status.OPEN`) -- so a team bringing an engine project sees exactly what to change
 before moving to lite's strict rules; no answer changes. (Asked by the user: "strict type in lite only or strict type
 everywhere but in engine the strict is a warning ... or something else smart"; the warning became the door's report.)
+
+**Step 2b landed and reviewed (2026-11-24):** pushed `9b1e194f` (round green, 292 of 293). Its independent review: no
+HIGH. Fixed in step 4's commit: M1 a print inside a lambda (its own scope, maybe never run) left as written; M2 the join
+rewrite -- an empty golden left as written, a list moved from its let never past a write, a golden read through its let
+(a separator inside a value recorded as a known narrowing: the golden's pieces against the list's values); M3 a joined
+unordered table compared by rows (the golden's cells cut by each printed line's cell count), never by cells; M4
+`preval`'s lambda read by the order view (`tds::sort::testSimpleSortAscWithPreval`'s sort was out of sight); L1 the
+rewritten assert keeps its position; L2 the gates log's engine-order line corrected; L5 tests pin a body that writes, a
+lambda's print, the joined rows. Recorded: L3 the lean-SQL baseline's net move from 7619acb4 is B2's 24 dated rows up
+(B3's step 1b shrinks taken with the merge's regeneration); L4 the effects gate does not count the relation `write`
+native (latent: no printed side after one). Still compared exactly (the review's item 2, recorded): two prints compared
+with each other, a print under `assertNotEquals` or a three-argument `assertEquals`, a body that writes, prints the
+side rule does not lift (`toString(rel, true)`, other toCSV formats, raw grids, dynamic pivots, a print inside a further
+function), joins over non-String lists or bare cells, the four-argument `makeString`.
+
+## Step 4 -- an order-dependent comparison of rows with no defined order (built 2026-11-24, round pending)
+
+The user's ruling (2026-11-24: "my ideal state for product is that we don't let platform devs or users write tests that
+do not have a sort ... But we still need multi-set compare for backwards compatibility"). Built:
+
+- **The product refuses it.** `compiler/spec/OrderedAsserts.refuse`, called by the test planner after the lift
+  (`TestPlanner.lifted`): an `assertEquals` or `assertNotEquals` whose side is rows (a relation, or a collection rather
+  than one value) with no defined order (`OrderView.INCIDENTAL`: a store or frame read with no sort, or past a
+  grouping, a join or a union) is a TYPE-phase error naming the two fixes -- sort it, or `assertSameElements` when the
+  order does not matter.
+- **The compatibility door makes upstream's explicit.** `edge/UpstreamTestBodies.rowsOrderFree`: such an `assertEquals`
+  becomes `assertSameElements` of the same two sides (built by the typer, `EngineSubstitutes.call`); the lift's printed
+  tables and the join rewrite (step 2b) are the same rule for texts.
+- **The judge's flag is deleted.** `HostJudgment.Equals.incidental` and its row multiset (the host judge compared an
+  incidental side as a multiset of rows): an `assertEquals` is in order everywhere.
+- **The order view, corrected where the refusal found it wrong:** an `aggregate` with no grouping is one row (DEFINED),
+  as the native and as the typer's `TypedAggregate` node; `preval`'s lambda is read inside an execute frame.
+- **Lite's own tests that compared unsorted rows in order now sort** (the parity frames, the catalog body, the decimal
+  lists, a filtered relation): the product's rule applies to lite's tests first.
+
+Measured with a second, wider half (a print or a join of such rows: `toString`, `toCSV`, `joinStrings`, `makeString`):
+30 corpus tests a lane and a handful of PCT tests pass only by legend-engine's scan order, and the door has no explicit
+order-free form yet for a join of a list that is not Strings, of bare cells, or for a print the lift does not read. That
+half is deferred, for the user's word.
+
+**A known loosening at the door (recorded):** upstream's `assertEquals(golden, $tds.rows.values)` -- a TDS's cells
+flattened -- with no defined order becomes `assertSameElements` of the cells, Pure's element multiset: a cell moved
+between rows of a wrong answer is no longer caught there (the host judge's row multiset caught it, `flatCellsRowCohesion`
+pinned it). It changes no verdict on a correct answer; Pure has no tuple to write a row multiset with. The product
+refuses the shape; sorted, it compares in order.

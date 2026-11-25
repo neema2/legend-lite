@@ -111,6 +111,11 @@ public final class UpstreamPrints {
      *  {@link #unordered}. */
     private static TypedSpec substituted(TypedSpec n, com.legend.TypedQuery typed, List<TypedSpec> lets,
             Reads reads, Printer printer) {
+        // a lambda's body is its own scope (its parameters and lets may shadow the body's lets) and may never run (an
+        // if's branch, assertError's): a print inside one is left as written (the review of step 2b's M1, 2026-11-24)
+        if (n instanceof com.legend.compiler.spec.typed.TypedLambda) {
+            return n;
+        }
         TypedSpec u = unordered(n, typed, lets, reads, printer);
         if (u != null) {
             return u;
@@ -239,39 +244,86 @@ public final class UpstreamPrints {
             return null;
         }
         for (int side = 0; side < 2; side++) {
-            PrintedRelations.Side p = PrintedRelations.side(call.args().get(side));
-            String golden = UpstreamTestBodies.literalText(call.args().get(1 - side));
+            // each side where it stands or through the let it is bound to (the review of step 2b, item 2)
+            PrintedRelations.Side p = PrintedRelations.side(
+                    com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets));
+            String golden = UpstreamTestBodies.literalText(
+                    com.legend.compiler.spec.typed.Lets.bound(call.args().get(1 - side), lets));
             if (p == null || golden == null || !readable(p.relation(), lets) || !incidental(p, lets)) {
                 continue;
             }
-            String text = print(p, typed, lets, reads, printer);
-            if (text == null) {
-                return null;
-            }
-            String sep = "\n";
-            for (PureRelationText.Replace r : p.replaces()) {
-                if (r.target().equals(sep) && !r.replacement().isEmpty()) {
-                    sep = r.replacement();
+            List<String> goldenLines;
+            List<String> printedLines;
+            List<PureRelationText.Replace> rs = p.replaces();
+            int joining = -1;
+            for (int i = 0; i < rs.size(); i++) {
+                if (rs.get(i).target().equals("\n")) {
+                    joining = i;
                 }
             }
-            List<com.legend.protocol.spec.ValueSpecification> e = lines(side == 0 ? text : golden, sep);
-            List<com.legend.protocol.spec.ValueSpecification> a = lines(side == 0 ? golden : text, sep);
+            if (joining < 0) {
+                String text = print(p, typed, lets, reads, printer);
+                if (text == null) {
+                    return null;
+                }
+                printedLines = List.of(text.split("\n", -1));
+                goldenLines = List.of(golden.split("\n", -1));
+            } else {
+                // the rows joined on one line by a literal replace (the corpus's toCSV(...)->replace('\n', ',')):
+                // the table printed with its line breaks, and the golden's cells cut into the same rows by each
+                // printed line's cell count -- rows compared, never cells (the review of step 2b's M3, 2026-11-24);
+                // anything else is left as written
+                String sep = rs.get(joining).replacement();
+                if (joining != rs.size() - 1 || sep.isEmpty()) {
+                    return null;
+                }
+                String text = print(new PrintedRelations.Side(p.relation(), p.form(), rs.subList(0, joining)), typed,
+                        lets, reads, printer);
+                if (text == null) {
+                    return null;
+                }
+                printedLines = List.of(text.split("\n", -1));
+                goldenLines = rows(golden, sep, printedLines);
+                if (goldenLines == null) {
+                    return null;
+                }
+            }
+            List<com.legend.protocol.spec.ValueSpecification> e = literals(side == 0 ? printedLines : goldenLines);
+            List<com.legend.protocol.spec.ValueSpecification> a = literals(side == 0 ? goldenLines : printedLines);
             return typed.specs().typeExpression(new com.legend.protocol.spec.AppliedFunction(
                     com.legend.builtin.NativeFn.Verdict.ASSERT_SAME_ELEMENTS.fqn(),
                     List.of(new com.legend.protocol.spec.PureCollection(e),
                             new com.legend.protocol.spec.PureCollection(a)),
-                    List.of(), null, false, false, false));
+                    List.of(), call.pos(), false, false, false));
         }
         return null;
     }
 
-    /** {@code text}'s pieces between {@code sep}s, each a String literal. */
-    private static List<com.legend.protocol.spec.ValueSpecification> lines(String text, String sep) {
+    /** Each text a String literal. */
+    private static List<com.legend.protocol.spec.ValueSpecification> literals(List<String> texts) {
         List<com.legend.protocol.spec.ValueSpecification> out = new ArrayList<>();
-        for (String piece : text.split(java.util.regex.Pattern.quote(sep), -1)) {
-            out.add(new com.legend.protocol.spec.CString(piece));
+        for (String t : texts) {
+            out.add(new com.legend.protocol.spec.CString(t));
         }
         return out;
+    }
+
+    /** {@code golden}'s cells between {@code sep}s cut into rows, each as many cells as the printed line at its place
+     *  holds, joined again by {@code sep}; null where the counts do not divide the golden exactly. */
+    private static @com.legend.base.Nullable List<String> rows(String golden, String sep, List<String> printedLines) {
+        String q = java.util.regex.Pattern.quote(sep);
+        List<String> cells = List.of(golden.split(q, -1));
+        List<String> out = new ArrayList<>();
+        int k = 0;
+        for (int i = 0; i < printedLines.size(); i++) {
+            int w = printedLines.get(i).split(q, -1).length;   // an empty last line (a final line break) one cell
+            if (k + w > cells.size()) {
+                return null;
+            }
+            out.add(String.join(sep, cells.subList(k, k + w)));
+            k += w;
+        }
+        return k == cells.size() ? out : null;
     }
 
     /** Whether every name {@code relation} reads is bound by one of {@code lets}: a lambda's parameter is not. */

@@ -30,7 +30,7 @@ CROSS JOIN (
 UNION ALL
 SELECT 1 AS __m, w.__h AS __s0, CAST(NULL AS BIGINT) AS __s1, CAST(NULL AS BIGINT) AS __s2, CASE WHEN w.__h THEN NULL ELSE w.__x0 END AS __s3, CASE WHEN w.__h THEN NULL ELSE w.__x1 END AS __s4
 FROM (
-  SELECT (list_sort(e.__l) IS NOT DISTINCT FROM list_sort(a.__l)) AS __h, e.__l AS __x0, a.__l AS __x1
+  SELECT (e.__l IS NOT DISTINCT FROM a.__l) AS __h, e.__l AS __x0, a.__l AS __x1
   FROM (
     SELECT LIST(__a.__o ORDER BY __a.__rn ASC) AS __l
     FROM __a_1 AS __a
