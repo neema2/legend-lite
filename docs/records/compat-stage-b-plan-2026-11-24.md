@@ -1,5 +1,7 @@
 # Stage B after item 3: the order, and the one equality (2026-11-24)
 
+> **Amended again 2026-11-25 (late night): the edition program replaces what is left of Stage B; its current direction is `docs/records/edition-v4-direction-2026-11-25.md`, and `edition-program-START-HERE-2026-11-25.md` §0.0 maps every Stage B item to it.** The amendment below (E1-E7) is superseded by that mapping.
+>
 > **Amended 2026-11-25: the edition governs what is left of stage B.** The user ruled the edition design
 > (`docs/records/edition-design-2026-11-25.md`; "Edition seems best of all options", "Yes to all the amendments"). B3's
 > step 5 (the one equality as door rewrites) is replaced by its phases E1 and E2; B3's rewrites of legend-engine's test

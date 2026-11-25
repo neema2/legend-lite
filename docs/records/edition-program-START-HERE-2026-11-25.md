@@ -6,6 +6,34 @@
 
 *This section is current. §§1-9 below are the history of v1 and its first review; read them only for background. §10 (how to work), §11 (traps) and §12 (file index) still hold.*
 
+### 0.0 Where this sits: the compatibility program, Stage B, and how the edition program replaces Stage B's remaining plan
+
+**The compatibility program** makes lite answer like legend-pure and legend-engine at their doors (pure/v1, the relational corpus, PCT) while lite's product stays lean and Pure-faithful. Its rules and documents:
+- **The rules:** `AGENTS.md` (the goals G1-G11, the six tenets with tenet 1 amended 2026-11-25, the invariants) and `docs/records/compat-rules-of-record-2026-11-19.md` (the switch rule, the tenets' tests, the amendments).
+- **The plain-English plan,** ruled 2026-11-19 ("Okay agree with all"): `docs/records/compat-design-and-plan-plain-2026-11-19.md`, on branch `claude/compat-program`.
+- **Stage A** (A1-A4) was ratified and built in November. A3 is the `substring` rewrite this program discusses (§0.15, and `edition-v4-direction-2026-11-25.md` §3).
+- **Stage B's detailed plan of record:** `docs/records/compat-stage-b-plan-2026-11-20.md` on `claude/compat-program` (557 lines: B1, BE, B3, B2, B4, B5, B6). Its 2026-11-24 order and the one-equality ruling are in `docs/records/compat-stage-b-plan-2026-11-24.md` (here).
+- **Progress logs:** `docs/records/compat-b2-progress.md` (B2) and `docs/records/compat-b3-progress.md` (B3).
+- **Every recorded difference:** `docs/SEMANTICS_REGISTER.md` (one row each) and `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md` (the one page for users coming from legend-engine).
+
+**What the edition program is.** On 2026-11-25 the user replaced what was left of Stage B with this program ("lets get the total separation of editions to the edge first - this is the 'reshape' of Phase B with the editions"). Stage B's items map onto it as follows:
+
+| Stage B item (2026-11-24) | State | In the edition program |
+|---|---|---|
+| B1: errors as records | landed (PR #131) | unchanged; presenters word errors (format at the edge) |
+| item 3: assert verdicts as typed records | PR #132; check its state on GitHub | unchanged; the judges never see the edition |
+| B3 steps 1-4 (the rules one rulebook, the door rewrites S137/S144, Float leniencies deleted, ...) | landed on `claude/compat-b3-nufdlk` (3994b835 ... 50b33970) | unchanged; the test-body rewrites (S137, S144, S131) become test tooling in R6 |
+| B3 step 5a: strict typing in the product (the crossing marker) | landed (b0df6ea8) | unchanged; the marker's meaning per edition becomes an override (R3) |
+| B3 step 5a-2: the door path for function bodies | **withdrawn by the user** | replaced by the editions (overrides at lowering, which reach bodies and mapping code) |
+| B3 step 6: the SQL-text fallback through the lift | parked WIP in `/home/user/s5` (`Audience`, `PureTestRunner`); design `edition-homework/b3-step6-design.md` | to be re-planned against R4's presenters (the referee stays, ruled) |
+| B2a: lite's own Float and DateTime texts | landed | unchanged |
+| B2b: CSV and TDS texts, legend-pure's door, S6, S7 | in progress on `claude/compat-b2-nufdlk` (toCSV exact and S7a landing now) | S6's meaning parts become R3 overrides or R4 presenters (rule zero); the presentation work is R4 |
+| B4: remove the legacy H2 settings, the Float-literal and unchecked-maths switches, DataCube's legend-engine workarounds | — | **H2 settings: kept** for the `engine` door as connection data (ruled). **Float literal: deleted** (ruled; landing now). **Unchecked maths:** plain in `engine`'s database part as overrides (ruled). **DataCube's workarounds: not yet re-planned; open.** |
+| B5: delete the switch machinery (`PlanStyle`, feature flags in the core) and turn on the guards | — | R7 (delete `PlanStyle`'s non-override parts, the two-form `LoweringForms`, the edge dialect subclasses; feature flags become overrides) and R8 (guards, rounds, audit) |
+| B6: refuse databases legend-engine's meaning isn't checked on | — | overrides refuse by name on databases where legend-engine's answer was not read |
+
+**How it lands:** the program's work goes to `claude/compat-program` through a PR with CI on every OS, then to `main` through a PR, each only with the user's explicit word.
+
 ### 0.1 The program in one paragraph
 
 legend-lite reimplements legend-pure and legend-engine: it compiles Pure to SQL, and the database computes. The **edition program** (the reshaped Stage B of the compatibility program) moves every audience difference out of lite's product:

@@ -2,6 +2,8 @@
 
 *For a session with no context. Read `edition-program-START-HERE-2026-11-25.md` §0 first, then this file, then `edition-design-v3-2026-11-25.md` (whose mechanism this replaces; everything else in v3 carries over).*
 
+**Where this sits.** This is the edition program, which replaces what was left of the compatibility program's Stage B (the user, 2026-11-25). START HERE §0.0 maps each Stage B item (B1-B6) to it, with pointers to the program's rules, the Stage B plans and the progress logs.
+
 **Status.** The third independent review (`edition-homework/third-review-v3-2026-11-25.md`) found v3 not ready. This file records the direction that came out of it, what is verified and what is not, the homework that would prove it, and the user's fallback. **Nothing here is built.** The user is short on time: "we have to decide something soon running out of time - if we cant figure out we will just fail those substring tests probably and move on".
 
 ---
