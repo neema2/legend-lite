@@ -95,3 +95,8 @@ Measurement added: M7, a typed census of governed constructs in the corpus harne
       - B (the writer words defects from typed rows) would make Java touch every checked row on the way out, for no audience difference: both sentences are worded the same for every door today.
       - The user's option D (the message as a plan parameter) was considered. Bound at planning, it only moves the prose into the parameter list. Supplied by the door at run time, it is the recorded fallback if these sentences ever need to differ per audience, because it keeps the database-built JSON streaming.
     - Owner: B2, with a slice after toCSV exact.
+18. **H2 settings RULED** (the user, 2026-11-25, night: "yes keep h2 settings"): legend-engine's `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` stay for the `engine` door's H2 sessions as connection data; PCT uses the product's. Downsides, as told to the user:
+    - two H2 session kinds exist and never serve each other's plans (already enforced, EdgeH2SessionTest);
+    - LEGACY accepts SQL regular H2 refuses (`active = 1` on a BOOLEAN), at the engine door only;
+    - a future H2 dropping LEGACY would reopen it.
+19. **The user's standing word on landing code** (2026-11-25, night): "if you think makes sense to land code, land it dont have to ask me these micro questions". Small, ruled or approved changes land on the program's branches after a full round with `//gates:local` and an independent review, without asking. Never to `main` and never a PR merge without the user's word.
