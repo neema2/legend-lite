@@ -416,8 +416,10 @@ public final class TestDataRoutes {
         return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> {
             com.legend.TypedQuery typed = com.legend.Compiler.query(ctx,
                     TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery));
+            // (the stamp's probe, temporary: the seed planned in the door's style, the table in the rewrite's place)
             return com.legend.planner.ProductStatements.lowerTestDataSeed(
-                    PureV1Routes.checkMeaning(typed, ctx, r.runtime(), r.mapping()), r.runtime());
+                    PureV1Routes.checkMeaning(typed, ctx, r.runtime(), r.mapping()), r.runtime(),
+                    PureText.STAMP_PROBE ? PureText.PURE_V1 : com.legend.database.PlanStyle.PRODUCT);
         });
     }
 

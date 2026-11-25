@@ -118,9 +118,13 @@ public final class ProductStatements {
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         ProgramFrames.StatementRows rows = frames.statementRows();
+        // the flags the statements themselves carry (withFeatureFlags, legend-engine's second carrier), read here as
+        // written: the resolver reads through the call, so the lowering would never see them on the prepared body
+        // (the edition program's step 2, 2026-11-25: until then a product query's own flags never reached its lowering)
+        Set<Feature> flagged = withWrittenFlags(features, statements);
         // the query's own planning options (TypedQuery.withOptions), its lowering's
-        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows, style).withOptions(query.options())
-                : env(ctx, runtime, features, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
+        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, flagged, rows, style).withOptions(query.options())
+                : env(ctx, runtime, flagged, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
         // the stamp (the edition program's step 2): asked for by a door whose table's two columns differ, never the product
         Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered,
@@ -163,6 +167,18 @@ public final class ProductStatements {
                 frames.renames(), env.tableReplace(), lets, specs);
         PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
         return new Statement(BodyPlanner.prepare(body, widened), temporal, inlined.reads(), stores);
+    }
+
+    /** {@code features} with the flags {@code statements} carry as written ({@code withFeatureFlags} calls). */
+    private static Set<Feature> withWrittenFlags(Set<Feature> features, List<TypedSpec> statements) {
+        Set<Feature> written = com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(statements);
+        if (features.containsAll(written)) {
+            return features;
+        }
+        Set<Feature> all = java.util.EnumSet.noneOf(Feature.class);
+        all.addAll(features);
+        all.addAll(written);
+        return Collections.unmodifiableSet(all);
     }
 
     /** The planning environment of a statement on this road over {@code planRows}: the model, the runtime, the
@@ -427,11 +443,18 @@ public final class ProductStatements {
      * of either corpus reads raw SQL, so one entry always refuses, and no test road needs another).
      */
     public static SqlQuery lowerTestDataSeed(TypedQuery query, String runtime) {
+        return lowerTestDataSeed(query, runtime, com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** {@link #lowerTestDataSeed(TypedQuery, String)} in {@code style}: a compatibility door's seed is planned in the
+     *  door's style, as its queries are (the seed's query is the one whose meaning chooses the keys; the edition
+     *  program's step 2, 2026-11-25). */
+    public static SqlQuery lowerTestDataSeed(TypedQuery query, String runtime, com.legend.database.PlanStyle style) {
         QueryDoor.refuseRawSql(query);
         // the one equality: a comparison across types refused by name, as the planner's door refuses it (B3 step 5a's
         // review, M2, 2026-11-25)
         com.legend.compiler.spec.CrossTypeComparisons.refuse(query.body());
-        Statement s = prepare(query, query.body(), runtime, null, Set.of(), com.legend.database.PlanStyle.PRODUCT);
+        Statement s = prepare(query, query.body(), runtime, null, Set.of(), style);
         Prepared.Planned p = planned(s);
         return lower(query, p, s.temporal(), false, List.of(), new ObjectSites());
     }

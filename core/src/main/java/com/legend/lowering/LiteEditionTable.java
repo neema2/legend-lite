@@ -3,10 +3,13 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.FunctionId;
 import com.legend.platform.Feature;
 
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * THE PRODUCT'S EDITION TABLE ({@link EditionTable}; the edition program's step 2, 2026-11-25): no row and no stamp.
@@ -21,8 +24,13 @@ public final class LiteEditionTable implements EditionTable {
     }
 
     @Override
-    public @com.legend.base.Nullable FunctionId lowersAs(FunctionId key, boolean outsideStore, Set<Feature> features) {
+    public @com.legend.base.Nullable FunctionId lowersAs(TypedNativeCall call, Set<Feature> features) {
         return null;
+    }
+
+    @Override
+    public EditionTable on(Supplier<@com.legend.base.Nullable DatabaseType> database) {
+        return this;
     }
 
     @Override

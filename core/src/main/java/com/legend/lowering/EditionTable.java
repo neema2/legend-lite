@@ -3,10 +3,13 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.FunctionId;
 import com.legend.platform.Feature;
 
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * THE EDITION'S TABLE (the edition program, docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.2): what
@@ -19,19 +22,27 @@ import java.util.Set;
  * becomes SQL passes there, a function's body and a mapping's code included, because by then they are one tree.
  *
  * <p>THE STAMP picks the column. A call the planner stamped as outside any store query
- * ({@code TypedNativeCall.outsideStore}) is asked for with {@code outsideStore} true: at legend-engine's door that is
- * code its own Java runs (Pure's meaning), at the corpus's the test's own code around {@code execute()}. A door whose
- * two columns are the same never asks for stamps ({@link #stampsOutsideStore}).
+ * ({@code TypedNativeCall.outsideStore}) is code the audience's own Java runs: at legend-engine's door a host-side
+ * {@code let} (Pure's meaning), at the corpus's the test's own code around {@code execute()}. A door whose two columns
+ * are the same never asks for stamps ({@link #stampsOutsideStore}).
+ *
+ * <p>A row is chosen by what the program fixes, never by a value: the call's resolved native, its stamp, the feature
+ * flags its statement runs under, a fact its typed operands state (an operand that is always empty), and the database
+ * the statement runs on ({@link #on}). A row whose answer is not checked on that database is refused by name there.
  */
 public interface EditionTable {
 
-    /** The native whose rule lowers a call to {@code key}, or null for {@code key}'s own rule.
+    /** The native whose rule lowers {@code call}, or null for the call's own rule.
      *
-     *  @param key          the call's resolved native
-     *  @param outsideStore the call's stamp: outside any query sent to a store
-     *  @param features     legend-engine's feature flags the statement runs under (a flag may choose the row) */
-    @com.legend.base.Nullable FunctionId lowersAs(FunctionId key, boolean outsideStore, Set<Feature> features);
+     *  @param call     the call, typed: its resolved native, its stamp, its operands' types
+     *  @param features legend-engine's feature flags the statement runs under (a flag may choose the row) */
+    @com.legend.base.Nullable FunctionId lowersAs(TypedNativeCall call, Set<Feature> features);
 
     /** Whether this table's two columns differ, so the planner stamps the calls outside a store query. */
     boolean stampsOutsideStore();
+
+    /** This table for the statements of one planning, which run on {@code database} (asked only when a row is
+     *  chosen, after the planner has decided the runtime; null where the planning names no single database). The
+     *  lowering imports no dialect and names no database: the planner binds the table before handing it over. */
+    EditionTable on(Supplier<@com.legend.base.Nullable DatabaseType> database);
 }

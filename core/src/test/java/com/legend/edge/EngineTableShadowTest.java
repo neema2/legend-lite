@@ -92,7 +92,58 @@ class EngineTableShadowTest {
                     + TABLE + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}",
             "{|let x = 'abc'->indexOf('b'); " + TABLE + "->filter(r|$r.ID == $x)->from(t::RT);}",
             "{|let d = t::Person.all()->filter(p|$p.name == 'abcdef')->from(t::M, t::RT)"
-                    + "->toOne().name->substring(1, 3); $d->toUpper();}");
+                    + "->toOne().name->substring(1, 3); $d->toUpper();}",
+            // substr, the corrected substring, a literal-0 start and a computed index (PureMeaningEngineTest's)
+            cut("substr(1, 3)"), cut("substr(2)"), cut("substring(1, 3)") + CORRECTED, cut("substring(2)") + CORRECTED,
+            cut("substring(0, 3)"), cut("substring(0)"), cut("substr(1, $r.NAME->toOne()->length() + 1)"),
+            // toOne of an operand that is always empty, store-bound and host-side (register S384)
+            "|" + TABLE + "->limit(1)->extend(~o: r|[]->cast(@Integer)->toOne())->select(~[o])->from(t::RT)",
+            "{|let x = []->cast(@Integer)->toOne(); " + TABLE + "->filter(r|$r.ID == $x)->from(t::RT);}",
+            "{|let x = 'abcdef'->substr(1, 3); " + TABLE + "->filter(r|$r.NAME == $x)->from(t::RT);}",
+            // the class shapes, through a relational mapping, and a qualified property
+            "|t::Person.all()->filter(p|$p.name == 'abcdef')->project([p|$p.name->substring(1, 3)], ['d'])"
+                    + "->from(t::M, t::RT)",
+            "|t::Person.all()->filter(p|$p.name->substring(1, 3) == 'abc')->project([p|$p.name], ['n'])"
+                    + "->from(t::M, t::RT)",
+            "|t::Person.all()->project([p|$p.name->indexOf('c')], ['i'])->from(t::M, t::RT)",
+            "|t::Person.all()->project(~[i: p|$p.initials()])->from(t::M, t::RT)",
+            // a literal inside the routed query, and the calls the table has no row for
+            "|" + TABLE + "->limit(1)->extend(~s: r|'abcdef'->substring(1, 3))->from(t::RT)",
+            "|" + TABLE + "->extend(~[a: r|[1, 2, 3]->indexOf(2), b: r|$r.NAME->toOne()->indexOf('o', 1)])->from(t::RT)");
+
+    private static final String CORRECTED = "->meta::pure::executionPlan::featureFlag::withFeatureFlags("
+            + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)";
+
+    private static String cut(String call) {
+        return "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->" + call + ")->select(~[a])->from(t::RT)";
+    }
+
+    /** TEMPORARY PROBE (never committed to the program branch): where the table lands on the code the old rewrite
+     *  refuses or leaves alone. */
+    @Test
+    void probe_whereTheTableLands() {
+        ModelContext c = Compiler.compileModel(PureMeaningCheckTest.MODEL);
+        java.util.Map<String, String> cases = new java.util.LinkedHashMap<>();
+        cases.put("graph-qualified", "|t::Person.all()->graphFetch(#{t::Person{name,initials,firstC}}#)"
+                + "->serialize(#{t::Person{name,initials,firstC}}#)->from(t::M, t::RT)");
+        cases.put("m2m-tds-chain", "|t::Out.all()->project(~[s: o|$o.short])"
+                + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
+        cases.put("m2m-graph-chain", "|t::Out.all()->graphFetch(#{t::Out{short}}#)->serialize(#{t::Out{short}}#)"
+                + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
+        cases.put("m2m-json", "|t::Out.all()->project(~[s: o|$o.short])->from(t::M2, t::JsonRT)");
+        cases.put("fn-value", "|" + TABLE + "->extend(~i: r|[{s: String[1]|$s->indexOf('x')}]->at(0)->eval($r.NAME->toOne()))"
+                + "->from(t::RT)");
+        for (java.util.Map.Entry<String, String> e : cases.entrySet()) {
+            String runtime = e.getKey().equals("m2m-json") ? "t::JsonRT" : "t::RT";
+            String sql;
+            try {
+                sql = EngineComparisons.asTheDatabases(Compiler.query(c, e.getValue())).plan(runtime, TABLED).sql();
+            } catch (RuntimeException x) {
+                sql = "THREW " + x;
+            }
+            System.out.println("[probe-table] " + e.getKey() + "\n" + sql + "\n");
+        }
+    }
 
     private static String throughTheRewrite(ModelContext c, String query) {
         TypedQuery q = EngineComparisons.asTheDatabases(Compiler.query(c, query));
