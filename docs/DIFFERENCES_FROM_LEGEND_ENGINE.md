@@ -114,13 +114,16 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 4. Float literals are floating point, not exact decimals
 - **You write:** `1.1 + 0.6`.
-- **legend-engine** (H2, DuckDB) answers `1.7`: it writes the literal bare, and the database computes it as a decimal.
-- **lite answers** `1.7000000000000002`: a Float is a double.
+- **legend-engine on DuckDB** answers `1.7`: it writes the literal bare, and DuckDB computes it as a decimal. (On H2,
+  legend-engine's literal processor writes `CAST(x AS FLOAT)`, a double, so H2 answers as lite does.)
+- **lite answers** `1.7000000000000002` on every database and door: a Float is a double, compiled Pure's answer.
 - **Why:** Pure's Float is floating point.
-- **To get legend-engine's answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
-- **When:** stage B.
-- **Measured:** 2 PCT answers move per database (PCT accepts both). 2 corpus tests on H2 start passing: the decimal
-  printed `52` where the expected answer is `52.0`. Evidence: H8 (j), (j.4).
+- **To get legend-engine's DuckDB answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
+- **When:** since 2026-11-25 (the user's ruling, "yes delete the float decimal thing"; the compatibility doors no longer
+  write legend-engine's bare DECIMAL literal).
+- **Measured** (R1's M1, `docs/records/edition-homework/m1-float-literal.md`): PCT on DuckDB, 2 answers move toward
+  compiled Pure, still within PCT's tolerance; the corpus on H2, 2 tests start passing; the corpus on DuckDB, pure/v1's
+  answers and the engine lanes, no move.
 - **Register:** S20, S9.
 
 ### 5. `toOne()` of an empty collection raises on lite's own doors

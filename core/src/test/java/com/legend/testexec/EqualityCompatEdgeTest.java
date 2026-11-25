@@ -51,10 +51,12 @@ class EqualityCompatEdgeTest {
     void theEdgesDoorComparesFloatsExactlyAndDecimalsByValue() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             // register S15: a Float compared exactly on the edge's door too since B3 step 1b (2026-11-24; until then
-            // compiled legend-pure's 2-ULP tolerance there). Literals add as legend-engine's SQL adds them on that door
-            // -- decimals (the edge program's row 21, ruling R2 of 2026-11-17) -- so 0.1 + 0.2 is 0.3 exactly and
-            // holds by equality; two Float values one ULP apart do not
-            holds(c, "|assertEquals(0.3, 0.1 + 0.2)");
+            // compiled legend-pure's 2-ULP tolerance there). A Float literal is the double on every door since the
+            // user's ruling of 2026-11-25 ("yes delete the float decimal thing"; register S20, measured by R1's M1):
+            // 0.1 + 0.2 is 0.30000000000000004, compiled Pure's answer (legend-engine on DuckDB adds two DECIMAL
+            // literals to 0.3, the one recorded difference); two Float values one ULP apart are not equal
+            holds(c, "|assertEquals(0.30000000000000004, 0.1 + 0.2)");
+            fails(c, "|assertEquals(0.3, 0.1 + 0.2)");
             fails(c, "|assertEquals(0.30000000000000004, 0.3)");   // one ULP apart: the old tolerance held it
             // register S139: a Decimal by value, its scale not part of it -- on the edge's door too since B3 step 1a
             // (2026-11-24; until then compiled legend-pure's scale-sensitive equals there)
