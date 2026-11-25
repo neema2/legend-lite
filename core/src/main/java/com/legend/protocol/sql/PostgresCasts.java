@@ -6,6 +6,7 @@ package com.legend.protocol.sql;
 import com.legend.protocol.spec.CBoolean;
 import com.legend.protocol.spec.CDate;
 import com.legend.protocol.spec.CDecimal;
+import com.legend.protocol.spec.ValueSpecification;
 import com.legend.values.PureDateLiteral;
 import java.math.BigDecimal;
 import static com.legend.protocol.sql.SqlToPure.*;
@@ -92,6 +93,11 @@ final class PostgresCasts {
         Tx x = translator.tx(c.operand(), scope, row);
         if (x.kind() == Kind.NULL) {
             return nullOf(target);
+        }
+        BigDecimal constant = target == Kind.FLOAT ? numericConstant(c.operand()) : null;
+        if (constant != null) {
+            // a numeric constant as a double precision is a constant too, the double nearest its digits
+            return Tx.value(floatConstant(constant, c.pos()), Kind.FLOAT, false);
         }
         if (target == Kind.STRING && x.kind() == Kind.STRING && translator.dialect.padded(x.detail())) {
             // a char(n) value as text or varchar drops its padding: Postgres's cast removes the trailing blanks
@@ -457,6 +463,91 @@ final class PostgresCasts {
         return read;
     }
 
+    /** A numeric constant's value: a numeric literal, or an integer literal past a bigint (a numeric in Postgres),
+     *  under any signs; null for anything else (a bigint's cast is the nearest double on every database, and a
+     *  computed value is the database's to convert). */
+    private static @com.legend.base.Nullable BigDecimal numericConstant(SqlAst.Expr e) {
+        if (e instanceof SqlAst.NumericLit n) {
+            return n.value();
+        }
+        if (e instanceof SqlAst.IntegerLit n && n.value().bitLength() >= 64) {
+            return new BigDecimal(n.value());
+        }
+        if (e instanceof SqlAst.Unary u && u.op() != SqlAst.UnaryOp.NOT) {
+            BigDecimal operand = numericConstant(u.operand());
+            return operand == null || u.op() == SqlAst.UnaryOp.PLUS ? operand : operand.negate();
+        }
+        return null;
+    }
+
+    /** The most digits, before the point and in all, and the most decimal places, of a Decimal literal whose cast to a
+     *  double is the double nearest it: its digits are then an integer a double holds exactly (under 2^53), the power
+     *  of ten is one too (to 10^22), and their quotient is rounded once. Measured on DuckDB, {@link #floatConstant}. */
+    private static final int EXACT_DIGITS = 15;
+    private static final int EXACT_SCALE = 22;
+
+    /**
+     * A numeric constant as a double precision constant: the double nearest its digits, as Postgres reads the
+     * numeric's own text (numeric_float8 is float8in of numeric_out). One that no double holds is Postgres's error
+     * ({@link #outOfRange}), which names a numeric by its plain digits.
+     *
+     * <p>A constant of few digits ({@link #EXACT_DIGITS}, {@link #EXACT_SCALE}) is a Decimal literal under toFloat,
+     * as every constant was until 2026-11-24. A longer one is parseFloat of its digits, as the IQ island's
+     * (IqFunctions toDouble, 2026-10-17): the database parses the digits to the nearest double, where its cast of a
+     * Decimal literal misses it. Measured on DuckDB 1.5.5 and 1.5.6:
+     * <ul>
+     * <li>16 digits and more: CAST(0.9927456070959739 AS DOUBLE) is 0.992745607095974;
+     * <li>23 decimal places and more: of 6,000 random constants of up to 15 digits, 1,885 with 23 to 38 places were a
+     *     unit in the last place off, and none with 22 or fewer; lite also rounds a Decimal literal to 38 places, so
+     *     6.62607015e-34 answered 6.6261e-34 and 1e-40 answered 0;
+     * <li>a whole number of 16 digits and more, as 5e35 is written: its literal is a HUGEINT, whose cast answered
+     *     4.9999999999999995e35 (27 of 400 random ones of 20 digits were off); on 1.5.5 7e280 answered 7e24.
+     * </ul>
+     *
+     * <p>Not Pure's Float literal: beside a Decimal in an addition or a product the lowering reads one as Pure does,
+     * as a Decimal (Scalars.undoubled), and CAST(0.1 AS float8) + 0.2 would answer the Decimal 0.3.
+     */
+    static ValueSpecification floatConstant(BigDecimal numeric, SqlAst.Pos pos) {
+        // past Postgres's own numeric (NUMERIC_DSCALE_MAX; NUMERIC_WEIGHT_MAX for one that is not zero): its error for
+        // the literal itself, and the bound on the plain digits written below
+        if (numeric.scale() > 16383 || numeric.signum() != 0 && (long) numeric.precision() - numeric.scale() > 131072) {
+            throw SqlTranslationException.invalid("value overflows numeric format", pos);
+        }
+        double nearest = Double.parseDouble(numeric.toString());
+        if (Double.isInfinite(nearest) || nearest == 0 && numeric.signum() != 0) {
+            throw outOfRange(numeric.toPlainString(), pos);
+        }
+        return floatOf(numeric);
+    }
+
+    /** {@link #floatConstant(BigDecimal, SqlAst.Pos)} of a string constant's {@code digits} (a plain number,
+     *  {@link #plainNumber}); its error names the constant as it was written, {@code shown}. */
+    private static ValueSpecification floatConstant(String digits, String shown, SqlAst.Pos pos) {
+        double nearest = Double.parseDouble(digits);
+        int exponent = Math.max(digits.indexOf('e'), digits.indexOf('E'));
+        String mantissa = exponent < 0 ? digits : digits.substring(0, exponent);
+        boolean zero = mantissa.chars().noneMatch(ch -> ch >= '1' && ch <= '9');
+        if (Double.isInfinite(nearest) || nearest == 0 && !zero) {
+            throw outOfRange(shown, pos);
+        }
+        // a zero is its mantissa's whatever its exponent ('0e-2000000000' is 0); any other is within a double's
+        // range here, so its plain digits are about as many as were written
+        return floatOf(new BigDecimal(zero ? mantissa : digits));
+    }
+
+    /** Postgres's float8in error for a constant past a double's range, or one not zero and too small for any double
+     *  (2026-10-17, the regression suite: '10e-400'::float8). */
+    private static SqlTranslationException outOfRange(String shown, SqlAst.Pos pos) {
+        return SqlTranslationException.invalid("\"" + shown + "\" is out of range for type double precision", pos);
+    }
+
+    private static ValueSpecification floatOf(BigDecimal numeric) {
+        boolean exact = numeric.precision() <= EXACT_DIGITS && numeric.scale() <= EXACT_SCALE
+                && (long) numeric.precision() - numeric.scale() <= EXACT_DIGITS;
+        return exact ? call("toFloat", new CDecimal(numeric))
+                : call("parseFloat", new CString(numeric.toPlainString()));
+    }
+
     /** A string constant read as {@code kind}, by Postgres's input rules: dates and timestamps in ISO 8601, integers
      *  and decimals in their plain spellings (others, which Postgres may read too, are refused), booleans as
      *  Postgres's boolin reads them (any unambiguous prefix of true/false/yes/no, on/off, 1/0; nothing else). */
@@ -475,17 +566,10 @@ final class PostgresCasts {
             case DECIMAL, FLOAT, INEXACT -> {
                 String n = plainNumber(v.strip(), true);
                 if (n != null) {
-                    // a double precision constant is the double nearest its text (round('2.5'::float8) is rint's 2);
-                    // one past a double's range, or a nonzero one too small for any double, is Postgres's float8in
-                    // error (2026-10-17, the regression suite: '10e-400'::float8)
-                    double nearest = Double.parseDouble(n);
-                    if (kind == Kind.FLOAT && (Double.isInfinite(nearest)
-                            || nearest == 0 && new BigDecimal(n).signum() != 0)) {
-                        throw SqlTranslationException.invalid("\"" + v + "\" is out of range for type double"
-                                + " precision", s.pos());
-                    }
-                    return kind == Kind.FLOAT ? Tx.value(call("toFloat", new CDecimal(new BigDecimal(n))), Kind.FLOAT,
-                            false) : Tx.value(new CDecimal(new BigDecimal(n)), Kind.DECIMAL, false);
+                    // a double precision constant is the double nearest its text (round('2.5'::float8) is rint's 2):
+                    // floatConstant
+                    return kind == Kind.FLOAT ? Tx.value(floatConstant(n, v, s.pos()), Kind.FLOAT, false)
+                            : Tx.value(new CDecimal(new BigDecimal(n)), Kind.DECIMAL, false);
                 }
             }
             case BOOLEAN -> {

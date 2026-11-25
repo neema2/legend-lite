@@ -385,5 +385,51 @@ public final class SqlIslandCases {
                             List.of("3", "0", "50"),
                             List.of("4", "null", "50"),
                             List.of("5", "10", "null"),
-                            List.of("6", "5", "80"))));
+                            List.of("6", "5", "80"))),
+            // 2026-11-24: a double precision constant is the double nearest its digits, whichever way it is written.
+            // As a Decimal literal the database cast, DuckDB answered 0.992745607095974 for a and b and its negative
+            // for e (its cast is a unit in the last place off), 6.6261e-34 for c and 0 for d (lite writes a Decimal
+            // literal to 38 decimal places)
+            new Case("select cast(0.9927456070959739 as double precision) as a, '0.9927456070959739'::float8 as b,"
+                    + " float8 '6.62607015e-34' as c, cast(1e-40 as float8) as d, cast(-0.9927456070959739 as float8) as e"
+                    + " from tb('store::HR.EMP') where \"ID\" = 1",
+                    true, List.of("a", "b", "c", "d", "e"),
+                    List.of(List.of("0.9927456070959739", "0.9927456070959739",
+                            "0.000000000000000000000000000000000662607015",
+                            "0.0000000000000000000000000000000000000001", "-0.9927456070959739"))),
+            // the constant's last bit shows in a product: 80 by the double a unit above is 79.41964856767792
+            new Case("select \"ID\", salary * cast(0.9927456070959739 as float8) as v from tb('store::HR.EMP')"
+                    + " where \"ID\" < 3 order by \"ID\"",
+                    true, List.of("ID", "v"),
+                    List.of(List.of("1", "99.2745607095974"),
+                            List.of("2", "79.41964856767791"))),
+            // a double precision rounds half to even, a numeric half away from zero: the constant is a double
+            new Case("select round('2.5'::float8) as r, round(cast(2.5 as float8)) as s, round(2.5) as t"
+                    + " from tb('store::HR.EMP') where \"ID\" = 1",
+                    true, List.of("r", "s", "t"),
+                    List.of(List.of("2", "2", "3"))),
+            // width_bucket's bounds beside a double precision are the same constants: a value equal to the upper
+            // bound is past the last bucket. It answered 6 before too, value and bound both a unit above; this holds
+            // the two to one reading (the bound alone a unit above put the value in bucket 5)
+            new Case("select width_bucket(cast(0.9927456070959739 as float8), 0, 0.9927456070959739, 5) as b"
+                    + " from tb('store::HR.EMP') where \"ID\" = 1",
+                    true, List.of("b"),
+                    List.of(List.of("6"))),
+            // beside a numeric the constant is still a double precision, and so is the sum (a Decimal 0.3 if the
+            // constant were read as Pure's Float literal: PostgresCasts.floatConstant)
+            new Case("select cast(0.1 as float8) + 0.2 as a, cast(0.9927456070959739 as float8) + 0.5 as b,"
+                    + " 0.2 * cast(0.1 as float8) as c from tb('store::HR.EMP') where \"ID\" = 1",
+                    true, List.of("a", "b", "c"),
+                    List.of(List.of("0.30000000000000004", "1.492745607095974", "0.020000000000000004"))),
+            // an integer constant past a bigint is a numeric, and more digits than a double holds are read whole
+            // (DuckDB's cast of the first answered 35031194039299793000, and of 5e35, a HUGEINT literal,
+            // 499999999999999950000000000000000000); a zero is zero whatever its exponent
+            new Case("select cast(35031194039299790746 as float8) as a,"
+                    + " cast(0.1000000000000000055511151231257827 as float8) as b,"
+                    + " cast(123456789012345678 as float8) as c, cast(5e35 as float8) as d, '7e280'::float8 as e,"
+                    + " cast(0e200000 as float8) as f, '0e-2000000000'::float8 as g"
+                    + " from tb('store::HR.EMP') where \"ID\" = 1",
+                    true, List.of("a", "b", "c", "d", "e", "f", "g"),
+                    List.of(List.of("35031194039299790000", "0.1", "123456789012345680",
+                            "500000000000000000000000000000000000", "7" + "0".repeat(280), "0", "0"))));
 }

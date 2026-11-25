@@ -1063,14 +1063,16 @@ final class PostgresFunctions {
         boolean ascending = order < 0;
         return strict(Kind.INTEGER, List.of(x), v -> doubles
                 ? floatBucket(x.kind() == Kind.FLOAT ? v.get(0) : call("toFloat", v.get(0)), low, high, count,
-                        ascending)
+                        ascending, f.pos())
                 : numericBucket(v.get(0), low, high, count, ascending));
     }
 
     private static ValueSpecification floatBucket(ValueSpecification x, BigDecimal low, BigDecimal high, long count,
-            boolean ascending) {
-        ValueSpecification lo = call("toFloat", new CDecimal(low));
-        ValueSpecification hi = call("toFloat", new CDecimal(high));
+            boolean ascending, SqlAst.Pos pos) {
+        // the bounds as double precision constants, the doubles nearest them (PostgresCasts.floatConstant, 2026-11-24:
+        // DuckDB's cast of a bound of 16 digits was a unit in the last place off)
+        ValueSpecification lo = PostgresCasts.floatConstant(low, pos);
+        ValueSpecification hi = PostgresCasts.floatConstant(high, pos);
         ValueSpecification part = ascending
                 ? call("divide", AppliedFunction.infixRun("minus", List.of(x, lo)),
                         AppliedFunction.infixRun("minus", List.of(hi, lo)))
