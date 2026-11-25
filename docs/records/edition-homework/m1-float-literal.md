@@ -73,3 +73,12 @@ Families nest (a family's figure includes its sub-families'), so these figures a
 
 None. No case newly errors on any lane: no DOUBLE overflow, no refused cast. The PCT ratchets, channel B's ledgers and
 both engine lanes passed unchanged.
+
+## 5. Text or arithmetic (B3's question under rule zero of design v3, 2026-11-25)
+
+Every move above is ARITHMETIC: a value the database computed with a Float literal (`0.9 + 0.8`, `3 * 0.7`, `0.1 + 0.2`,
+the H2 corpus's two aggregations). None is a Float's TEXT: the probe changed no text node, and PCT's Float-text cases
+(`toString::testFloatToString*`) did not move. So under rule zero this is a meaning the SQL carries (which value the
+database returns), not a format the edge could write afterwards. Ruled by the user the same day: "yes delete the float
+decimal thing", with one register row (legend-engine on DuckDB computes Float literal arithmetic as DECIMAL; lite answers
+IEEE, Pure's way), landing in R2; this record is its expected moves.
