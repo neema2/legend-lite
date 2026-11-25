@@ -101,3 +101,42 @@ far under the 95 minutes a round was said to take.
 **What the lane found wrong or missing in the docs:** `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` never names BigQuery's
 default dataset (`integration_dataset1` is the one that works); to use `bq` as the service account,
 `CLOUDSDK_AUTH_ACCESS_TOKEN` must be unset; its section 6 is stale against `tools/cloud-distdir.sh`.
+
+## MariaDB, MySQL and ClickHouse (`session_0195rQEjDbpHcLjorPDXJjG6`)
+
+**Channel A:** all 15 suites pass (five each).
+
+**Channel B:**
+
+| Lane | Essential | Grammar | Relation | Standard | Unclassified |
+|---|---|---|---|---|---|
+| MariaDB | **FAIL** | **FAIL** | fails its ledger: 2 tests now pass | pass | pass |
+| MySQL | pass | pass | fails its ledger: 21 tests now pass | pass | pass |
+| ClickHouse | pass | pass | fails its ledger: 5 tests now pass | pass | pass |
+
+**The three Relation suites are red for improvements only:** every line of their ledger blocks is "PASSES, ledgered as
+failing (remove it from the ledger)". ClickHouse 5 (`testVariantColumn_filterOnKeyExtractionValue`,
+`testVariantColumn_keyExtraction`, `testFlatten_LateralJoin_Nested`, `testFlatten_LateralJoin_Nested_Extend`,
+`testVariantColumn_filterOnIsNotEmptyOfModelConversion`); MariaDB 2 (the two `testFlatten_LateralJoin_Nested*`);
+MySQL 21 (16 `over::testRows_*` window-frame tests, four `extend::testOLAP*` tests, `lateral::testLateralJoin_Chained`).
+The ledgers are stale; they shrink.
+
+**MariaDB's Essential and Grammar fail for real, and differently on each run.** None is ledgered. Every failure is a
+list returned in a rotated or shuffled order:
+- `values::testValues`: expected `[1, 2]`, actual `[2, 1]`;
+- `sort::testSimpleSort`: expected `["Doe", "Smith", "Branche"]`, actual `["Branche", "Doe", "Smith"]`;
+- `range::testRange`: expected `[0, 1, 2, 3, 4]`, actual `[2, 3, 4, 0, 1]`.
+
+Run 1: Essential 30 unledgered failures (PASS=306, ERROR=39), Grammar 4. Run 2 at the same commit: Essential 13
+(PASS=323, ERROR=22), Grammar 4, a different set. So a list's order is not stable on MariaDB's channel B: it looks
+like a list literal or an array materialised in an order the database does not keep. Channel A passes all of them.
+
+This is the merged tree's baseline, so it is not from step 2. Asked of the lane (round 1b): the same suites on
+`main`'s head, twice; MySQL a second time; and one dumped statement.
+
+Timings: setup 1,551 s (it packed both upstream archives from git clones), build 75 s; each lane's channel A about
+140 s and channel B about 42 s.
+
+**What the lane suggests for the docs:** a channel B suite whose ledger block holds only "PASSES, ledgered as failing"
+lines still fails its target, so a lane reads red for improvements; and a lane should run a suspect suite twice before
+reporting.
