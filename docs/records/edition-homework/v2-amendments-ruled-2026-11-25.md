@@ -63,3 +63,13 @@ Measurement added: M7, a typed census of governed constructs in the corpus harne
 13. The user, 2026-11-25 (night), on keeping lite's checks in `engine` versus full compatibility: "if lite/pure checks something in db that engine does not, like divide by zero as one example, i might even consider keeping all of those checks even in engine ... im just not that excited about changing product/lite SQL that much for either pure or engine - maybe we need an inventory of what sql changes we would make that are not just different typing or different presentation". Then: "if we are going to be doing some rewriting anyway, maybe worth going as full compatibility as possible so users dont freak out - but we should do inventory and see what is cheap vs expensive in the rewrites and make a call".
     - Running: the SQL-difference inventory (typing / presentation / genuine SQL; per genuine row, keep lite's versus full compatibility, cheap or expensive, tests affected; the raises; an appendix on legend-engine's known wrong answers), output r2/sql-inventory.md.
     - Running: the sort of M4's bucket 3 and 4, testBigFloatAbs, and M6's Pure-mode failures (database limitation / lite gap / ruled / channel-A artifact), output r2/pct-sort.md.
+14. **The meaning pass's one seam, located (B3, 2026-11-25, night; read in da231244).** Every resolve overload funnels into `StoreResolver.resolve(body, runtime, mapping, ...)`, whose exit walks every resolved statement (`StoreResolver.java:244-251`, `assertNoStoreOnlyEscapees`, invariant 7). The resolver is constructed in one place (`BodyPlanner.resolver`, `BodyPlanner.java:68`). Its callers:
+    - `ProductStatements:150` (the product's query path);
+    - `BodyPlanner:213` (`resolvedToExecute`: the test body's values and an execute's query);
+    - `PlanAllocations:204` (test tooling);
+    - `edge/EnginePlans:162` (the edge's SQL-text facet);
+    - `FramePlanner:262` (a pipeline check, no resolve).
+
+    So the pass can sit at the resolver's exit, one place every planned statement passes after store resolution and before lowering. The caller supplies the body's role (the program's query, an `execute()` query, a harness value), which is how the corpus's harness/query split reaches the pass. The lowering call sites (`PlanMaker:599,637`, `ProductStatements:350,397`, `BodyPlanner:128`) all lower resolved bodies. Still to check: whether any lowered body skips the resolver (a storeless constant query).
+
+    Also: if lite's checks are kept in every edition, the raises need no pass, and the lowering's implicit guards (`Coercions`, `ToOneGuard`) stay as they are. That removes the second review's must-fix 3 for raises.
