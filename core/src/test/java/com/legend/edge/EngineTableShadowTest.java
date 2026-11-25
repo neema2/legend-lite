@@ -74,6 +74,9 @@ class EngineTableShadowTest {
         }
     };
 
+    private static final String CORRECTED = "->meta::pure::executionPlan::featureFlag::withFeatureFlags("
+            + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)";
+
     /** The queries of {@code PureMeaningRewriteTest} and {@code PureMeaningCheckTest} that the rewrite answers (none
      *  it refuses): a store-bound call, a host-side let, both in one query, a function called on both sides, a lambda
      *  let shared by the store and the host, a qualified property, a let that reads a store read again by a statement
@@ -110,9 +113,6 @@ class EngineTableShadowTest {
             // a literal inside the routed query, and the calls the table has no row for
             "|" + TABLE + "->limit(1)->extend(~s: r|'abcdef'->substring(1, 3))->from(t::RT)",
             "|" + TABLE + "->extend(~[a: r|[1, 2, 3]->indexOf(2), b: r|$r.NAME->toOne()->indexOf('o', 1)])->from(t::RT)");
-
-    private static final String CORRECTED = "->meta::pure::executionPlan::featureFlag::withFeatureFlags("
-            + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)";
 
     private static String cut(String call) {
         return "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->" + call + ")->select(~[a])->from(t::RT)";
