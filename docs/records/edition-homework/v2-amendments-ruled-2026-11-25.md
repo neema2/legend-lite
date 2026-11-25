@@ -73,3 +73,10 @@ Measurement added: M7, a typed census of governed constructs in the corpus harne
     So the pass can sit at the resolver's exit, one place every planned statement passes after store resolution and before lowering. The caller supplies the body's role (the program's query, an `execute()` query, a harness value), which is how the corpus's harness/query split reaches the pass. The lowering call sites (`PlanMaker:599,637`, `ProductStatements:350,397`, `BodyPlanner:128`) all lower resolved bodies. Still to check: whether any lowered body skips the resolver (a storeless constant query).
 
     Also: if lite's checks are kept in every edition, the raises need no pass, and the lowering's implicit guards (`Coercions`, `ToOneGuard`) stay as they are. That removes the second review's must-fix 3 for raises.
+15. **The user's rulings on the small questions (2026-11-25, night):**
+    - **S7b** "fine": keep refusing a single value on pure/v1 execute until a client needs it.
+    - **The `.csv` of a `#TDS` literal** "yes": the product keeps S405 (same as toCSV); legend-pure's door answers Pure's source text, as presentation at the edge.
+    - **A raw grid's last-step CSV:** "yes keep lite but in compatibility we dont want to match? arent we doing the csv in java anyway in compatibility?" Answer: yes, compatibility matches legend-engine through the door's presenter, from the columns the run announces (B2's option C), in R4; the product keeps lite's.
+    - **toCSV's Float digits** "okay make exact". "Exact" means the database's own full-precision text of the double (its cast), not six decimals, and not Java's algorithm ported into SQL.
+    - **ServiceTestRunner:** "sure keep on edge for now, eventually we will need real one in lite". It stays at the edge with legend-engine's exact JSON comparison; a lite-native service test runner is future work (docs/DEFERRED_TEST_EXECUTION.md).
+    - **S7a:** not yet answered, asked again.
