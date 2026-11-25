@@ -131,10 +131,16 @@
 > questions a reviewer asks; nothing turns red until B5's guards land. Cite
 > them as "tenet N of the six", never as "invariant N": the invariants below
 > and `core/README.md`'s are separate lists.
-> 1. **The database computes.** Every value a program produces is computed by
->    the database: numbers, `toString()` and `format()` text, an error's
->    values, product verdicts. *Test:* could this value differ from one row to
->    the next? Then the database computes it.
+> 1. **The database computes.** In the PRODUCT, every value a program produces
+>    is computed by the database: numbers, `toString()` and `format()` text, an
+>    error's values, product verdicts. *Test:* could this value differ from one
+>    row to the next? Then the database computes it. In COMPATIBILITY, how a
+>    value is written for legend-pure or legend-engine is presentation, done in
+>    Java at the edge from the typed value the database computed, wherever it
+>    can be; the database writes lite's own text only where the program goes on
+>    computing with it (a `toString()` in the middle of a chain). A mode changes
+>    the SQL only where the answer itself differs (rule zero of the edition
+>    design v3). Amended by the user, 2026-11-25: "Tenet 1 should say for the PRODUCT, database computes every value in database including toString(), for compatibility everything presentation that can be should be done at the edge as much as possible (excluding toString in middle of chain for example)".
 > 2. **Java orchestrates and decides nothing about a value.** It plans, sends
 >    the statements, carries typed results and serializes them; product
 >    presentation never chooses, rounds, reorders or rewords. *Test:* does

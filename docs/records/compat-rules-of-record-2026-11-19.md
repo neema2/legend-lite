@@ -22,9 +22,14 @@ implementation guide"** (~15:10) and **"everything must be pushed to database"**
 
 Each has a test, so it cannot quietly erode.
 
-1. **The database computes.** Every value a program produces is computed by the database: numbers, `toString()` and
-   `format()` text, an error's values, product verdicts. *Test:* could this value differ from one row to the next? Then
-   the database computes it.
+1. **The database computes.** In the PRODUCT, every value a program produces is computed by the database: numbers,
+   `toString()` and `format()` text, an error's values, product verdicts. *Test:* could this value differ from one row
+   to the next? Then the database computes it. In COMPATIBILITY, how a value is written for legend-pure or
+   legend-engine is presentation, done in Java at the edge from the typed value the database computed, wherever it can
+   be; the database writes lite's own text only where the program goes on computing with it (a `toString()` in the
+   middle of a chain). **AMENDED by the user, 2026-11-25:** "Tenet 1 should say for the PRODUCT, database computes every value in database including toString(), for compatibility everything presentation that can be should be done at the edge as much as possible (excluding toString in middle of chain for example)". With it, rule zero of the edition design (v3): a
+   mode changes the SQL only when the difference changes what the database returns (rows, whether an error happens, a
+   value the query goes on computing with) and Java cannot fix it afterwards.
 2. **Java orchestrates and decides nothing about a value.** It plans, sends the statements, carries typed results and
    serializes them; product presentation never chooses, rounds, reorders or rewords. *Test:* does this Java change what
    a value is, or only how it is written on the wire?
@@ -90,7 +95,7 @@ flags so doesn't become a mess". Ruled in its strict, door-only form:
 
 | Rule | In the product (lite's own route) | In compatibility (the legend-pure and legend-engine routes) |
 |---|---|---|
-| 1. The database computes | every value, including a program's `toString()` and `format()` and an error's message with its values. The only computation before the database is the compiler's folding of constant String and Boolean expressions | the same: compatibility asks lite for typed values and never computes a value itself |
+| 1. The database computes | every value, including a program's `toString()` and `format()` and an error's message with its values. The only computation before the database is the compiler's folding of constant String and Boolean expressions | compatibility asks lite for typed values and never computes a value itself; how a value is WRITTEN for upstream (a Float's or a DateTime's text, a list's, `TDSNull`) is presentation in Java at the edge wherever it can be, the database writing lite's text only where the program computes with it further (AMENDED 2026-11-25, the user) |
 | 2 and 3. Presentation | thin: it serializes typed values correctly (JSON, CSV, Arrow) and decides nothing | in Java, at the edge: every fix that makes the output match legend-pure or legend-engine (printed tables and values, error sentences, envelopes), **working only from lite's typed output** |
 | 4. Judges | both: the database judge (the database computes the verdict) and the host judge (Java, allowed to compare typed rows) | the host judge only |
 | Upstream | defines what the answer is, never how lite computes it | the same |
