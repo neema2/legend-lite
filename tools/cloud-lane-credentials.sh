@@ -2,23 +2,65 @@
 # Credentials for a CLOUD DATABASE LANE in a Claude Code cloud session (AGENTS.md, "The fast setup"; the properties
 # file is docs/CLOUD_BACKENDS_PCT_2026_10_11.md section 4).
 #
-#   tools/cloud-lane-credentials.sh databricks|snowflake
+#   tools/cloud-lane-credentials.sh databricks|snowflake|bigquery [dataset]
 #
 # Writes ~/.legendlite/cloud-pct.properties at mode 0600, the file LEGENDLITE_PCT_CLOUD_PROPERTIES names. It holds no
 # secret itself: it reads the AWS key the session's environment sets (DB_AWS_ACCESS_KEY_ID, DB_AWS_SECRET_ACCESS_KEY),
 # fetches the database's secret from AWS Secrets Manager, and prints key NAMES only. Never paste a secret into a
 # session, a message or a file in the repository.
 #
-# Each database's part was written and run by its own lane on 2026-11-25 (the first GetSecretValue answered 200 for
-# Databricks and for Snowflake). BigQuery is added when its lane has run its own.
+# Each database's part was written and run by its own lane on 2026-11-25; the first GetSecretValue answered 200 for
+# all three. (To use bq or gcloud as BigQuery's service account, unset CLOUDSDK_AUTH_ACCESS_TOKEN first: the container
+# sets it as a proxy placeholder and it overrides the key. The JDBC lane is not affected.)
 set -euo pipefail
 case "${1:-}" in
   databricks) ;;
   snowflake) exec "$0" --snowflake ;;
   --snowflake) ;;
-  *) echo "usage: $0 databricks|snowflake" >&2; exit 2 ;;
+  bigquery) shift; exec "$0" --bigquery "$@" ;;
+  --bigquery) ;;
+  *) echo "usage: $0 databricks|snowflake|bigquery [dataset]" >&2; exit 2 ;;
 esac
 : "${DB_AWS_ACCESS_KEY_ID:?the session environment sets it}" "${DB_AWS_SECRET_ACCESS_KEY:?the session environment sets it}"
+if [ "$1" = --bigquery ]; then
+  # Secret: Secrets Manager us-east-1, SecretId "bigquery.integration-bq-sa1", key service_account_json (a
+  # service-account key). The dataset the account's PCT runs in is integration_dataset1.
+  REGION=${REGION:-us-east-1}
+  SECRET=${SECRET:-bigquery.integration-bq-sa1}
+  DATASET=${2:-integration_dataset1}
+  DIR=$HOME/.legendlite
+  umask 077; mkdir -p "$DIR"; chmod 700 "$DIR"
+  RAW=$(mktemp "$DIR/.raw.XXXXXX"); trap 'rm -f "$RAW"' EXIT
+  printf 'user = "%s:%s"\n' "$DB_AWS_ACCESS_KEY_ID" "$DB_AWS_SECRET_ACCESS_KEY" | \
+    curl -sS --fail-with-body -K - \
+      --aws-sigv4 "aws:amz:${REGION}:secretsmanager" \
+      -H 'Content-Type: application/x-amz-json-1.1' \
+      -H 'X-Amz-Target: secretsmanager.GetSecretValue' \
+      --data "{\"SecretId\":\"${SECRET}\"}" \
+      "https://secretsmanager.${REGION}.amazonaws.com/" -o "$RAW"
+  python3 -I - "$RAW" "$DIR" "$DATASET" <<'PY'
+import json, sys, os
+raw, d, dataset = sys.argv[1], sys.argv[2], sys.argv[3]
+outer = json.load(open(raw))
+s = json.loads(outer["SecretString"])
+print("secret keys:", sorted(s))
+sa = s["service_account_json"]
+sa = json.loads(sa) if isinstance(sa, str) else sa
+print("service account keys:", sorted(sa))
+key = os.path.join(d, "bigquery-sa.json")
+with os.fdopen(os.open(key, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f: json.dump(sa, f)
+proj = sa["project_id"]
+props = os.path.join(d, "cloud-pct.properties")
+with os.fdopen(os.open(props, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+    f.write(f"bigquery.url=jdbc:bigquery://https://www.googleapis.com/bigquery/v2:443;ProjectId={proj};"
+            f"OAuthType=0;OAuthPvtKeyPath={key};DefaultDataset={dataset}\n")
+    f.write(f"bigquery.projectId={proj}\nbigquery.defaultDataset={dataset}\n")
+    f.write("bigquery.system.property.EnableSession=1\n")
+print("wrote", props, "and", key, "project:", proj)
+PY
+  echo "export LEGENDLITE_PCT_CLOUD_PROPERTIES=\$HOME/.legendlite/cloud-pct.properties"
+  exit 0
+fi
 if [ "$1" = --snowflake ]; then
   # Secret: Secrets Manager us-east-1, SecretId "snowflake.INTEGRATION_USER1", keys encrypted_private_key (PKCS#8,
   # stored without its PEM armour) and private_key_encryption_password. The key-password driver property that works is

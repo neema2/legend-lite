@@ -54,3 +54,47 @@ to the presentation work (the plan's step 8), with register S311's Snowflake not
 key-password property two ways (`private_key_file_pwd` is the one that works) and does not list the secret's
 `public_key` and `username`; the round's cost estimates are far above what was measured; on login the Snowflake
 driver logs SEVERE 403s probing cloud metadata endpoints, which is noise.
+
+## BigQuery (`session_0195rQEo31vtHdx1NMEUJvJr`)
+
+| Run | Essential | Grammar | Relation | Standard | Unclassified |
+|---|---|---|---|---|---|
+| Channel A | 345/345 | 137/137 | 469/469 | 205/205 | 93/93 |
+| Channel B | **FAILED:** PASS=317 ERROR=28, 16 not ledgered | PASS=136 ERROR=1 | PASS=457 ERROR=12 | PASS=198 ERROR=7 | **FAILED:** PASS=88 ERROR=5, 3 not ledgered |
+
+**Channel B fails on 19 tests its ledger does not expect, with one cause.** Each is "FAILS, not ledgered", each passes
+on channel A, and each message is BigQuery's `Column N in UNION ALL has incompatible types: INT64, STRING` (or the
+reverse) at line 7 of the statement:
+- Essential (16): `date::tests::testDateFromYear`, `testDateFromMonth`, `testDateFromHour`, `testDateFromMinute`,
+  `testDateFromSubSecond`, `testDatePartYearMonthOnly`, `testDatePartYearOnly`, `testAdjustByYears`,
+  `testAdjustByMonths`, `testAdjustByMicroseconds`, `testAdjustByMicrosecondsBigNumber`, `testAdjustByMilliseconds`,
+  `testAdjustByMillisecondsBigNumber`, `string::tests::parseDate::testParseDate`, `testParseDateWithZ`,
+  `testParseDateWithTimezone`;
+- Unclassified (3): `flow::test::coalesce::coalesce_AllEmpty`, `coalesce2_AllEmpty`, `coalesce3_AllEmpty`.
+
+This is the merged tree's baseline, so it is not from step 2. Whether it is older than this branch is being measured:
+the lane was asked to dump the two statements and to run the two suites on `main`'s head (`c04c30ec`).
+
+**The exact Float text on BigQuery** (`SqlFn.FLOAT_FULL_TEXT` is `CAST(x AS STRING)`), sent by hand since no test of
+the embedded lanes runs here:
+
+| Double | BigQuery's text | Reads back as the same double |
+|---|---|---|
+| 0.1 | `0.1` | yes |
+| 1.0E-7 | `1e-07` | yes |
+| 123456789.12345679 | `123456789.12345679` | yes |
+| 1.7976931348623157E308 | `1.7976931348623157e+308` | yes |
+| 4.9E-324 | `4.94065645841247e-324` | yes (15 digits, not the shortest form) |
+| 0.30000000000000004 | `0.30000000000000004` | yes |
+| 100.0 | `100` | yes, with no `.0` |
+| NaN | `nan` | as a value; Java's parser refuses the spelling |
+| Infinity | `inf` | the same |
+
+Every finite value reads back exactly.
+
+Timings: setup about 9 minutes, credentials under a minute, channel A (build and five suites) 378 s, channel B 151 s:
+far under the 95 minutes a round was said to take.
+
+**What the lane found wrong or missing in the docs:** `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` never names BigQuery's
+default dataset (`integration_dataset1` is the one that works); to use `bq` as the service account,
+`CLOUDSDK_AUTH_ACCESS_TOKEN` must be unset; its section 6 is stale against `tools/cloud-distdir.sh`.
