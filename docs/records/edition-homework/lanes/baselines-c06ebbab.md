@@ -72,8 +72,11 @@ reverse) at line 7 of the statement:
   `testParseDateWithTimezone`;
 - Unclassified (3): `flow::test::coalesce::coalesce_AllEmpty`, `coalesce2_AllEmpty`, `coalesce3_AllEmpty`.
 
-This is the merged tree's baseline, so it is not from step 2. Whether it is older than this branch is being measured:
-the lane was asked to dump the two statements and to run the two suites on `main`'s head (`c04c30ec`).
+**It is older than this branch: the same 16 and 3 tests fail on `main`'s head (`c04c30ec`), with the same messages**
+(the lane's round 1b). The cause, from two dumped statements: channel B's batch `UNION ALL` writes a slot's NULL untyped
+on one branch (a bare `NULL`, or `COALESCE(NULL, NULL)`), which BigQuery types INT64, against a STRING on the other;
+where the slot is written `CAST(NULL AS STRING)` it unifies. It is the test harness's batch statement, not a product
+query. Not fixed here: suggested to the user as a separate task (2026-11-25).
 
 **The exact Float text on BigQuery** (`SqlFn.FLOAT_FULL_TEXT` is `CAST(x AS STRING)`), sent by hand since no test of
 the embedded lanes runs here:
