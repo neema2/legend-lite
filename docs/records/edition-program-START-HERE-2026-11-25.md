@@ -2,38 +2,91 @@
 
 *For a session, or an account, with no context at all. Written 2026-11-25 by the B3 orchestrator session.*
 
-**Status, 2026-11-25 (night): R0 and R1 in progress; nothing built. Read this block first; it is the current state.**
+## 0. READ THIS FIRST: the current state (2026-11-25, night)
 
-Where everything is (all documentation, on `claude/compat-b3-nufdlk` unless noted):
-1. **The design draft:** `edition-design-v2-2026-11-25.md` (v2). It is **superseded in part** by the rulings that followed it. Read v2 together with item 3; v3 will merge them.
-2. **The second independent review of v2:** `edition-homework/second-review-v2-2026-11-25.md`. Verdict "not ready": the typer's call site can't decide placement, because lite types a call from its callee's signature and legend-engine places code after inlining.
-3. **Every ruling and result since v2, in order:** `edition-homework/v2-amendments-ruled-2026-11-25.md`. The landmarks:
-   - one place for meaning, a pass after inlining and store resolution; one place for format, the door's presenter;
-   - `pure` = compiled legend-pure; `engine` = the database's meaning in the database part, legend-engine's own Java (about Pure) outside it;
-   - **rule zero**: a mode changes the SQL only where the answer itself differs and Java can't fix it afterwards;
-   - **tenet 1 amended** in AGENTS.md: the product computes in the database; compatibility presents at the edge;
-   - the DECIMAL Float literal deleted (ruled);
+*This section is current. §§1-9 below are the history of v1 and its first review; read them only for background. §10 (how to work), §11 (traps) and §12 (file index) still hold.*
+
+### 0.1 The program in one paragraph
+
+legend-lite reimplements legend-pure and legend-engine: it compiles Pure to SQL, and the database computes. The **edition program** (the reshaped Stage B of the compatibility program) moves every audience difference out of lite's product:
+- lite's own product meaning stays in the product;
+- **legend-pure's meaning** (`pure`: compiled legend-pure) is used for PCT's reference run;
+- **legend-engine's meaning** (`engine`: the database's meaning for the part legend-engine sends to the database, and legend-engine's own Java, about Pure, outside it) is used for pure/v1, PCT's engine run and the query inside the corpus's `execute()`.
+
+A mode may change the SQL **only** where the answer itself differs and Java can't fix it afterwards (**rule zero**). Everything else is presentation in Java at the edge (**tenet 1 as amended**). The product stays lean. PMCD (both directions) and SQL plan import/export follow this program, at the edge.
+
+### 0.2 The current design, as amended
+
+The design of record is `edition-design-v2-2026-11-25.md` (v2) **plus every item in `edition-homework/v2-amendments-ruled-2026-11-25.md`** (items 1-17). **Where they conflict, the amendments win.** v3 will merge them. The essentials:
+
+1. **Editions = upstream's two modes plus lite's own.** `lite` is lite's product. `pure` is compiled legend-pure, everywhere. `engine` is the database's meaning in the database part, and legend-engine's own Java outside it; that Java is Pure's meaning except a measured list (so far: `==` across number kinds is true).
+2. **Rule zero; tenet 1 amended** (AGENTS.md, the rules of record). The product computes every value in the database, `toString()` included. Compatibility presents in Java at the edge wherever it can; the database writes lite's text only where the program keeps computing with it.
+3. **One place for meaning, one for format.**
+   - **Meaning:** one pass after inlining and store resolution, before lowering. Its seam is located at the store resolver's exit, `StoreResolver.java:244-251` (amendment 14). The caller supplies the body's role (query, `execute()` query, harness value). The rule sets are edge code, handed in by the door per query. Folds call nothing.
+   - **Format:** one place, the door's presenter, chosen by the door and never by the edition.
+4. **Placement:** the pass knows the part (database part, legend-engine's Java part, legend-pure's harness part) from the inlined, resolved tree and the resolver's labels. The `substring` rewrite at the edge (A3) is expected to go.
+5. **legend-engine's behaviour, by the user's framing:** "the spirit of what engine does (in engine sql and engine java) ... without reproducing the bugs". Lite answers correctly where legend-engine's own manifest lists a wrong value. Lite may answer where legend-engine refuses. The user then leaned toward **keeping lite's checks** (divide by zero and the others) even under `engine`, and toward "as full compatibility as possible" where it's cheap. **That call waits on the SQL-difference inventory (0.3).**
+6. **Ruled:**
+   - the DECIMAL Float literal is deleted;
    - `TDSNull` is the TDS type's own, printed at the edge;
    - comparisons under `engine` follow the database;
-   - PCT's two runs: Pure mode as close to Pure as possible, with database limitations ledgered; engine mode "the spirit of what engine does, without reproducing its bugs".
-4. **R1's measurements:**
-   - M1 (the Float literal): on `claude/compat-b2-nufdlk` at `4b6f632bf`, `docs/records/edition-homework/m1-float-literal.md`;
-   - B2's E3 homework and legend-engine's in-memory `1 == 1.0` (true): the same branch at `da231244b`, `edition-homework/e3-design.md` and `engine-m2m-xstore-equality-2026-11-25.md`;
-   - M3 to M7: `edition-homework/r1/` here (engine parity on DuckDB, Pure parity, the referee's coverage, the corpus with plain raises, the corpus harness census), with the probes as text;
-   - M2 (the H2 settings): running at B2.
-5. **Open with the user (2026-11-25, night):**
-   - whether `engine` keeps lite's checks (divide by zero and the other raises) rather than legend-engine's unchecked operations;
-   - the user's wish to change lite's SQL as little as possible for either mode, so the next step is **an inventory of every SQL difference `pure` or `engine` would make that is not typing or presentation**.
+   - legend-engine's H2 session settings stay for the `engine` door as connection data (amendment 16);
+   - S7a is A;
+   - S7b keeps refusing;
+   - the `#TDS` literal's csv is Pure's source text at legend-pure's door;
+   - a raw grid's CSV matches legend-engine at the doors through the presenter;
+   - `toCSV` Floats are exact;
+   - ServiceTestRunner stays at the edge (a real lite one later).
+7. **The gates:**
+   - PCT Pure mode is as close to Pure as possible, with only database limitations ledgered (channel B on DuckDB is the target);
+   - PCT engine mode on DuckDB is read in buckets against legend-engine's manifest, and nothing legend-engine passes may fail in lite;
+   - the corpus runs with harness `pure` and `execute()` `engine`, with the referee;
+   - the product stays lean, and a guard compares each mode's SQL with the product's.
 
-Next: the inventory, then v3 (rule zero, the meaning pass, the inventory's outcome), a third independent review, then the user's go to build. The parked E0c edits were discarded; R2 redoes the dead-code list, keeping `FeatureRules`' refusal.
+### 0.3 What remains before building (R0 and R1)
 
-Read this file first, then:
-1. `docs/records/edition-design-v2-2026-11-25.md`, the design (v1, `edition-design-2026-11-25.md`, is superseded);
-2. `docs/records/edition-census-2026-11-25.md`, every place lite does something different for an audience.
+| # | Item | Owner | State |
+|---|---|---|---|
+| 1 | **The SQL-difference inventory:** typing / presentation / genuine SQL; per genuine row, keep lite's or full compatibility, cheap or expensive; the raises; the cost of reproducing legend-engine's known wrong answers | background research (B3) | running; output to `edition-homework/r2/sql-inventory.md` |
+| 2 | **The PCT sort:** M4's 215 + 25 tests; `testBigFloatAbs`; Pure-mode failures as database limitation / lite gap / ruled / channel-A artifact | background research (B3) | running; output to `edition-homework/r2/pct-sort.md` |
+| 3 | **The fold audit:** every Java constant fold against compiled legend-pure | background research (B3) | running; output to `edition-homework/r2/fold-audit.md` |
+| 4 | **The engine runner's answers:** legend-engine's Java-part Float/DateTime print; each raise in its Java part; `testBigFloatAbs` on DuckDB | B2 | queued after its two slices |
+| 5 | **The user's call, row by row** from the inventory (full compatibility versus keep lite's), and on keeping lite's checks under `engine` | the user | waits on 1 |
+| 6 | **Design v3:** v2 + the amendments + 1-5, one document, rewritten | B3 | after 5 |
+| 7 | **The third independent review** of v3, then its must-fixes | B3 (a fresh reviewer) | after 6 |
+| 8 | **The user's go to build** (R2 onward) | the user | after 7 |
 
----
+**Already landing, separately** (small, ruled or approved, the user's standing word of 2026-11-25: "if you think makes sense to land code, land it"):
+- B2: `toCSV` Floats exact, then S7a (A);
+- B3: the DECIMAL Float literal deletion, then the dead-code deletion (keeping `FeatureRules`' live refusal).
 
-## 1. The whole thing on one page
+Each lands on its branch after a full round with `//gates:local` and an independent review. Never to `main` without the user's word.
+
+### 0.4 Sessions, branches, roles
+
+- **B3** (this program's orchestrator; Claude session `session_01XmdJ7iCK1RL3QNeGq9zrLv`): branch `claude/compat-b3-nufdlk`.
+  - It carries every record of the program and, since `ec762fad`, B2's code too (merged at B2's `418553e9`).
+  - The worktrees: `/home/user/s1` (B3's edit and build tree), `/home/user/s2` (detached, used for measurements).
+- **B2** (session `session_01XmdJ7iUHw3CS3J3T5aEFGr`): branch `claude/compat-b2-nufdlk`. It does the format and text work, and asks the engine runner. B3 relays the user's rulings to it with `send_message`.
+- **Landing to `main`, or to `claude/compat-program`:** only with the user's explicit word, through a PR, with CI on every OS.
+
+### 0.5 Reading order for a fresh session
+
+1. This §0.
+2. `edition-homework/v2-amendments-ruled-2026-11-25.md`: every ruling and result since v2, in order, with the user's words.
+3. `edition-design-v2-2026-11-25.md`: the mechanism and the difference list (§5), as amended by 2.
+4. The reviews:
+   - `edition-homework/second-review-v2-2026-11-25.md`, whose must-fixes v3 must answer;
+   - `edition-homework/independent-review-2026-11-25.md` (the first, on v1).
+5. The measurements:
+   - `edition-homework/r1/` (M3-M7, with probes);
+   - `edition-homework/m1-float-literal.md`, `m2-h2-settings.md`, `e3-design.md`, `engine-m2m-xstore-equality-2026-11-25.md` (B2's, merged here);
+   - `edition-homework/r2/` (the inventory, the PCT sort, the fold audit) once they land.
+6. The rules: `AGENTS.md` (the goals, the six tenets with tenet 1 amended, the invariants) and `compat-rules-of-record-2026-11-19.md`.
+7. The census: `edition-census-2026-11-25.md`.
+8. §10 below for how to run every check.
+
+## 1. The whole thing on one page (HISTORY: v1, superseded by §0)
 
 - **legend-lite** reimplements legend-pure and legend-engine. It compiles the Pure language to SQL, and the database computes every value.
 - **It has its own product meaning** (lite's own route), plus **compatibility doors** that make lite answer like legend-engine (its API `pure/v1`, and its relational test corpus) or like legend-pure (its PCT test suite).
