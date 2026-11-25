@@ -8,7 +8,6 @@ import com.legend.lowering.EditionTable;
 import com.legend.model.FunctionId;
 import com.legend.platform.Feature;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,14 +35,15 @@ final class EngineTable implements EditionTable {
     private final Map<FunctionId, FunctionId> corrected;
 
     private EngineTable() {
-        Map<FunctionId, FunctionId> given = new HashMap<>();
+        Map<FunctionId, FunctionId> given = new java.util.LinkedHashMap<>();
         byPosition(given, Pure.AT_STRING_SUBSTRING, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN);
         byPosition(given, Pure.AT_STRING_SUBSTR, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
         given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), Pure.AT_LEGEND_LITE_SQL_POSITION.get(0));
-        Map<FunctionId, FunctionId> flagged = new HashMap<>();
+        Map<FunctionId, FunctionId> flagged = new java.util.LinkedHashMap<>();
         byPosition(flagged, Pure.AT_STRING_SUBSTRING, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
-        this.asGiven = Map.copyOf(given);
-        this.corrected = Map.copyOf(flagged);
+        // lookup tables, never iterated; unmodifiable in declaration order all the same (NoSaltedIterationOrderTest)
+        this.asGiven = java.util.Collections.unmodifiableMap(given);
+        this.corrected = java.util.Collections.unmodifiableMap(flagged);
     }
 
     /** Each overload of {@code from} to the overload of {@code to} at the same place: the two lists are declared in

@@ -72,9 +72,21 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
                 && outsideStore == other.outsideStore();
     }
 
+    /** An unstamped call hashes as it did before the stamp existed, so nothing keyed on a call moves for the
+     *  product. */
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(callee, args, info, outsideStore);
+        int h = java.util.Objects.hash(callee, args, info);
+        return outsideStore ? 31 * h + 1 : h;
+    }
+
+    /** An unstamped call prints as it did before the stamp existed (a record's own form of its first four
+     *  components): a plan handle's id is made from a typed tree's text ({@code plan:<hash>:<length>}, pinned in
+     *  pure/v1's plan-text golden), and the product never stamps. */
+    @Override
+    public String toString() {
+        return "TypedNativeCall[callee=" + callee + ", args=" + args + ", info=" + info + ", pos=" + pos
+                + (outsideStore ? ", outsideStore=true" : "") + "]";
     }
 
     /** The native's simple name (e.g. {@code length}) &mdash; display convenience, not a dispatch key. */
