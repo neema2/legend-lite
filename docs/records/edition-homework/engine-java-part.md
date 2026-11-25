@@ -91,7 +91,7 @@ What this says:
   `CompiledSupport` print, and the edge's `PureValueText.pureFloat`) writes it so on this machine's JDK 21
   (`Double.toString` gives the shortest, `1.2345678912345678E17`). Register S120's parenthesis, "`123456789123456780.0`
   (legend-pure's own print of that double, `DecimalFormat("0.0")`)", is therefore not what `DecimalFormat` writes:
-  `123456789123456780.0` is the shortest digits laid out, the text lite's lanes print. Posted to the orchestrator; the
-  row is not edited here.
+  `123456789123456780.0` is the shortest digits laid out, the text lite's lanes print. Posted to the orchestrator, who
+  ruled it a factual correction: S120's parenthesis corrected the same day, with a dated note.
 - PCT's relational adapter (legend-engine's `core_external_test_connection/pct_relational.pure`) reads a result's
   number through JSON as a double (json-simple; `ValueBridge.engineTDS`'s javadoc), so it sees the same double.
