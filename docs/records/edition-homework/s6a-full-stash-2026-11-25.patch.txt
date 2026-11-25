@@ -1,0 +1,1677 @@
+diff --git a/core/src/main/java/com/legend/edge/EdgeDateTimeTexts.java b/core/src/main/java/com/legend/edge/EdgeDateTimeTexts.java
+index d186d8b40..2926d2c5a 100644
+--- a/core/src/main/java/com/legend/edge/EdgeDateTimeTexts.java
++++ b/core/src/main/java/com/legend/edge/EdgeDateTimeTexts.java
+@@ -9,8 +9,9 @@ import com.legend.sql.SqlExpr;
+  * legend-pure's print form of a DateTime in a message, the edge's form of the two-form hook
+  * {@link com.legend.lowering.DateTimeTexts} (census B9, 2026-11-17). Census B12 (2026-11-17, the orchestrator's ruling on
+  * K15's shape): a literal's text is its written text, as legend-pure prints it (the parser already shifted it to GMT);
+- * any other value is the product's own node, {@code DATETIME_TO_TEXT}, the value alone, which the edge's dialects print
+- * legend-pure's way ({@link PurePrintForms}, {@link PureDateTimePrint}). No operand only the edge reads reaches the
++ * any other value is the product's own node, {@code DATETIME_TO_TEXT}, the value alone, lite's text (the edge's print
++ * pass that wrote legend-pure's {@code +0000} for it, edge/PureDateTimePrint, went 2026-11-25 with B2b S6a: a last
++ * step's DateTime is printed in Java at the doors, {@link PureValueText}). No operand only the edge reads reaches the
+  * product's node, and the DATETIME_PRINT node is gone.
+  */
+ final class EdgeDateTimeTexts implements com.legend.lowering.DateTimeTexts {
+diff --git a/core/src/main/java/com/legend/edge/PrintedRelations.java b/core/src/main/java/com/legend/edge/PrintedRelations.java
+index 43af0550b..216374cf6 100644
+--- a/core/src/main/java/com/legend/edge/PrintedRelations.java
++++ b/core/src/main/java/com/legend/edge/PrintedRelations.java
+@@ -22,11 +22,12 @@ import java.util.List;
+  * reads the typed query once and, where its last statement is a relation's {@code toString}, legend-engine's
+  * relational test helper's {@code meta::relational::tests::csv::toCSV} of a TDS (helperFunctions.pure:198-232, a
+  * native in lite: {@code PlatformTypes.TO_CSV}) or a TDS's {@code csv}, over a relation whose columns the compiler
+- * knows, followed by any number of {@code replace} calls with literal arguments, answers the query that computes the
+- * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). Anything else is not lifted: the
++ * knows -- or, since B2b S6a (2026-11-25), a value's {@code toString}, a Float's or a DateTime's that is no literal --
++ * followed by any number of {@code replace} calls with literal arguments, answers the query that computes the
++ * relation (or the value) and the print the run's receiver performs ({@link PureRelationTextWriter}). Anything else is not lifted: the
+  * query is the door's as it was, and a print the door leaves is lite's own text, computed by the database
+- * ({@code lowering.ProductRelationText}, B2b S5a and S5b; until S6 its Float and DateTime cells the edge's value texts,
+- * the progress record's S5a window), and a TDS's {@code csv} the door does not lift is refused by name (B2b S5c). It
++ * ({@code lowering.ProductRelationText}, B2b S5a and S5b; its Float and DateTime cells lite's own since S6a closed the
++ * progress record's S5a window), and a TDS's {@code csv} the door does not lift is refused by name (B2b S5c). It
+  * computes no value and plans nothing; the run computes the rows and the printer spells them.
+  */
+ public final class PrintedRelations {
+@@ -103,6 +104,13 @@ public final class PrintedRelations {
+     private static @com.legend.base.Nullable Printed printed(TypedSpec e) {
+         if (e instanceof TypedNativeCall c) {
+             String name = c.callee().qualifiedName();
++            // a value's toString (B2b S6a, 2026-11-25, the orchestrator's agreement): a Float's, or a DateTime's that is
++            // not a literal, printed by legend-pure's value print in Java (PureValueText.value) -- the texts the edge's
++            // SQL print passes wrote until S6a. A DateTime literal's text is its written text, which the lowering's
++            // fold writes (EdgeDateTimeTexts): the value a database returns has lost the written precision
++            if (name.equals(PlatformTypes.TO_STRING) && c.args().size() == 1 && printedValue(c.args().get(0))) {
++                return new Printed(c.args().get(0), PureRelationTextWriter.Form.VALUE);
++            }
+             if (c.args().isEmpty() || !knownColumns(c.args().get(0))) {
+                 return null;
+             }
+@@ -149,6 +157,14 @@ public final class PrintedRelations {
+         return null;
+     }
+ 
++    /** Whether {@code x}'s print is a value print the door lifts: a Float, or a DateTime that is no literal. */
++    private static boolean printedValue(TypedSpec x) {
++        com.legend.compiler.element.type.Type t = x.info().type();
++        return t == com.legend.compiler.element.type.Type.Primitive.FLOAT
++                || t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
++                        && !(x instanceof com.legend.compiler.spec.typed.TypedCDate);
++    }
++
+     /** Whether {@code relation} is a relation whose columns the compiler knows: a relation type with at least one
+      *  column and no column the database names when the plan runs. A raw grid ({@code executeInDb}, late bound), a
+      *  dynamic pivot whose columns nothing names and a relation of no columns are not: the lowering answers each by its
+diff --git a/core/src/main/java/com/legend/edge/PureDateTimePrint.java b/core/src/main/java/com/legend/edge/PureDateTimePrint.java
+deleted file mode 100644
+index a261598a4..000000000
+--- a/core/src/main/java/com/legend/edge/PureDateTimePrint.java
++++ /dev/null
+@@ -1,43 +0,0 @@
+-// Copyright 2026 Legend Contributors
+-// SPDX-License-Identifier: Apache-2.0
+-
+-package com.legend.edge;
+-
+-import com.legend.sql.SqlExpr;
+-import com.legend.sql.SqlFn;
+-
+-import java.util.List;
+-
+-/**
+- * legend-pure's print form of a DateTime, composed by the edge from the product's own nodes (census B12, 2026-11-17:
+- * moved from the product's {@code sql.dialect.DateTimePrintText}, unchanged; the {@code DATETIME_PRINT} node it expanded
+- * left the MIR). Written by the edge's print pass for the product's {@code DATETIME_TO_TEXT} ({@link PurePrintForms}); a
+- * literal's text is its written text ({@link EdgeDateTimeTexts}).
+- */
+-final class PureDateTimePrint {
+-
+-    private PureDateTimePrint() {
+-    }
+-
+-    /**
+-     * Pure's print form of a DateTime read from a database (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, the one owner,
+-     * 2026-10-18) -- {@code T}, the fraction's digits with their trailing zeros trimmed (a timestamp carries no
+-     * written precision: {@code .123} prints {@code .123}, {@code .123456789} all nine, a whole second none),
+-     * {@code +0000}. The fraction is read at nine digits, which every SQL dialect spells.
+-     */
+-    static SqlExpr of(SqlExpr x) {
+-        SqlExpr digits = SqlExpr.Call.of(SqlFn.RTRIM,
+-                SqlExpr.Call.of(SqlFn.STRFTIME, x,
+-                        new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO))),
+-                new SqlExpr.StringLit("0"));
+-        SqlExpr fraction = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+-                SqlExpr.Call.of(SqlFn.EQUAL, digits, new SqlExpr.StringLit("")), new SqlExpr.StringLit(""))),
+-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), digits), SqlExpr.Reason.PRINT);
+-        return SqlExpr.Call.of(SqlFn.CONCAT,
+-                SqlExpr.Call.of(SqlFn.CONCAT,
+-                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
+-                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
+-                        fraction),
+-                new SqlExpr.StringLit("+0000"));
+-    }
+-}
+diff --git a/core/src/main/java/com/legend/edge/PurePrintForms.java b/core/src/main/java/com/legend/edge/PurePrintForms.java
+index d46fde3b2..f852dd918 100644
+--- a/core/src/main/java/com/legend/edge/PurePrintForms.java
++++ b/core/src/main/java/com/legend/edge/PurePrintForms.java
+@@ -7,34 +7,25 @@ import com.legend.sql.SqlExpr;
+ import com.legend.sql.SqlFn;
+ 
+ /**
+- * LEGEND-PURE'S PRINT FORMS AT THE EDGE (phase D's D1.2, 2026-11-15): each product text node written as legend-pure's
+- * form of it, which each product dialect spells for the judges already -- a Float's ({@link SqlFn#FLOAT_TO_TEXT}, lite's
+- * six decimals) as legend-engine writes it in a query ({@link #floatOf}: the database's cast, a literal legend-pure's
+- * print; Phase 5, 2026-11-16, until then {@link SqlFn#FLOAT_SHORTEST_TEXT}), a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
+- * legend-pure's print form ({@link PureDateTimePrint}; a literal's written text kept), a joined element's
+- * ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
+- * legend-pure writes (D1.3: the product refuses them by name), {@code format}'s padded {@code %0<w>d}
+- * (at lowering since B8 (i), 2026-11-17: {@code EdgePureOnlyTexts}) and an instance's {@code @_} id ({@link SqlFn#INSTANCE_TEXT}), as it writes them. The
+- * edge's first pass, so every
+- * later pass sees the tree the lowering wrote until D1.2: the edge's SQL is byte-identical to before.
++ * LEGEND-ENGINE'S TEXTS AT THE EDGE, ITS LAST SQL PASSES (phase D's D1.2, 2026-11-15; narrowed by stage B's B2b S6a,
++ * 2026-11-25): a joined element's text ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or
++ * legend-engine's {@code TDSNull}, a lone cell's text no join reads alike ({@link TdsNullCells}), and legend-engine's
++ * plain parses (F31, {@link UnguardedParses}). A Float's and a DateTime's text were re-spelled here until S6a (legend-
++ * engine's in-query cast with its literal processors, and legend-pure's {@code +0000} composition, edge/PureDateTimePrint):
++ * deleted, so a text a query uses further is lite's own on every door (S311, S312; register S404's row records the
++ * door's difference), and a last step's value print is legend-pure's, printed in Java by the doors' lift
++ * ({@link PrintedRelations}, {@link PureValueText}). The TDSNull pass moves to legend-engine's door with S6b, F31's with
++ * S6c (the orchestrator's plan of 2026-11-25). The edge's first pass, so every later pass sees the tree the lowering
++ * wrote.
+  */
+ final class PurePrintForms extends com.legend.sql.SqlRewriter {
+ 
+-    private final FloatLiteral floatLiteral;
+-
+-    private PurePrintForms(FloatLiteral floatLiteral) {
+-        this.floatLiteral = floatLiteral;
++    private PurePrintForms() {
+     }
+ 
+-    /** The edge's first pass, as a list a dialect returns, under the default Float literal processor. */
++    /** The edge's passes, as a list a dialect returns. */
+     static java.util.List<com.legend.sql.SqlRewriter> passes() {
+-        return passes(FloatLiteral.PRINT_BARE);
+-    }
+-
+-    /** The edge's first pass, as a list a dialect returns, a Float literal under {@code toString} written by
+-     *  {@code floatLiteral}. */
+-    static java.util.List<com.legend.sql.SqlRewriter> passes(FloatLiteral floatLiteral) {
+-        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new UnguardedParses());
++        return java.util.List.of(new PurePrintForms(), new TdsNullCells(), new UnguardedParses());
+     }
+ 
+     /**
+@@ -70,53 +61,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
+         }
+     }
+ 
+-    /** How a Float LITERAL reaches the database in legend-engine's SQL: its literal processor for a Float, per
+-     *  database (legend-engine 4.145.0, read). Lite writes a Float literal bare already, except at an extreme magnitude
+-     *  ({@link com.legend.sql.SqlTyping#floatDecimal}); under a {@code toString} the edge writes it as upstream does, so
+-     *  the database's cast prints what legend-engine's prints (Phase 5, row 8 of the edge program, 2026-11-16). */
+-    enum FloatLiteral {
+-        /** The default processor ({@code extensionDefaults.pure}'s {@code getDefaultLiteralProcessors}: format
+-         *  {@code %s}, legend-pure's {@code toString}), which DuckDB, Postgres, Snowflake, Databricks, BigQuery, Trino and
+-         *  ClickHouse keep: legend-pure's print, bare ({@link com.legend.result.CellText#carriedFloat}), an exact numeric
+-         *  the database prints as written ({@code 0.000000013421}, where a DOUBLE prints {@code 1.3421e-08}). The
+-         *  closest form where legend-engine has no extension (SQLite, MariaDB, MySQL, MongoDB). */
+-        PRINT_BARE,
+-        /** H2's processor ({@code h2Extension2_1_214.pure}'s {@code getLiteralProcessorsForH2}: format
+-         *  {@code CAST(%s AS FLOAT)}): legend-pure's print cast to H2's FLOAT, a double, which H2's cast prints
+-         *  {@code 1.3421E-8} (legend-engine's H2 manifest expects that failure of
+-         *  {@code testFloatToStringWithNegativeExponent}). */
+-        PRINT_AS_FLOAT;
+-
+-        SqlExpr of(SqlExpr.FloatLit f) {
+-            if (!Double.isFinite(f.value())) {
+-                return f;
+-            }
+-            return switch (this) {
+-                case PRINT_BARE -> print(f);
+-                case PRINT_AS_FLOAT -> new SqlExpr.Cast(print(f), com.legend.sql.SqlType.Scalar.DOUBLE,
+-                        SqlExpr.Reason.DECLARED);
+-            };
+-        }
+-
+-        private static SqlExpr print(SqlExpr.FloatLit f) {
+-            return new SqlExpr.DecimalLit(new java.math.BigDecimal(com.legend.result.CellText.carriedFloat(f.value())));
+-        }
+-    }
+-
+-    /** A Float's {@code toString} in a query as legend-engine writes it, its {@code toString} dynaFunction: the
+-     *  database's cast ({@code cast(%s as varchar)}, legend-engine 4.145.0's {@code duckdbExtension.pure} and
+-     *  {@code h2Extension2_1_214.pure}), a literal operand written by {@code literal}. The pass's rule, and a node no
+-     *  pass reached. */
+-    static SqlExpr floatOf(SqlExpr x, FloatLiteral literal) {
+-        SqlExpr operand = x instanceof SqlExpr.FloatLit f ? literal.of(f) : x;
+-        return new SqlExpr.Cast(operand, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
+-    }
+-
+-    /** {@link #floatOf(SqlExpr, FloatLiteral)} under the default literal processor. */
+-    static SqlExpr floatOf(SqlExpr x) {
+-        return floatOf(x, FloatLiteral.PRINT_BARE);
+-    }
+-
+     /** A join's element texts as legend-engine writes them (phase D's D1.3: the product skips an empty one), at the
+      *  join -- the walk is bottom-up, so the join reads its elements' {@link SqlFn#CELL_TEXT}s: a list's elements,
+      *  each {@code COALESCE(x, 'TDSNull')}; a row's cells ({@code COALESCE(STRING_AGG(<the cells>, sep), '')}),
+@@ -162,13 +106,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
+         if (joined(e) instanceof SqlExpr j) {
+             return j;
+         }
+-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_TO_TEXT) {
+-            return floatOf(expr(c.args().get(0)), floatLiteral);
+-        }
+-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_TO_TEXT) {
+-            // legend-pure's print form, composed here (census B12, 2026-11-17: the DATETIME_PRINT node gone)
+-            return PureDateTimePrint.of(expr(c.args().get(0)));
+-        }
+         return super.expr(e);
+     }
+ }
+diff --git a/core/src/main/java/com/legend/edge/PureRelationText.java b/core/src/main/java/com/legend/edge/PureRelationText.java
+index 1e58d6113..5484c0d01 100644
+--- a/core/src/main/java/com/legend/edge/PureRelationText.java
++++ b/core/src/main/java/com/legend/edge/PureRelationText.java
+@@ -7,10 +7,7 @@ import com.legend.error.NotImplementedException;
+ import com.legend.executionplan.ExecutionPlan;
+ import com.legend.result.RowDecode;
+ import com.legend.values.PureDateLiteral;
+-import com.legend.values.PureTimeLiteral;
+ 
+-import java.math.BigDecimal;
+-import java.math.BigInteger;
+ import java.util.List;
+ 
+ /**
+@@ -101,7 +98,7 @@ public final class PureRelationText {
+      *  under a Variant column; a Variant its text quoted with {@code '}, {@code \} and {@code '} escaped; a String --
+      *  the value's runtime type, so a String or an Any column's, never an enumeration's, whose value lite carries as its
+      *  name -- holding <code>{</code> or {@code [} quoted the same way, any other String as it is; anything else its
+-     *  {@code toString()} ({@link #value}). */
++     *  {@code toString()} ({@link PureValueText#cell}). */
+     static String tdsCell(@com.legend.base.Nullable Object v, ExecutionPlan.Column c) {
+         boolean variant = c.type().equals(RowDecode.VARIANT);
+         if (v == null) {
+@@ -116,7 +113,7 @@ public final class PureRelationText {
+         if (v instanceof String s && (c.type().equals("String") || c.type().equals(RowDecode.ANY))) {
+             return s.contains("{") || s.contains("[") ? quoted(s) : s;
+         }
+-        return value(v, c);
++        return PureValueText.cell(v, c);
+     }
+ 
+     /** {@code '} + the text with {@code \} and then {@code '} escaped by a backslash + {@code '} (s.pure:33-34). */
+@@ -193,7 +190,7 @@ public final class PureRelationText {
+                 default -> throw refused("toCSV", v, c);
+             };
+         }
+-        return escapeCsv(v instanceof String s ? s : value(v, c));
++        return escapeCsv(v instanceof String s ? s : PureValueText.cell(v, c));
+     }
+ 
+     private static String withoutFraction(PureDateLiteral d) {
+@@ -210,97 +207,6 @@ public final class PureRelationText {
+ 
+     // ---- a value's toString, as legend-pure prints the value a TDS holds -----------------------------------------
+ 
+-    /**
+-     * legend-pure's {@code toString()} of a cell's value, by the value lite's typed row carries and its column's Pure
+-     * type:
+-     * <ul>
+-     *   <li>an Integer's digits;</li>
+-     *   <li>a Float column's cell as the double it is declared -- whatever kind the database computed it in (an integer,
+-     *       a decimal an aggregate collapsed to), as the edge's SQL composition cast it to DOUBLE until B2b and
+-     *       legend-engine's TDS reads it -- written by legend-pure's Float print ({@link #pureFloat});</li>
+-     *   <li>a Number column's cell by its own value: an integer's digits (legend-pure's print of an Integer), a
+-     *       fraction-kind value (a double, or a decimal an aggregate collapsed to) as a Float -- the rule the edge's SQL
+-     *       composition kept until B2b (witness PCT's {@code testMax_Numbers_Relation_Aggregate}: {@code 81.18}, never
+-     *       {@code 81.180});</li>
+-     *   <li>a Decimal at its own scale ({@code toPlainString}, legend-pure's Decimal print);</li>
+-     *   <li>a Boolean {@code true}/{@code false}; an enumeration's value, which lite carries as its name;</li>
+-     *   <li>a date ({@link #date}); a StrictTime as written.</li>
+-     * </ul>
+-     * Anything else -- a list, a map, a structure -- is refused by name.
+-     */
+-    /** The column types whose cell is never a text. */
+-    private static final java.util.Set<String> NOT_TEXT = java.util.Set.of("Integer", "Float", "Decimal", "Number",
+-            "Boolean", "Date", "StrictDate", "DateTime", "StrictTime");
+-
+-    static String value(Object v, ExecutionPlan.Column c) {
+-        String type = c.type();
+-        if (type.equals("Float")) {
+-            return switch (v) {
+-                case Double d -> pureFloat(d);
+-                case Long l -> pureFloat(l.doubleValue());
+-                case Integer i -> pureFloat(i.doubleValue());
+-                case BigInteger i -> pureFloat(i.doubleValue());
+-                case BigDecimal d -> pureFloat(d.doubleValue());
+-                default -> throw refused("toString", v, c);
+-            };
+-        }
+-        return switch (v) {
+-            case Long l -> Long.toString(l);
+-            case Integer i -> Integer.toString(i);
+-            case BigInteger i -> i.toString();
+-            case Double d -> pureFloat(d);
+-            case BigDecimal d -> type.equals("Number") ? pureFloat(d.doubleValue()) : d.toPlainString();
+-            case Boolean x -> x.toString();
+-            // a text where a column holds text (a String, an enumeration's name, Any, a Variant); under a number, a
+-            // Boolean or a date it is no value this printer has a rule for (B2b's midpoint audit, 2026-11-24)
+-            case String s when !NOT_TEXT.contains(type) -> s;
+-            case PureDateLiteral d -> date(d);
+-            case PureTimeLiteral t -> t.canonicalText();
+-            default -> throw refused("toString", v, c);
+-        };
+-    }
+-
+-    /** legend-pure's print of a Float (legend-pure 5.99.0's {@code CompiledSupport}, lines 130-137 and 1271-1274):
+-     *  {@code 0.0} for a zero of either sign, else {@code DecimalFormat("0.0")} in English with up to 340 fraction
+-     *  digits -- a point always, never an exponent; an infinity {@code ∞}, as that format writes it. */
+-    static String pureFloat(double d) {
+-        if (d == 0.0d) {
+-            return "0.0";
+-        }
+-        // a format per value: a DecimalFormat is not safe to share, and the printer holds no static state
+-        // (DanglingStateGuardTest); NaN prints NaN and the infinities the infinity sign, signed, as legend-pure's do
+-        java.text.DecimalFormat format = new java.text.DecimalFormat("0.0",
+-                java.text.DecimalFormatSymbols.getInstance(java.util.Locale.ENGLISH));
+-        format.setMaximumFractionDigits(340);
+-        return format.format(d);
+-    }
+-
+-    /**
+-     * A date cell. A value with no time of day is its day. One with a time is the TDS text's DateTime -- its seconds,
+-     * at least three fraction digits (the first three, then any finer ones without their trailing zeros), and
+-     * {@code +0000}: the rule the edge's SQL composition wrote until B2b ({@code dateTimeTextTds}, measured on 35
+-     * goldens of channel B's relation and standard suites, 2026-10-18; legend-engine's {@code testDayOfWeek_Relation}
+-     * prints a TDS literal's {@code 1985-01-12T06:30:00Z} as {@code 1985-01-12T06:30:00.000+0000}). A known divergence
+-     * it keeps, as the SQL did: legend-engine's TestTDS reads a date to the millisecond
+-     * ({@code DateFunctions.fromDate(new Date(nanos / 1000000))}), so a finer value prints {@code .123+0000} there and
+-     * {@code .123456+0000} here; the goldens hold whole seconds and milliseconds, which both rules print alike (the
+-     * independent re-review of 2026-11-24; recorded in docs/records/compat-b2-progress.md for B2b's register rows).
+-     */
+-    static String date(PureDateLiteral d) {
+-        if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
+-            return d.canonicalText();
+-        }
+-        String nine = d.toNineDigits();
+-        int point = nine.length() - 10;
+-        String digits = nine.substring(point + 1);
+-        String finer = digits.substring(3);
+-        int end = finer.length();
+-        while (end > 0 && finer.charAt(end - 1) == '0') {
+-            end--;
+-        }
+-        return nine.substring(0, point) + "." + digits.substring(0, 3) + finer.substring(0, end) + "+0000";
+-    }
+-
+     // ---- shared ---------------------------------------------------------------------------------------------------
+ 
+     private static List<?> checked(List<?> row, List<ExecutionPlan.Column> columns) {
+@@ -312,7 +218,6 @@ public final class PureRelationText {
+     }
+ 
+     private static NotImplementedException refused(String what, Object v, ExecutionPlan.Column c) {
+-        return new NotImplementedException("legend-pure's " + what + " of a " + v.getClass().getSimpleName()
+-                + " cell under the " + c.type() + " column '" + c.name() + "' is not written at the edge");
++        return PureValueText.refused(what, v, c);
+     }
+ }
+diff --git a/core/src/main/java/com/legend/edge/PureRelationTextWriter.java b/core/src/main/java/com/legend/edge/PureRelationTextWriter.java
+index b260bf52a..b064b13cd 100644
+--- a/core/src/main/java/com/legend/edge/PureRelationTextWriter.java
++++ b/core/src/main/java/com/legend/edge/PureRelationTextWriter.java
+@@ -14,7 +14,8 @@ import java.util.function.Consumer;
+ /**
+  * A RELATION'S ROWS PRINTED AS LEGEND-PURE'S TEXT, A RUN'S RECEIVER (stage B's B2, B2b S1, 2026-11-24): the typed rows a
+  * plan's run streams -- the relation a program's last {@code toString()}/{@code toCSV()} printed, that call removed by
+- * the door -- collected in their order and, at the end, written by {@link PureRelationText} in one of its forms, the
++ * the door, or since B2b S6a (2026-11-25) the one value a last {@code toString()} printed ({@link Form#VALUE},
++ * {@link PureValueText}) -- collected in their order and, at the end, written by {@link PureRelationText} in one of its forms, the
+  * program's literal {@code replace} calls applied, and handed to {@code receiver} as one String. The text exists only
+  * once the result is whole (a header names columns before any row, and a CSV's last newline follows the last row), so
+  * the rows are held, as legend-engine's own TDS holds them. A writer: it spells, decides nothing, and holds no state
+@@ -31,7 +32,10 @@ public final class PureRelationTextWriter implements ResultSink {
+         /** legend-engine's {@code toCSV(tds, true)}: an empty cell {@code TDSNull}. */
+         TO_CSV_TDS_NULL,
+         /** a TDS's {@code csv} property. */
+-        TDS_CSV
++        TDS_CSV,
++        /** a value's {@code toString} (B2b S6a, 2026-11-25): the answer's one cell, legend-pure's print of the value
++         *  ({@link PureValueText#value}). */
++        VALUE
+     }
+ 
+     private final Form form;
+@@ -47,13 +51,15 @@ public final class PureRelationTextWriter implements ResultSink {
+         this.receiver = java.util.Objects.requireNonNull(receiver, "receiver");
+     }
+ 
+-    /** A relation's rows answer this receiver; a value or a graph fetch's objects are refused by name before any
+-     *  statement is sent. */
++    /** A relation's rows answer this receiver, or a value under {@link Form#VALUE}; any other answer is refused by
++     *  name before any statement is sent. */
+     @Override
+     public void answers(ExecutionPlan.TdsResult.Shape shape) {
+-        if (shape != ExecutionPlan.TdsResult.Shape.RELATION) {
+-            throw new IllegalStateException("legend-pure's " + form + " text is of a relation's rows; the answer is "
+-                    + shape);
++        ExecutionPlan.TdsResult.Shape expected = form == Form.VALUE ? ExecutionPlan.TdsResult.Shape.VALUE
++                : ExecutionPlan.TdsResult.Shape.RELATION;
++        if (shape != expected) {
++            throw new IllegalStateException("legend-pure's " + form + " text is of " + (form == Form.VALUE
++                    ? "a value" : "a relation's rows") + "; the answer is " + shape);
+         }
+     }
+ 
+@@ -88,10 +94,21 @@ public final class PureRelationTextWriter implements ResultSink {
+             case TO_CSV -> PureRelationText.csv(cols, rows);
+             case TO_CSV_TDS_NULL -> PureRelationText.csv(cols, rows, true);
+             case TDS_CSV -> PureRelationText.tdsCsvProperty(cols, rows);
++            case VALUE -> one(cols);
+         };
+         receiver.accept(PureRelationText.replaced(text, replaces));
+     }
+ 
++    /** The one value a {@link Form#VALUE} answer carries, printed: a {@code toString}'s operand is one value, so
++     *  any other count is refused by name. */
++    private String one(List<ExecutionPlan.Column> cols) {
++        if (cols.size() != 1 || rows.size() != 1 || rows.get(0).get(0) == null) {
++            throw new IllegalStateException("a value's toString prints one value; the answer holds " + rows.size()
++                    + " row(s) of " + cols.size() + " column(s)");
++        }
++        return PureValueText.value(rows.get(0).get(0), cols.get(0));
++    }
++
+     /** The columns the run announced: a result always announces them before its rows and its end. */
+     private List<ExecutionPlan.Column> announced() {
+         List<ExecutionPlan.Column> announced = columns;
+diff --git a/core/src/main/java/com/legend/edge/PureText.java b/core/src/main/java/com/legend/edge/PureText.java
+index 76e1956cb..a01881c84 100644
+--- a/core/src/main/java/com/legend/edge/PureText.java
++++ b/core/src/main/java/com/legend/edge/PureText.java
+@@ -281,18 +281,12 @@ public final class PureText {
+                     : java.util.List.of();
+         }
+ 
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** H2, spelled as upstream spells it. */
+@@ -310,17 +304,11 @@ public final class PureText {
+             return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+         }
+ 
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+-            return PurePrintForms.passes(PurePrintForms.FloatLiteral.PRINT_AS_FLOAT);
+-        }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x, PurePrintForms.FloatLiteral.PRINT_AS_FLOAT), 0);
++            return PurePrintForms.passes();
+         }
+     }
+ 
+@@ -347,18 +335,12 @@ public final class PureText {
+                     : statement;
+         }
+ 
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** Databricks, spelled as upstream spells it. */
+@@ -370,50 +352,32 @@ public final class PureText {
+             return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+         }
+ 
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** Snowflake, spelled as upstream spells it. */
+     public static final class Snowflake extends com.legend.sql.dialect.Snowflake {
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** BigQuery, spelled as upstream spells it. */
+     public static final class BigQuery extends com.legend.sql.dialect.BigQuery {
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** SQLite, spelled as upstream spells it. */
+@@ -426,50 +390,32 @@ public final class PureText {
+             return false;
+         }
+ 
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** MariaDB, spelled as upstream spells it. */
+     public static final class MariaDb extends com.legend.sql.dialect.MariaDb {
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** MySQL, spelled as upstream spells it. */
+     public static final class MySql extends com.legend.sql.dialect.MySql {
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** Trino, spelled as upstream spells it. */
+@@ -481,34 +427,22 @@ public final class PureText {
+             return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+         }
+ 
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** ClickHouse, spelled as upstream spells it. */
+     public static final class ClickHouse extends com.legend.sql.dialect.ClickHouse {
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ 
+     /** MongoDB, spelled as upstream spells it. */
+@@ -519,17 +453,11 @@ public final class PureText {
+             return "%Y-%m-%dT%H:%M:%S.%L+0000";
+         }
+ 
+-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
++        /** legend-engine's empty TDS cell, {@code TDSNull}, in a cell's text and a join, and its plain parses (F31)
++         *  ({@link PurePrintForms}); a Float's and a DateTime's text are lite's (B2b S6a). */
+         @Override
+         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+             return PurePrintForms.passes();
+         }
+-
+-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
+-        @Override
+-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+-                com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
+-        }
+     }
+ }
+diff --git a/core/src/main/java/com/legend/edge/UpstreamPrints.java b/core/src/main/java/com/legend/edge/UpstreamPrints.java
+index c7e878f15..d4b77ec07 100644
+--- a/core/src/main/java/com/legend/edge/UpstreamPrints.java
++++ b/core/src/main/java/com/legend/edge/UpstreamPrints.java
+@@ -224,8 +224,11 @@ public final class UpstreamPrints {
+     }
+ 
+     private static boolean incidental(PrintedRelations.Side side, List<TypedSpec> lets) {
+-        return com.legend.compiler.spec.OrderView.of(side.relation(), lets)
+-                == com.legend.compiler.spec.OrderView.INCIDENTAL;
++        // a value's print has no row order (B2b S6a, 2026-11-25: the one rule reads a Float's or a DateTime's toString
++        // too, printed by PureValueText)
++        return side.form() != PureRelationTextWriter.Form.VALUE
++                && com.legend.compiler.spec.OrderView.of(side.relation(), lets)
++                        == com.legend.compiler.spec.OrderView.INCIDENTAL;
+     }
+ 
+     /** {@code n} as an explicit order-free assert, or null (B3 step 4's printed tables, the design review of
+diff --git a/core/src/main/java/com/legend/lowering/Lowerer.java b/core/src/main/java/com/legend/lowering/Lowerer.java
+index db3189439..6bd899460 100644
+--- a/core/src/main/java/com/legend/lowering/Lowerer.java
++++ b/core/src/main/java/com/legend/lowering/Lowerer.java
+@@ -4299,7 +4299,7 @@ public final class Lowerer {
+                             ValueCollectionOps.relationSpaceRewrite(n)), columns);
+             // the relational helper's toCSV: lite's own CSV, computed by the database (stage B's B2b S5b, 2026-11-25: the
+             // user's ruling of 2026-11-19 ~20:05) -- every plan style alike, its cells the product's nodes (ProductRelationText;
+-            // under the edge's style its value passes re-spell a Float and a DateTime cell until S6);
++            // a Float and a DateTime cell lite's on every style since S6a);
+             // legend-pure's text of a last step is the doors' Java printer's (edge.PrintedRelations)
+             case TypedNativeCall tc when PlatformTypes.TO_CSV
+                     .equals(tc.callee().qualifiedName()) ->
+diff --git a/core/src/main/java/com/legend/lowering/ProductRelationText.java b/core/src/main/java/com/legend/lowering/ProductRelationText.java
+index ffdf8f9f2..ed67db58f 100644
+--- a/core/src/main/java/com/legend/lowering/ProductRelationText.java
++++ b/core/src/main/java/com/legend/lowering/ProductRelationText.java
+@@ -31,9 +31,9 @@ import java.util.function.Function;
+  * DateTime text, S312, relayed by the orchestrator 2026-11-25). Like any other function, the database computes the text
+  * (tenet 1): one scalar subquery, a {@code STRING_AGG} of the relation's rows in the relation's own order. Each cell is
+  * the PRODUCT's own text node of its value on every plan style ({@link Styled#PRODUCT}: the cells of a text used further
+- * in a query are lite's text, the user's ~18:12 ruling, "Yes record it"; until B2b's S6, under the edge's style the edge
+- * dialect's value passes re-spell a Float and a DateTime cell as they re-spell any such text there -- a window recorded
+- * in docs/records/compat-b2-progress.md's S5a, pinned by FloatTextTest).
++ * in a query are lite's text, the user's ~18:12 ruling, "Yes record it"; until B2b's S6a, 2026-11-25, the edge dialect's
++ * value passes re-spelled a Float and a DateTime cell under the edge's style -- the window of
++ * docs/records/compat-b2-progress.md's S5a, now closed, FloatTextTest).
+  * <ul>
+  *   <li>{@code toString}: legend-pure's {@code #TDS} layout -- {@code #TDS}, the names line, one {@code '   '}-prefixed
+  *       line per row with its cells joined {@code ,}, {@code #}; a name quoted unless {@code ^[a-zA-Z0-9_]+$}; an empty
+diff --git a/core/src/main/java/com/legend/sql/SqlFn.java b/core/src/main/java/com/legend/sql/SqlFn.java
+index a3e9dd74e..4ca1cc9d5 100644
+--- a/core/src/main/java/com/legend/sql/SqlFn.java
++++ b/core/src/main/java/com/legend/sql/SqlFn.java
+@@ -176,11 +176,12 @@ public enum SqlFn {
+      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
+      *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
+      *  a literal's written text, which legend-pure prints at its written precision, is the edge's alone, through the
+-     *  style's two-form DateTimeTexts). The compatibility edge's dialects print it legend-pure's way
+-     *  (edge.PureDateTimePrint; census B12, 2026-11-17). */
++     *  style's two-form DateTimeTexts). Every door prints it so in a query since B2b S6a (2026-11-25: the edge's print
++     *  pass and edge.PureDateTimePrint deleted); a last step's DateTime is legend-pure's print at the doors, in Java
++     *  (edge.PureValueText). */
+     DATETIME_TO_TEXT,
+     // (DATETIME_PRINT, legend-pure's print form of a DateTime: gone 2026-11-17, census B12 -- the edge composes it from
+-    // the product's nodes, edge.PureDateTimePrint, at lowering and in its print pass)
++    // the product's nodes, edge.PureDateTimePrint, at lowering and in its print pass; itself gone 2026-11-25, B2b S6a)
+     /** THE JUDGES' CANON OF A TIMESTAMP (census C5's step C, 2026-11-17): {@code T}-separated, the fraction's digits
+      *  with their trailing zeros trimmed (a timestamp carries no written precision), {@code Z} -- lite's spelling, which
+      *  every side of a comparison is written in, so lite's date equality (A1) is kept and no message reads it.
+diff --git a/core/src/test/java/com/legend/AuditRound3Test.java b/core/src/test/java/com/legend/AuditRound3Test.java
+index 34220f2d1..c44d44fc4 100644
+--- a/core/src/test/java/com/legend/AuditRound3Test.java
++++ b/core/src/test/java/com/legend/AuditRound3Test.java
+@@ -191,11 +191,12 @@ class AuditRound3Test {
+     @Test
+     @DisplayName("audit: floatRepr — fraction-free magnitudes render exact plain digits via HUGEINT")
+     void floatReprLargeBand() throws Exception {
+-        // legend-pure's print form, the compatibility edge's since D1.2 (2026-11-15)
++        // the compatibility edge's style: lite's text in a query (B2b S6a, 2026-11-25: the edge's print pass, which
++        // wrote legend-pure's print form since D1.2, deleted; a last step's print is the doors' lift, edge/PureValueText)
+         assertEquals("1000000000000000000.0",
+                 scalarAtTheEdge("|1000000000000000000.0->toString()").toString());
+         assertEquals("1.5", scalarAtTheEdge("|1.5->toString()").toString());
+-        assertEquals("0.000000013421",
++        assertEquals("0.0",
+                 scalarAtTheEdge("|0.000000013421->toString()").toString());
+         // the product's text (register S311, the user's ruling of 2026-11-10): six decimals, trimmed, a whole value
+         // keeping one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0"; B2a,
+diff --git a/core/src/test/java/com/legend/CompatSpellingGuardTest.java b/core/src/test/java/com/legend/CompatSpellingGuardTest.java
+index 08392f002..02509ac5e 100644
+--- a/core/src/test/java/com/legend/CompatSpellingGuardTest.java
++++ b/core/src/test/java/com/legend/CompatSpellingGuardTest.java
+@@ -367,7 +367,7 @@ class CompatSpellingGuardTest {
+             // product emitter, format's %r (Scalars), refused in the product by B12's 2b (F's, 2026-11-17): the edge's
+             // DateTime texts write it now
+             // (sql/dialect/DateTimePrintText.java | +0000: gone 2026-11-17 with the class, census B12 -- legend-pure's
+-            // DateTime print the edge's composition, edge.PureDateTimePrint)
++            // DateTime print the edge's composition, edge.PureDateTimePrint -- itself gone 2026-11-25, B2b S6a)
+             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
+             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session
+             // frees (NON_KEYWORDS), and that decides WHICH COLUMN a declared name reads in H2 data made legend-engine's
+diff --git a/core/src/test/java/com/legend/EdgeSeparationTest.java b/core/src/test/java/com/legend/EdgeSeparationTest.java
+index 51e07a693..cd50ebd92 100644
+--- a/core/src/test/java/com/legend/EdgeSeparationTest.java
++++ b/core/src/test/java/com/legend/EdgeSeparationTest.java
+@@ -53,7 +53,7 @@ class EdgeSeparationTest {
+             Map.entry("com.legend.planner.UpstreamPlans", "B2"),
+             // (B17, com.legend.lowering.RelationTexts: gone 2026-11-25 with the facet, stage B's B2b S5c; a shrink)
+             // (sql.dialect.DateTimePrintText: deleted 2026-11-17, census B12 -- the edge composes legend-pure's DateTime
+-            // print, edge.PureDateTimePrint)
++            // print, edge.PureDateTimePrint -- itself gone 2026-11-25, B2b S6a)
+             Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
+             Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
+             // (com.legend.lowering.Repr: deleted 2026-11-17, census B12's 2b -- legend-pure's representation the edge's
+@@ -92,7 +92,8 @@ class EdgeSeparationTest {
+             // B9 -> C5 (E-P5) 2026-11-17 (the orchestrator's ruling (a)): the composition the judges' canon alone emits
+             // (LiteralSpelling.temporalCanon), closed by C5's step C
+             // sql.dialect.AnsiSqlRenderer -> DateTimePrintText, DateTimePrintText -> (stands in a product package): gone
+-            // 2026-11-17, census B12 (the composition the edge's, edge.PureDateTimePrint; DATETIME_PRINT left the MIR)
++            // 2026-11-17, census B12 (the composition the edge's, edge.PureDateTimePrint, gone 2026-11-25 with B2b S6a;
++            // DATETIME_PRINT left the MIR)
+             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
+             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
+             // B7 CLOSED 2026-11-17 (E-P5, D's split by content): server/PureV1Api is the product's own API kit,
+@@ -329,7 +330,8 @@ class EdgeSeparationTest {
+      *  typed TypedNullCell, its canon lite's bare null, its wire SqlExpr.NULL_CELL_WIRE);
+      *  B12 CLOSED 2026-11-17 (F's 2b: format's %r refused in the product, lowering.Repr deleted; legend-pure's DateTime
+      *  print the edge's: the product's DATETIME_TO_TEXT printed by the edge's dialects, a literal its written text,
+-     *  edge.PureDateTimePrint, sql.dialect.DateTimePrintText deleted);
++     *  edge.PureDateTimePrint, sql.dialect.DateTimePrintText deleted; the edge's DateTime print pass and
++     *  PureDateTimePrint gone 2026-11-25, B2b S6a: lite's text in a query, a last step's printed in Java);
+      *  records only:
+      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
+      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
+diff --git a/core/src/test/java/com/legend/JavaEvalLedgerTest.java b/core/src/test/java/com/legend/JavaEvalLedgerTest.java
+index 8f04b7da0..ff4ec0b92 100644
+--- a/core/src/test/java/com/legend/JavaEvalLedgerTest.java
++++ b/core/src/test/java/com/legend/JavaEvalLedgerTest.java
+@@ -1916,8 +1916,9 @@ class JavaEvalLedgerTest {
+                             // a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards
+                             // down"))
+                             "PureText.java",
+-                            // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,
+-                            // 2026-11-15): a node for a node, no value met
++                            // legend-engine's last SQL passes over the product's nodes (D1.2, 2026-11-15; narrowed
++                            // 2026-11-25 by B2b S6a: the Float and DateTime print forms gone): TDSNull and F31's plain
++                            // parses, a node for a node, no value met
+                             "PurePrintForms.java",
+                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
+                             "PureV1Routes.java", "TestDataRoutes.java",
+@@ -2016,6 +2017,11 @@ class JavaEvalLedgerTest {
+                             // program's literal replace calls on the printed text, the user's ruling of 2026-11-24
+                             // ~13:53 ("also do the replace in java too")
+                             "PureRelationText.java", "PureRelationTextWriter.java",
++                            // the edge's one value printer (B2b S6a, 2026-11-25, the orchestrator's agreement, G1): the
++                            // cell rules moved from PureRelationText, and legend-pure's print of a last step's value (a
++                            // Float, a DateTime that is no literal), which the deleted SQL print passes wrote (a move:
++                            // PureDateTimePrint.java's row goes, below) -- spells a typed value, decides nothing
++                            "PureValueText.java",
+                             // a program whose last step prints a relation, lifted at legend-pure's and legend-engine's
+                             // doors (stage B's B2, B2b S2, 2026-11-24: the plan of record's B2; E0 = A, 2026-11-20, "E0 -
+                             // yes"): reads the typed query, removes the final toString/toCSV and its literal replace
+@@ -2061,10 +2067,9 @@ class JavaEvalLedgerTest {
+                             // edge's form of the two-form ListTexts kind (the separation census's B8, TEXT_FORMS gone
+                             // from SqlFn 2026-11-17) -- planning work, no session, no value computed
+                             "PureListTexts.java",
+-                            // legend-pure's print form of a DateTime, composed from the product's nodes (census B12,
+-                            // 2026-11-17: moved from sql.dialect.DateTimePrintText, the DATETIME_PRINT node gone) --
+-                            // planning work, no session, no value computed
+-                            "PureDateTimePrint.java",
++                            // (PureDateTimePrint.java, legend-pure's print form of a DateTime composed from the product's
++                            // nodes: gone 2026-11-25, stage B's B2b S6a -- a DateTime's text in a query is lite's on every
++                            // door, a last step's printed in Java by PureValueText; a shrink)
+                             // (JsonSimpleGrammar.java, json-simple 1.1.1's grammar, register S144: deleted 2026-11-24,
+                             // B3 step 2 -- the judges read strict JSON on every route, the two goldens it read past
+                             // cleaned at the test-body door, UpstreamTestBodies)
+diff --git a/core/src/test/java/com/legend/OpenClassMembersTest.java b/core/src/test/java/com/legend/OpenClassMembersTest.java
+index 3430c149e..34d9f731b 100644
+--- a/core/src/test/java/com/legend/OpenClassMembersTest.java
++++ b/core/src/test/java/com/legend/OpenClassMembersTest.java
+@@ -71,7 +71,7 @@ class OpenClassMembersTest {
+                     "public abstract java.util.List<java.lang.String> engineSeedSqlFromRecords(java.util.List<java.util.List<java.lang.String>>, com.legend.model.DatabaseDefinition, java.util.function.Function<java.lang.String, java.util.Optional<com.legend.model.DatabaseDefinition>>)",
+                     "public abstract java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText()")),
+             // (B12, sql.dialect.DateTimePrintText: deleted 2026-11-17 with train 7's B12 close, a8b7e2e32e -- the edge's
+-            // PureDateTimePrint composes legend-pure's DateTime print)
++            // PureDateTimePrint composes legend-pure's DateTime print -- itself gone 2026-11-25, B2b S6a)
+             // C4 (a ruled hook)
+             Map.entry("com.legend.testplan.EngineTestText", Set.of(
+                     "public abstract boolean isRoot(java.lang.String)",
+diff --git a/core/src/test/java/com/legend/WriterCarriageGuardTest.java b/core/src/test/java/com/legend/WriterCarriageGuardTest.java
+index 7d1895803..25118bd6f 100644
+--- a/core/src/test/java/com/legend/WriterCarriageGuardTest.java
++++ b/core/src/test/java/com/legend/WriterCarriageGuardTest.java
+@@ -167,11 +167,18 @@ class WriterCarriageGuardTest {
+             // independent review of S1: the Float print became legend-pure's own (CompiledSupport's
+             // DecimalFormat("0.0")), and an integer under a Float is the double, not the exact decimal (new BigDecimal
+             // gone, doubleValue 5). It decides nothing about a value: the database computed each one
++            // 2026-11-25, B2b S6a (the orchestrator's agreement, G1: one edge value printer): the date's precision read
++            // (atLeast 1) and the Float cell's kind conversions (doubleValue 5) MOVED, unchanged, with the cell rules to
++            // PureValueText -- a move, no growth: the two files together hold what PureRelationText held
+             Map.entry("PureRelationText.java", Map.ofEntries(
+-                    Map.entry("atLeast", 1),
+                     Map.entry("contains(\"\")", 6),
+-                    Map.entry("doubleValue", 5),
+                     Map.entry("startsWith(\"\")", 1))),
++            // legend-pure's text of a value, the edge's one value printer (B2b S6a, 2026-11-25): a relation's cell (the
++            // rules moved from PureRelationText, above) and a last step's value print (the deleted SQL print passes'
++            // texts, written in Java: a DateTime's kind matched by pattern, no precision read added)
++            Map.entry("PureValueText.java", Map.ofEntries(
++                    Map.entry("atLeast", 1),
++                    Map.entry("doubleValue", 5))),
+             Map.entry("RaiseWords.java", Map.ofEntries(
+                     Map.entry("intValue", 1),
+                     Map.entry("doubleValue", 1),
+@@ -320,6 +327,8 @@ class WriterCarriageGuardTest {
+         // 2026-11-24): scanned with the writers they are
+         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationText.java"));
+         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
++        // the edge's one value printer, the cell rules moved out of PureRelationText (B2b S6a, 2026-11-25)
++        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureValueText.java"));
+         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
+         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
+         StringBuilder drift = new StringBuilder();
+diff --git a/core/src/test/java/com/legend/edge/PrintedRelationsTest.java b/core/src/test/java/com/legend/edge/PrintedRelationsTest.java
+index 5a3257deb..d44a63803 100644
+--- a/core/src/test/java/com/legend/edge/PrintedRelationsTest.java
++++ b/core/src/test/java/com/legend/edge/PrintedRelationsTest.java
+@@ -13,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
+ 
+ /**
+  * The door's lift of a program whose last step prints a relation ({@link PrintedRelations}; stage B's B2, B2b S2,
+- * 2026-11-24): what is lifted, what is left to the run, and the program that remains.
++ * 2026-11-24), or a Float's or a DateTime's value (B2b S6a, 2026-11-25): what is lifted, what is left to the run, and
++ * the program that remains.
+  */
+ class PrintedRelationsTest {
+ 
+@@ -63,6 +64,28 @@ class PrintedRelationsTest {
+         assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->length()")));
+     }
+ 
++    /** A last step's value print (B2b S6a, 2026-11-25, the orchestrator's agreement): a Float's {@code toString}, or a
++     *  DateTime's that is no literal, lifted to the value and printed by legend-pure's print in Java
++     *  ({@link PureValueText#value}) -- the texts the edge's SQL print passes wrote until S6a. */
++    @Test
++    void aLastStepsFloatOrDateTimeValuePrintIsLifted() {
++        PrintedRelations.Lifted lifted = PrintedRelations.lift(typed("|1.3421e-8->toString()"));
++        assertNotNull(lifted);
++        assertEquals(PureRelationTextWriter.Form.VALUE, lifted.form());
++        // the program that remains computes the value: a Float, no longer a String
++        assertEquals(typed("|1.3421e-8").resultType(), lifted.relation().resultType());
++        assertEquals(List.of(new PureRelationText.Replace("0", "o")),
++                PrintedRelations.lift(typed("|(1.5 * 2.0)->toString()->replace('0', 'o')")).replaces());
++        assertEquals(PureRelationTextWriter.Form.VALUE, form("|now()->toString()"));
++        // a DateTime literal's text is its written text, the lowering's fold (a value read back has lost its precision)
++        assertNull(PrintedRelations.lift(typed("|%2014-01-01T00:00+0000->toString()")));
++        // only the two value prints the passes wrote: an Integer's, a String's, a day's text are the run's
++        assertNull(PrintedRelations.lift(typed("|1->toString()")));
++        assertNull(PrintedRelations.lift(typed("|%2014-01-01->toString()")));
++        // a value print that is not the last step
++        assertNull(PrintedRelations.lift(typed("|1.5->toString()->length()")));
++    }
++
+     /** The one rule, read off one expression (B3's test-body lift reads it too): a print and its literal replaces, or
+      *  null. */
+     @Test
+diff --git a/core/src/test/java/com/legend/edge/PureRelationTextTest.java b/core/src/test/java/com/legend/edge/PureRelationTextTest.java
+index 2030bf34d..776843cdb 100644
+--- a/core/src/test/java/com/legend/edge/PureRelationTextTest.java
++++ b/core/src/test/java/com/legend/edge/PureRelationTextTest.java
+@@ -80,20 +80,20 @@ class PureRelationTextTest {
+      *  fraction-kind value a Float; a Decimal at its scale; a Boolean; a date; a time. */
+     @Test
+     void aValueIsLegendPuresPrint() {
+-        assertEquals("7", PureRelationText.value(7L, col("i", "Integer")));
+-        assertEquals("2.0", PureRelationText.value(2.0d, col("f", "Float")));
+-        assertEquals("0.00001", PureRelationText.value(0.00001d, col("f", "Float")));
+-        assertEquals("100000000000000000000.0", PureRelationText.value(1e20d, col("f", "Float")));
+-        assertEquals("2.0", PureRelationText.value(2L, col("f", "Float")));
+-        assertEquals("81.18", PureRelationText.value(new BigDecimal("81.180"), col("f", "Float")));
++        assertEquals("7", PureValueText.cell(7L, col("i", "Integer")));
++        assertEquals("2.0", PureValueText.cell(2.0d, col("f", "Float")));
++        assertEquals("0.00001", PureValueText.cell(0.00001d, col("f", "Float")));
++        assertEquals("100000000000000000000.0", PureValueText.cell(1e20d, col("f", "Float")));
++        assertEquals("2.0", PureValueText.cell(2L, col("f", "Float")));
++        assertEquals("81.18", PureValueText.cell(new BigDecimal("81.180"), col("f", "Float")));
+         // a decimal the database held under a Float column is the double it is declared (the review of 2026-11-24)
+-        assertEquals("0.3333333333333333", PureRelationText.value(new BigDecimal("0.333333333333333333"),
++        assertEquals("0.3333333333333333", PureValueText.cell(new BigDecimal("0.333333333333333333"),
+                 col("f", "Float")));
+-        assertEquals("3", PureRelationText.value(3L, col("n", "Number")));
+-        assertEquals("81.18", PureRelationText.value(new BigDecimal("81.180"), col("n", "Number")));
+-        assertEquals("1.50", PureRelationText.value(new BigDecimal("1.50"), col("d", "Decimal")));
+-        assertEquals("true", PureRelationText.value(true, col("b", "Boolean")));
+-        assertEquals("10:30:15", PureRelationText.value(new PureTimeLiteral.TimeWithSecond(10, 30, 15),
++        assertEquals("3", PureValueText.cell(3L, col("n", "Number")));
++        assertEquals("81.18", PureValueText.cell(new BigDecimal("81.180"), col("n", "Number")));
++        assertEquals("1.50", PureValueText.cell(new BigDecimal("1.50"), col("d", "Decimal")));
++        assertEquals("true", PureValueText.cell(true, col("b", "Boolean")));
++        assertEquals("10:30:15", PureValueText.cell(new PureTimeLiteral.TimeWithSecond(10, 30, 15),
+                 col("t", "StrictTime")));
+     }
+ 
+@@ -102,31 +102,31 @@ class PureRelationTextTest {
+      *  them on JDK 21 (2026-11-24). */
+     @Test
+     void aFloatIsLegendPuresDecimalFormat() {
+-        assertEquals("0.0", PureRelationText.pureFloat(-0.0d));
+-        assertEquals("0.0", PureRelationText.pureFloat(0.0d));
+-        assertEquals("-0.25", PureRelationText.pureFloat(-0.25d));
+-        assertEquals("403018489792982720.0", PureRelationText.pureFloat(4.030184897929827E17));
+-        assertEquals("99999999999999990000000.0", PureRelationText.pureFloat(1e23));
+-        assertEquals("\u221E", PureRelationText.pureFloat(Double.POSITIVE_INFINITY));
+-        assertEquals("-\u221E", PureRelationText.pureFloat(Double.NEGATIVE_INFINITY));
+-        assertEquals("NaN", PureRelationText.pureFloat(Double.NaN));
+-        assertEquals("0.3", PureRelationText.pureFloat(0.3d));
+-        assertEquals("0.30000000000000004", PureRelationText.pureFloat(0.1d + 0.2d));
++        assertEquals("0.0", PureValueText.pureFloat(-0.0d));
++        assertEquals("0.0", PureValueText.pureFloat(0.0d));
++        assertEquals("-0.25", PureValueText.pureFloat(-0.25d));
++        assertEquals("403018489792982720.0", PureValueText.pureFloat(4.030184897929827E17));
++        assertEquals("99999999999999990000000.0", PureValueText.pureFloat(1e23));
++        assertEquals("\u221E", PureValueText.pureFloat(Double.POSITIVE_INFINITY));
++        assertEquals("-\u221E", PureValueText.pureFloat(Double.NEGATIVE_INFINITY));
++        assertEquals("NaN", PureValueText.pureFloat(Double.NaN));
++        assertEquals("0.3", PureValueText.pureFloat(0.3d));
++        assertEquals("0.30000000000000004", PureValueText.pureFloat(0.1d + 0.2d));
+     }
+ 
+     /** A date: its day when it has no time; with one, its seconds, at least three subsecond digits (the finer ones
+      *  without their trailing zeros) and {@code +0000} -- the edge's SQL composition's rule until B2b. */
+     @Test
+     void aDateIsItsDayOrItsTdsInstant() {
+-        assertEquals("2014-01-01", PureRelationText.date(new PureDateLiteral.StrictDate(2014, 1, 1)));
++        assertEquals("2014-01-01", PureValueText.tdsDate(new PureDateLiteral.StrictDate(2014, 1, 1)));
+         assertEquals("2014-01-01T10:20:30.000+0000",
+-                PureRelationText.date(new PureDateLiteral.DateWithSecond(2014, 1, 1, 10, 20, 30)));
++                PureValueText.tdsDate(new PureDateLiteral.DateWithSecond(2014, 1, 1, 10, 20, 30)));
+         assertEquals("2014-01-01T10:20:30.500+0000",
+-                PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "5")));
++                PureValueText.tdsDate(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "5")));
+         assertEquals("2014-01-01T10:20:30.1234+0000",
+-                PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "1234")));
++                PureValueText.tdsDate(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "1234")));
+         assertEquals("2014-01-01T10:20:30.123456789+0000",
+-                PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "123456789")));
++                PureValueText.tdsDate(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "123456789")));
+     }
+ 
+     /** s.pure matches the value's runtime type: an enumeration's value is no String, so a brace in its name is not
+@@ -141,7 +141,7 @@ class PureRelationTextTest {
+     @Test
+     void aCellWithNoRuleIsRefusedByName() {
+         com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
+-                () -> PureRelationText.value(List.of(1L), col("l", "Integer")));
++                () -> PureValueText.cell(List.of(1L), col("l", "Integer")));
+         assertTrue(e.getMessage().contains("'l'") && e.getMessage().contains("not written at the edge"),
+                 e.getMessage());
+         // a date toCSV's formats cannot write (legend-pure's format raises on a missing component)
+@@ -205,6 +205,31 @@ class PureRelationTextTest {
+         assertEquals("xax", PureRelationText.replaced("a", List.of(new PureRelationText.Replace("", "x"))));
+     }
+ 
++    /** A last step's value print, legend-pure's (B2b S6a, 2026-11-25; the texts the edge's SQL print passes wrote until
++     *  then): a Float as the double it is declared, by legend-pure's DecimalFormat; a DateTime read from a database, its
++     *  fraction's digits with their trailing zeros trimmed and {@code +0000} (the deleted PureDateTimePrint's rule).
++     *  Anything else is refused by name: the door lifts these two alone. */
++    @Test
++    void aLastStepsValueIsLegendPuresPrint() {
++        ExecutionPlan.Column f = col("value", "Float");
++        assertEquals("0.000000013421", PureValueText.value(1.3421e-8d, f));
++        assertEquals("134210000.0", PureValueText.value(1.3421e8d, f));
++        assertEquals("2.0", PureValueText.value(2L, f));
++        assertEquals("0.30000000000000004", PureValueText.value(0.1d + 0.2d, f));
++        ExecutionPlan.Column t = col("value", "DateTime");
++        assertEquals("2014-01-01T10:20:30+0000",
++                PureValueText.value(new PureDateLiteral.DateWithSecond(2014, 1, 1, 10, 20, 30), t));
++        assertEquals("2014-01-01T10:20:30.123+0000",
++                PureValueText.value(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "123000"), t));
++        assertEquals("2014-01-01T10:20:30.123456789+0000",
++                PureValueText.value(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "123456789"), t));
++        assertEquals("2014-01-01T10:20:30+0000",
++                PureValueText.value(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "000"), t));
++        assertThrows(com.legend.error.NotImplementedException.class, () -> PureValueText.value(5L, col("v", "Integer")));
++        assertThrows(com.legend.error.NotImplementedException.class,
++                () -> PureValueText.value(new PureDateLiteral.StrictDate(2014, 1, 1), t));
++    }
++
+     // ---- the writer: a run's receiver ----------------------------------------------------------------------------
+ 
+     @Test
+@@ -221,5 +246,12 @@ class PureRelationTextTest {
+                 List.of(), got::add).end());
+         assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(
+                 PureRelationTextWriter.Form.TO_STRING, List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.VALUE));
++        // a value's print (B2b S6a): a value's answer alone, and one value
++        PureRelationTextWriter v = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, List.of(), got::add);
++        v.answers(ExecutionPlan.TdsResult.Shape.VALUE);
++        assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE,
++                List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.RELATION));
++        v.columns(List.of(col("value", "Float")));
++        assertThrows(IllegalStateException.class, v::end);
+     }
+ }
+diff --git a/core/src/test/java/com/legend/integration/EdgeSpellingHookTest.java b/core/src/test/java/com/legend/integration/EdgeSpellingHookTest.java
+index 992c5111a..08ca199dd 100644
+--- a/core/src/test/java/com/legend/integration/EdgeSpellingHookTest.java
++++ b/core/src/test/java/com/legend/integration/EdgeSpellingHookTest.java
+@@ -157,18 +157,20 @@ class EdgeSpellingHookTest {
+      *  S3: since B1 a raise is the product's site on every door, and its last use, a checked graph's defect cell, wrote
+      *  the one catalog's sentence byte for byte; no edge dialect overrides it.) */
+ 
+-    /** D1.2's arms (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of a Float
+-     *  ({@code FLOAT_SHORTEST_TEXT}, edge.PurePrintForms) where the product writes its six decimals. */
+-    private static final Set<String> D1_2 = Set.of("spellingPasses", "floatToText");
++    /** D1.2's arm (2026-11-15): {@code spellingPasses}, legend-engine's passes (edge.PurePrintForms: TDSNull and F31's
++     *  parses). ({@code floatToText}, legend-pure's print form of a Float where the product writes its six decimals:
++     *  gone from every edge dialect 2026-11-25, stage B's B2b S6a -- a Float's text in a query is lite's at every door,
++     *  a last step's printed in Java by the doors' lift; a shrink in each set below.) */
++    private static final Set<String> D1_2 = Set.of("spellingPasses");
+ 
+     /** D1.2's arms and MongoDB's {@code dateTimeFormat} (2026-11-15): legend-pure's {@code +0000} text of a date-time
+      *  in its {@code $dateToString}s, where the product writes ISO with {@code Z}. */
+-    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses", "floatToText",
++    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses",
+             "dateTimeFormat");
+ 
+     /** D1.2's arms and DuckDB's {@code scanOrderPasses} (W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+      *  legend-engine's scan order ({@code edge.StableScanOrder}) for the corpus replay, where the product adds none. */
+-    private static final Set<String> D1_2_SCAN_ORDER = Set.of("spellingPasses", "floatToText",
++    private static final Set<String> D1_2_SCAN_ORDER = Set.of("spellingPasses",
+             "scanOrderPasses");
+ 
+     /** THE EDGE'S IN-QUERY VARIANTS: the decisions an edge dialect takes because legend-engine computes inside the
+@@ -197,9 +199,9 @@ class EdgeSpellingHookTest {
+ 
+     /** DuckDB's and Postgres's raw arm too (Phase 6's B4 (ii), 2026-11-17): legend-engine's H2 text translated, where the
+      *  product runs a raw statement as written. */
+-    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("spellingPasses", "floatToText",
++    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("spellingPasses",
+             "scanOrderPasses", "raw");
+-    private static final Set<String> D1_2_RAW = Set.of("spellingPasses", "floatToText", "raw");
++    private static final Set<String> D1_2_RAW = Set.of("spellingPasses", "raw");
+ 
+     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
+             Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", withRow21(D1_2)),
+diff --git a/core/src/test/java/com/legend/integration/FloatTextTest.java b/core/src/test/java/com/legend/integration/FloatTextTest.java
+index 5dec815fc..532c13f47 100644
+--- a/core/src/test/java/com/legend/integration/FloatTextTest.java
++++ b/core/src/test/java/com/legend/integration/FloatTextTest.java
+@@ -20,7 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
+  * go back to 6 ... and use decimal where need"; S311 amended by the user's ruling of 2026-11-23, "I think we do it as
+  * 2.0"): {@code toString} of a Float is six decimals with the trailing zeros trimmed, a whole value keeping one, the
+  * same text on each lane's database (DuckDB, H2, SQLite) -- a column's value and a
+- * computed one. legend-pure's print form is the compatibility edge's ({@code edge.PurePrintForms}), pinned beside it.
++ * computed one. The same text under the compatibility edge's style since B2b S6a (2026-11-25): the edge re-spells no
++ * value's text in a query; legend-pure's print of a last step is the doors' Java printer's ({@code edge.PrintedRelations},
++ * {@code edge.PureValueText}, pinned in {@code PureRelationTextTest} and PCT's {@code PctPlanRoutePrintTest}).
+  */
+ @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
+ class FloatTextTest {
+@@ -44,7 +46,7 @@ class FloatTextTest {
+             assertEquals("-2.0", scalar(model, c, "|(-2.0 * 1.0)->toString()"), backend.name());
+             assertEquals("a 2.0 b", scalar(model, c, "|let x = 2.0 * 1.0; 'a %f b'->meta::pure::functions::string"
+                     + "::format([$x]);"), backend.name());
+-            // legend-pure's print form, at the compatibility edge
++            // the same text under the compatibility edge's style (B2b S6a)
+             assertEquals(List.of("1.5", "2.0", "-1.25"), column(Lean.runInStyle(model, "|" + ROWS
+                     + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)", StorelessRuntime.RUNTIME, backend,
+                     com.legend.edge.PureText.UPSTREAM)).subList(0, 3), backend.name());
+@@ -53,44 +55,33 @@ class FloatTextTest {
+         }
+     }
+ 
+-    /** A Float literal's {@code toString} at the compatibility edge is legend-engine's SQL (Phase 5, row 8 of the edge
+-     *  program, 2026-11-16): the literal as its literal processor writes it, then the database's cast. The default
+-     *  processor writes legend-pure's print bare, an exact numeric the database prints as written (legend-engine passes
+-     *  {@code testFloatToStringWithNegativeExponent} on DuckDB); H2's writes {@code CAST(%s AS FLOAT)}, a double, which
+-     *  H2 prints with an exponent ({@code h2Extension2_1_214.pure:152}). The H2 answers are legend-engine's own: its H2
+-     *  manifest's expected failures (legend-engine 4.145.0,
+-     *  {@code legend-engine-xt-relationalStore-h2-PCT/.../relational-h2/EssentialFunctions_manifest.json:628-632}:
+-     *  {@code testFloatToStringWithNegativeExponent} "expected: '0.000000013421' actual: '1.3421E-8'",
+-     *  {@code testFloatToStringWithPositiveExponent} "expected: '134210000.0' actual: '1.3421E8'"); the edge is
+-     *  identical to legend-engine on each database (the orchestrator's ruling, 2026-11-16). */
++    /** A Float's text inside a query at the compatibility edge is lite's (B2b S6a, 2026-11-25, the orchestrator's
++     *  agreement; register S404): the edge's print pass, which wrote legend-engine's in-query cast with its literal
++     *  processors (Phase 5, row 8 of the edge program, 2026-11-16: H2's {@code CAST(%s AS FLOAT)} printed
++     *  {@code 1.3421E-8}), is deleted. A last step's print is legend-pure's at the doors, by the lift. */
+     @Test
+-    void anEdgeFloatLiteralsTextIsLegendEnginesSql() throws Exception {
++    void anEdgeFloatsTextInAQueryIsLites() throws Exception {
+         TestBackend backend = LaneFloor.backend();
+         String model = backend.withStorelessRuntime("");
+-        // legend-engine writes a Float literal CAST(%s AS FLOAT) on this lane's database (its H2 processor)
+-        boolean floatLiteralCast = backend.name().equals("h2");
+         try (Connection c = backend.open()) {
+-            assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", edge(model, c, "|0.000000013421->toString()"),
+-                    backend.name());
+-            assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", edge(model, c, "|1.3421e-8->toString()"), backend.name());
+-            assertEquals(floatLiteralCast ? "1.3421E8" : "134210000.0", edge(model, c, "|1.3421e8->toString()"), backend.name());
++            for (String q : List.of("|0.000000013421->toString()", "|1.3421e-8->toString()", "|1.3421e8->toString()",
++                    "|17.000->toString()")) {
++                assertEquals(scalar(model, c, q), edge(model, c, q), backend.name() + " " + q);
++            }
++            assertEquals("0.0", edge(model, c, "|1.3421e-8->toString()"), backend.name());
++            assertEquals("134210000.0", edge(model, c, "|1.3421e8->toString()"), backend.name());
+             assertEquals("17.0", edge(model, c, "|17.000->toString()"), backend.name());
+         }
+     }
+ 
+-    /** THE WINDOW UNTIL B2b's S6 (the review of S5a, 2026-11-24, and its re-review, 2026-11-25): a relation's toString
+-     *  is lite's layout computed by the database on every plan style (lowering.ProductRelationText), but under the edge's
+-     *  style the edge dialect's value passes (edge.PurePrintForms) re-spell its Float and DateTime cells as they re-spell
+-     *  any such value's text there: a table text used further at the edge writes each cell as the edge writes that
+-     *  value's toString -- a Float legend-engine's in-query cast (1e-05 on DuckDB, 1.0E-5 on H2), a DateTime
+-     *  legend-pure's {@code +0000} form -- neither lite's text nor (for a Float) legend-pure's. No PCT or corpus case
+-     *  meets it (a last-step table is the doors' Java printer's: PureRelationTextTest, PureRelationTextParityTest).
+-     *  Pinned two ways: each cell is the edge's own text of that value (the same pass writes both, so this half holds
+-     *  whatever the pass writes), and the table is NOT lite's text, so S6's deletion of the passes turns this test red
+-     *  by name; the helper's toCSV used further alike (S5b, 2026-11-25). (Until S5a, this test pinned legend-pure's print, which the edge's own table SQL wrote, PR #118's fix
+-     *  round.) */
++    /** A table's text used further at the compatibility edge is lite's (B2b S6a closed the window the review of S5a
++     *  found, 2026-11-24, and its re-review, 2026-11-25: the edge dialect's value passes re-spelled its Float and
++     *  DateTime cells under the edge's style until then): a relation's {@code toString} and the helper's
++     *  {@code toCSV} used further are the database's text of lite's layout, each cell lite's text of its value, on
++     *  every plan style. A last-step table is the doors' Java printer's (PureRelationTextTest,
++     *  PureRelationTextParityTest). */
+     @Test
+-    void anEdgeTableTextUsedFurtherWritesItsCellsAsTheEdgeWritesTheirValues() throws Exception {
++    void anEdgeTableTextUsedFurtherIsLites() throws Exception {
+         TestBackend backend = LaneFloor.backend();
+         String model = backend.withStorelessRuntime("");
+         String rows = "#TDS\ni:Integer, x:Float, t:DateTime\n1, 0.00001, 2014-01-01T10:20:30.123\n2, 0.0005,"
+@@ -102,24 +93,11 @@ class FloatTextTest {
+         for (String col : List.of("x", "t")) {
+             String table = Lean.runInStyle(model, "|" + rows + "->select(~" + col + ")->toString()",
+                     StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
+-            List<String> cells = new ArrayList<>();
+-            for (List<Object> row : Lean.runInStyle(model, "|" + rows + "->extend(~c: r|$r." + col
+-                    + "->toOne()->toString())->select(~c)", StorelessRuntime.RUNTIME, backend,
+-                    com.legend.edge.PureText.UPSTREAM).rows()) {
+-                cells.add(String.valueOf(row.get(0)));
+-            }
+-            assertEquals("#TDS\n   " + col + "\n   " + String.join("\n   ", cells) + "\n#", table,
+-                    backend.name() + " " + col);
+-            org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col), table, backend.name() + " " + col
+-                    + ": the edge's table text is lite's -- the window closed (S6): re-point this test");
+-            // the helper's toCSV used further, the same window (the review of S5b, 2026-11-25): lite's CSV layout, each
+-            // cell the edge's text of its value, not lite's CSV
++            assertEquals(lites.get(col), table, backend.name() + " " + col);
+             String csv = Lean.runInStyle(model, "|" + rows + "->select(~" + col + ")->meta::relational::tests::csv::toCSV()",
+                     StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
+-            assertEquals(col + "\n" + String.join("\n", cells) + "\n", csv, backend.name() + " " + col + " toCSV");
+-            org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col).replace("#TDS\n   ", "").replace("\n   ", "\n")
+-                    .replace("\n#", "\n"), csv, backend.name() + " " + col
+-                    + ": the edge's CSV is lite's -- the window closed (S6): re-point this test");
++            assertEquals(lites.get(col).replace("#TDS\n   ", "").replace("\n   ", "\n").replace("\n#", "\n"), csv,
++                    backend.name() + " " + col + " toCSV");
+         }
+     }
+ 
+@@ -128,21 +106,21 @@ class FloatTextTest {
+                 .get(0).get(0).toString();
+     }
+ 
+-    /** A Float the store holds as an integer, at the compatibility edge: legend-engine's in-query cast of the column,
+-     *  its digits ({@code Quantity not in range: 1000000}, the corpus's validation showcase), where the product prints
+-     *  every Float by one rule ({@code RelationalMappingIntegrationTest.testManyColumnTypes}, {@code 42.0}). Pinned
+-     *  2026-11-24 (B2a's end design audit) at the SQL each edge dialect writes for the product's node, so that no fixture
+-     *  is written: the edge's pass over the product's Float text keeps it today, and B2b deletes that pass, so its
+-     *  replacement must write the same. */
++    /** A Float the store holds as an integer, at the compatibility edge: lite's one rule for every Float
++     *  ({@code RelationalMappingIntegrationTest.testManyColumnTypes}, {@code 42.0}; S311 as amended 2026-11-24, "Int as
++     *  float agree"), as in the product, since B2b S6a (2026-11-25) deleted the edge's pass that wrote legend-engine's
++     *  in-query cast of the column, its digits ({@code Quantity not in range: 1000000}, the corpus's validation
++     *  showcase, whose two bodies per lane move with it: register S404). Pinned at the SQL each edge dialect writes for
++     *  the product's node, so that no fixture is written: the product dialect's. */
+     @Test
+-    void anIntegerHeldFloatsTextAtTheEdgeIsLegendEnginesCast() {
++    void anIntegerHeldFloatsTextAtTheEdgeIsLites() {
+         com.legend.sql.SqlExpr qty = com.legend.sql.SqlExpr.Column.of("t", "QTY", com.legend.sql.SqlType.Scalar.BIGINT,
+                 true, com.legend.sql.OutputCol.Origin.PHYSICAL);
+         // the lane's own database (each lane runs it: DuckDB, H2, SQLite)
+         TestBackend backend = LaneFloor.backend();
+         com.legend.sql.dialect.SqlDialect edge = com.legend.edge.PureText.dialect(backend.type());
+-        assertEquals(edge.render(select(new com.legend.sql.SqlExpr.Cast(qty, com.legend.sql.SqlType.Scalar.VARCHAR,
+-                        com.legend.sql.SqlExpr.Reason.USER))),
++        com.legend.sql.dialect.SqlDialect product = com.legend.database.Databases.dialect(backend.type());
++        assertEquals(product.render(select(com.legend.lowering.LiteralSpelling.floatPrint(qty))),
+                 edge.render(select(com.legend.lowering.LiteralSpelling.floatPrint(qty))), backend.name());
+     }
+ 
+diff --git a/core/src/test/java/com/legend/integration/PureRelationTextParityTest.java b/core/src/test/java/com/legend/integration/PureRelationTextParityTest.java
+index 32a06e66a..c09274185 100644
+--- a/core/src/test/java/com/legend/integration/PureRelationTextParityTest.java
++++ b/core/src/test/java/com/legend/integration/PureRelationTextParityTest.java
+@@ -31,7 +31,7 @@ class PureRelationTextParityTest {
+ 
+     // (theJavaPrinterWritesTheEdgesSqlText: gone 2026-11-24, stage B's B2b S5a -- the edge's SQL toString is deleted: a
+     // relation's toString is lite's own text, computed by the database on every plan style (ProductRelationTextTest;
+-    // its Float and DateTime cells the edge's until S6, FloatTextTest), and legend-pure's text of a last step is the
++    // its Float and DateTime cells lite's since S6a, FloatTextTest), and legend-pure's text of a last step is the
+     // doors' Java printer's; its measure held until then, every carrier equal on each lane but the corrections below)
+ 
+     /**
+diff --git a/core/src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java b/core/src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java
+index d2c3a7077..29baebf7b 100644
+--- a/core/src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java
++++ b/core/src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java
+@@ -167,14 +167,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
+ 
+         @Test
+         void testFloatToStringWithNegativeExponent() throws SQLException {
+-                // PCT: 0.000000013421->toString() → '0.000000013421' (fixed-point, not
+-                // scientific notation) at the compatibility edge, legend-engine's SQL (Phase 5, 2026-11-16): the literal
+-                // bare, an exact numeric -- except where legend-engine writes it CAST(%s AS FLOAT), a double, whose text
+-                // its own H2 manifest expects ('1.3421E-8'; edge/PurePrintForms, FloatTextTest)
++                // under the compatibility edge's style a Float's text in a query is lite's (B2b S6a, 2026-11-25: the
++                // edge's print pass, legend-engine's in-query cast, deleted); PCT's '0.000000013421' is legend-pure's
++                // print of the last step, which the doors' lift writes in Java (edge/PureValueText, FloatTextTest)
+                 var result = Lean.runInStyle(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
+                         "test::TestRuntime", backend(), com.legend.edge.PureText.UPSTREAM);
+-                boolean floatLiteralCast = com.legend.testing.LaneFloor.backend().name().equals("h2");
+-                assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", result.rows().get(0).get(0).toString());
++                assertEquals("0.0", result.rows().get(0).get(0).toString());
+                 // the product's text (register S311): six decimals, trimmed -- below 0.0000005, 0.0 (S311 amended, the
+                 // user's ruling of 2026-11-23, "I think we do it as 2.0"; B2a, 2026-11-24)
+                 assertEquals("0.0", Lean.run(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
+diff --git a/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md b/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
+index aabdaa297..a2b85bcb3 100644
+--- a/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
++++ b/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
+@@ -286,9 +286,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
+   `toCSV(t, true)` an enumeration's value named `null` is written `null`, as a null is: a known collision (an
+   enumeration's cell is quoted only where its name holds a comma, a quote or a line break). Lite keeps the `toCSV`
+   name.
+-- **Until B2b's S6**, a text used further at legend-engine's door writes its Float and DateTime cells as that door
+-  writes a value's text (legend-engine's in-query cast for a Float, legend-pure's `+0000` for a DateTime); a last
+-  step whose relation the door lifts is legend-pure's or legend-engine's own text (above).
++- **Since B2b's S6a (2026-11-25)** a text used further is lite's at every door, its Float and DateTime cells too: the
++  edge's in-query cast for a Float and legend-pure's `+0000` for a DateTime, which it wrote until then, are gone
++  (§18). A last step whose relation the door lifts is legend-pure's or legend-engine's own text (above).
+ - **Ruled:** by the user on 2026-11-19: ~18:05, "Agree with all four table printing recommendations"; ~18:12, "Yes
+   record it, and count the nested cases"; ~18:36, "Null is good"; ~20:05, "toCSV yes toString or another easy
+   database sql that makes sense"; and on 2026-11-25, "For csv we can do empty cell for null and "" or '' empty string
+@@ -350,6 +350,20 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
+   close to pure when cheap/fast so don't have to reword everything on compatibility").
+ - Register S398.
+ 
++### 18. A Float's or a DateTime's text inside a query is lite's (B2b S6a, PROPOSED for the user's word)
++- **You write** `1.3421e-8->toString()`, `$t.quantity->toString()` inside a message, `now()->toString()`.
++- **legend-engine** writes a Float's text in a query as its database's cast: on H2 `1.3421E-8` and `1.3421E8` (its own
++  H2 manifest expects those PCT failures), and a Float the store holds as an integer as its digits
++  (`Quantity not in range: 1000000`). legend-pure prints `0.000000013421`, `134210000.0`, `1000000.0`. **read**
++- **Lite**, where the print is the program's last step, prints legend-pure's text in Java at the door, on every
++  database (so H2 answers Pure's text where legend-engine's cast departs from it). Where the text is used further in
++  the query, the database computes lite's own text: six decimals with a whole value keeping one (`0.0` for
++  `1.3421e-8`, `1000000.0`), and a DateTime's nine digits and `Z`. A DateTime literal's text is its written text.
++  **measured** (the S6 probe, 2026-11-25): PCT's two H2 exponent cases move toward Pure; the corpus's two validation
++  showcase bodies per lane, whose constraint message is used further, fail at legend-engine's door.
++- **When:** stage B, B2b S6a (2026-11-25); the two moves await the user's word.
++- Register S404.
++
+ ## Gaps lite has today (not differences by design)
+ 
+ - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,
+diff --git a/docs/SEMANTICS_REGISTER.md b/docs/SEMANTICS_REGISTER.md
+index a9c57ecc3..7b3d4bbee 100644
+--- a/docs/SEMANTICS_REGISTER.md
++++ b/docs/SEMANTICS_REGISTER.md
+@@ -275,7 +275,8 @@ that names S104 for functions generic over relations means S112).
+ | S399 | outcome (date equality; RULED by the user 2026-11-22, "Okay sounds good let's do it", on the proposal amended to cite S139 and to name its exception; the id PROVISIONAL until landing, allocated by the compat owner; DuckDB's per-assert nanosecond reading, the session's reading of the user's rule, ACCEPTED AS INTERIM by the user 2026-11-23 ("Accept the nanosecond clause as interim"), to be asked again when the product's == decides every assert (the "one equality" work)) | legend-pure: a date is its components and its subsecond as written -- `AbstractPureDate.equals` (legend-pure-m4 `coreinstance/primitive/date/AbstractPureDate.java:30-59`) compares year through second, an unwritten component as -1, and the subsecond's written text, so `%2020-01-01T10:00:00` is not `%2020-01-01T10:00:00.000`, `.5` is not `.500` and `%2020-01-01T10` is not `%2020-01-01T10:00:00`; a StrictDate never equals a DateTime (interpreted `EqualityUtilities.java:60-72`, compiled `CompiledSupport.java:979-990`). legend-engine reads every TIMESTAMP back at nine subsecond digits (`ExecuteInDb.java:71`, `RelationalResult.java:553-575`), so a literal written to the second fails against its own column (73 such expected failures in its relational PCT manifests, e.g. `pct-manifests/relational-h2/StandardFunctions_manifest.json:57-58`), and refuses a partial date in its SQL (`extensionDefaults.pure:149-153`) | lite's product compares a date by its kind and its instant, the database comparing (a day as a DATE, a date-time as a TIMESTAMP): a year, a year-month, a day and a date-time are kinds never equal across in the asserts (the product's own `==` does not follow the kinds yet: `%2020-01-02 == %2020-01-02T00:00` is true on DuckDB and H2 and false on SQLite, measured 2026-11-23 by the narrow review of f9e74256 -- a recorded gap the "one equality" work closes, when the product's `==` decides every assert); two date-times at one instant are equal whatever their written precision (an hour, a minute, a second, subsecond digits), as `==` already compares them inside a query; the instant is compared at every digit each value carries, up to nine (the user's rule of 2026-11-22, "if something has nanos we either compare properly or refuse if cannot; otherwise compare with micro fidelity", then "do nanoseconds typed for whatever range allows, refuse if out of range"): a date-time literal with a nonzero tenth fraction digit is refused when planned, under every judge (S181); H2 reads nine digits in every year; SQLite, whose date-times are texts, one normalized nine-digit text in every year (a year outside 0000 to 9999 read from its own text). A side whose values hold both days and date-times -- a list literal, read through a `map`, a `filter`, a `sort`, a `take` or an `if`, never into a function's arguments (a function's result, `max` or `at`, is the database's value with its own kind: PCT's `max` and `min` over days and date-times pass) (`VariantEquality.dateKinds`) -- is refused by name under both judges (DuckDB's and H2's arrays carry it as one kind, so its days cannot be told apart; the final audit of c758fe95: the host had called a day contained in one; the narrow review of f9e74256: a list read through a `map` had escaped). Recorded gap: such a list bound by a `let` reaches the judges as a variable, unread -- the host judge calls a day contained in it on DuckDB and H2 (Pure: not), the database judge leaves it unjudged; the product's `contains` answers it as Pure does. DuckDB, per assert: an assert whose literals carry a digit past the microsecond (a fact of the plan; the session's reading of the user's rule, posted 2026-11-22) is read in its typed nanosecond timestamp, which holds the days 1677-09-22 to 2262-04-10, a value outside them refused by name; any other assert in its microsecond timestamp in every year, a value with a digit past the sixth (a nanosecond column's) refused by name, never cut (no test anywhere compares a date-time with nanoseconds outside those days, read in legend-pure, legend-engine and lite, while legend-pure's adjust PCT compares 1624, 2407, 25489 and -21457 without). A refusal at run is the database judge's (`JUDGED_INSTANT_NOT_HELD`): the host judge alone compares every digit it holds, and under both judges a database refusal is their disagreement, naming it (open). Open, measured at S9: Postgres, MariaDB, BigQuery and Databricks read a date-time text with a cast to their microsecond type, and ClickHouse to its DateTime64(6). A Date written as its text takes its kind from its structure (a time after the day; else the dashes after the year's sign), a year and a year-month compared as integers of their components. Its other face: where Pure calls two values at one instant different by their written precision, lite calls them equal, so `assertEquals` passes where Pure fails and `assertNotEquals`, `assertNotEq` and `assertNotContains` of such a pair fail where Pure passes (read: no such pair in legend-pure's PCT; a few upstream checks of a function's precision -- `datePart.pure:47-48`, `dateExtension.pure:24,25,31`, `testFirstDayOf.pure:17-49` -- keep passing without checking it). The row's text corrected 2026-11-22 (the dates audit's MEDIUM 5): it had said the rule never fails a program Pure passes; that is the ruling's own consequence, the rule unchanged. Corrected again the same day: a microsecond cut written in by the session with the first correction (a digit past the sixth not compared) was never ruled and contradicted S181; the user's rule on precision replaced it. The compatibility routes (the host judge alone) kept legend-pure's equality, written precision included wherever lite holds it (a value read from a database holds none, as upstream's), until 2026-11-24: B3 step 1a (one rulebook, lite's) judges them by this row's rule too, measured to move no verdict on PCT channel B or the corpus. A deliberate exception, for the written precision of one instant alone, to the user's ruling of 2026-11-03 "never more lenient than upstream"; its precedent S139 (a Decimal compared by its value, its scale dropped) | the user, 2026-11-22 (posted with both upstream answers read from the pinned sources) | `testexec/LiteHostForms.equalDates`, `edge/CompiledPureHostForms.equalDates`, `testexec/Equality.same`; `testplan/JudgmentFacts.typedPair`, `dateKind`; `lowering/VerdictSql.typedClass`; `AssertBarTest` (`assertEquals-datetime-precision-is-no-value`, `datetime-trailing-zeros-equal`, `datetime-hour-equals-its-instant`, `strictdate-is-no-datetime`, `eachBodyIsOneOutcomeUnderEveryJudgeOnEachDatabase`) | item 3 (S4) **Since 2026-11-25 (B3 step 5a):** a day against a date-time in the body a door receives is a compile error in the product (the doors as for S127). |
+ | S400 | outcome (a list of Decimals' scale; RULED by the user 2026-11-22, "I think the right way in product is that they all widen to max one", on the posted question with both upstream answers read from the pinned sources; the id PROVISIONAL until landing, allocated by the compat owner) | legend-pure: a Decimal literal is a `BigDecimal` of its written text (`ModelRepository.java:568-571`; compiled `JavaPurePrimitiveTypeMapping.java:110-113`) and a list holds each element as its own value, so `[1.0D, 10.125D]` keeps scales 1 and 3 and prints `[1.0D, 10.125D]` (`SimpleDecimalCoreInstance.java:37-45`, `CompiledSupport.java:1276-1279`; `toRepresentation.pure:46`; `assertEquals.pure:21`); both runtimes compare value and scale (S139). legend-engine writes each Decimal literal `cast(<text> as DECIMAL(32,16))` (`pureToSQLQuery.pure:718-720`, `:10028`), a list on DuckDB a `list_value` of that type (`pureToSQLQuery_variant.pure:827-833`, `duckdbExtension.pure:287`), every element at scale 16, and its PCT harness refuses such a list result (`pct_relational.pure:190-203`); on H2 a list does not plan (`relational-h2/EssentialFunctions_manifest.json:238-239`); no PCT test depends on a list's per-element scale | lite's product gives a list of Decimals its DATABASE's own type (AMENDED by the user's ruling of 2026-11-22, the core follows Pure and takes a database's native answer for a cosmetic difference, docs/records/compat-rules-of-record-2026-11-19.md, last section; the ruling's widening pass, dialect/DecimalLists, built in b67362fe, retired the same day: it cast every mixed-scale list, and on BigQuery, ClickHouse and Snowflake every Float list whose literals ride a decimal type, for no verdict): H2, MariaDB and Postgres keep each element's scale, Pure's answer (`[1.0D, 10.125D]` is `[1.0, 10.125]`); DuckDB, SQLite's JSON list, ClickHouse, Snowflake and BigQuery give the list one type natively (`[1.000, 10.125]`). A comparison's verdict does not move (S139: Decimals compare by value); a list's printed and returned scale is its database's, and so is an element's text: `[1.0D, 10.125D]->map(x | $x->toString())` is `['1.000', '10.125']` on DuckDB and SQLite, Pure's `['1.0', '10.125']`, so a verdict over that text flips (the audit of 3f2fe452; unchanged by the retirement on DuckDB, whose list unified the scales before it). RULED by the user 2026-11-23: the database's, recorded -- "For compatibility it should print in the compatibility host the thing that matches pure. For product, the types should be correct, so toString I'm happy to do whatever makes most sense for the product": the product's text is the database's native one, its verdicts typed; the compatibility edge prints Pure's spelling of what the program finally prints, and text the database computed mid-query and used further stays a recorded difference there too. The compatibility edge prints a literal Decimal at its written scale where the plan carries it (open: the edge's form, a fact of the literals) | the user, 2026-11-22; amended the same day | each database's own list type (no pass); `AssertBarTest.aDecimalLiteralIsOneOutcomeOnEveryDatabase` (each database's scale, one verdict) | item 3 (S4) |
+ | S401 | outcome (two Variants' equality; RULED by the user 2026-11-23, "Okay", on the row posted that day after the measurement: no test on any lane but item 3's own compares two whole Variants, and the semantic rule costs DuckDB 70-95x `json()`; replaces the provisional document rule of 8477c703) | legend-pure: a Variant is a class with no equality keys, so `==` is identity -- interpreted `EqualityUtilities.equal` answers false for two instances unless they are one (`EqualityUtilities.java:92-136`), and compiled `VariantInstanceImpl.equals` first asks the wrapped instance's identity (`AbstractCoreInstanceWrapper.java:348-351`) before its Jackson text (`VariantInstanceImpl.java:59-75`); asked of the compiled runtime, two separately built Variants are never equal, even with identical JSON. A Variant against a number or a String is false (`CompiledSupport.equal`, `CompiledSupport.java:1028-1100`). Upstream's Variant tests compare `toString()`/`toJson()` texts, typed values (`to(@T)`) and paths (`get`), never two Variants (`core_functions_variant/functions/**`, `core_functions_relation/relation/tests/**`). legend-engine compares a Variant column with its database's own `=` (no Variant-specific equality, none tested) and refuses `fromJson` at plan generation | lite answers Pure's way wherever the types decide it: a Variant is never equal to a value of any other type (the product's `==` folds false at planning; both judges answer not equal). A side's values are read through every expression typed `Any` to where they come from -- a cast, a collection literal's members, an `if`'s branches (never its condition), a `filter`'s, `sort`'s, `take`'s or `slice`'s list (never its predicate, key or count), a `map`'s body (its parameter read as the list's values), a native call's arguments whose declared parameter carries the call's own type variable (`at`'s and `first`'s list, never an index; `add`'s list and value), a property read off an object literal (`VariantEquality.seen`; the narrow review of f9e74256 made an `if`'s Boolean branch a value and an index or a count none) -- so a Variant inside a list of other values is seen too; a `Pair`, `List` or `Map` holding a Variant -- by its type, or in a member the plan builds, a member declared `Any` included (`pair(1, fromJson('1')->cast(@Any))`) -- and a keyed class whose equality key is declared Variant, compare their Variants and are refused alike; an object's other properties are never compared (a keyed class by its keys, a keyless one by identity, S111), so a Variant in one is not refused (the review of a39883f3). Recorded gap: an object literal whose key declared `Any` holds a Variant is compared by the database. Where only identity would decide -- two whole Variants, a Variant and an `Any` the plan cannot see, or a Variant among values of other types the database would compare it with -- lite refuses by name ("an equality between two whole Variants is not computed ... compare a path (get), a typed value (to(@T)) or the JSON text (toString())"), in the product (`==`, `!=`, `contains`, `in`, `indexOf`, `removeDuplicates`, `removeDuplicatesBy`, `distinct`, `union`, `isDistinct`) and in both judges (`assertEquals`, `assertNotEquals`, `assertSameElements`, `assertContains`, `assertEq`, `assertNotEq`, `assertIs`, `assertIsNot`). A Variant against values of other types alone: `==` false (true where both sides are empty, Pure's `[] == []`), `contains`/`in` false, `indexOf` -1; both judges answer not equal. The one difference from Pure: the same Variant compared with itself (`let v = fromJson('1'); assertEquals($v, $v)`), which Pure answers true and lite refuses. Not yet refused, recorded for the user's ruling (the final audit of 2026-11-23): a relation's comparisons of a Variant column (`distinct`, `groupBy`, an `over` partition, a join key, an aggregate's DISTINCT including Cypher's `count(DISTINCT list)`) use the database's own equality, as before item 3, and the host judge reads a grid's Variant cells by their text; under the database judge a Variant's membership among values of other types has no typed form (refused by name); an `Any` whose values come from nowhere the plan holds -- a variable, a stored property typed `Any` -- may hold a Variant the plan cannot see, and is compared by the database's equality (the open "Any keeps its own type" work). Cypher's MERGE matches a stored list property by its orderability key, as Cypher's `=` does; within one MERGE, two rows wanting `[7, 8]` and `[7.0, 8.0]` create two nodes (grouped by JSON text) where Neo4j creates one | a database has no object identity (every value read from a row is a fresh value), so Pure's answer cannot be computed; every value rule is lite's own invention and none is needed by the spec. Measured 2026-11-23: DuckDB `json()` (as written) calls equal documents different on key order and number spelling; DuckDB `json_tree` (semantic) matches Postgres jsonb on 26 of 29 pairs but costs ~60 us a comparison; DuckDB VARIANT calls different documents equal (null-valued keys in arrays of objects) | `compiler/spec/typed/VariantEquality`, `lowering/InstanceEquality.staticallyDisjoint` and `disjointAnswer`, `lowering/Scalars` (membership and deduplication rules), `testplan/JudgmentFacts.refuseIdentityOnly`; `testplan/AssertBarTest`; the final audit's probes (`docs/records/compat-assert-records-progress.md`); the tripwire measurement (142 targets) and the warm sessions' JSON probes in `docs/records/compat-assert-records-progress.md` | item 3 **Since 2026-11-25 (B3 step 5a):** a Variant compared with a value of another known type in the body a door receives is a compile error in the product, never a silent `false` (the doors as for S127). |
+-| S402 | outcome (a printed table's date-time past the millisecond; RULED by the user 2026-11-25, "Yes keep for past milliseconds", relayed by the orchestrator on the row posted 2026-11-24 after B2b S4's measurement) | the reference's relation TDS (legend-engine 4.145.0's `TestTDS`, which a `#TDS` literal builds in PCT's reference run) stores a date-time as epoch nanoseconds and reads it back to the millisecond (`TestTDS.java:209`, `DateFunctions.fromDate(new Date(value / 1000000))`), so `#TDS t:DateTime 2014-01-01T10:20:30.123456#->toString()` prints `2014-01-01T10:20:30.123+0000` | lite's printer of legend-pure's and legend-engine's table (the doors' Java printer) keeps every fraction digit the value carries, at least three and the finer ones with their trailing zeros trimmed: `2014-01-01T10:20:30.123456+0000` (`edge/PureRelationText.date`, the doors' Java printer; the edge's SQL wrote the same until B2b S5a) | Pure's DateTime carries any number of fraction digits; the cut is the TDS storage's artifact, a reasoned departure (AGENTS.md's upstream-fidelity tenet as amended 2026-11-22); decided by the user, 2026-11-25 | `PureRelationTextTest`'s date cases; B2b S4's count over the pinned sources: no PCT relation suite and no relational-store printed expectation holds a nonzero digit past the millisecond, so 0 cases move (docs/records/compat-b2-progress.md, S4) | B2b |
++| S402 | outcome (a printed table's date-time past the millisecond; RULED by the user 2026-11-25, "Yes keep for past milliseconds", relayed by the orchestrator on the row posted 2026-11-24 after B2b S4's measurement) | the reference's relation TDS (legend-engine 4.145.0's `TestTDS`, which a `#TDS` literal builds in PCT's reference run) stores a date-time as epoch nanoseconds and reads it back to the millisecond (`TestTDS.java:209`, `DateFunctions.fromDate(new Date(value / 1000000))`), so `#TDS t:DateTime 2014-01-01T10:20:30.123456#->toString()` prints `2014-01-01T10:20:30.123+0000` | lite's printer of legend-pure's and legend-engine's table (the doors' Java printer) keeps every fraction digit the value carries, at least three and the finer ones with their trailing zeros trimmed: `2014-01-01T10:20:30.123456+0000` (`edge/PureValueText.tdsDate`, the doors' Java printer, moved from `PureRelationText.date` with B2b S6a; the edge's SQL wrote the same until B2b S5a) | Pure's DateTime carries any number of fraction digits; the cut is the TDS storage's artifact, a reasoned departure (AGENTS.md's upstream-fidelity tenet as amended 2026-11-22); decided by the user, 2026-11-25 | `PureRelationTextTest`'s date cases; B2b S4's count over the pinned sources: no PCT relation suite and no relational-store printed expectation holds a nonzero digit past the millisecond, so 0 cases move (docs/records/compat-b2-progress.md, S4) | B2b |
++| S404 | outcome (a Float's and a DateTime's text in a query at legend-engine's and legend-pure's doors; PROPOSED by stage B's B2b S6a, 2026-11-25, the orchestrator's agreement of the design the same day; the two moves below await the user's word; the id allocated by the orchestrator) | legend-engine writes a Float's `toString` in a query as its database's cast (`cast(%s as varchar)`, 4.145.0's `duckdbExtension.pure`, `h2Extension2_1_214.pure`), a Float literal by its literal processor (H2's `CAST(%s AS FLOAT)`, a double H2 prints with an exponent: `1.3421E-8`, `1.3421E8`, its own H2 manifest's expected failures of PCT's `testFloatToStringWith{Negative,Positive}Exponent`), and a Float the store holds as an integer by its digits (`Quantity not in range: 1000000`, the corpus's validation showcase); legend-pure prints a Float by `DecimalFormat("0.0")` (`0.000000013421`, `134210000.0`, `1000000.0`) and a DateTime with `+0000` | a Float's and a DateTime's text inside a query is lite's own on every door (S311: six decimals, a whole value keeping one, `1000000.0`; S312: nine digits and `Z`): the edge's SQL print passes that re-spelled them (edge/PurePrintForms' Float and DateTime arms with their literal processors, edge/PureDateTimePrint) are deleted. A program whose last step prints a Float's value, or a DateTime's that is no literal, is lifted at legend-pure's and legend-engine's doors and printed in Java by legend-pure's print of the value (`edge/PrintedRelations`, `edge/PureValueText`; G6), on every database: on H2 the two exponent cases answer Pure's text where legend-engine's cast departs from it (engine lane: LITE_FIXES); a DateTime literal's text stays its written text (the lowering's fold, `EdgeDateTimeTexts`). Measured 2026-11-25 (the S6 probe, every compatibility lane): the PCT moves are those two H2 cases toward Pure; the corpus's two validation showcase bodies per lane (`validateAllConstraints`, `validateAllConstraintsWithPostTDSOperation2`) fail at legend-engine's door, their constraint message used further writing `1000000.0` | tenet 3 (compatibility re-spells, never re-computes) and E0 = A (compatibility changes a program only at the door, before planning): the passes rewrote the product's SQL at render; a text used further is lite's, the user's ~18:12 ruling of 2026-11-19 ("Yes record it") read from a table to a value; an integer-held Float's text is S311 as amended 2026-11-24 ("Int as float agree"); proposed by B2, the design agreed by the orchestrator 2026-11-25, the two moves for the user's word | `FloatTextTest` (an edge Float's text in a query, an integer-held Float's, a table used further), `PrintedRelationsTest`, `PureRelationTextTest.aLastStepsValueIsLegendPuresPrint`, PCT's `PctPlanRoutePrintTest`; docs/records/compat-b2-progress.md, S6 | B2b |
+ | S420 | outcome (lite's own CSV: a null, an empty String and a String cell; RULED by the user 2026-11-25, "For csv we can do empty cell for null and "" or '' empty string and the toCSV(true) do null for null and quoted strings?", refining "Not null as null and quoted strings?" the same day; relayed by the orchestrator, built with B2b S5b) | legend-engine's relational test helper `meta::relational::tests::csv::toCSV` (4.145.0, `helperFunctions.pure:208-250`) writes a null cell as nothing, or `TDSNull` under its `renderTdsNull` flag, and any other value through `escapeCSVString`, which quotes only a text holding a comma, a quote or a line break, so an empty String is written as nothing too and reads as the null | on the PRODUCT road lite's two CSV writers, the CSV output format (`result/CsvWriter`) and the helper's `toCSV` computed by the database (`lowering/ProductRelationText`): under `toCSV(t)`, `toCSV(t, false)` and the CSV output format a null is an empty unquoted field and an empty String `""`, any other cell quoted only where it holds a comma, a quote or a line break, its quotes doubled (Postgres COPY CSV's and DuckDB's convention); under `toCSV(t, true)` a null is the unquoted word `null` and every cell of a String-typed or a Variant column is quoted (`""`, `"null"`; a Variant's JSON null `"null"`, never the null word: the orchestrator's ruling of 2026-11-25, Q-B), while a number, a Boolean, a date, an enumeration and any other cell is written as under `toCSV(t)` (the orchestrator's agreement of 2026-11-25). The four-argument `toCSV(t, dateTimeFormat, dateFormat, renderTdsNull)` is refused by name in the product, which writes a date by its own text and never ignores a format a program spelled out (the orchestrator's ruling of 2026-11-25, Q-A; legend-engine's and legend-pure's doors print a last step's text with the formats). A raw grid (`executeInDb`) under `toCSV(t, true)` is refused by name, its columns' types existing only when the plan runs; under `toCSV(t)` its empty text is a String's and is written `""` (agreed the same day). The helper's `toCSV`, a relation's and a raw grid's, ends every row with its own newline, so no rows is the header line alone (`s\n`) and a one-column relation's one null row `s\n\n`, where the helper writes `s\n\n` for both (`joinStrings('', '\n', '\n')` over zero rows is `'\n'`; the user's ruling of 2026-11-25, Q-C, "Okay to both csv ones", relayed by the orchestrator). A known collision, kept by the same ruling (Q-D): under `toCSV(t, true)` an enumeration's value named `null` is written `null`, as a null is, since an enumeration's cell is quoted only where its name holds a comma, a quote or a line break. No product writer spells `TDSNull` (S313, S316); legend-engine's and legend-pure's doors keep upstream's spelling for a last step they lift (`TDSNull` under the flag, upstream's quoting, a second newline after no rows: the doors' Java printer, `edge/PureRelationText`, through the lift); a raw grid and a pivot whose columns nothing names are not lifted (`edge/PrintedRelations.knownColumns`), so their `toCSV` is lite's text at every door, an empty grid's the header line alone | a null and an empty String must be told apart in lite's own CSV, which the helper's text cannot do; decided by the user 2026-11-25 | readers (read 2026-11-25 from their documentation): PostgreSQL's `COPY ... CSV` keeps the default form losslessly ("with the default settings, a NULL is written as an unquoted empty string, while an empty string data value is written with double quotes", postgresql.org/docs/current/sql-copy.html), and the flag's form with `NULL 'null'` (its `FORCE_NULL` is what matches a quoted value against the null string); DuckDB's `read_csv` converts a quoted value to NULL by default (`allow_quoted_nulls`, default true: "Allow the conversion of quoted values to NULL values", duckdb.org/docs/2.0/data/csv/overview.html), so it keeps either form only with `allow_quoted_nulls=false` (and `nullstr='null'` for the flag's); pandas' `read_csv` defaults are lossy: they read an empty field, `""` and the word `null` alike as missing. `ProductRelationTextTest`, `RenderCsvIntegrationTest`, `ResultWritersTest`; the moves in docs/records/compat-b2-progress.md, S5b | B2b S5b |
+ 
+ **Renumbered 2026-10-30, at main's merge into the timeseries platform branch (PR #81's review).** Main and the
+diff --git a/docs/records/compat-b2-progress.md b/docs/records/compat-b2-progress.md
+index 809751ba9..06d6baab4 100644
+--- a/docs/records/compat-b2-progress.md
++++ b/docs/records/compat-b2-progress.md
+@@ -571,6 +571,70 @@ The user ruled both the same day ("Okay to both csv ones"):
+   enumeration's cell is never quoted; the collision is kept and recorded in S420 and on the differences page. No code
+   change.
+ 
++### S6: the edge's value print passes, measured; S6a built (2026-11-25)
++
++**The measurement.** A temporary probe turned off the edge's three print passes and kept F31's parses:
++- the Float text (legend-engine's in-query cast with its literal processors);
++- the DateTime `+0000` composition;
++- the TDSNull joins.
++
++Every compatibility lane ran on it: PCT A on DuckDB, SQLite and H2, the engine lanes, `edge_net`, the edge tests, and
++the corpus on DuckDB and H2. Nothing was committed.
++- **PCT channel A:** `testFloatToStringWithNegativeExponent` on DuckDB and SQLite, where lite's six decimals print
++  `0.0`.
++- **The engine lanes:** the same case on DuckDB (PASS -> FAIL); on H2 `testFloatToStringWithPositiveExponent`
++  FAIL -> PASS (LITE_FIXES: Pure's `134210000.0` where legend-engine's H2 cast prints `1.3421E8`).
++- **The corpus:** DuckDB +114 failing, H2 +109; the unordered registers -65 each (those bodies failing).
++  - 112 / 107 are legend-engine's `TDSNull`. Its empty TDS cell is an object that prints, joins and sorts as
++    `TDSNull`. The shapes on DuckDB: 76 a row's cells joined, 10 a cell's toString, 8 both, 16 others (values
++    sorted then joined, `columnValues`, relation-mapping aggregations).
++  - 2 / 2 are the validation showcase: an integer-held Float in a constraint message used further, legend-engine
++    `1000000`, lite `1000000.0`.
++- **DateTime:** no move anywhere. A literal's text is the lowering's fold (`EdgeDateTimeTexts`), and nothing else
++  reached the pass.
++- **The edge tests:** the passes' own pins.
++
++**The plan**, posted to the orchestrator and agreed for S6a the same day:
++- **S6a:** delete the value passes, and lift a last step's value print at the doors.
++- **S6b:** where legend-engine's TDSNull lives, posted to the user with the orchestrator's lean, (A): legend-engine's
++  door states the empty cell's text as program data before planning. Held until the ruling.
++- **S6c:** F31's parses to legend-engine's door, later.
++
++**S6a, built:**
++- **Deleted:**
++  - `PurePrintForms`' FLOAT_TO_TEXT and DATETIME_TO_TEXT arms and its `FloatLiteral` processors (the class keeps the
++    TDSNull and F31 passes);
++  - `edge/PureDateTimePrint`;
++  - the twelve edge dialects' `floatToText` overrides.
++  A Float's and a DateTime's text in a query is lite's on every door.
++- **The lift:** `PrintedRelations.side`, the one rule, also reads `x->toString()` as a last step where `x` is a Float,
++  or a DateTime that is no literal. The door runs `x` and the writer's new `VALUE` form prints it.
++  - **One value printer (G1):** `edge/PureValueText`. It holds the table printer's cell rules, moved unchanged from
++    `PureRelationText`: legend-pure's Float, the TDS date. It adds the value print: a Float by legend-pure's
++    `DecimalFormat`, a DateTime by the deleted `PureDateTimePrint`'s rule (its fraction's digits trimmed, `+0000`),
++    written in Java.
++  - Wired at PCT channel A (`PctPlanRoute`). B3's test-body lift reads the same rule; `UpstreamPrints`' one change is
++    that a value's print has no row order (`incidental`).
++  - A DateTime literal is not lifted: a value read back has lost its written precision, and the fold answers it.
++- **Guards:**
++  - `EdgeSpellingHookTest`: `floatToText` leaves each edge dialect's arms (a shrink).
++  - `WriterCarriageGuardTest`: `PureRelationText`'s `atLeast` and `doubleValue` moved to `PureValueText`, newly
++    scanned (a move, no growth; the DateTime kind is matched by pattern).
++  - `JavaEvalLedgerTest`: `PureDateTimePrint.java`'s row goes; `PureValueText.java` is registered beside the table
++    printer, a move.
++  - The history comments naming the deleted pieces are marked gone.
++- **Re-pointed:**
++  - `FloatTextTest`: the edge's Float text in a query is lite's; an integer-held Float's edge SQL is the product's; a
++    table used further is lite's, closing S5a's window.
++  - `TypeInferenceIntegrationTest`'s and `AuditRound3Test`'s edge pins: `0.0`.
++- **Added:**
++  - `PrintedRelationsTest.aLastStepsFloatOrDateTimeValuePrintIsLifted`;
++  - `PureRelationTextTest.aLastStepsValueIsLegendPuresPrint` and the writer's VALUE form;
++  - PCT's `PctPlanRoutePrintTest.aFinalValueToStringAnswersLegendPuresPrintOfTheValue`.
++- **Register S404** (PROPOSED) and the differences page's §18.
++- **Awaiting the user's word (relayed by the orchestrator):** H2's two exponent cases (LITE_FIXES) and the corpus's
++  two validation bodies per lane. Their re-pins land only on it.
++
+ ## Audits
+ 
+ | When | Scope | Findings | Fixed |
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoute.java b/pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoute.java
+index 9e8ef7636..2d0b15726 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoute.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoute.java
+@@ -156,8 +156,10 @@ final class PctPlanRoute {
+         // B2b S2 (stage B's B2, 2026-11-24; the plan of record's B2 and E0 = A, "E0 - yes": at legend-pure's and
+         // legend-engine's doors the edge removes a final toString()/toCSV() and hands the run a table printer as its
+         // receiver): a compatibility audience's case whose last step prints a relation answers legend-pure's text,
+-        // printed in Java from the relation's typed rows (edge.PrintedRelations, edge.PureRelationText) -- lite's own
+-        // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5)
++        // printed in Java from the relation's typed rows (edge.PrintedRelations, edge.PureRelationText); since B2b S6a
++        // (2026-11-25) one whose last step prints a Float's or a DateTime's value (not a literal) answers legend-pure's
++        // print of the value, in Java (edge.PureValueText) -- lite's own rules keep the run's answer (lite's route prints
++        // a relation and a value in the database, B2b's S5 and S311/S312)
+         com.legend.edge.PrintedRelations.Lifted lifted = audience == Audience.LITE ? null
+                 : com.legend.edge.PrintedRelations.lift(query);
+         if (lifted != null) {
+@@ -170,7 +172,7 @@ final class PctPlanRoute {
+             // query, which the product refuses at lowering, reported every lifted case as PRODUCT_REFUSES)
+             PctCaseRecorder.onePlan(() -> onePlan(lifted.relation(), features));
+             if (text.size() != 1) {
+-                throw new IllegalStateException("a printed relation answers one text; got " + text.size());
++                throw new IllegalStateException("a printed relation or value answers one text; got " + text.size());
+             }
+             ExecutionPlan.Column value = new ExecutionPlan.Column("value", "String",
+                     new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null);
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoutePrintTest.java b/pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoutePrintTest.java
+index bb150e9a0..5b8e56119 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoutePrintTest.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoutePrintTest.java
+@@ -40,6 +40,20 @@ class PctPlanRoutePrintTest {
+         assertEquals(List.of(List.of("i,f;1,99999999999999990000000.0;2,TDSNull;")), answer.rows().rows());
+     }
+ 
++    /** A last step's value print (B2b S6a, 2026-11-25): a Float's {@code toString} answers legend-pure's print of the
++     *  value, in Java ({@code edge.PureValueText}), where lite's own text in a query is six decimals ({@code 0.0}):
++     *  PCT's {@code testFloatToStringWithNegativeExponent}, which the edge's SQL print pass answered until S6a. A
++     *  DateTime literal's is its written text, the lowering's fold, not lifted. */
++    @Test
++    void aFinalValueToStringAnswersLegendPuresPrintOfTheValue() throws Exception {
++        PctPlanRoute.Answer answer = PctPlanRoute.execute("", "|1.3421e-8->toString()");
++        assertEquals(ExecutionPlan.TdsResult.Shape.VALUE, answer.shape());
++        assertEquals(List.of(List.of("0.000000013421")), answer.rows().rows());
++        assertEquals(List.of(List.of("134210000.0")), PctPlanRoute.execute("", "|1.3421e8->toString()").rows().rows());
++        assertEquals(List.of(List.of("2014-01-01T00:00+0000")),
++                PctPlanRoute.execute("", "|%2014-1-1T0:00+0000->toString()").rows().rows());
++    }
++
+     /** A MIXED SELECTION IN A COLUMN (the review of 6fc717f9f, 2026-11-24, asked whether the door lifts a print the
+      *  edge's SQL text answered): a relation whose column holds a mixed max is refused by name on both roads today --
+      *  the lifted print (the relation run alone) and a print the door does not lift (the edge's SQL text, here a
+diff --git a/core/src/main/java/com/legend/edge/PureValueText.java b/core/src/main/java/com/legend/edge/PureValueText.java
+new file mode 100644
+index 000000000..daa3da0be
+--- /dev/null
++++ b/core/src/main/java/com/legend/edge/PureValueText.java
+@@ -0,0 +1,173 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.edge;
++
++import com.legend.error.NotImplementedException;
++import com.legend.executionplan.ExecutionPlan;
++import com.legend.values.PureDateLiteral;
++import com.legend.values.PureTimeLiteral;
++
++import java.math.BigDecimal;
++import java.math.BigInteger;
++
++/**
++ * LEGEND-PURE'S TEXT OF A VALUE, WRITTEN IN JAVA FROM LITE'S TYPED VALUE: THE EDGE'S ONE VALUE PRINTER (stage B's B2b
++ * S6a, 2026-11-25; the orchestrator's agreement of the same day, G1: one printer, never a second Float printer -- the
++ * midpoint audit's item, B2b's record). Two readers: a relation's cell in the table printer ({@link #cell}, the rules
++ * {@link PureRelationText} held until S6a, moved here unchanged), and a value whose {@code toString} is a program's
++ * last step, lifted at legend-pure's and legend-engine's doors ({@link #value}; {@link PrintedRelations}), which the
++ * edge's SQL print passes wrote until S6a (edge/PurePrintForms' Float and DateTime arms, edge/PureDateTimePrint). A
++ * printer only: the database computed every value, and this class chooses only how each is written (tenet 3; G6, small
++ * Java formatting at the edge); a value it has no rule for is refused by name (AGENTS.md invariant 4).
++ */
++final class PureValueText {
++
++    private PureValueText() {
++    }
++
++    /** The column types whose cell is never a text. */
++    private static final java.util.Set<String> NOT_TEXT = java.util.Set.of("Integer", "Float", "Decimal", "Number",
++            "Boolean", "Date", "StrictDate", "DateTime", "StrictTime");
++
++    /**
++     * legend-pure's {@code toString()} of a relation's cell, by the value lite's typed row carries and its column's Pure
++     * type:
++     * <ul>
++     *   <li>an Integer's digits;</li>
++     *   <li>a Float column's cell as the double it is declared -- whatever kind the database computed it in (an integer,
++     *       a decimal an aggregate collapsed to), as the edge's SQL composition cast it to DOUBLE until B2b and
++     *       legend-engine's TDS reads it -- written by legend-pure's Float print ({@link #pureFloat});</li>
++     *   <li>a Number column's cell by its own value: an integer's digits (legend-pure's print of an Integer), a
++     *       fraction-kind value (a double, or a decimal an aggregate collapsed to) as a Float -- the rule the edge's SQL
++     *       composition kept until B2b (witness PCT's {@code testMax_Numbers_Relation_Aggregate}: {@code 81.18}, never
++     *       {@code 81.180});</li>
++     *   <li>a Decimal at its own scale ({@code toPlainString}, legend-pure's Decimal print);</li>
++     *   <li>a Boolean {@code true}/{@code false}; an enumeration's value, which lite carries as its name;</li>
++     *   <li>a date ({@link #tdsDate}); a StrictTime as written.</li>
++     * </ul>
++     * Anything else -- a list, a map, a structure -- is refused by name.
++     */
++    static String cell(Object v, ExecutionPlan.Column c) {
++        String type = c.type();
++        if (type.equals("Float")) {
++            return asFloat(v, c, "toString");
++        }
++        return switch (v) {
++            case Long l -> Long.toString(l);
++            case Integer i -> Integer.toString(i);
++            case BigInteger i -> i.toString();
++            case Double d -> pureFloat(d);
++            case BigDecimal d -> type.equals("Number") ? pureFloat(d.doubleValue()) : d.toPlainString();
++            case Boolean x -> x.toString();
++            // a text where a column holds text (a String, an enumeration's name, Any, a Variant); under a number, a
++            // Boolean or a date it is no value this printer has a rule for (B2b's midpoint audit, 2026-11-24)
++            case String s when !NOT_TEXT.contains(type) -> s;
++            case PureDateLiteral d -> tdsDate(d);
++            case PureTimeLiteral t -> t.canonicalText();
++            default -> throw refused("toString", v, c);
++        };
++    }
++
++    /**
++     * legend-pure's {@code toString()} of a value a program's last step prints, lifted at the doors
++     * ({@link PrintedRelations}: a Float's, or a DateTime's that is not a literal), by the value lite's typed answer
++     * carries and its declared Pure type -- the texts the edge's SQL print passes wrote until S6a:
++     * <ul>
++     *   <li>a Float as the double it is declared, legend-pure's print ({@link #pureFloat}): {@code 0.000000013421},
++     *       where the passes wrote legend-engine's in-query cast of it;</li>
++     *   <li>a DateTime read from a database ({@link #dateTime}): {@code T}, its fraction's digits with their trailing
++     *       zeros trimmed, {@code +0000} -- edge/PureDateTimePrint's rule (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4,
++     *       2026-10-18), written in Java.</li>
++     * </ul>
++     * Anything else is refused by name: the door lifts these two alone.
++     */
++    static String value(Object v, ExecutionPlan.Column c) {
++        return switch (c.type()) {
++            case "Float" -> asFloat(v, c, "value toString");
++            // a DateTime a database returns holds its seconds; any other kind is refused by name, as toCSV's cell is
++            case "DateTime" -> switch (v) {
++                case PureDateLiteral.DateWithSecond d -> dateTime(d);
++                case PureDateLiteral.DateWithSubsecond d -> dateTime(d);
++                default -> throwRefused("value toString", v, c);
++            };
++            default -> throwRefused("value toString", v, c);
++        };
++    }
++
++    /** {@code v} under a Float type, as the double it is declared (an integer or a decimal the database held it in). */
++    private static String asFloat(Object v, ExecutionPlan.Column c, String what) {
++        return switch (v) {
++            case Double d -> pureFloat(d);
++            case Long l -> pureFloat(l.doubleValue());
++            case Integer i -> pureFloat(i.doubleValue());
++            case BigInteger i -> pureFloat(i.doubleValue());
++            case BigDecimal d -> pureFloat(d.doubleValue());
++            default -> throw refused(what, v, c);
++        };
++    }
++
++    /** legend-pure's print of a Float (legend-pure 5.99.0's {@code CompiledSupport}, lines 130-137 and 1271-1274):
++     *  {@code 0.0} for a zero of either sign, else {@code DecimalFormat("0.0")} in English with up to 340 fraction
++     *  digits -- a point always, never an exponent; an infinity {@code ∞}, as that format writes it. */
++    static String pureFloat(double d) {
++        if (d == 0.0d) {
++            return "0.0";
++        }
++        // a format per value: a DecimalFormat is not safe to share, and the printer holds no static state
++        // (DanglingStateGuardTest); NaN prints NaN and the infinities the infinity sign, signed, as legend-pure's do
++        java.text.DecimalFormat format = new java.text.DecimalFormat("0.0",
++                java.text.DecimalFormatSymbols.getInstance(java.util.Locale.ENGLISH));
++        format.setMaximumFractionDigits(340);
++        return format.format(d);
++    }
++
++    /**
++     * A date cell. A value with no time of day is its day. One with a time is the TDS text's DateTime -- its seconds,
++     * at least three fraction digits (the first three, then any finer ones without their trailing zeros), and
++     * {@code +0000}: the rule the edge's SQL composition wrote until B2b ({@code dateTimeTextTds}, measured on 35
++     * goldens of channel B's relation and standard suites, 2026-10-18; legend-engine's {@code testDayOfWeek_Relation}
++     * prints a TDS literal's {@code 1985-01-12T06:30:00Z} as {@code 1985-01-12T06:30:00.000+0000}). A known divergence
++     * it keeps, as the SQL did: legend-engine's TestTDS reads a date to the millisecond
++     * ({@code DateFunctions.fromDate(new Date(nanos / 1000000))}), so a finer value prints {@code .123+0000} there and
++     * {@code .123456+0000} here; the goldens hold whole seconds and milliseconds, which both rules print alike (the
++     * independent re-review of 2026-11-24; recorded in docs/records/compat-b2-progress.md for B2b's register rows).
++     */
++    static String tdsDate(PureDateLiteral d) {
++        if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
++            return d.canonicalText();
++        }
++        String nine = d.toNineDigits();
++        int point = nine.length() - 10;
++        String digits = nine.substring(point + 1);
++        String finer = digits.substring(3);
++        int end = finer.length();
++        while (end > 0 && finer.charAt(end - 1) == '0') {
++            end--;
++        }
++        return nine.substring(0, point) + "." + digits.substring(0, 3) + finer.substring(0, end) + "+0000";
++    }
++
++    /** A DateTime value read from a database: its seconds, the fraction's digits with their trailing zeros trimmed (a
++     *  timestamp carries no written precision: {@code .123} prints {@code .123}, {@code .123456789} all nine, a whole
++     *  second none), {@code +0000}. */
++    static String dateTime(PureDateLiteral d) {
++        String nine = d.toNineDigits();
++        int point = nine.length() - 10;
++        String digits = nine.substring(point + 1);
++        int end = digits.length();
++        while (end > 0 && digits.charAt(end - 1) == '0') {
++            end--;
++        }
++        return nine.substring(0, point) + (end == 0 ? "" : "." + digits.substring(0, end)) + "+0000";
++    }
++
++    private static String throwRefused(String what, Object v, ExecutionPlan.Column c) {
++        throw refused(what, v, c);
++    }
++
++    static NotImplementedException refused(String what, Object v, ExecutionPlan.Column c) {
++        return new NotImplementedException("legend-pure's " + what + " of a " + v.getClass().getSimpleName()
++                + " cell under the " + c.type() + " column '" + c.name() + "' is not written at the edge");
++    }
++}
