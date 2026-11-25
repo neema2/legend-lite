@@ -3174,7 +3174,7 @@ try {
     // calculated column was never a dimension: "Vertical Pivot" came
     // up disabled and the drag zones refused it.
     await flatten();
-    await addCalc(0, 'big', 'x|$x.notional > 500000', 'dimension');
+    await addCalc(0, 'big', 'x|$x.notional > 500000.0', 'dimension');
     await settle();
     await closeCalc();
     const listed = await page.evaluate(() =>
@@ -3236,7 +3236,7 @@ try {
       // Boolean overloads), and operators are what the compiler accepts
       // (T5) -- so the claim is no TEXT operator, never no ordering.
       await flatten();
-      await addCalc(0, 'big', 'x|$x.notional > 500000', 'dimension');
+      await addCalc(0, 'big', 'x|$x.notional > 500000.0', 'dimension');
       await settle();
       await closeCalc();
       const items = await menuAt(await needCol('big'));

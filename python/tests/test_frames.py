@@ -14,7 +14,7 @@ import pyarrow as pa
 import legend_lite as ll
 from legend_lite._planned import PlannedSql
 
-GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
+GROUP = "->filter(x|$x.qty > 5.0)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
 
 
 def trades():

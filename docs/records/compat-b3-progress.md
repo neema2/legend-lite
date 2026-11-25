@@ -499,3 +499,26 @@ unordered rows, `assert($a == $b)`, natives OrderView does not list.
 - Still to build: the migration report (each door lists what it loosened), the IDE's compile route, and the measured
   re-pins. Then 5b (types known only at run time: the tag beside the value), 5c (the asserts as their Pure bodies,
   VerdictSql's comparison layer deleted).
+
+**Step 5a's client regression (2026-11-25, after b0df6ea8 landed):** B2, merging step 5a, found eight //gates:local
+targets red (seven datacube tests, //python:headless_test); the step's round had not run //gates:local, and every round
+runs it from then on. 50 of the 51 refusals came from a #TS{...}# island lifted ahead of its statement
+(`TsIslands.lifted`), typed with comparisons marked where an island compares by its own language's rule: the
+translation is now typed by the island's rule wherever it is spliced (`Typer.islandOutput`). The datacube's presets
+generated comparisons across types (the share's, the change's and the waffle chart's zero guards against a Float
+measure; a value against its Float bin edge): each now compares in one type through `toFloat()`. Six hand-written test
+queries compared a Float with an Integer literal and now write `60.0`, `102.0`, `5.0`, `50.0` -- the rule working as
+ruled (option A, kept by the user on 2026-11-25); TsIslandTest's query and its expected statement write `150.0`, and
+the datacube feature checks' calculated column `big` writes `$x.notional > 500000.0`. The
+H2 lane's floor line for `TypeInferenceIntegrationTest#testMinNumbers` went with the test's old answer. Twelve runs of
+the IQ parity cases with settings (the precision cases and one of divide_by_zero_error's) were refused, Integer against
+Decimal: settings reach no island yet, so the harness ran each case's printed translation as an ordinary query, which
+is typed with the cross-type check on. The product never reads a translation back: an #IQ{...}# island is a SqlIsland,
+typed with the check off (step 5a), like #SQL's and Cypher's. A first fix wrote the translator's promotions out
+(`toDecimal`, decimal zeros); it was reverted, since it changed the SQL the product sends (`CAST(id AS DECIMAL) > 2.5`
+for `id > 2.5`, which can keep the database off an index) to suit a test's shortcut. The user ("Shouldn't IQ be
+excluded exactly like #sql and #Ts etc?"): the harness now runs such a case as the island it stands for, its settings
+written as IQ's SET statements before its SQL (`IqParity.setStatements`: a database's option `SET OPTION PUBLIC.x`, a
+query's `SET TEMPORARY OPTION x`, the island reading them as `IqSettings.resolve` reads the settings). A case given a
+database property (CaseSensitive, Collation, BlankPadding, CommProtocol), which no statement sets, still runs its
+printed translation until the settings' Pure plumbing lands; none of those is refused today.

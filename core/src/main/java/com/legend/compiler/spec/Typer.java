@@ -157,6 +157,18 @@ final class Typer {
      *  ({@code SpecCompiler.typeQueryBodyMarked}), not in a function's body (B3 step 5). */
     private boolean marking;
 
+    /** The nodes an island's translation wrote into a statement of the query ({@code TsIslands.lifted}): typed by the
+     *  island's own language's rule, its comparisons never marked, as the island arm types an island where it stands
+     *  (B3 step 5a's client regression, 2026-11-25: a #TS{...}# island lifted ahead of its statement was typed marked,
+     *  and the datacube's timeseries queries were refused). */
+    private final java.util.Set<ValueSpecification> islandOutput =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /** {@code node}, an island's translation, typed by the island's rule wherever it is met. */
+    void islandOutput(ValueSpecification node) {
+        islandOutput.add(node);
+    }
+
     boolean marksCrossings() {
         return marking;
     }
@@ -202,6 +214,10 @@ final class Typer {
         TypedSpec pre = pretyped.isEmpty() ? null : pretyped.get(vs);
         if (pre != null) {
             return pre;
+        }
+        // an island's translation compares by the island's language's rule (B3 step 5): typed unmarked
+        if (marking && !islandOutput.isEmpty() && islandOutput.contains(vs)) {
+            return markingCrossings(false, () -> synth(vs, env));
         }
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as

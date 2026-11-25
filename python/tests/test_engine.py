@@ -32,7 +32,7 @@ from legend_lite.engine import Engine, NativePlanner, WebServer
 from legend_lite.keeper import page_hash
 from legend_lite._home import locked
 
-GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
+GROUP = "->filter(x|$x.qty > 5.0)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
 
 
 def trades():
