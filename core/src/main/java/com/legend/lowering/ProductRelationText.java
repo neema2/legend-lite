@@ -54,9 +54,12 @@ import java.util.function.Function;
  *       the edge with S5b: the keyed plan admits an integer's and a text's columns alone, whose database text is the
  *       product's).</li>
  * </ul>
- * Where a relation's text is the program's last step, legend-pure's and legend-engine's doors print legend-pure's text
- * in Java from the rows instead ({@code edge.PrintedRelations}, B3's lift). No plan-style facet, no hook, no mode. A
- * shape it cannot write is refused by name.
+ * Under {@code toCSV(t, true)} an enumeration's value named {@code null} is written {@code null}, as a null is: a
+ * known collision, kept by the user's ruling of 2026-11-25 (Q-D, "Okay to both csv ones"; S420). Where a relation's
+ * text is the program's last step, legend-pure's and legend-engine's doors print legend-pure's text in Java from the
+ * rows instead ({@code edge.PrintedRelations}, B3's lift), for a relation whose columns the compiler knows; a raw grid
+ * and a pivot whose columns nothing names are not lifted, so their text is this one at every door. No plan-style facet,
+ * no hook, no mode. A shape it cannot write is refused by name.
  */
 final class ProductRelationText {
 

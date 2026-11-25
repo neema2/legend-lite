@@ -415,6 +415,15 @@ class TaggedListTest {
                     CONN_LET.substring(0, CONN_LET.indexOf("let rs")) + "meta::relational::metamodel::execute::executeInDb("
                     + "'select \\'\\' as E, \\'a b\\' as F', $c)->meta::relational::tests::csv::toCSV();}",
                     StorelessRuntime.RUNTIME, c).one());
+            // no rows: the header line alone; one row whose one cell is null: an empty field and its own newline (the
+            // user's ruling of 2026-11-25, Q-C, "Okay to both csv ones"; the review of e4bfa8677 asked for the grid's pins)
+            String noConn = CONN_LET.substring(0, CONN_LET.indexOf("let rs"));
+            assertEquals("A\n", Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), noConn
+                    + "meta::relational::metamodel::execute::executeInDb('select 1 as A where 1 = 0', $c)"
+                    + "->meta::relational::tests::csv::toCSV();}", StorelessRuntime.RUNTIME, c).one());
+            assertEquals("A\n\n", Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), noConn
+                    + "meta::relational::metamodel::execute::executeInDb('select cast(null as varchar) as A', $c)"
+                    + "->meta::relational::tests::csv::toCSV();}", StorelessRuntime.RUNTIME, c).one());
             Exception flagged = assertThrows(Exception.class, () -> program(c,
                     "$rs->meta::relational::tests::csv::toCSV(true);"));
             assertTrue(String.valueOf(flagged.getMessage()).contains("a relation's toCSV with renderTdsNull over a raw"

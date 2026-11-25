@@ -77,7 +77,8 @@ class ProductRelationTextTest {
      *  "toCSV yes toString or another easy database sql that makes sense"): the helper's layout, each cell the product's
      *  own text of its value -- a whole Float {@code 2.0}, a DateTime lite's nine digits and {@code Z} (S312; the
      *  orchestrator's relay of 2026-11-25, Q1), a cell or a name holding a comma or a quote quoted with its quotes
-     *  doubled, no rows the header and two newlines; the nulls and Strings by the user's ruling of 2026-11-25 (register
+     *  doubled, every row ending with its own newline so that no rows is the header line alone (the user's ruling of
+     *  2026-11-25, Q-C, "Okay to both csv ones"); the nulls and Strings by the user's ruling of 2026-11-25 (register
      *  S420): under {@code toCSV(t)} a null an empty field and an empty String {@code ""}, under {@code toCSV(t, true)}
      *  a null the word {@code null} and every String quoted -- one text on each lane's database (DuckDB, H2, SQLite). */
     @Test

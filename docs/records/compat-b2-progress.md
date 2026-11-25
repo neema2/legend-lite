@@ -402,7 +402,7 @@ The rulings this slice builds on:
 The question went to the orchestrator with (A) write it, (B) refuse it, and (C) ignore the flag. The user's design replaced all three: lite writes its own explicit null under the flag. Nothing in the product spells `TDSNull`, and no guard moves.
 
 **The product's `toCSV`** (`lowering.ProductRelationText.csv`) is one scalar subquery the database computes, in the relation's own order (`Render.liftOrder`, as in S5a).
-- **Layout:** the helper's. The header is the names joined `,`; each row is its cells joined `,`. There is a newline after the header and after every row, so no rows gives the header and two newlines.
+- **Layout:** the helper's. The header is the names joined `,`; each row is its cells joined `,`. There is a newline after the header and after every row, so no rows gives the header and two newlines. (Superseded by Q-C, 2026-11-25: every row ends with its own newline, so no rows is the header line alone; see "The CSV's two questions, ruled".)
 - **A name** that holds a comma, a quote or a line break is quoted at planning, its quotes doubled.
 - **Under `toCSV(t)` and `toCSV(t, false)`** (the four-argument form, with formats, is refused by name since the
   review's fix round: the orchestrator's ruling of 2026-11-25, Q-A):
@@ -539,14 +539,34 @@ type, IQ's settings cases as islands) merged into B2's branch. It replaces the m
 
 ### The CSV's two questions, ruled (2026-11-25)
 
-The review of S5c asked two semantics questions, posted to the user through the orchestrator. The user ruled both the
-same day ("Okay to both csv ones"):
+The review of S5c asked two semantics questions, posted to the user through the orchestrator with both options each
+(the expression, upstream's answer, lite's):
+- **Q-C**, `#TDS ... #->filter(<none>)->toCSV()` and a one-column relation's one null row. Upstream (legend-engine's
+  helper, helperFunctions.pure:208-212): `s\n\n` for both. Lite until then: `s\n\n` for both too. (A) keep the
+  helper's layout and the ambiguity; (B) every row ends with its own newline, so no rows is `s\n` and the null row
+  `s\n\n`, as `result/CsvWriter` writes the header alone. Lean: B.
+- **Q-D**, an enumeration's value named `null` under `toCSV(t, true)`. Upstream: the helper writes the value's name
+  `null`, as it writes any value, and `TDSNull` for a null. Lite: `null` for both, since its null word is `null` and an
+  enumeration's cell is not quoted unless its name holds a comma, a quote or a line break. (A) keep the collision and
+  record it; (B) quote every enumeration's cell under the flag. Lean: A.
+
+The user ruled both the same day ("Okay to both csv ones"):
 - **Q-C (B): no rows is the header line alone.** Every row ends with its own newline (`lowering.ProductRelationText`,
   the relation's and the raw grid's CSV), so a one-column relation's one null row (`s\n\n`) is told from none (`s\n`).
   legend-engine's helper writes `s\n\n` for both: `joinStrings('', '\n', '\n')` over zero rows is `'\n'` (read in the
   pinned sources, helperFunctions.pure:208-212, and legend-pure's `joinStrings` tests). The departure is recorded in
   S420 and on the differences page. Pinned: `ProductRelationTextTest` (no rows, with and without the flag; one null
-  row), `RenderCsvIntegrationTest.emptyRelationRendersTheHeaderLineAlone`.
+  row), `RenderCsvIntegrationTest.emptyRelationRendersTheHeaderLineAlone`, and the raw grid's in `TaggedListTest`
+  (no rows `A\n`, one null row `A\n\n`).
+  - **Moves:** core's lean SQL, DuckDB's `toCSV(t)` row 1,372 -> 1,378 characters (each row's newline concatenated,
+    the separator empty) and `toCSV(t, renderTdsNull)` 406 -> 405, its plan JSON 8,028 -> 8,024: the ruling's direct
+    cost. The corpus's lean SQL did not move. No PCT or corpus verdict moves: the one corpus golden of an empty CSV,
+    `testEmbeddedMapping.pure:202`'s `testIsEmpty` (`'name,firm\n\n'`), is a printed side B3's lift reads and the
+    Java printer writes in legend-engine's layout (the host's record shows the assert made `assertSameElements`,
+    which `UpstreamPrints` writes only for a side it lifts).
+  - **Not lifted, so lite's text at every door:** a raw grid's and an unnamed pivot's `toCSV` as a last step
+    (`PrintedRelations.knownColumns`): an empty grid prints its header line alone where legend-engine writes a second
+    newline. Recorded in S420 and on the differences page (the review of `e4bfa8677`).
 - **Q-D (A): an enumeration's value named `null` under `toCSV(t, true)` is written `null`, as a null is.** An
   enumeration's cell is never quoted; the collision is kept and recorded in S420 and on the differences page. No code
   change.

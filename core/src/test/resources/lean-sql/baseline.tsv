@@ -3630,8 +3630,8 @@ core	DuckDB	meta::pure::functions::string::substring_String_1__Integer_1__String
 core	DuckDB	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	4	264	5332	0	0	0
 core	DuckDB	meta::pure::functions::string::toString_Any_1__String_1_	10	1082	19596	0	0	0
 core	DuckDB	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	4	264	5332	0	0	0
-core	DuckDB	meta::relational::tests::csv::toCSV_TabularDataSet_1__Boolean_1__String_1_	1	406	8028	2	0	0
-core	DuckDB	meta::relational::tests::csv::toCSV_TabularDataSet_1__String_1_	2	1372	28125	3	240	0
+core	DuckDB	meta::relational::tests::csv::toCSV_TabularDataSet_1__Boolean_1__String_1_	1	405	8024	2	0	0
+core	DuckDB	meta::relational::tests::csv::toCSV_TabularDataSet_1__String_1_	2	1378	28125	3	240	0
 core	DuckDB	user	17	1285	40252	0	0	0
 core	H2	TypedCDate	7	317	24785	0	0	0
 core	H2	TypedCDecimal	1	22	3367	0	0	0
