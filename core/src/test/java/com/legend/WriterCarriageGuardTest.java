@@ -173,9 +173,9 @@ class WriterCarriageGuardTest {
             Map.entry("PureRelationText.java", Map.ofEntries(
                     Map.entry("contains(\"\")", 6),
                     Map.entry("startsWith(\"\")", 1))),
-            // legend-pure's text of a value, the edge's one value printer (B2b S6a's legend-pure door, 2026-11-25): a
-            // relation's cell (the rules moved from PureRelationText, above) and a last step's Float print at
-            // legend-pure's door, the same pureFloat (no operation added)
+            // legend-pure's text of a value, the edge's value printer (B2b S6a's legend-pure door, 2026-11-25): a
+            // relation's cell, the rules moved from PureRelationText (above); a last step's Float print, lifted by S6a,
+            // held with the edge's value passes (the design audit of 2026-11-25; its pureFloat reused, no count moved)
             Map.entry("PureValueText.java", Map.ofEntries(
                     Map.entry("atLeast", 1),
                     Map.entry("doubleValue", 5))),
@@ -327,7 +327,7 @@ class WriterCarriageGuardTest {
         // 2026-11-24): scanned with the writers they are
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationText.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
-        // the edge's one value printer, the cell rules moved out of PureRelationText (B2b S6a, 2026-11-25)
+        // the edge's value printer, the cell rules moved out of PureRelationText (B2b S6a, 2026-11-25)
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureValueText.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);

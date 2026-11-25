@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * The door's lift of a program whose last step prints a relation ({@link PrintedRelations}; stage B's B2, B2b S2,
- * 2026-11-24), or a Float's value at legend-pure's door (B2b S6a, 2026-11-25): what is lifted, what is left to the run,
- * and the program that remains.
+ * 2026-11-24): what is lifted, what is left to the run, and the program that remains. (B2b S6a's lift of a last step's
+ * Float at legend-pure's door, and its test, are held with the edge's value passes: the design audit of 2026-11-25.)
  */
 class PrintedRelationsTest {
 
@@ -62,29 +62,6 @@ class PrintedRelationsTest {
         assertNull(PrintedRelations.lift(typed("|" + REL + "->filter(r|$r.a == 1)")));
         // a print that is not the last step
         assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->length()")));
-    }
-
-    /** A last step's Float print at legend-pure's door (B2b S6a's legend-pure door, 2026-11-25, the orchestrator's
-     *  agreement and relay): {@code x->toString()}, {@code x} a Float, lifted to the value and printed by legend-pure's
-     *  print in Java ({@link PureValueText#value}); the one rule ({@link PrintedRelations#side}, which B3's test-body
-     *  lift reads) and the relation lift read relations alone. */
-    @Test
-    void aLastStepsFloatPrintIsLiftedAtLegendPuresDoor() {
-        PrintedRelations.Lifted lifted = PrintedRelations.liftValue(typed("|1.3421e-8->toString()"));
-        assertNotNull(lifted);
-        assertEquals(PureRelationTextWriter.Form.VALUE, lifted.form());
-        // the program that remains computes the value: a Float, no longer a String
-        assertEquals(typed("|1.3421e-8").resultType(), lifted.relation().resultType());
-        assertEquals(List.of(new PureRelationText.Replace("0", "o")),
-                PrintedRelations.liftValue(typed("|(1.5 * 2.0)->toString()->replace('0', 'o')")).replaces());
-        // a Float's print alone: an Integer's, a DateTime's, a day's text are the run's
-        assertNull(PrintedRelations.liftValue(typed("|1->toString()")));
-        assertNull(PrintedRelations.liftValue(typed("|now()->toString()")));
-        assertNull(PrintedRelations.liftValue(typed("|%2014-01-01->toString()")));
-        // a value print that is not the last step
-        assertNull(PrintedRelations.liftValue(typed("|1.5->toString()->length()")));
-        // the relation lift and the one rule leave a value's print to the run
-        assertNull(PrintedRelations.lift(typed("|1.3421e-8->toString()")));
     }
 
     /** A relation's column named csv is that column's cells, never the TDS's csv (the review of d6e94cdfe, 2026-11-25:

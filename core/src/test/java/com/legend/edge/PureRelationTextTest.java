@@ -205,21 +205,6 @@ class PureRelationTextTest {
         assertEquals("xax", PureRelationText.replaced("a", List.of(new PureRelationText.Replace("", "x"))));
     }
 
-    /** A last step's Float print at legend-pure's door, legend-pure's (B2b S6a's legend-pure door, 2026-11-25): the
-     *  double the Float is declared, by legend-pure's DecimalFormat -- where the edge's SQL print pass writes
-     *  legend-engine's in-query cast. Anything else is refused by name: the door lifts a Float's print alone. */
-    @Test
-    void aLastStepsFloatIsLegendPuresPrint() {
-        ExecutionPlan.Column f = col("value", "Float");
-        assertEquals("0.000000013421", PureValueText.value(1.3421e-8d, f));
-        assertEquals("134210000.0", PureValueText.value(1.3421e8d, f));
-        assertEquals("2.0", PureValueText.value(2L, f));
-        assertEquals("0.30000000000000004", PureValueText.value(0.1d + 0.2d, f));
-        assertThrows(com.legend.error.NotImplementedException.class, () -> PureValueText.value(5L, col("v", "Integer")));
-        assertThrows(com.legend.error.NotImplementedException.class, () -> PureValueText.value(
-                new PureDateLiteral.DateWithSecond(2014, 1, 1, 10, 20, 30), col("v", "DateTime")));
-    }
-
     // ---- the writer: a run's receiver ----------------------------------------------------------------------------
 
     @Test
@@ -236,12 +221,5 @@ class PureRelationTextTest {
                 List.of(), got::add).end());
         assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(
                 PureRelationTextWriter.Form.TO_STRING, List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.VALUE));
-        // a Float's print (B2b S6a's legend-pure door): a value's answer alone, and one value
-        PureRelationTextWriter v = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, List.of(), got::add);
-        v.answers(ExecutionPlan.TdsResult.Shape.VALUE);
-        assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE,
-                List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.RELATION));
-        v.columns(List.of(col("value", "Float")));
-        assertThrows(IllegalStateException.class, v::end);
     }
 }

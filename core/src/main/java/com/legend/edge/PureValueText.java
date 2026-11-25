@@ -12,16 +12,15 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 
 /**
- * LEGEND-PURE'S TEXT OF A VALUE, WRITTEN IN JAVA FROM LITE'S TYPED VALUE: THE EDGE'S ONE VALUE PRINTER (stage B's B2b
+ * LEGEND-PURE'S TEXT OF A VALUE, WRITTEN IN JAVA FROM LITE'S TYPED VALUE: THE EDGE'S VALUE PRINTER (stage B's B2b
  * S6a, legend-pure's door, 2026-11-25; the orchestrator's agreement of the same day, G1: one printer, never a second
- * Float printer -- the midpoint audit's item, B2b's record). Two readers: a relation's cell in the table printer
- * ({@link #cell}, the rules {@link PureRelationText} held until S6a, moved here unchanged), and a Float whose
- * {@code toString} is a program's last step, lifted at legend-pure's door ({@link #value}; {@link PrintedRelations}),
- * where the edge's SQL print pass writes legend-engine's in-query cast (on H2 {@code 1.3421E-8}, where legend-pure
- * prints {@code 0.000000013421}). legend-engine's door, and the passes' deletion, wait for the user's ruling (the
- * orchestrator's relay of 2026-11-25). A printer only: the database computed every value, and this class chooses only
- * how each is written (tenet 3; G6, small Java formatting at the edge); a value it has no rule for is refused by name
- * (AGENTS.md invariant 4).
+ * Float printer -- the midpoint audit's item, B2b's record). Its reader is a relation's cell in the table printer
+ * ({@link #cell}, the rules {@link PureRelationText} held until S6a, moved here unchanged). A Float whose
+ * {@code toString} is a program's last step is not lifted to it yet: S6a's lift at legend-pure's door is held with the
+ * edge's value passes for the user's ruling (the design audit of 2026-11-25: alone it moved no case and left a print
+ * used further to the passes, two printers at one door). A printer only: the database computed every value, and this
+ * class chooses only how each is written (tenet 3; G6, small Java formatting at the edge); a value it has no rule for
+ * is refused by name (AGENTS.md invariant 4).
  */
 final class PureValueText {
 
@@ -53,7 +52,7 @@ final class PureValueText {
     static String cell(Object v, ExecutionPlan.Column c) {
         String type = c.type();
         if (type.equals("Float")) {
-            return asFloat(v, c, "toString");
+            return asFloat(v, c);
         }
         return switch (v) {
             case Long l -> Long.toString(l);
@@ -71,25 +70,15 @@ final class PureValueText {
         };
     }
 
-    /** legend-pure's {@code toString()} of a Float a program's last step prints, lifted at legend-pure's door
-     *  ({@link PrintedRelations#liftValue}): the double it is declared, by legend-pure's print ({@link #pureFloat}).
-     *  Anything else is refused by name: the door lifts a Float's print alone. */
-    static String value(Object v, ExecutionPlan.Column c) {
-        if (!c.type().equals("Float")) {
-            throw refused("value toString", v, c);
-        }
-        return asFloat(v, c, "value toString");
-    }
-
     /** {@code v} under a Float type, as the double it is declared (an integer or a decimal the database held it in). */
-    private static String asFloat(Object v, ExecutionPlan.Column c, String what) {
+    private static String asFloat(Object v, ExecutionPlan.Column c) {
         return switch (v) {
             case Double d -> pureFloat(d);
             case Long l -> pureFloat(l.doubleValue());
             case Integer i -> pureFloat(i.doubleValue());
             case BigInteger i -> pureFloat(i.doubleValue());
             case BigDecimal d -> pureFloat(d.doubleValue());
-            default -> throw refused(what, v, c);
+            default -> throw refused("toString", v, c);
         };
     }
 

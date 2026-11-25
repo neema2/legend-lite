@@ -578,7 +578,8 @@ all, and the orchestrator relayed: hold S6a's legend-engine-door parts (the pass
 since `PureText.PURE_V1` and the corpus plan with `UPSTREAM`'s dialects; the two validation bodies; register S404, its
 draft kept) and all of S6b; legend-pure's door may proceed. The full S6a was built and is kept aside for the ruling.
 
-**S6a, legend-pure's door, built:**
+**S6a, legend-pure's door, built** (its lift HELD again the same day, with the passes: the design audit of S5a to S6a
+below removed the lift and kept the cell printer):
 - **One value printer (G1):** `edge/PureValueText`, the table printer's cell rules moved unchanged from
   `PureRelationText` (legend-pure's Float, the TDS date), and the value print of a Float, the same `pureFloat`.
 - **The lift:** `PrintedRelations.liftValue` reads `x->toString()` as a last step, `x` a Float, with literal replaces,
@@ -645,10 +646,133 @@ The user ruled both the same day ("Okay to both csv ones"):
   enumeration's cell is never quoted; the collision is kept and recorded in S420 and on the differences page. No code
   change.
 
+### Pushed: `d7af55aae..7c2ac303d` (2026-11-25)
+
+S5c, the CSV rulings, the TDS csv amendment (S405), S6a's legend-pure door, the merge of B3 step 5a, and each one's
+review fixes. Gates: the local gate (`--lockfile_mode=error`) and the full round on `7c2ac303d`, every lane green (646
+tests, 1 skipped). The 14 Postgres, `is_numeric` and datacube targets failed only as root and passed on the
+unprivileged rerun. No PCT, edge-contract or engine-lane ledger moved: no lane reports a newly passing case. Reported
+to the orchestrator.
+
+### S7: measured; two questions posted (2026-11-25)
+
+**S7a, the checked graph's UNEVALUABLE record** (`SqlExpr.RaiseText.asData`, `PlanTypesAreDataTest.PROSE_RESIDUE`).
+The record's kind and operands have no reader. Since S3a deleted the edge's `raiseMessage` overrides, the one reader
+is `AnsiSqlRenderer.site`, and it writes `asData` back as a plain string literal. `SqlRewriter`, `Windows` and
+`MirJson` copy it. The options, as posted:
+- **(A)** a plain literal, as S3b wrote `CONSTRAINT_VIOLATED`'s sentence (the sentence folds the constraint's id, a
+  model fact, and the database decides per row whether the defect appears). The SQL stays byte-identical, the plan
+  JSON shrinks, and `PROSE_RESIDUE` loses its entry. The midpoint audit called this relabelling (G4).
+- **(B)** the defects worded in Java from typed rows, the midpoint audit's intent. The database builds a checked
+  answer as JSON (`lowering/CheckedEnvelope`, the product's too), so this is a redesign of the checked answer on the
+  product path.
+
+Recommended: (A).
+
+**S7b, legend-engine's envelope for a value on pure/v1's execute.** Lite refuses every value answer by name
+(`EngineAnswers`' VALUE arm). legend-engine's answer for a store-bound count, as the engine runner answered it
+(`tools/engine-runner/src/test/resources/pure_v1/engine_*_answers.tsv`), is a `dataTypeBuilder` envelope whose one
+column is named by the database's own label for upstream's unaliased SQL expression (`COUNT(*)` on H2,
+`count_star()` on DuckDB). Lite aliases its columns, and upstream's SQL text is never promised (CP-4). The options,
+as posted:
+- **(A)** keep the refusal;
+- **(B)** answer the envelope with lite's column name, a new difference recorded;
+- **(C)** (B) after asking the engine runner for the other value shapes (a constant, a String print, a Float).
+  legend-engine answers a host-side constant through another result type.
+
+Recommended, if values are to be answered: (C). It touches legend-engine's door, so it is treated as covered by the
+hold.
+
+**S6c is held with S6a's legend-engine parts.** The B3 session's direction moves F31 into legend-engine's door
+rewrite when `PurePrintForms` goes, and that deletion is what the user is weighing. The rewrite also reaches
+store-bound code alone, where the SQL pass reaches every parse in an edge plan, so the measurement belongs with
+that ruling.
+
+### S6c measured, and legend-engine's value answers asked (2026-11-25)
+
+**S6c's measurement.** At the orchestrator's request ("measure, but don't build yet": a design under discussion may
+move legend-engine's meanings into an edition the typer reads), a temporary probe turned off the edge's F31 pass
+(`UnguardedParses`) at every door and kept the other passes. It ran on every compatibility lane: the edge tests and
+their H2 and SQLite integration lanes, PCT A on DuckDB, SQLite and H2, the engine lanes, `edge_net`, and the corpus on
+DuckDB and H2. Nothing was committed. Two things moved:
+- **legend-engine's door, the pure/v1 golden net on H2, `raise.parseInteger`, away from legend-engine.** With F31
+  (today, pinned) lite answers legend-engine's text, `JdbcSQLDataException: Data conversion error converting "abc";
+  SQL statement: SELECT CAST('abc' AS BIGINT) ...`. Without F31 it answers the product guard's `Raised: Could not
+  convert string 'abc' to INT64`. Its plan text moves with it.
+- **`InterimEdgeSitesTest`:** the edge plans' raise sites with a computed operand, 4 -> 5 (the parse guard's site).
+
+No PCT ledger moved on any database, so nothing at legend-pure's door, and neither engine lane, the corpus nor the
+edge integration lanes moved. The one measured case is a store-bound parse (inside an `extend` over a store relation),
+so a door rewrite, or an edition rule, that reaches store-bound code keeps it as it is. Posted; held for the ruling.
+
+**legend-engine's value answers** (for S7b; the engine runner, legend-engine 4.145.0 on H2, the pure/v1 goldens'
+trades model; a temporary runner target, not committed):
+- `...->size()->toString()->from(RT)`: a `dataTypeBuilder` of type String, the relational activity, and one column
+  named `CAST(COUNT(*) AS CHARACTER VARYING)`, value `"128"`.
+- `...->size()->toFloat()->from(RT)`: type Float, the column `CAST(COUNT(*) AS FLOAT)`, value `128.0`.
+- `...->select(~[year])->limit(1)->toString()->from(RT)`: type String, SQL `select top 1 cast(year as varchar)`,
+  value `"2023"`. legend-engine's `toString` of a relation in a store query casts its first column, where Pure's prints
+  the table: a meaning difference if values were answered.
+- `->toCSV()` over a Relation: refused at compile ("Function does not exist 'toCSV(Relation<(year:Int)>[1])'"), its
+  `toCSV` TDS-only.
+- A constant (`|'abc'`, `|1.5`, `|7`): planned as a Java platform node (generated Java, `return "abc";`). The runner
+  could not run it (its classpath lacks legend-engine's plan-dependencies package), so legend-engine's envelope of a
+  constant is unknown.
+
+Each answered column is named by H2's label of legend-engine's unaliased SQL expression, which lite cannot write
+without upstream's SQL. Posted to the orchestrator with S7b.
+
+### The design audit of S5a to S6a, and its fixes (2026-11-25)
+
+An independent design audit of `1d6da1b6b..7c2ac303d` (a subagent, read-only) returned "sound to continue", with one
+must-fix. Each finding was checked against the code and the pinned sources before it was acted on.
+- **Must-fix, posted to the user: S405 went to the user without Pure's answer.** legend-pure's `csv` of a TDS is its
+  source text: the names joined `", "`, then the rows exactly as written, with indentation kept and the closing
+  newline trimmed (5.99.0's `TDSExtension.java:91, 214-277`; its tests `tds.pure:45, 62`). So
+  `#TDS\n  i:Integer, s:String\n  3, c\n#.csv` is `i, s\n  3, c` in Pure, `i,s\n3,c\n` in lite's product, and
+  `i, s\n3,c` at legend-pure's door (legend-engine's layout). S405 states it. Posted with three options: keep the
+  ruling and record the difference; a literal's csv answers Pure's source text in the product (a planning-time
+  fold); or legend-pure's door alone answers it.
+- **Posted to the user: a raw grid's last-step `toCSV` at the doors.** Not lifted (`knownColumns`), so lite's CSV at
+  both doors. Recorded on a review's word only, never ruled. Options: keep; refuse by name; or relax `knownColumns`
+  so the door prints upstream's text from the columns the run announces.
+- **S6a's value lift held with the passes.** It lifted a last-step Float `toString` at legend-pure's door, moved no
+  measured case, and left a print used further to the passes. `(1.0E-5*1.0)->toString()` printed `0.00001` while
+  `...->toString()->length()` read the cast's `1e-05`: two printers at one door (G1). Before S6a the door wrote the
+  cast everywhere.
+  - Removed: `PrintedRelations.liftValue`, the writer's `VALUE` form, PCT's route choice, `PureValueText.value`,
+    and their tests.
+  - Kept: `PureValueText`, the cell printer, as a move.
+  - The full S6a stays in the worktree's stash for the ruling.
+- **`Presenter.legendPure(Object, String)` deleted.** It was a second legend-pure Float printer with no caller since
+  BE (`84a063611`). Its Float was `carriedFloat`, which is not legend-pure's DecimalFormat (`1e23`: `100...0.0`
+  against `99999999999999990000000.0`). `PureValueText` is the edge's Pure printer. B3's homework named
+  `legendPure` as a cheap Pure printer; B3's branch has no caller.
+- **toString over a value whose columns are unknown is refused by name.** A cast to `TDS<Any>` reached an internal
+  error. The CSV writer's refusal is shared (`ProductRelationText.known`) and pinned.
+- **S311 amended for toString's and toCSV's Float cell** (program text, six decimals: `0.1234567` is `0.123457` and
+  `1.0E-7` is `0.0`). The CSV output format writes a returned Float exactly and ends a line with CRLF. S420's "two
+  writers" sentence now states what the two share. Pinned in `ProductRelationTextTest`.
+- **Wording:** a pivot whose columns nothing names is refused by name, never "lite's text at every door"
+  (`ProductRelationText`, S420, the differences page).
+- **Recorded, not changed:**
+  - The literal processor in `PurePrintForms` prints a Float literal by `carriedFloat`, which differs from
+    legend-pure's print on values like `1e23`. That is legend-engine's door's processor, held.
+  - A Float inside a list or a map under `Presenter.LEGEND_PURE` (the pure/v1 Arrow route's structures) is
+    `CellText.element`'s `carriedFloat` too (the narrow review of `0dba5d604`). It is the same `1e23` gap, left
+    with the doors' ruling.
+  - The lift policy is coded in two harnesses (`PctPlanRoute`, `EdgeCasesGoldenTest`). One edge entry point would
+    keep the doors from drifting; for when the doors' design is ruled (the orchestrator's "edition" question).
+  - Two DateTime printers exist, `Presenter.pureZoned` in Java and `PureDateTimePrint` in SQL. They are one each
+    side of the held passes.
+  - Channel B's lite Relation judge pins roughly doubled at S5a (`08c2f9e90`), a measured and dated move.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
 |---|---|---|---|
+| 2026-11-25 | the design audit's fixes, `0dba5d604` and the record `978edd653`, a subagent, read-only | verdict "sound"; no must-fix. Should-fix: `PrintedRelationsTest`'s class javadoc still named the lift. Nits: S405's "closing newline trimmed" true of a `#TDS` literal alone (`stringToTDS` keeps it); the record's S6a section read as live; `asFloat`'s one-valued parameter; `Presenter`'s javadoc broader than the code (a Float in a list under `LEGEND_PURE` is `carriedFloat`); S420's DateTime example no difference between the two writers. Checked fine: the lift fully removed, PCT's route byte-identical to before S6a, the deletion's helpers and the planted reach, `known` before any plan is built, the docs' Pure answer and S311's claims, no pin moved | all, in the next commit |
+| 2026-11-25 | B2b's design audit of S5a to S6a, `1d6da1b6b..7c2ac303d`, a subagent, read-only, given the tenets and the record | verdict "sound to continue"; 1 must-fix: S405 ruled without Pure's answer (a TDS's csv is its source text), and legend-pure's door's literal csv (legend-engine's layout) unrecorded. Should-fix: toCSV's Float cell six decimals where the CSV output format writes the value exactly, unrecorded (S311); S6a's value lift opened two printers at legend-pure's door and moved no case; `Presenter.legendPure` a second Float printer with no caller; toString over unknown columns an internal error; a raw grid's last-step toCSV at the doors never ruled. Notes: the pivot wording; the corpus pin moved ahead of its ruling (restored before the push); the lift policy in two harnesses; two DateTime printers; the probe in the tree. Found fine: tenet 6, tenets 1-2 on the product path, the guards, the lean figures, the Java replace, S6a's move | S405 posted again with Pure's answer and recorded; the raw grid posted; the value lift held with the passes; `legendPure` deleted; toString's refusal shared and pinned; S311 amended, S420 corrected, pinned; the wording fixed; the harness duplication and the DateTime printers recorded for the doors' ruling (`0dba5d604`) |
 | 2026-11-25 | the TDS csv amendment and S6a's legend-pure door, `d6e94cdfe`, `abbc25278`, `e70bd764a`, a subagent, read-only | 2 must-fix: a relation's column named csv (`String[*]`, the typer's column read) was taken by the TDS csv arm, which checked the name alone, and answered the relation's CSV (refused by name under S5c; the door's lift and the resolver's anchor had the same test); the corpus lean pin's figures equal the pre-S5c ones, suspected restored by hand. Should-fix: the refused shape misnamed ("the legacy TabularDataSet class", which declares no csv; the shapes that reach it are a `TDS<Any>` cast the resolver does not peel), and toCSV reaching an internal error there; `WriterCarriageGuardTest`'s comment described the held full S6a. Nits: `liftValue` read no multiplicity; stale text (the lift's javadocs, S402's citation, `PlanEnv`'s orphaned javadoc, history notes in the present tense, the record's pointers); the remaining refusal a `NotImplementedException`, as `ProductRelationText`'s other refusals | one test, `PlatformTypes.isTdsCsvRead` (the `String[1]` property, never a `[*]` column read), in both Lowerer arms, the door and the anchor, pinned (`RenderCsvIntegrationTest`'s column named csv, `PrintedRelationsTest.aColumnNamedCsvIsNotATdsCsv`); the pin was regenerated, and the identical figures are explained (the assert's csv is the judge's statement; the counted one is the relation read, unchanged); a value whose columns the compiler does not know refused by name in the shared CSV writer, by toCSV and a TDS's csv alike, pinned, its shape named in S405 and the record; the guard comment and the stale text fixed; `liftValue` reads a to-one operand. Kept: the refusal's exception type, the CSV writer's own |
 | 2026-11-25 | the CSV rulings, `e4bfa8677`, a subagent, read-only | 1 must-fix: core's lean SQL pin not re-pinned in the commit (DuckDB's toCSV(t) 1,372 -> 1,378 characters). Should-fix: a stale javadoc (no rows "the header and two newlines"); the raw grid's empty CSV unpinned; the doors' scope overclaimed (a raw grid is not lifted, so its CSV is lite's at every door); Q-C's and Q-D's options not recorded; no measurement recorded. Nits: Q-D's "never quoted"; S420's Q-C sentence had no subject; S5b's no-rows line not marked superseded; the differences page's When | all fixed in `413960af9`: the pin re-pinned and dated in the commit (the ruling's direct cost); the grid's `A\n` and `A\n\n` pinned; the raw grid's exception stated in S420, the differences page and ProductRelationText's javadoc; the options recorded as posted; the measurement (no PCT or corpus verdict moves) recorded |
 | 2026-11-25 | B2b S5b's fix round and S5c, `d7af55aae..3a4fe1d81`, a subagent, read-only | 3 must-fix, each a guard the deletion left red: `SqlFnSortedTest` (ENDS_WITH, LENGTH, MINUS and STRPOS no longer written by the edge), `EdgeOnlyMembersTest` (`DateFmt#TIME_ONLY`, now read by nothing), `PrintedRelationsTest` (a csv over a cast to a TDS is now lifted). Should-fix: an empty relation and one null row in a one-column CSV both `s\n\n`, where `result/CsvWriter` writes the header alone (a semantics question); the refusal's sentence named legend-pure's text and the edge; pure/v1's execute does not lift; the moves unmeasured; the PAD SPACE fix pinned on no MariaDB or MySQL lane. Nits: a comment on the four-argument form, an enum value spelled `null` under the flag, stale comments, merge markers in the fix round's commit. The fixes (a), (b), (c), (d) clean, `peelTdsCasts` clean, no loosening | the three guards (the first two dated shrinks, the deleted format with its pin; the third a lifted cast); the sentence names legend-engine's text and the doors, and a `#TDS` literal's csv, which reached the renderer as a mixed list, is refused by it too; pure/v1 refuses every value answer today, recorded; the moves measured by the full round; a plan pin of `CHAR_LENGTH` on MariaDB and MySQL (`sql/dialect/CsvEmptyStringTest`: a dialect's test, the one place a test may name both databases); the comments corrected; the merge markers squashed out. Posted to the orchestrator: the empty relation (Q-C) and the enum named `null` (Q-D) |

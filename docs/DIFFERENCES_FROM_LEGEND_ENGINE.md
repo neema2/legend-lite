@@ -271,8 +271,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **You write** a relation's `toString()` or `toCSV()`.
 - **Where that text is the program's last step** (an assert's side; every PCT test), compatibility prints legend-pure's
   text from lite's rows, as legend-pure itself does, for a relation whose columns the compiler knows. A raw grid
-  (`executeInDb`) or a pivot whose columns nothing names is not lifted: its `toCSV` is lite's own text at every door,
-  so an empty grid's CSV is its header line alone where legend-engine writes a second newline.
+  (`executeInDb`) is not lifted: its `toCSV` is lite's own text at every door, so an empty grid's CSV is its header
+  line alone where legend-engine writes a second newline (posted to the user, 2026-11-25). The text of a pivot whose
+  columns nothing names is refused by name at every door.
 - **Where the text is used further** inside the query (`->toString()->length()`), the database computes lite's own
   text:
   - a whole Float prints `2.0`;
@@ -284,8 +285,10 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   row ends with its own newline, so a relation with no rows is the header line alone, where legend-engine's helper
   writes a second newline (and a one-column relation's one null row reads the same as none there). Under
   `toCSV(t, true)` an enumeration's value named `null` is written `null`, as a null is: a known collision (an
-  enumeration's cell is quoted only where its name holds a comma, a quote or a line break). Lite keeps the `toCSV`
-  name.
+  enumeration's cell is quoted only where its name holds a comma, a quote or a line break). Each other cell is lite's
+  text of its value, as `toString` writes it: a Float six decimals (`0.1234567` is `0.123457`), where the helper
+  writes legend-pure's print; lite's CSV output format, which writes returned values, writes a Float exactly. Lite
+  keeps the `toCSV` name.
 - **A TDS's `.csv`** is the same as `toCSV()` in lite's product (the user's ruling of 2026-11-25, ".csv in product, yes
   same as toCSV"), where legend-engine joins the names with `", "`, writes an empty cell `TDSNull` and ends with no
   newline; at legend-engine's and legend-pure's doors a last step's `.csv` is legend-engine's text (register S405).

@@ -90,11 +90,13 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
         assertEquals("x|y", csv("|#TDS\n  csv:String, a:Integer\n  x, 1\n  y, 2\n#->filter(r|$r.a > 0)"
                 + "->sort(~a->ascending()).csv->joinStrings('|')"));
         // a value whose columns the compiler does not know (a cast to TDS<Any> the resolver does not peel) is refused
-        // by name, by toCSV and by a TDS's csv alike (until then toCSV reached an internal error there)
+        // by name, by toCSV, by a TDS's csv and by toString alike (until then toCSV, and until B2b's design audit of
+        // 2026-11-25 toString, reached an internal error there)
         for (String q : java.util.List.of(
                 "|#TDS\n  i:Integer\n  1\n#->cast(@meta::pure::metamodel::relation::TDS<Any>).csv",
                 "|#TDS\n  i:Integer\n  1\n#->cast(@meta::pure::metamodel::relation::TDS<Any>)"
-                        + "->meta::relational::tests::csv::toCSV()")) {
+                        + "->meta::relational::tests::csv::toCSV()",
+                "|#TDS\n  i:Integer\n  1\n#->cast(@meta::pure::metamodel::relation::TDS<Any>)->toString()")) {
             Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> csv(q));
             String chain = "";
             for (Throwable t = refused; t != null; t = t.getCause()) {
