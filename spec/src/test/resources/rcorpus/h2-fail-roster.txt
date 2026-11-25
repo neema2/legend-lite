@@ -180,7 +180,6 @@ meta::relational::graphFetch::domain::tests::testGraphFetch
 meta::relational::graphFetch::tests::chain::testRelationalChainExecutionNested
 meta::relational::graphFetch::tests::milestoning::testDatePropagationFromMilestonedRootToMilestonedProperty_Checked
 meta::relational::graphFetch::tests::milestoning::testMilestonedProperty
-meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier
 meta::relational::graphFetch::tests::simple::testCheckedOneComplexProperty
 meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints
 meta::relational::graphFetch::tests::simple::testGraphFetchCheckedWithSize
@@ -328,7 +327,6 @@ meta::relational::tests::mapping::inheritance::relational::testGetAll
 meta::relational::tests::mapping::inheritance::relational::union::testGetAll
 meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDatesInClass
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
-meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
 meta::relational::tests::mapping::sqlFunction::base64::testBase64H2
