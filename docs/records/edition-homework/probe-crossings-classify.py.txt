@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Classify PROBE-CROSS lines (temporary probe, never committed): where a comparison across known types sits outside
+the body a door receives. Usage: probe-cross.py <testlogs root>"""
+import collections
+import os
+import re
+import sys
+
+root = sys.argv[1]
+
+
+def kind(place):
+    inner = place.split(" < ")[0]
+    if inner == "island":
+        return "island"
+    if inner.startswith("unscoped"):
+        return "unscoped"
+    what, _, fqn = inner.partition(" ")
+    for seg, k in (("$class$", "mapping: class"), ("$assoc$", "mapping: association"), ("$view$", "store view"),
+                   ("$prop$", "derived property"), ("$constraintMsg$", "constraint message"),
+                   ("$constraint$", "constraint"), ("$query", "service query"), ("$default$", "property default"),
+                   ("$pre$", "pre-condition"), ("$post$", "post-condition")):
+        if seg in fqn:
+            return k
+    if fqn.startswith("meta::"):
+        return ("inline " if what == "inline" else "") + "platform function"
+    return ("inline " if what == "inline" else "") + "user function"
+
+
+sites = collections.defaultdict(set)          # kind -> {site}
+occurrences = collections.Counter()           # kind -> lines
+tests = collections.defaultdict(set)          # kind -> {(log, query#)}
+lanes = collections.defaultdict(lambda: collections.defaultdict(set))  # kind -> lane -> {(log, query#)}
+examples = collections.defaultdict(collections.Counter)  # kind -> Counter(site)
+for dirpath, _, files in os.walk(root):
+    if "test.log" not in files:
+        continue
+    log = os.path.join(dirpath, "test.log")
+    lane = os.path.relpath(dirpath, root)
+    lane = re.sub(r"/shard_\d+_of_\d+$", "", lane)
+    query = None
+    with open(log, errors="replace") as fh:
+        for line in fh:
+            if line.startswith("PROBE-QUERY\t"):
+                query = line.split("\t")[1].strip()
+            elif line.startswith("PROBE-CROSS\t"):
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) < 6:
+                    continue
+                _, place, op, lt, rt, pos = parts[:6]
+                k = kind(place)
+                inner = place.split(" < ")[0]
+                site = (inner, op, lt, rt, pos)
+                sites[k].add(site)
+                occurrences[k] += 1
+                tests[k].add((log, query))
+                lanes[k][lane].add((log, query))
+                examples[k][site] += 1
+
+print(f"{'kind':32} {'sites':>6} {'lines':>8} {'test bodies':>12}")
+for k in sorted(sites, key=lambda k: -len(sites[k])):
+    print(f"{k:32} {len(sites[k]):>6} {occurrences[k]:>8} {len(tests[k]):>12}")
+print()
+for k in sorted(sites, key=lambda k: -len(sites[k])):
+    print(f"== {k}: by lane (test bodies)")
+    for lane, qs in sorted(lanes[k].items(), key=lambda kv: -len(kv[1])):
+        print(f"   {len(qs):6}  {lane}")
+    print(f"== {k}: sites (most reached first)")
+    for (inner, op, lt, rt, pos), n in examples[k].most_common(40):
+        print(f"   {n:6}  {inner[:110]}  {op}  {lt} vs {rt}  @{pos[:60]}")
+    print()

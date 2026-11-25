@@ -1,6 +1,6 @@
 # The edition: design and plan
 
-*The design of record, ruled by the user on 2026-11-25. Phases E0c onward are built from it.*
+*The design of record, ruled by the user on 2026-11-25. Building is paused at the user's word until an independent design review has reported and the user has read the final design; start at `docs/records/edition-program-START-HERE-2026-11-25.md`.*
 
 **Ruled so far (the user, 2026-11-25):** "Edition seems best of all options"; per project ("Can start per project"); the names `pure`, `engine`, `lite`; M2M, `~func`, derived properties in mappings and graph fetch strict in `lite` and upstream's meaning elsewhere, by the typer, "not like previous door way"; doors only set editions at first; "Yes to all the amendments" (§11); "Yes to 1&2" (legend-engine's feature flags in a `lite` program refused by name; upstream's text as a value test-harness only); `ServiceTestRunner` kept ("we will need right").
 
