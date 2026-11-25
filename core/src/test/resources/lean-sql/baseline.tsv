@@ -3624,6 +3624,7 @@ core	DuckDB	meta::pure::functions::math::variance_Number_MANY__Boolean_1__Number
 core	DuckDB	meta::pure::functions::meta::type_Any_MANY__Type_1_	1	25	1908	0	0	0
 core	DuckDB	meta::pure::functions::multiplicity::toOne_T_MANY__T_1_	4	1636	23818	15	378	0
 core	DuckDB	meta::pure::functions::relation::size_Relation_1__Integer_1_	1	50	3421	1	0	0
+core	DuckDB	meta::pure::functions::relation::toString_Relation_1__String_1_	2	725	15836	3	0	0
 core	DuckDB	meta::pure::functions::string::ascii_String_1__Integer_1_	5	131	6444	0	0	0
 core	DuckDB	meta::pure::functions::string::char_Integer_1__String_1_	1	40	1293	0	0	0
 core	DuckDB	meta::pure::functions::string::contains_String_1__String_1__Boolean_1_	2	136	3456	0	0	0
@@ -3776,4 +3777,4 @@ core	constant	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_1_	
 core	constant	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	537	0	0	0
 core	constant	meta::pure::functions::multiplicity::toOne_T_MANY__T_1_	0	0	267	0	0	0
 core	constant	user	0	0	284	0	0	0
-core	refused	refused	0	0	0	0	0	11
+core	refused	refused	0	0	0	0	0	9

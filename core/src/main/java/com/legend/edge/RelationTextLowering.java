@@ -44,7 +44,6 @@ final class RelationTextLowering implements RelationTexts {
         return relationText(lowerTdsCsvProperty(styled, read, relation, alias), "a TDS's csv");
     }
 
-
     /** A relation's {@code text} ({@code what} it is): the text itself (B8, 2026-11-17: the RELATION_TEXT marker the
      *  edge's pass unwrapped is gone with the product's render-time refusal; the product refuses at lowering). */
     private static SqlExpr relationText(SqlExpr text, String what) {
@@ -56,7 +55,7 @@ final class RelationTextLowering implements RelationTexts {
      *  here, where it would be composed (J40, 2026-11-18, the orchestrator's ruling (8): until then a deferred node,
      *  SqlExpr.DeferredTdsString, the body planner refused after lowering, in these words). */
     static com.legend.error.NotImplementedException dynamicPivotText() {
-        return new com.legend.error.NotImplementedException("a dynamic pivot's text (toString/toCSV) over columns"
+        return new com.legend.error.NotImplementedException("a dynamic pivot's text (toCSV, a TDS's csv) over columns"
                 + " nothing names: its columns exist only once the database is asked, planning asks the database"
                 + " nothing, and the pivot's keyed form writes no text");
     }
@@ -305,7 +304,6 @@ final class RelationTextLowering implements RelationTexts {
                         new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
     }
 
-
     /** Whether the select tree contains a PIVOT — static or dynamic:
      * either way the pivot's output columns are absent from the
      * lowered outputs (witness test_Static_Pivot_Filter, whose '#TDS'
@@ -328,7 +326,6 @@ final class RelationTextLowering implements RelationTexts {
             default -> false;
         };
     }
-
 
     /** The engine {@code s()} cell (s.pure:23-38). */
     /** THE per-type cell PRINT FORMS — one owner (audit 2026-08-19:
@@ -384,7 +381,6 @@ final class RelationTextLowering implements RelationTexts {
         return slot == SqlType.Scalar.VARCHAR || slot == SqlType.Scalar.TEMPORAL_TEXT;
     }
 
-
     /** A relation text's cell as legend-pure PRINTS it: a Float its shortest round-trip text, {@link
      *  SqlFn#FLOAT_SHORTEST_TEXT} (legend-pure's toString of a TDS cell, DecimalFormat "0.0": 0.00001, 25000000.0),
      *  never the in-query cast the edge writes for a Float's toString ({@link SqlFn#FLOAT_TO_TEXT} as legend-engine's
@@ -394,7 +390,6 @@ final class RelationTextLowering implements RelationTexts {
         return text instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_TO_TEXT
                 ? SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, c.args().get(0)) : text;
     }
-
 
     /** {@code inner} with every sort key among its outputs: a key the projection dropped ({@code SELECT a FROM
      *  ... ORDER BY h}, legal SQL whose order the hoist above must carry from outside the row subselect: the
@@ -546,7 +541,6 @@ final class RelationTextLowering implements RelationTexts {
     private static SqlExpr or(SqlExpr a, SqlExpr b) {
         return SqlExpr.Call.of(SqlFn.OR, a, b);
     }
-
 
     /** A date value carried as its own text (a value root spelled at the precision it has: a year, a month, a day,
      *  an hour, a minute, a second or finer; with or without Pure's {@code %}; a literal's print form with its

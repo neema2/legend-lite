@@ -38,7 +38,6 @@ import java.util.function.Function;
     /** A TDS's {@code csv} property over a relation ({@code read}). */
     SqlExpr csvProperty(Styled styled, TypedPropertyAccess read, Function<TypedSpec, SqlSelect> relation, String alias);
 
-
     // (refused(what): moved 2026-11-17 to TextRefusals.relation, the call site words its refusal -- the
     // orchestrator's ruling: the hook holds its signatures and its product-helper forwarders alone)
 
@@ -49,9 +48,6 @@ import java.util.function.Function;
     static SqlExpr pureToString(Styled styled, Type t, SqlExpr x) {
         return Scalars.pureToString(styled, t, x);
     }
-
-
-
 
     /** A mixed column's kind's type ({@code MixedEncoding.kindType}). */
     static Type kindType(String kind) {

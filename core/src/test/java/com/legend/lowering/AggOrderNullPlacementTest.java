@@ -38,7 +38,8 @@ class AggOrderNullPlacementTest {
                     + "  200, 3, 30\n"
                     + "#->sort([~p->descending(), ~o->descending(),"
                     + " ~i->descending()])->toString()}", StorelessRuntime.RUNTIME,
-                    // a relation's text: the edge's alone (D1.3, 2026-11-15)
+                    // a relation's text in the edge's style (D1.3, 2026-11-15; lite's own layout on every style since
+                    // B2b S5a, 2026-11-24)
                     conn, com.legend.edge.PureText.UPSTREAM);
             assertEquals("#TDS\n   p,o,i\n   200,null,20\n   200,3,30\n"
                     + "   200,1,10\n#",

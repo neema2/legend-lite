@@ -28,9 +28,11 @@ import java.util.function.Function;
  * claude/compat-table-text-db-spike). Like any other function, the database computes the text (tenet 1): one scalar
  * subquery, a {@code STRING_AGG} of the relation's rows in the relation's own order. The layout is legend-pure's
  * {@code #TDS} text -- {@code #TDS}, the names line, one {@code '   '}-prefixed line per row with its cells joined
- * {@code ,}, {@code #}; a name quoted unless {@code ^[a-zA-Z0-9_]+$} -- and each cell is the PRODUCT's own text of its
- * value, whatever the plan's style ({@link Styled#PRODUCT}: the cells of a text used further in a query are lite's
- * text, the user's ~18:12 ruling, "Yes record it"): an empty cell {@code null} ({@code 'null'} under a Variant), a
+ * {@code ,}, {@code #}; a name quoted unless {@code ^[a-zA-Z0-9_]+$} -- and each cell is the PRODUCT's own text node
+ * of its value on every plan style ({@link Styled#PRODUCT}: the cells of a text used further in a query are lite's
+ * text, the user's ~18:12 ruling, "Yes record it"; until B2b's S6, under the edge's style the edge dialect's value
+ * passes re-spell a Float and a DateTime cell as they re-spell any such text there -- a window recorded in
+ * docs/records/compat-b2-progress.md's S5a, pinned by FloatTextTest): an empty cell {@code null} ({@code 'null'} under a Variant), a
  * Variant's text and a String holding a brace or a bracket quoted with {@code \} and {@code '} escaped, every other
  * cell its scalar {@code toString()}. Where a relation's text is the program's last step, legend-pure's and
  * legend-engine's doors print legend-pure's text in Java from the rows instead ({@code edge.PrintedRelations}, B3's

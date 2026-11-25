@@ -31,7 +31,7 @@ class DynamicPivotTextRefusalTest {
         Exception refused = assertThrows(Exception.class, () -> com.legend.testing.Lean.runInStyle(model,
                 PIVOT + "->meta::relational::tests::csv::toCSV()", com.legend.testbackend.StorelessRuntime.RUNTIME,
                 backend, PureText.UPSTREAM));
-        assertTrue(chain(refused).contains("a dynamic pivot's text (toString/toCSV) over columns nothing names:"
+        assertTrue(chain(refused).contains("a dynamic pivot's text (toCSV, a TDS's csv) over columns nothing names:"
                 + " its columns exist only once the database is asked, planning asks the database nothing, and the"
                 + " pivot's keyed form writes no text"), chain(refused));
         // toString, lite's own text on every plan style since stage B's B2b S5a (2026-11-24): the product's words

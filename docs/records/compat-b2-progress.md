@@ -186,7 +186,7 @@ The plan of record's B2, E0 = A ("E0 - yes"), and the user's rulings of 2026-11-
   its query in a print, so nothing is measured there.
 
 **A window with two printers** (the review of 54d922e92). Until B2b routes every print through the printer (S4, then
-S5 and S6 delete `RelationTextLowering`), a print the door does not lift is still the edge's SQL text. Examples:
+S5 and S6 delete `RelationTextLowering`), a print the door does not lift is still written by SQL. Examples:
 `toString()->replace($s, ',')`, `toString()->length()`, a raw grid's `toCSV`. That text differs from the printer's
 where `PureRelationTextParityTest` names it:
 - an abstract Date column of days;
@@ -194,6 +194,9 @@ where `PureRelationTextParityTest` names it:
 - `-0.0`, `4.03e17` and `1e23`.
 
 The same relation can therefore print two ways, depending on whether what follows the print is a literal `replace`.
+(Since S5a, a relation's `toString` used further is lite's own text, computed by the database, with the edge's Float
+and DateTime cells until S6: see S5a's window. The SQL this paragraph measured for `toString` is deleted; for `toCSV` it
+stands until S5b.)
 
 **A mixed column** (the review of `6fc717f9f` asked whether the door lifts a print the SQL text answered). A column
 whose cells a mixed selection tags by kind is known only once the query is planned, so the door cannot see it. Today
@@ -307,10 +310,74 @@ B3's step 2b routes every printed assert side through this branch's rule (`Print
   `assertTdsEquivalent`: equal under legend-engine's TDS (read to the millisecond), unequal under lite's rule of every
   digit the database holds (S181, S399). That is the equality rule's, B3's to check.
 
+### S5a: a relation's toString is lite's own text, computed by the database (2026-11-24, `1d6da1b6b` and its fix round)
+
+The user's rulings of 2026-11-19 ~18:05 ("Agree with all four table printing recommendations") and ~18:36 ("Null is
+good"), with ~18:12's "Yes record it" for a text used further in a query; the orchestrator's go of 2026-11-24 (S5a; Q3:
+an abstract Date held as a timestamp keeps today's text, the scalar toString's G2 gap). From H14's spike
+(`docs/records/compat-homework/H14-slice-shape-note.md` on `claude/compat-table-text-db-spike`).
+
+- **The product writes it** (`lowering.ProductRelationText`): the Lowerer's relation `toString` arm is one scalar
+  subquery the database computes, a `STRING_AGG` of the relation's rows in the relation's own order
+  (`Render.liftOrder`, with hidden keys for a sort by a dropped column or an expression). The layout is legend-pure's
+  `#TDS` text. Each cell is the product's own text node of its value: an empty cell `null` (`'null'` under a Variant),
+  a Variant's text and a String holding a brace or a bracket quoted (`\` and `'` escaped), every other cell its
+  scalar `toString()`.
+- **Refused by name:** `toString(rel, true)`; a raw grid (its columns exist only when the plan runs); a pivot whose
+  columns nothing names; a mixed column (its cells' kinds differ by row); a DISTINCT or star select ordered by a key
+  that is not one of its columns (the old `withSortOutputs` added a hidden column to such a select and changed its
+  rows).
+- **The edge's toString SQL is deleted:** `RelationTextLowering`'s `relationToString`, `lowerToString`, `tdsString`,
+  `tdsCell`, `dateOnly`, `dateTimeTextTds` (-184 lines), and the `RelationTexts` facet's `relationToString` member
+  (`OpenClassMembersTest`, a shrink). A last-step print on legend-pure's and legend-engine's doors is the doors' Java
+  printer's (`PrintedRelations`, S2 and B3's lift); a print used further is lite's text.
+- **One text on each lane:** `ProductRelationTextTest` pins DuckDB, H2 and SQLite: the layout and nulls, Floats
+  (`2.0`, `0.00001`, `25000000.0`), a StrictDate and a DateTime (lite's nine digits and `Z`), an abstract Date held
+  as a timestamp (the database's timestamp text, G2), quoted names, a braced String holding a quote and a backslash,
+  no rows, a sort by a dropped column, a Number column (`21.0` beside `2.5`, the record's known Number item), a stored
+  relation and a group's sum and average; and the refusals of `toString(rel, true)` and a mixed column.
+- **A Decimal cell is its database's scale** (register S400, ruled 2026-11-23): `1.50` beside `-0.125` prints `1.500`
+  on DuckDB, `1.50` on H2 and `1.5` on SQLite (measured 2026-11-24), as the product's scalar Decimal text does. It is
+  not pinned as one text on every lane.
+- **A Number column on a DECIMAL slot** prints the database's fixed scale (`81.180`), as the product's scalar Number
+  text does; the deleted edge SQL cast it to DOUBLE (`81.18`). It stays with the record's known Number item.
+- **A relation with no sort** takes the database's aggregate order, as the deleted SQL did. A parallel aggregate does
+  not promise it; every pinned case sorts.
+
+**The window until S6** (the review's must-fix 1). Under the edge's style the edge dialect's value passes
+(`edge.PurePrintForms`, `spellingPasses`) rewrite every `FLOAT_TO_TEXT` and `DATETIME_TO_TEXT` node in a plan,
+including the ones inside this subquery. A table text used further at the edge (`toString()->length()`,
+`toString()->replace($s, ',')`) therefore writes lite's layout with the edge's Float and DateTime cells: legend-engine's
+in-query cast for a Float (`1e-05` on DuckDB, `1.0E-5` on H2) and legend-pure's `+0000` form for a DateTime. That is
+neither lite's text nor legend-pure's. No PCT or corpus case meets it (H11 §13.1; a last-step table is the Java
+printer's). It is pinned as the edge's own per-value text
+(`FloatTextTest.anEdgeTableTextUsedFurtherWritesItsFloatCellsAsTheEdgeWritesAFloat`), so S6's deletion of the passes
+moves it to lite's text by name. Until S5a this test pinned legend-pure's print, which the deleted edge SQL wrote (PR
+#118's fix round).
+
+**Moves:**
+- **Channel B's lite lane** (`duckdb-lite`, lite's own rules; `ledger.tsv`): of the 423 rows that expected the
+  deleted refusal, 390 leave because lite's text is legend-pure's (Relation 335, Standard 55), and both judges agree on
+  every test. 33 remain, re-recorded (Relation 30, Standard 3: `over`'s range intervals, `asOfJoin`,
+  `testExtendMaxDate`, `testExtendMinDate`, `testDayOfWeek_Relation`), each for one reason. An untyped `#TDS` column of
+  zone-suffixed timestamps is the abstract Date (`TdsChecker`, as legend-pure's TDS inference), and such a Date cell
+  held as a timestamp prints the database's timestamp text (`2024-01-29 00:32:34`) where legend-pure prints its DateTime
+  text (`2024-01-29T00:32:34.000+0000`). That is the scalar toString's G2 gap, held with B2a's item 4 (Q3).
+- **Channel B's lite judge pins** (`ratchets.tsv`, `bazel run //pct:update_ratchets`): the 390 tests the product
+  refused now plan their database judge. Relation goes from 104 to 469 statements, 631,211 to 1,329,666 characters and
+  12,328,650 to 24,792,467 plan-JSON characters; Standard from 166 to 224 statements, 721,186 to 819,169 characters and
+  14,214,651 to 16,098,309. That is the direct, measured cost of the ruled change (the rule of 2026-11-24 ~06:20: done
+  and reported). Essential shrinks by 272 characters of SQL and plan JSON (a shrink, pre-approved); no other row moves.
+- The edge cases golden: EDGE-2 (`toCSV` of a date-time) moves to the helper's `yyyy-MM-dd HH:mm:ss`, S4's
+  correction (b), now that the golden's runner lifts a last-step print as the doors do (`EdgeCasesGoldenTest.answer`).
+- The lean SQL baseline: DuckDB's `toString_Relation_1__String_1_` row is new (2 statements, 725 characters), where the
+  product refused; the refused count falls from 11 to 9.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
 |---|---|---|---|
+| 2026-11-24 | B2b S5a, `1d6da1b6b`, a subagent, read-only, given the code, H14's spike and the rulings | 2 must-fix: under the edge's style the edge dialect's value passes re-spell the table text's Float and DateTime cells, the pin of that deleted and nothing recorded, the javadoc's "whatever the plan's style" false; channel B's lite ledger stale (423 rows expect the deleted refusal). Should-fix: tests (a sort by a dropped column, a Variant cell, a quote or a backslash in a braced String, a Number or Decimal cell, a stored relation, the refusals). Nits: stale wording (`JavaEvalLedgerTest`, `TextRefusals`, `Render`, `RelationTextLowering`, the parity test, `AggOrderNullPlacementTest`), double blank lines, a Number on a DECIMAL slot unpinned, a relation with no sort. Invariants, the order's lift, the cells' rules and the guards found clean | the window recorded and pinned as the edge's own text (`FloatTextTest`), the javadoc corrected; the ledger re-measured (390 leave, 33 re-recorded, the G2 gap) and the judge pins moved by the measured cost; the tests added (a Decimal is its database's scale, S400, so it is not one text on every lane; a Variant cell is channel B's lite lane's, whose Variant tests now pass); the wording and blank lines fixed; the Number and no-sort nits recorded. A DISTINCT select ordered by an expression stays unpinned (no Pure relation function writes one) |
 | 2026-11-24 | B2b's MIDPOINT design audit, `54f8be8e3..607d24dcc`, a subagent, read-only, given the plan of record, the tenets and the record | verdict "sound to continue"; no must-fix. Should-fix: the CSV prints unmeasured against the SQL text; two mechanisms in one defect object; `side()` at S5/S6; legend-pure's value prints at S6. Nits: a String cell under any column type; the ledger's reason; a Decimal in a Number column; the route's comment; two differences not yet register rows | the CSV measured and pinned (gap 4; a TDS literal's csv); the record kept, with the orchestrator's agreement (G4); S5/S6 and S4/S6 items carried; the nits fixed or recorded; (a) and (b) for the user's word after S4 |
 | 2026-11-24 | B2b S3, `ba8acecdb`, a subagent, read-only | must-fix: the generated host tables (`lite-raise.ts`, `_type_facts.py`) list every `RaiseKind`, and a new one was added without regenerating them. Questions 1-5 clean: S3a's text byte-identical for every id; the old message a bare literal, the children walk in step, the simple name identical, the guard edits legitimate. Nits: two stale comments (`SqlExpr.RaiseText`, `RaiseTextTest`); the null message's children walk unpinned | the must-fix made moot: `CONSTRAINT_VIOLATED` is no `RaiseKind` (the gate also measured the record's plan growth, so the sentence is a plain literal); the comments corrected; the children walk pinned |
 | 2026-11-24 | B2b S2's fix round, `6fc717f9f` and `8551b293d`, a subagent, read-only | no must-fix; the four fixes confirmed (`knownColumns` is at least as strict as the lowering's special cases, and lifts a pivot whose columns a cast names), and the native-claims census right. Should-fix: a mixed (tagged) column passes `knownColumns`, so the door lifts its print and the printer refuses it where the SQL text answered it. Nits: the toCSV route test passed on either road; four unpinned shapes; the record's lane count and when the lanes ran; the predicate's home when `RelationTextLowering` goes | the mixed column measured: refused by name on both roads today (a tagged value reaches the renderer only at a value's root), pinned on both; the route test proves the lifted branch (a Float the two roads print differently); a pivot named by a cast pinned as lifted; the record corrected. The raw grid, the no-column relation and the zero-argument format functions (absent from lite's catalog) stay unpinned |

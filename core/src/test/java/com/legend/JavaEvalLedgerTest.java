@@ -2050,7 +2050,8 @@ class JavaEvalLedgerTest {
                             // legend-engine's sentence of a query store's refusal (the P2 checkpoint audit's M2,
                             // 2026-11-16): a kind to its words, no state, no evaluation; its own target for the page
                             "StoreWords.java",
-                            // legend-pure's text of a relation (toCSV, a TDS's csv, a relation's toString), moved from
+                            // legend-pure's text of a relation (toCSV, a TDS's csv; a relation's toString left it 2026-11-24,
+                            // stage B's B2b S5a: lite's own text, lowering.ProductRelationText), moved from
                             // lowering.Render (the separation census's B17, 2026-11-17): the plan style's RelationTexts
                             // facet, composing the text at lowering (its RELATION_TEXT wrapper gone with B8, 2026-11-17) -- planning work, no session, no value
                             // computed (the database renders the cells)

@@ -102,6 +102,18 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
         });
     }
 
+    /** A stored relation's toString: lite's own text, computed by the database on every plan style (stage B's B2b S5a,
+     *  2026-11-24; the review of S5a asked for the stored relation whose refusal this class pinned) -- here the edge's,
+     *  this class's session, whose cells hold no Float or DateTime the edge re-spells until S6: a comma and a quote
+     *  inside a cell stay as they are (a table's text quotes no cell but a braced one), an empty cell is null, a
+     *  StrictDate its day. */
+    @Test
+    void aStoredRelationsToStringIsLitesOwnTextComputedByTheDatabase() throws SQLException {
+        assertEquals("#TDS\n   id,name,nick,dob\n   1,Ann,The, Ann,2001-02-03\n   2,Bob \"B\",null,1999-12-31\n#",
+                csv("|test::Person.all()->project([p | $p.id, p | $p.name, p | $p.nick, p | $p.dob],"
+                        + " ['id', 'name', 'nick', 'dob'])->sort(asc('id'))->meta::pure::functions::relation::toString()"));
+    }
+
     @Test
     void csvTextIsBuiltByTheDatabase() throws SQLException {
         // sorted rows; a comma-bearing cell quotes; a quote-bearing cell

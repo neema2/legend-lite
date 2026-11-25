@@ -18,11 +18,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * THE JAVA PRINTER AGAINST THE EDGE'S SQL TEXT (stage B's B2, B2b S1, 2026-11-24): for each relation, legend-pure's
- * {@code toString()} as the edge composes it in SQL today ({@code edge.RelationTextLowering}, the text PCT and the
- * corpus pass with) and as {@link com.legend.edge.PureRelationText} prints it in Java from the same relation's typed
- * rows, run on the same session in the edge's style -- equal on each lane's database (DuckDB, H2, SQLite). B2b's door
- * and the harness's lift replace the first with the second; this is the parity they rest on, carrier by carrier.
+ * THE JAVA PRINTER AGAINST THE EDGE'S SQL TEXT (stage B's B2, B2b S1, 2026-11-24): legend-pure's text of a relation as
+ * the edge composed it in SQL ({@code edge.RelationTextLowering}) and as {@link com.legend.edge.PureRelationText}
+ * prints it in Java from the same relation's typed rows, run on the same session in the edge's style, on each lane's
+ * database (DuckDB, H2, SQLite). The toString half measured equal on every carrier but the corrections pinned below
+ * until B2b's S5a deleted the edge's toString SQL (2026-11-24); the toCSV half stands until S5b, gap 4 pinned.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class PureRelationTextParityTest {

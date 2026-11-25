@@ -385,430 +385,47 @@ databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::te
 databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; Databricks keeps 6: refused, never cut (S181)
 
 # duckdb-lite: the LITE-PCT lane (the compatibility program's A4 gate, 2026-11-19; -Dpct.channelb.rules=LITE): channel B under lite's own rules, both judges isolated, their verdicts, messages and endings compared; measured at claude/compat-judges-parity
-# a relation's toString: the test prints a relation, which lite's route refuses by name today ("toString of a relation is legend-pure's text"); under rule 1 of the compatibility program's rules of record (2026-11-19) the database computes it -- a product gap those rules name, not this program's (2026-11-19; 423 rows)
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Ascending	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_ForcingSubSelect	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Descending	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_MultipleSortColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_SortColumnNotAggregated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_Aggregate_Ascending	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_Aggregate_EmptyLast	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_EmptyFirst	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_RowFunction	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::eval::testSimpleEval	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::project::testSimpleProject	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::project::testSimpleProjectList	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::project::testSimpleProjectWithEmpty	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::project::testSimpleRelationProject	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::project::testSimpleRelationProjectLiterals	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::filter::testSimpleFilterShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::filter::testSimpleFilter_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIndexExtractionValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIsEmptyOfKeyExtraction	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIsNotEmptyOfKeyExtraction	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOutputFromLambda	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_CurrentRow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_CurrentRow_UnboundedFollowing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_NPreceding_NPreceding	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_NPreceding_NFollowing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_NFollowing_NFollowing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_NPreceding	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_NFollowing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_NPreceding_UnboundedFollowing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_NFollowing_UnboundedFollowing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_CurrentRow_CurrentRow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_NPreceding_CurrentRow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_CurrentRow_NFollowing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing_WithSinglePartition_WithoutOrderBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing_WithMultiplePartitions_WithoutOrderBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_CurrentRow_WithMultiplePartitions_WithSingleOrderBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NPreceding_NPreceding_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NPreceding_NFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NFollowing_NFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NFollowing_NFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithNullValues_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_NPreceding_UnboundedFollowing_WithNullValues_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRange_WithNumbers_NFollowing_NFollowing_WithoutPartition_WithSingleOrderBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_CurrentRow_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_CurrentRow_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_NFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_NFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NPreceding_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithDifferentDurationUnits_WithSinglePartition_WithOrderByASC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithDifferentDurationUnits_WithSinglePartition_WithOrderByDESC	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::sort::testSimpleSortShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::sort::testSortEmptyLast	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::sort::testSortEmptyFirst	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::sort::testSortEmptyFirstTwoArg	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::sort::testSortEmptyLastTwoArg	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::sort::testSortCanonicalNullOrdering	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::sort::testSortMultipleColumnsMixedNullOrder	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::sort::testSimpleSort_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAll::testEqualAll	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAll::testEqualAll_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAll::testEqualAll_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAll::testEqualAll_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAll::testEqualAll_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAny::testEqualAny	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAny::testEqualAny_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAny::testEqualAny_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAny::testEqualAny_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::equalAny::testEqualAny_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsCorrelated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsCorrelated_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsCorrelated_ExtraInnerPredicate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsOnEmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsUncorrelated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsSelfReferencing	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsWithNestedIn	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsInExtend	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::exists::testExistsOnGroupedRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testSimpleGreaterThanAll	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_OnlyNullsInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_NullValueAndNullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_Negated_NullValueAndNullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_String	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_CorrelatedSubQuery	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_InExtend	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_GroupedRelationWithNull	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_LimitedRelationWithNull	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_DerivedRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testSimpleGreaterThanAny	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_OnlyNullsInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_NullValueAndNullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_Negated_NullValueAndNullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_String	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_CorrelatedSubQuery	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_InExtend	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_GroupedRelationWithNull	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_DerivedRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testSimpleIn	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testSimpleIn_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_String	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_CorrelatedSubQuery	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_InExtend_NullValueAndNullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_InExtend	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_GroupedRelationWithNull	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::in::testIn_DerivedRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAll::testLessThanAll	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAny::testLessThanAny	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAny::testLessThanAny_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAny::testLessThanAny_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAny::testLessThanAny_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanAny::testLessThanAny_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny_Negated	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny_EmptyRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny_NullValue	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny_NullInRelation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::cumulativeDistribution::testOLAPWithPartitionAndOrderCummulativeDistribution	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::denseRank::testOLAPWithPartitionAndOrderDenseRank	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::ntile::testOLAPWithPartitionAndOrderNTile	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::percentRank::testOLAPWithPartitionAndOrderPercentRank	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::rank::testOLAPWithPartitionAndOrderRank	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::rowNumber::testOLAPWithPartitionAndRowNumber	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::size::testSize_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::size::testSize_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::size::testSize_GroupBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::drop::testSimpleDropShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::drop::testSimpleDrop_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::first::testOLAPWithPartitionAndOrderFirstWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lag::testOLAPWithPartitionAndOrderWindowUsingLag	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::last::testOLAPWithPartitionAndOrderLastWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lead::testOLAPWithPartitionAndOrderWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::limit::testSimpleLimitShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::limit::testSimpleLimit_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::nth::testOLAPWithPartitionAndOrderNthWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::nth::testOLAPWithPartitionAndOrderNthWindow2	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::slice::testSimpleSliceShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::slice::testSimpleSlice_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_AggColSpec	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_AggColSpecArray	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_WithFilter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::concatenate::testSimpleConcatenateShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::concatenate::testSimpleConcatenate_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testSimpleExtendStrShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testSimpleExtendStr_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testSimpleExtendInt	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testSimpleExtendInt_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testSimpleExtendFloat	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testSimpleExtendFloat_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testSimpleMultipleColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testSimpleMultipleColumns_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggNoWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggNoWindow_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowMultipleColums	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowMultipleColums_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionWindowMultipleColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionWindowMultipleColumns_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithOrderWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithOrderWindow_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithNullableOrderEmptyLast	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithNullableOrderEmptyFirst	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggIntegerWithPartitionAndOrderWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggIntegerWithPartitionAndOrderWindow_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndMultipleOrderWindowMultipleColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndMultipleOrderWindowMultipleColumnsWithFilter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndOrderWindowMultipleColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowChainedWithSimple	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowChainedWithSimple_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_indexExtraction	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_keyExtraction	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_map	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_fold	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::join::testSimpleJoinShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::join::testSimpleJoin_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::join::testJoin_forFailedJoinWhenNoRowsMatchJoinCondition	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::join::testFullJoin	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::join::testRightJoin	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::rename::testSimpleRenameShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::rename::testSimpleRename_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::select::testMultiColsSelectShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::select::testMultiColsSelect_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::select::testSingleColSelectShared	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::select::testSingleColSelect_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::select::testSingleSelectWithQuotedColumn	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::select::testSingleSelectWithQuotedColumn_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::select::testSelectAll	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::select::testSelectAll_MultipleExpressions	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_Scalar	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Array	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Map	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Navigation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Extend	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testExtendFilter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testFilterPostProject	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Distinct_GroupBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Distinct_Filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_GroupBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Pivot_Filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct_Filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Distinct_GroupBy_Filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testWindowFunctionsAfterProject	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testGroupByCastBeforeAgg	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testGroupByCastAfterAgg	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testOLAPCastAggWithPartitionWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testOLAPAggCastWithPartitionWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testOLAPCastExtractAggWithPartitionWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testOLAPCastExtractCastAggWithPartitionWindow	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testProjectJoinWithProjectProject	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testJoinOnNullKey	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testFilterEqualOnNullableColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testFilterNotEqualOnNullableColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testProjectEqualityOnNullableColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testProjectNotEqualityOnNullableColumns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantArrayColumn_sort	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantArrayColumn_reverse	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_extend_indexExtraction_filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testExtendWindowFilter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testGroupByFilterExtendFilter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testMixColumnNamesRenameFilter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testMixColumnNamesRenameExtend	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testExtendFilterOutNull	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testExtendJoinStringOnNull	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testExtendAddOnNull	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testGroupByOnNull	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariant_if	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_isEmpty	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_isNotEmpty	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_indexOf	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_slice	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testProjectOfComputedColumn_withCast	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_contains	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_distinct_removeDuplicates	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_projectModelProperty	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsEmptyOfModelConversion	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsNotEmptyOfModelConversion	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testMultiIfTDS	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Static_Pivot_Filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Project_Filter_Before_Static_Pivot	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testGroupBy_Conflicting_Alias_With_Table_Columns	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testMultiCoalesceInProject	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testTDSPlusTimesMinus	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Extend_GroupBy_Project	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Extend_GroupBy_Extend_Select	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Extend_Sort_Project	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::test_Extend_Sort_Extend_Select	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testNestedJoinArithmeticComparisonExpression	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testFilterArithmeticComparisonExpression	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testConcatenateWithJoinOnOneSide	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testConcatenateFilterInSubQuery	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Relation	meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::collection::tests::in::testIn_relation_extend	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::collection::tests::in::testIn_relation_filter	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::date::tests::max::testExtendMaxDate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::date::tests::min::testExtendMinDate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::tests::date::testDayOfWeek_Relation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::average::testAverage_Integers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::average::testAverage_Floats_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::average::testAverage_Numbers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::average::testAverage_Integers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::average::testAverage_Floats_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::average::testAverage_Numbers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::average::testAverage_Round_Integers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::corr::testSimpleWindowCorr	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::covarPopulation::testSimpleWindowCovarPopulation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::covarSample::testSimpleWindowCovarSample	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::max::testMax_Integers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::max::testMax_Floats_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::max::testMax_Numbers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::max::testMax_Integers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::max::testMax_Floats_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::max::testMax_Numbers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::maxBy::testSimpleGroupByMaxBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::median::testMedian_Floats_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::median::testMedian_Integers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::median::testMedian_Numbers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::median::testMedian_Floats_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::median::testMedian_Integers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::min::testMin_Integers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::min::testMin_Floats_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::min::testMin_Numbers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::min::testMin_Integers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::min::testMin_Floats_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::min::testMin_Numbers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::minBy::testSimpleGroupByMinBy	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::mode::testMode_Floats_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::mode::testMode_Integer_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::mode::testMode_Number_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::mode::testMode_Floats_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::mode::testMode_Integer_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::mode::testMode_Number_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::percentile::testPercentile_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::percentile::testPercentile_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::stdDev::testSimpleGroupByStandardDeviationPopulation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::stdDev::testSimpleWindowStandardDeviationPopulation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::stdDev::testSimpleGroupByStandardDeviationSample	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::stdDev::testSimpleWindowStandardDeviationSample	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::sum::testSum_Integers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::sum::testSum_Floats_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::sum::testSum_Numbers_Relation_Aggregate	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::sum::testSum_Integers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::sum::testSum_Floats_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::sum::testSum_Numbers_Relation_Window	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::variance::testSimpleGroupByVariancePopulation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::variance::testSimpleWindowVariancePopulation	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::variance::testSimpleGroupByVarianceSample	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::variance::testSimpleWindowVarianceSample	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::wavg::testSimpleGroupByWavg	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
-duckdb-lite	Standard	meta::pure::functions::math::tests::wavg::testSimpleGroupByMultipleWavg	ModelException: toString of a relation is legend-pure's text, the compatibility edge's
+# a relation's toString: the test prints a relation, which lite's route refused by name ("toString of a relation is
+# legend-pure's text"; 2026-11-19, 423 rows). 2026-11-24, stage B's B2b S5a (the user's rulings of 2026-11-19 ~18:05,
+# "Agree with all four table printing recommendations", and ~18:36, "Null is good"; the orchestrator's go of 2026-11-24):
+# the product writes lite's own text, computed by the database (lowering.ProductRelationText), and 390 rows left, the
+# text legend-pure's. 33 remain, re-recorded: an untyped #TDS column of zone-suffixed timestamps is the abstract Date
+# (TdsChecker, as legend-pure's TDS inference), and a Date cell held as a timestamp prints the database's timestamp text
+# (2024-01-29 00:32:34) where legend-pure prints its DateTime text: the scalar toString's G2 gap, held with B2a's item 4
+# (the orchestrator's Q3, 2026-11-24: an abstract Date held as a timestamp keeps today's text, recorded)
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,null
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,null
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,30
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,50
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,30
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,50
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,30
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,30
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,10
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_CurrentRow_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_CurrentRow_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_NFollowing_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_NFollowing_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,30
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NPreceding_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,null
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,null
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NFollowing_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,20
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,30
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,30
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,10
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithDifferentDurationUnits_WithSinglePartition_WithOrderByASC	actual: "#TDS\n   p,o,i,newCol\n   0,2024-01-29 00:32:34,10,null
+duckdb-lite	Relation	meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithDifferentDurationUnits_WithSinglePartition_WithOrderByDESC	actual: "#TDS\n   p,o,i,newCol\n   300,2024-01-30 00:32:34,20,10
+duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin	actual: "#TDS\n   key,time,value,key2,time2,value2\n   1,2000-10-25 06:30:00,5000,null,null,null
+duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin_MultipleExpressions	actual: "#TDS\n   key,time,value,key2,time2,value2\n   1,2000-10-25 06:30:00,5000,null,null,null
+duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch	actual: "#TDS\n   key,time,value,key2,time2,value2\n   1,2000-10-25 06:30:00,5000,null,null,null
+duckdb-lite	Relation	meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch_MultipleExpressions	actual: "#TDS\n   key,time,value,key2,time2,value2\n   1,2000-10-25 06:30:00,5000,null,null,null
+duckdb-lite	Standard	meta::pure::functions::date::tests::max::testExtendMaxDate	actual: "#TDS\n   id,time,volume,maxDate\n   1,2026-01-07 00:00:00,820000,2026-01-09 01:00:00
+duckdb-lite	Standard	meta::pure::functions::date::tests::min::testExtendMinDate	actual: "#TDS\n   id,time,volume,minDate\n   1,2026-01-07 00:00:00,820000,2026-01-07 00:00:00
+duckdb-lite	Standard	meta::pure::functions::tests::date::testDayOfWeek_Relation	actual: "#TDS\n   date,dayOfWeek\n   1985-01-12 06:30:00,Saturday
 # (16 rows gone 2026-11-21, stage B's BE, the one catalog: an assertError expects legend-pure's sentence and lite's
 # database now raises it -- testAtError, testSliceError, testNewDateError, the four date-part errors, testRemError,
 # testSquareRootError, testRangeStepError, the four window-frame boundaries, the two 62-bit shifts; a down move)

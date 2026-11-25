@@ -78,10 +78,28 @@ class FloatTextTest {
         }
     }
 
-    // (anEdgeRelationsTextPrintsAFloatCellAsLegendPure: gone 2026-11-24, stage B's B2b S5a -- a relation's toString is
-    // lite's own text, computed by the database on every plan style; legend-pure's Float cell of a last-step table is
-    // the doors' Java printer's, pinned by PureRelationTextTest and
-    // PureRelationTextParityTest.whereTheEdgesSqlTextIsWrongTheJavaPrinterWritesLegendPures)
+    /** THE WINDOW UNTIL B2b's S6 (the review of S5a, 2026-11-24): a relation's toString is lite's layout computed by the
+     *  database on every plan style (lowering.ProductRelationText), but under the edge's style the edge dialect's value
+     *  passes (edge.PurePrintForms) re-spell its Float cells as they re-spell any Float's text there: a table text used
+     *  further at the edge writes each Float cell as the edge writes that value's toString -- legend-engine's in-query
+     *  cast, 1e-05 on DuckDB, 1.0E-5 on H2 -- neither lite's text nor legend-pure's. No PCT or corpus case meets it (a
+     *  last-step table is the doors' Java printer's: PureRelationTextTest, PureRelationTextParityTest). Pinned as the
+     *  edge's own Float text, so S6's deletion of the passes moves it to lite's by name. (Until S5a, this test pinned
+     *  legend-pure's print, which the edge's own table SQL wrote, PR #118's fix round.) */
+    @Test
+    void anEdgeTableTextUsedFurtherWritesItsFloatCellsAsTheEdgeWritesAFloat() throws Exception {
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("");
+        String rows = "#TDS\ni:Integer, x:Float\n1, 0.00001\n2, 0.0005\n3, 25000000.0\n#->sort(~i->ascending())";
+        String table = Lean.runInStyle(model, "|" + rows + "->select(~x)->toString()", StorelessRuntime.RUNTIME, backend,
+                com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
+        List<String> cells = new ArrayList<>();
+        for (List<Object> row : Lean.runInStyle(model, "|" + rows + "->extend(~t: r|$r.x->toOne()->toString())"
+                + "->select(~t)", StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows()) {
+            cells.add(String.valueOf(row.get(0)));
+        }
+        assertEquals("#TDS\n   x\n   " + String.join("\n   ", cells) + "\n#", table, backend.name());
+    }
 
     private static String edge(String model, Connection c, String query) throws Exception {
         return Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, LaneFloor.backend(), com.legend.edge.PureText.UPSTREAM).rows()

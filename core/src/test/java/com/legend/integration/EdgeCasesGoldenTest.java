@@ -29,9 +29,11 @@ import java.util.Map;
  * -Dlegend.edge.cases=<file>}, so a later slice that moves one shows it as a listed move:
  * <ul>
  *   <li>EDGE-1: a Float cell in a relation's {@code toString} and in a TDS's {@code toCSV}, at the five values the
- *       audit measured (fixed by F7 in the fix round: the net pins the fix);</li>
- *   <li>EDGE-2: a DateTime in a TDS's {@code toCSV} (ISO text today, upstream's {@code yyyy-MM-dd HH:mm:ss}: pinned as
- *       it is, a listed move when its form moves);</li>
+ *       audit measured (fixed by F7 in the fix round: the net pins the fix; since B2b S5a, 2026-11-24, a last step's
+ *       text is the doors' Java printer's, as the doors answer it);</li>
+ *   <li>EDGE-2: a DateTime in a TDS's {@code toCSV} (upstream's {@code yyyy-MM-dd HH:mm:ss} since B2b S5a, the doors'
+ *       printer: a correction, "(b) needs no ruling", the user's answer relayed 2026-11-25; the edge's SQL wrote ISO
+ *       text until then);</li>
  *   <li>EDGE-3: {@code format('%r', ...)} of a string holding a newline (raw today, upstream's {@code \n}: pinned as
  *       it is).</li>
  * </ul>
@@ -72,6 +74,25 @@ class EdgeCasesGoldenTest {
     private static String answer(TestBackend backend, PlanStyle style, String query) {
         String model = backend.withStorelessRuntime("Class s::P { name: String[1]; }\n");
         try {
+            // a last step that prints a relation answers as legend-pure's and legend-engine's doors answer it (stage B's
+            // B2b S5a, 2026-11-24): lifted (edge.PrintedRelations, the one rule B3's lift reads too), the relation run and
+            // printed in Java from its rows -- until then the edge composed the text in SQL, which S5a deleted
+            com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query);
+            com.legend.edge.PrintedRelations.Lifted lifted = com.legend.edge.PrintedRelations.lift(typed);
+            if (lifted != null) {
+                List<String> text = new java.util.ArrayList<>();
+                try (java.sql.Connection c = backend.open(style)) {
+                    com.legend.Execution.run(lifted.relation(), StorelessRuntime.RUNTIME,
+                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                            com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                            com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(), style,
+                            new com.legend.result.Output.Rows(lifted.writer(text::add)),
+                            com.legend.result.Batcher.DEFAULT_CAPACITY);
+                } catch (java.sql.SQLException | IOException e) {
+                    throw new IllegalStateException(e);
+                }
+                return "VALUE\tString:" + text.get(0) + ";";
+            }
             Lean.Result r = Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, backend, style);
             StringBuilder cells = new StringBuilder(r.shape().name()).append('\t');
             for (List<Object> row : r.rows()) {
