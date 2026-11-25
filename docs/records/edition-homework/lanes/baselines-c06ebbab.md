@@ -140,3 +140,32 @@ Timings: setup 1,551 s (it packed both upstream archives from git clones), build
 **What the lane suggests for the docs:** a channel B suite whose ledger block holds only "PASSES, ledgered as failing"
 lines still fails its target, so a lane reads red for improvements; and a lane should run a suspect suite twice before
 reporting.
+
+### Round 1b (the same lane, 2026-11-25): the shuffle is on `main`, and its cause
+
+**MariaDB's shuffled lists are older than this branch.** On `main` (`c04c30ec`) channel B's Essential and Grammar
+fail the same way, and the set of failing tests moves between two runs there too. MySQL is stable: two runs at this
+branch's commit both match (apart from the stale Relation ledger).
+
+**The cause, from one dumped statement.** Channel B's batch statement gives a list's elements their position with
+`ROW_NUMBER() OVER ()`, a window with no `ORDER BY`, over a `UNION ALL` derived table. MariaDB 11.4.13 sorts a
+window's input with a filesort that does not keep the input's order, so the numbering is whatever order the sort
+left. Run by hand in the lane's own server:
+
+```sql
+SELECT ROW_NUMBER() OVER () rn, value FROM (SELECT 1 AS value UNION ALL SELECT 2) b
+-- answers (1, 2), (2, 1); with four rows the values come back rotated: 2, 3, 4, 1
+```
+
+SQL promises no order here, so MariaDB is within its rights; the statement is wrong to depend on it. **The fix's
+direction:** each arm of the union carries an explicit ordinal and the window reads `OVER (ORDER BY ord)`. It is
+channel B's harness statement, not the product's SQL, and not this program's change; it is a finding for `main`.
+
+**The Relation ledgers, on `main`:** MySQL's and ClickHouse's Relation suites match their ledgers there, so the 21
+(MySQL) and 5 (ClickHouse) "PASSES, ledgered as failing" lines are improvements that are new with this branch (the
+merged B2 and B3 work), and their ledger rows leave with it. MariaDB's Relation on `main` fails a different pair
+(`sort::testSimpleSortShared`, `testSimpleSort_MultipleExpressions`, an expected side rotated, the same shuffle), and
+its two `testFlatten_LateralJoin_Nested*` improvements are new with this branch as well.
+
+**What follows:** (1) the three stale Relation ledger blocks shrink in the step that lands this branch's work, with a
+dated note; (2) the unordered window is posted as a defect on `main`, to fix outside this program.
