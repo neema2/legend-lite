@@ -436,7 +436,8 @@ The question went to the orchestrator with (A) write it, (B) refuse it, and (C) 
 - From `RelationTextLowering`: `toCsv`, `lowerToCsv`, `gridCsv`, the five-argument `csv`, `dynamicPivotText` and `hasDynamicPivot`. The TDS `csv` property's SQL stays until S5c.
 - From the facet: the `toCsv` member (`OpenClassMembersTest`, a shrink).
 - A last-step `toCSV` on legend-pure's and legend-engine's doors is printed by the doors' Java printer (`PrintedRelations`, B3's lift), in the helper's own text, with `TDSNull` under the flag.
-- A `toCSV` used further is lite's text, inside S5a's window: the edge's Float and DateTime cells until S6.
+- A `toCSV` used further is lite's text, inside S5a's window: the edge's Float and DateTime cells until S6 (its Float
+  cell the database's own full-precision text since 2026-11-25: "toCSV's Float cell exact", below).
 
 **Moves** (measured by the fast check on the merge with B3 step 4; the full round's are added below when it lands):
 - The lean SQL baseline: DuckDB's two `toCSV` rows are new (`toCSV_TabularDataSet_1__String_1_`, 2 statements, 2,143
@@ -751,7 +752,8 @@ must-fix. Each finding was checked against the code and the pinned sources befor
 - **toString over a value whose columns are unknown is refused by name.** A cast to `TDS<Any>` reached an internal
   error. The CSV writer's refusal is shared (`ProductRelationText.known`) and pinned.
 - **S311 amended for toString's and toCSV's Float cell** (program text, six decimals: `0.1234567` is `0.123457` and
-  `1.0E-7` is `0.0`). The CSV output format writes a returned Float exactly and ends a line with CRLF. S420's "two
+  `1.0E-7` is `0.0`; toCSV's since the user's ruling of 2026-11-25 the database's own full-precision text: "toCSV's
+  Float cell exact", below). The CSV output format writes a returned Float exactly and ends a line with CRLF. S420's "two
   writers" sentence now states what the two share. Pinned in `ProductRelationTextTest`.
 - **Wording:** a pivot whose columns nothing names is refused by name, never "lite's text at every door"
   (`ProductRelationText`, S420, the differences page).
@@ -767,10 +769,64 @@ must-fix. Each finding was checked against the code and the pinned sources befor
     side of the held passes.
   - Channel B's lite Relation judge pins roughly doubled at S5a (`08c2f9e90`), a measured and dated move.
 
+### toCSV's Float cell exact (2026-11-25)
+
+**Ruled** by the user the same night ("okay make exact", relayed by B3, the v2 amendments' item 15). "Exact" means each
+database's own full-precision text of the double (its cast), not six decimals, and not Java's double printing ported to
+SQL.
+
+**First built** as the Float carrier's cast (a local version, never pushed), the text a list's Float
+element has. The slice's review found that four databases' carrier COMPOSES its text in SQL (Snowflake, BigQuery,
+MariaDB/MySQL, MongoDB) and four re-spell their cast (Postgres, ClickHouse, Databricks, Trino). B3 then decided (B)
+under the user's objection to text algorithms composed in SQL: a node for the database's own full-precision text,
+spelled per dialect with the database's own cast or format function, no composition; the list carrier left alone.
+
+**Built as (B):**
+- `SqlFn.FLOAT_FULL_TEXT`, one operand, a double, NULL kept NULL; an arm in every dialect: the plain cast to text on
+  DuckDB, H2, Postgres, Trino, Databricks (`STRING`) and BigQuery (`STRING`); `CAST AS CHAR` on MariaDB and MySQL;
+  `toString` on ClickHouse (its CAST to a non-Nullable String refuses a NULL); SQLite's `printf('%!.17g')` with its
+  NULL `CASE` (its cast writes fifteen digits); `$toString` on MongoDB; on Snowflake its DECFLOAT cast, NaN and the
+  infinities by its plain cast, one `CASE` between the two (its format models cap a FLOAT at sixteen digits, measured
+  2026-10-24, so no Snowflake format function writes seventeen: posted, and B3 agreed (b) the same night).
+- `lowering/ProductRelationText.exactFloat` writes it over the double (a value the database holds as an integer or a
+  decimal is read as a double first, a `DECLARED` cast). A relation's `toString` keeps S311's six decimals.
+- `SqlTyping` (text), `MAY_SKIP_AN_ARGUMENT` (SQLite's and Snowflake's `CASE`), MySQL's delegation list, and
+  `SqlFnSortedTest`'s `PRODUCT` (a new function only product code writes, with a dated note: the standing rule).
+- `CodeShapeGuardrailTest`'s method limit caught `BigQuery.call` and `Postgres.call` at 252 lines (limit 250): their
+  arms take one line each, the spelling stated in `SqlFn`'s javadoc.
+
+**Measured exact** (every cell reads back as the double the database held, a literal and a computed one):
+- on the lanes, pinned (`ProductRelationTextTest.aCsvsFloatCellIsTheDatabasesExactTextOfTheDouble`): DuckDB `1e-05`,
+  `25000000.0`, `-0.04999999999999999`; H2 `1.0E-5`, `2.5E7`; SQLite `1.0e-05`, `-0.049999999999999989`. The same
+  texts as the carrier version: these three databases' carrier was their own text already.
+- by a temporary probe on the embedded databases (the same test, six more values, never committed): Postgres `2`,
+  `1e-05`, `25000000` (its shortest digits while the session's `extra_float_digits` is above zero: pgjdbc sets 3); MariaDB and MySQL `2`, `0.00001`, `0.0000000001`; ClickHouse `2`, `0.00001`, `1e-7`; Trino
+  `2.0E0`, `1.0E-5`, `2.5E7`. No re-spelling was needed for exactness on any of them.
+- **Found by the probe, not this slice's:** ClickHouse held the literal `123456789.12345679` one unit in the last place
+  low (`123456789.1234568`). Its text is exact: the computed cell beside it, the held value plus 0.2, read back to the
+  bit. So it is the literal's parse, likely ClickHouse's imprecise float parsing (`precise_float_parsing`, off by
+  default). Posted to B3.
+- Unmeasured as this node until their lanes run (a register note, not a pin): Snowflake (seventeen digits always in
+  exponent form, `0.1` as `1.0000000000000001E-01`, the seventeenth digit double-rounded for 80 of 1,946 doubles that
+  still read back, measured 2026-10-24), BigQuery (its cast's seventeen digits read back on its lane, 2026-10-21),
+  Databricks and MongoDB.
+- NaN and the infinities: each database's spelling (DuckDB `nan`, `inf`; SQLite `Inf`), which Java's parser does not
+  read.
+
+**Records:** S311's amendment (`d-register-rows`), S420's two-writers sentence, the differences page's §14.
+
+**Tests:** `ProductRelationTextTest`, the per-lane pins and the read-back; `RenderCsvIntegrationTest`'s Float cell,
+`csvTextPrintsAFloatCellAsTheDatabasesExactText` (until then `0.00001`); `FloatTextTest`, the Float CSV the same at
+every door (the edge's passes do not touch the node).
+
+**The fast check:** green but for the method limit, fixed. The core lean pins did not move: no pinned toCSV case has a
+Float column.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
 |---|---|---|---|
+| 2026-11-25 | toCSV's Float cell exact, the carrier version (local, never pushed; reworked to B3's (B)), a subagent, read-only | verdict: the code right on the three lanes run (the outer carrier cast fires, the inner cast plain, only Float cells change, the read-back exact). 1 must-fix: the register row and the record said MariaDB, MySQL, BigQuery and MongoDB write their own casts and Snowflake was the one exception -- BigQuery, MariaDB/MySQL and MongoDB compose their text in SQL too. Should-fix: FloatTextTest's toCSV half passed by coincidence, the edge window closed for toCSV's Float cell. Nits: Postgres, ClickHouse, Databricks and Trino re-spell their casts; NaN and the infinities unspelled; a DECIMAL-held Float's conversion; the inner cast's reason; RenderCsvIntegrationTest's values cannot tell 15 digits from 17 | every dialect's text stated as the code writes it (javadoc, S311's row, the record), the composed ones posted to the user; FloatTextTest re-pointed (the Float CSV the same at every door) and the window's closing recorded (ProductRelationText, the differences page); NaN's spelling and the DECIMAL conversion stated; the inner cast DECLARED; the 15/17 distinction left to ProductRelationTextTest's computed column |
 | 2026-11-25 | the design audit's fixes, `0dba5d604` and the record `978edd653`, a subagent, read-only | verdict "sound"; no must-fix. Should-fix: `PrintedRelationsTest`'s class javadoc still named the lift. Nits: S405's "closing newline trimmed" true of a `#TDS` literal alone (`stringToTDS` keeps it); the record's S6a section read as live; `asFloat`'s one-valued parameter; `Presenter`'s javadoc broader than the code (a Float in a list under `LEGEND_PURE` is `carriedFloat`); S420's DateTime example no difference between the two writers. Checked fine: the lift fully removed, PCT's route byte-identical to before S6a, the deletion's helpers and the planted reach, `known` before any plan is built, the docs' Pure answer and S311's claims, no pin moved | all, in the next commit |
 | 2026-11-25 | B2b's design audit of S5a to S6a, `1d6da1b6b..7c2ac303d`, a subagent, read-only, given the tenets and the record | verdict "sound to continue"; 1 must-fix: S405 ruled without Pure's answer (a TDS's csv is its source text), and legend-pure's door's literal csv (legend-engine's layout) unrecorded. Should-fix: toCSV's Float cell six decimals where the CSV output format writes the value exactly, unrecorded (S311); S6a's value lift opened two printers at legend-pure's door and moved no case; `Presenter.legendPure` a second Float printer with no caller; toString over unknown columns an internal error; a raw grid's last-step toCSV at the doors never ruled. Notes: the pivot wording; the corpus pin moved ahead of its ruling (restored before the push); the lift policy in two harnesses; two DateTime printers; the probe in the tree. Found fine: tenet 6, tenets 1-2 on the product path, the guards, the lean figures, the Java replace, S6a's move | S405 posted again with Pure's answer and recorded; the raw grid posted; the value lift held with the passes; `legendPure` deleted; toString's refusal shared and pinned; S311 amended, S420 corrected, pinned; the wording fixed; the harness duplication and the DateTime printers recorded for the doors' ruling (`0dba5d604`) |
 | 2026-11-25 | the TDS csv amendment and S6a's legend-pure door, `d6e94cdfe`, `abbc25278`, `e70bd764a`, a subagent, read-only | 2 must-fix: a relation's column named csv (`String[*]`, the typer's column read) was taken by the TDS csv arm, which checked the name alone, and answered the relation's CSV (refused by name under S5c; the door's lift and the resolver's anchor had the same test); the corpus lean pin's figures equal the pre-S5c ones, suspected restored by hand. Should-fix: the refused shape misnamed ("the legacy TabularDataSet class", which declares no csv; the shapes that reach it are a `TDS<Any>` cast the resolver does not peel), and toCSV reaching an internal error there; `WriterCarriageGuardTest`'s comment described the held full S6a. Nits: `liftValue` read no multiplicity; stale text (the lift's javadocs, S402's citation, `PlanEnv`'s orphaned javadoc, history notes in the present tense, the record's pointers); the remaining refusal a `NotImplementedException`, as `ProductRelationText`'s other refusals | one test, `PlatformTypes.isTdsCsvRead` (the `String[1]` property, never a `[*]` column read), in both Lowerer arms, the door and the anchor, pinned (`RenderCsvIntegrationTest`'s column named csv, `PrintedRelationsTest.aColumnNamedCsvIsNotATdsCsv`); the pin was regenerated, and the identical figures are explained (the assert's csv is the judge's statement; the counted one is the relation read, unchanged); a value whose columns the compiler does not know refused by name in the shared CSV writer, by toCSV and a TDS's csv alike, pinned, its shape named in S405 and the record; the guard comment and the stale text fixed; `liftValue` reads a to-one operand. Kept: the refusal's exception type, the CSV writer's own |

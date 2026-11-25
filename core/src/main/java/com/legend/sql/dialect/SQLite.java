@@ -1711,6 +1711,9 @@ public class SQLite extends AnsiSqlRenderer {
             case PI -> writer.append("pi()");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            // a Float's full-precision text: SQLite's own printf at seventeen significant digits (its cast writes
+            // fifteen), the NULL kept
+            case FLOAT_FULL_TEXT -> writer.piece(exactText(w -> w.expr(c.args().get(0), 0)));
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)

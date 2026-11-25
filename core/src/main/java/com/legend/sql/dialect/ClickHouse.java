@@ -1942,6 +1942,9 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            // a Float's full-precision text: ClickHouse's own toString (its shortest digits; a NULL stays NULL, where
+            // CAST to a non-Nullable String refuses one), never re-spelled
+            case FLOAT_FULL_TEXT -> writer.append("toString(").expr(c.args().get(0), 0).append(")");
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
