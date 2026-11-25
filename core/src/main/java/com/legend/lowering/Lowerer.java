@@ -3892,9 +3892,8 @@ public final class Lowerer {
                             .isListCarrier(p.source().info().type()) ->
                     scalar(p.source(), columns);
             // a TDS VALUE's csv property (a #TDS literal: the TDS class has a layout, so the field reads below would
-            // take it and its rows reach the renderer as a mixed list): lite's own CSV, as toCSV(t) writes it (the
-            // user's ruling of 2026-11-25, ".csv in product, yes same as toCSV"; register S405), as over a relation
-            // below (refused by name from B2b S5c until the ruling; the renderer's tagged-list wall before)
+            // take it): lite's own CSV, as toCSV(t) writes it, as over a relation below (the user's ruling of
+            // 2026-11-25, ".csv in product, yes same as toCSV"; register S405; refused by name from S5c until then)
             case TypedPropertyAccess p when p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && PlatformTypes.isTdsShaped(p.source().info().type())
                     && classLayout.apply(p.source().info().type()).isPresent() ->

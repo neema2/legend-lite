@@ -87,7 +87,7 @@ corpus	DuckDB	meta::relational::tests::mapping::embedded::advanced	28	5389	20946
 corpus	DuckDB	meta::relational::tests::mapping::embedded::advanced::inline::nested	13	3268	77270	5	30	0
 corpus	DuckDB	meta::relational::tests::mapping::embedded::advanced::inline::targetid	8	1503	47448	0	172	0
 corpus	DuckDB	meta::relational::tests::mapping::embedded::optionalNumeric	3	379	7900	0	0	0
-corpus	DuckDB	meta::relational::tests::mapping::enumeration	4	2994	52626	0	32	1
+corpus	DuckDB	meta::relational::tests::mapping::enumeration	5	3570	64595	0	32	0
 corpus	DuckDB	meta::relational::tests::mapping::extend::all	2	655	14234	2	0	0
 corpus	DuckDB	meta::relational::tests::mapping::extend::distinct	2	495	12160	2	0	0
 corpus	DuckDB	meta::relational::tests::mapping::extend::embeddedPropertyMapping	2	432	11930	0	0	0
@@ -400,7 +400,7 @@ corpus	H2	meta::relational::tests::mapping::embedded::advanced	28	6158	225018	5	
 corpus	H2	meta::relational::tests::mapping::embedded::advanced::inline::nested	13	3578	84407	5	32	0
 corpus	H2	meta::relational::tests::mapping::embedded::advanced::inline::targetid	8	1729	51890	0	180	0
 corpus	H2	meta::relational::tests::mapping::embedded::optionalNumeric	3	409	9493	0	0	0
-corpus	H2	meta::relational::tests::mapping::enumeration	4	3427	55241	0	38	1
+corpus	H2	meta::relational::tests::mapping::enumeration	5	4039	67793	0	38	0
 corpus	H2	meta::relational::tests::mapping::extend::all	2	767	15452	2	0	0
 corpus	H2	meta::relational::tests::mapping::extend::distinct	2	638	13401	2	0	0
 corpus	H2	meta::relational::tests::mapping::extend::embeddedPropertyMapping	2	478	13034	0	0	0
