@@ -372,6 +372,10 @@ moves it to lite's text by name. Until S5a this test pinned legend-pure's print,
   correction (b), now that the golden's runner lifts a last-step print as the doors do (`EdgeCasesGoldenTest.answer`).
 - The lean SQL baseline: DuckDB's `toString_Relation_1__String_1_` row is new (2 statements, 725 characters), where the
   product refused; the refused count falls from 11 to 9.
+- `SqlFnSortedTest` (the full round, `//core:guardrails_edge`): `lowering.ProductRelationText` joins the product's writers
+  of COALESCE, GREATER, IS_NULL, OR, REPLACE, STRPOS and the aggregate STRING_AGG (the direct cost of the ruled change,
+  dated in the test); SUBSTRING leaves the functions both sides write, as the edge's toString SQL that wrote it is
+  deleted (a shrink).
 
 ## Audits
 

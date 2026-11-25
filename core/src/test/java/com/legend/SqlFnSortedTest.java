@@ -166,6 +166,10 @@ class SqlFnSortedTest {
     // lowering.LiteVerdictWords deleted with the database judge's sentence rows -- out of AND, COALESCE, CONCAT,
     // DATETIME_TO_TEXT, EQUAL, FLOAT_SHORTEST_TEXT, GREATER, LENGTH, LOWER, MINUS, REPLACE, STRPOS, SUBSTRING; and
     // VerdictSql writes no GREATER_EQUAL, NOT_EQUAL or STRING_AGG now)
+    // (2026-11-25, stage B's B2b S5a, measured by the full round: lowering.ProductRelationText joins the product's writers
+    // of COALESCE, GREATER, IS_NULL, OR, REPLACE and STRPOS (and of the aggregate STRING_AGG, BOTH_AGG) -- a relation's
+    // toString is lite's own text, computed by the database, the user's rulings of 2026-11-19 ~18:05 and ~18:36 and the
+    // orchestrator's go of 2026-11-24: the direct, measured cost of the ruled change, done and reported)
     static final Map<String, Set<String>> BOTH_WRITERS = Map.ofEntries(
             // the product's lowering and the edge's compositions (upstream's texts, its plans, its renderings) each
             // build calls of these, each with its product writers' top classes (the review of f788dd3230: names alone
@@ -201,6 +205,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Coercions", "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.CellTexts")),
             Map.entry("COALESCE", Set.of(
+                    "com.legend.lowering.ProductRelationText",
                     // (lowering.LiteVerdictWords, census J29's lite verdict sentences: gone 2026-11-22, item 3's S4 step 4)
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",
                     "com.legend.lowering.Dedup", "com.legend.lowering.GraphAggDecorrelate",
@@ -256,6 +261,7 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.FloatShortestText")),
             Map.entry("FLOAT_TO_TEXT", Set.of("com.legend.lowering.LiteralSpelling")),
             Map.entry("GREATER", Set.of(
+                    "com.legend.lowering.ProductRelationText",
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.CollectionLanes", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.DateShifts", "com.legend.lowering.Dedup", "com.legend.lowering.KeyedCounts",
@@ -285,6 +291,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.LateralExplodeToUnion", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("IS_NULL", Set.of(
+                    "com.legend.lowering.ProductRelationText",
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CheckedEnvelope",
                     "com.legend.lowering.Coercions", "com.legend.lowering.CollectionLanes",
                     "com.legend.sql.ExistsJoins", "com.legend.lowering.Fold",
@@ -358,6 +365,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars", "com.legend.sql.EnumValueTables",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("OR", Set.of(
+                    "com.legend.lowering.ProductRelationText",
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.EnumSourceValues", "com.legend.lowering.MixedEncoding",
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars",
@@ -371,6 +379,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CommonSubexpressions")),
             Map.entry("REPLACE", Set.of(
+                    "com.legend.lowering.ProductRelationText",
                     "com.legend.lowering.LiteralSpelling",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
@@ -384,14 +393,13 @@ class SqlFnSortedTest {
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText")),
             Map.entry("STRPOS", Set.of(
+                    "com.legend.lowering.ProductRelationText",
                     "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("SUBSTRING", Set.of(
-                    "com.legend.lowering.AsorReaders", "com.legend.lowering.FeatureRules", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
-                    "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.StringCountsAsInt",
-                    "com.legend.sql.dialect.SubstringClamp", "com.legend.testdatagen.TestDataPlanner")),
+            // (SUBSTRING: both sides' no more, 2026-11-25, a shrink -- the edge's toString SQL that wrote it went with
+            // stage B's B2b S5a, edge.RelationTextLowering's tdsCell and dateTimeTextTds; the product's writers keep theirs)
             // (DIVIDE, FLOOR, GREATEST, LN, POW and TIMES: both sides' no more -- compiled legend-pure's 2-ULP Float
             // tolerance, the edge's CompiledPureVerdictNumbers, left the database judge with its kind, VerdictNumbers,
             // in A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the user's
@@ -692,6 +700,7 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated")),
             Map.entry("STRING_AGG", Set.of(
+                    "com.legend.lowering.ProductRelationText",
                     "com.legend.lowering.Aggregates", "com.legend.lowering.Fold", "com.legend.lowering.Lowerer",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.ValueCollections",
