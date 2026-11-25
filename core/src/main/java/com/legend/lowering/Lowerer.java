@@ -3894,8 +3894,7 @@ public final class Lowerer {
             // a TDS VALUE's csv property (a #TDS literal: the TDS class has a layout, so the field reads below would
             // take it): lite's own CSV, as toCSV(t) writes it, as over a relation below (the user's ruling of
             // 2026-11-25, ".csv in product, yes same as toCSV"; register S405; refused by name from S5c until then)
-            case TypedPropertyAccess p when p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
-                    && PlatformTypes.isTdsShaped(p.source().info().type())
+            case TypedPropertyAccess p when PlatformTypes.isTdsCsvRead(p.property(), p.source().info().type(), p.info())
                     && classLayout.apply(p.source().info().type()).isPresent() ->
                 ProductRelationText.tdsCsv(p.source(), this::relation, nextAlias());
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
@@ -4311,7 +4310,7 @@ public final class Lowerer {
             // composition deleted); a last step's csv at legend-pure's and legend-engine's doors is legend-engine's
             // text, the doors' Java printer's (PrintedRelations)
             case TypedPropertyAccess csvRead
-                    when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
+                    when PlatformTypes.isTdsCsvRead(csvRead.property(), csvRead.source().info().type(), csvRead.info())
                     && Render.csvOverRelation(csvRead) ->
                 ProductRelationText.tdsCsv(csvRead.source(), this::relation, nextAlias());
             // a relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24: the user's

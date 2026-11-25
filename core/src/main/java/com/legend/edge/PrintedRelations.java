@@ -23,7 +23,8 @@ import java.util.List;
  * relational test helper's {@code meta::relational::tests::csv::toCSV} of a TDS (helperFunctions.pure:198-232, a
  * native in lite: {@code PlatformTypes.TO_CSV}) or a TDS's {@code csv}, over a relation whose columns the compiler
  * knows, followed by any number of {@code replace} calls with literal arguments, answers the query that computes the
- * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). Anything else is not lifted: the
+ * relation and the print the run's receiver performs ({@link PureRelationTextWriter}); and, at legend-pure's door alone,
+ * a last step's Float print ({@link #liftValue}, B2b S6a). Anything else is not lifted: the
  * query is the door's as it was, and a print the door leaves is lite's own text, computed by the database
  * ({@code lowering.ProductRelationText}, B2b S5a and S5b; until S6 its Float and DateTime cells the edge's value texts,
  * the progress record's S5a window), and a TDS's {@code csv} the door does not lift lite's CSV, as {@code toCSV(t)}
@@ -35,8 +36,9 @@ public final class PrintedRelations {
     private PrintedRelations() {
     }
 
-    /** The lifted program: {@code relation} computes the rows (its last statement the printed relation), and
-     *  {@code form} and {@code replaces} are the print the receiver performs on them. */
+    /** The lifted program: {@code relation} computes the rows (its last statement the printed relation, or under
+     *  {@link PureRelationTextWriter.Form#VALUE} the printed Float), and {@code form} and {@code replaces} are the print
+     *  the receiver performs on them. */
     public record Lifted(com.legend.TypedQuery relation, PureRelationTextWriter.Form form,
             List<PureRelationText.Replace> replaces) {
         public Lifted {
@@ -104,7 +106,9 @@ public final class PrintedRelations {
         TypedSpec last = beneathReplaces(body.get(body.size() - 1), replaces);
         if (!(last instanceof TypedNativeCall c && c.callee().qualifiedName().equals(PlatformTypes.TO_STRING)
                 && c.args().size() == 1
-                && c.args().get(0).info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT)) {
+                && c.args().get(0).info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                && c.args().get(0).info().multiplicity()
+                        instanceof com.legend.compiler.element.type.Multiplicity.Bounded m && m.isToOne())) {
             return null;
         }
         List<TypedSpec> lifted = new ArrayList<>(body.subList(0, body.size() - 1));
@@ -176,7 +180,8 @@ public final class PrintedRelations {
         // TDS class, peeled as the resolver peels it (ResultEnvelopeSplice.peelTdsCasts, Anchors.tdsCsvRead; stage B's
         // B2b S5c, 2026-11-25, the orchestrator's agreement: the door lifts the one the relational tests write,
         // testEnumInRelation's, to legend-engine's text; the product writes lite's CSV, toCSV(t)'s, S405)
-        if (e instanceof TypedPropertyAccess p && p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)) {
+        if (e instanceof TypedPropertyAccess p
+                && PlatformTypes.isTdsCsvRead(p.property(), p.source().info().type(), p.info())) {
             TypedSpec relation = com.legend.compiler.spec.ResultEnvelopeSplice.peelTdsCasts(p.source());
             if (knownColumns(relation)) {
                 return new Printed(relation, PureRelationTextWriter.Form.TDS_CSV);

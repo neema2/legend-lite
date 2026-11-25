@@ -1283,7 +1283,7 @@ final class ArchitectureTest {
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
             // (B17 of the separation census, lowering.RelationTexts#kindType and #pureToString: gone 2026-11-25 with the
             // facet, stage B's B2b S5c -- a relation's toString and toCSV are lite's own texts, ProductRelationText, and
-            // a TDS's csv is refused by name (lite's CSV, toCSV(t)'s, since the user's ruling of 2026-11-25, S405); the edge's list text, PureListTexts, reads the same pureToString through
+            // a TDS's csv was refused by name (lite's CSV since the ruling of 2026-11-25, S405); the edge's list text, PureListTexts, reads the same pureToString through
             // the representation's facade below)
             // C5 step A (2026-11-17, the orchestrator's ruling: one facade, each member listed, no #*): legend-pure's
             // representation (toRepresentation, an assert's message) is the edge's (edge.EdgePureOnlyTexts), and the

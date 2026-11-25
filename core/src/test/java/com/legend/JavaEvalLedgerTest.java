@@ -2057,7 +2057,7 @@ class JavaEvalLedgerTest {
                             "StoreWords.java",
                             // (RelationTextLowering.java, legend-engine's text of a relation: gone 2026-11-25, stage B's
                             // B2b S5c -- a relation's toString and toCSV are lite's own texts, ProductRelationText, and a
-                            // TDS's csv is refused by name (lite's CSV since the user's ruling of 2026-11-25, S405), a last step's the doors' Java printer's; a shrink)
+                            // TDS's csv was refused by name (lite's CSV since the ruling of 2026-11-25, S405), a last step's the doors' Java printer's; a shrink)
                             // legend-pure's texts only it writes (format's padding, ...), composed at lowering from the
                             // product's nodes (the separation census's B8 (i), 2026-11-17): the plan style's
                             // PureOnlyTexts facet -- planning work, no session, no value computed

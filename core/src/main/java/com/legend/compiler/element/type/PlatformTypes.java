@@ -190,6 +190,15 @@ public final class PlatformTypes {
      * TDS-shaped value is the csv TEXT the engine prints for the relation. */
     public static final String TDS_CSV_PROPERTY = "csv";
 
+    /** Whether a read of {@code property}, typed {@code read}, over a {@code source}-typed value is the TDS class's csv
+     *  property ({@code csv : String[1]}, tds.pure:19), never a relation's column named csv, which the typer reads as
+     *  the column's cells ({@code [*]}): the one test the lowering, the resolver and the doors read (the review of
+     *  d6e94cdfe, 2026-11-25: a column named csv was read as the relation's text). */
+    public static boolean isTdsCsvRead(String property, Type source, ExprType read) {
+        return TDS_CSV_PROPERTY.equals(property) && isTdsShaped(source)
+                && read.multiplicity() instanceof Multiplicity.Bounded b && b.isToOne();
+    }
+
     /** Whether {@code t} is TDS-SHAPED: a schema-bearing {@code Relation<..>},
      * the {@code TDS<T>} relation class, or TabularDataSet — the types a
      * cast between which is a type-level no-op (exact FQNs, never a

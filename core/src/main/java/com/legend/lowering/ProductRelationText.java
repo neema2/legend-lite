@@ -128,20 +128,22 @@ final class ProductRelationText {
     /** A TDS's {@code csv} property ({@code tds.pure:19}, a relation's or a {@code #TDS} literal's): lite's own CSV,
      *  written exactly as {@code toCSV(t)} (the user's ruling of 2026-11-25, ".csv in product, yes same as toCSV";
      *  register S405) -- not legend-engine's text, which a last step's {@code csv} at legend-pure's and legend-engine's
-     *  doors prints in Java ({@code edge.PrintedRelations}). A TDS value whose columns the compiler does not know (one
-     *  typed by the legacy TabularDataSet class, no schema) is refused by name. */
+     *  doors prints in Java ({@code edge.PrintedRelations}). A value whose columns the compiler does not know is refused
+     *  by name, as toCSV's is ({@link #csv(TypedSpec, boolean, Function, String, String)}). */
     static SqlExpr tdsCsv(TypedSpec rel, Function<TypedSpec, SqlSelect> relation, String alias) {
-        String what = "a TDS's csv";
-        if (Type.relationSchema(rel.info().type()) == null) {
-            throw new com.legend.error.NotImplementedException(what + " over a value whose columns the compiler does"
-                    + " not know (" + rel.info().type() + "): its text is a relation's, toCSV's");
-        }
-        return csv(rel, false, relation, alias, what);
+        return csv(rel, false, relation, alias, "a TDS's csv");
     }
 
-    /** {@code rel}'s CSV, as {@link #csv(TypedNativeCall, Function, String)} writes it: one scalar subquery. */
+    /** {@code rel}'s CSV, as {@link #csv(TypedNativeCall, Function, String)} writes it: one scalar subquery. A value
+     *  whose type names no relation schema -- a cast to {@code TDS<Any>} the resolver does not peel (over a chain it
+     *  does not anchor: a {@code #TDS} literal's cast, {@code stringToTDS}) -- is refused by name (the review of
+     *  d6e94cdfe, 2026-11-25: until then toCSV reached an internal error there). */
     private static SqlExpr csv(TypedSpec rel, boolean explicitNulls, Function<TypedSpec, SqlSelect> relation,
             String alias, String what) {
+        if (Type.relationSchema(rel.info().type()) == null) {
+            throw new com.legend.error.NotImplementedException(what + " over a value whose columns the compiler does"
+                + " not know (" + rel.info().type() + "): a relation's own columns are written, never a cast's");
+        }
         SqlSelect inner = relation.apply(rel);
         if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType late && late.isLateBound()
                 && inner.outputs().isEmpty()) {

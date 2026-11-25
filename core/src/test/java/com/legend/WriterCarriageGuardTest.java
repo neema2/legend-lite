@@ -173,9 +173,9 @@ class WriterCarriageGuardTest {
             Map.entry("PureRelationText.java", Map.ofEntries(
                     Map.entry("contains(\"\")", 6),
                     Map.entry("startsWith(\"\")", 1))),
-            // legend-pure's text of a value, the edge's one value printer (B2b S6a, 2026-11-25): a relation's cell (the
-            // rules moved from PureRelationText, above) and a last step's value print (the deleted SQL print passes'
-            // texts, written in Java: a DateTime's kind matched by pattern, no precision read added)
+            // legend-pure's text of a value, the edge's one value printer (B2b S6a's legend-pure door, 2026-11-25): a
+            // relation's cell (the rules moved from PureRelationText, above) and a last step's Float print at
+            // legend-pure's door, the same pureFloat (no operation added)
             Map.entry("PureValueText.java", Map.ofEntries(
                     Map.entry("atLeast", 1),
                     Map.entry("doubleValue", 5))),

@@ -161,11 +161,10 @@ final class PctPlanRoute {
         // legend-pure door (2026-11-25, the orchestrator's agreement and relay), at legend-pure's door alone a case whose
         // last step prints a Float answers legend-pure's print of the value, in Java (edge.PureValueText), where the
         // edge's SQL print pass writes legend-engine's in-query cast; legend-engine's door waits for the user's ruling
-        com.legend.edge.PrintedRelations.Lifted lifted = audience == Audience.LITE ? null
+        com.legend.edge.PrintedRelations.Lifted printedRelation = audience == Audience.LITE ? null
                 : com.legend.edge.PrintedRelations.lift(query);
-        if (lifted == null && audience == Audience.LEGEND_PURE) {
-            lifted = com.legend.edge.PrintedRelations.liftValue(query);
-        }
+        com.legend.edge.PrintedRelations.Lifted lifted = printedRelation != null || audience != Audience.LEGEND_PURE
+                ? printedRelation : com.legend.edge.PrintedRelations.liftValue(query);
         if (lifted != null) {
             java.util.List<String> text = new java.util.ArrayList<>(1);
             com.legend.Execution.run(lifted.relation(), com.legend.testbackend.StorelessRuntime.RUNTIME,

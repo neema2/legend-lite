@@ -165,10 +165,6 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         return frame == null ? null : frame.timeZone();
     }
 
-    /** A Lowerer configured by this environment: its frame's time zone, and a relation's text asked of its plan
-     *  style's facet with the call's own refusal (B17 of the separation census, 2026-11-17: the product's style
-     *  refuses a {@code toCSV}, a TDS's {@code csv} and a relation's {@code toString} at lowering, by name; and the
-     *  texts only legend-pure writes, B8 (i); legend-engine's result envelope, Phase 6's B5). */
     /** An execution's trace text in a TDS cell: {@code id} with the style's comment around it, if it writes one. */
     private com.legend.sql.SqlExpr traceText(com.legend.sql.SqlExpr id) {
         com.legend.database.PlanStyle.TraceCell comment = style.traceCell();
@@ -186,6 +182,11 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
                 style.twoForm(com.legend.lowering.ListTexts.class, com.legend.lowering.ProductListTexts.INSTANCE));
     }
 
+    /** A Lowerer configured by this environment: its frame's time zone, its style's text facets ({@link #styled}: the
+     *  texts only legend-pure writes, B8 (i)), legend-engine's result envelope asked of its style's facet with the
+     *  call's own refusal (Phase 6's B5) and the trace text. (A relation's text facet, B17, went 2026-11-25 with stage
+     *  B's B2b S5c: a relation's toString, its toCSV and a TDS's csv are lite's own texts, ProductRelationText; this
+     *  javadoc stood orphaned above traceText until the review of d6e94cdfe.) */
     public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {
         return lowerer.withDbTimeZone(timeZone())
                 .withStyled(styled())

@@ -49,7 +49,7 @@ class OpenClassMembersTest {
                     "public abstract com.legend.sql.SqlExpr representation(com.legend.sql.SqlExpr)")),
             // (B17, com.legend.lowering.RelationTexts, the listed facade of the relation text: gone 2026-11-25 with the
             // facet, stage B's B2b S5c -- a relation's toString and toCSV are lite's own texts, ProductRelationText, and a
-            // TDS's csv is refused by name (lite's CSV, toCSV(t)'s, since the user's ruling of 2026-11-25, S405); a shrink)
+            // TDS's csv was refused by name (lite's CSV since the ruling of 2026-11-25, S405); a shrink)
             // (com.legend.lowering.Repr: gone 2026-11-17, C5 step A -- legend-pure's representation moved to the
             // edge, edge.EdgePureOnlyTexts; its product parts the listed facade lowering.ReprParts)
             // B5 (a ruled hook)

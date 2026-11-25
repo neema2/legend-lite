@@ -85,6 +85,24 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
         assertEquals("i,s\n1,a\n2,\n", csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#.csv"));
         assertEquals(csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#->meta::relational::tests::csv::toCSV()"),
                 csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#.csv"));
+        // the review of d6e94cdfe (2026-11-25): a relation's column named csv is that column's cells, never the
+        // relation's text (the TDS class's csv is String[1], a column read [*]: PlatformTypes.isTdsCsvRead)
+        assertEquals("x|y", csv("|#TDS\n  csv:String, a:Integer\n  x, 1\n  y, 2\n#->filter(r|$r.a > 0)"
+                + "->sort(~a->ascending()).csv->joinStrings('|')"));
+        // a value whose columns the compiler does not know (a cast to TDS<Any> the resolver does not peel) is refused
+        // by name, by toCSV and by a TDS's csv alike (until then toCSV reached an internal error there)
+        for (String q : java.util.List.of(
+                "|#TDS\n  i:Integer\n  1\n#->cast(@meta::pure::metamodel::relation::TDS<Any>).csv",
+                "|#TDS\n  i:Integer\n  1\n#->cast(@meta::pure::metamodel::relation::TDS<Any>)"
+                        + "->meta::relational::tests::csv::toCSV()")) {
+            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> csv(q));
+            String chain = "";
+            for (Throwable t = refused; t != null; t = t.getCause()) {
+                chain += t.getMessage() + " | ";
+            }
+            org.junit.jupiter.api.Assertions.assertTrue(chain.contains("over a value whose columns the compiler does"
+                    + " not know"), q + ": " + chain);
+        }
     }
 
     /** A stored relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24; the

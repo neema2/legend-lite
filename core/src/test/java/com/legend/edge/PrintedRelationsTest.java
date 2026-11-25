@@ -87,6 +87,14 @@ class PrintedRelationsTest {
         assertNull(PrintedRelations.lift(typed("|1.3421e-8->toString()")));
     }
 
+    /** A relation's column named csv is that column's cells, never the TDS's csv (the review of d6e94cdfe, 2026-11-25:
+     *  the TDS class's csv is String[1], a column read [*]; PlatformTypes.isTdsCsvRead): not lifted. */
+    @Test
+    void aColumnNamedCsvIsNotATdsCsv() {
+        assertNull(PrintedRelations.lift(typed("|#TDS\n  csv:String, a:Integer\n  x, 1\n#->filter(r|$r.a > 0).csv")));
+        assertEquals(PureRelationTextWriter.Form.TDS_CSV, form("|" + REL + ".csv"));
+    }
+
     /** The one rule, read off one expression (B3's test-body lift reads it too): a print and its literal replaces, or
      *  null. */
     @Test

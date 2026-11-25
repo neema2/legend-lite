@@ -392,8 +392,7 @@ final class Anchors {
      * peel the same casts). Null = not that shape. */
     static @com.legend.base.Nullable TypedPropertyAccess tdsCsvRead(TypedPropertyAccess pa,
             java.util.function.Predicate<TypedSpec> anchored) {
-        if (!pa.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
-                || !PlatformTypes.isTdsShaped(pa.source().info().type())) {
+        if (!PlatformTypes.isTdsCsvRead(pa.property(), pa.source().info().type(), pa.info())) {
             return null;
         }
         TypedSpec chain = peelTdsCasts(pa.source());
