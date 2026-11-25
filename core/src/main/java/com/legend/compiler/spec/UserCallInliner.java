@@ -563,7 +563,7 @@ public final class UserCallInliner {
                 pargs.add(rewrite(a));
             }
             return NormalizeFolds.foldReflection(
-                    new TypedNativeCall(call.callee(), pargs, call.info(), null, call.outsideStore()));
+                    new TypedNativeCall(call.callee(), pargs, call.info(), null));
         }
         if (row instanceof com.legend.platform.Implementation.Refused refused
                 && refused.reason() != com.legend.platform.Implementation.Reason.MOOT) {

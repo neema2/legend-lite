@@ -229,8 +229,7 @@ public final class PlanMaker {
                 throw new NotImplementedException("the pull copied into " + table + " is not one statement: a raw"
                         + " grid's report (a keyed result)");
             }
-            return sql(dialect.renderStatement(new SqlDml.CreateTableAs(schema, table, statement)), target, null,
-                    com.legend.database.PlanStyle.PRODUCT);
+            return sql(dialect.renderStatement(new SqlDml.CreateTableAs(schema, table, statement)), target, null);
         }
     }
 
@@ -598,7 +597,7 @@ public final class PlanMaker {
                 withStamps(state.slots(), state.frames()), state.sites());
         SqlQuery grid = lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), query.context()));
         ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(new SqlDml.CreateTempTableAs(table, grid,
-                List.of(), true)), state.target(), null, state.style());
+                List.of(), true)), state.target(), null);
         state.add(new ExecutionPlan.Update(stagedSql, null));
         state.stage(table);
         state.let(StagedRows.gridBoundTo(let.name(), gridRead(table, state.dialect()), raw, let.info()));
@@ -638,7 +637,7 @@ public final class PlanMaker {
                         sp.env()))), st.reads().definitions()));
         TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
         ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(SqlDml.CreateTempTableAs
-                .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null, state.style());
+                .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null);
         String own = st.reads().ownStamp();
         if (own != null && reads(stagedSql, own)) {
             // a write is sent with no trace comment (the M3 audit's B7c)
@@ -855,7 +854,7 @@ public final class PlanMaker {
     static ExecutionPlan.Sql staging(SqlDialect dialect, Staged staged, String table, ExecutionPlan.Target target,
             com.legend.database.PlanStyle style) {
         return sql(dialect.renderStatement(new SqlDml.CreateTempTableAs(table,
-                Objects.requireNonNull(staged.queries().get(table), table))), target, null, style);
+                Objects.requireNonNull(staged.queries().get(table), table))), target, null);
     }
 
     /** {@code q}, each read of a staged relation ({@code tables}' keys) a read of its table. */
