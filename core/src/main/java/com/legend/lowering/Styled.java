@@ -39,5 +39,5 @@ public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyText
      *  lite's written (no plain raise, {@link ProductLoweringForms}); lite's text of a DateTime. */
     public static final Styled PRODUCT = new Styled(refusal -> {
         throw refusal.get();
-    }, ProductLoweringForms.INSTANCE, LITE_DATE_TIMES, ProductListTexts.INSTANCE, EditionTable.LITE);
+    }, ProductLoweringForms.INSTANCE, LITE_DATE_TIMES, ProductListTexts.INSTANCE, LiteEditionTable.INSTANCE);
 }

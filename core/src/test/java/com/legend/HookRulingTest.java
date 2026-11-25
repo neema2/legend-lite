@@ -362,11 +362,15 @@ class HookRulingTest {
                 // ActivityTexts (J40.PlanStyle, the orchestrator's ruling of 2026-11-18: an execute's activity SQL, lite's
                 // own in the product, legend-engine's text at the edge; until then PlanStyle.activitySql picked one of two)
                 com.legend.planner.ActivityTexts.class,
-                // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
+                // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise among them)
                 com.legend.lowering.LoweringForms.class,
                 // (VerdictWords, census J29's: left 2026-11-21, item 3's S3 -- one catalog words every assert failure)
                 // DatabaseSettingsForm (the audit's J22, RULED by the user 2026-11-17: a database's settings)
-                com.legend.sql.dialect.DatabaseSettingsForm.class),
+                com.legend.sql.dialect.DatabaseSettingsForm.class,
+                // EditionTable (the edition program's step 2, 2026-11-25;
+                // docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.2: per native, the product rule a
+                // door's audience means; the product's has no row. The kind the other lowering forms fold into)
+                com.legend.lowering.EditionTable.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;

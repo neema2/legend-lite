@@ -32,14 +32,18 @@ final class EngineTable implements EditionTable {
 
     static final EngineTable INSTANCE = new EngineTable();
 
-    private final Map<FunctionId, FunctionId> asGiven = new HashMap<>();
-    private final Map<FunctionId, FunctionId> corrected = new HashMap<>();
+    private final Map<FunctionId, FunctionId> asGiven;
+    private final Map<FunctionId, FunctionId> corrected;
 
     private EngineTable() {
-        byPosition(asGiven, Pure.AT_STRING_SUBSTRING, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN);
-        byPosition(corrected, Pure.AT_STRING_SUBSTRING, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
-        byPosition(asGiven, Pure.AT_STRING_SUBSTR, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
-        asGiven.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), Pure.AT_LEGEND_LITE_SQL_POSITION.get(0));
+        Map<FunctionId, FunctionId> given = new HashMap<>();
+        byPosition(given, Pure.AT_STRING_SUBSTRING, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN);
+        byPosition(given, Pure.AT_STRING_SUBSTR, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
+        given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), Pure.AT_LEGEND_LITE_SQL_POSITION.get(0));
+        Map<FunctionId, FunctionId> flagged = new HashMap<>();
+        byPosition(flagged, Pure.AT_STRING_SUBSTRING, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
+        this.asGiven = Map.copyOf(given);
+        this.corrected = Map.copyOf(flagged);
     }
 
     /** Each overload of {@code from} to the overload of {@code to} at the same place: the two lists are declared in

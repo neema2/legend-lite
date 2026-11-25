@@ -171,17 +171,17 @@ public final class PureText {
      *  route writes no check for in its SQL -- the database decides (rem's and divide's {@code mod} and {@code /},
      *  {@code sqrt}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice}, {@code range}, {@code processCast},
      *  the parses' plain casts). */
-    /** THE STAMP'S PROBE (the edition program's step 2a; temporary, never landed): {@code -Dlegend.probe.stamp=true}
-     *  hands pure/v1 legend-engine's table ({@link EngineTable}) and skips the A3 rewrite
-     *  ({@link PureV1Routes#checkMeaning}). */
-    static final boolean STAMP_PROBE = Boolean.getBoolean("legend.probe.stamp");
-
     static final java.util.Set<com.legend.sql.RaiseKind> ENGINE_UNCHECKED = java.util.Collections.unmodifiableSet(
             java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
                     com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
                     com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, com.legend.sql.RaiseKind.RANGE_STEP_ZERO,
                     com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,
                     com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, com.legend.sql.RaiseKind.TEXT_NOT_DATE));
+
+    /** THE STAMP'S PROBE (the edition program's step 2a; temporary, never landed): {@code -Dlegend.probe.stamp=true}
+     *  hands pure/v1 legend-engine's table ({@link EngineTable}) and skips the A3 rewrite
+     *  ({@link PureV1Routes#checkMeaning}). */
+    static final boolean STAMP_PROBE = Boolean.getBoolean("legend.probe.stamp");
 
     /** THE PURE/V1 ROUTE'S STYLE (B7, the user's ruling of 2026-11-17: pure/v1 matches legend-engine): {@link #UPSTREAM}
      *  in every dialect and facet, but a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain

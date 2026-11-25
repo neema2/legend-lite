@@ -193,22 +193,8 @@ public final class UserCallInliner {
         return reduced.get(reduced.size() - 1);
     }
 
-    /** THE STAMP (the edition program's step 2, 2026-11-25; docs/records/edition-plan-to-finish-stage-b-2026-11-25.md
-     *  section 2.3): whether this inliner stamps the calls of a statement that reads no store as outside any store
-     *  query ({@code TypedNativeCall.outsideStore}). Off unless a compatibility door's table asks
-     *  ({@code lowering.EditionTable.stampsOutsideStore}); the product never does. */
-    private boolean stampsStoreFreeValues;
-
+    /** What a statement's reach of a store was found to be, per function it calls ({@link StatementEffects#reaches}). */
     private final Map<com.legend.model.FunctionId, Boolean> storeReach = new java.util.HashMap<>();
-
-    /** This inliner, stamping: the calls in a query-level {@code let}'s value that reads no store, and in a last
-     *  statement that reads none, are marked outside any store query. Here, because this is the last place a
-     *  {@code let} is still a statement of its own (it is dissolved into its readers below) and the first where the
-     *  functions it calls stand in place. */
-    public UserCallInliner stampingStoreFreeValues(boolean on) {
-        this.stampsStoreFreeValues = on;
-        return this;
-    }
 
     /** What reads a store: an extent, a table, a from-envelope, a milestoned access, a view. */
     private static boolean isAStoreRead(TypedSpec n) {
@@ -223,8 +209,8 @@ public final class UserCallInliner {
      *  query where the statement reads no store, itself or through the functions it calls
      *  ({@link StatementEffects#reaches}); as it is otherwise. A value that IS a lambda is never stamped: its body
      *  runs where the lambda is applied, which may be inside a store query. */
-    private TypedSpec stampedIfStoreFree(TypedSpec written, TypedSpec reduced) {
-        if (!stampsStoreFreeValues) {
+    private TypedSpec stampedIfStoreFree(boolean stamp, TypedSpec written, TypedSpec reduced) {
+        if (!stamp) {
             return reduced;
         }
         TypedSpec value = written instanceof TypedLet let ? let.value() : written;
@@ -256,6 +242,20 @@ public final class UserCallInliner {
      *  are reduced before the mark, exactly as in every statement's run, so a let's construction keeps one site
      *  across the program's statements: one object. Null: a body that is the whole query, no mark. */
     public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement) {
+        return inlineBody(body, statement, false);
+    }
+
+    /** {@link #inlineBody(List, Integer)}, and THE STAMP (the edition program's step 2, 2026-11-25;
+     *  docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.3): with {@code stampStoreFree}, the calls
+     *  in a query-level {@code let}'s value that reads no store, and in a last statement that reads none, are marked
+     *  outside any store query ({@code TypedNativeCall.outsideStore}). Here, because this is the last place a
+     *  {@code let} is still a statement of its own (it is dissolved into its readers below) and the first where the
+     *  functions it calls stand in place. Asked for only by a compatibility door whose table's two columns differ
+     *  ({@code lowering.EditionTable.stampsOutsideStore}); the product never asks. A QUERY's statements only: a test
+     *  body's statements read frames, whose spliced chains are store queries inside a statement that itself reads no
+     *  store, and need the frame-aware walk (the plan's step 3). */
+    public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement,
+            boolean stampStoreFree) {
         com.legend.base.RunScope.planning("inline a body");
         // QUERY-level lets β-reduce exactly like callee lets — binders die
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
@@ -274,14 +274,14 @@ public final class UserCallInliner {
                     throw new NotImplementedException(
                             "only let statements may precede the query expression");
                 }
-                scope.put(let.name(), stampedIfStoreFree(let, reduce(let.value(), scope)));
+                scope.put(let.name(), stampedIfStoreFree(stampStoreFree, let, reduce(let.value(), scope)));
             }
             // graph-tree args are NOT β-reduced (source spelling is the
             // serialize key) — the resolver reads consumed lets through this
             // (engine inScopeVars)
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            java.util.function.Supplier<TypedSpec> reduction = () -> stampedIfStoreFree(last,
+            java.util.function.Supplier<TypedSpec> reduction = () -> stampedIfStoreFree(stampStoreFree, last,
                     last instanceof TypedLet let ? reduce(let.value(), scope) : reduce(last, scope));
             // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
             TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);

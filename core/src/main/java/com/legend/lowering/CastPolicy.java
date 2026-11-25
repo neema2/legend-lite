@@ -47,13 +47,8 @@ final class CastPolicy {
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
     static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, LoweringForms forms) {
-        if (c.wire()) {
-            // the mapping's WIRE coercion, the style's form (the audit's K5, 2026-11-17: LoweringForms#wireCast; one
-            // forms source since J40, 2026-11-18): the
-            // product writes the cast (DuckDB does not wire-convert, audit 19 F7); legend-engine's SQL leaves it to its
-            // reader, which converts on the wire
-            return written(c, value, isMany, forms);
-        }
+        // a mapping's WIRE coercion is written as any cast is (DuckDB does not wire-convert, audit 19 F7); the two-form
+        // LoweringForms#wireCast, identical in both forms, went with the edition program's dead choices, 2026-11-25
         return written(c, value, isMany, forms);
     }
 

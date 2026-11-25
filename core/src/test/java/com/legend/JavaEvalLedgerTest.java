@@ -1936,6 +1936,10 @@ class JavaEvalLedgerTest {
                             // the planner's own inliner; it computes no value (the database computes the answer) and
                             // builds no call of its own
                             "PureMeaningRewrite.java",
+                            // the edition's table at legend-engine's door (the edition program's step 2, 2026-11-25):
+                            // per native, which product native's rule lowers a call, by its stamp and the statement's
+                            // flags -- data, no SQL, no value computed
+                            "EngineTable.java",
                             // a pure/v1 request's model, text or PureModelContextData (2026-10-21, leg 8 step 3) -- read
                             // and compiled only; no connection, no JDBC, no value. Moved here from com.legend.server
                             // 2026-11-18 (J40.ModelInput: legend-engine's routes alone read it)

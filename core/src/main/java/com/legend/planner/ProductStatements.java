@@ -183,15 +183,15 @@ public final class ProductStatements {
     private static Inlined inline(SpecCompiler specs, List<TypedSpec> statements, @Nullable Integer mark,
             ProgramFrames.Recorder first, boolean frameAnswered, boolean stamp) {
         ProgramFrames.Recorder recorder = first;
-        UserCallInliner inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder))
-                .stampingStoreFreeValues(stamp);
-        List<TypedSpec> body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark), recorder,
+        UserCallInliner inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
+        List<TypedSpec> body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark, stamp), recorder,
                 frameAnswered);
         ProgramFrames.Recorder again = recorder.again(body);
         if (again != null) {
             recorder = again;
-            inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder)).stampingStoreFreeValues(stamp);
-            body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark), recorder, frameAnswered);
+            inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
+            body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark, stamp), recorder,
+                    frameAnswered);
         }
         return new Inlined(body, Collections.unmodifiableMap(new LinkedHashMap<>(inliner.queryLets())),
                 recorder.reads());

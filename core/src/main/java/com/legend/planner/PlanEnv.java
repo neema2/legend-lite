@@ -180,7 +180,7 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
                 style.twoForm(com.legend.lowering.LoweringForms.class, com.legend.lowering.ProductLoweringForms.INSTANCE),
                 style.twoForm(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.Styled.LITE_DATE_TIMES),
                 style.twoForm(com.legend.lowering.ListTexts.class, com.legend.lowering.ProductListTexts.INSTANCE),
-                style.twoForm(com.legend.lowering.EditionTable.class, com.legend.lowering.EditionTable.LITE));
+                style.twoForm(com.legend.lowering.EditionTable.class, com.legend.lowering.LiteEditionTable.INSTANCE));
     }
 
     /** A Lowerer configured by this environment: its frame's time zone, its style's text facets ({@link #styled}: the

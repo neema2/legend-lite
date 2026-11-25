@@ -1378,13 +1378,15 @@ final class ArchitectureTest {
             // user 2026-11-19 ~20:45 ("Approved to move guards down"))
             // the product's building blocks the edge's forms compose with (2026-11-18, the lens audit's item 1 and the
             // orchestrator's ruling on L6: a two-form kind holds types only, the product hands its statement and sites,
-            // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the subselect
-            // pruning (lean, or legend-engine's computed projections kept) and the statement's EXISTS sites
+            // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the
+            // statement's EXISTS sites
             "lowering.ExistsSites#alias()", "com.legend.edge.EdgeLoweringForms",
             // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
             "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
-            "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean)", "com.legend.edge.EdgeLoweringForms",
+            // (lowering.SubselectPrune#prune(SqlQuery, boolean) from EdgeLoweringForms: gone 2026-11-25 with the edition
+            // program's dead two-form choices -- computedPruning was identical in both forms and is deleted, the
+            // product's pruning written in the Lowerer; a shrink)
             // (SubselectPrune#prune(SqlQuery, boolean, String), the engine shape's union-frame pruning since L10,
             // 2026-11-18, and Styled#forms(), #lists() and #pureOnly(), the shape's reads of the plan style's Styled,
             // left 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19:

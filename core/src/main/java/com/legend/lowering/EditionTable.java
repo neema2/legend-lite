@@ -13,7 +13,7 @@ import java.util.Set;
  * a compatibility door hands the lowering so that a function becomes the SQL its audience means. A row names ANOTHER
  * PRODUCT NATIVE whose rule lowers the call ({@code substring} as {@code substringAsGiven}): data, never code, and never
  * SQL -- the rule it names is the product's, written where every rule is ({@link Scalars}), named by what it is and not
- * by who wants it. The product's own table ({@link #LITE}) has no row: lite means what its own rules say.
+ * by who wants it. The product's own table ({@link LiteEditionTable}) has no row: lite means what its own rules say.
  *
  * <p>The lowering asks at the one place it picks a scalar native's rule ({@link Scalars#lower}); everything that
  * becomes SQL passes there, a function's body and a mapping's code included, because by then they are one tree.
@@ -34,18 +34,4 @@ public interface EditionTable {
 
     /** Whether this table's two columns differ, so the planner stamps the calls outside a store query. */
     boolean stampsOutsideStore();
-
-    /** The product's table: no row, no stamp. */
-    EditionTable LITE = new EditionTable() {
-        @Override
-        public @com.legend.base.Nullable FunctionId lowersAs(FunctionId key, boolean outsideStore,
-                Set<Feature> features) {
-            return null;
-        }
-
-        @Override
-        public boolean stampsOutsideStore() {
-            return false;
-        }
-    };
 }
