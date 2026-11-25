@@ -100,3 +100,51 @@ Measurement added: M7, a typed census of governed constructs in the corpus harne
     - LEGACY accepts SQL regular H2 refuses (`active = 1` on a BOOLEAN), at the engine door only;
     - a future H2 dropping LEGACY would reopen it.
 19. **The user's standing word on landing code** (2026-11-25, night): "if you think makes sense to land code, land it dont have to ask me these micro questions". Small, ruled or approved changes land on the program's branches after a full round with `//gates:local` and an independent review, without asking. Never to `main` and never a PR merge without the user's word.
+20. **The R2 research, and the user's calls on it (2026-11-25, night).** Records in `edition-homework/r2/` (`2a860552`): sql-inventory.md, pct-sort.md, fold-audit.md.
+    - The user agreed with every recommendation except #3: "i agree with everything except #3 - we need to look at all those other known wrong answers to understand are they like substring/indexof or are they lazy/bugs".
+    - Ruled:
+      1. Under `engine`, the database part behaves like legend-engine: no lite checks; the database decides (a zero divisor gives the database's answer); lite's checks stay in `lite` and `pure`.
+      2. `substring` and `indexOf` under `engine` keep legend-engine's behaviour, off-by-one start included (built for pure/v1; extend cheaply to the corpus and PCT's engine run; exact placement later).
+      4. An enumeration compared with another enumeration's value: match legend-engine (by name) under `engine`.
+      5. Integers past 64 bits: keep lite's widening and record it.
+      6. `acos` / `asin` out of range raise, as compiled Pure does (S119 reopened for these two).
+      7. Folds: see below.
+      8. `1 == 1D` at legend-pure's door follows compiled Pure (`true`).
+    - #3 OPEN: every legend-engine known wrong answer (DuckDB's 16 families, H2's) is being classified as DELEGATION (like substring/indexOf: match), PRESENTATION (match at the edge) or MACHINERY BUG (don't reproduce). Output: r2/wrong-answers-classified.md.
+    - **Folds, the user (2026-11-25, night):** "this is the problem with folding - we had a tenet that said only can fold constant strings, booleans, or constant strings with concat - now it looks like we built a whole cottage industry of fold logic in java that duplicates pure logic which is cool in some ways but really annoying in other ways".
+      - The rule of record (compat-rules-of-record row 1: "The only computation before the database is the compiler's folding of constant String and Boolean expressions"; the 11-19 reading "constants and facts fixed by the types, never row data") drifted: the fold audit lists about 70 fold sites, nine of which disagree with Pure.
+      - Plan:
+        - restore the rule: fold only constant String and Boolean expressions (concatenation included) and facts fixed by the types (a relation's column names and types);
+        - everything else goes to the database;
+        - measure the cost first (a probe: refusals, moves, SQL growth);
+        - land it with an allowlist guard of foldable operations, so the folds can't grow back.
+21. **toCSV exact: the carrier** (B2, 0e86a7629; decided by B3 under the user's principle, 2026-11-25, night).
+    - B2 found that the exact Float text it reused is composed in SQL on four databases: Snowflake (its own cast writes ten digits), BigQuery (Java's shortest-digit rule rebuilt in SQL), MariaDB/MySQL (re-laid out in DuckDB's format through JSON_TABLE), and MongoDB.
+    - Decided (B): a node for "the database's own full-precision text", spelled per dialect with the database's own cast or format function (Snowflake at 17 significant digits, as SQLite's printf), with no composition.
+    - Exactness is recorded as unmeasured on Snowflake, BigQuery and MongoDB until their lanes run. The list carrier is left alone.
+    - S7a (A) is built at bb661512c and lands in the same round.
+    - Snowflake's case (B2, then B3 under the principle). No Snowflake format writes 17 digits (measured 2026-10-24: 566 of 1,946 doubles don't read back through TO_VARCHAR or TME). Decided: CAST(CAST(x AS DECFLOAT) AS VARCHAR), with NaN and the infinities by the plain cast, one CASE between two of the database's own casts. Exponent spelling and the 17th-digit double rounding are recorded; it is unmeasured as this node until Snowflake's lane runs.
+    - BigQuery's CAST AS STRING, MongoDB's $toString and Databricks' plain CAST AS STRING are recorded as unmeasured.
+22. **legend-engine's known wrong answers, classified and RULED** (r2/wrong-answers-classified.md; the user, 2026-11-25, night: "agree with both recommendations, match toDecimal, don't reproduce mod").
+    - DuckDB's 47: 15 delegation, 23 presentation/type, 9 machinery bug. H2's 54: 19 / 20 / 15.
+    - Presentation needs no new work: DateTime precision is already legend-engine's nine digits in pure/v1's JSON; number type and Decimal scale reduce to S-7, S-10 and S-11.
+    - Matched under `engine` (delegations), all cheap:
+      - `round` half away from zero (both databases);
+      - `dateDiff` in weeks per database (DuckDB Sat→Sun 0; H2 Sun→Sat −1);
+      - DateTime and Boolean `toString` as the database's cast;
+      - `splitPart` with an empty token (DuckDB);
+      - `toDecimal` as the bare `decimal` (DuckDB: DECIMAL(18,3); **H2: `toDecimal(3.8)` = 4, ruled match**);
+      - `rem` as plain `mod` (H2);
+      - `ascii('')` (H2, likely already matched);
+      - enumeration against another enumeration by name (ruled).
+    - Not reproduced (machinery bugs):
+      - an hour-precision literal's `hour`/`minute`;
+      - `pow` through a lambda;
+      - a date adjusted into BC (the result reader's Julian calendar);
+      - `regexpLike` MULTILINE (legend-engine's own defect D5);
+      - H2's aggregates over literal lists;
+      - H2's `lshift` past 31 bits;
+      - H2's `parseDecimal(p, s)`;
+      - H2's `equalAll` over an empty relation;
+      - **H2's `mod` of a negative and `binFloor`: ruled not reproduced**, a regression in its Postgres-model path; legend-engine's own default writes floor-mod.
+    - Open: DuckDB's LIKE escaping in startsWith/endsWith/contains with `_` or `%` (`testPersonToString`). If confirmed, it's a legend-engine bug users hit, not reproduced. One query settles it.
