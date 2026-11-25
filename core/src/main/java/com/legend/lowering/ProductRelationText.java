@@ -40,8 +40,10 @@ import java.util.function.Function;
  *       cell {@code null} ({@code 'null'} under a Variant); a Variant's text and a String holding a brace or a bracket
  *       quoted with {@code \} and {@code '} escaped; every other cell its scalar {@code toString()}.</li>
  *   <li>{@code toCSV}: the helper's layout -- the names joined {@code ,}, then one line per row with its cells joined
- *       {@code ,}, a newline after the names and after every row (no rows: the header and two newlines); a name
- *       holding a comma, a quote or a line break quoted, its quotes doubled. Lite's own cells (the user's ruling of
+ *       {@code ,}, a newline after the names and after every row, each row's its own (no rows: the header line alone,
+ *       where the helper writes a second newline, so a one-column relation's one null row is told from none: the
+ *       user's ruling of 2026-11-25, Q-C, "Okay to both csv ones"; register S420); a name holding a comma, a quote or
+ *       a line break quoted, its quotes doubled. Lite's own cells (the user's ruling of
  *       2026-11-25, "For csv we can do empty cell for null and "" or '' empty string and the toCSV(true) do null for
  *       null and quoted strings?"; register S420): under {@code toCSV(t)} a null is an empty field, an empty String
  *       {@code ""}, any other cell quoted where it holds a comma, a quote or a line break; under {@code toCSV(t, true)}
@@ -144,12 +146,12 @@ final class ProductRelationText {
             SqlExpr c = csvCell(SqlExpr.Column.of(alias, oc), typed.type(), explicitNulls);
             line = line == null ? c : Scalars.cat(line, new SqlExpr.StringLit(","), c);
         }
+        // each row ends with its own newline (Q-C): no rows, the header line alone
         SqlExpr rows = SqlExpr.Call.of(SqlFn.COALESCE,
-                new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(java.util.Objects.requireNonNull(line),
-                        new SqlExpr.StringLit("\n")), false, lifted.keys()),
+                new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(Scalars.cat(java.util.Objects.requireNonNull(line),
+                        new SqlExpr.StringLit("\n")), new SqlExpr.StringLit("")), false, lifted.keys()),
                 new SqlExpr.StringLit(""));
-        SqlExpr text = Scalars.cat(new SqlExpr.StringLit(String.join(",", names) + "\n"), rows,
-                new SqlExpr.StringLit("\n"));
+        SqlExpr text = Scalars.cat(new SqlExpr.StringLit(String.join(",", names) + "\n"), rows);
         SqlSelect sel = SqlSelect.starOf(new SqlSource.Subselect(lifted.source(), alias, null))
                 .withProjections(List.of(new SqlSelect.Projection(text, "csv",
                         new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
@@ -159,8 +161,9 @@ final class ProductRelationText {
     /** A raw grid's CSV (the planner-driver seam program's S3c, 2026-10-30; moved from the edge with B2b S5b): the header
      *  the grid's reported column names ({@code COLUMNS}), each escaped, joined {@code ,}; each row its cells (the
      *  report's {@code TEXTS}, the database's text of each, read as a String cell: the keyed plan admits an integer's and
-     *  a text's columns alone, whose database text is the product's) joined {@code ,} in the grid's order; the rows
-     *  joined by a newline, one after the header and one after the last row. Nothing is read at planning. */
+     *  a text's columns alone, whose database text is the product's) joined {@code ,} in the grid's order; a newline
+     *  after the header and after every row, each row's its own (no rows: the header line alone, Q-C). Nothing is read
+     *  at planning. */
     private static SqlSelect gridCsv(SqlSelect grid, String alias) {
         String n = alias + "_n";
         String c = alias + "_c";
@@ -189,12 +192,13 @@ final class ProductRelationText {
                 .withGroupBy(List.of(row));
         SqlExpr nl = new SqlExpr.StringLit("\n");
         SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                List.of(SqlExpr.Column.of(l, List.of(rowOut, lineOut), "_csv_line"), nl), false,
+                List.of(Scalars.cat(SqlExpr.Column.of(l, List.of(rowOut, lineOut), "_csv_line"), nl),
+                        new SqlExpr.StringLit("")), false,
                 List.of(new SqlSelect.SortKey(SqlExpr.Column.of(l, List.of(rowOut, lineOut),
                         SqlSource.GridReport.ROW), true, null, null))),
                 new SqlExpr.StringLit(""));
         return SqlSelect.starOf(new SqlSource.Subselect(lines, l, null)).withProjections(List.of(
-                new SqlSelect.Projection(Scalars.cat(header, nl, rowsJoined, nl), "csv",
+                new SqlSelect.Projection(Scalars.cat(header, nl, rowsJoined), "csv",
                         new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
     }
 

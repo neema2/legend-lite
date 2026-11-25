@@ -182,9 +182,11 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    void emptyRelationRendersHeaderAndBlank() throws SQLException {
-        // engine joinStrings('', '\n', '\n') over zero rows = '\n'
-        assertEquals("id\n\n",
+    void emptyRelationRendersTheHeaderLineAlone() throws SQLException {
+        // lite's CSV: every row ends with its own newline, so no rows is the header line alone (the user's ruling of
+        // 2026-11-25, Q-C, "Okay to both csv ones"; register S420) -- where legend-engine's helper writes a second
+        // newline (joinStrings('', '\n', '\n') over zero rows is '\n')
+        assertEquals("id\n",
                 csv("|test::Person.all()->filter(p | $p.id > 99)"
                         + "->project([p | $p.id], ['id'])"
                         + "->meta::relational::tests::csv::toCSV()"));

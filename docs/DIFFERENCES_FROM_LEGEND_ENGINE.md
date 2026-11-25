@@ -278,15 +278,19 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - an empty cell prints `null`.
 - **`toCSV` too:** lite's route prints a relation's `toCSV` in the database, the helper's layout with lite's own value
   texts: a null is an empty field and an empty String `""`, and under `toCSV(t, true)` a null is the word `null` and
-  every String is quoted, where legend-engine writes `TDSNull` and an empty String as nothing (register S420). Lite
-  keeps the `toCSV` name.
+  every String is quoted, where legend-engine writes `TDSNull` and an empty String as nothing (register S420). Every
+  row ends with its own newline, so a relation with no rows is the header line alone, where legend-engine's helper
+  writes a second newline (and a one-column relation's one null row reads the same as none there). Under
+  `toCSV(t, true)` an enumeration's value named `null` is written `null`, as a null is: a known collision. Lite keeps
+  the `toCSV` name.
 - **Until B2b's S6**, a text used further at legend-engine's door writes its Float and DateTime cells as that door
   writes a value's text (legend-engine's in-query cast for a Float, legend-pure's `+0000` for a DateTime); a last
   step is always legend-pure's or legend-engine's own text.
 - **Ruled:** by the user on 2026-11-19: ~18:05, "Agree with all four table printing recommendations"; ~18:12, "Yes
   record it, and count the nested cases"; ~18:36, "Null is good"; ~20:05, "toCSV yes toString or another easy
   database sql that makes sense"; and on 2026-11-25, "For csv we can do empty cell for null and "" or '' empty string
-  and the toCSV(true) do null for null and quoted strings?".
+  and the toCSV(true) do null for null and quoted strings?" and "Okay to both csv ones" (no rows, and the enumeration
+  value named `null`).
 - **When:** stage B (B2b S5a and S5b, 2026-11-24 and 2026-11-25).
 - **Measured:** no PCT or corpus case prints a table used further; channel B's lite lane prints 423 tables, of which
   390 are legend-pure's text and 33 differ only by an abstract Date's text (docs/records/compat-b2-progress.md, S5a).

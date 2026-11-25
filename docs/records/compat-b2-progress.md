@@ -523,6 +523,34 @@ product keeps refusing a TDS's csv by name.
 - **Guards:** the dated shrinks listed above. The one entry that grows is `PLANNER_ENTRIES`' `ReprParts#pureToString`
   caller.
 
+### The merge of B3 step 5a and its client fix (2026-11-25, `0720d8735`)
+
+B3's step 5a (`b0df6ea84`: a comparison across known types refused by the product, answered by each door) and its
+client fix (`96f0d33c0`: a `#TS` island's lifted translation typed by the island's rule, the datacube's presets in one
+type, IQ's settings cases as islands) merged into B2's branch. It replaces the merge set aside on `b2-merge-b3-5a`
+(`70b8a028d`) for the datacube and python regressions the fix answers.
+- **Conflicts:** the register (B3's S401 note beside B2's S402 and S420); the parser floor (each side 3345 -> 3346, a
+  model of its own; the merged tree 3347, `PeRatchets.HISTORY`, the standing word on parser bumps); the measured pins
+  (channel B's judge ratchets, core's and the corpus's lean SQL), regenerated on the merged tree and checked against
+  both parents: none grew past the larger.
+- **The full round:** every lane green (646 tests; the local gate with `--lockfile_mode=error`, core and its lanes, the
+  edge on H2 and SQLite, every PCT lane, channel B, the engine lanes, `edge_net`, the corpus on DuckDB and H2). The 14
+  Postgres, `is_numeric` and datacube targets failed only as root and passed on the unprivileged rerun.
+
+### The CSV's two questions, ruled (2026-11-25)
+
+The review of S5c asked two semantics questions, posted to the user through the orchestrator. The user ruled both the
+same day ("Okay to both csv ones"):
+- **Q-C (B): no rows is the header line alone.** Every row ends with its own newline (`lowering.ProductRelationText`,
+  the relation's and the raw grid's CSV), so a one-column relation's one null row (`s\n\n`) is told from none (`s\n`).
+  legend-engine's helper writes `s\n\n` for both: `joinStrings('', '\n', '\n')` over zero rows is `'\n'` (read in the
+  pinned sources, helperFunctions.pure:208-212, and legend-pure's `joinStrings` tests). The departure is recorded in
+  S420 and on the differences page. Pinned: `ProductRelationTextTest` (no rows, with and without the flag; one null
+  row), `RenderCsvIntegrationTest.emptyRelationRendersTheHeaderLineAlone`.
+- **Q-D (A): an enumeration's value named `null` under `toCSV(t, true)` is written `null`, as a null is.** An
+  enumeration's cell is never quoted; the collision is kept and recorded in S420 and on the differences page. No code
+  change.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |

@@ -99,7 +99,12 @@ class ProductRelationTextTest {
                 "i,d,t\n1,2014-01-02,2014-01-01T10:20:30.123000000Z\n2,2020-02-29,2020-02-29T00:00:00.000000000Z\n");
         texts.put("#TDS\n  i:Integer\n  1\n#->extend(~[c: r|'a,b', q: r|'say \"hi\"', 'my, col': r|$r.i->toOne() * 2])"
                 + csv, "i,c,q,\"my, col\"\n1,\"a,b\",\"say \"\"hi\"\"\",2\n");
-        texts.put("#TDS\n  i:Integer, s:String\n  1, x\n#->filter(r|$r.i == 2)" + csv, "i,s\n\n");
+        // no rows: the header line alone; a one-column relation's one null row, an empty field and its own newline
+        // (the user's ruling of 2026-11-25, Q-C, "Okay to both csv ones"; register S420)
+        texts.put("#TDS\n  i:Integer, s:String\n  1, x\n#->filter(r|$r.i == 2)" + csv, "i,s\n");
+        texts.put("#TDS\n  i:Integer, s:String\n  1, \n#->select(~s)" + csv, "s\n\n");
+        texts.put("#TDS\n  i:Integer, s:String\n  1, x\n#->filter(r|$r.i == 2)->meta::relational::tests::csv::toCSV(true)",
+                "i,s\n");
         texts.put("#TDS\n  i:Integer, s:String\n  2, b\n  3, c\n  1, a\n#->sort(~i->descending())->select(~s)" + csv,
                 "s\nc\nb\na\n");
         // the review of S5b (2026-11-25): a line feed and a carriage return inside a String, a String of spaces (never ""),
