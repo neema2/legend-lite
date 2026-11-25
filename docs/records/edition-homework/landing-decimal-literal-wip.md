@@ -15,3 +15,10 @@ The edits:
 4. **`//spec:update_edge_corpus_duckdb_1_test`, `//spec:update_edge_corpus_h2_1_test`, `//core:update_edge_pure_v1_1_test`, `//pct:update_edge_contract_3_test`:** the edge goldens. Regenerate each with its `bazel run //...:update_...` target and check that the diff is only the literal's spelling and the moves M1 listed.
 
 Then rerun the failed targets plus `//gates:local` (`--lockfile_mode=error`), get an independent review of the diff, and commit and push.
+
+**`//gates:local` (`--lockfile_mode=error`) on the same edits:** 19 failures, all expected:
+- the 14 targets that fail only as root (the Postgres-backed tests, `is_numeric_probe_test`, `//datacube:verify_app_test`); rerun them unprivileged (`tools/postgres/as_unprivileged.sh`);
+- `//core:core_edge_tests`, `//core:core_edge_tests_integration_h2` and `//core:core_edge_tests_integration_sqlite`: the same `EdgeSpellingHookTest` guard, item 1 above;
+- `//spec:lean_sql_corpus_duckdb` and `//spec:lean_sql_corpus_h2`: item 3 above.
+
+No other failure. After the re-pins, rerun those targets and the root-only ones unprivileged.
