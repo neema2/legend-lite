@@ -802,14 +802,16 @@ spelled per dialect with the database's own cast or format function, no composit
 - by a temporary probe on the embedded databases (the same test, six more values, never committed): Postgres `2`,
   `1e-05`, `25000000` (its shortest digits while the session's `extra_float_digits` is above zero: pgjdbc sets 3); MariaDB and MySQL `2`, `0.00001`, `0.0000000001`; ClickHouse `2`, `0.00001`, `1e-7`; Trino
   `2.0E0`, `1.0E-5`, `2.5E7`. No re-spelling was needed for exactness on any of them.
+- MongoDB, pinned to read back on its manual lane after the review (`MongoDbPlanTest`, seven doubles, the round of
+  2026-11-25): `1e+20`, `1.5e-08`, `2`, `0.30000000000000004`, `123456789.12345679`, `1e-300`.
 - **Found by the probe, not this slice's:** ClickHouse held the literal `123456789.12345679` one unit in the last place
   low (`123456789.1234568`). Its text is exact: the computed cell beside it, the held value plus 0.2, read back to the
   bit. So it is the literal's parse, likely ClickHouse's imprecise float parsing (`precise_float_parsing`, off by
   default). Posted to B3.
 - Unmeasured as this node until their lanes run (a register note, not a pin): Snowflake (seventeen digits always in
   exponent form, `0.1` as `1.0000000000000001E-01`, the seventeenth digit double-rounded for 80 of 1,946 doubles that
-  still read back, measured 2026-10-24), BigQuery (its cast's seventeen digits read back on its lane, 2026-10-21),
-  Databricks and MongoDB.
+  still read back, measured 2026-10-24), BigQuery (its cast's seventeen digits read back on its lane, 2026-10-21)
+  and Databricks.
 - NaN and the infinities: each database's spelling (DuckDB `nan`, `inf`; SQLite `Inf`), which Java's parser does not
   read.
 
