@@ -15,8 +15,8 @@ public interface SqlDialect {
 
     /** How this dialect's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
      *  planner passes it to the lowering as data, which builds the literal's fact by it, and the dialect writes the
-     *  literal by that fact -- one source for both. The compatibility edge's is legend-engine's DECIMAL (the edge
-     *  program's §6 row 21). */
+     *  literal by that fact -- one source for both. The compatibility edge writes the product's (its own DECIMAL
+     *  override, the edge program's §6 row 21, was deleted 2026-11-25 by the user's ruling; register S20). */
     com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind();
 
     /** A query as SQL text: a statement with no bound parameters (one reaching the text is refused). */

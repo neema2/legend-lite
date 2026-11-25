@@ -684,8 +684,9 @@ public sealed interface SqlExpr
         public enum Kind {
             /** The double: the product's literal (S20, "IEEE everywhere"). */
             DOUBLE,
-            /** The DECIMAL of its digits (the numeric charter's Rule 1): legend-engine's bare literal at the edge, and
-             *  the databases whose DOUBLE literal their lanes have not measured yet. */
+            /** The DECIMAL of its digits (the numeric charter's Rule 1): the databases whose DOUBLE literal their
+             *  lanes have not measured yet (ClickHouse, BigQuery, Snowflake). Until 2026-11-25 the compatibility edge
+             *  wrote it too, as legend-engine's bare literal (register S20). */
             DECIMAL
         }
 

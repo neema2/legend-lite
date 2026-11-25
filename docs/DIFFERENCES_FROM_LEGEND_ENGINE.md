@@ -114,9 +114,13 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 4. Float literals are floating point, not exact decimals
 - **You write:** `1.1 + 0.6`.
-- **legend-engine on DuckDB** answers `1.7`: it writes the literal bare, and DuckDB computes it as a decimal. (On H2,
-  legend-engine's literal processor writes `CAST(x AS FLOAT)`, a double, so H2 answers as lite does.)
-- **lite answers** `1.7000000000000002` on every database and door: a Float is a double, compiled Pure's answer.
+- **legend-engine on DuckDB** answers `1.7`: it writes the literal bare, and DuckDB computes it as a decimal. It
+  writes the literal bare on Postgres, Databricks and Trino too, which also read it as a decimal, so the same answer is
+  expected there (read from legend-engine's code; not measured on those three). On H2, legend-engine's literal
+  processor writes `CAST(x AS FLOAT)`, a double, so H2 answers as lite does.
+- **lite answers** `1.7000000000000002` on DuckDB, H2, Postgres, Databricks, Trino, SQLite, MariaDB and MySQL, at every
+  door: a Float is a double, compiled Pure's answer. On ClickHouse, BigQuery and Snowflake lite still writes a Float
+  literal as a decimal, at every door, until each is measured with the double (register S20), and answers `1.7`.
 - **Why:** Pure's Float is floating point.
 - **To get legend-engine's DuckDB answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
 - **When:** since 2026-11-25 (the user's ruling, "yes delete the float decimal thing"; the compatibility doors no longer
