@@ -607,6 +607,94 @@ A full round is 1-2 hours and a corpus regeneration about 40 minutes; one Bazel 
    in a foreground wait loop (`until ...; sleep`) for a run to end. The one limit is one Bazel server per container:
    while it builds, the work is whatever needs no Bazel -- code, test fixes, records, reviews.
 
+## The fast setup: who does what, all at once (the user, 2026-11-25)
+
+The loop above says what one session does. This is how the work is spread so nothing waits on anything else. The
+user's words: "we have to go much much much much much faster"; "very fast loops and then at end of a big chunk or big
+step or big milestone do in parallel round of testing, independent audit, update a PR so CI can run in parallel early,
+and the subset of the manual tests and heavy tests in subagent or another session, and use the warm lanes"; "when run
+long things here run them in background so you can parallelize to do research or other read-only work so we not
+sitting idle". Tried on the edition program's step 1 (2026-11-25): a database lane went from nothing to its report in
+about 30 minutes.
+
+**Who does what:**
+
+| Work | Where | Model |
+|---|---|---|
+| Design, code, the fast test loop | the working session (the best code and reasoning stay here) | the session's own |
+| Research and other read-only work while a run goes | subagents | Opus 5.5 |
+| Independent audits | subagents, given the diff and the rules, never the author's conclusion | Opus 5.5 at high effort; xhigh before a landing |
+| Full rounds, the local gate, heavy and manual tests | a new session for each big step | Opus 5.5 at medium effort |
+| The server and cloud database lanes | one new session per group of databases, measure only | Opus 5.5 at medium effort |
+
+**What judges a change** is the tests' answers (core, PCT, the relational corpus, the stress corpus) and the product's
+SQL size pins, which may only go down. SQL text staying the same is not a goal, and no harness is built to check it.
+
+**For every small change, in the working session (minutes):** compile, then run only what exercises it: one test
+class (`--test_filter`), one corpus test (`bazel run //spec:corpus_one -- <duckdb|h2> host <test>`), one PCT suite.
+No full round and no regeneration for a small change.
+
+**At the end of each big step, all of these at once:**
+1. the full round and `//gates:local` in a new session, so the working session's one Bazel stays free;
+2. an independent audit of the step's diff;
+3. a push to the pull request's branch, so CI runs on every operating system;
+4. the heavy and manual lanes in another session;
+5. a round on the database lanes.
+
+The working session goes on to the next step meanwhile. What the checks find is fixed in the next commit. Every test
+whose answer moves and every new difference from legend-engine is gathered and brought to the user at the end of the
+step, with its register row.
+
+**While a run goes in the working session:**
+- it runs in the background and its completion posts back (rule 6 above: never a foreground wait loop);
+- code for the next step is written in a second worktree (`git worktree add <dir> <branch>`), because a tree Bazel is
+  building must not be edited; it is merged into the build tree when Bazel is free;
+- research for the steps ahead goes to subagents: an inventory of the guards a draft will trip, a sheet of the rows to
+  add with upstream's own text beside lite's, the list of tests that will judge a change.
+
+**Starting a session** (`create_session`): the environment **Legend Dev** (it sets `DB_AWS_ACCESS_KEY_ID` and
+`DB_AWS_SECRET_ACCESS_KEY`, which the cloud lanes need), `model` Opus, `effort` medium, `source_url` this repository,
+`source_revision` the branch under test, and a prompt that says: measure only (no tracked file edited, no commit, no
+push, no pull request); one Bazel at a time, long runs in the background; what to read (`docs/CLOUD_SESSIONS.md`); the
+setup command; the commits to compare; exactly what to report; and to send the report to the orchestrator's session
+with `send_message`, then stay available with its logs and its warm Bazel. The reply arrives as a notification.
+
+**The database lanes,** one session each (two or three embedded servers fit a container):
+
+| Lane | Targets (`//pct:pct_<name>` is channel A, `//pct:pct_channel_b_<name>` channel B) | Needs |
+|---|---|---|
+| Postgres, Trino | `postgres`, `trino` | Postgres run unprivileged (`tools/postgres/as_unprivileged.sh`) |
+| MariaDB, MySQL, ClickHouse | `mariadb`, `mysql`, `clickhouse` | nothing |
+| SQLite, MongoDB | `sqlite`; `mongodb` (channel A only) | nothing |
+| Databricks | `databricks` | credentials |
+| Snowflake | `snowflake` | credentials |
+| BigQuery | `bigquery` | credentials |
+
+A lane's setup: `export PATH=/root/.local/bin:$PATH; tools/cloud-distdir.sh <its targets>` (about 8 minutes cold). A
+cloud lane also needs, in `~/.bazelrc`, `test --test_env=JAVA_TOOL_OPTIONS --test_env=HTTPS_PROXY
+--test_env=https_proxy --test_env=NO_PROXY --test_env=no_proxy`, and its credentials:
+`tools/cloud-lane-credentials.sh <database>`, then `export LEGENDLITE_PCT_CLOUD_PROPERTIES=$HOME/.legendlite/cloud-pct.properties`.
+The script holds no secret: it reads the two environment variables and fetches the database's secret; nobody pastes a
+key into a session, a message or the repository. A lane runs each suite with
+`bazel test //pct:pct_<name> --keep_going --test_timeout=3600 --cache_test_results=no` and keeps each suite's
+`test.log` per commit in its scratchpad, so a later round compares test by test without re-running the base. Its first
+round is a baseline: a lane's value is its history.
+
+**Measured (2026-11-25, the Databricks lane, 4 cores):** setup 8 minutes, credentials under a second, a cold build 1
+minute, channel A about 5 minutes and channel B about 4 a commit. In the working session a full round is 1.5 to 2
+hours and the local gate another 30 minutes, which is why neither runs there for a small change.
+
+**Traps:**
+- At Bazel's default concurrency the container's memory limit kills a heavy test now and then (its log ends mid-run,
+  the summary says `Killed`): rerun it alone, and give a round `--jobs=3 --local_test_jobs=2`.
+- Fourteen targets fail only because the container runs as root (the Postgres-backed tests,
+  `//core:is_numeric_probe_test`, `//datacube:verify_app_test`): rerun them through
+  `tools/postgres/as_unprivileged.sh` before calling one a regression.
+- A golden regenerated at the end of a step can carry a line that is not that step's: read every regenerated diff
+  against what the step predicted, and run the odd test alone on the base to see whether it had moved before.
+- A session in another account cannot be reached with `get_session` or `send_message`; its work reaches this one only
+  through a pushed branch.
+
 ## Pushing to main
 
 Sessions may push to `main` directly (decision D17 of `docs/BAZEL_FIRST_CLASS_WORKPLAN_2026_10_03.md`, the
