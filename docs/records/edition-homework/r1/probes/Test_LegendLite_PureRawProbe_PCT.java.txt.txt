@@ -1,0 +1,60 @@
+// pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_PureRawProbe_PCT.java (temporary; deleted after the run)
+// = Test_LegendLite_Engine_PCT with: no -Dpct.audience and no -Dpct.channela.rules allowed (so PctPlanRoute's audience is
+// LEGEND_PURE, the PCT's own), the suite named by -Dpct.probe.suite, NO expected failures, no AudienceCheck.
+
+package org.finos.legend.lite.pct;
+
+import junit.framework.Test;
+import junit.framework.TestSuite;
+import org.eclipse.collections.api.factory.Lists;
+import org.eclipse.collections.api.list.MutableList;
+import org.finos.legend.pure.code.core.CoreStandardFunctionsCodeRepositoryProvider;
+import org.finos.legend.pure.code.core.CoreUnclassifiedFunctionsCodeRepositoryProvider;
+import org.finos.legend.pure.code.core.RelationCodeRepositoryProvider;
+import org.finos.legend.pure.m3.PlatformCodeRepositoryProvider;
+import org.finos.legend.pure.m3.pct.reports.config.PCTReportConfiguration;
+import org.finos.legend.pure.m3.pct.reports.config.exclusion.ExclusionSpecification;
+import org.finos.legend.pure.m3.pct.reports.model.Adapter;
+import org.finos.legend.pure.m3.pct.shared.model.ReportScope;
+import org.finos.legend.pure.runtime.java.interpreted.testHelper.PureTestBuilderInterpreted;
+
+import static org.finos.legend.engine.test.shared.framework.PureTestHelperFramework.wrapSuite;
+
+public class Test_LegendLite_PureRawProbe_PCT extends PCTReportConfiguration {
+
+    private static final Adapter adapter = LegendLitePCTReportProvider.LegendLiteAdapter;
+    private static final String platform = "interpreted";
+    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.empty();
+
+    private static ReportScope scope() {
+        String suite = System.getProperty("pct.probe.suite");
+        if (suite == null) {
+            throw new IllegalStateException("-Dpct.probe.suite");
+        }
+        return switch (suite) {
+            case "Essential" -> PlatformCodeRepositoryProvider.essentialFunctions;
+            case "Grammar" -> PlatformCodeRepositoryProvider.grammarFunctions;
+            case "Relation" -> RelationCodeRepositoryProvider.relationFunctions;
+            case "Standard" -> CoreStandardFunctionsCodeRepositoryProvider.standardFunctions;
+            case "Unclassified" -> CoreUnclassifiedFunctionsCodeRepositoryProvider.unclassifiedFunctions;
+            default -> throw new IllegalStateException("no PCT suite '" + suite + "'");
+        };
+    }
+
+    public static Test suite() {
+        if (System.getProperty("pct.audience") != null || System.getProperty("pct.channela.rules") != null) {
+            throw new IllegalStateException("the pure probe runs as legend-pure's audience");
+        }
+        ReportScope reportScope = scope();
+        TestSuite lane = new TestSuite("pure_probe");
+        lane.addTest(wrapSuite(() -> true,
+                () -> PureTestBuilderInterpreted.buildPCTTestSuite(reportScope, expectedFailures, adapter),
+                () -> false, Lists.mutable.empty()));
+        return lane;
+    }
+
+    @Override public MutableList<ExclusionSpecification> expectedFailures() { return expectedFailures; }
+    @Override public ReportScope getReportScope() { return scope(); }
+    @Override public Adapter getAdapter() { return adapter; }
+    @Override public String getPlatform() { return platform; }
+}

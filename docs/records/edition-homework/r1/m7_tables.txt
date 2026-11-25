@@ -1,0 +1,146 @@
+tests the probe typed: 2591; typing failed: 22; skipped by the lanes' rosters (union): 7; censused: 2584
+
+| construct | tests (harness: body + helpers) | of which reaching a verdict | in the test body | only in helpers | sites | tests where it is only in a query call's mapping/runtime/extension args |
+|---|---:|---:|---:|---:|---:|---:|
+| text of Float/DateTime/StrictDate/Date | 77 | 77 | 76 | 1 | 123 | 0 |
+| comparison across number kinds | 2 | 1 | 2 | 0 | 2 | 0 |
+| substring | 4 | 3 | 0 | 4 | 7 | 0 |
+| indexOf | 7 | 7 | 5 | 2 | 17 | 0 |
+| toOne of a possibly-empty value | 382 | 337 | 195 | 187 | 1145 | 5 |
+| parseInteger/Float/Decimal/Date | 0 | 0 | 0 | 0 | 0 | 0 |
+| isNumeric | 0 | 0 | 0 | 0 | 0 | 0 |
+| **any of them** | **418** | **372** | 231 | 187 | 1294 | 5 |
+
+per construct (harness):
+  text:toString: tests 51, reaching a verdict 51, sites 97
+  text:format: tests 1, reaching a verdict 1, sites 1
+  text:makeString: tests 25, reaching a verdict 25, sites 25
+  cmp:number-kinds: tests 2, reaching a verdict 1, sites 2
+  str:substring: tests 4, reaching a verdict 3, sites 7
+  str:indexOf: tests 7, reaching a verdict 7, sites 17
+  toOne:possibly-empty: tests 382, reaching a verdict 337, sites 1145
+
+text findings by operand type (harness tests):
+  ('text:toString', 'STRICT_DATE[1..1]'): 46
+  ('text:makeString', 'FLOAT'): 15
+  ('text:makeString', 'DATE+FLOAT'): 6
+  ('text:makeString', 'STRICT_DATE'): 4
+  ('text:toString', 'FLOAT[1..1]'): 4
+  ('text:format', 'DATE'): 1
+  ('text:toString', 'DATE[1..1]'): 1
+
+toOne findings by operand type (harness tests):
+  ClassType[0..*]: 230
+  ClassType[0..1]: 133
+  STRING[0..1]: 74
+  BOOLEAN[0..1]: 57
+  STRICT_DATE[0..1]: 46
+  EnumType[0..1]: 14
+  GenericType[0..1]: 7
+  INTEGER[0..1]: 7
+  RelationType[0..1]: 7
+  STRING[0..*]: 3
+  BOOLEAN[0..*]: 2
+  RelationType[0..*]: 2
+  GenericType[0..*]: 1
+  NUMBER[0..1]: 1
+  STRICT_DATE[0..*]: 1
+
+toOne findings by where (harness tests):
+    195  test
+    115  meta::core::runtime::Runtime$prop$connectionByElement
+     56  meta::relational::testDataGeneration::getTable
+     54  meta::relational::functions::sqlQueryToString::createDbConfig
+     53  meta::relational::functions::sqlQueryToString::loadDbExtension
+     49  meta::lite::lineage::relationTreeLines
+     13  meta::relational::functions::toPostgresModel::tests::getTable
+     10  meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery
+     10  meta::relational::functions::sqlQueryToString::renderSortDirection
+      7  meta::pure::alloy::connections::tests::relationalMapper::databaseMappers
+      7  meta::pure::alloy::connections::tests::relationalMapper::schemaMappers
+      7  meta::relational::functions::toDDL::getTable
+      6  meta::relational::functions::pureToSqlQuery::findNodeByChild
+      5  meta::relational::tests::model::simple::Product$prop$synonymByType
+      5  meta::pure::functions::meta::getLowerBound
+
+examples (5 per construct; harness):
+  text:toString	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedDateRange	STRICT_DATE[1..1]	test	:256:94	verdict
+  text:toString	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeDateRange	STRICT_DATE[1..1]	test	:274:94	verdict
+  text:toString	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRange	STRICT_DATE[1..1]	test	:292:94	verdict
+  text:toString	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRangeOnSaturday	STRICT_DATE[1..1]	test	:1306:94	verdict
+  text:toString	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRangeOnSunday	STRICT_DATE[1..1]	test	:1378:94	verdict
+  text:format	meta::relational::functions::sqlQueryToString::default::testProcessIdentifierWithQuoteChar	DATE	meta::relational::functions::sqlQueryToString::default::convertDateToSqlString	:151:9	verdict
+  text:makeString	meta::pure::tds::tests::extensions::columnValueDifferenceTest	DATE+FLOAT	test	:153:48	verdict
+  text:makeString	meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest	DATE+FLOAT	test	:226:48	verdict
+  text:makeString	meta::pure::tds::tests::extensions::rowValueDifferenceTest	DATE+FLOAT	test	:486:48	verdict
+  text:makeString	meta::relational::tests::groupBy::testGroupByWithWavgAggregation	DATE+FLOAT	test	:1292:167	verdict
+  text:makeString	meta::relational::tests::mapping::relation::aggregation::testSubAggregationOnRelationMapping	FLOAT	test	:37:69	verdict
+  cmp:number-kinds	meta::pure::tds::tests::extensions::zScoreTest	>= FLOAT vs INTEGER (marked)	test	:53:73	verdict
+  cmp:number-kinds	meta::relational::tests::projection::filter::lessThan::testLessThanFilterAsVariable	< FLOAT vs INTEGER (marked)	test	:63:41	-
+  str:substring	meta::relational::functions::sqlQueryToString::default::testProcessIdentifierWithQuoteChar	3 args[1..1]	meta::relational::functions::sqlQueryToString::processExtractFromSemiStructured	:1073:52	verdict
+  str:substring	meta::relational::functions::toPostgresModel::tests::testConvertLiteral	3 args[1..1]	meta::relational::functions::sqlQueryToString::parseSemiStructuredPathNavigation	:1015:28	verdict
+  str:substring	meta::relational::functions::toPostgresModel::tests::testConvertSelectSQLQueryWithCTE	3 args[1..1]	meta::relational::functions::sqlQueryToString::parseSemiStructuredPathNavigation	:1015:28	verdict
+  str:substring	meta::relational::tests::milestoning::applyMilestoningFilters::testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements	3 args[1..1]	meta::relational::functions::pureToSqlQuery::buildUniqueName	:8280:55	-
+  str:indexOf	meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	2 args[1..1]	test	:956:26	verdict
+  str:indexOf	meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	2 args[1..1]	test	:946:26	verdict
+  str:indexOf	meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	2 args[1..1]	test	:936:26	verdict
+  str:indexOf	meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone	2 args[1..1]	test	:982:26	verdict
+  str:indexOf	meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableNoTimeZone	2 args[1..1]	test	:972:26	verdict
+  toOne:possibly-empty	meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseMapper	ClassType[0..1]	meta::pure::alloy::connections::tests::relationalMapper::databaseMappers	:21:92	verdict
+  toOne:possibly-empty	meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaMapper	ClassType[0..1]	meta::pure::alloy::connections::tests::relationalMapper::databaseMappers	:21:92	verdict
+  toOne:possibly-empty	meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaTableMapper	ClassType[0..1]	meta::pure::alloy::connections::tests::relationalMapper::databaseMappers	:21:92	verdict
+  toOne:possibly-empty	meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseTableMapper	ClassType[0..1]	meta::pure::alloy::connections::tests::relationalMapper::databaseMappers	:21:92	verdict
+  toOne:possibly-empty	meta::pure::alloy::connections::tests::relationalMapper::testRelationalDefaultSchemaMapper	ClassType[0..1]	meta::pure::alloy::connections::tests::relationalMapper::databaseMappers	:21:92	verdict
+
+informational: text of other operand types (tests, harness), top 25:
+    256  ('makeString', 'STRING')
+    148  ('toCSV', 'GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[colu cells[]')
+    124  ('toString', 'GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[colu cells[]')
+    123  ('toString', 'GenericType[rawFqn=meta::pure::metamodel::relation::TDS, arguments=[RelationType[columns=[ cells[]')
+    120  ('joinStrings', 'STRING')
+    103  ('makeString', 'INTEGER+STRING')
+     56  ('toString', 'meta::relational::runtime::DatabaseType] cells[')
+     49  ('toString', 'INTEGER')
+     31  ('toString', 'STRING')
+     25  ('makeString', 'INTEGER')
+     24  ('format', 'INTEGER')
+     18  ('toCSV', 'GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[colu cells[FLOAT]')
+      9  ('toString', 'meta::relational::tests::model::inheritance::EngineType] cells[')
+      6  ('makeString', 'BOOLEAN+STRING')
+      4  ('toString', 'meta::pure::metamodel::type::Any] cells[')
+      4  ('makeString', 'RelationType[columns=[Column[name=firstName, type=STRING, multiplicity=Bounded[lower=1, up cells[]')
+      3  ('toCSV', 'GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[colu cells[DATE, FLOAT]')
+      3  ('toString', 'meta::pure::functions::date::DurationUnit] cells[')
+      3  ('toString', 'meta::external::query::sql::metamodel::extension::TemporalUnit] cells[')
+      3  ('toString', 'GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[colu cells[FLOAT]')
+      2  ('toString', 'NUMBER')
+      2  ('toString', 'meta::pure::metamodel::type::Enum] cells[')
+      2  ('makeString', 'BOOLEAN+INTEGER+STRING')
+      2  ('makeString', 'NUMBER+STRING')
+      2  ('toString', 'GenericType[rawFqn=meta::pure::metamodel::relation::TDS, arguments=[RelationType[columns=[ cells[FLOAT]')
+tests with any toString/format/makeString/joinStrings/toCSV in the harness, any type: 876
+other informational kinds (tests): {'info:cross-type': 2, 'info:cmp-number-abstract': 2}
+query calls whose first argument was left out (tests): {'executionPlan': 148, 'helper:relationalMapperSqlQuery': 10, 'execute': 2072, 'executeInDb': 140, 'helper:planToString': 6, 'executeLegendQuery': 24, 'toSQLString': 85, 'toSQL': 4, 'toSQLStringPretty': 3}
+tests whose typing failed: 22
+   meta::pure::executionPlan::tests::datetime::testPlanWithLocalH2ConnectionWithSQL -- TypeInferenceException: unknown function 'meta::protocols::pure::vX_X_X::transformation::fromPureGraph::executionPlan::transformPlan' — no function of this name
+   meta::pure::executionPlan::tests::testEnumPushDownWithExternalFormat -- TypeInferenceException: unknown function 'meta::external::format::shared::transformation::tests::exampleExternalFormatExtension' — no function of this name in t
+   meta::pure::executionPlan::tests::testPlanForExecutionOption -- TypeInferenceException: unknown function 'isExecutionOptionPresent' — no function of this name in the native or user catalog (unported platform function, or a m
+   meta::pure::executionPlan::tests::testPreprocessFunctionOnRuntime -- TypeInferenceException: unknown function 'functionReturnType' — no function of this name in the native or user catalog (unported platform function, or a misspel
+   meta::pure::executionPlan::tests::testRelationalProjectionWithExternalFormat -- TypeInferenceException: unknown function 'meta::external::format::shared::transformation::tests::exampleExternalFormatExtension' — no function of this name in t
+   meta::pure::executionPlan::tests::testRoutingContextBuilderFunctions -- TypeInferenceException: unknown function 'header' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+   meta::pure::executionPlan::tests::testSupportStreamFlagWithGraphFetchAndFrom -- TypeInferenceException: deferred let binding '$targetGraph' has no type outside a consuming call position (tree/colspec bindings resolve at their call sites)
+   meta::pure::graphFetch::tests::XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint -- TypeInferenceException: unknown function 'meta::legend::compileLegendGrammar' — no function of this name in the native or user catalog (unported platform functi
+   meta::pure::graphFetch::tests::XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne -- TypeInferenceException: unknown function 'meta::legend::compileLegendGrammar' — no function of this name in the native or user catalog (unported platform functi
+   meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testFlatten_ViaNoArgMapping -- TypeInferenceException: from() argument 1 must be a mapping or runtime reference, got TypedVariable
+   meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testFlatten_ViaNoArgMapping_ViaAssociation -- TypeInferenceException: from() argument 1 must be a mapping or runtime reference, got TypedVariable
+   meta::pure::router::preeval::tests::testPrerouting42 -- TypeInferenceException: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+   meta::relational::tds::schema::tests::resolveSchemaTest -- TypeInferenceException: no overload of 'meta::pure::tds::schema::tests::assertSchemaRoundTripEquality' matches 2 argument(s) of these shapes (no candidates at a
+   meta::relational::tests::functions::pureToSqlQuery::addDriverTablePkForProject -- TypeInferenceException: unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+   meta::relational::tests::functions::pureToSqlQuery::testFindAliasMappingBySchemaName -- TypeInferenceException: no qualified property 'relation' with 0 argument(s) on 'V' (a dot call with arguments is a qualified-property call; a function is called
+   meta::relational::tests::functions::pureToSqlQuery::testImportDataFlow -- TypeInferenceException: unknown function 'newMultiValueMap' — no function of this name in the native or user catalog (unported platform function, or a misspelli
+   meta::relational::tests::json::testResultToJsonStream -- TypeInferenceException: property 'rows' of 'meta::pure::tds::TabularDataSet': expected (), got meta::pure::tds::TDSRow (value: PureCollection[values=[AppliedFun
+   meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression -- TypeInferenceException: unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+   meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression2 -- TypeInferenceException: unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+   meta::relational::tests::query::routing::testCompositionInMultiStatementPureExpressions -- TypeInferenceException: unknown function 'asString' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+   meta::relational::tests::query::routing::testRoutingOfSimpleQualifiedProperty -- TypeInferenceException: unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+   meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase -- TypeInferenceException: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelCo

@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""M7 (refined probe): the typed harness census. Usage: m7b.py <host.log> <skipped roster> [<skipped roster> ...]"""
+import collections, sys
+log = sys.argv[1]
+skip = set()
+for r in sys.argv[2:]:
+    skip |= set(l.split(" :: ")[0].strip() for l in open(r) if l.strip())
+COUNTED = ["text:toString", "text:format", "text:makeString", "text:joinStrings", "text:concat", "cmp:number-kinds",
+           "cmp:assert-number-kinds", "str:substring", "str:indexOf", "toOne:possibly-empty", "parse:parseInteger",
+           "parse:parseFloat", "parse:parseDecimal", "parse:parseDate", "isNumeric"]
+GROUPS = {"text of Float/DateTime/StrictDate/Date": [k for k in COUNTED if k.startswith("text:")],
+          "comparison across number kinds": ["cmp:number-kinds", "cmp:assert-number-kinds"],
+          "substring": ["str:substring"], "indexOf": ["str:indexOf"], "toOne of a possibly-empty value": ["toOne:possibly-empty"],
+          "parseInteger/Float/Decimal/Date": [k for k in COUNTED if k.startswith("parse:")], "isNumeric": ["isNumeric"]}
+tests, errs, F = {}, {}, collections.defaultdict(list)
+for line in open(log, errors="replace"):
+    f = line.rstrip("\n").split("\t")
+    if f[0] == "PROBE-M7-TEST":
+        tests[f[1]] = f
+    elif f[0] == "PROBE-M7-ERR":
+        errs[f[1]] = f[2] + ": " + (f[3] if len(f) > 3 else "")
+    elif f[0] == "PROBE-M7":
+        w = f[4]
+        ctx = "qarg" if w.startswith("qarg") else ("body" if w == "test" else "helper")
+        F[f[1]].append({"kind": f[2], "detail": f[3], "where": w, "ctx": ctx, "pos": f[5], "v": f[6] == "V"})
+run = sorted(t for t in tests if t not in skip)
+print(f"tests the probe typed: {len(tests)}; typing failed: {len(errs)}; skipped by the lanes' rosters (union): {len(skip & set(tests))}; censused: {len(run)}")
+def count(kinds, ctxs):
+    ts, tv, sites = set(), set(), 0
+    for t in run:
+        for x in F.get(t, []):
+            if x["kind"] in kinds and x["ctx"] in ctxs:
+                ts.add(t); sites += 1
+                if x["v"]:
+                    tv.add(t)
+    return ts, tv, sites
+print("\n| construct | tests (harness: body + helpers) | of which reaching a verdict | in the test body | only in helpers | sites | tests where it is only in a query call's mapping/runtime/extension args |")
+print("|---|---:|---:|---:|---:|---:|---:|")
+H = ("body", "helper")
+for g, ks in list(GROUPS.items()):
+    ts, tv, sites = count(ks, H)
+    tb, _, _ = count(ks, ("body",))
+    tq, _, _ = count(ks, ("qarg",))
+    print(f"| {g} | {len(ts)} | {len(tv)} | {len(tb)} | {len(ts - tb)} | {sites} | {len(tq - ts)} |")
+ts, tv, sites = count(COUNTED, H)
+tb, _, _ = count(COUNTED, ("body",))
+tq, _, _ = count(COUNTED, ("qarg",))
+print(f"| **any of them** | **{len(ts)}** | **{len(tv)}** | {len(tb)} | {len(ts - tb)} | {sites} | {len(tq - ts)} |")
+print("\nper construct (harness):")
+for k in COUNTED:
+    a, b, c = count([k], H)
+    if a:
+        print(f"  {k}: tests {len(a)}, reaching a verdict {len(b)}, sites {c}")
+# detail breakdowns
+print("\ntext findings by operand type (harness tests):")
+by = collections.defaultdict(set)
+for t in run:
+    for x in F.get(t, []):
+        if x["kind"].startswith("text:") and x["ctx"] in H:
+            by[(x["kind"], x["detail"])].add(t)
+for k, v in sorted(by.items(), key=lambda kv: -len(kv[1])):
+    print(f"  {k}: {len(v)}")
+print("\ntoOne findings by operand type (harness tests):")
+by = collections.defaultdict(set)
+for t in run:
+    for x in F.get(t, []):
+        if x["kind"] == "toOne:possibly-empty" and x["ctx"] in H:
+            d = x["detail"].split("[")[0]
+            by[(d.split("[fqn=")[-1].rstrip("]") if "fqn=" in d else d) + "[" + x["detail"].split("[")[-1]].add(t)
+for k, v in sorted(by.items(), key=lambda kv: -len(kv[1]))[:15]:
+    print(f"  {k}: {len(v)}")
+print("\ntoOne findings by where (harness tests):")
+by = collections.defaultdict(set)
+for t in run:
+    for x in F.get(t, []):
+        if x["kind"] == "toOne:possibly-empty" and x["ctx"] in H:
+            by[x["where"]].add(t)
+for k, v in sorted(by.items(), key=lambda kv: -len(kv[1]))[:15]:
+    print(f"  {len(v):5}  {k}")
+print("\nexamples (5 per construct; harness):")
+for k in COUNTED:
+    seen = []
+    for t in run:
+        for x in F.get(t, []):
+            if x["kind"] == k and x["ctx"] in H and t not in [s[0] for s in seen]:
+                seen.append((t, x))
+                break
+        if len(seen) >= 5:
+            break
+    for t, x in seen:
+        print(f"  {k}\t{t}\t{x['detail']}\t{x['where']}\t{x['pos']}\t{'verdict' if x['v'] else '-'}")
+print("\ninformational: text of other operand types (tests, harness), top 25:")
+by = collections.defaultdict(set)
+for t in run:
+    for x in F.get(t, []):
+        if x["kind"].startswith("info:text-") and x["ctx"] in H:
+            lab = x["detail"]
+            lab = lab.split("fqn=")[-1].rstrip("]") if "fqn=" in lab else lab
+            by[(x["kind"][10:], lab)].add(t)
+for k, v in sorted(by.items(), key=lambda kv: -len(kv[1]))[:25]:
+    print(f"  {len(v):5}  {k}")
+allt = set()
+for t in run:
+    if any(x["kind"].startswith("info:text-") or x["kind"].startswith("text:") for x in F.get(t, []) if x["ctx"] in H):
+        allt.add(t)
+print("tests with any toString/format/makeString/joinStrings/toCSV in the harness, any type:", len(allt))
+oth = collections.Counter()
+for t in run:
+    for k in set(x["kind"] for x in F.get(t, []) if x["kind"].startswith("info:") and not x["kind"].startswith("info:text-")):
+        oth[k] += 1
+print("other informational kinds (tests):", dict(oth))
+sq = collections.Counter()
+for t in run:
+    for q in tests[t][4].split(","):
+        if q:
+            sq[q] += 1
+print("query calls whose first argument was left out (tests):", dict(sq))
+print("tests whose typing failed:", len(errs))
+for t, e in sorted(errs.items()):
+    print("  ", t, "--", e[:160])

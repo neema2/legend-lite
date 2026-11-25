@@ -1,0 +1,32 @@
+# appended to pct/BUILD.bazel (temporary; reverted with git checkout -- pct/BUILD.bazel)
+_PROBE_LANES = [("duckdb", "", s) for s in _SUITES] + [("sqlite", "sqlite", s) for s in _SUITES] + [("h2", "h2", "Relation")]
+
+[java_run(
+    name = "probe_pure_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    outs = [
+        "probe_pure/%s_%s/verdict.txt" % (lane, s.lower()),
+        "probe_pure/%s_%s/run.log" % (lane, s.lower()),
+        "probe_pure/%s_%s/outcomes.tsv" % (lane, s.lower()),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct.Test_LegendLite_PureRawProbe_PCT",
+    ],
+    env = {"LEGENDLITE_PCT_BACKEND": backend} if backend else {},
+    jvm_flags = [
+        "-Dpct.probe.suite=" + s,
+        "-Dlegend.junit.outcomes.full={OUT_DIR}/outcomes.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 4096,
+    mnemonic = "PureProbe",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ] + (["@h2//jar"] if lane == "h2" else []),
+) for (lane, backend, s) in _PROBE_LANES]

@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+# TEMPORARY M3 probe: the corpus alone (a JVM flag its two lanes set) plans legend-engine's plain raises
+import sys
+root = sys.argv[1]
+p = root + "/core/src/main/java/com/legend/edge/PureText.java"
+s = open(p).read()
+old = """                return kind.cast(EdgeLoweringForms.PCT);"""
+if s.count(old) != 1:
+    raise SystemExit("PureText UPSTREAM LoweringForms arm not found")
+s = s.replace(old, """                return kind.cast(Boolean.getBoolean("probe.corpus.plainRaises") ? EdgeLoweringForms.PURE_V1
+                        : EdgeLoweringForms.PCT);""")
+open(p, "w").write(s)
+b = root + "/spec/BUILD.bazel"
+t = open(b).read()
+for old, new in [
+    ("""    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
+    rosters = "duckdb",""", """    jvm_flags = ["-Dlegend.diagnostics=decoded-plan", "-Dprobe.corpus.plainRaises=true"],
+    rosters = "duckdb","""),
+    ("""    jvm_flags = ["-Drcorpus.backend=h2"],
+    rosters = "h2",""", """    jvm_flags = ["-Drcorpus.backend=h2", "-Dprobe.corpus.plainRaises=true"],
+    rosters = "h2","""),
+]:
+    if t.count(old) != 1:
+        raise SystemExit("spec BUILD corpus lane flags not found: " + old)
+    t = t.replace(old, new)
+open(b, "w").write(t)
+print("applied M3 probe")

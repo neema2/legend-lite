@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""M5: the SQL-text verdicts by outcome, from PROBE-REF lines of a corpus host pass's log.
+Usage: m5.py <host.log> <judge-host.tsv>"""
+import collections, re, sys
+log, ledger = sys.argv[1], sys.argv[2]
+outcome = collections.Counter()
+by_test = collections.defaultdict(list)
+examples = collections.defaultdict(list)
+corpus2 = []
+for line in open(log, errors="replace"):
+    if line.startswith("PROBE-REF\t"):
+        _, o, test, name = line.rstrip("\n").split("\t", 3)
+        outcome[o] += 1
+        by_test[test].append(o)
+        if len(examples[o]) < 4 and (test, name) not in examples[o]:
+            examples[o].append((test, name))
+    elif line.startswith("[corpus2] referee") or line.startswith("[corpus2] pass=") or line.startswith("[corpus2] strength"):
+        corpus2.append(line.rstrip("\n"))
+print("== PROBE-REF outcomes (one line per SQL-text verdict step / appeal decision)")
+for o, n in sorted(outcome.items(), key=lambda kv: -kv[1]):
+    print(f"{n:7}  {o}")
+print("tests with a SQL-text verdict:", len(by_test))
+print("== examples")
+for o in sorted(examples):
+    for t, n in examples[o]:
+        print(f"  {o}\t{t}\t{n}")
+print("== the corpus's own referee census lines")
+for l in corpus2:
+    print(" ", l)
+# the per-assert ledger: the sql-text failures by their words
+words = collections.Counter()
+for line in open(ledger, errors="replace"):
+    f = line.rstrip("\n").split("\t")
+    if len(f) >= 5 and f[3] == "FAIL":
+        m = re.search(r"\((sql-text[^)]*?)(?:\)|:| —)", f[4])
+        if "sql-text" in f[4]:
+            k = re.search(r"sql-text(?: ROW verdict| : referee FAULT|: referee FAULT|, oracle declined|, rows underivable|\): our text differs|\)|:)?", f[4])
+            words[k.group(0) if k else "sql-text?"] += 1
+print("== judge-host.tsv FAIL rows naming sql-text, by their words")
+for k, n in words.most_common():
+    print(f"{n:7}  {k}")

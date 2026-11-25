@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+# TEMPORARY M5 logging probe: every SQL-text verdict's outcome printed to the pass's log; no behaviour change.
+import sys
+root = sys.argv[1]
+p = root + "/core/src/main/java/com/legend/edge/SqlTextRuns.java"
+s = open(p).read()
+def rep(old, new, count=1):
+    global s
+    n = s.count(old)
+    if n != count:
+        raise SystemExit(f"expected {count} of {old!r}, found {n}")
+    s = s.replace(old, new)
+# the helper
+rep("""    private SqlTextRuns() {
+    }
+""", """    private SqlTextRuns() {
+    }
+
+    /** TEMPORARY M5 PROBE (logging only). */
+    static void probe(String outcome, String name) {
+        System.out.println("PROBE-REF\\t" + outcome + "\\t" + System.getProperty("legend.test.current") + "\\t" + name);
+    }
+""")
+# judge: the decline reported before the texts
+rep("""        if (e.decline() != null) {
+            declinedTo(run.listener(), e.name(), e.decline());
+        }""", """        if (e.decline() != null) {
+            probe("PRE-DECLINE:" + e.decline(), e.name());
+            declinedTo(run.listener(), e.name(), e.decline());
+        }""")
+rep("""            if (golden == null || ours == null) {
+                return fail(""", """            if (golden == null || ours == null) {
+                probe("FAIL-NO-TEXT", e.name());
+                return fail(""")
+rep("""            if (golden.equals(ours)) {
+                return ok();
+            }""", """            if (golden.equals(ours)) {
+                probe("TEXT-EQUAL", e.name());
+                return ok();
+            }""")
+rep("""            if (g.equals(ours)) {
+                return ok();
+            }""", """            if (g.equals(ours)) {
+                probe("TEXT-EQUAL-STRIPPED", e.name());
+                return ok();
+            }""")
+rep("""            if (isPopulationGolden(g) || NAMED_IN_TEMP.matcher(g).find()) {
+                return fail(""", """            if (isPopulationGolden(g) || NAMED_IN_TEMP.matcher(g).find()) {
+                probe("FAIL-UNPLANNED-ROUTE", e.name());
+                return fail(""")
+rep("""            return run.hold(e.name(), appeal, g, ours, false, messaged);""",
+    """            probe("HELD", e.name());
+            return run.hold(e.name(), appeal, g, ours, false, messaged);""")
+rep("""            if (ours == null) {
+                return fail(e.name() + " (sql-text): our text side""", """            if (ours == null) {
+                probe("FAIL-NO-TEXT", e.name());
+                return fail(e.name() + " (sql-text): our text side""")
+rep("""        return textEqual ? ok() : run.hold(e.name(), appeal, e.golden(), o, textEqual, messaged);""",
+    """        probe(textEqual ? "TEXT-EQUAL" : "HELD", e.name());
+        return textEqual ? ok() : run.hold(e.name(), appeal, e.golden(), o, textEqual, messaged);""")
+# the appeal
+rep("""            case CONTRACT -> fail(java.util.Objects.requireNonNull(a.contract())""",
+    """            case CONTRACT -> { probe("APPEAL-CONTRACT:" + a.contract(), name); yield fail(java.util.Objects.requireNonNull(a.contract())""")
+rep("""                    + ours);
+            case ROWS -> rowsLegNow(""", """                    + ours); }
+            case ROWS -> rowsLegNow(""")
+rep("""        if (r == null) {
+            // no fallback""", """        if (r == null) {
+            probe("APPEAL-NO-ROWS-PLANNED", name);
+            // no fallback""")
+rep("""        if (referee == null) {
+            throw""", """        if (referee == null) {
+            probe("APPEAL-NO-REFEREE", name);
+            throw""")
+rep("""            return underivable(listener, name, unlisted.simpleName(), unlisted.message(), textEqual, golden, ours);""",
+    """            probe("ROWS-UNDERIVABLE-UNLISTED", name);
+            return underivable(listener, name, unlisted.simpleName(), unlisted.message(), textEqual, golden, ours);""")
+rep("""            return underivable(listener, name, e.getClass().getSimpleName(), PureMessages.compile(e), textEqual, golden, ours);""",
+    """            probe("ROWS-UNDERIVABLE:" + e.getClass().getSimpleName(), name);
+            return underivable(listener, name, e.getClass().getSimpleName(), PureMessages.compile(e), textEqual, golden, ours);""")
+rep("""        if (rows == null) {
+            declinedTo(listener, name, "rows-underivable");""", """        if (rows == null) {
+            probe("ROWS-UNDERIVABLE-NULL", name);
+            declinedTo(listener, name, "rows-underivable");""")
+rep("""        if (listener != null) {
+            listener.refereed(name, rv.outcome().name());
+        }""", """        probe("REFEREE-" + rv.outcome().name(), name);
+        if (listener != null) {
+            listener.refereed(name, rv.outcome().name());
+        }""")
+open(p, "w").write(s)
+# the raise kinds the corpus's plans write (logging only): which unchecked kind each test's plan holds, and how
+p2 = root + "/core/src/main/java/com/legend/edge/EdgeLoweringForms.java"
+t = open(p2).read()
+old = """        return plain.contains(kind) ? plainOperation : checked.get();"""
+if t.count(old) != 1:
+    raise SystemExit("EdgeLoweringForms.raise not found")
+t = t.replace(old, """        if (PureText.ENGINE_UNCHECKED.contains(kind)) {
+            System.out.println("PROBE-RAISE\\t" + kind + "\\t" + (plain.contains(kind) ? "plain" : "checked") + "\\t"
+                    + System.getProperty("legend.test.current"));
+        }
+        return plain.contains(kind) ? plainOperation : checked.get();""")
+open(p2, "w").write(t)
+print("applied M5 probe")

@@ -1,0 +1,137 @@
+diff --git a/core/src/main/java/com/legend/edge/EdgeLoweringForms.java b/core/src/main/java/com/legend/edge/EdgeLoweringForms.java
+index 28651b70..8a24b728 100644
+--- a/core/src/main/java/com/legend/edge/EdgeLoweringForms.java
++++ b/core/src/main/java/com/legend/edge/EdgeLoweringForms.java
+@@ -35,6 +35,10 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
+ 
+     @Override
+     public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plainOperation) {
++        if (PureText.ENGINE_UNCHECKED.contains(kind)) {
++            System.out.println("PROBE-RAISE\t" + kind + "\t" + (plain.contains(kind) ? "plain" : "checked") + "\t"
++                    + System.getProperty("legend.test.current"));
++        }
+         return plain.contains(kind) ? plainOperation : checked.get();
+     }
+ 
+diff --git a/core/src/main/java/com/legend/edge/SqlTextRuns.java b/core/src/main/java/com/legend/edge/SqlTextRuns.java
+index 5b1fcf64..d78bcd45 100644
+--- a/core/src/main/java/com/legend/edge/SqlTextRuns.java
++++ b/core/src/main/java/com/legend/edge/SqlTextRuns.java
+@@ -20,6 +20,11 @@ final class SqlTextRuns {
+     private SqlTextRuns() {
+     }
+ 
++    /** TEMPORARY M5 PROBE (logging only). */
++    static void probe(String outcome, String name) {
++        System.out.println("PROBE-REF\t" + outcome + "\t" + System.getProperty("legend.test.current") + "\t" + name);
++    }
++
+ 
+     /** {@code e} judged at its verdict step over the two text sides the runner handed back (the golden a constant of
+      *  the plan, checked against the planned text; ours a constant likewise, or the side the step RAN for a deferred
+@@ -45,16 +50,19 @@ final class SqlTextRuns {
+         // by the host's half under the agreement judge (its database half reports to no listener); until the slice 3
+         // invariant audit (2026-11-08) a golden read at the step that differed from ours reported none
+         if (e.decline() != null) {
++            probe("PRE-DECLINE:" + e.decline(), e.name());
+             declinedTo(run.listener(), e.name(), e.decline());
+         }
+         if (e.golden() == null) {
+             // a golden the plan read (2026-11-04, the core program): the two texts compare first, as any equality;
+             // only a failed comparison re-runs the arm over them -- its golden processing and its appeal
+             if (golden == null || ours == null) {
++                probe("FAIL-NO-TEXT", e.name());
+                 return fail(e.name() + " (sql-text): " + (golden == null ? "the golden" : "our text")
+                         + " side, a String to one, read no string at the verdict step");
+             }
+             if (golden.equals(ours)) {
++                probe("TEXT-EQUAL", e.name());
+                 return ok();
+             }
+             // compatibility mode: the appeal PLANNED with the assert, over the golden as read (2026-11-06, the plan
+@@ -63,17 +71,21 @@ final class SqlTextRuns {
+             // -- an engine population statement, a numbered in-list temp -- is refused by name, never re-planned
+             String g = stripChainedPlanWarning(golden);
+             if (g.equals(ours)) {
++                probe("TEXT-EQUAL-STRIPPED", e.name());
+                 return ok();
+             }
+             if (isPopulationGolden(g) || NAMED_IN_TEMP.matcher(g).find()) {
++                probe("FAIL-UNPLANNED-ROUTE", e.name());
+                 return fail(e.name() + " (sql-text): a golden read at the verdict step whose text chooses a statement"
+                         + " route the plan did not plan (a population or in-list temp statement): " + g);
+             }
++            probe("HELD", e.name());
+             return run.hold(e.name(), appeal, g, ours, false, messaged);
+         }
+         boolean textEqual = e.textEqual();
+         if (e.ours() == null) {
+             if (ours == null) {
++                probe("FAIL-NO-TEXT", e.name());
+                 return fail(e.name() + " (sql-text): our text side, a String to one, read no string at the verdict"
+                         + " step");
+             }
+@@ -82,6 +94,7 @@ final class SqlTextRuns {
+         // the equality arm's census route is the caller's to count once this answered (AssertVerdicts.HostAssert); the
+         // decline reported above, the text decides -- equal holds, else the appeal heard, or the texts' failure
+         String o = java.util.Objects.requireNonNull(ours);
++        probe(textEqual ? "TEXT-EQUAL" : "HELD", e.name());
+         return textEqual ? ok() : run.hold(e.name(), appeal, e.golden(), o, textEqual, messaged);
+     }
+ 
+@@ -97,8 +110,8 @@ final class SqlTextRuns {
+             java.util.function.Function<com.legend.executionplan.ExecutionPlan.Target, com.legend.exec.Sessions.Session> sessions) {
+         String name = a.name();
+         return switch (a.kind()) {
+-            case CONTRACT -> fail(java.util.Objects.requireNonNull(a.contract()) + ": expected " + golden + ", got "
+-                    + ours);
++            case CONTRACT -> { probe("APPEAL-CONTRACT:" + a.contract(), name); yield fail(java.util.Objects.requireNonNull(a.contract()) + ": expected " + golden + ", got "
++                    + ours); }
+             case ROWS -> rowsLegNow(a, golden, ours, textEqual, referee, listener, reader, sessions);
+         };
+     }
+@@ -115,10 +128,12 @@ final class SqlTextRuns {
+         String name = a.name();
+         Appeal.Rows r = a.rows();
+         if (r == null) {
++            probe("APPEAL-NO-ROWS-PLANNED", name);
+             // no fallback (2026-11-06, the plan ahead): an appeal's rows and stores are planned with its assert
+             throw new IllegalStateException(name + " (sql-text): an appeal whose rows were not planned with its assert");
+         }
+         if (referee == null) {
++            probe("APPEAL-NO-REFEREE", name);
+             throw new IllegalStateException(name + " (sql-text): an appeal decided with no replay referee");
+         }
+         // the stores' fixtures were the caller's to provide before the body's run, from the plan's data
+@@ -126,6 +141,7 @@ final class SqlTextRuns {
+         Appeal.Unlisted unlisted = r.rows().unlisted();
+         if (unlisted != null) {
+             // our rows' planning failed with a class off the closed list: the same decline, in its words
++            probe("ROWS-UNDERIVABLE-UNLISTED", name);
+             return underivable(listener, name, unlisted.simpleName(), unlisted.message(), textEqual, golden, ours);
+         }
+         TypedSide rows;
+@@ -139,6 +155,7 @@ final class SqlTextRuns {
+             // the rows leg is underivable -- counted, text stays the contract (§3.7: a counted decline, visible, never
+             // silent; DataError joined RuntimeException at the seam); in legend-pure's words, worded from the error's
+             // record (stage B's B1, 2026-11-20: a raise's message is lite's sentence)
++            probe("ROWS-UNDERIVABLE:" + e.getClass().getSimpleName(), name);
+             return underivable(listener, name, e.getClass().getSimpleName(), PureMessages.compile(e), textEqual, golden, ours);
+         }
+         SqlReplayReferee.ReplayFacts facts = new SqlReplayReferee.ReplayFacts(r.extentSubset(), r.ordered(),
+@@ -156,6 +173,7 @@ final class SqlTextRuns {
+             }
+         }
+         if (rows == null) {
++            probe("ROWS-UNDERIVABLE-NULL", name);
+             declinedTo(listener, name, "rows-underivable");
+             return textEqual ? ok()
+                     : fail(name + " (sql-text, rows underivable):"
+@@ -174,6 +192,7 @@ final class SqlTextRuns {
+                         rows, r.mappingFqn(), r.classFqn(), facts, r.enums(),
+                         temps.isEmpty() ? (seed == null ? List.of()
+                                 : inListTemps(seed.kind(), seed.values(), golden)) : temps);
++        probe("REFEREE-" + rv.outcome().name(), name);
+         if (listener != null) {
+             listener.refereed(name, rv.outcome().name());
+         }
