@@ -260,11 +260,11 @@ public enum ErrorKind implements ErrorCode {
     /** Whether a statement raises the kind ({@code sql.RaiseKind} names it): every kind but the database's own
      *  failures, a load's refused file ({@link #FILE_TOO_LARGE}, refused by the run before a statement), a load's or
      *  a payload's statement the database refused ({@link #LOAD_REFUSED}, {@link #PAYLOAD_REFUSED}: its words around
-     *  the database's) and a checked graph's violated constraint ({@link #CONSTRAINT_VIOLATED}: its defect text, data
-     *  in an answer). */
+     *  the database's) and a checked graph's violated or unevaluable constraint ({@link #CONSTRAINT_VIOLATED},
+     *  {@link #CONSTRAINT_UNEVALUABLE}: its defect text, data in an answer; the latter since B2b's S7a, 2026-11-25). */
     public boolean isRaise() {
         return !isDatabases() && this != FILE_TOO_LARGE && this != LOAD_REFUSED && this != PAYLOAD_REFUSED
-                && this != CONSTRAINT_VIOLATED;
+                && this != CONSTRAINT_VIOLATED && this != CONSTRAINT_UNEVALUABLE;
     }
 
     /** A value the database computed and no plan holds, as every audience prints it (D1, register S389). */

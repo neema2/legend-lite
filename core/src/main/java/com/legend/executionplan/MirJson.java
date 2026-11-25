@@ -383,9 +383,6 @@ public final class MirJson {
                 tag(o, ExprTag.raiseText, r.type());
                 o.put("kind", r.kind().name());
                 o.put("operands", exprs(r.operands()));
-                if (r.asData() != null) {
-                    o.put("asData", r.asData());
-                }
             }
             case SqlExpr.ArrayLit a -> {
                 tag(o, ExprTag.arrayLit, a.type());
@@ -986,7 +983,7 @@ public final class MirJson {
                     readExpr(o.getObj("orderBy")), type);
             case arrayLit -> new SqlExpr.ArrayLit(readExprs(o.getArr("elements")), type);
             case raiseText -> new SqlExpr.RaiseText(named(com.legend.sql.RaiseKind.class, o.getString("kind"),
-                    "raise kind"), readExprs(o.getArr("operands")), o.getStringOr("asData", null));
+                    "raise kind"), readExprs(o.getArr("operands")));
             case structLit -> {
                 List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
                 for (Json.Node n : o.getArr("fields").items()) {

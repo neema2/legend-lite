@@ -172,6 +172,18 @@ public enum SqlFn {
      *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms; its
      *  relation texts' {@link #FLOAT_SHORTEST_TEXT} cells, PR #118's fix round, went with B2b S5a-S5c). */
     FLOAT_TO_TEXT,
+    /** A Float's FULL-PRECISION TEXT AS THE DATABASE ITSELF WRITES IT ({@code (x)}, one operand, a double; NULL stays
+     *  NULL): toCSV's Float cell (the user's ruling of 2026-11-25, "okay make exact": each database's own full-precision
+     *  text, its cast; S311's amendment). Each dialect writes its database's own cast or format function and never
+     *  composes a text in SQL (B3's (B), 2026-11-25, under the user's objection to text algorithms composed in SQL):
+     *  the plain cast to text on DuckDB, H2, Postgres (a whole value {@code 2}), Trino (always its exponent form,
+     *  {@code 1.5E0}), Databricks and BigQuery, {@code CAST AS CHAR} on MariaDB and
+     *  MySQL, {@code toString} on ClickHouse, {@code printf('%!.17g')} on SQLite (its cast writes fifteen digits),
+     *  {@code $toString} on MongoDB, and on Snowflake its DECFLOAT cast, NaN and the infinities by its plain cast (its
+     *  format models cap a FLOAT at sixteen digits, measured 2026-10-24; B3 agreed the same day). The text differs by database
+     *  ({@code 1e-07} on DuckDB, {@code 1.0E-7} on H2). Unlike {@link #FLOAT_SHORTEST_TEXT} it is never one spelling
+     *  across databases: it is each database's own. */
+    FLOAT_FULL_TEXT,
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
      *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
@@ -253,6 +265,9 @@ public enum SqlFn {
                     // a Float's and a DateTime's text, branching on the value's magnitude and kind (D's W3, its
                     // instrument, and S312's form, 2026-11-16; found by MaySkipCensusTest at the merge of PR1's head)
                     FLOAT_TO_TEXT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
+                    // a Float's full-precision text: SQLite keeps a NULL by a CASE around printf, Snowflake picks its
+                    // DECFLOAT cast or its plain cast by a CASE (toCSV's Float cell, 2026-11-25)
+                    FLOAT_FULL_TEXT,
                     // the product's join of a row's cells skips a NULL part by design (Phase 3, 2026-11-17; found by
                     // MaySkipCensusTest: MariaDB, MySQL, SQLite, BigQuery and MongoDB branch or skip)
                     CONCAT_WS));

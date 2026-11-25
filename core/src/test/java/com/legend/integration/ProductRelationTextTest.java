@@ -75,7 +75,8 @@ class ProductRelationTextTest {
 
     /** THE HELPER'S {@code toCSV} IN THE PRODUCT (stage B's B2b S5b, 2026-11-25; the user's ruling of 2026-11-19 ~20:05,
      *  "toCSV yes toString or another easy database sql that makes sense"): the helper's layout, each cell the product's
-     *  own text of its value -- a whole Float {@code 2.0}, a DateTime lite's nine digits and {@code Z} (S312; the
+     *  own text of its value -- a Float the database's exact text
+     *  ({@link #aCsvsFloatCellIsTheDatabasesExactTextOfTheDouble}), a DateTime lite's nine digits and {@code Z} (S312; the
      *  orchestrator's relay of 2026-11-25, Q1), a cell or a name holding a comma or a quote quoted with its quotes
      *  doubled, every row ending with its own newline so that no rows is the header line alone (the user's ruling of
      *  2026-11-25, Q-C, "Okay to both csv ones"); the nulls and Strings by the user's ruling of 2026-11-25 (register
@@ -93,12 +94,7 @@ class ProductRelationTextTest {
         String strings = "#TDS\n  i:Integer\n  1\n#->extend(~[e: r|'', n: r|'null', q: r|'a,b'])";
         texts.put(strings + csv, "i,e,n,q\n1,\"\",null,\"a,b\"\n");
         texts.put(strings + "->meta::relational::tests::csv::toCSV(true)", "i,e,n,q\n1,\"\",\"null\",\"a,b\"\n");
-        texts.put("#TDS\n  i:Integer, f:Float\n  1, 2.0\n  2, 0.00001\n  3, 1.5\n  4, 25000000.0\n  5, -0.25\n#"
-                + "->sort(~i->ascending())" + csv, "i,f\n1,2.0\n2,0.00001\n3,1.5\n4,25000000.0\n5,-0.25\n");
-        // a Float cell is program text, S311's six decimals (its amendment of 2026-11-25, B2b's design audit): the CSV
-        // output format writes a returned Float exactly, toCSV writes the product's text of it
-        texts.put("#TDS\n  i:Integer, f:Float\n  1, 0.1234567\n  2, 0.0000001\n#->sort(~i->ascending())" + csv,
-                "i,f\n1,0.123457\n2,0.0\n");
+        // (a Float cell, the database's own exact text of the double: aCsvsFloatCellIsTheDatabasesExactTextOfTheDouble)
         texts.put("#TDS\n  i:Integer, d:StrictDate, t:DateTime\n  1, 2014-01-02, 2014-01-01T10:20:30.123\n"
                 + "  2, 2020-02-29, 2020-02-29T00:00:00\n#->sort(~i->ascending())" + csv,
                 "i,d,t\n1,2014-01-02,2014-01-01T10:20:30.123000000Z\n2,2020-02-29,2020-02-29T00:00:00.000000000Z\n");
@@ -131,6 +127,49 @@ class ProductRelationTextTest {
                 }
             }
             assertEquals(java.util.List.of(), differ, backend.name());
+        }
+    }
+
+    /** A FLOAT CELL IN THE PRODUCT'S {@code toCSV} IS THE DATABASE'S OWN FULL-PRECISION TEXT OF THE DOUBLE (the user's
+     *  ruling of 2026-11-25, "okay make exact", relayed by B3; S311's amendment; {@code SqlFn.FLOAT_FULL_TEXT}, its own
+     *  cast or format function, B3's (B)) -- never six decimals. Every cell reads back as the very double on every lane,
+     *  a literal and a computed one alike, and each lane's text is pinned as its database writes it. */
+    @Test
+    void aCsvsFloatCellIsTheDatabasesExactTextOfTheDouble() throws Exception {
+        double[] f = {2.0, 0.00001, 1.5, 25000000.0, -0.25, 0.1234567, 0.0000001};
+        StringBuilder rows = new StringBuilder();
+        for (int k = 0; k < f.length; k++) {
+            rows.append("\n  ").append(k + 1).append(", ").append(new java.math.BigDecimal(Double.toString(f[k]))
+                    .toPlainString());
+        }
+        String q = "|#TDS\n  i:Integer, f:Float" + rows + "\n#->extend(~g: r|$r.f->toOne() + 0.2)"
+                + "->sort(~i->ascending())->meta::relational::tests::csv::toCSV()";
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("");
+        String got;
+        try (Connection c = backend.open()) {
+            got = Lean.run(model, q, StorelessRuntime.RUNTIME, c).rows().get(0).get(0).toString();
+        }
+        String[] lines = got.split("\n");
+        assertEquals("i,f,g", lines[0], backend.name());
+        for (int k = 0; k < f.length; k++) {
+            String[] cells = lines[k + 1].split(",");
+            assertEquals(f[k], Double.parseDouble(cells[1]), backend.name() + ": " + lines[k + 1]);
+            assertEquals(f[k] + 0.2, Double.parseDouble(cells[2]), backend.name() + ": " + lines[k + 1]);
+        }
+        // each lane's database's own text, measured 2026-11-25 (SQLite's exact form, seventeen significant digits where
+        // its own cast writes fifteen, is not always the shortest: -0.049999999999999989); a lane not listed here is
+        // held to the exact read-back above
+        String pinned = Map.of(
+                "duckdb", "i,f,g\n1,2.0,2.2\n2,1e-05,0.20001000000000002\n3,1.5,1.7\n4,25000000.0,25000000.2\n"
+                        + "5,-0.25,-0.04999999999999999\n6,0.1234567,0.32345670000000004\n7,1e-07,0.20000010000000001\n",
+                "h2", "i,f,g\n1,2.0,2.2\n2,1.0E-5,0.20001000000000002\n3,1.5,1.7\n4,2.5E7,2.50000002E7\n"
+                        + "5,-0.25,-0.04999999999999999\n6,0.1234567,0.32345670000000004\n7,1.0E-7,0.20000010000000001\n",
+                "sqlite", "i,f,g\n1,2.0,2.2\n2,1.0e-05,0.20001000000000002\n3,1.5,1.7\n4,25000000.0,25000000.2\n"
+                        + "5,-0.25,-0.049999999999999989\n6,0.1234567,0.32345670000000004\n7,1.0e-07,0.20000010000000001\n")
+                .get(backend.name());
+        if (pinned != null) {
+            assertEquals(pinned, got, backend.name());
         }
     }
 
