@@ -40,24 +40,6 @@ class PctPlanRoutePrintTest {
         assertEquals(List.of(List.of("i,f;1,99999999999999990000000.0;2,TDSNull;")), answer.rows().rows());
     }
 
-    /** A last step's Float print at legend-pure's door (B2b S6a's legend-pure door, 2026-11-25): legend-pure's print of
-     *  the value, in Java ({@code edge.PureValueText}), on every database -- PCT's
-     *  {@code testFloatToStringWith{Negative,Positive}Exponent}, which the edge's SQL print pass answers with
-     *  legend-engine's in-query cast (on H2 {@code 1.3421E-8}). A double the database computes, 1e23, proves the lift
-     *  ran: the database's cast writes it with an exponent ({@code 1e+23} on DuckDB, {@code 1.0E23} on H2), legend-pure
-     *  {@code 99999999999999990000000.0}. A DateTime literal's text stays the lowering's fold. */
-    @Test
-    void aFinalFloatToStringAnswersLegendPuresPrintOfTheValue() throws Exception {
-        PctPlanRoute.Answer answer = PctPlanRoute.execute("", "|1.3421e-8->toString()");
-        assertEquals(ExecutionPlan.TdsResult.Shape.VALUE, answer.shape());
-        assertEquals(List.of(List.of("0.000000013421")), answer.rows().rows());
-        assertEquals(List.of(List.of("134210000.0")), PctPlanRoute.execute("", "|1.3421e8->toString()").rows().rows());
-        assertEquals(List.of(List.of("99999999999999990000000.0")),
-                PctPlanRoute.execute("", "|(1.0E23 * 1.0)->toString()").rows().rows());
-        assertEquals(List.of(List.of("2014-01-01T00:00+0000")),
-                PctPlanRoute.execute("", "|%2014-1-1T0:00+0000->toString()").rows().rows());
-    }
-
     /** A MIXED SELECTION IN A COLUMN (the review of 6fc717f9f, 2026-11-24, asked whether the door lifts a print the
      *  edge's SQL text answered): a relation whose column holds a mixed max is refused by name on both roads today --
      *  the lifted print (the relation run alone) and a print the door does not lift (the edge's SQL text, here a

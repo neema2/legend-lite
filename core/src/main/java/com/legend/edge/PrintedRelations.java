@@ -23,8 +23,10 @@ import java.util.List;
  * relational test helper's {@code meta::relational::tests::csv::toCSV} of a TDS (helperFunctions.pure:198-232, a
  * native in lite: {@code PlatformTypes.TO_CSV}) or a TDS's {@code csv}, over a relation whose columns the compiler
  * knows, followed by any number of {@code replace} calls with literal arguments, answers the query that computes the
- * relation and the print the run's receiver performs ({@link PureRelationTextWriter}); and, at legend-pure's door alone,
- * a last step's Float print ({@link #liftValue}, B2b S6a). Anything else is not lifted: the
+ * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). A value's print is not lifted: a
+ * last step's Float print at legend-pure's door, lifted by B2b S6a's legend-pure door, is held with the edge's value
+ * passes for the user's ruling (the design audit of 2026-11-25: alone it moved no case and left a print used further to
+ * the passes, two printers at one door). Anything else is not lifted: the
  * query is the door's as it was, and a print the door leaves is lite's own text, computed by the database
  * ({@code lowering.ProductRelationText}, B2b S5a and S5b; until S6 its Float and DateTime cells the edge's value texts,
  * the progress record's S5a window), and a TDS's {@code csv} the door does not lift lite's CSV, as {@code toCSV(t)}
@@ -36,9 +38,8 @@ public final class PrintedRelations {
     private PrintedRelations() {
     }
 
-    /** The lifted program: {@code relation} computes the rows (its last statement the printed relation, or under
-     *  {@link PureRelationTextWriter.Form#VALUE} the printed Float), and {@code form} and {@code replaces} are the print
-     *  the receiver performs on them. */
+    /** The lifted program: {@code relation} computes the rows (its last statement the printed relation), and
+     *  {@code form} and {@code replaces} are the print the receiver performs on them. */
     public record Lifted(com.legend.TypedQuery relation, PureRelationTextWriter.Form form,
             List<PureRelationText.Replace> replaces) {
         public Lifted {
@@ -85,35 +86,6 @@ public final class PrintedRelations {
             last = c.args().get(0);
         }
         return last;
-    }
-
-    /**
-     * A program whose last step prints a Float's value, lifted at LEGEND-PURE'S door (stage B's B2b S6a, its legend-pure
-     * door, 2026-11-25; the orchestrator's agreement and relay of the same day): {@code x->toString()}, {@code x} a Float,
-     * followed by any number of {@code replace} calls with literal arguments, answers the query that computes {@code x}
-     * and legend-pure's print of the value, in Java ({@link PureRelationTextWriter.Form#VALUE},
-     * {@link PureValueText#value}) -- where the edge's SQL print pass writes legend-engine's in-query cast (on H2
-     * {@code 1.3421E-8}, where legend-pure prints {@code 0.000000013421}). Read by legend-pure's door alone: legend-engine's
-     * door's value texts, and with them the passes' deletion and a test body's value prints (B3's lift reads
-     * {@link #side}, relations alone), wait for the user's ruling. Null where the last step is no such print.
-     */
-    public static @com.legend.base.Nullable Lifted liftValue(com.legend.TypedQuery query) {
-        List<TypedSpec> body = query.body();
-        if (body.isEmpty()) {
-            return null;
-        }
-        List<PureRelationText.Replace> replaces = new ArrayList<>();
-        TypedSpec last = beneathReplaces(body.get(body.size() - 1), replaces);
-        if (!(last instanceof TypedNativeCall c && c.callee().qualifiedName().equals(PlatformTypes.TO_STRING)
-                && c.args().size() == 1
-                && c.args().get(0).info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT
-                && c.args().get(0).info().multiplicity()
-                        instanceof com.legend.compiler.element.type.Multiplicity.Bounded m && m.isToOne())) {
-            return null;
-        }
-        List<TypedSpec> lifted = new ArrayList<>(body.subList(0, body.size() - 1));
-        lifted.add(c.args().get(0));
-        return new Lifted(query.withBody(lifted), PureRelationTextWriter.Form.VALUE, replaces);
     }
 
     /** {@code query} lifted, or null where its last statement is no print of a relation this door lifts ({@link #side}). */

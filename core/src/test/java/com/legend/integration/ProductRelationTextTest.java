@@ -95,6 +95,10 @@ class ProductRelationTextTest {
         texts.put(strings + "->meta::relational::tests::csv::toCSV(true)", "i,e,n,q\n1,\"\",\"null\",\"a,b\"\n");
         texts.put("#TDS\n  i:Integer, f:Float\n  1, 2.0\n  2, 0.00001\n  3, 1.5\n  4, 25000000.0\n  5, -0.25\n#"
                 + "->sort(~i->ascending())" + csv, "i,f\n1,2.0\n2,0.00001\n3,1.5\n4,25000000.0\n5,-0.25\n");
+        // a Float cell is program text, S311's six decimals (its amendment of 2026-11-25, B2b's design audit): the CSV
+        // output format writes a returned Float exactly, toCSV writes the product's text of it
+        texts.put("#TDS\n  i:Integer, f:Float\n  1, 0.1234567\n  2, 0.0000001\n#->sort(~i->ascending())" + csv,
+                "i,f\n1,0.123457\n2,0.0\n");
         texts.put("#TDS\n  i:Integer, d:StrictDate, t:DateTime\n  1, 2014-01-02, 2014-01-01T10:20:30.123\n"
                 + "  2, 2020-02-29, 2020-02-29T00:00:00\n#->sort(~i->ascending())" + csv,
                 "i,d,t\n1,2014-01-02,2014-01-01T10:20:30.123000000Z\n2,2020-02-29,2020-02-29T00:00:00.000000000Z\n");

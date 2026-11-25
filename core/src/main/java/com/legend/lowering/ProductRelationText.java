@@ -57,9 +57,11 @@ import java.util.function.Function;
  * Under {@code toCSV(t, true)} an enumeration's value named {@code null} is written {@code null}, as a null is: a
  * known collision, kept by the user's ruling of 2026-11-25 (Q-D, "Okay to both csv ones"; S420). Where a relation's
  * text is the program's last step, legend-pure's and legend-engine's doors print legend-pure's text in Java from the
- * rows instead ({@code edge.PrintedRelations}, B3's lift), for a relation whose columns the compiler knows; a raw grid
- * and a pivot whose columns nothing names are not lifted, so their text is this one at every door. No plan-style facet,
- * no hook, no mode. A shape it cannot write is refused by name.
+ * rows instead ({@code edge.PrintedRelations}, B3's lift), for a relation whose columns the compiler knows. A raw grid's
+ * {@code toCSV} is not lifted, so its CSV is this one at every door; a raw grid's {@code toString}, and the text of a
+ * pivot whose columns nothing names, are refused by name here, so at every door (B2b's design audit of 2026-11-25
+ * corrected "not lifted, so their text is this one"). No plan-style facet, no hook, no mode. A shape it cannot write is
+ * refused by name.
  */
 final class ProductRelationText {
 
@@ -74,7 +76,7 @@ final class ProductRelationText {
         }
         TypedSpec rel = tc.args().get(0);
         String what = "a relation's toString";
-        if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType late && late.isLateBound()) {
+        if (known(rel, what).isLateBound()) {
             throw new com.legend.error.NotImplementedException(what + " over a raw grid (executeInDb): its columns exist"
                     + " only when the plan runs");
         }
@@ -140,10 +142,7 @@ final class ProductRelationText {
      *  d6e94cdfe, 2026-11-25: until then toCSV reached an internal error there). */
     private static SqlExpr csv(TypedSpec rel, boolean explicitNulls, Function<TypedSpec, SqlSelect> relation,
             String alias, String what) {
-        if (Type.relationSchema(rel.info().type()) == null) {
-            throw new com.legend.error.NotImplementedException(what + " over a value whose columns the compiler does"
-                + " not know (" + rel.info().type() + "): a relation's own columns are written, never a cast's");
-        }
+        known(rel, what);
         SqlSelect inner = relation.apply(rel);
         if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType late && late.isLateBound()
                 && inner.outputs().isEmpty()) {
@@ -224,6 +223,19 @@ final class ProductRelationText {
         return SqlSelect.starOf(new SqlSource.Subselect(lines, l, null)).withProjections(List.of(
                 new SqlSelect.Projection(Scalars.cat(header, nl, rowsJoined), "csv",
                         new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
+    }
+
+    /** {@code rel}'s relation schema; a value whose type names none -- a cast to {@code TDS<Any>} the resolver does not
+     *  peel (over a chain it does not anchor: a {@code #TDS} literal's cast, {@code stringToTDS}) -- refused by name, by
+     *  toString, toCSV and a TDS's csv alike (the review of d6e94cdfe, 2026-11-25, for the CSV; B2b's design audit of
+     *  2026-11-25 for toString, which reached an internal error there). */
+    private static Type.RelationType known(TypedSpec rel, String what) {
+        Type.RelationType schema = Type.relationSchema(rel.info().type());
+        if (schema == null) {
+            throw new com.legend.error.NotImplementedException(what + " over a value whose columns the compiler does"
+                + " not know (" + rel.info().type() + "): a relation's own columns are written, never a cast's");
+        }
+        return schema;
     }
 
     /** {@code rel}'s typed columns by name; a pivot whose columns nothing names refused by name. */
