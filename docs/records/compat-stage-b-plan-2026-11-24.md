@@ -1,5 +1,14 @@
 # Stage B after item 3: the order, and the one equality (2026-11-24)
 
+> **Amended 2026-11-25: the edition governs what is left of stage B.** The user ruled the edition design
+> (`docs/records/edition-design-2026-11-25.md`; "Edition seems best of all options", "Yes to all the amendments"). B3's
+> step 5 (the one equality as door rewrites) is replaced by its phases E1 and E2; B3's rewrites of legend-engine's test
+> code (S137, S144, the order-free `assertEquals`) and A3's `substring` become E4; B2's S6 meaning parts (Float text,
+> `TDSNull`, the unguarded parses) become E3; B4 is classified by the census
+> (`docs/records/edition-census-2026-11-25.md`); B5 becomes E5 to E7 (`PlanStyle` deleted, `platform.Feature` out of the
+> lowering, the guards), its goal "the switch counts read one, the edition". B1, item 3, B3 steps 1 to 4, B3 step 6,
+> B2's format work and B6 are unchanged. The design's §10d holds the item-by-item mapping.
+
 The plan of record for the compatibility program's stage B once item 3 (assert verdicts as typed records, PR #132)
 lands. Written at the user's request ("write this plan down so we don't forget", 2026-11-24). Ruled: the order (below)
 and the equality's semantics -- strict typing everywhere (the user, 2026-11-24: "Either all numbers by value or all

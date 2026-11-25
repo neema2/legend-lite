@@ -163,6 +163,18 @@
 >    deleted by the user's ruling of 2026-11-20 ~07:55 ("Delete the settings,
 >    make engine only mode for engine for everything"); legend-engine's door
 >    always answers legend-engine's meaning, with no setting.
+>    **One exception, the edition** (the user, 2026-11-25: "Edition seems best
+>    of all options", "Yes to all the amendments";
+>    `docs/records/edition-design-2026-11-25.md`): every piece of code has an
+>    edition, `lite`, `pure` (legend-pure's meaning) or `engine` (legend-engine's),
+>    a property of the code (per project; until projects declare one, the door
+>    that admits the code sets it). Only the typer reads it, in one package
+>    (`compiler.spec.edition`), which turns each edition-dependent construct into
+>    ordinary typed calls that mean the same in every edition; nothing after the
+>    typer can see it (an architecture test, and no edition field in the plan).
+>    Meaning follows the code; format follows the door. It is the registry's one
+>    permanent entry, and B5's goal is "the switch counts read one". `[CONVENTION
+>    until the edition's guards land, phase E1]`
 >
 > Two readings were ruled the same minute. **Folds:** the compiler may fold
 > constants and facts fixed by the types, never row data. **Error records:** a

@@ -72,6 +72,19 @@ flags so doesn't become a mess". Ruled in its strict, door-only form:
 - **Today's exception, to be removed:** legend-engine's own feature flags that lite's core still reads (the members of
   `platform.Feature` consumed in the lowering) move to the door or are deleted in B5; the registry and its guards are
   B5's lasting guard.
+- **AMENDED 2026-11-25, the edition** (the user: "Edition seems best of all options", "Yes to all the amendments";
+  `docs/records/edition-design-2026-11-25.md` §11). "Nothing in the core reads a switch" now reads: switches are read at
+  the door; the one exception is the edition, a property of code (`lite`, `pure`, `engine`; per project, set by the
+  admitting door until projects declare one), read only by the typer's edition package (`compiler.spec.edition`), which
+  turns it into ordinary typed calls, so nothing after the typer can see it. It is the registry's first and only
+  permanent entry: three values, default `lite`, owner the compatibility program, reader the typer's one package, no
+  removal date (the removal-date guard exempts it alone). Tenet 6 gains the same one exception: in the first version
+  the door sets the edition, so for now it is effectively who is asking, which is why the tenet is amended rather than
+  reread. The 2026-11-20 ruling stands with a wider reach: legend-engine's door gives the `engine` edition, which now
+  covers function bodies, mappings and library code, not only the query. B5's goal becomes "the switch counts read one,
+  the edition". `platform.Feature` leaves the lowering: a flag that changes meaning becomes an input to an `engine`
+  edition row read by the typer, a flag written in a `lite` program is refused by name, and the rest is deleted or moves
+  to a presenter (the design's §10c).
 
 ## What they mean, concretely
 

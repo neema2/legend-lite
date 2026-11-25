@@ -522,3 +522,38 @@ written as IQ's SET statements before its SQL (`IqParity.setStatements`: a datab
 query's `SET TEMPORARY OPTION x`, the island reading them as `IqSettings.resolve` reads the settings). A case given a
 database property (CaseSensitive, Collation, BlankPadding, CommProtocol), which no statement sets, still runs its
 printed translation until the settings' Pure plumbing lands; none of those is refused today.
+
+## 2026-11-25: the rulings of the day, and the edition
+
+**Rulings (the user, 2026-11-25), recorded here:**
+- **Option A kept** ("Okay keep A, keep going"): any mix of known types in a comparison is an error, no exceptions.
+- **Q1** ("compile error is correct"): an assert across known types (`assertEquals`, `assertNotEquals`,
+  `assertSameElements`, `assertContains`) is a compile error like `==`; `assertError` cannot catch it in lite (a compile
+  error), and legend-pure's door gives Pure's behaviour.
+- **Q4:** at run time, among equal magnitudes Integer < Float < Decimal, and StrictDate < DateTime.
+- **Q5:** a DuckDB date-time written past the microsecond is read as TIMESTAMP_NS (outside 1677-2262 refused by name);
+  otherwise microseconds.
+- **CSV nulls** (B2's S5b): by default a null is an empty unquoted field and an empty String `""`; under
+  `toCSV(t, true)` a null is the bare word `null` and every String is quoted. Q-C (B): no rows prints the header line
+  alone. Q-D (A): an enumeration value named `null` under the flag prints as the null word, a recorded collision.
+  `.csv` in the product is `toCSV()` ("yes same as toCSV").
+- **Ruling 1** ("Let's go with ruling 1"): the relational mapping language (joins, filters, column expressions,
+  enumeration matches) compares by SQL's rule, like islands.
+- **The function-body path** (door inlining, then bodies handed over as data) was measured and withdrawn: the user,
+  "We're doing way too many hacky things now, I don't think this path is going to work". Its uncommitted draft is not
+  committed; its model check is reused by the edition's E2.
+- **The edition** (`docs/records/edition-design-2026-11-25.md`, census `docs/records/edition-census-2026-11-25.md`):
+  "Edition seems best of all options"; per project ("Can start per project"); names `pure`, `engine`, `lite`; M2M,
+  `~func` and derived properties in mappings and graph fetch strict in `lite`, upstream's meaning elsewhere, by the typer
+  ("not like previous door way"); doors only set editions at first; "Yes to all the amendments" (the switch rule, tenet
+  6, the 11-20 ruling's reach, B5's goal); legend-engine's feature flags in a `lite` program refused by name and
+  upstream's text as a value test-harness only ("Yes to 1&2"); `ServiceTestRunner` kept ("we will need right").
+- **Not yet ruled** (B2's questions, posted): S7a (a checked graph's defect record as a plain literal), S7b (values on
+  pure/v1's execute), `.csv` of a `#TDS` literal (Pure's source text or `toCSV()`), a raw grid's last-step CSV at the
+  doors, and `toCSV()`'s Float digits.
+
+**Step 5a's IQ fix** is in 96f0d33c: the parity harness's settings cases run as the island they stand for.
+
+**Next:** B3 builds E0c (dead code), E1 (the edition's plumbing, no behaviour change) and E2 (comparisons as edition
+rows), on a base at B2's 7c2ac303, which contains 96f0d33c. B2 builds E3 once E1 has landed.
+
