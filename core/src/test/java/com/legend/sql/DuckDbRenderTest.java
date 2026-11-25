@@ -101,6 +101,37 @@ class DuckDbRenderTest {
     }
 
     @Test
+    @DisplayName("a null test is parenthesized under an operator that binds tighter, and only there")
+    void nullTestParens() {
+        SqlExpr isNull = SqlExpr.Call.of(SqlFn.IS_NULL, col("B"));
+        SqlExpr isNotNull = SqlExpr.Call.of(SqlFn.IS_NOT_NULL, col("B"));
+        // 2026-11-24: bare, t0.A = t0.B IS NULL is read (t0.A = t0.B) IS NULL, a different question that answered
+        // wrong rows with no error
+        assertEquals("t0.A = (t0.B IS NULL)", renderExpr(SqlExpr.Call.of(SqlFn.EQUAL, col("A"), isNull)));
+        assertEquals("(t0.B IS NOT NULL) = t0.A", renderExpr(SqlExpr.Call.of(SqlFn.EQUAL, isNotNull, col("A"))));
+        assertEquals("t0.A <> (t0.B IS NOT NULL)", renderExpr(SqlExpr.Call.of(SqlFn.NOT_EQUAL, col("A"), isNotNull)));
+        assertEquals("(t0.A IS DISTINCT FROM (t0.B IS NULL))",
+                renderExpr(SqlExpr.Call.of(SqlFn.IS_DISTINCT_FROM, col("A"), isNull)));
+        assertEquals("(t0.A IS NOT DISTINCT FROM (t0.B IS NOT NULL))",
+                renderExpr(SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("A"), isNotNull)));
+        assertEquals("(t0.B IS NULL) IN (TRUE)",
+                renderExpr(SqlExpr.Call.of(SqlFn.IN, isNull, new SqlExpr.BoolLit(true))));
+        // bare where nothing binds tighter: under AND, OR and NOT, and as a whole value
+        assertEquals("t0.A = 1 AND t0.B IS NULL OR NOT t0.B IS NOT NULL",
+                renderExpr(SqlExpr.Call.of(SqlFn.OR,
+                        SqlExpr.Call.of(SqlFn.AND,
+                                SqlExpr.Call.of(SqlFn.EQUAL, col("A"), new SqlExpr.IntLit(1)), isNull),
+                        SqlExpr.Call.of(SqlFn.NOT, isNotNull))));
+        assertEquals("t0.B IS NOT NULL", renderExpr(isNotNull));
+        // a null test of a null test stays as it was written before (DuckDB reads it the one way)
+        assertEquals("t0.B IS NULL IS NOT NULL", renderExpr(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, isNull)));
+        // a comparison is a null test's operand as it is written: IS binds looser
+        assertEquals("t0.A = 1 IS NULL",
+                renderExpr(SqlExpr.Call.of(SqlFn.IS_NULL,
+                        SqlExpr.Call.of(SqlFn.EQUAL, col("A"), new SqlExpr.IntLit(1)))));
+    }
+
+    @Test
     @DisplayName("literals: escaping, dates, booleans, arrays")
     void literals() {
         SqlSelect s = SqlSelect.starOf(T_PERSON).withProjections(List.of(

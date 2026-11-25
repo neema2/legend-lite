@@ -1926,8 +1926,8 @@ public class ClickHouse extends AnsiSqlRenderer {
             // the shared spellings (the base's named helpers)
             case NOT -> notCall(writer, c.args(), parentPrec);
             case NEGATE -> negation(writer, c.args());
-            case IS_NULL -> isNullTest(writer, c.args());
-            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args(), parentPrec);
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args(), parentPrec);
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> parseInteger(writer, c.args().get(0));

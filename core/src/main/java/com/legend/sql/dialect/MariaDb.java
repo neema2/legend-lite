@@ -1895,8 +1895,8 @@ public class MariaDb extends AnsiSqlRenderer {
             case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
             // the shared spellings (the base's named helpers)
             case NOT -> notPrefix(writer, c.args(), parentPrec);
-            case IS_NULL -> isNullTest(writer, c.args());
-            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args(), parentPrec);
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args(), parentPrec);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);

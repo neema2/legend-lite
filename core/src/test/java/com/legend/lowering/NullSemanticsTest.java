@@ -102,6 +102,22 @@ class NullSemanticsTest {
     }
 
     @Test
+    @DisplayName("a null test compared with a value is that operand: (a IS NULL) = (b IS NULL)")
+    void aNullTestIsAComparisonsOperand() throws SQLException {
+        // FAILS-BEFORE (2026-11-24): written bare, STREET IS NULL = N IS NULL is read ((STREET IS NULL) = N) IS NULL,
+        // which answered row b alone and raised nothing. a: both present; b: n alone absent; c: street alone absent
+        assertEquals(List.of("a"),
+                names("|m::A.all()->filter(a|$a.street->isEmpty() == $a.n->isEmpty())"
+                        + "->project([a|$a.name], ['name'])"));
+        assertEquals(List.of("b", "c"),
+                names("|m::A.all()->filter(a|$a.street->isEmpty() != $a.n->isEmpty())"
+                        + "->project([a|$a.name], ['name'])"));
+        // b: n absent, street present; c: n present, street absent
+        assertEquals(List.of("b", "c"),
+                names("#>{s::DB.A}#->filter(r|$r.N->isEmpty() == $r.STREET->isNotEmpty())->select(~[NAME])"));
+    }
+
+    @Test
     @DisplayName("partition contract: pred + notPred == all (null operands land on the NOT side)")
     void partitionContract() throws SQLException {
         assertEquals(List.of("c"),

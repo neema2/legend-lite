@@ -385,5 +385,37 @@ public final class SqlIslandCases {
                             List.of("3", "0", "50"),
                             List.of("4", "null", "50"),
                             List.of("5", "10", "null"),
-                            List.of("6", "5", "80"))));
+                            List.of("6", "5", "80"))),
+            // 2026-11-24: a null test as an operand of a comparison is that operand, parenthesized in the SQL lite
+            // writes; bare, a = b IS NULL is read (a = b) IS NULL, and the first case answered row 4 alone
+            new Case("select \"ID\" from tb('store::HR.EMP') where (dept is null) = (age is null) order by \"ID\"",
+                    true, List.of("ID"),
+                    List.of(List.of("1"),
+                            List.of("2"),
+                            List.of("3"),
+                            List.of("6"))),
+            new Case("select \"ID\", (age > 28) = (bonus is null) as q from tb('store::HR.EMP') order by \"ID\"",
+                    true, List.of("ID", "q"),
+                    List.of(List.of("1", "false"),
+                            List.of("2", "true"),
+                            List.of("3", "true"),
+                            List.of("4", "null"),
+                            List.of("5", "false"),
+                            List.of("6", "false"))),
+            new Case("select \"ID\" from tb('store::HR.EMP') where (age > 28) <> (bonus is null) order by \"ID\"",
+                    true, List.of("ID"),
+                    List.of(List.of("1"),
+                            List.of("5"),
+                            List.of("6"))),
+            new Case("select \"ID\" from tb('store::HR.EMP') where (age > 28) between false and (bonus is null)"
+                    + " order by \"ID\"",
+                    true, List.of("ID"),
+                    List.of(List.of("2"),
+                            List.of("3"))),
+            new Case("select \"ID\" from tb('store::HR.EMP') where (age > 28) is distinct from (bonus is not null)"
+                    + " order by \"ID\"",
+                    true, List.of("ID"),
+                    List.of(List.of("2"),
+                            List.of("3"),
+                            List.of("4"))));
 }
