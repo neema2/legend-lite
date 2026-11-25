@@ -973,9 +973,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testMinNumbers() throws SQLException {
-                // PCT: |2->meta::pure::functions::math::min(1.23D)
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|2->min(1.23D)", "test::TestRuntime", connection);
-                assertEquals(1.23, ((Number) result.rows().get(0).get(0)).doubleValue(), 1e-10);
+                // PCT: |2->meta::pure::functions::math::min(1.23D) -- an Integer ordered against a Decimal: refused by the one
+                // equality's rule (B3 step 5, the user's ruling of 2026-11-24); PCT's run answers it at legend-pure's door
+                com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                        com.legend.error.ModelException.class, () -> Lean.run(getCompletePureModelWithRuntime(),
+                                "|2->min(1.23D)", "test::TestRuntime", connection));
+                assertTrue(refused.getMessage().startsWith("min compares Integer with Decimal"), refused.getMessage());
         }
 
         @Test
@@ -1682,10 +1685,11 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testContainsStructVsPrimitiveReturnsFalse() throws SQLException {
-                // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->contains(3) = false (type
-                // mismatch)
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f2')]->meta::pure::functions::collection::contains(3)", "test::TestRuntime", connection);
-                assertEquals(false, result.rows().get(0).get(0));
+                // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->contains(3): a Firm list against an Integer -- refused by the
+                // one equality's rule (B3 step 5; legend-pure's answer, false, is its door's: edge.PureComparisons)
+                com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                        com.legend.error.ModelException.class, () -> Lean.run(getCompletePureModelWithRuntime(), "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f2')]->meta::pure::functions::collection::contains(3)", "test::TestRuntime", connection));
+                assertTrue(refused.getMessage().startsWith("contains compares"), refused.getMessage());
         }
 
         @Test

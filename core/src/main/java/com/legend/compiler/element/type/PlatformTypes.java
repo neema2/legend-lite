@@ -680,6 +680,11 @@ public final class PlatformTypes {
         return t instanceof Type.ClassType c && c.fqn().equals(ANY);
     }
 
+    /** The class every enumeration extends ({@code Enum}): an enumeration's value is one of it. */
+    public static boolean isEnumClass(Type t) {
+        return t instanceof Type.ClassType c && c.fqn().equals(ENUM);
+    }
+
     /** Whether {@code g} is the metaclass {@code Class<...>} (a class referenced as a value). */
     public static boolean isClassMetaclass(Type.GenericType g) {
         return g.rawFqn().equals(CLASS_METACLASS);

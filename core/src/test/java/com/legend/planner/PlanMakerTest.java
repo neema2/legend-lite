@@ -450,7 +450,8 @@ class PlanMakerTest {
     @Test
     void aListOfDecimalsIsRefusedByName() {
         var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(Databases.PLATFORM,
-                "{ps: Decimal[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ps))}", Written.JSON));
+                // the Integer column read as a Decimal: a Decimal against Decimals (B3 step 5's one equality)
+                "{ps: Decimal[*]|#>{s::DB.T}#->filter(r|$r.ID->toDecimal()->in($ps))}", Written.JSON));
         assertTrue(refused.getMessage().contains("PARK-20"), refused.getMessage());
     }
 

@@ -583,6 +583,10 @@ A full round is 1-2 hours and a corpus regeneration about 40 minutes; one Bazel 
    milestones; CI at milestones through the pull request.
 5. **While a run goes, do the next thing** (edit in another tree, write the record, prepare the next step) -- never
    wait idle, never start a second Bazel run.
+6. **Never block on a run** (the user, 2026-11-25: "make sure we're not always blocking waiting for something in
+   background to finish"). Start every long run in the background and let its completion post back; never hold a turn
+   in a foreground wait loop (`until ...; sleep`) for a run to end. The one limit is one Bazel server per container:
+   while it builds, the work is whatever needs no Bazel -- code, test fixes, records, reviews.
 
 ## Pushing to main
 

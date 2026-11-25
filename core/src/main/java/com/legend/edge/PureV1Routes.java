@@ -330,7 +330,8 @@ public final class PureV1Routes {
      *  is returned as it is. */
     static com.legend.TypedQuery checkMeaning(com.legend.TypedQuery query, com.legend.compiler.element.ModelContext ctx,
             @com.legend.base.Nullable String runtime, @com.legend.base.Nullable String mapping) {
-        return PureMeaningRewrite.rewrite(query, ctx, runtime, mapping, PureMeaningRewrite::engine).query();
+        return PureMeaningRewrite.rewrite(EngineComparisons.asTheDatabases(query), ctx, runtime, mapping,
+                PureMeaningRewrite::engine).query();
     }
 
     /**

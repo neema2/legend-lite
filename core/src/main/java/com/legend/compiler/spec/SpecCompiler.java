@@ -319,6 +319,12 @@ public final class SpecCompiler {
         return typer.declaredType(parameter);
     }
 
+    /** {@link #typeQueryBody} for the body a door receives ({@code TypedQuery.body}): each comparison across types in it
+     *  typed as the marker the planner refuses and a compatibility door rewrites (B3 step 5, the one equality). */
+    public List<TypedSpec> typeQueryBodyMarked(ValueSpecification query) {
+        return typer.markingCrossings(true, () -> typeQueryBody(query));
+    }
+
     /**
      * Type a standalone query as a STATEMENT SEQUENCE (the corpus/engine
      * convention: queries arrive as lambdas -- "|let a = ...; $a;" -- with lets
@@ -328,7 +334,11 @@ public final class SpecCompiler {
      */
     public List<TypedSpec> typeQueryBody(ValueSpecification query) {
         com.legend.base.RunScope.planning("type a spec");
-        query = withIslandPrograms(query);
+        // the statements an island program wrote (SQL's, Cypher's): typed by their own language's comparison rule (B3
+        // step 5, 2026-11-25: 100 against a Float column is a valid SQL comparison), so never marked
+        java.util.Set<ValueSpecification> islandStatements = java.util.Collections.newSetFromMap(
+                new java.util.IdentityHashMap<>());
+        query = withIslandPrograms(query, islandStatements);
         // A query's PARAMETERS ({minQty: Integer[1]|...}) are in scope at their declared types:
         // the query's value is its BODY's, as legend-engine types it (lambdaReturnType,
         // lambdaRelationType) -- not the lambda's own function type. Undeclared parameters stay loud.
@@ -374,7 +384,11 @@ public final class SpecCompiler {
                                     .parameters().get(1));
                     continue;
                 }
-                TypedSpec typed = typer.typeBody(stmt, scope, Expected.infer());
+                ValueSpecification typing = stmt;
+                Env typingScope = scope;
+                TypedSpec typed = islandStatements.contains(stmt)
+                        ? typer.markingCrossings(false, () -> typer.typeBody(typing, typingScope, Expected.infer()))
+                        : typer.typeBody(stmt, scope, Expected.infer());
                 body.add(typed);
                 if (typed instanceof TypedLet let) {
                     // same syntax-carrying bind as the function-body fold
@@ -400,7 +414,7 @@ public final class SpecCompiler {
      *  {@link CypherIslands#statements}), and likewise each {@code #SQL{...}#} statement that writes a table in more
      *  than one statement ({@link SqlIslands#isProgram}, {@link SqlIslands#statements}), as a lambda of the query's
      *  parameters; a query of none as it is. */
-    private ValueSpecification withIslandPrograms(ValueSpecification query) {
+    private ValueSpecification withIslandPrograms(ValueSpecification query, java.util.Set<ValueSpecification> island) {
         List<ValueSpecification> body = query instanceof com.legend.protocol.spec.LambdaFunction lf ? lf.body()
                 : List.of(query);
         if (body.stream().noneMatch(s -> s instanceof com.legend.protocol.spec.SqlIsland si
@@ -410,11 +424,16 @@ public final class SpecCompiler {
         List<ValueSpecification> out = new ArrayList<>();
         for (ValueSpecification stmt : body) {
             if (stmt instanceof com.legend.protocol.spec.SqlIsland si && CypherIslands.updates(si)) {
-                out.addAll(CypherIslands.statements(si, ctx));
+                List<ValueSpecification> written = CypherIslands.statements(si, ctx);
+                island.addAll(written);
+                out.addAll(written);
             } else if (stmt instanceof com.legend.protocol.spec.SqlIsland si && SqlIslands.isProgram(si)) {
                 // a #SQL{...}# statement written in several statements (RETURNING, the writes design's leg 4; an ON
                 // CONFLICT DO UPDATE's check of its keys, PR #67's second review)
-                out.addAll(SqlIslands.statements(si, source -> typer.synth(source, Env.empty()), ctx));
+                List<ValueSpecification> written = SqlIslands.statements(si,
+                        source -> typer.markingCrossings(false, () -> typer.synth(source, Env.empty())), ctx);
+                island.addAll(written);
+                out.addAll(written);
             } else {
                 out.add(stmt);
             }

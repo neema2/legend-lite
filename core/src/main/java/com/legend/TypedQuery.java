@@ -92,7 +92,7 @@ public final class TypedQuery {
     public List<TypedSpec> body() {
         List<TypedSpec> b = body;
         if (b == null) {
-            b = List.copyOf(specs.typeQueryBody(resolved));
+            b = List.copyOf(specs.typeQueryBodyMarked(resolved));
             body = b;
         }
         return b;

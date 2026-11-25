@@ -314,10 +314,13 @@ class AssertVerdictSpliceTest {
                 + " assertEquals(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}"));
         assertTrue(String.valueOf(e.getMessage()).contains("p1"), e.getMessage());
-        // upstream's unsorted ordered compare at the compatibility door: made the explicit assertSameElements
-        // (edge.UpstreamTestBodies.rowsOrderFree), Pure's element multiset -- the row swap holds
+        // upstream's unsorted ordered compare at the compatibility door: compared as ROWS (the user, 2026-11-25: "should
+        // we somehow tuple compare?" -- edge.UpstreamTestBodies.asRows: the golden cut into a table of the result's
+        // columns, the two tables a multiset of rows) -- the row swap holds, a cell moved between rows fails
         assertEquals(Boolean.TRUE, run(unsorted + " assertEquals(['p2', 40, 'p1', 30],"
                 + " $result.values.rows.values);}").one());
+        assertThrows(com.legend.error.AssertFailed.class, () -> run(unsorted + " assertEquals(['p1', 40, 'p2', 30],"
+                + " $result.values.rows.values);}"));
     }
 
     @Test

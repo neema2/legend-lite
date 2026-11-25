@@ -42,8 +42,16 @@ public final class UpstreamTestBodies {
     private UpstreamTestBodies() {
     }
 
-    /** {@code typed} as upstream's runners read it: the body rewritten (above), the query itself where nothing is. */
-    public static com.legend.TypedQuery admitted(com.legend.TypedQuery typed) {
+    /** {@code typed} as legend-pure's own tests read it (PCT's channel B): each comparison across types answered as
+     *  legend-pure answers it ({@link PureComparisons}, B3 step 5), then {@link #admitted}. */
+    public static com.legend.TypedQuery admittedForPure(com.legend.TypedQuery given) {
+        return admitted(PureComparisons.asPures(given));
+    }
+
+    /** {@code typed} as legend-engine's runners read it: each comparison across types the database's
+     *  ({@link EngineComparisons}, B3 step 5), the body rewritten (above), the query itself where nothing is. */
+    public static com.legend.TypedQuery admitted(com.legend.TypedQuery given) {
+        com.legend.TypedQuery typed = EngineComparisons.asTheDatabases(given);
         List<TypedSpec> read = rowsOrderFree(typed, joinsOrderFree(typed, jsonGoldensCleaned(countedAsOne(typed.body()))));
         return read == typed.body() ? typed : typed.withBody(read);
     }
@@ -60,7 +68,19 @@ public final class UpstreamTestBodies {
         List<TypedSpec> lets = new java.util.ArrayList<>();
         boolean changed = false;
         for (TypedSpec statement : body) {
-            TypedSpec r = rowOrderFree(typed, statement, lets);
+            // the planner's own walk (OrderedAsserts.rewrite): the door rewrites exactly the asserts lite would refuse
+            TypedSpec r = com.legend.compiler.spec.OrderedAsserts.rewrite(statement, lets,
+                    (call, fn, side, scope) -> fn == NativeFn.Verdict.ASSERT_EQUALS
+                            // a TDS's flattened cells against a literal golden: compared as rows (asRows); otherwise
+                            // each assertEquals overload its assertSameElements twin (the message, the formatted
+                            // message, the message function: step 4's review, M1), the typer choosing it
+                            ? java.util.Objects.requireNonNullElseGet(asRows(typed, call, side, scope),
+                                    () -> EngineSubstitutes.call(typed.context(),
+                                            com.legend.builtin.Pure.AT_ASSERTS_ASSERT_SAME_ELEMENTS, call.args(),
+                                            call.pos()))
+                            // assertNotEquals has no order-free twin in Pure: left as written, so lite's planner refuses
+                            // it by name (none in the corpus or PCT, measured 2026-11-24)
+                            : call);
             changed |= r != statement;
             out.add(r);
             lets.add(r);
@@ -68,23 +88,127 @@ public final class UpstreamTestBodies {
         return changed ? out : body;
     }
 
-    private static TypedSpec rowOrderFree(com.legend.TypedQuery typed, TypedSpec n, List<TypedSpec> lets) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall call && call.args().size() == 2
-                && NativeFn.Verdict.of(Calls.calleeIdOf(n)).orElse(null) == NativeFn.Verdict.ASSERT_EQUALS
-                && (com.legend.compiler.spec.OrderedAsserts.unorderedRows(call.args().get(0), lets)
-                        || com.legend.compiler.spec.OrderedAsserts.unorderedRows(call.args().get(1), lets))) {
-            return EngineSubstitutes.call(typed.context(), List.of(com.legend.model.FunctionId.of(
-                    com.legend.builtin.Pure.ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY)), call.args(), call.pos());
+    /** Upstream's {@code assertEquals} of a golden list and a TDS's flattened cells ({@code X.rows.values}, or
+     *  {@code X.rows->map(r | $r.values)}) with no defined order, compared as ROWS (the user, 2026-11-25: "should we
+     *  somehow tuple compare? Even if no real tuple type?" -- the table's row is the tuple): the golden's literal cells
+     *  cut every {@code width} into a table literal of {@code X}'s columns, and the two tables compared as a multiset of
+     *  rows with their columns checked ({@code assertSameElements} of two grids, the grid pair's arm). A cell moved
+     *  between the rows of a wrong answer fails, where a pool of loose cells held. Each cell is re-spelled as it is
+     *  written (a Float its written digits, a Decimal its plain text, a date its own text), never computed. Null --
+     *  the pool of cells, Pure's element multiset -- where the shape does not hold: the golden not literal cells, not a
+     *  whole number of rows, a cell whose type is not its column's, a String a table literal would read as null. */
+    static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec asRows(com.legend.TypedQuery typed,
+            com.legend.compiler.spec.typed.TypedNativeCall call, int side, List<TypedSpec> lets) {
+        TypedSpec relation = flattened(com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets));
+        if (relation == null || !(com.legend.compiler.spec.typed.Lets.bound(call.args().get(1 - side), lets)
+                instanceof com.legend.compiler.spec.typed.TypedCollection golden)) {
+            return null;
         }
-        List<TypedSpec> kids = n.children();
-        List<TypedSpec> rebuilt = new java.util.ArrayList<>(kids.size());
-        boolean changed = false;
-        for (TypedSpec k : kids) {
-            TypedSpec r = rowOrderFree(typed, k, lets);
-            changed |= r != k;
-            rebuilt.add(r);
+        Type.RelationType schema = Type.schemaView(relation.info().type());
+        if (schema == null || schema.columns().isEmpty() || !schema.dynamicColumns().isEmpty()) {
+            return null;
         }
-        return changed ? n.withChildren(rebuilt) : n;
+        int width = schema.columns().size();
+        List<TypedSpec> cells = golden.elements();
+        if (cells.isEmpty() || cells.size() % width != 0) {
+            return null;
+        }
+        List<List<String>> rows = new java.util.ArrayList<>();
+        boolean[] nullable = new boolean[width];
+        for (int i = 0; i < cells.size(); i += width) {
+            List<String> row = new java.util.ArrayList<>(width);
+            for (int c = 0; c < width; c++) {
+                String text = cellText(cells.get(i + c), schema.columns().get(c).type());
+                if (text == null) {
+                    return null;
+                }
+                nullable[c] |= text.isEmpty();
+                row.add(text);
+            }
+            rows.add(row);
+        }
+        List<Type.Column> columns = new java.util.ArrayList<>(width);
+        for (int c = 0; c < width; c++) {
+            Type.Column col = schema.columns().get(c);
+            columns.add(new Type.Column(col.name(), col.type(), nullable[c]
+                    ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE
+                    : com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        }
+        TypedSpec table = new com.legend.compiler.spec.typed.TypedTds(rows, com.legend.compiler.element.type.ExprType.one(
+                new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.TDS_RELATION_CLASS,
+                        List.of(new Type.RelationType(columns)))));
+        List<TypedSpec> args = new java.util.ArrayList<>(call.args());
+        args.set(side, relation);
+        args.set(1 - side, table);
+        return EngineSubstitutes.call(typed.context(), com.legend.builtin.Pure.AT_ASSERTS_ASSERT_SAME_ELEMENTS, args,
+                call.pos());
+    }
+
+    /** The relation whose rows' cells {@code side} flattens, or null: {@code X.rows.values} is typed as the rows'
+     *  access itself (the row type, many: the cells read row by row), or a {@code values} read over it, or
+     *  {@code X.rows->map(r | $r.values)}. */
+    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec flattened(TypedSpec side) {
+        if (side instanceof com.legend.compiler.spec.typed.TypedPropertyAccess rows && rows.property().equals("rows")
+                && rows.info().type() instanceof Type.RelationType
+                && !(rows.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                        && b.upper() != null && b.upper() <= 1)) {
+            return rows.source();
+        }
+        if (side instanceof com.legend.compiler.spec.typed.TypedPropertyAccess values && values.property().equals("values")
+                && values.source() instanceof com.legend.compiler.spec.typed.TypedPropertyAccess rows
+                && rows.property().equals("rows")) {
+            return rows.source();
+        }
+        if (side instanceof com.legend.compiler.spec.typed.TypedMap map
+                && map.source() instanceof com.legend.compiler.spec.typed.TypedPropertyAccess rows
+                && rows.property().equals("rows") && map.mapper().parameters().size() == 1
+                && !map.mapper().body().isEmpty()
+                && map.mapper().body().get(map.mapper().body().size() - 1)
+                        instanceof com.legend.compiler.spec.typed.TypedPropertyAccess values
+                && values.property().equals("values")
+                && values.source() instanceof com.legend.compiler.spec.typed.TypedVariable row
+                && row.name().equals(map.mapper().parameters().get(0))) {
+            return rows.source();
+        }
+        return null;
+    }
+
+    /** Whether a date literal is of a column's own kind: a day for a StrictDate column, a date-time (to the minute or
+     *  finer) for a DateTime column, either for an abstract Date column. */
+    private static boolean dateFits(com.legend.values.PureDateLiteral value, Type type) {
+        boolean day = value instanceof com.legend.values.PureDateLiteral.StrictDate;
+        boolean dateTime = value instanceof com.legend.values.PureDateLiteral.DateWithMinute
+                || value instanceof com.legend.values.PureDateLiteral.DateWithSecond
+                || value instanceof com.legend.values.PureDateLiteral.DateWithSubsecond;
+        return type == Type.Primitive.STRICT_DATE ? day
+                : type == Type.Primitive.DATE_TIME ? dateTime
+                : type == Type.Primitive.DATE && (day || dateTime);
+    }
+
+    private static final java.util.regex.Pattern ISO_CELL = java.util.regex.Pattern.compile(
+            "\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?)?([+-]\\d{4}|Z)?");
+
+    /** {@code cell}'s text in a table literal's column of {@code type}, as it is written; empty for a null cell; null
+     *  where the cell is not a literal of the column's type or its text would read otherwise. */
+    private static @com.legend.base.Nullable String cellText(TypedSpec cell, Type type) {
+        return switch (cell) {
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> "";
+            case com.legend.compiler.spec.typed.TypedCString s -> type == Type.Primitive.STRING && !s.value().isEmpty()
+                    && !s.value().equals("null") && !s.value().equals("TDSNull") ? s.value() : null;
+            case com.legend.compiler.spec.typed.TypedCInteger i -> type == Type.Primitive.INTEGER
+                    && !(i.value() instanceof java.math.BigInteger) ? i.value().toString() : null;
+            case com.legend.compiler.spec.typed.TypedCFloat f -> type == Type.Primitive.FLOAT
+                    ? (f.exact() != null ? f.exact().toPlainString() : Double.toString(f.value())) : null;
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> type == Type.Primitive.DECIMAL
+                    || type instanceof Type.PrecisionDecimal ? d.value().toPlainString() : null;
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> type == Type.Primitive.BOOLEAN
+                    ? Boolean.toString(b.value()) : null;
+            // a date of the column's own kind (step 5a's review, H1, 2026-11-25): a day in a StrictDate column, a
+            // date-time in a DateTime column, either in an abstract Date one -- a day is never a date-time (S399)
+            case com.legend.compiler.spec.typed.TypedCDate d -> dateFits(d.value(), type)
+                    && ISO_CELL.matcher(d.value().canonicalText()).matches() ? d.value().canonicalText() : null;
+            default -> null;
+        };
     }
 
     /** {@code body} with each order-dependent comparison of a golden text and a join of a list whose order the program

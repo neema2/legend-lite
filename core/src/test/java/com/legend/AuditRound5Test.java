@@ -133,8 +133,11 @@ class AuditRound5Test {
     @Test
     @DisplayName("audit: enum-vs-Any equality is not constant-folded to false")
     void enumVsAnyIsNotStaticFalse() throws Exception {
-        // decidable mismatches stay static FALSE...
-        assertEquals(false, scalar("|test::GT.CITY == 1"));
+        // a decidable mismatch is a compile error (B3 step 5, the one equality; the user's ruling of 2026-11-24: an
+        // enumeration and an Integer are two types -- until then a static FALSE)...
+        com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> scalar("|test::GT.CITY == 1"));
+        assertTrue(refused.getMessage().contains("two values are equal only when"), refused.getMessage());
         // ...but an Any operand is undecided: the lowering must not fold it
         // (LOUD or genuinely compared are both acceptable; false-by-fiat is not)
         // read off the execution plan (B3, 2026-11-11: the text plan is the execution plan's answering statement, and

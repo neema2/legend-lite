@@ -425,6 +425,9 @@ public final class ProductStatements {
      */
     public static SqlQuery lowerTestDataSeed(TypedQuery query, String runtime) {
         QueryDoor.refuseRawSql(query);
+        // the one equality: a comparison across types refused by name, as the planner's door refuses it (B3 step 5a's
+        // review, M2, 2026-11-25)
+        com.legend.compiler.spec.CrossTypeComparisons.refuse(query.body());
         Statement s = prepare(query, query.body(), runtime, null, Set.of(), com.legend.database.PlanStyle.PRODUCT);
         Prepared.Planned p = planned(s);
         return lower(query, p, s.temporal(), false, List.of(), new ObjectSites());

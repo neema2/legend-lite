@@ -196,11 +196,15 @@ class InstanceIdentityTest {
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let c = ^m::K(id=2, other='x');"
                         + " assert(!equal($a, $c) && ($a != $c));}").one());
-        // cross-class: never equal (engine classifier rule)
-        assertEquals(Boolean.TRUE, run(
+        // cross-class: two unrelated classes are two types, so the comparison is a compile error (B3 step 5, the one
+        // equality; the user's ruling of 2026-11-24 -- until then never equal by the engine's classifier rule)
+        com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let p = ^m::P(name='x');"
-                        + " assert(!equal($a, $p));}").one());
+                        + " assert(!equal($a, $p));}"));
+        org.junit.jupiter.api.Assertions.assertTrue(refused.getMessage().contains("two values are equal only when"),
+                refused.getMessage());
     }
 
     @Test

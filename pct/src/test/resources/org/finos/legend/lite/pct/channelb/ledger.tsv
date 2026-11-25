@@ -815,6 +815,25 @@ duckdb-lite	Standard	meta::pure::functions::math::tests::wavg::testSimpleGroupBy
 # "we don't let platform devs or users write tests that do not have a sort"): on lite's own lane upstream's test is planned by lite's
 # rules, and its assertEquals of a map over a grouped relation (testHashCodeAggregate's isNotEmpty flags) is refused by name
 duckdb-lite	Standard	meta::pure::functions::math::hashCode::tests::testHashCodeAggregate	ModelException: assertEquals compares in order, and its actual side's order is not defined
+# 2026-11-25, B3 step 5 (the one equality; the user's ruling of 2026-11-24, "Love it"): on lite's own lane a comparison of
+# two values whose types are known and differ is a compile error, refused by name (an enumeration against another, two
+# unrelated classes, an Integer against a Float, a day against a date-time); legend-pure's door answers each the Pure way
+duckdb-lite	Standard	meta::pure::functions::collection::tests::in::testInNonPrimitive	ModelException: in compares Integer with meta::pure::functions::collection::tests::in::Firm
+duckdb-lite	Standard	meta::pure::functions::math::tests::max::testMax_Numbers	ModelException: max compares Float with Integer
+duckdb-lite	Standard	meta::pure::functions::math::tests::min::testMin_Numbers	ModelException: min compares Float with Integer
+duckdb-lite	Standard	meta::pure::functions::date::tests::max::testMax_Date	ModelException: max compares DateTime with StrictDate
+duckdb-lite	Standard	meta::pure::functions::date::tests::min::testMin_Date	ModelException: min compares DateTime with StrictDate
+duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqEnum	ModelException: eq compares meta::pure::functions::boolean::tests::equalitymodel::TestEnum1 with meta::pure::functions::boolean::tests::equalitymodel::TestEnum2
+duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension	ModelException: eq compares meta::pure::functions::boolean::tests::equalitymodel::SideClass with Integer
+duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::equal::testEqualEnum	ModelException: == compares meta::pure::functions::boolean::tests::equalitymodel::TestEnum1 with meta::pure::functions::boolean::tests::equalitymodel::TestEnum2
+duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension	ModelException: == compares meta::pure::functions::boolean::tests::equalitymodel::SideClass with Integer
+duckdb-lite	Grammar	meta::pure::functions::boolean::tests::conjunctions::and::testShortCircuitSimple	ModelException: > compares Float with Integer
+duckdb-lite	Grammar	meta::pure::functions::boolean::tests::conjunctions::or::testShortCircuitSimple	ModelException: > compares Float with Integer
+duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testNumberCompare	ModelException: compare compares Integer with Float
+duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	ModelException: compare compares StrictDate with DateTime
+duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testCompareMixedTypes	ModelException: compare compares Integer with String
+duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testCompareDecimalAndLongTypes	ModelException: compare compares Decimal with Integer
+duckdb-lite	Essential	meta::pure::functions::collection::tests::contains::testContainsNonPrimitive	ModelException: contains compares meta::pure::functions::collection::tests::model::CO_Firm with Integer
 # (16 rows gone 2026-11-21, stage B's BE, the one catalog: an assertError expects legend-pure's sentence and lite's
 # database now raises it -- testAtError, testSliceError, testNewDateError, the four date-part errors, testRemError,
 # testSquareRootError, testRangeStepError, the four window-frame boundaries, the two 62-bit shifts; a down move)

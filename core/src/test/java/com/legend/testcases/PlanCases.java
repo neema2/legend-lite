@@ -149,7 +149,8 @@ public final class PlanCases {
                 new OptionalCase("x: Integer[0..1]", t + "->filter(r|$r.ID != $x)->select(~[ID])"
                         + "->sort(~ID->ascending())", "let x = 1;", 1L),
                 // a value-typed one: its absence a null of its absent kind (on H2, a cast to that kind's type)
-                new OptionalCase("x: Float[0..1]", t + "->filter(r|$r.ID != $x)->select(~[ID])"
+                // (the Integer column read as a Float: a Float compared with a Float, B3 step 5's one equality)
+                new OptionalCase("x: Float[0..1]", t + "->filter(r|$r.ID->toFloat() != $x)->select(~[ID])"
                         + "->sort(~ID->ascending())", "let x = 2.0;", 2.0d));
     }
 

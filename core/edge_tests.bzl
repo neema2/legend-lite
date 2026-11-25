@@ -92,6 +92,7 @@ EDGE_TEST_SRCS = [
     # 2026-11-19: nothing pinned InProtocol's conditional refusal once its FreeMarker splice was deleted)
     "src/test/java/com/legend/edge/InCollectionSpliceRefusalTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
+    "src/test/java/com/legend/edge/PureComparisonsTest.java",
     "src/test/java/com/legend/edge/PureMeaningCheckTest.java",
     "src/test/java/com/legend/edge/PureMeaningRewriteTest.java",
     "src/test/java/com/legend/edge/PureMeaningEngineTest.java",

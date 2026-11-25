@@ -438,8 +438,64 @@ Measured with a second, wider half (a print or a join of such rows: `toString`, 
 order-free form yet for a join of a list that is not Strings, of bare cells, or for a print the lift does not read. That
 half is deferred, for the user's word.
 
-**A known loosening at the door (recorded):** upstream's `assertEquals(golden, $tds.rows.values)` -- a TDS's cells
-flattened -- with no defined order becomes `assertSameElements` of the cells, Pure's element multiset: a cell moved
-between rows of a wrong answer is no longer caught there (the host judge's row multiset caught it, `flatCellsRowCohesion`
-pinned it). It changes no verdict on a correct answer; Pure has no tuple to write a row multiset with. The product
-refuses the shape; sorted, it compares in order.
+**A TDS's flattened cells at the door:** upstream's `assertEquals(golden, $tds.rows.values)` -- a TDS's cells
+flattened -- with no defined order is compared as ROWS since step 5a (the user, 2026-11-24, "should we somehow tuple
+compare? Even if no real tuple type?"): the door cuts a golden of literal cells into rows of the actual's columns (a
+typed table literal) and makes the assert `assertSameElements` of the two tables, a multiset of rows with the columns
+checked (`UpstreamTestBodies.asRows`; `flatCellsRowCohesion` pins that a cell moved between rows fails). A golden it
+cannot cut -- not literal, a width that does not divide, a cell of another kind than its column (a day in a date-time
+column: step 5a's review, H1) -- stays Pure's element multiset of cells, recorded: a cell moved between rows of a wrong
+answer is not caught there. The product refuses the shape; sorted, it compares in order.
+
+**Step 4's review (bb95cdc7, no confirmed wrong verdict on a test that exists) -- fixed with step 5's first slice:** H1
+an assert inside a helper is refused where the judges inline it (`BodyDriver.helperAssertRoot`); M1 every `assertEquals`
+overload has its `assertSameElements` twin at the door (`assertNotEquals` has none in Pure: left as written, so lite
+refuses it by name -- none in the corpus or PCT); M2 one value on either side is no order (no refusal, no rewrite); M3
+the walk's scope (a lambda's parameters are values, its lets read in order; an `assertError`'s lambda not walked), one
+walk shared by the planner and the door (`OrderedAsserts.rewrite`); M4 an `assertEquals` of two grids compares their
+rows in order, and S131 amended (rows and grids built; JSON roots and prints or joins to follow); M5 an
+`assertSameElements` of two grids is the grid pair's row multiset with its columns checked, on both judges (it was a
+pool of loose cells on the host and unjudged on the database judge); M6 the test plan's format 41 -> 42. LOWs: the
+stale descriptions fixed; unit tests for the walk (`OrderedAssertsTest`). Recorded: a single value picked from
+unordered rows, `assert($a == $b)`, natives OrderView does not list.
+
+## Step 5 -- the one equality (built in slices from 2026-11-24)
+
+**Slice 5a, comparisons across known types (the user's ruling of 2026-11-24, "Love it"):**
+- `compiler/spec/EqualityClasses`: the rule's types -- Integer, Float, Decimal (any precision) each a type; String;
+  Boolean; Byte; a day; a date-time; a time; each enumeration; Variant; a class, crossing another only when neither is a
+  subtype of the other. Known only at run time, never marked: Number, the abstract Date, LatestDate, Any, a type
+  variable, a generic, a function, a relation. The comparisons, known by their declarations' identities: `==`, `!=`
+  (its `equal`), `eq`, `<`, `<=`, `>`, `>=`, `compare`, two-argument `max`/`min`; `in`, `contains`, `indexOf` against
+  the collection's element type.
+- The typer types such a call as the marker `TypedCrossTypeComparison` (its kind, its operator, the two types) around
+  the call -- **in the query or test body a door receives** (`SpecCompiler.typeQueryBodyMarked`, `TypedQuery.body`).
+  Measured 2026-11-25: marking everywhere the typer runs broke about 32 corpus tests a database, the marker reaching
+  passes after every door -- a function's body typed when the planner inlines it, an `execute(...)` frame typed at
+  planning, a relational mapping's normalized operations. Those keep the database's comparison for everyone, by
+  construction (`Typer.inFunctionScope` types unmarked); lite's strictness over a function's body comes with the
+  compile route (the next sub-slice). An island (`#SQL{...}#`, Cypher) compares by its own language's rule, unmarked.
+- Lite refuses the marker by name (TYPE phase): the test planner (`TestPlanner.lifted`) and every query's planning
+  entry (`PlanMaker.plan`) before anything is planned; the lowering for one that reached it another way.
+- legend-engine's door (`edge/EngineComparisons`: the pure/v1 routes, the corpus's test-body door, PCT's engine
+  audience) rewrites each marker to the call itself, the database's comparison; legend-pure's door
+  (`edge/PureComparisons`: PCT's channels A and B) to Pure's answer by the types alone -- an equality `false` (refused
+  by name where both sides may be empty: Pure says true then), a membership `false` or -1, an ordering across number
+  kinds the comparison itself.
+- **Step 5a's review (2026-11-25), fixed before the commit:** H1 a date cell of another kind than its column is not
+  cut into rows (a day lowers to midnight, so it could pass a wrong date-time); M1 an argument written in the received
+  body keeps its markers when the call's body is inlined (`Overloads.inlineNormalized` hands the body the argument as
+  the caller typed it); M2 the host halves' execute answers legend-engine's meaning (`HostAnswers.hosted` checks it as
+  pure/v1's execute does) and a test-data seed refuses a marker by name (`ProductStatements.lowerTestDataSeed`); the
+  service test runner runs the product's meaning (census C1), so it refuses by name -- if it becomes legend-engine's
+  door, both rewrites come with it; M3 measured, not changed: refusing legend-pure's orderings of two non-numbers failed four
+  PCT tests the database's comparison passes (testCompareMixedTypes, testDateCompare, testMax_Date, testMin_Date), so
+  the door keeps the database's comparison and the difference is recorded -- a day against a date-time at one instant,
+  which legend-pure orders the day first and the database ties; M4 `max`/`min` over two Dates
+  marked; an enumeration against the `Enum` class and two classes that share a subclass are not crossings. LOWs:
+  PlanMaker refuses before it reads the runtime; an Integer cell beyond a long is not cut; stale text fixed.
+  Recorded: a refusal of `!=` names `==` (the parser writes `!=` as `not(equal(...))`); legend-pure's door does not
+  evaluate a side its types answer (legend-pure does, so a side that raises raises there).
+- Still to build: the migration report (each door lists what it loosened), the IDE's compile route, and the measured
+  re-pins. Then 5b (types known only at run time: the tag beside the value), 5c (the asserts as their Pure bodies,
+  VerdictSql's comparison layer deleted).

@@ -416,8 +416,11 @@ public final class HostAnswers {
         }
         LambdaFunction lambda = ProtocolReader.lambda(
                 boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
-        com.legend.TypedQuery query = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda);
-        return new Hosted(query, runtimeOf(request, query));
+        com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(model);
+        com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
+        String runtime = runtimeOf(request, query);
+        // legend-engine's meaning at this door too, as at pure/v1's execute (B3 step 5a's review, M2, 2026-11-25)
+        return new Hosted(PureV1Routes.checkMeaning(query, ctx, runtime, null), runtime);
     }
 
     /** The TDS builder (moved from server.LiteV1Api, the P2 checkpoint audit's S5, 2026-11-16: legend-engine's

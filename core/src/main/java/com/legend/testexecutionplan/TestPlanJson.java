@@ -85,8 +85,10 @@ public final class TestPlanJson {
      *  step 4, 2026-11-22: every assert typed or refused by name): a database root's row always carries its typed report
      *  (the seven-column row gone), its families the last ones typed, and the host's membership its keys
      *  ({@code HostJudgment.Contains.keys}) and an instanceOf its value's static class ({@code InstanceOf.valueClass}),
-     *  the audit of 946d16f2. */
-    public static final int VERSION = 41;
+     *  the audit of 946d16f2; 42 (B3 step 4, 2026-11-24, its review's M6): the host's equality carries no incidental
+     *  flag ({@code HostJudgment.Equals}: an assertEquals compares in order everywhere), so a plan written before reads
+     *  as a refusal of its version, never as an in-order compare. */
+    public static final int VERSION = 42;
 
     private TestPlanJson() {
     }

@@ -1013,8 +1013,10 @@ class AssertBarTest {
         // a Variant is never a value of another type, its text's included (the audit of c2217801; S401)
         want.put("{|assertEquals('\"abc\"'->fromJson(), 'abc')}", "AssertFailed");
         want.put("{|assertEquals('1'->fromJson(), 1)}", "AssertFailed");
-        want.put("{|assert('1'->fromJson() == 1)}", "AssertFailed");
-        want.put("{|assertFalse('\"a\"'->fromJson() == 'a')}", "pass");
+        // a Variant and an Integer or a String are two types: the comparison is a compile error (B3 step 5, the one
+        // equality; the user's ruling of 2026-11-24 -- until then false by the types, S401)
+        want.put("{|assert('1'->fromJson() == 1)}", "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
+        want.put("{|assertFalse('\"a\"'->fromJson() == 'a')}", "ModelException: == compares meta::pure::metamodel::variant::Variant with String");
         // decided by the types under every judge, read through casts, the record writing a Variant as JSON with its kind
         // (the audit of 581a93cb and 386db8fe: the database judge had answered UNJUDGED, the host "got \"1\" (String)")
         String variantOne = "AssertFailed: expected: 1 (Integer), actual: 1 (Variant)";
@@ -1024,13 +1026,19 @@ class AssertBarTest {
         want.put("{|assertEq(1, '1'->fromJson())}", variantOne);
         want.put("{|assertNotEquals(1, '1'->fromJson())}", "pass");
         want.put("{|assertNotEquals(true, 'true'->fromJson())}", "pass");
-        want.put("{|assert(!'1'->fromJson()->in([1, 2]))}", "pass");
-        want.put("{|assert(![1, 2]->contains('1'->fromJson()))}", "pass");
-        want.put("{|assert([1, 2]->indexOf('1'->fromJson()) == -1)}", "pass");
+        want.put("{|assert(!'1'->fromJson()->in([1, 2]))}",
+                "ModelException: in compares meta::pure::metamodel::variant::Variant with Integer");
+        want.put("{|assert(![1, 2]->contains('1'->fromJson()))}",
+                "ModelException: contains compares Integer with meta::pure::metamodel::variant::Variant");
+        want.put("{|assert([1, 2]->indexOf('1'->fromJson()) == -1)}",
+                "ModelException: indexOf compares Integer with meta::pure::metamodel::variant::Variant");
         want.put("{|assertFalse('1'->fromJson()->cast(@Any) == 1)}", "pass");
-        // two empty sides are equal whatever their types (Pure's [] == []; the same audit's M1)
-        want.put("{|assert('{}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
-        want.put("{|assertFalse('{\"a\":1}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
+        // a Variant against an Integer list is two types: a compile error even where both may be empty (B3 step 5, the
+        // one equality; until then two empty sides were equal whatever their types, Pure's [] == [], the same audit's M1)
+        want.put("{|assert('{}'->fromJson()->get('a') == []->cast(@Integer))}",
+                "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
+        want.put("{|assertFalse('{\"a\":1}'->fromJson()->get('a') == []->cast(@Integer))}",
+                "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
         // two primitives of different kinds: one record under every judge (the database judge's typed pair, never a
         // planned sentence); an enumeration is never its name's String (register S169, the user's "false, matching")
         want.put("{|assertEquals('1', 1)}", "AssertFailed: expected: \"1\", actual: 1");
@@ -1179,8 +1187,11 @@ class AssertBarTest {
                 "AssertFailed: expected the rows [[1], [2]] within 0.01, got [[1]]");
         want.put("{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#, 0.01)}",
                 "AssertFailed: expected the rows [[1]] within 0.01, got [[1]]");
-        // two grids compared by assertEquals: in any order unless the actual is sorted, each by its own columns
-        want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}", "pass");
+        // two grids compared by assertEquals: in order, each by its own columns (B3 step 4's review, M4, 2026-11-24: a
+        // side with no defined order is refused before); by assertSameElements, as a multiset of rows (M5)
+        want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}",
+                "AssertFailed: expected: [[1, \"x\"], [2, \"y\"]], actual: [[2, \"y\"], [1, \"x\"]]");
+        want.put("{|assertSameElements(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}", "pass");
         want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n#, #TDS\n  id, s\n  1, z\n#)}",
                 "AssertFailed: expected: [[1, \"x\"]], actual: [[1, \"z\"]]");
         want.put("{|assertEquals(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n  2\n#->sort(~id->descending()))}",
