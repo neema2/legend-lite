@@ -286,6 +286,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   `toCSV(t, true)` an enumeration's value named `null` is written `null`, as a null is: a known collision (an
   enumeration's cell is quoted only where its name holds a comma, a quote or a line break). Lite keeps the `toCSV`
   name.
+- **A TDS's `.csv`** is the same as `toCSV()` in lite's product (the user's ruling of 2026-11-25, ".csv in product, yes
+  same as toCSV"), where legend-engine joins the names with `", "`, writes an empty cell `TDSNull` and ends with no
+  newline; at legend-engine's and legend-pure's doors a last step's `.csv` is legend-engine's text (register S405).
 - **Until B2b's S6**, a text used further at legend-engine's door writes its Float and DateTime cells as that door
   writes a value's text (legend-engine's in-query cast for a Float, legend-pure's `+0000` for a DateTime); a last
   step whose relation the door lifts is legend-pure's or legend-engine's own text (above).

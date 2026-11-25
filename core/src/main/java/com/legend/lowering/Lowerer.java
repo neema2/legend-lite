@@ -236,7 +236,8 @@ public final class Lowerer {
 
     // (relationTexts, the plan style's relation-text facet (the separation census's B17, 2026-11-17): gone 2026-11-25,
     // stage B's B2b S5c -- a relation's toString and toCSV are lite's own texts (ProductRelationText, S5a and S5b), and
-    // a TDS's csv is refused by name on every plan style, legend-engine's text of a last step the doors' Java printer's)
+    // a TDS's csv lite's CSV as toCSV(t) writes it since the user's ruling of 2026-11-25 (S405), legend-engine's text
+    // of a last step the doors' Java printer's)
 
     /** An execution's trace text in a TDS cell (the separation census's B8 (ii), 2026-11-17): the plan style's
      *  {@code traceText}, the id in the product's. A Lowerer no planner handed a style refuses one by name. */
@@ -3891,12 +3892,13 @@ public final class Lowerer {
                             .isListCarrier(p.source().info().type()) ->
                     scalar(p.source(), columns);
             // a TDS VALUE's csv property (a #TDS literal: the TDS class has a layout, so the field reads below would
-            // take it and its rows reach the renderer as a mixed list): refused by name, as over a relation (the
-            // TDS csv arm, stage B's B2b S5c, 2026-11-25; until then the renderer's tagged-list wall)
+            // take it and its rows reach the renderer as a mixed list): lite's own CSV, as toCSV(t) writes it (the
+            // user's ruling of 2026-11-25, ".csv in product, yes same as toCSV"; register S405), as over a relation
+            // below (refused by name from B2b S5c until the ruling; the renderer's tagged-list wall before)
             case TypedPropertyAccess p when p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && PlatformTypes.isTdsShaped(p.source().info().type())
                     && classLayout.apply(p.source().info().type()).isPresent() ->
-                throw TextRefusals.tdsCsv();
+                ProductRelationText.tdsCsv(p.source(), this::relation, nextAlias());
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     && Stamps.isMany(p.source()) ->
                     manyPropertyMap(p, columns);
@@ -4304,13 +4306,15 @@ public final class Lowerer {
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
                 ProductRelationText.csv(tc, this::relation, nextAlias());
-            // the TDS class's csv property (tds.pure:19 `csv: String[1]`) over a relation: legend-engine's text of a TDS,
-            // refused by name on every plan style (stage B's B2b S5c, 2026-11-25: the edge's SQL composition deleted;
-            // a last step's csv at legend-pure's and legend-engine's doors is the doors' Java printer's, PrintedRelations)
+            // the TDS class's csv property (tds.pure:19 `csv: String[1]`) over a relation: lite's own CSV, as toCSV(t)
+            // writes it, computed by the database on every plan style (the user's ruling of 2026-11-25, ".csv in
+            // product, yes same as toCSV"; register S405; refused by name from B2b S5c until the ruling, the edge's SQL
+            // composition deleted); a last step's csv at legend-pure's and legend-engine's doors is legend-engine's
+            // text, the doors' Java printer's (PrintedRelations)
             case TypedPropertyAccess csvRead
                     when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && Render.csvOverRelation(csvRead) ->
-                throw TextRefusals.tdsCsv();
+                ProductRelationText.tdsCsv(csvRead.source(), this::relation, nextAlias());
             // a relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24: the user's
             // rulings of 2026-11-19 ~18:05 and ~18:36) -- every plan style alike, its cells the product's nodes
             // (ProductRelationText; under the edge's style its value passes re-spell a Float and a DateTime cell until

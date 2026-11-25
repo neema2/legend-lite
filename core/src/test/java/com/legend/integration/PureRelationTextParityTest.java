@@ -97,25 +97,19 @@ class PureRelationTextParityTest {
 
     /**
      * A TDS's {@code csv} property, measured where it applies (B2b's midpoint audit, 2026-11-24): on a TDS value -- after
-     * any relation function {@code .csv} reads a column named csv. Unlifted, it is refused by name on every plan style
-     * (B2b S5c and its review, 2026-11-25: until then a TDS literal's csv reached the renderer as a mixed list, the
-     * TDS class's field read taking it); the printer writes legend-engine's text, so the door's lift answers it.
+     * any relation function {@code .csv} reads a column named csv. Unlifted, it is lite's own CSV on every plan style,
+     * as {@code toCSV(t)} writes it (the user's ruling of 2026-11-25, ".csv in product, yes same as toCSV"; register
+     * S405; refused by name from B2b S5c until then, and before it a TDS literal's csv reached the renderer as a mixed
+     * list); the printer writes legend-engine's text, so the door's lift answers a last step's.
      */
     @Test
-    void aTdsLiteralsCsvIsRefusedUnliftedAndWrittenByThePrinter() throws Exception {
+    void aTdsLiteralsCsvIsLitesUnliftedAndUpstreamsWhenPrinted() throws Exception {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
         String rel = "#TDS\n  i:Integer, s:String\n  3, c\n  1, a\n  2, \n#";
         try (Connection c = backend.open(PureText.UPSTREAM)) {
-            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> Lean.runInStyle(model,
-                    "|" + rel + ".csv", StorelessRuntime.RUNTIME, c, PureText.UPSTREAM));
-            String chain = "";
-            for (Throwable t = refused; t != null; t = t.getCause()) {
-                chain += t.getMessage() + " | ";
-            }
-            org.junit.jupiter.api.Assertions.assertTrue(chain.contains("a TDS's csv is legend-engine's text, printed only as a"
-                    + " query's last step"),
-                    chain);
+            assertEquals("i,s\n3,c\n1,a\n2,\n", Lean.runInStyle(model, "|" + rel + ".csv", StorelessRuntime.RUNTIME, c,
+                    PureText.UPSTREAM).rows().get(0).get(0).toString(), backend.name());
             assertEquals("i, s\n3,c\n1,a\n2,TDSNull", printed(model, rel, c, PureRelationTextWriter.Form.TDS_CSV),
                     backend.name());
         }

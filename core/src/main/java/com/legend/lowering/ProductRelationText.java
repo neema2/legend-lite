@@ -122,7 +122,26 @@ final class ProductRelationText {
                     + " a date by its own text; toCSV(t) or toCSV(t, renderTdsNull)");
             default -> throw new IllegalStateException(what + " of " + tc.args().size() + " arguments");
         };
-        TypedSpec rel = tc.args().get(0);
+        return csv(tc.args().get(0), explicitNulls, relation, alias, what);
+    }
+
+    /** A TDS's {@code csv} property ({@code tds.pure:19}, a relation's or a {@code #TDS} literal's): lite's own CSV,
+     *  written exactly as {@code toCSV(t)} (the user's ruling of 2026-11-25, ".csv in product, yes same as toCSV";
+     *  register S405) -- not legend-engine's text, which a last step's {@code csv} at legend-pure's and legend-engine's
+     *  doors prints in Java ({@code edge.PrintedRelations}). A TDS value whose columns the compiler does not know (one
+     *  typed by the legacy TabularDataSet class, no schema) is refused by name. */
+    static SqlExpr tdsCsv(TypedSpec rel, Function<TypedSpec, SqlSelect> relation, String alias) {
+        String what = "a TDS's csv";
+        if (Type.relationSchema(rel.info().type()) == null) {
+            throw new com.legend.error.NotImplementedException(what + " over a value whose columns the compiler does"
+                    + " not know (" + rel.info().type() + "): its text is a relation's, toCSV's");
+        }
+        return csv(rel, false, relation, alias, what);
+    }
+
+    /** {@code rel}'s CSV, as {@link #csv(TypedNativeCall, Function, String)} writes it: one scalar subquery. */
+    private static SqlExpr csv(TypedSpec rel, boolean explicitNulls, Function<TypedSpec, SqlSelect> relation,
+            String alias, String what) {
         SqlSelect inner = relation.apply(rel);
         if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType late && late.isLateBound()
                 && inner.outputs().isEmpty()) {

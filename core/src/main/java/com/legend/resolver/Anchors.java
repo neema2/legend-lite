@@ -385,8 +385,9 @@ final class Anchors {
      * tds.pure:19) over a TDS-shaped chain (an executed result cast to
      * {@code TDS<Any>}): the read over the chain beneath the type-level
      * casts — the chain resolves structurally, the read rides along to the
-     * lowerer's TDS csv arm, which refuses it by name on every plan style
-     * (stage B's B2b S5c, 2026-11-25: a last step's csv is printed by
+     * lowerer's TDS csv arm, which writes lite's CSV as toCSV(t) does on every
+     * plan style (the user's ruling of 2026-11-25, S405; refused by name from
+     * stage B's B2b S5c until then; a last step's csv is printed by
      * legend-pure's and legend-engine's doors, edge.PrintedRelations, which
      * peel the same casts). Null = not that shape. */
     static @com.legend.base.Nullable TypedPropertyAccess tdsCsvRead(TypedPropertyAccess pa,

@@ -26,7 +26,8 @@ import java.util.List;
  * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). Anything else is not lifted: the
  * query is the door's as it was, and a print the door leaves is lite's own text, computed by the database
  * ({@code lowering.ProductRelationText}, B2b S5a and S5b; until S6 its Float and DateTime cells the edge's value texts,
- * the progress record's S5a window), and a TDS's {@code csv} the door does not lift is refused by name (B2b S5c). It
+ * the progress record's S5a window), and a TDS's {@code csv} the door does not lift lite's CSV, as {@code toCSV(t)}
+ * writes it (the user's ruling of 2026-11-25, S405; refused by name from B2b S5c until then). It
  * computes no value and plans nothing; the run computes the rows and the printer spells them.
  */
 public final class PrintedRelations {
@@ -138,8 +139,8 @@ public final class PrintedRelations {
         }
         // a TDS's csv over a relation, as the lowering reads it (Render.csvOverRelation), and over a type-level cast to a
         // TDS class, peeled as the resolver peels it (ResultEnvelopeSplice.peelTdsCasts, Anchors.tdsCsvRead; stage B's
-        // B2b S5c, 2026-11-25, the orchestrator's agreement: the product refuses a TDS's csv by name, so the door lifts
-        // the one the relational tests write, testEnumInRelation's)
+        // B2b S5c, 2026-11-25, the orchestrator's agreement: the door lifts the one the relational tests write,
+        // testEnumInRelation's, to legend-engine's text; the product writes lite's CSV, toCSV(t)'s, S405)
         if (e instanceof TypedPropertyAccess p && p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)) {
             TypedSpec relation = com.legend.compiler.spec.ResultEnvelopeSplice.peelTdsCasts(p.source());
             if (knownColumns(relation)) {

@@ -13,7 +13,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**
  * F4.1/F4.2 (RENDER): {@code toCSV} and a relation's {@code toString} over a store's rows, lite's own texts CONSTRUCTED
@@ -75,31 +74,17 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    void theProductRefusesATdsCsvByName() {
-        // the call's own sentence, at lowering, on every plan style (stage B's B2b S5c, 2026-11-25: the edge's SQL
-        // composition and the plan style's RelationTexts facet deleted; a last step's csv is the doors' Java printer's)
-        java.util.Map<String, String> refusals = new java.util.LinkedHashMap<>();
-        // (toCSV and a relation's toString: gone 2026-11-25 and 2026-11-24, stage B's B2b S5b and S5a -- lite's own
-        // texts, computed by the database, the tests below and ProductRelationTextTest)
-        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])"
-                + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv", "a TDS's csv");
-        // a #TDS literal's csv: the same sentence (the review of S5c, 2026-11-25: until then its rows reached the
-        // renderer as a mixed list)
-        refusals.put("|#TDS\n  i:Integer, s:String\n  1, a\n#.csv", "a TDS's csv");
-        refusals.forEach((query, what) -> {
-            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
-                    () -> Lean.run(MODEL, query, "test::RT", connection));
-            Throwable cause = refused;
-            while (!(cause instanceof com.legend.error.LegendCompileException) && cause.getCause() != null) {
-                cause = cause.getCause();
-            }
-            com.legend.error.LegendCompileException compile = assertInstanceOf(
-                    com.legend.error.LegendCompileException.class, cause, refused.toString());
-            assertEquals(com.legend.error.LegendCompileException.Phase.LOWER, compile.phase(), query);
-            assertEquals(what + " is legend-engine's text, printed only as a query's last step at legend-pure's and"
-                    + " legend-engine's doors: the product writes a relation's rows by its result writers (JSON, CSV,"
-                    + " Arrow), and its text by toString and toCSV", compile.getMessage(), query);
-        });
+    void aTdsCsvIsLitesCsvAsToCsvWritesIt() throws SQLException {
+        // the user's ruling of 2026-11-25, ".csv in product, yes same as toCSV" (register S405): a TDS's csv, over a
+        // stored relation cast to a TDS or a #TDS literal, is lite's own CSV computed by the database, exactly as
+        // toCSV(t) writes it (refused by name from stage B's B2b S5c until the ruling; a last step's csv at
+        // legend-pure's and legend-engine's doors is legend-engine's text, the doors' Java printer's)
+        String stored = "|test::Person.all()->project([p | $p.id, p | $p.name], ['id', 'name'])->sort(asc('id'))";
+        assertEquals(csv(stored + "->meta::relational::tests::csv::toCSV()"),
+                csv(stored + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv"));
+        assertEquals("i,s\n1,a\n2,\n", csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#.csv"));
+        assertEquals(csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#->meta::relational::tests::csv::toCSV()"),
+                csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#.csv"));
     }
 
     /** A stored relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24; the

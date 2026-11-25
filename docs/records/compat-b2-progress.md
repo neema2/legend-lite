@@ -523,6 +523,24 @@ product keeps refusing a TDS's csv by name.
 - **Guards:** the dated shrinks listed above. The one entry that grows is `PLANNER_ENTRIES`' `ReprParts#pureToString`
   caller.
 
+### S5c amended: a TDS's csv is lite's CSV, as toCSV(t) writes it (2026-11-25)
+
+The user asked why the product refuses a TDS's `.csv` instead of computing it like `toCSV`. The orchestrator
+recommended that a relation's or a `#TDS` literal's `.csv` lower exactly as `toCSV(t)`, with a register row for the
+spelling, and the user ruled ".csv in product, yes same as toCSV". This replaces S5c's refusal by name and the lean
+re-pin question (the refused count's growth).
+- **The product:** both of the Lowerer's TDS csv arms (a TDS value's and a relation's, the resolver peeling the
+  type-level casts as before) write `ProductRelationText.tdsCsv`: the relation's CSV by `toCSV(t)`'s one rule (S420,
+  Q-C), computed by the database. A TDS value whose columns the compiler does not know (the legacy TabularDataSet
+  class) is refused by name. `TextRefusals.tdsCsv` is deleted.
+- **The doors:** unchanged. A last step's `csv` is legend-engine's text, printed in Java (`PrintedRelations`, B3's lift
+  for testEnumInRelation); one used further is lite's.
+- **Tests:** `RenderCsvIntegrationTest.aTdsCsvIsLitesCsvAsToCsvWritesIt` (a stored relation cast to a TDS, and a
+  `#TDS` literal, each equal to its `toCSV()`); `PureRelationTextParityTest.aTdsLiteralsCsvIsLitesUnliftedAndUpstreamsWhenPrinted`.
+- **Register S405**; the differences page's §14.
+- **The lean guard:** the corpus's lean SQL plans `testEnumInRelation`'s body again; its family's figures are in the
+  commit and below.
+
 ### The merge of B3 step 5a and its client fix (2026-11-25, `0720d8735`)
 
 B3's step 5a (`b0df6ea84`: a comparison across known types refused by the product, answered by each door) and its

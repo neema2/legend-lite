@@ -20,9 +20,9 @@ import java.util.List;
 /**
  * A RELATION'S ROWS, THE PRODUCT'S HELPERS: the typed rows' shape ({@link #typedRows}), a select's order carried outside it
  * ({@link #liftOrder}), a write's count, a pivot's generated column name and the presented outputs. A relation's
- * {@code toString} and {@code toCSV} are lite's own texts ({@code ProductRelationText}, B2b S5a and S5b); a TDS's
- * {@code csv} is legend-engine's, refused by name (B2b S5c, 2026-11-25; the edge composed it from the separation
- * census's B17, 2026-11-17, until then).
+ * {@code toString} and {@code toCSV} are lite's own texts ({@code ProductRelationText}, B2b S5a and S5b), and a TDS's
+ * {@code csv} is lite's CSV as {@code toCSV(t)} writes it (the user's ruling of 2026-11-25, S405; refused by name from
+ * B2b S5c until then; the edge composed legend-engine's text from the separation census's B17, 2026-11-17).
  */
 public final class Render {
 
