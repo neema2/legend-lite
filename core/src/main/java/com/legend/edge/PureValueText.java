@@ -52,7 +52,7 @@ final class PureValueText {
     static String cell(Object v, ExecutionPlan.Column c) {
         String type = c.type();
         if (type.equals("Float")) {
-            return asFloat(v, c, "toString");
+            return asFloat(v, c);
         }
         return switch (v) {
             case Long l -> Long.toString(l);
@@ -71,14 +71,14 @@ final class PureValueText {
     }
 
     /** {@code v} under a Float type, as the double it is declared (an integer or a decimal the database held it in). */
-    private static String asFloat(Object v, ExecutionPlan.Column c, String what) {
+    private static String asFloat(Object v, ExecutionPlan.Column c) {
         return switch (v) {
             case Double d -> pureFloat(d);
             case Long l -> pureFloat(l.doubleValue());
             case Integer i -> pureFloat(i.doubleValue());
             case BigInteger i -> pureFloat(i.doubleValue());
             case BigDecimal d -> pureFloat(d.doubleValue());
-            default -> throw refused(what, v, c);
+            default -> throw refused("toString", v, c);
         };
     }
 

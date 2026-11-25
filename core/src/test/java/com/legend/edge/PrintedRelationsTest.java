@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * The door's lift of a program whose last step prints a relation ({@link PrintedRelations}; stage B's B2, B2b S2,
- * 2026-11-24), or a Float's value at legend-pure's door (B2b S6a, 2026-11-25): what is lifted, what is left to the run,
- * and the program that remains.
+ * 2026-11-24): what is lifted, what is left to the run, and the program that remains. (B2b S6a's lift of a last step's
+ * Float at legend-pure's door, and its test, are held with the edge's value passes: the design audit of 2026-11-25.)
  */
 class PrintedRelationsTest {
 

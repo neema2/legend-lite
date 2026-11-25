@@ -23,7 +23,9 @@ import java.util.Map;
  * ({@link #presentedName}), legend-pure's date text the {@code pure/v1} Arrow route hands its writer
  * ({@link #LEGEND_PURE}) and legend-engine's text of an empty TDS cell ({@link #TDS_NULL}); legend-pure's print of a
  * value, a second Float printer with no caller since the catalog's sentences (BE, 84a063611), was deleted by B2b's
- * design audit of 2026-11-25 (G1: the edge's value printer is {@link PureValueText}). The
+ * design audit of 2026-11-25 (G1: a relation's cell is printed by {@link PureValueText}, legend-pure's own
+ * DecimalFormat; a Float inside a list or a map under {@link #LEGEND_PURE} is still {@link CellText#element}'s
+ * {@code carriedFloat}, which differs on values such as {@code 1e23}, recorded in B2b's record). The
  * product writes its own forms ({@link CellText}); the rules here are the same serialization rule, never a
  * computation: each chooses digits for a value it holds whole, converts no kind, shifts no zone and defaults no null.
  */
