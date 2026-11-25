@@ -518,8 +518,8 @@ public final class Lowerer {
         TypedSpec root = withQueryLets(body);
         SqlQuery q;
         if (sharing == null && shareRelations) {
-            // a relation read more than once, written once (SharedRelations), as the shape's form chooses (J23)
-            q = styled().forms().relations(() -> sharedLower(root), () -> lower(root));
+            // a relation read more than once, written once (SharedRelations; J23)
+            q = sharedLower(root);
         } else {
             q = lower(root);
         }
@@ -531,8 +531,7 @@ public final class Lowerer {
             q = LetBinding.bindRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        SqlQuery counted = styled().forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
-        return styled().forms().computedPruning(counted);
+        return SubselectPrune.prune(KeyedCounts.fold(q, tableKeys), true);
     }
 
     /** {@code root} lowered with each relation it reads more than once written once (SharedRelations): the statement's
@@ -602,7 +601,7 @@ public final class Lowerer {
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
         SqlQuery lowered = lower(source);
-        SqlQuery rows = namedColumns(styled().forms().computedPruning(lowered));
+        SqlQuery rows = namedColumns(SubselectPrune.prune(lowered, true));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -1220,9 +1219,9 @@ public final class Lowerer {
             case TypedTableReference t -> tableRead(t);
 
             case TypedTds tds -> tdsLiteral(tds);
-            // a VIEW at relation position, the shape's form (the audit's K5, 2026-11-17: LoweringForms#view): the
-            // product's body lowered flat (a name is not a nesting); legend-engine's an aliased derived table
-            case TypedViewRelation v -> styled().forms().view(relation(v.body()), this::nextAlias, v.view());
+            // a VIEW at relation position: its body lowered flat, a name is not a nesting (the audit's K5, 2026-11-17;
+            // the two-form LoweringForms#view, identical in both forms, deleted by the edition's E0c, 2026-11-25)
+            case TypedViewRelation v -> relation(v.body());
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
             case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
@@ -1454,15 +1453,9 @@ public final class Lowerer {
             keys.add(key instanceof SqlExpr.NullLit
                     ? new SqlExpr.Cast(key, Fold.named(contract, k.column()).type(), SqlExpr.Reason.DECLARED)
                     : key);
-            // a self-aliased key drops the alias (view-frame goldens) —
-            // EXCEPT reads of a union frame's outputs, which keep it
-            // ("unionalias_0"."lastName" as "lastName")
-            boolean unionRead = base.from() instanceof SqlSource.Subselect sub
-                    && unionFrame(sub)
-                    && e instanceof SqlExpr.Column uc
-                    && sub.alias().equals(uc.table());
+            // a self-aliased key drops the alias (view-frame goldens)
             ps.add(new SqlSelect.Projection(e,
-                    !unionRead && e instanceof SqlExpr.Column c
+                    e instanceof SqlExpr.Column c
                             && c.name().equals(k.column()) ? null : k.column(),
                     Fold.named(contract, k.column())));
         }
@@ -2575,12 +2568,11 @@ public final class Lowerer {
     private SqlSelect projectColumns(SqlSelect base, List<String> columns,
                                      ExprType info) {
         List<OutputCol> contract = outputsOf(info);
-        String frame = styled().forms().unionFrame();
         List<SqlSelect.Projection> ps = Fold.tryProjectAll(base, columns,
-                contract, frame);
+                contract, null);
         if (ps == null) {
             base = isolate(base);
-            ps = Fold.tryProjectAll(base, columns, contract, frame);
+            ps = Fold.tryProjectAll(base, columns, contract, null);
             if (ps == null) {
                 throw new IsolationWall("select/distinct columns " + columns
                         + " cannot all be resolved even after isolation");
@@ -2609,7 +2601,7 @@ public final class Lowerer {
             SqlUnion u = union(tc);
             SqlUnion dedup = new SqlUnion(u.branches(), false, u.outputs());
             SqlSource.Subselect sub = new SqlSource.Subselect(
-                    dedup, nextAlias(), styled().forms().unionFrame());
+                    dedup, nextAlias(), null);
             List<SqlSelect.Projection> projs = new ArrayList<>();
             for (Type.Column c : (Type.requireRelationSchema(d.info().type()))
                     .columns()) {
@@ -2954,17 +2946,10 @@ public final class Lowerer {
                                 .map(SqlSelect.Projection::alias).toList());
             }
         } else {
-            // a UNION-FRAMED operand keeps its frame identity through
-            // join isolation (engine: joins against a union wrap it as
-            // another union frame, the style's)
-            left = unionFramed(leftSel)
-                    ? new SqlSource.Subselect(leftSel, nextAlias(),
-                            styled().forms().unionFrame())
-                    : asLeftJoinSide(leftSel);
+            left = asLeftJoinSide(leftSel);
         }
         SqlSelect rightSel = relation(j.right());
-        SqlSource right = asRightSide(rightSel,
-                unionFramed(rightSel) ? styled().forms().unionFrame() : j.frameName());
+        SqlSource right = asRightSide(rightSel, j.frameName());
         // a USER join lambda's ON keeps pure's null-safe equality (testJoinOnNullKey);
         // a RESOLVER-SYNTHESIZED join is the mapping's definition — plain '=' (slotDemandJoins)
         SqlExpr on;
@@ -2988,33 +2973,7 @@ public final class Lowerer {
         };
         SqlSelect out = joined(new SqlSource.Join(left, right, kind, on),
                 j.prefix(), j.right(), j.info(), leftCarry);
-        // a join CONTAINING a union frame isolates as one more union
-        // frame: select * from (lhs join rhs on ...) as "unionalias_N"
-        // — downstream ops read the wrapper's outputs (engine model)
-        if (unionSide(left) || unionSide(right)) {
-            // §E3 M-N2: the wrapper INHERITS the joined frame's outputs
-            // (pad-weakened) — starOf reads them straight off the
-            // Subselect; re-asserting outputsOf(info) here would
-            // re-echo the kind-blind contract (the SqlUnion ctor lesson)
-            return SqlSelect.starOf(new SqlSource.Subselect(out, nextAlias(),
-                    styled().forms().unionFrame()));
-        }
         return out;
-    }
-
-    /** Whether {@code s} reads a union frame the style names (L10: the product names none). */
-    private boolean unionFramed(SqlSelect s) {
-        return s.from() instanceof SqlSource.Subselect sub && unionFrame(sub);
-    }
-
-    private boolean unionSide(SqlSource s) {
-        return s instanceof SqlSource.Subselect sub && unionFrame(sub);
-    }
-
-    /** Whether {@code sub} is a union frame the style names: never where it names none (the product's). */
-    private boolean unionFrame(SqlSource.Subselect sub) {
-        String frame = styled().forms().unionFrame();
-        return frame != null && frame.equals(sub.frameName());
     }
 
     /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */

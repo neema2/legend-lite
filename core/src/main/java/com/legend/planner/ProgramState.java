@@ -208,7 +208,7 @@ public final class ProgramState {
 
     /** {@code q} written in the program's dialect for its target. */
     public ExecutionPlan.Sql statement(SqlQuery q) {
-        return PlanMaker.sql(dialect.renderStatement(q), target, q, style);
+        return PlanMaker.sql(dialect.renderStatement(q), target, q);
     }
 
     /** Places {@code step} after the steps planned so far. */

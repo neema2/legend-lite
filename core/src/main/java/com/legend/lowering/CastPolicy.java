@@ -52,7 +52,7 @@ final class CastPolicy {
             // forms source since J40, 2026-11-18): the
             // product writes the cast (DuckDB does not wire-convert, audit 19 F7); legend-engine's SQL leaves it to its
             // reader, which converts on the wire
-            return forms.wireCast(value, () -> written(c, value, isMany, forms));
+            return written(c, value, isMany, forms);
         }
         return written(c, value, isMany, forms);
     }

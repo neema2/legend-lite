@@ -27,15 +27,7 @@ public final class ProductLoweringForms implements LoweringForms {
         return checked.get();
     }
 
-    @Override
-    public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
-        return body;
-    }
 
-    @Override
-    public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
-        return written.get();
-    }
 
     @Override
     public SqlSelect executeValues(SqlSelect own) {
@@ -48,22 +40,8 @@ public final class ProductLoweringForms implements LoweringForms {
         return "";
     }
 
-    @Override
-    public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
-            Supplier<com.legend.sql.SqlQuery> unshared) {
-        return shared.get();
-    }
 
-    @Override
-    public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
-            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
-        return fold.apply(q);
-    }
 
-    @Override
-    public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-        return SubselectPrune.prune(q, true);
-    }
 
     /** An exact decimal at the product's Decimal precision ({@code PureSql.type(DECIMAL)}). */
     @Override
@@ -100,11 +78,6 @@ public final class ProductLoweringForms implements LoweringForms {
                         + " writes a query's rows by its result writers (JSON, CSV, Arrow)");
     }
 
-    /** No frame: a union is a subselect like any other (L10). */
-    @Override
-    public @com.legend.base.Nullable String unionFrame() {
-        return null;
-    }
 
 
     /** Each predicate appended, no zones kept (L10): conjunct order is no answer's, and the product's EXISTS is lowered

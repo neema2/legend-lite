@@ -345,7 +345,7 @@ public final class JudgePlans {
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
                         com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
-                PlanMaker.sql(plan, env.dialect(), env.target(), env.plan().style()));
+                PlanMaker.sql(plan, env.dialect(), env.target()));
     }
 
     private static PlannedSide tabularPlanned(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
@@ -359,8 +359,7 @@ public final class JudgePlans {
             // column, the columns its result reports read from the real run (the seam program's S3c, 2026-10-30;
             // until then WireProbe.staticized framed it by a describe at planning)
             ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
-                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target(),
-                            env.plan().style()));
+                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target()));
             return new PlannedSide(new TestPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
                     new Type.RelationType(List.of()));
         }

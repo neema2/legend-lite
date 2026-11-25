@@ -696,7 +696,7 @@ public final class PlanMaker {
         if (st.prepared() instanceof Prepared.StoreWrite w) {
             SqlDml dml = state.read(ProductStatements.storeWrite(query, w, st.temporal(), state.slots(),
                     state.sites()));
-            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null, state.style()),
+            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
                     last ? ExecutionPlan.COUNT : null));
             if (last) {
                 state.add(count(query, w.write(), dialect, target, state.features(), state.sites(), state.style()));
@@ -716,7 +716,7 @@ public final class PlanMaker {
         SqlQuery q = staged.statement();
         TypedSpec answer = p.body().get(p.body().size() - 1);
         state.add(stampedIfRead(last ? typed(answer, q, dialect, target, state.style())
-                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q, state.style())),
+                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)),
                 st.reads().ownStamp()));
     }
 
@@ -939,7 +939,7 @@ public final class PlanMaker {
         ExprType type = new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
-                sql(q, dialect, target, style));
+                sql(q, dialect, target));
     }
 
     /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
@@ -957,7 +957,7 @@ public final class PlanMaker {
                 .lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
-                sql(q, dialect, target, style));
+                sql(q, dialect, target));
     }
 
     /**
@@ -990,7 +990,7 @@ public final class PlanMaker {
                                 ColumnFacts.precision(PureSpelling.typePath(root.type()),
                                         outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS),
                                 PlanColumns.decimal(root.type()))),
-                        sql(lowered, dialect, target, style));
+                        sql(lowered, dialect, target));
             }
             case TABULAR -> {
                 // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns
@@ -1015,10 +1015,10 @@ public final class PlanMaker {
         };
     }
 
-    /** A rendered statement as the plan's, on {@code target}, its raise sites offered to {@code style} (the plan's,
-     *  {@link #sites}). */
+    /** A rendered statement as the plan's, on {@code target}, its raise sites planned ({@link #sites}). (Its unused
+     *  {@code style} parameter went with the edition's E0c, 2026-11-25.) */
     static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
-            @Nullable SqlQuery tree, com.legend.database.PlanStyle style) {
+            @Nullable SqlQuery tree) {
         // each payload a slot binds named by its digest, its text the statement's content (the JSON pass, 2026-11-11:
         // the payload's bytes once in the plan's data, as a load's are), digested once
         Map<String, String> content = new LinkedHashMap<>();
@@ -1095,8 +1095,8 @@ public final class PlanMaker {
             });
         }
         List<String> keyFields = parts.keys().outputs().stream().map(OutputCol::name).toList();
-        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target, style), keyFields, outputs, parts.perKeyAt(),
-                sql(parts.body(), dialect, target, style), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
+        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
+                sql(parts.body(), dialect, target), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
     }
 
     /** The plan's snapshot for a keyed result's two reads, as its database declares it ({@link
@@ -1124,7 +1124,7 @@ public final class PlanMaker {
             com.legend.database.PlanStyle style) {
         List<SqlSource.GridReport> reports = gridReports(statement);
         if (reports.isEmpty()) {
-            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target, style));
+            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target));
         }
         // the database's snapshot first, as the pivot's keyed result takes it: a database with no keyed result
         // refuses by its own name before any statement is written
@@ -1150,8 +1150,8 @@ public final class PlanMaker {
         for (ExecutionPlan.Column c : columns) {
             outputs.add(new ExecutionPlan.Keyed.Fixed(c, c.name()));
         }
-        return new ExecutionPlan.Keyed(sql(keys, dialect, target, style), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
-                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target, style),
+        return new ExecutionPlan.Keyed(sql(keys, dialect, target), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
+                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target),
                 snapshotOf(keysSnapshot), dialect.resultColumnLimit(), shape);
     }
 
@@ -1235,10 +1235,9 @@ public final class PlanMaker {
 
     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
      *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6), its raise sites
-     *  offered to {@code style}, the plan's. */
-    public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target,
-            com.legend.database.PlanStyle style) {
-        return sql(dialect.renderStatement(statement), target, statement, style);
+     *  planned. */
+    public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
+        return sql(dialect.renderStatement(statement), target, statement);
     }
 
     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */

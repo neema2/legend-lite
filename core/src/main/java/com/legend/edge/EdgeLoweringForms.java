@@ -38,15 +38,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
         return plain.contains(kind) ? plainOperation : checked.get();
     }
 
-    @Override
-    public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
-        return body;
-    }
 
-    @Override
-    public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
-        return written.get();
-    }
 
     /** legend-engine's protocol connection segment for its test database (H2's, as the goldens pin it), which its
      *  object references carry whatever the database (moved from model.AsorRef, the audit's J12, 2026-11-17). */
@@ -90,26 +82,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
                 new com.legend.sql.OutputCol("result", com.legend.sql.SqlType.Scalar.VARCHAR, false))));
     }
 
-    /** legend-engine's statement shape writes a relation at each read; every other edge form, the product's lean SQL
-     *  (the edge audit's J23, 2026-11-17). */
-    @Override
-    public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
-            Supplier<com.legend.sql.SqlQuery> unshared) {
-        return shared.get();
-    }
 
-    /** legend-engine's statement shape counts a keyed relation's rows as written (J23). */
-    @Override
-    public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
-            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
-        return fold.apply(q);
-    }
 
-    /** legend-engine's statement shape keeps an unread computed projection (J23). */
-    @Override
-    public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-        return com.legend.lowering.SubselectPrune.prune(q, true);
-    }
 
     /** legend-engine's one-argument parseDecimal on H2: its hardcoded {@code decimal(5, 2)}
      *  (h2Extension2_1_214.pure transformParseDecimalH2; its goldens round through it, 123.450021 to 123.45; the audit's
@@ -144,12 +118,6 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
                 SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER, s));
     }
 
-    /** No union frame outside legend-engine's statement shape (L10, the lens audit's L-A.unionAlias, 2026-11-18): the
-     *  product's lean form, as J23's. */
-    @Override
-    public @com.legend.base.Nullable String unionFrame() {
-        return null;
-    }
 
 
     /** legend-engine's conjunct zones, on every edge style (L10): its exists form reads them ({@code existsJoin}, J19 --
