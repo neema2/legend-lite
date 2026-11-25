@@ -1,0 +1,36 @@
+import json, re, glob, sys, os
+sys.path.insert(0, os.path.dirname(__file__))
+from rewrite import rewrite
+E = '/tmp/claude-0/-home-user-legend-lite/e82d575c-3b18-52af-b239-5bdd496a53f4/scratchpad/eq-measure'
+A = '/tmp/claude-0/-home-user-legend-lite/e82d575c-3b18-52af-b239-5bdd496a53f4/scratchpad/audit-final'
+corpus = []; seen = {}
+def add(src, body):
+    if body in seen:
+        seen[body]['src'] += ',' + src; return
+    rec = {'id': 'q%04d' % len(corpus), 'src': src, 'a': body}
+    try:
+        rec['b'] = rewrite(body)
+    except Exception as e:
+        rec['b'] = None; rec['rewrite_error'] = repr(e)
+    corpus.append(rec); seen[body] = rec
+for b in json.load(open(E + '/abt.json')):
+    if 'ext::A' in b:
+        continue   # the metamodel pair: its own model
+    add('abt', re.sub(r'p::N\b(?![.N])', 'p::NN', b))
+for f in sorted(glob.glob(A + '/b*.txt'), key=lambda p: int(re.search(r'b(\d+)\.txt', p).group(1))):
+    tag = os.path.basename(f)[:-4]
+    for line in open(f):
+        line = line.rstrip('\n')
+        if line and not line.startswith('#'):
+            add(tag, line)
+for line in open(E + '/pct.txt'):
+    line = line.rstrip('\n')
+    if line and not line.startswith('#'):
+        if '#TDS' in line:
+            line = line.replace('\\n', '\n')
+        add('pct', line)
+json.dump(corpus, open(E + '/corpus.json', 'w'), indent=1)
+same = sum(1 for r in corpus if r['b'] == r['a'])
+print(len(corpus), 'bodies;', same, 'unchanged by the rewrite;', sum(1 for r in corpus if r['b'] is None), 'rewrite errors')
+import collections
+print(collections.Counter(r['src'].split(',')[0] for r in corpus))

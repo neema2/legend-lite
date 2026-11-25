@@ -1,0 +1,44 @@
+# usage: run.py corpus.json outdir [DB ...]   -- one JVM at a time, chunks of bodies, HOST and DATABASE judges
+import json, os, subprocess, sys
+SP = '/tmp/claude-0/-home-user-legend-lite/e82d575c-3b18-52af-b239-5bdd496a53f4/scratchpad'
+E = SP + '/eq-measure'
+corpus = json.load(open(sys.argv[1])); out = sys.argv[2]; dbs = sys.argv[3:] or ['DuckDB', 'H2', 'SQLite']
+os.makedirs(out, exist_ok=True)
+bodies = []
+for r in corpus:
+    for k in ('a', 'b'):
+        if r.get(k) and r[k] not in bodies:
+            bodies.append(r[k])
+env = dict(os.environ, MODELFILE=E + '/eq.pure', LIM='400', MODES=os.environ.get('MODES', 'HOST,DATABASE'))
+CH = int(os.environ.get('CH', '100'))
+def parse(db, chunk, text, res):
+    pos = 0
+    for b in chunk:
+        h = db + ' ' + b + '\n'
+        i = text.find(h, pos)
+        if i < 0:
+            res[b] = {'_missing': True}; continue
+        j = i + len(h); d = {}
+        for line in text[j:].split('\n'):
+            if line.startswith('   ') and ': ' in line:
+                m, v = line.strip().split(': ', 1); d[m] = v
+            else:
+                break
+        res[b] = d; pos = j
+for db in dbs:
+    fn = '%s/%s.json' % (out, db)
+    res = json.load(open(fn)) if os.path.exists(fn) else {}
+    todo = [b for b in bodies if b not in res or res[b].get('_missing')]
+    for k in range(0, len(todo), CH):
+        chunk = todo[k:k+CH]
+        try:
+            p = subprocess.run([SP + '/narrow-review/tools/rr.sh', SP + '/audit-final/t-fix1', 'HV', db] + chunk,
+                               env=env, capture_output=True, text=True, timeout=int(os.environ.get('TMO', '1200')))
+            text = p.stdout + p.stderr
+        except subprocess.TimeoutExpired as e:
+            text = (e.stdout or b'').decode() if isinstance(e.stdout, bytes) else (e.stdout or '')
+        open('%s/%s.raw%03d.txt' % (out, db, k // CH), 'w').write(text)
+        parse(db, chunk, text, res)
+        json.dump(res, open(fn, 'w'), indent=0)
+        print(db, k + len(chunk), '/', len(todo), flush=True)
+print('RUNDONE')

@@ -1,0 +1,220 @@
+# numbers: Integer / Float / Decimal, literal pairs
+{|assertEquals(1, 1)}
+{|assertEquals(1, 1.0)}
+{|assertNotEquals(1, 1.0)}
+{|assertEquals(1, 1D)}
+{|assertNotEquals(1, 1D)}
+{|assertEquals(1.0, 1D)}
+{|assertEquals(1.5, 1.5D)}
+{|assertNotEquals(1.5, 1.5D)}
+{|assertEquals(1D, 1.00D)}
+{|assertEquals(3D, 1 + 2)}
+{|assertEquals(3, 1.5 * 2)}
+{|assertEquals(3.0, 1.5 * 2)}
+{|assertEquals(2.5, 10 / 4)}
+{|assertEquals(3, [1, 2]->sum())}
+{|assertEquals(3.0, [1.0, 2.0]->sum())}
+{|assertEquals(3, [1.0, 2.0]->sum())}
+{|assertEquals(1, 1.5->floor())}
+{|assertEquals(2, 1.5->round())}
+{|assertEquals(1.5D, 1.5->toDecimal())}
+{|assertEquals(1.5, 1.5D->toFloat())}
+{|assertEquals(1, 1D->toInteger())}
+{|assertEquals(1, 1.0->toInteger())}
+{|assertEq(1, 1.0)}
+{|assertNotEq(1, 1.0)}
+# numbers: lists, mixed lists, empties
+{|assertEquals([1, 2], [1, 2])}
+{|assertEquals([1, 2], [1.0, 2.0])}
+{|assertNotEquals([1, 2], [1.0, 2.0])}
+{|assertEquals([1, 2], [1D, 2D])}
+{|assertEquals([1.0, 2.5], [1, 2.5])}
+{|assertEquals([1, 2.5], [1, 2.5])}
+{|assertEquals([1, 2.5D], [1, 2.5D])}
+{|assertEquals([1, 2.5D], [1.0, 2.5D])}
+{|assertEquals([1, 2], [2, 1])}
+{|assertEquals([], [])}
+{|assertEquals([], []->cast(@Integer))}
+{|assertEquals([]->cast(@Float), []->cast(@Integer))}
+{|assertEquals([1]->filter(x | $x > 5), [1.0]->filter(x | $x > 5.0))}
+{|assertNotEquals([], [1])}
+{|assertEquals(1, [1])}
+{|assertEquals([1], 1.0)}
+{|assertContains([1, 2], 1)}
+{|assertContains([1, 2], 1.0)}
+{|assertNotContains([1, 2], 1.0)}
+{|assertContains([1.0, 2.0], 1)}
+{|assertContains([1D, 2D], 1)}
+{|assertContains([1, 2.5], 2.5D)}
+{|assertContains([1, 2.5D], 2.5D)}
+{|assertNotContains([1, 2.5], 2.5D)}
+{|assertSameElements([1, 2], [2, 1])}
+{|assertSameElements([1, 2], [2.0, 1.0])}
+{|assertSameElements([1, 2.0], [2.0, 1])}
+{|assertSameElements([1, 2.5D], [2.5D, 1])}
+{|assertSameElements([1, 1, 2], [1, 2, 2])}
+{|assertSameElements([], []->cast(@Integer))}
+{|assertSize([1, 2.0, 3D], 3)}
+{|assertEmpty([]->cast(@Float))}
+{|assertEqWithinTolerance(1, 1.05, 0.1)}
+{|assertEqWithinTolerance(1D, 1.05, 0.1)}
+{|assertEqWithinTolerance(1.0, 1.2, 0.1)}
+# numbers: store-read columns (Decimal column, Float column, Integer column, Decimal over INTEGER)
+{|assertEquals(1.5, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+{|assertEquals(1.5D, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+{|assertEquals(2.5, p::Q.all()->filter(x | $x.id == 1)->toOne().f)}
+{|assertEquals(2.5D, p::Q.all()->filter(x | $x.id == 1)->toOne().f)}
+{|assertEquals(3, p::Q.all()->filter(x | $x.id == 2)->toOne().f)}
+{|assertEquals(1.0, p::Q.all()->filter(x | $x.id == 1)->toOne().id)}
+{|assertEquals(1, p::P.all()->toOne().d)}
+{|assertEquals(1D, p::P.all()->toOne().d)}
+{|assertEquals([1, 2, 3], p::Q.all()->sortBy(x | $x.id).id)}
+{|assertEquals([1.0, 2.0, 3.0], p::Q.all()->sortBy(x | $x.id).id)}
+{|assertEquals([2.5, 3, 2.5], p::Q.all()->sortBy(x | $x.id).f)}
+{|assertEquals([1.5D, -2D, 1.5D], p::Q.all()->sortBy(x | $x.id).e)}
+{|assertEquals([1.5, -2.0, 1.5], p::Q.all()->sortBy(x | $x.id).e)}
+{|assertContains(p::Q.all().f, 3)}
+{|assertContains(p::Q.all().f, 3.0)}
+{|assertContains(p::Q.all().e, 1.5)}
+{|assertContains(p::Q.all().id, 1.0)}
+{|assertSameElements([3.0, 2.5, 2.5], p::Q.all().f)}
+{|assertSameElements([3, 2.5, 2.5], p::Q.all().f)}
+# enumerations vs Strings
+{|assertEquals(t::E.A, t::E.A)}
+{|assertEquals(t::E.A, 'A')}
+{|assertNotEquals(t::E.A, 'A')}
+{|assertEquals('A', t::E.A)}
+{|assertEquals(t::E.A, p::E.A)}
+{|assertNotEquals(t::E.A, p::E.A)}
+{|assertEquals(t::E.A->toString(), 'A')}
+{|assertEquals([t::E.A, t::E.B], ['A', 'B'])}
+{|assertEquals([t::E.A, t::E.B], [t::E.A, t::E.B])}
+{|assertContains([t::E.A, t::E.B], 'A')}
+{|assertNotContains([t::E.A, t::E.B], 'A')}
+{|assertContains(['A', 'B'], t::E.A)}
+{|assertContains([t::E.A, t::E.B], p::E.A)}
+{|assertSameElements([t::E.B, t::E.A], [t::E.A, t::E.B])}
+{|assertSameElements([t::E.A], ['A'])}
+{|assertEquals(t::E.A->cast(@Any), 'A')}
+{|assertEquals(t::E.A, 'A'->cast(@Any))}
+{|assertEquals(t::E.A, [t::E.A, 'A']->at(1))}
+{|assertEquals('A', [t::E.A, 'A']->at(0))}
+{|assertContains([t::E.A, 'B'], 'A')}
+{|assertEq(t::E.A, t::E.A)}
+{|assertEq(t::E.A, 'A')}
+{|assertNotEq(t::E.A, 'A')}
+{|assertEquals(^p::KE(e=t::E.A), ^p::KE(e=t::E.A))}
+{|assertEquals(^p::KA(a=t::E.A), ^p::KA(a='A'))}
+{|assertEquals(pair(1, t::E.A), pair(1, 'A'))}
+# dates: StrictDate / DateTime / partial, precision
+{|assertEquals(%2020-01-01, %2020-01-01)}
+{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}
+{|assertNotEquals(%2020-01-01, %2020-01-01T00:00:00)}
+{|assertEquals(%2020-01-01T00:00:00, %2020-01-01)}
+{|assertEquals(%2020-01-01T00:00, %2020-01-01T00:00:00.000)}
+{|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:00.000)}
+{|assertNotEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:00.000)}
+{|assertEquals(%2020-01-01T10, %2020-01-01T10:00:00)}
+{|assertEquals(%2020, %2020-01)}
+{|assertEquals(%2020-01, %2020-01-01)}
+{|assertNotEquals(%2020-01, %2020-01-01)}
+{|assertEquals(%2020-01, %2020-01)}
+{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.50)}
+{|assertEquals(%2020-01-01T10:00:00.123456, %2020-01-01T10:00:00.123456000)}
+{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456788)}
+{|assertEquals(%2020-01-01T10:00:00+0100, %2020-01-01T09:00:00)}
+{|assertContains([%2020-01-01, %2020-01-02], %2020-01-01T00:00:00)}
+{|assertNotContains([%2020-01-01, %2020-01-02], %2020-01-01T00:00:00)}
+{|assertContains([%2020-01-01T00:00:00, %2020-01-02T00:00:00], %2020-01-01)}
+{|assertContains([%2020-01-01T10:00:00], %2020-01-01T10:00:00.000)}
+{|assertEquals([%2020-01-01, %2020-01-02], [%2020-01-01T00:00:00, %2020-01-02T00:00:00])}
+{|assertSameElements([%2020-01-02, %2020-01-01], [%2020-01-01, %2020-01-02])}
+{|assertSameElements([%2020-01-02, %2020-01-01], [%2020-01-01T00:00, %2020-01-02T00:00])}
+{|assertEquals(%2020-01-01, %2020-01-01->adjust(0, DurationUnit.DAYS))}
+{|assertEquals(%2020-01-02, %2020-01-01->adjust(1, DurationUnit.DAYS))}
+{|assertEquals(%2020-01-02T00:00:00, %2020-01-01->adjust(1, DurationUnit.DAYS))}
+{|assertEquals(%2020-01-01T01:00:00, %2020-01-01->adjust(1, DurationUnit.HOURS))}
+{|assertEquals(%2020-01-01, today()->adjust(0, DurationUnit.DAYS)->datePart())}
+{|assertEquals(%2020-01-01, date(2020, 1, 1))}
+{|assertEquals(%2020-01-01T00:00:00, date(2020, 1, 1))}
+{|assertEquals(%2020-01-01T10:00:00, date(2020, 1, 1, 10, 0, 0))}
+{|assertEquals(%2020-01-01T10:00, date(2020, 1, 1, 10, 0))}
+{|assertEquals(%2020-01-01, %2020-01-01T10:00:00->datePart())}
+{|assertEquals(%2020-01-01T00:00:00, %2020-01-01T10:00:00->datePart())}
+# dates: store-read columns (StrictDate column, DateTime column, DateTime over DATE)
+{|assertEquals(%2020-01-01, p::Q.all()->filter(x | $x.id == 1)->toOne().d)}
+{|assertEquals(%2020-01-01T00:00:00, p::Q.all()->filter(x | $x.id == 1)->toOne().d)}
+{|assertEquals(%2020-01-01T10:00:00, p::Q.all()->filter(x | $x.id == 1)->toOne().t)}
+{|assertEquals(%2020-01-01T10:00:00.000, p::Q.all()->filter(x | $x.id == 1)->toOne().t)}
+{|assertEquals(%2020-01-01T10:00, p::Q.all()->filter(x | $x.id == 1)->toOne().t)}
+{|assertEquals(%2020-01-01, p::R.all()->filter(x | $x.id == 1)->toOne().t)}
+{|assertEquals(%2020-01-01T00:00:00, p::R.all()->filter(x | $x.id == 1)->toOne().t)}
+{|assertContains(p::Q.all().d, %2020-01-01T00:00:00)}
+{|assertContains(p::Q.all().t, %2020-01-01T10:00)}
+{|assertContains(p::R.all().t, %2020-01-01)}
+{|assertSameElements([%2020-01-01, %2020-01-02, %2020-01-01], p::Q.all().d)}
+{|assertEquals(%2020-01-01T10:00:00.123456789, p::N.all()->filter(x | $x.id == 1)->toOne().t)}
+{|assertEquals(%2020-01-01T10:00:00.123456, p::N.all()->filter(x | $x.id == 2)->toOne().t)}
+# Variants
+{|assertEquals(fromJson('1')->to(@Integer), 1)}
+{|assertEquals(fromJson('1.5')->to(@Float), 1.5)}
+{|assertEquals(fromJson('1')->to(@Float), 1)}
+{|assertEquals(fromJson('{"a":1}')->get('a')->to(@Integer), 1)}
+{|assertEquals(fromJson('1'), 1)}
+{|assertNotEquals(fromJson('1'), 1)}
+{|assertEquals(fromJson('"a"'), 'a')}
+{|assertEquals(fromJson('1')->toString(), '1')}
+{|assertContains([1, 2], fromJson('1'))}
+{|assertNotContains([1, 2], fromJson('1'))}
+{|assertEquals(fromJson('[1,2]')->toMany(@Integer), [1, 2])}
+{|assertEquals(fromJson('[1,2]')->toMany(@Integer), [1.0, 2.0])}
+{|assertEquals(fromJson('1'), fromJson('1'))}
+{|assertEquals(1->toVariant()->to(@Integer), 1)}
+# instances, keys, Pairs, Lists, Maps
+{|assertEquals(^t::Person(name='a'), ^t::Person(name='a'))}
+{|assertNotEquals(^t::Person(name='a'), ^t::Person(name='a'))}
+{|let x = ^t::Person(name='a'); assertEquals($x, $x);}
+{|let x = ^t::Person(name='a'); assertContains([$x], $x);}
+{|assertEquals(^p::K(id=1, at=%2020-01-01T00:00:00, note='x'), ^p::K(id=1, at=%2020-01-01T00:00:00, note='y'))}
+{|assertEquals(^p::K(id=1, at=%2020-01-01T00:00:00, note='x'), ^p::K(id=2, at=%2020-01-01T00:00:00, note='x'))}
+{|assertNotEquals(^p::K(id=1, at=%2020-01-01T00:00:00, note='x'), ^p::K(id=1, at=%2020-01-01T00:00:00, note='y'))}
+{|assertContains([^p::K(id=1, at=%2020-01-01T00:00:00, note='x')], ^p::K(id=1, at=%2020-01-01T00:00:00, note='y'))}
+{|assertEquals(^p::KS(id=1, at=%2020-01-01T00:00:00, note='x', extra='e'), ^p::K(id=1, at=%2020-01-01T00:00:00, note='x'))}
+{|assertEquals(^p::KF(f=1.0), ^p::KF(f=1.0))}
+{|assertEquals(^p::KNum(n=1), ^p::KNum(n=1.0))}
+{|assertEquals(^p::KNum(n=1), ^p::KNum(n=1))}
+{|assertEquals(^p::KO(note='a'), ^p::KO(note='b'))}
+{|assertEquals(^p::KO(id=1, note='a'), ^p::KO(note='b'))}
+{|assertEquals(^p::KM(ids=[1, 2]), ^p::KM(ids=[1, 2]))}
+{|assertEquals(^p::KM(ids=[1, 2]), ^p::KM(ids=[2, 1]))}
+{|assertEquals(^p::KD(d=1.0D, b=true, e=t::E.A, sd=%2020-01-01), ^p::KD(d=1.00D, b=true, e=t::E.A, sd=%2020-01-01))}
+{|assertEquals(^p::KSD(d=%2020-01-01), ^p::KSD(d=%2020-01-01))}
+{|assertEquals(^p::KDT(t=%2020-01-01T10:00:00), ^p::KDT(t=%2020-01-01T10:00:00.000))}
+{|assertEquals(^p::KI(i=1, s='a'), ^p::KI(i=1, s='a'))}
+{|assertSameElements([^p::KI(i=1, s='a'), ^p::KI(i=2, s='b')], [^p::KI(i=2, s='b'), ^p::KI(i=1, s='a')])}
+{|assertEquals(pair(1, 'a'), pair(1, 'a'))}
+{|assertEquals(pair(1, 'a'), pair(1, 'b'))}
+{|assertEquals(pair(1, 1.0), pair(1, 1))}
+{|assertEquals(pair(1, 1D), pair(1, 1))}
+{|assertEquals(pair(1, %2020-01-01), pair(1, %2020-01-01T00:00:00))}
+{|assertContains([pair(1, 'a'), pair(2, 'b')], pair(2, 'b'))}
+{|assertContains([pair(1, 1)], pair(1, 1.0))}
+{|assertEquals(list([1, 2]), list([1, 2]))}
+{|assertEquals(list([1, 2]), list([1.0, 2.0]))}
+{|assertEquals(newMap([pair('a', 1)]), newMap([pair('a', 1)]))}
+{|assertEquals(newMap([pair('a', 1)]), newMap([pair('a', 1.0)]))}
+# grids
+{|assertEquals(#TDS\n  id, s\n  1, x\n#, #TDS\n  id, s\n  1, x\n#)}
+{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  1.0\n#)}
+{|assertEquals(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}
+{|assertEquals([1, 2, 3], execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values)}
+{|assertEquals([1.0, 2.0, 3.0], execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values)}
+{|assertEquals([2.5, 3.0, 2.5], execute(|p::Q.all()->project([x | $x.f], ['f'])->sort('f'), p::M, p::RT.runtimeValue, []).values)}
+# booleans, strings
+{|assertEquals(true, 1 == 1)}
+{|assertEquals('a', 'a')}
+{|assertEquals('a', 'A')}
+{|assertEquals('1', 1)}
+{|assertEquals(true, 'true')}
+{|assertContains(['a', 'b'], 'a')}
+{|assertSameElements(['b', 'a'], ['a', 'b'])}

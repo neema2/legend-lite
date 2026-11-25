@@ -1,0 +1,70 @@
+diff --git a/core/src/main/java/com/legend/test/Audience.java b/core/src/main/java/com/legend/test/Audience.java
+index 767522d7..a9812c1a 100644
+--- a/core/src/main/java/com/legend/test/Audience.java
++++ b/core/src/main/java/com/legend/test/Audience.java
+@@ -32,6 +32,22 @@ public interface Audience {
+      *  a relation's printed text (B3 step 2b, {@code edge.UpstreamPrints}). */
+     com.legend.TypedQuery read(com.legend.TypedQuery typed, com.legend.testexecutionplan.BodyFacts facts, Reads reads);
+ 
++    /** The body's run as this audience decides it, AFTER the body and on its session while it is still open (B3 step 6,
++     *  the SQL-text asserts as test tooling): the product's the run itself. legend-engine's decides the asserts its
++     *  door lifted out of the body ({@code edge.UpstreamSqlTexts}) and puts each verdict back at its place, reading
++     *  through {@code reads} -- the harness's, never the product's. */
++    default Ran after(com.legend.TypedQuery body, Ran ran, Reads reads) {
++        return ran;
++    }
++
++    /** A body's run: its verdicts in order and the failure that ended it ({@code null} when none did), as the runner
++     *  scores it. */
++    record Ran(java.util.List<PureTestRunner.Verdict> verdicts, @com.legend.base.Nullable String failure) {
++        public Ran {
++            verdicts = java.util.List.copyOf(verdicts);
++        }
++    }
++
+     /** A query run on the body's session through lite's public test door, its answer written to {@code answer}: what
+      *  an audience reads before a body (B3 step 2b, the user's option (B), 2026-11-24). */
+     @FunctionalInterface
+diff --git a/core/src/main/java/com/legend/test/PureTestRunner.java b/core/src/main/java/com/legend/test/PureTestRunner.java
+index 6977097f..cefa7a89 100644
+--- a/core/src/main/java/com/legend/test/PureTestRunner.java
++++ b/core/src/main/java/com/legend/test/PureTestRunner.java
+@@ -346,6 +346,11 @@ public final class PureTestRunner implements AutoCloseable {
+         try {
+             String failure = null;
+             com.legend.testexecutionplan.TestPlan planned = null;
++            com.legend.TypedQuery read = null;
++            // the audience's reads, on this session through the public test door: before the body (a printed side's
++            // relation, B3 step 2b) and after it (the asserts its door lifted, B3 step 6)
++            Audience.Reads reads = (query, answer) -> TestExecution.runBody(
++                    TestExecution.planBody(query, runtimeFqn, options), conn, null, referee, options, answer);
+             try {
+                 // the body planned whole, nothing told to anyone; then run, its listener told each verdict at its
+                 // turn (2026-11-10: no fixture is provided between the halves -- the corpus's and the stress lanes'
+@@ -353,10 +358,8 @@ public final class PureTestRunner implements AutoCloseable {
+                 // the audience's reads first (B3 step 2b: a compatibility audience reads a printed side's relation on
+                 // this session, its setups run, and substitutes the text), each a query planned and run through the
+                 // public test door
+-                Audience.Reads reads = (query, answer) -> TestExecution.runBody(
+-                        TestExecution.planBody(query, runtimeFqn, options), conn, null, referee, options, answer);
+-                planned = TestExecution.planBody(audience.read(audience.admitted(Compiler.queryResolved(ctx, resolved)),
+-                        facts, reads), runtimeFqn, options);
++                read = audience.read(audience.admitted(Compiler.queryResolved(ctx, resolved)), facts, reads);
++                planned = TestExecution.planBody(read, runtimeFqn, options);
+                 TestExecution.runBody(planned, conn,
+                         new AssertListener() {
+                             @Override
+@@ -403,6 +406,13 @@ public final class PureTestRunner implements AutoCloseable {
+             if (failure == null && !failedAsserts.isEmpty()) {
+                 failure = "assert " + failedAsserts.get(0);
+             }
++            if (read != null) {
++                // the audience's decision after the body, on its session still open (B3 step 6): the product's the run
++                Audience.Ran decided = audience.after(read, new Audience.Ran(verdicts, failure), reads);
++                verdicts.clear();
++                verdicts.addAll(decided.verdicts());
++                failure = decided.failure();
++            }
+             // whether the body reaches a verdict: the plan's own fact (planned, since nothing failed)
+             if (failure == null && verdicts.isEmpty() && java.util.Objects.requireNonNull(planned).facts().verdicts()) {
+                 failure = "no verdict: the body calls an assert the platform did not adjudicate";

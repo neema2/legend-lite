@@ -1,0 +1,129 @@
+"""Bucket 3 sort: one class per test, with a short reason. Reads b3j.tsv and manloc.json from argv[1] (the r2 dir);
+writes b3_sorted.json there. Classes: REF, DBE, TB, PT, LX, OTH."""
+import json, os, sys
+
+d = sys.argv[1]
+rows = [l.rstrip('\n').split('\t') for l in open(os.path.join(d, 'b3j.tsv'))]
+manloc = json.load(open(os.path.join(d, 'manloc.json')))
+
+C = {}
+def put(idxs, cls, why):
+    for i in idxs:
+        assert i not in C, i
+        C[i] = (cls, why)
+
+YEAR = "its own refusal 'DuckDB doesn't support YEAR and YEAR-MONTH' (DX:150-152, fail() in convertDateToSqlStringDuckDB; M4 filed it as a database error because of the word DuckDB)"
+YM = "'Date has no day': a YEAR-MONTH literal passes the guard `hasMonth() || hasDay()` (DX:150) meant to refuse it, then the `yyyy-MM-dd` format fails (the YEAR-MONTH refusal leaking as a crash)"
+SIZE0 = "run-time fault 'Cannot cast a collection of size 0 to multiplicity [1]': legend-engine's SQL answered no value (likely a translation defect; SQL not inspected, unverified)"
+UFA = "planner fault 'Unused format args' building DuckDB's aggregate template over a literal list (Java String.format in its plan generation)"
+DTP = "DateTime precision: legend-engine reads DuckDB's TIMESTAMP back at nanosecond precision (`...T20:10:20.000000000`), Pure's literal has second precision"
+NUMK = "Number kind: Pure keeps the winning element's own kind (Integer 2, Decimal 1.0D); legend-engine lets DuckDB promote the mixed list (DOUBLE) and answers a Float. The user's own example of a type difference. Note: would move to class 5 if ruling 7 (the database's promotion for runtime-typed Number) is read to cover a result's kind"
+DECK = "Decimal versus Float kind of a mixed Decimal/Integer/Float arithmetic result (Pure: Decimal; legend-engine: Float). Same ruling-7 note as the Number-kind rows"
+
+put([1], 'REF', "No SQL translation exists for add(T[*],Integer,T)")
+put([2, 3, 4], 'REF', "'->at(...) function is supported only after direct access of 1->MANY properties'")
+put([5, 6], 'REF', "'Any is not managed yet!' (a mixed-type list)")
+put([7], 'REF', "'Parameter to IN operation isn't a literal!' (a list of class instances)")
+put([8], 'LX', "DuckDB 'Conversion Error: Unimplemented type for cast (INTEGER -> DATE)' on `1 in (1, 2, 5, 2, 'a', true, DATE '2014-02-01', 'c')`: legend-engine sends the mixed list to the database and the database's type unification fails. Lite passes by keeping each element's kind (its tagged mixed-list carrier). Under ruling 7 ('comparisons under engine take the database's promotion, including types known only at run time (Any, Number)') the database's answer here is this error. [E2: depends on ruling 7's reach]")
+put([9], 'OTH', "planner fault: legend-engine's own Pure parser rejects the expression it generated ('no viable alternative at input ...contains(...comparator...)')")
+put([10], 'OTH', SIZE0)
+put([11, 12], 'OTH', "planner fault 'Function does not exist find(String[n], LambdaFunction...)': its compiler has no find() for a literal list of known size")
+put([13, 16, 18], 'OTH', "planner fault 'Function does not exist copy(FO_Person[1],String[1],KeyExpression[1])': copy-with-update (^$p2(lastName=...)) inside the fold lambda")
+put([14, 19, 20], 'DBE', "DuckDB's list_reduce binder error 'The initial value type must be the same as the list child type or a common super type' (the manifest stores DuckDB's text without the `java.sql.SQLException: Binder Error:` prefix that row 17 carries; the engine lane files it PLANNER_FAULT for that reason): legend-engine maps fold to list_reduce, which cannot fold into an accumulator of another type")
+put([15], 'REF', "'Any is not managed yet!' (fold over []->cast(@Any))")
+put([17], 'DBE', "DuckDB 'Binder Error: The initial value type must be the same as the list child type...': fold(['one','two'], {v,a|$a+$v->length()}, 1) mapped to list_reduce with an Integer accumulator over a String list")
+put([21, 22, 23], 'REF', "No SQL translation exists for forAll")
+put([24, 25, 26], 'OTH', SIZE0 + " (`head` of a literal list)")
+put([27], 'TB', "`'c'->indexOf('c')` answers 1: DX:237 maps indexOf to 1-based `instr`, with legend-engine's own TODO: 'pure uses 0-based indexing ... keeping this as H2 also returns 1-based currently, many user tests need to be fixed' (a known bug kept for its users)")
+put([28, 29, 30, 32], 'REF', "No SQL translation exists for removeDuplicates with key/equality functions")
+put([31], 'REF', "'Any is not managed yet!' (mixed-type list)")
+put([33], 'REF', "'Not supported: Number' (sort of a mixed Number list)")
+put([34, 35, 36, 37], 'REF', "No SQL translation exists for sort with key/comparator")
+put([38, 40, 42, 43, 45, 46], 'REF', "No SQL translation exists for zip")
+put([39, 41, 44], 'OTH', "planner fault 'The system is trying to get an element at offset 0 where the collection is of size 0' (zip of an empty list)")
+put([47], 'PT', "precision: Pure keeps the literal's 7 sub-second digits (`.4990000`), legend-engine answers `.499`")
+put([48], 'TB', "wrong value read back, not wrong SQL: Pure `%-21457-01-08T20:48:00`, legend-engine `%21459-07-29T20:48:00` -- the BC timestamp DuckDB computes loses its era and shifts by the Julian/Gregorian gap in legend-engine's Java read-back (mechanism inferred from the shape of the error, unverified)")
+put([49], 'OTH', YM)
+put([50], 'REF', YEAR)
+put([51], 'TB', "`datediff('week', a, b)` (DX:213, unit map DX:478-483): DuckDB counts Monday-based week boundaries, Pure Sunday-based (2015-07-04 Sat to 07-05 Sun is 1 in Pure, 0 in DuckDB)")
+put([52], 'REF', YEAR)
+put([53, 54, 55, 58], 'REF', "No SQL translation exists for date(...) of 1, 2, 4 or 5 parts")
+put([56, 57], 'PT', "precision: date(y,m,d,h,mi,s) is `make_timestamp` (DX:504-511) read back at nanosecond precision (`.000000000`); Pure's answer has second (or the literal's sub-second) precision")
+put([59], 'OTH', YM)
+put([60], 'REF', YEAR)
+put([61, 62, 63, 64, 65, 66, 67], 'REF', "No SQL translation exists for has{Day,Hour,Minute,Month,Second,Subsecond,SubsecondWithAtLeastPrecision}")
+put([68], 'TB', "`%2015-04-15T17->hour()` answers 0: the DuckDB literal processor's optional time section (DX:151, `yyyy-MM-dd?[ HH:mm:ss?[.S*]]`) drops the time of an hour-precision DateTime, so the literal reaches SQL as midnight (read from the format, not run)")
+put([69], 'TB', "`%2015-04-15T17:09->minute()` answers 0: same literal-processor cause as testHour (minute precision)")
+put([70], 'OTH', YM)
+put([71], 'REF', YEAR)
+put([72], 'REF', "'type not supported: ...MA_GeographicEntityType'")
+put([73], 'REF', "'Match only supports operands with multiplicity [1]..!'")
+put([74, 75, 76, 81, 82, 83, 84], 'REF', "'Match does not support Non-Primitive return type..! Current return type : Any'")
+put([77, 78], 'REF', "No SQL translation exists for match with extra parameters")
+put([79, 80], 'OTH', "planner fault 'Cast exception: Literal cannot be cast to SemiStructuredPropertyAccess'")
+put([85], 'TB', "`{a:Number[1], b:Number[1] | pow($a,$b)}->eval(3.0, 2)` answers 27.0, not 9.0: the lambda's arguments are mis-bound in planning (27 = 3^3 suggests both parameters took 3.0; unverified)")
+put([86], 'PT', "kind: rem(3.14, 1.5d) is a Decimal in Pure (0.14d), a Float in legend-engine (0.14)")
+put([87, 88], 'TB', "half-even rounding: DX:865-871 writes `cast(round(%s, 0) as BIGINT)`, DuckDB rounds half away from zero (round(16.5) = 17, Pure 16)")
+put([89], 'PT', "scale: toDecimal(8) is `8D` in Pure; legend-engine's `cast(%s as decimal)` (DX:282) gives a scaled DECIMAL read back as `8.0D`")
+put([90, 91, 92, 93, 94, 95, 96, 97, 100, 101, 102], 'REF', "No SQL translation exists for format(String, Any[*])")
+put([98, 99], 'OTH', SIZE0 + " (format of a List/Pair)")
+put([103], 'REF', "No SQL translation exists for indexOf(String, String, Integer)")
+put([104], 'TB', "string indexOf answers 1-based (5 for 4): DX:237 `instr`, legend-engine's own TODO keeps it (see row 27)")
+put([105], 'OTH', "planner fault 'Match failure: null' (joinStrings over an empty tail)")
+put([106, 107], 'REF', "'[unsupported-api] The function 'parseBoolean' ... is not supported yet'")
+put([108, 109, 110, 111], 'REF', "'[unsupported-api] The function 'toTimestamp' ... is not supported yet' (parseDate)")
+put([112], 'DBE', "DuckDB 'Conversion Error: Could not convert string \"3.14159d\" to DECIMAL(18,3)': legend-engine's parseDecimal is a plain cast (DX:256) and does not accept Pure's `d` suffix")
+put([113, 114], 'PT', "Decimal scale: Pure `123.12300D` / `0.000D`, legend-engine `123.123D` / `0.0D` (its parseDecimal ignores the precision and scale arguments)")
+put([115, 116], 'TB', "1-based `substring` passthrough (DX:277); legend-engine's fix is behind its CORRECT_SQL_SUBSTRING_INDEXING feature flag (executionPlanFeature.pure:26, pureToSQLQuery.pure:369), off in PCT. Ruling 12 already names this a bug")
+put([117], 'OTH', "planner fault 'Match failure: ClassInstanceHolderObject instanceOf ClassInstanceHolder' (toString of a class)")
+put([118, 119, 126], 'TB', "toString of a DateTime is `cast(%s as varchar)` (DX:284), DuckDB's text ('2014-01-01 00:00:00'), not Pure's ('2014-01-01T00:00:00.000+0000'): the String value is wrong")
+put([120], 'OTH', YM + " (toString of %2014-01)")
+put([121], 'OTH', "planner fault 'Match failure: ClassInstanceHolderObject' (toString of an enumeration)")
+put([122, 124], 'OTH', SIZE0 + " (toString of a List/Pair)")
+put([123], 'OTH', "run-time fault 'Cannot cast a collection of size 2 to multiplicity [1]' (toString over a list of Pairs)")
+put([125], 'TB', "`$str->startsWith('Anonymous_') || $str->startsWith('@_')` answers false: startsWith is a LIKE with the `_` escaped (ED:288, 800-806); the escape does not hold on DuckDB as written (mechanism unverified)")
+put([127], 'REF', "'->at(...) function is supported only after direct access of 1->MANY properties'")
+put([128, 133], 'REF', YEAR + " (equality of year-only dates)")
+put([129, 134], 'LX', "legend-engine answers `Assert failed`; the first assert that can fail is the one across two enumerations, `eq(TestEnum1.FIRST, TestEnum2.FIRST)` (PURE `.../grammar/functions/boolean/equality/eq.pure:74`; `equal.pure:105`): legend-engine's SQL carries an enumeration value as its name, so the two values compare equal (inferred from the failure, SQL not seen, unverified). Lite keeps the enumeration's type and answers false (Pure's). Under the 2026-11-24 ruling ('strict typing is lite's alone', `core/src/main/java/com/legend/edge/EngineComparisons.java:13-19`) and ruling 7, legend-engine's door answers a comparison across types the database's way, which here is true. [E2: depends on ruling 7's reach; by proposed reading (3) it is a translation bug lite corrects]")
+put([130, 131, 132, 135, 136, 137], 'REF', "'Filter expressions are only supported for Primitives and Enums'")
+put([138], 'OTH', "planner fault 'Cast exception: InstanceValue cannot be cast to StoreMappingRoutedValueSpecification' (Class.all())")
+put([139, 148, 162], 'REF', "'type not supported: ...GeographicEntityType'")
+put([140, 141, 142, 143, 144, 145, 146, 147], 'REF', "No SQL translation exists for compare")
+put([149, 150, 151, 152], 'REF', "No SQL translation exists for letFunction")
+put([153, 157, 160], 'PT', DECK)
+put([154, 158, 161], 'LX', "DuckDB 'Out of Range Error: Overflow ... of INT64': the answer (testLargePlus `9223372036854775807 + 3 + ...`, testLargeTimes `2 * 9223372036854775807`) or the literal itself (testLargeMinus `9223372036854775898 - 132`, which legend-engine's compiled Pure already wrapped to -9223372036854775718) needs more than 64 bits. legend-engine's Integer is a Java long by design (compiled TypeProcessor.java:196-198) and compiled legend-pure fails these three too (pct_grammar_compile_native.json:5,9,13, 'Assert failure'). Lite passes only because its lowering casts an integer literal near the INT64 edge to HUGEINT (`Scalars.hugeWiden`, Scalars.java:2871-2883, used at 315/331/355/373/383): a literal-magnitude special case that matches interpreted legend-pure's BigInteger, which ruling 4 does not follow. [E1: beyond both references, in both modes]")
+put([155], 'DBE', "DuckDB 'Parser Error: SELECT clause without selection list': legend-engine writes `--1` / `---1` unparenthesized, which SQL reads as a comment (inferred from the message, SQL not seen)")
+put([156, 159], 'REF', "No SQL translation exists for genericType")
+put([163], 'REF', "No SQL translation exists for at(T[*], Integer)")
+put([164], 'REF', "'No relational processor matched function fold' (its catch-all)")
+put([165], 'REF', "'Negating in(value, Relation) is not supported on relational stores. Use not exists instead...': a deliberate refusal with a suggested rewrite")
+put([166, 168, 172, 174, 178, 179, 182, 183], 'PT', DTP)
+put([167, 173, 192, 193, 198, 199], 'PT', NUMK)
+put([169], 'OTH', "run-time fault 'NullPointer exception' (`[]->in(['a','b'])`)")
+put([170], 'REF', "'Parameter to IN operation isn't a literal!'")
+put([171], 'LX', "same as testContainsPrimitive (row 8): DuckDB cannot unify the mixed IN list; lite keeps each element's kind. [E2: depends on ruling 7's reach]")
+put([175, 176], 'OTH', SIZE0 + " (max/min with a comparator lambda)")
+put([177, 180, 181, 184], 'OTH', UFA + " (max/min of a Date list)")
+put([185], 'REF', "'[unsupported-api] The function 'hashAgg' ... is not supported yet'")
+put([186, 187, 188, 189, 190, 191, 195, 196, 197, 201, 202, 203], 'OTH', UFA + " (average/corr/covar/median/mode)")
+put([194, 200], 'DBE', "DuckDB 'Binder Error: No function matches max_by(INTEGER, INTEGER, INTEGER, INTEGER)': DX:246-247 join every argument into one MAX_BY(...) call, so the list form gets four scalars")
+put([204], 'DBE', "DuckDB 'Binder Error: No function matches quantile_cont(BIGINT[], DECIMAL(3,2))': percentile over a list mapped to the aggregate")
+put([205], 'DBE', "DuckDB 'Catalog Error: Aggregate Function with name percentile_cont does not exist!' (window form)")
+put([206, 207], 'DBE', "DuckDB 'Out of Range Error: Overflow in multiplication of DECIMAL(18)': legend-engine writes the Float literal 3.141592653589793 bare (ED:134), DuckDB types it DECIMAL, and the degree/radian arithmetic overflows DECIMAL(18). This is the register row ruling 11 creates (legend-engine on DuckDB computes Float literal arithmetic as DECIMAL); lite answers IEEE and passes before and after the deletion (M1: engine lanes 0 moves)")
+put([208], 'DBE', "DuckDB 'Conversion Error: Could not decode string ... as base64: length must be a multiple of 4': `decode(from_base64(%s))` (DX:219) needs padding; Pure decodes unpadded text")
+put([209, 214], 'DBE', "DuckDB 'Invalid Input Error: Insufficient padding in LPAD/RPAD': `lpad(%s,%s,%s)` (DX:243, 271) with an empty pad string; Pure answers the string unchanged")
+put([210, 211, 212, 213], 'TB', "regexpLike with MULTILINE: the Pure-to-DuckDB flag mapping (`regexpParametersToPatternFlagsForDuckDB`, DX:412-415) does not give `^` per-line anchoring, so `'abc\\ndef'->regexpLike('^def', MULTILINE)` is false (flag semantics not run, unverified)")
+put([215], 'TB', "`'Hello World'->splitPart('', 0)` answers 'H': `split_part(%s, %s, %s)` (DX:276) splits on the empty token into characters; Pure answers the whole string")
+
+missing = [i for i in range(1, len(rows) + 1) if i not in C]
+assert not missing, missing
+out = []
+for r in rows:
+    i = int(r[0])
+    cls, why = C[i]
+    out.append({'i': i, 'suite': r[1], 'test': r[2], 'm4_class': r[3], 'lane': r[4] + '/' + r[5], 'lane_loc': r[7],
+                'manifest': manloc[r[2]], 'class': cls, 'why': why, 'expectedError': r[8]})
+json.dump(out, open(os.path.join(d, 'b3_sorted.json'), 'w'), indent=1)
+from collections import Counter
+print(Counter(o['class'] for o in out))
+print(Counter((o['suite'], o['class']) for o in out))

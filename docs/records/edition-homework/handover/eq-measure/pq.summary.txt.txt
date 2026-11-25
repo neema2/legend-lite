@@ -1,0 +1,9 @@
+num       DuckDB: moves 16, same 8, err 3  H2: moves 12, same 5, err 10  SQLite: moves 14, same 10, err 3
+num-col   DuckDB: moves 10, same 3, err 0  H2: moves 10, same 3, err 0  SQLite: moves 10, same 3, err 0
+enum      DuckDB: moves 1, same 10, err 0  H2: moves 0, same 9, err 2  SQLite: moves 1, same 10, err 0
+enum-col  DuckDB: moves 1, same 3, err 0  H2: moves 1, same 3, err 0  SQLite: moves 1, same 3, err 0
+date      DuckDB: moves 11, same 6, err 0  H2: moves 9, same 5, err 3  SQLite: moves 2, same 15, err 0
+date-col  DuckDB: moves 4, same 5, err 0  H2: moves 4, same 5, err 0  SQLite: moves 0, same 9, err 0
+variant   DuckDB: moves 2, same 2, err 0  H2: moves 2, same 2, err 0  SQLite: moves 2, same 2, err 0
+inst      DuckDB: moves 9, same 2, err 1  H2: moves 5, same 5, err 2  SQLite: moves 5, same 6, err 1
+other     DuckDB: moves 2, same 3, err 0  H2: moves 1, same 2, err 2  SQLite: moves 1, same 4, err 0

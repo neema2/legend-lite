@@ -1,0 +1,18 @@
+import java.sql.*;
+public class R {
+  public static void main(String[] a) throws Exception {
+    Connection c = DriverManager.getConnection("jdbc:h2:mem:r");
+    String cte = "WITH c AS (SELECT x, y FROM (VALUES (1,2),(3,1)) t(x,y)) ";
+    String[] qs = {
+      cte + "SELECT * FROM (SELECT (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) FROM c) AS l) d",
+      cte + "SELECT m0.l FROM (SELECT 1 AS k) z CROSS JOIN (SELECT (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) FROM c) AS l) AS m0",
+      cte + "SELECT * FROM (SELECT e.l FROM (SELECT (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) FROM c) AS l) e) m0 CROSS JOIN (SELECT 1 AS k) m1",
+      cte + "SELECT * FROM (SELECT CASE WHEN 1=0 THEN NULL ELSE e.l END AS v FROM (SELECT (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) FROM c) AS l) e) m0",
+      "SELECT * FROM (SELECT (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) FROM (VALUES (1,2),(CAST(NULL AS INT),1)) t(x,y)) AS l) d",
+    };
+    for (String q : qs) {
+      try (ResultSet r = c.createStatement().executeQuery(q)) { r.next(); Object o = r.getObject(1); System.out.println("OK  " + (o instanceof byte[] b ? new String(b) : o) + "  <- " + q.substring(Math.max(0,q.length()-120))); }
+      catch (Exception e) { String m = e.getMessage().split("\n")[0]; System.out.println("ERR " + m.substring(0, Math.min(120, m.length())) + "  <- " + q.substring(Math.max(0,q.length()-120))); }
+    }
+  }
+}

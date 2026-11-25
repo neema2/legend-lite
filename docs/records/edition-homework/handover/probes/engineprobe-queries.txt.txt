@@ -1,0 +1,8 @@
+|fromJson('{"a":1}') == fromJson('{"a":1}')
+|fromJson('{"a":1,"b":2}') == fromJson('{"b":2,"a":1}')
+|fromJson('{"a":1, "b":2}') == fromJson('{"a":1,"b":2}')
+|fromJson('1') == fromJson('1.0')
+|fromJson('[1,2]') == fromJson('[2,1]')
+|fromJson('"1"') == fromJson('1')
+|1->toVariant() == 1->toVariant()
+|[fromJson('{"a":1}')]->contains(fromJson('{"a":1}'))

@@ -1,0 +1,82 @@
+{
+ "other:is-not-native": {
+  "DuckDB PASS>REFUSED": 7,
+  "DuckDB FAIL>REFUSED": 8
+ },
+ "other:assert-planning": {
+  "DuckDB FAIL>REFUSED": 3,
+  "DuckDB PASS>REFUSED": 1,
+  "DuckDB REFUSED>FAIL": 2,
+  "DuckDB ERR>REFUSED": 1,
+  "DuckDB REFUSED>PASS": 1
+ },
+ "number-kinds": {
+  "DuckDB FAIL>PASS": 34,
+  "DuckDB PASS>FAIL": 10,
+  "DuckDB FAIL>REFUSED": 5,
+  "DuckDB PASS>REFUSED": 1
+ },
+ "nulls/empties": {
+  "DuckDB PASS>FAIL": 4,
+  "DuckDB FAIL>PASS": 2
+ },
+ "dates:written-precision/instant": {
+  "DuckDB PASS>FAIL": 17,
+  "DuckDB FAIL>PASS": 4
+ },
+ "dates:day-vs-datetime-kinds": {
+  "DuckDB FAIL>PASS": 13,
+  "DuckDB PASS>FAIL": 2
+ },
+ "other:instanceOf-refused": {
+  "DuckDB PASS>REFUSED": 1
+ },
+ "lists/order": {
+  "DuckDB FAIL>ERR": 9,
+  "DuckDB REFUSED>ERR": 2,
+  "DuckDB PASS>ERR": 2
+ },
+ "dates:mixed-day-list-refused-in-assert": {
+  "DuckDB REFUSED>PASS": 7,
+  "DuckDB REFUSED>FAIL": 7
+ },
+ "other:cross-type-primitives": {
+  "DuckDB FAIL>PASS": 6,
+  "DuckDB PASS>FAIL": 1,
+  "DuckDB PASS>ERR": 1
+ },
+ "dates:nanoseconds": {
+  "DuckDB PASS>FAIL": 3,
+  "DuckDB REFUSED>FAIL": 1,
+  "DuckDB FAIL>ERR": 1
+ },
+ "instances/keys": {
+  "DuckDB REFUSED>PASS": 3,
+  "DuckDB PASS>FAIL": 4,
+  "DuckDB FAIL>PASS": 7,
+  "DuckDB PASS>ERR": 7
+ },
+ "grids": {
+  "DuckDB FAIL>ERR": 1,
+  "DuckDB FAIL>PASS": 3
+ },
+ "dates:hour-literal-render": {
+  "DuckDB PASS>ERR": 2,
+  "DuckDB FAIL>ERR": 1
+ },
+ "variants": {
+  "DuckDB REFUSED>FAIL": 1,
+  "DuckDB REFUSED>PASS": 1,
+  "DuckDB FAIL>PASS": 2
+ },
+ "other:mixed-list-side-refused-in-assert": {
+  "DuckDB REFUSED>FAIL": 3
+ },
+ "other:assertTrue-unknown": {
+  "DuckDB ERR>FAIL": 1
+ },
+ "enum-vs-String": {
+  "DuckDB FAIL>PASS": 2,
+  "DuckDB PASS>FAIL": 4
+ }
+}

@@ -1,0 +1,73 @@
+# Extract every Pure body ("{|...}") from AssertBarTest.java, evaluating string concatenations and local String vars.
+import re, sys, json
+src = open(sys.argv[1]).read()
+
+def java_lit(s, i):
+    # s[i] == '"'; returns (value, end)
+    assert s[i] == '"'
+    j = i + 1; out = []
+    while s[j] != '"':
+        if s[j] == '\\':
+            c = s[j+1]
+            out.append({'n': '\n', 't': '\t', '"': '"', '\\': '\\', "'": "'"}.get(c, c)); j += 2
+        else:
+            out.append(s[j]); j += 1
+    return ''.join(out), j + 1
+
+def skip_ws(s, i):
+    while i < len(s) and s[i] in ' \t\r\n': i += 1
+    return i
+
+def parse_expr(s, i, env):
+    """parse lit|ident[.replace(lit,lit)] ( + ... )*; return (value or None, end)"""
+    parts = []
+    while True:
+        i = skip_ws(s, i)
+        if s[i] == '"':
+            v, i = java_lit(s, i)
+        else:
+            m = re.match(r'[A-Za-z_]\w*', s[i:])
+            if not m: return None, i
+            name = m.group(0); i += len(name)
+            if name not in env: return None, i
+            v = env[name]
+            while True:
+                i2 = skip_ws(s, i)
+                m2 = re.match(r'\.replace\(\s*', s[i2:])
+                if not m2: break
+                i = i2 + len(m2.group(0))
+                a, i = java_lit(s, skip_ws(s, i)); i = skip_ws(s, i); assert s[i] == ','; i = skip_ws(s, i + 1)
+                b, i = java_lit(s, i); i = skip_ws(s, i); assert s[i] == ')'; i += 1
+                v = v.replace(a, b)
+        parts.append(v)
+        j = skip_ws(s, i)
+        if j < len(s) and s[j] == '+' and s[j+1] != '+':
+            i = j + 1; continue
+        return ''.join(parts), i
+
+env = {}
+for m in re.finditer(r'String (\w+) = ', src):
+    v, _ = parse_expr(src, m.end(), env)
+    if v is not None: env[m.group(1)] = v
+bodies = []
+seen = set()
+# the 'side' loop: both values
+sides = [env.get('d'), env.get('mapped')]
+for m in re.finditer(r'"\{\|', src):
+    i = m.start()
+    # skip if this literal is a continuation of an expression already consumed
+    v, end = parse_expr(src, i, env)
+    if v is None:
+        # contains 'side'
+        vs = []
+        for sd in sides:
+            e2 = dict(env); e2['side'] = sd
+            vv, end = parse_expr(src, i, e2)
+            if vv: vs.append(vv)
+    else:
+        vs = [v]
+    for v in vs:
+        if v.startswith('{|') and v not in seen:
+            seen.add(v); bodies.append(v)
+json.dump(bodies, open(sys.argv[2], 'w'), indent=0)
+print(len(bodies), 'bodies')
