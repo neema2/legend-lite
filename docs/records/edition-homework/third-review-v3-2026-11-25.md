@@ -283,3 +283,38 @@ honours. "The `toOne` guards are routed in R3" is not a design.
   switching channel A to compiled legend-pure.
 - Whether one cached `ClassSource` can serve both a graph-fetch consumer and a TDS consumer in one query, which would make
   one M2M label wrong for one of them.
+
+---
+
+## Addendum: v3 §5.4, the classification of legend-engine's known wrong answers (the same reviewer, on the committed v3 at faa1a2bc; transcribed by B3)
+
+The verdict (not ready) and must-fixes 1-8 stand.
+
+**Are the delegations really the database's own function, and cheap?** Mostly yes, on DuckDB and H2 only. Each is a one-line map to the database's function in legend-engine:
+- DuckDB: `round` `duckdbExtension.pure:865-871`, `datediff('week')` `:213`/`:478-483`, `split_part` `:276`, `cast(%s as decimal)` `:282`, `cast(%s as varchar)` `:284`.
+- H2, through `toPostgresModel.pure`: round `:410`, datediff `:397`, toDecimal `:406`, toString `:404`, rem→mod `:426`, ascii `:345`.
+
+The "cheap" claims fail on these points:
+- **A. Placement.** PCT's channel-A queries are storeless (`PctPlanRoute.java:134`), so v3 §3.2's part rule would make them legend-engine's Java part, and the delegations would not apply to the run they are measured on. legend-engine's Java answers for `round`, `dateDiff`, `toDecimal`, `rem`, `splitPart` and `toString` have not been asked.
+- **B. Forms are per database.** `SqlFn.ROUND_HALF_UP` is the database's `ROUND` only on DuckDB, H2 and Databricks; elsewhere it is composed (`sql/dialect/Postgres.java:1129-1141`), and Postgres's own `round` on a double is half-even. `dateDiff` weeks differs per database, and Postgres has none. Each row needs a verbatim form per dialect, plus a refusal where legend-engine's answer was not read (as A3 refuses, `PureMeaningRewrite.java:101`).
+- **C. Enumeration by name is MEDIUM, not cheap.** `LiteralUnroll.neverEqual` folds it at G½. Its mechanism (legend-engine writing enumerations as names) is inferred.
+- **D. `toString` as the database's cast belongs in the presenter at a last step, per rule zero.** SQL is needed only where the text is used further (S-15/S-16).
+  - **Bucket-5 risk:** DuckDB passes the Float `toString` pair because its Float literal is a DECIMAL. With the DECIMAL literal deleted (ruling 11) and S-15, lite on DuckDB would print `1.3421e-08` where legend-engine passes.
+  - M1's "engine lanes: 0 moves" was measured while `PurePrintForms` still wrote legend-pure's print, which R4 deletes. Measure it.
+- **E. The other rows:**
+  - **H2 `rem`:** lite already writes plain `MOD` (`H2.java:657`). The probe's `3` may come from a decimal-typed literal, which would make it S-10 (ruled K), not a call substitution. Unverified.
+  - **H2 `toDecimal` (3.8 → 4):** inferred as a default that changed with the H2 2 upgrade, the same reasoning that made `mod` a regression. Probed on 2.1.214 only; lite runs 2.5.252.
+  - **`splitPart`:** dropping the guard also drops Pure's out-of-range raise. legend-engine's index conversion (`pureToSQLQuery.pure:3199-3200`) is part of the form.
+  - **H2 `ascii('')`:** lite's product writes plain `ascii` (`H2.java:767`), so lite and `pure` answer NULL where Pure answers 0. A product gap, to fix or record.
+
+**Is anything classified as presentation actually meaning?**
+1. **"A number's type":** DuckDB promoting a mixed list (`greatest([1.23, 2])` → `2.0` against Pure's `2`) changes the value's type. That's meaning, and a missing row (S-11 covers comparisons only).
+2. **DateTime precision:** presentation at a last step (pure/v1's JSON already prints nine digits). In legend-engine's Java part, precision affects Pure's equality and text, so it is meaning there, unmeasured.
+3. **The Decimal scale lost in reading (c2):** genuinely presentation on DuckDB.
+4. **H2's `testDecimalPlus` returning `6`:** untraced; possibly a value difference.
+5. **"No new work":** not quite. S-11 is MEDIUM meaning with no designed mechanism.
+
+**Added decisions:**
+- delegations on databases other than DuckDB and H2: refuse, or apply;
+- the DECIMAL-literal deletion against DuckDB's Float `toString` pair (bucket-5 risk);
+- whether H2 `rem`'s `3` needs a decimal literal.
