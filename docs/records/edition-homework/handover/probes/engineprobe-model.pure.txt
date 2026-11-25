@@ -1,0 +1,4 @@
+Class p::X
+{
+  a: Integer[1];
+}

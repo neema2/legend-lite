@@ -1,0 +1,13 @@
+#!/bin/bash
+SP=/tmp/claude-0/-home-user-legend-lite/e82d575c-3b18-52af-b239-5bdd496a53f4/scratchpad
+cd /home/user/s1
+bazel build --keep_going //core:core_edge_tests_lib //core:core_tests_lib //pct:all //spec:all > $SP/dec-build.log 2>&1; echo "STEP BUILD EXIT $?"
+T=""
+for s in essential grammar relation standard unclassified; do T="$T //pct:pct_duckdb_$s //pct:pct_duckdb_lite_$s //pct:pct_channel_b_lite_$s //pct:pct_channel_b_$s //pct:pct_channel_b_sqlite_$s //pct:engine_lane_duckdb_$s"; done
+bazel test --keep_going --jobs=3 --local_test_jobs=2 $T //pct:pct_channel_b_h2_relation //pct:engine_lane_h2_essential //pct:engine_lane_h2_relation //pct:engine_lane_h2_standard \
+  //core:guardrails //core:guardrails_edge //core:census //core:census_edge //core:core_edge_tests \
+  //core:core_tests_sql //core:core_tests_testexec //core:core_tests_testexec_judge_database //core:core_tests_testexec_judge_both //core:core_tests_testplan //core:core_tests_testplan_judge_database //core:core_tests_testplan_judge_both //core:core_tests_test //core:core_tests_root //core:core_tests_integration //core:core_tests_resolver //core:core_tests_compiler //core:query_capture_test //core:lean_sql_baseline_test //core:core_tests_testdatagen //core:core_tests_ladder //core:core_tests_planner //core:core_tests_exec \
+  //gates:checks //gates:edge_net //gates:corpus_duckdb //gates:corpus_h2 \
+  //spec:lean_sql_corpus_duckdb //spec:lean_sql_corpus_h2 > $SP/dec-test.log 2>&1; echo "STEP TEST EXIT $?"
+bazel test --lockfile_mode=error //gates:local > $SP/dec-local.log 2>&1; echo "STEP LOCAL EXIT $?"
+echo "DEC ROUND DONE"

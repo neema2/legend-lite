@@ -1,0 +1,13 @@
+#!/bin/bash
+# usage: findtest.sh <fqn of test> [lines]
+P=/root/.cache/bazel/_bazel_root/a6663fbd60fad5804a563aa83422814f/external/+http_archive+legend_pure_src
+E=/root/.cache/bazel/_bazel_root/a6663fbd60fad5804a563aa83422814f/external/+http_archive+legend_engine_src
+fqn="$1"; n="${2:-25}"
+name="${fqn##*::}"
+pkg="${fqn%::*}"
+for f in $(grep -rl --include=*.pure -E "${name}\s*\(" $P/legend-pure-core $E/legend-engine-core/legend-engine-core-pure 2>/dev/null); do
+  if grep -q "${pkg}" "$f" || true; then
+    ln=$(grep -nE "(>>|function) +(${pkg}::)?${name}\s*\(" "$f" | head -1 | cut -d: -f1)
+    if [ -n "$ln" ]; then echo "== $f:$ln"; sed -n "$((ln-2)),$((ln+n))p" "$f"; fi
+  fi
+done

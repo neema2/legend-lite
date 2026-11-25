@@ -1,0 +1,219 @@
+q0012 PASS>REFU              {|assertIsNot(1, 2)} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0013 FAIL>REFU              {|assertIsNot('x', 'x')} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0034 FAIL>REFU              {|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));} | B:NotImplementedException: the program road does not plan this body: host judge's 
+q0042 PASS>REFU              {|let l = [10]; [1, 1]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));} | B:NotImplementedException: the program road does not plan this body: host judge's 
+q0050 PASS>REFU              {|assertIs(t::Employee, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0051 PASS>REFU              {|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(1)->type())} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0052 FAIL>REFU              {|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0062 FAIL>PASS              {|assertEquals(1, 1.0)} 
+q0063 FAIL>PASS              {|assertEquals([1, 2], [1.0, 2.0])} 
+q0064 FAIL>PASS              {|assertSameElements([2, 1], [2.0, 1.0])} 
+q0065 FAIL>PASS              {|assertEquals(1D, 1)} 
+q0066 FAIL>PASS              {|assertEquals(1.5, 1.5D)} 
+q0067 PASS>FAIL              {|assertNotEquals(3, 3D)} 
+q0069 PASS>FAIL              {|assertEquals([], [1, 2]->filter(x | $x > 5))} 
+q0086 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)} 
+q0087 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)} 
+q0088 PASS>FAIL              {|assertEquals(%2020-01-01T10, %2020-01-01T10:00:00)} 
+q0089 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:00.000, %2020-01-01T11:00:00]->at(0))} 
+q0091 FAIL>PASS              {|assertEquals(%2020-01-01, %2020-01-01T00:00:00)} 
+q0094 PASS>FAIL              {|assertContains([%2020-01-01T10:00:00.5, %2020-01-02T00:00:00.5], %2020-01-01T10:00:00.50)} 
+q0095 PASS>FAIL              {|assertContains([%2020-01-01T10:00:00.000, %2020-01-02T00:00:00.5], %2020-01-01T10:00:00)} 
+q0099 PASS>FAIL              {|assertEquals([], ['a', 'b']->filter(x | $x == 'c'))} 
+q0100 PASS>FAIL              {|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))} 
+q0103 PASS>REFU              {|assertInstanceOf(1 + 1, Integer)} | B:NotImplementedException: instanceOf undecidable statically: INTEGER vs 'meta::pu
+q0114 FAIL>ERR               {|assertSameElements([true, false], [true])} | B:DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])
+q0115 FAIL>ERR               {|assertSameElements([%2020-01-02, %2019-05-01], [%2019-05-01])} | B:DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])
+q0117 FAIL>ERR               {|assertEquals(1, [1, 2])} | B:DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\
+q0122 PASS>REFU              {|assertIs('a', 'a')} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0123 FAIL>REFU              {|assertIs(1, 2)} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0139 FAIL>PASS              {|assertEq(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)} 
+q0140 FAIL>PASS              {|assertEq(1, p::P.all()->map(x | $x.d)->toOne())} 
+q0141 FAIL>REFU              {|assertIs(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0142 FAIL>REFU              {|assertIs(1, p::P.all()->map(x | $x.d)->toOne())} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0143 PASS>FAIL              {|assertNotEq(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)} 
+q0144 PASS>FAIL              {|assertNotEq(1, p::P.all()->map(x | $x.d)->toOne())} 
+q0145 PASS>REFU              {|assertIsNot(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0146 PASS>REFU              {|assertIsNot(1, p::P.all()->map(x | $x.d)->toOne())} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0152 FAIL>PASS              {|assertNotEquals([], [1, 2]->filter(x | $x > 5))} 
+q0160 FAIL>ERR               {|assertEquals([1.0D, 10.125D], [1.0D])} | B:DataError: Conversion Error: Unimplemented type for cast (DECIMAL(2,1) -> DECIMA
+q0174 FAIL>PASS              {|assertNotEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)} 
+q0176 REFU>PASS              {|assertEquals(%2020-01-01T10:00:00.123456789, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())} | A:NotImplementedException: values holding both days and date-times are n
+q0177 REFU>PASS              {|assertEquals(%2020-01-01T10:00, [%2019-01-01, %2020-01-01T10:00:00]->max())} | A:NotImplementedException: values holding both days and date-times are n
+q0181 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00, [%2019-01, %2020-01-01T10:00:00.000]->at(1))} 
+q0183 FAIL>REFU              {|assertIsNot(3, [1, 2.0, 3]->max())} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0184 PASS>REFU              {|assertIsNot(4, [1, 2.0, 3]->max())} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0204 FAIL>PASS              {|assertEquals('1', 1)} 
+q0205 FAIL>PASS              {|assertSameElements(['1'], [1])} 
+q0206 FAIL>PASS              {|assertEq(true, 1)} 
+q0208 FAIL>FAIL D:REFU>FAIL  {|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values, [1,  | A:AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non
+q0212 FAIL>ERR               {|assertEquals([1.50D, 2.25D], [1.50D])} | B:DataError: Conversion Error: Unimplemented type for cast (DECIMAL(3,2) -> DECIMA
+q0214 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.1234567890)} 
+q0219 REFU>FAIL              {|assertEquals(%2020-01-01T10:00:00.123456, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())} | A:NotImplementedException: values holding both days and date-times are n
+q0221 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00.5, [%2019-01, %2020-01-01T10:00:00.500]->at(1))} 
+q0222 PASS>FAIL              {|assertEquals(%2407-05-19T19:15:12, %2407-05-19T19:15:12.000)} 
+q0231 PASS>FAIL              {|assertEquals(%25489-01-01T10:00:00, %25489-01-01T10:00:00.000)} 
+q0233 REFU>FAIL              {|assertEquals(%2020-01-01T10:00:00.0000000001, %2020-01-01T10:00:00.0000000002)} | A:DialectCapability: the date-time 2020-01-01T10:00:00.0000000001 has 10
+q0310 FAIL>PASS              {|assertEquals(true, 1)} 
+q0311 PASS>FAIL              {|assertNotEquals('1', 1)} 
+q0316 REFU>PASS              {|assertContains([%2020-01-01T00:00, %2020-01-02]->map(x | $x), %2020-01-02T00:00)} | A:NotImplementedException: values holding both days and date-times are n
+q0317 REFU>PASS              {|assertEquals(%2020-01-02T00:00, [%2020-01-02, %2020-01-01T00:00]->at(0))} | A:NotImplementedException: values holding both days and date-times are n
+q0318 REFU>FAIL              {|assertContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)} | A:NotImplementedException: values holding both days and date-times are n
+q0319 REFU>FAIL              {|assertEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])} | A:NotImplementedException: values holding both days and date-times are n
+q0320 PASS>PASS D:REFU>PASS  {|assertNotContains([1, 2], '1'->fromJson())} | A:AssertFailed: assertNotContains: UNJUDGED in database mode — a Variant
+q0328 REFU>PASS              {|assertEq(newMap([pair('a', 1)]), newMap([pair('a', 1)]))} | A:NotImplementedException: assertEq over non-primitive values: eq is INS
+q0331 PASS>FAIL              {|assertEquals(newMap([pair('a', 1), pair('b', 2)]), newMap([pair('b', 2), pair('a', 1)]))} 
+q0340 PASS>ERR               {|assertNotEquals(1->cast(@Any), 'a'->cast(@Any))} | B:DataError: Conversion Error: Could not convert string 'a' to INT32\n\nLINE 1: SE
+q0341 PASS>FAIL              {|assertNotEquals([1]->cast(@Any), [1.0]->cast(@Any))} 
+q0350 PASS>PASS D:REFU>PASS  {|assertContains(p::Q.all().e, 1.5D)} | A:AssertFailed: assertContains: UNJUDGED in database mode — a membership
+q0360 FAIL>ERR               {|assertEquals(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n  2\n#->sort(~id->descending()))} | B:DataError: Invalid Input Error: More than one row returned by a subquery used as
+q0361 FAIL>PASS              {|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#)} 
+q0362 FAIL>PASS              {|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  1.0\n#)} 
+q0365 PASS>ERR               {|assertEquals(%2015-04-16T14, date(2015, 4, 16, 14))} | B:DataError: Conversion Error: invalid timestamp field format: "2015-04-16T14", ex
+q0366 PASS>ERR               {|assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))} | B:DataError: Conversion Error: invalid timestamp field format: "1973-11-13T23", ex
+q0367 FAIL>ERR               {|assertEquals(%2015-04-16T14, date(2015, 4, 16, 15))} | B:DataError: Conversion Error: invalid timestamp field format: "2015-04-16T15", ex
+q0369 PASS>FAIL              {|assertEquals(%2015-04-16T14, %2015-04-16T14:00)} 
+q0370 FAIL>PASS              {|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)} 
+q0400 REFU>FAIL              {|assertEquals(1, [fromJson('1'), 2]->at(0))} | A:NotImplementedException: an equality between two whole Variants is not
+q0401 REFU>PASS              {|assertNotEquals(1, [fromJson('1'), 2]->at(0))} | A:NotImplementedException: an equality between two whole Variants is not
+q0420 FAIL>ERR               {|assertSameElements(['a', 1], [1, 'b'])} | B:DataError: Binder Error: subqueries in lambda expressions are not supported
+q0421 REFU>FAIL D:FAIL>FAIL  {|assertNotContains([1, 'a'], 'a')} | A:NotImplementedException: a constant side of type meta::pure::metamodel
+q0422 REFU>FAIL D:FAIL>FAIL  {|assertContains([1, 'a'], 'b')} | A:NotImplementedException: a constant side of type meta::pure::metamodel
+q0423 REFU>FAIL D:FAIL>FAIL  {|assertEmpty([1, 'a'])} | A:NotImplementedException: a constant side of type meta::pure::metamodel
+q0429 REFU>FAIL              {|assertNotEq(1, [1, 'a']->at(0))} | A:NotImplementedException: the program road does not plan this body: hos
+q0432 PASS>FAIL              {|assertNotEquals(1, 1.0)} 
+q0439 PASS>FAIL              {|assertEquals([], [1]->filter(x|$x > 5))} 
+q0440 FAIL>ERR               {|assertEquals(1, [1]->filter(x|$x > 5))} | B:DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\
+q0441 FAIL>PASS              {|assertNotEquals([], [1]->filter(x|$x > 5))} 
+q0443 FAIL>PASS              {|assertContains([1.5, 2.5], 1.5D)} 
+q0444 FAIL>PASS              {|assertContains([1D, 2D], 1)} 
+q0445 PASS>FAIL              {|assertNotContains([1, 2], 1.0)} 
+q0447 FAIL>PASS              {|assertEq(1, 1.0)} 
+q0450 REFU>FAIL              {|assertNotEq(1.0D, 1.00D)} | A:NotImplementedException: the program road does not plan this body: hos
+q0451 FAIL>REFU              {|assertIsNot(1, 1)} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0476 ERR>FAIL               {|assertTrue(1 == 2)} | A:TypeInferenceException: unknown function 'assertTrue' — no function of
+q0485 PASS>FAIL              {|assertNotEquals(%2020-01-01, %2020-01-01T00:00:00)} 
+q0487 FAIL>PASS              {|assertNotEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)} 
+q0488 PASS>FAIL              {|assertContains([%2020-01-01T10:00:00], %2020-01-01T10:00:00.000)} 
+q0489 REFU>ERR               {|assertSameElements([%2020-01-01T10:00:00, %2021-01-01], [%2021-01-01, %2020-01-01T10:00:00.000])} | A:NotImplementedException: values holding both days and date-times are n| B:DataError: Binder Error: subqueries in lambda expressions are not supported
+q0493 FAIL>ERR               {|assertEquals([true], [1 == 1, 2 == 2])} | B:DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])
+q0494 FAIL>PASS D:REFU>PASS  {|assertEquals(pair(1, 1.0), pair(1, 1))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0497 REFU>PASS              {|assertEq(pair(1, 'a'), pair(1, 'a'))} | A:NotImplementedException: assertEq over non-primitive values: eq is INS
+q0498 REFU>PASS              {|let p = pair(1, 'a'); assertEq($p, $p);} | A:NotImplementedException: assertEq over non-primitive values: eq is INS
+q0501 PASS>FAIL              {|assertEquals(^p::KD(d=1.0D, b=true, e=t::E.A, sd=%2020-01-01), ^p::KD(d=1.00D, b=true, e=t::E.A, sd=%2020-01-01))} 
+q0503 FAIL>FAIL D:REFU>FAIL  {|assertEquals(^p::KM(ids=[1, 2]), ^p::KM(ids=[2, 1]))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0504 FAIL>PASS D:REFU>PASS  {|assertEquals(^p::KNum(n=1), ^p::KNum(n=1.0))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0508 FAIL>PASS D:REFU>PASS  {|assertEquals(newMap([pair('a', 1)]), newMap([pair('a', 1.0)]))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0509 FAIL>FAIL D:REFU>FAIL  {|assertEquals(list([1, 2]), list([1.0, 2]))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0510 FAIL>PASS              {|assertEquals([1, 2]->sum(), 3.0)} 
+q0512 FAIL>PASS              {|assertEquals(10 / 4, 2.5D)} 
+q0513 FAIL>PASS              {|assertSameElements([t::E.A], ['A'])} 
+q0514 FAIL>FAIL D:REFU>FAIL  {|assertContains([t::E.A], 'A')} | A:AssertFailed: assertContains: UNJUDGED in database mode — a membership
+q0515 FAIL>FAIL D:REFU>FAIL  {|assertContains(['A'], t::E.A)} | A:AssertFailed: assertContains: UNJUDGED in database mode — a membership
+q0516 FAIL>PASS              {|assertEquals([t::E.A, t::E.B], ['A', 'B'])} 
+q0520 FAIL>PASS              {|assertEquals(%2020-01-01, '2020-01-01')} 
+q0521 FAIL>REFU              {|assertIs('1', 1)} | B:NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is
+q0524 PASS>FAIL              {|let xs = [1, 2]->map(i|^t::Person(name='a')); assertEquals($xs->at(0), $xs->at(0));} 
+q0528 PASS>ERR D:REFU>ERR    {|assertEquals(p::Q.all()->at(0), p::Q.all()->at(0))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyles| B:DataError: Binder Error: failed to bind function, either: Invalid LIST argument 
+q0529 PASS>ERR D:REFU>ERR    {|assertEquals(p::Q.all()->sortBy(x|$x.id)->at(0), p::Q.all()->sortBy(x|$x.id)->at(0))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyles| B:DataError: Binder Error: failed to bind function, either: Invalid LIST argument 
+q0530 PASS>ERR D:REFU>ERR    {|let a = p::Q.all()->sortBy(x|$x.id)->at(0); assertEquals($a, $a);} | A:AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyles| B:DataError: Binder Error: failed to bind function, either: Invalid LIST argument 
+q0531 PASS>ERR D:REFU>ERR    {|assertEquals(p::Q.all()->filter(x|$x.id == 1), p::Q.all()->filter(x|$x.id == 1))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyles| B:DataError: Binder Error: failed to bind function, either: Invalid LIST argument 
+q0532 PASS>ERR D:REFU>ERR    {|assertContains(p::Q.all(), p::Q.all()->filter(x|$x.id == 1)->toOne())} | A:AssertFailed: assertContains: UNJUDGED in database mode — side: keyles| B:DataError: Binder Error: No function matches the given name and argument types '
+q0533 PASS>ERR D:REFU>ERR    {|assertSameElements(p::Q.all()->filter(x|$x.id == 1), p::Q.all()->filter(x|$x.id == 1))} | A:AssertFailed: assertSameElements: UNJUDGED in database mode — side-e: | B:DataError: Binder Error: No function matches the given name and argument types '
+q0538 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00.1234567, %2020-01-01T10:00:00.123456700)} 
+q0540 REFU>FAIL              {|assertEquals([%2020-01-01T10:00:00, %2020-01-01], [%2020-01-01T10:00:00.000, %2020-01-01T00:00:00])} | A:NotImplementedException: values holding both days and date-times are n
+q0541 REFU>FAIL              {|assertSameElements([%2020-01-01, %2020-01-02], [%2020-01-02, %2020-01-01T00:00])} | A:NotImplementedException: values holding both days and date-times are n
+q0542 PASS>FAIL              {|assertEquals(%2020-01-01T10, %2020-01-01T10:00)} 
+q0543 PASS>FAIL              {|assertEquals(%2020-01-01T10:30, %2020-01-01T10:30:00.000)} 
+q0555 FAIL>ERR D:ERR>ERR     {|assertEquals(p::Y.all()->sortBy(x|$x.id).t, [%2407-01-01T10:00:00, %1624-01-01T10:00:00.000000001, %2020-01-01T10:00:0 | A:DataError: a date-time an assert compares to the nanosecond is outside| B:DataError: Conversion Error: Could not convert Timestamp(US) to Timestamp(NS)
+q0557 PASS>PASS D:REFU>PASS  {|assertEquals(p::Q.all()->sortBy(x|$x.id).e, [1.5D, -2D, 1.5D])} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0558 FAIL>PASS              {|assertEquals(p::Q.all()->sortBy(x|$x.id).e, [1.5, -2.0, 1.5])} 
+q0560 FAIL>REFU              {|assertEquals(p::Q.all()->sortBy(x|$x.id).f, [2.5, 3, 2.5])} | B:NotImplementedException: a mixed list compared with a list whose elements' kind 
+q0561 REFU>PASS              {|assertEquals(%2020-01-02, [%2020-01-01T00:00, %2020-01-02]->at(1))} | A:NotImplementedException: values holding both days and date-times are n
+q0562 REFU>FAIL              {|assertNotEquals(%2020-01-02T00:00, [%2020-01-01T00:00, %2020-01-02]->at(1))} | A:NotImplementedException: values holding both days and date-times are n
+q0563 REFU>PASS              {|assertNotContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)} | A:NotImplementedException: values holding both days and date-times are n
+q0564 REFU>ERR               {|assertEquals([%2020-01-02], [%2020-01-01T00:00, %2020-01-02]->tail())} | A:NotImplementedException: values holding both days and date-times are n| B:DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])
+q0571 REFU>PASS              {|assertNotEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])} | A:NotImplementedException: values holding both days and date-times are n
+q0572 REFU>FAIL              {|assertSameElements([%2020-01-01T00:00, %2020-01-02], [%2020-01-02T00:00, %2020-01-01T00:00])} | A:NotImplementedException: values holding both days and date-times are n
+q0573 FAIL>REFU              {|let l = ['a', 'b']; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));} | B:NotImplementedException: the program road does not plan this body: host judge's 
+q0574 ERR>REFU               {|let l = ['a', 'b']; [1, 5]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));} | A:DataError: The system is trying to get an element at offset 5 where th| B:NotImplementedException: the program road does not plan this body: host judge's 
+q0575 FAIL>REFU              {|[1, 2]->forAll(i | assertEquals(1, $i, 'element ' + $i->toString()))} | B:NotImplementedException: the program road does not plan this body: host judge's 
+q0598 FAIL>PASS              {|assertEquals(1.0D, 1)} 
+q0599 FAIL>REFU              {|assertEquals([1, 2], [1D, 2])} | B:NotImplementedException: two mixed lists' equality across the kinds Decimal (Dec
+q0617 PASS>FAIL              {|let f = {i: Integer[1] | ^t::Person(name='a')}; assertEquals($f->eval(1), $f->eval(2));} 
+q0619 FAIL>PASS              {|assertEquals(1, 1D)} 
+q0620 PASS>FAIL              {|assertNotEquals(1, 1D)} 
+q0621 FAIL>PASS              {|assertEquals(1.0, 1D)} 
+q0622 PASS>FAIL              {|assertNotEquals(1.5, 1.5D)} 
+q0624 FAIL>PASS              {|assertEquals(3D, 1 + 2)} 
+q0625 FAIL>PASS              {|assertEquals(3, 1.5 * 2)} 
+q0630 FAIL>PASS              {|assertEquals(3, [1.0, 2.0]->sum())} 
+q0637 PASS>FAIL              {|assertNotEq(1, 1.0)} 
+q0639 PASS>FAIL              {|assertNotEquals([1, 2], [1.0, 2.0])} 
+q0640 FAIL>PASS              {|assertEquals([1, 2], [1D, 2D])} 
+q0643 FAIL>REFU              {|assertEquals([1, 2.5D], [1.0, 2.5D])} | B:NotImplementedException: two mixed lists' equality across the kinds Decimal (Dec
+q0649 FAIL>PASS              {|assertEquals([1], 1.0)} 
+q0651 FAIL>PASS              {|assertContains([1, 2], 1.0)} 
+q0652 FAIL>PASS              {|assertContains([1.0, 2.0], 1)} 
+q0653 FAIL>REFU              {|assertContains([1, 2.5], 2.5D)} | B:NotImplementedException: a mixed list's membership across the kinds Decimal (Dec
+q0655 PASS>REFU              {|assertNotContains([1, 2.5], 2.5D)} | B:NotImplementedException: a mixed list's membership across the kinds Decimal (Dec
+q0657 FAIL>PASS              {|assertSameElements([1, 2], [2.0, 1.0])} 
+q0658 PASS>ERR               {|assertSameElements([1, 2.0], [2.0, 1])} | B:DataError: Binder Error: subqueries in lambda expressions are not supported
+q0659 PASS>ERR               {|assertSameElements([1, 2.5D], [2.5D, 1])} | B:DataError: Binder Error: subqueries in lambda expressions are not supported
+q0666 FAIL>PASS              {|assertEquals(1.5, p::Q.all()->filter(x | $x.id == 1)->toOne().e)} 
+q0667 PASS>PASS D:REFU>PASS  {|assertEquals(1.5D, p::Q.all()->filter(x | $x.id == 1)->toOne().e)} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0669 FAIL>PASS              {|assertEquals(2.5D, p::Q.all()->filter(x | $x.id == 1)->toOne().f)} 
+q0670 FAIL>PASS              {|assertEquals(3, p::Q.all()->filter(x | $x.id == 2)->toOne().f)} 
+q0671 FAIL>PASS              {|assertEquals(1.0, p::Q.all()->filter(x | $x.id == 1)->toOne().id)} 
+q0672 FAIL>PASS              {|assertEquals(1, p::P.all()->toOne().d)} 
+q0673 PASS>PASS D:REFU>PASS  {|assertEquals(1D, p::P.all()->toOne().d)} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0675 FAIL>PASS              {|assertEquals([1.0, 2.0, 3.0], p::Q.all()->sortBy(x | $x.id).id)} 
+q0676 FAIL>REFU              {|assertEquals([2.5, 3, 2.5], p::Q.all()->sortBy(x | $x.id).f)} | B:NotImplementedException: a mixed list compared with a list whose elements' kind 
+q0677 PASS>PASS D:REFU>PASS  {|assertEquals([1.5D, -2D, 1.5D], p::Q.all()->sortBy(x | $x.id).e)} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0678 FAIL>PASS              {|assertEquals([1.5, -2.0, 1.5], p::Q.all()->sortBy(x | $x.id).e)} 
+q0679 FAIL>PASS              {|assertContains(p::Q.all().f, 3)} 
+q0681 FAIL>PASS D:REFU>PASS  {|assertContains(p::Q.all().e, 1.5)} | A:AssertFailed: assertContains: UNJUDGED in database mode — a membership
+q0682 FAIL>PASS              {|assertContains(p::Q.all().id, 1.0)} 
+q0684 FAIL>ERR               {|assertSameElements([3, 2.5, 2.5], p::Q.all().f)} | B:DataError: Binder Error: subqueries in lambda expressions are not supported
+q0691 FAIL>FAIL D:REFU>FAIL  {|assertContains([t::E.A, t::E.B], 'A')} | A:AssertFailed: assertContains: UNJUDGED in database mode — a membership
+q0692 PASS>PASS D:REFU>PASS  {|assertNotContains([t::E.A, t::E.B], 'A')} | A:AssertFailed: assertNotContains: UNJUDGED in database mode — a members
+q0693 FAIL>FAIL D:REFU>FAIL  {|assertContains(['A', 'B'], t::E.A)} | A:AssertFailed: assertContains: UNJUDGED in database mode — a membership
+q0694 FAIL>FAIL D:REFU>FAIL  {|assertContains([t::E.A, t::E.B], p::E.A)} | A:AssertFailed: assertContains: UNJUDGED in database mode — a membership
+q0696 PASS>FAIL D:FAIL>FAIL  {|assertEquals(t::E.A, 'A'->cast(@Any))} 
+q0697 PASS>FAIL D:FAIL>FAIL  {|assertEquals(t::E.A, [t::E.A, 'A']->at(1))} 
+q0698 PASS>FAIL D:FAIL>FAIL  {|assertEquals('A', [t::E.A, 'A']->at(0))} 
+q0699 PASS>FAIL D:REFU>FAIL  {|assertContains([t::E.A, 'B'], 'A')} | A:AssertFailed: assertContains: UNJUDGED in database mode — a literal ch
+q0701 REFU>PASS              {|assertNotEq(t::E.A, 'A')} | A:NotImplementedException: the program road does not plan this body: hos
+q0703 PASS>ERR               {|assertEquals(^p::KA(a=t::E.A), ^p::KA(a='A'))} | B:DataError: Invalid Input Error: Malformed JSON at byte 0 of input: unexpected ch
+q0706 FAIL>PASS              {|assertEquals(%2020-01-01T00:00:00, %2020-01-01)} 
+q0707 PASS>FAIL              {|assertEquals(%2020-01-01T00:00, %2020-01-01T00:00:00.000)} 
+q0708 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:00.000)} 
+q0709 FAIL>PASS              {|assertNotEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:00.000)} 
+q0713 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.50)} 
+q0714 PASS>FAIL              {|assertEquals(%2020-01-01T10:00:00.123456, %2020-01-01T10:00:00.123456000)} 
+q0715 FAIL>PASS              {|assertContains([%2020-01-01, %2020-01-02], %2020-01-01T00:00:00)} 
+q0716 PASS>FAIL              {|assertNotContains([%2020-01-01, %2020-01-02], %2020-01-01T00:00:00)} 
+q0717 FAIL>PASS              {|assertContains([%2020-01-01T00:00:00, %2020-01-02T00:00:00], %2020-01-01)} 
+q0718 FAIL>PASS              {|assertEquals([%2020-01-01, %2020-01-02], [%2020-01-01T00:00:00, %2020-01-02T00:00:00])} 
+q0720 FAIL>PASS              {|assertSameElements([%2020-01-02, %2020-01-01], [%2020-01-01T00:00, %2020-01-02T00:00])} 
+q0723 FAIL>PASS              {|assertEquals(%2020-01-02T00:00:00, %2020-01-01->adjust(1, DurationUnit.DAYS))} 
+q0727 FAIL>PASS              {|assertEquals(%2020-01-01T00:00:00, date(2020, 1, 1))} 
+q0731 FAIL>PASS              {|assertEquals(%2020-01-01T00:00:00, %2020-01-01T10:00:00->datePart())} 
+q0733 FAIL>PASS              {|assertEquals(%2020-01-01T00:00:00, p::Q.all()->filter(x | $x.id == 1)->toOne().d)} 
+q0737 FAIL>PASS              {|assertEquals(%2020-01-01, p::R.all()->filter(x | $x.id == 1)->toOne().t)} 
+q0739 FAIL>PASS              {|assertContains(p::Q.all().d, %2020-01-01T00:00:00)} 
+q0741 FAIL>PASS              {|assertContains(p::R.all().t, %2020-01-01)} 
+q0747 FAIL>PASS              {|assertEquals(fromJson('1')->to(@Float), 1)} 
+q0753 FAIL>FAIL D:REFU>FAIL  {|assertContains([1, 2], fromJson('1'))} | A:AssertFailed: assertContains: UNJUDGED in database mode — a Variant me
+q0754 PASS>PASS D:REFU>PASS  {|assertNotContains([1, 2], fromJson('1'))} | A:AssertFailed: assertNotContains: UNJUDGED in database mode — a Variant
+q0756 FAIL>PASS              {|assertEquals(fromJson('[1,2]')->toMany(@Integer), [1.0, 2.0])} 
+q0764 FAIL>FAIL D:REFU>FAIL  {|assertEquals(^p::KS(id=1, at=%2020-01-01T00:00:00, note='x', extra='e'), ^p::K(id=1, at=%2020-01-01T00:00:00, note='x' | A:AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non
+q0768 PASS>PASS D:REFU>PASS  {|assertEquals(^p::KM(ids=[1, 2]), ^p::KM(ids=[1, 2]))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0773 FAIL>PASS D:REFU>PASS  {|assertEquals(pair(1, 1D), pair(1, 1))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0774 FAIL>PASS D:REFU>PASS  {|assertEquals(pair(1, %2020-01-01), pair(1, %2020-01-01T00:00:00))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0776 FAIL>PASS D:REFU>PASS  {|assertContains([pair(1, 1)], pair(1, 1.0))} | A:AssertFailed: assertContains: UNJUDGED in database mode — a membership
+q0777 FAIL>PASS D:REFU>PASS  {|assertEquals(list([1, 2]), list([1.0, 2.0]))} | A:AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no
+q0780 PASS>PASS D:REFU>PASS  {|assertEquals([1, 2, 3], execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).v | A:AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non
+q0781 FAIL>PASS D:REFU>PASS  {|assertEquals([1.0, 2.0, 3.0], execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, | A:AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non
+q0782 FAIL>FAIL D:REFU>FAIL  {|assertEquals([2.5, 3.0, 2.5], execute(|p::Q.all()->project([x | $x.f], ['f'])->sort('f'), p::M, p::RT.runtimeValue, [] | A:AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non
+q0785 FAIL>PASS              {|assertEquals(true, 'true')} 

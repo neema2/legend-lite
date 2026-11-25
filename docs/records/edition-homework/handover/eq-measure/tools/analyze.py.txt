@@ -1,0 +1,45 @@
+# usage: analyze.py corpus.json runsdir  -> diffs.json + a summary
+import json, re, sys, collections, os
+corpus = json.load(open(sys.argv[1])); rd = sys.argv[2]
+DBS = [d for d in ('DuckDB', 'H2', 'SQLite') if os.path.exists('%s/%s.json' % (rd, d))]
+res = {d: json.load(open('%s/%s.json' % (rd, d))) for d in DBS}
+MODES = ('HOST', 'DATABASE')
+
+def vclass(v):
+    if v is None: return 'MISSING'
+    if v.startswith('pass'): return 'PASS'
+    if v.startswith('AssertFailed'):
+        return 'REFUSED' if 'UNJUDGED' in v else 'FAIL'
+    if v.startswith('JudgesDisagree'): return 'DISAGREE'
+    k = v.split(':', 1)[0]
+    if k in ('NotImplementedException', 'DialectCapability'): return 'REFUSED'
+    return 'ERR'
+
+def tag(body):
+    t = []
+    if re.search(r'fromJson|toVariant', body): t.append('variant')
+    if re.search(r'\^p::|\^t::|pair\(|list\(|newMap|p::Q\.all\(\)->(sortBy\(x\|\$x\.id\)->)?at|p::Q\.all\(\)->filter\(x\|\$x\.id == 1\)\)|\$xs|\$x, \$x|Person', body): t.append('inst')
+    if re.search(r'E\.[AB]', body): t.append('enum')
+    if re.search(r'%-?\d|\.t\b|\.d\b|date\(', body): t.append('date')
+    if re.search(r'#TDS|project\(', body): t.append('grid')
+    if re.search(r'\d\.\d|\dD\b|\d\.\d+D|\.e\b|\.f\b|sum\(|/ 4|toDecimal|toFloat', body): t.append('num')
+    if re.search(r"\[\]|isEmpty|Empty|filter\(x ?\| ?\$x > 5|filter\(x \| false\)", body): t.append('empty')
+    if re.search(r'SameElements|sort', body): t.append('order')
+    if re.search(r'assertIs|assertIsNot|assertEq\b|assertNotEq\b', body): t.append('identity')
+    return t
+
+rows = []
+for r in corpus:
+    for d in DBS:
+        ra = res[d].get(r['a'], {}); rb = res[d].get(r['b'], {})
+        for m in MODES:
+            va, vb = ra.get(m), rb.get(m)
+            ca, cb = vclass(va), vclass(vb)
+            rows.append(dict(id=r['id'], src=r['src'], db=d, mode=m, a=r['a'], b=r['b'], va=va, vb=vb, ca=ca, cb=cb,
+                             same_body=r['a'] == r['b'], tags=tag(r['a'])))
+json.dump(rows, open(rd + '/rows.json', 'w'), indent=0)
+diff = [x for x in rows if x['ca'] != x['cb']]
+print('DBs', DBS, 'bodies', len(corpus), 'rows', len(rows), 'diffs', len(diff))
+print('diff bodies:', len({x['id'] for x in diff}))
+c = collections.Counter((x['db'], x['mode']) for x in diff); print(c)
+c = collections.Counter((x['ca'], x['cb']) for x in diff); print(c.most_common())

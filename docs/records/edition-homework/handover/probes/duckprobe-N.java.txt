@@ -1,0 +1,37 @@
+import java.sql.*;
+public class N {
+  public static void main(String[] a) throws Exception {
+    String[] qs = {
+      "SELECT CAST(TIMESTAMP '1677-09-21 00:12:43.145225' AS TIMESTAMP_NS)",
+      "SELECT CAST(TIMESTAMP '2262-04-11 23:47:16.854775' AS TIMESTAMP_NS)",
+      "SELECT TRY_CAST(TIMESTAMP '2262-04-11 23:47:16.854776' AS TIMESTAMP_NS)",
+      "SELECT TRY_CAST(TIMESTAMP '9999-12-31' AS TIMESTAMP_NS) IS NULL",
+      "SELECT CASE WHEN TRY_CAST('1600-01-01T10:00' AS TIMESTAMP_NS) IS NULL THEN error('refused') ELSE TRY_CAST('1600-01-01T10:00' AS TIMESTAMP_NS) END",
+      "SELECT strftime(TIMESTAMP_NS '2020-01-01 10:00:00.123456789', '%Y')",
+      "SELECT CAST('2020-01-01T10:00:00.123456789' AS TIMESTAMP_NS)",
+      "SELECT CAST('2020-01-01T10:00:00.123456789Z' AS TIMESTAMP_NS)",
+      "SELECT CAST('2020-01-01T10:00' AS TIMESTAMP_NS)",
+      "SELECT CAST('2020-01-01T10:00:00.1234567891' AS TIMESTAMP_NS)",
+      "SELECT CAST('1600-01-01T10:00:00' AS TIMESTAMP_NS)",
+      "SELECT TRY_CAST('1600-01-01T10:00:00' AS TIMESTAMP_NS)",
+      "SELECT CAST('2020-01-01T10:00:00.123456789' AS TIMESTAMP)",
+      "SELECT CAST(TIMESTAMP_NS '2020-01-01 10:00:00.123456789' AS TIMESTAMP_NS) = CAST('2020-01-01T10:00:00.1234567890' AS TIMESTAMP_NS)",
+      "SELECT CAST(TIMESTAMP '2020-01-01 10:00:00.123456' AS TIMESTAMP_NS) = TIMESTAMP_NS '2020-01-01 10:00:00.123456000'",
+      "SELECT TIMESTAMP '1600-01-01' < TIMESTAMP '1677-09-21 00:12:43.145225'",
+      "SELECT CAST(TIMESTAMP '1677-09-21 00:12:43.145225' AS TIMESTAMP_NS), CAST(TIMESTAMP '2262-04-11 23:47:16.854775' AS TIMESTAMP_NS)",
+      "SELECT CAST(TIMESTAMP '1677-09-21 00:12:43.145224' AS TIMESTAMP_NS)",
+      "SELECT CAST(TIMESTAMP '2262-04-11 23:47:16.854776' AS TIMESTAMP_NS)",
+      "SELECT TIMESTAMP_NS '2020-01-01 10:00:00.123456789' < TIMESTAMP '2262-04-11 23:47:16.854775'",
+      "SELECT typeof(CASE WHEN true THEN error('x') ELSE CAST('2020-01-01' AS TIMESTAMP_NS) END)",
+      "SELECT [TIMESTAMP_NS '2020-01-01 10:00:00.123456789'] = [CAST('2020-01-01T10:00:00.123456789' AS TIMESTAMP_NS)]",
+      "SELECT list_sort([TIMESTAMP_NS '2020-01-01 10:00:00.123456789', TIMESTAMP_NS '2019-01-01 10:00:00.1'])",
+    };
+    try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+      System.out.println(c.getMetaData().getDatabaseProductVersion());
+      for (String q : qs) {
+        try (ResultSet r = c.createStatement().executeQuery(q)) { r.next(); StringBuilder b = new StringBuilder(); for (int i = 1; i <= r.getMetaData().getColumnCount(); i++) b.append(r.getObject(i)).append(" | "); System.out.println("OK  " + b + " <- " + q); }
+        catch (Exception e) { System.out.println("ERR " + e.getMessage().split("\n")[0] + " <- " + q); }
+      }
+    }
+  }
+}

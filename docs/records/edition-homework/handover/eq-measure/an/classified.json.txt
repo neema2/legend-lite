@@ -1,0 +1,4214 @@
+[
+ {
+  "id": "q0012",
+  "a": "{|assertIsNot(1, 2)}",
+  "b": "{|assert(!is(1, 2))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0013",
+  "a": "{|assertIsNot('x', 'x')}",
+  "b": "{|assert(!is('x', 'x'))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected an instance other than \"x\"",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected an instance other than \"x\"",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0034",
+  "a": "{|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}",
+  "b": "{|let l = [10]; [1, 0]->forAll(i | assert((1) == ($i), | $l->at($i)->toString()));}",
+  "cause": "other:assert-planning",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: 10",
+    "NotImplementedException: the program road does not plan this body: host judge's planner refused an assert [assert,declares-test-data]"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: 10",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]"
+   ]
+  }
+ },
+ {
+  "id": "q0042",
+  "a": "{|let l = [10]; [1, 1]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}",
+  "b": "{|let l = [10]; [1, 1]->forAll(i | assert((1) == ($i), | $l->at($i)->toString()));}",
+  "cause": "other:assert-planning",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: the program road does not plan this body: host judge's planner refused an assert [assert,declares-test-data]"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]"
+   ]
+  }
+ },
+ {
+  "id": "q0050",
+  "a": "{|assertIs(t::Employee, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())}",
+  "b": "{|assert(is(t::Employee, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type()))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0051",
+  "a": "{|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(1)->type())}",
+  "b": "{|assert(is(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(1)->type()))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0052",
+  "a": "{|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())}",
+  "b": "{|assert(is(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type()))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected t::Person, got t::Employee",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected t::Person, got t::Employee",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0062",
+  "a": "{|assertEquals(1, 1.0)}",
+  "b": "{|assert((1) == (1.0))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1, got 1.0",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1, got 1.0",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0063",
+  "a": "{|assertEquals([1, 2], [1.0, 2.0])}",
+  "b": "{|assert(([1, 2]) == ([1.0, 2.0]))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2], got [1.0, 2.0]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2], got [1.0, 2.0]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0064",
+  "a": "{|assertSameElements([2, 1], [2.0, 1.0])}",
+  "b": "{|assert(([2, 1])->sort() == ([2.0, 1.0])->sort())}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2, 1] in any order, got [2.0, 1.0]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2, 1] in any order, got [2.0, 1.0]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0065",
+  "a": "{|assertEquals(1D, 1)}",
+  "b": "{|assert((1D) == (1))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1 (Decimal), got 1 (Integer)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1 (Decimal), got 1 (Integer)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0066",
+  "a": "{|assertEquals(1.5, 1.5D)}",
+  "b": "{|assert((1.5) == (1.5D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1.5 (Float), got 1.5 (Decimal)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1.5 (Float), got 1.5 (Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0067",
+  "a": "{|assertNotEquals(3, 3D)}",
+  "b": "{|assert((3) != (3D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0069",
+  "a": "{|assertEquals([], [1, 2]->filter(x | $x > 5))}",
+  "b": "{|assert(([]) == ([1, 2]->filter(x | $x > 5)))}",
+  "cause": "nulls/empties",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0086",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}",
+  "b": "{|assert((%2020-01-01T10:00:00.000+0000) == (%2020-01-01T10:00:00+0000))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0087",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}",
+  "b": "{|assert((%2020-01-01T10:00:00.5) == (%2020-01-01T10:00:00.500))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0088",
+  "a": "{|assertEquals(%2020-01-01T10, %2020-01-01T10:00:00)}",
+  "b": "{|assert((%2020-01-01T10) == (%2020-01-01T10:00:00))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0089",
+  "a": "{|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:00.000, %2020-01-01T11:00:00]->at(0))}",
+  "b": "{|assert((%2020-01-01T10:00:00) == ([%2020-01-01T10:00:00.000, %2020-01-01T11:00:00]->at(0)))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0091",
+  "a": "{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}",
+  "b": "{|assert((%2020-01-01) == (%2020-01-01T00:00:00))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01, got 2020-01-01T00:00:00.000000000Z",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01, got 2020-01-01T00:00:00.000000000Z",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0094",
+  "a": "{|assertContains([%2020-01-01T10:00:00.5, %2020-01-02T00:00:00.5], %2020-01-01T10:00:00.50)}",
+  "b": "{|assert(([%2020-01-01T10:00:00.5, %2020-01-02T00:00:00.5])->contains(%2020-01-01T10:00:00.50))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0095",
+  "a": "{|assertContains([%2020-01-01T10:00:00.000, %2020-01-02T00:00:00.5], %2020-01-01T10:00:00)}",
+  "b": "{|assert(([%2020-01-01T10:00:00.000, %2020-01-02T00:00:00.5])->contains(%2020-01-01T10:00:00))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0099",
+  "a": "{|assertEquals([], ['a', 'b']->filter(x | $x == 'c'))}",
+  "b": "{|assert(([]) == (['a', 'b']->filter(x | $x == 'c')))}",
+  "cause": "nulls/empties",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0100",
+  "a": "{|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))}",
+  "b": "{|assert(([]) == ([%2020-01-01]->filter(d | $d > %2021-01-01)))}",
+  "cause": "nulls/empties",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0103",
+  "a": "{|assertInstanceOf(1 + 1, Integer)}",
+  "b": "{|assert((1 + 1)->instanceOf(Integer))}",
+  "cause": "other:instanceOf-refused",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: instanceOf undecidable statically: INTEGER vs 'meta::pure::metamodel::type::Integer'"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: instanceOf undecidable statically: INTEGER vs 'meta::pure::metamodel::type::Integer'"
+   ]
+  }
+ },
+ {
+  "id": "q0114",
+  "a": "{|assertSameElements([true, false], [true])}",
+  "b": "{|assert(([true, false])->sort() == ([true])->sort())}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected the elements [true, false] in any order, got [true]",
+    "DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected the elements [true, false] in any order, got [true]",
+    "DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])"
+   ]
+  }
+ },
+ {
+  "id": "q0115",
+  "a": "{|assertSameElements([%2020-01-02, %2019-05-01], [%2019-05-01])}",
+  "b": "{|assert(([%2020-01-02, %2019-05-01])->sort() == ([%2019-05-01])->sort())}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected the elements [2020-01-02, 2019-05-01] in any order, got [2019-05-01]",
+    "DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected the elements [2020-01-02, 2019-05-01] in any order, got [2019-05-01]",
+    "DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])"
+   ]
+  }
+ },
+ {
+  "id": "q0117",
+  "a": "{|assertEquals(1, [1, 2])}",
+  "b": "{|assert((1) == ([1, 2]))}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [1], got [1, 2]",
+    "DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\\n\\nLINE 1: SELECT 1 = [1, 2] AS value\\n               ^"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [1], got [1, 2]",
+    "DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\\n\\nLINE 3:     SELECT 1 = [1, 2] AS value\\n                   ^"
+   ]
+  }
+ },
+ {
+  "id": "q0122",
+  "a": "{|assertIs('a', 'a')}",
+  "b": "{|assert(is('a', 'a'))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0123",
+  "a": "{|assertIs(1, 2)}",
+  "b": "{|assert(is(1, 2))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected 1, got 2",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected 1, got 2",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0139",
+  "a": "{|assertEq(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)}",
+  "b": "{|assert(eq(1, p::P.all()->filter(x | $x.id == 1)->toOne().d))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0140",
+  "a": "{|assertEq(1, p::P.all()->map(x | $x.d)->toOne())}",
+  "b": "{|assert(eq(1, p::P.all()->map(x | $x.d)->toOne()))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0141",
+  "a": "{|assertIs(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)}",
+  "b": "{|assert(is(1, p::P.all()->filter(x | $x.id == 1)->toOne().d))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0142",
+  "a": "{|assertIs(1, p::P.all()->map(x | $x.d)->toOne())}",
+  "b": "{|assert(is(1, p::P.all()->map(x | $x.d)->toOne()))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0143",
+  "a": "{|assertNotEq(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)}",
+  "b": "{|assert(!eq(1, p::P.all()->filter(x | $x.id == 1)->toOne().d))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0144",
+  "a": "{|assertNotEq(1, p::P.all()->map(x | $x.d)->toOne())}",
+  "b": "{|assert(!eq(1, p::P.all()->map(x | $x.d)->toOne()))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0145",
+  "a": "{|assertIsNot(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)}",
+  "b": "{|assert(!is(1, p::P.all()->filter(x | $x.id == 1)->toOne().d))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0146",
+  "a": "{|assertIsNot(1, p::P.all()->map(x | $x.d)->toOne())}",
+  "b": "{|assert(!is(1, p::P.all()->map(x | $x.d)->toOne()))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0152",
+  "a": "{|assertNotEquals([], [1, 2]->filter(x | $x > 5))}",
+  "b": "{|assert(([]) != ([1, 2]->filter(x | $x > 5)))}",
+  "cause": "nulls/empties",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than []",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than []",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0160",
+  "a": "{|assertEquals([1.0D, 10.125D], [1.0D])}",
+  "b": "{|assert(([1.0D, 10.125D]) == ([1.0D]))}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [1.000, 10.125], got [1.0]",
+    "DataError: Conversion Error: Unimplemented type for cast (DECIMAL(2,1) -> DECIMAL(5,3)[])\\n\\nLINE 1: SELECT [1.0, 10.125] = 1.0 AS value\\n                               ^"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [1.000, 10.125], got [1.0]",
+    "DataError: Conversion Error: Unimplemented type for cast (DECIMAL(2,1) -> DECIMAL(5,3)[])\\n\\nLINE 3:     SELECT [1.0, 10.125] = 1.0 AS value\\n                                   ^"
+   ]
+  }
+ },
+ {
+  "id": "q0174",
+  "a": "{|assertNotEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)}",
+  "b": "{|assert((%2020-01-01T10:00:00.000) != (%2020-01-01T10:00:00))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than 2020-01-01T10:00:00.000000000Z",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than 2020-01-01T10:00:00.000000000Z",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0176",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.123456789, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())}",
+  "b": "{|assert((%2020-01-01T10:00:00.123456789) == ([%2019-01-01, %2020-01-01T10:00:00.123456789]->max()))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0177",
+  "a": "{|assertEquals(%2020-01-01T10:00, [%2019-01-01, %2020-01-01T10:00:00]->max())}",
+  "b": "{|assert((%2020-01-01T10:00) == ([%2019-01-01, %2020-01-01T10:00:00]->max()))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0181",
+  "a": "{|assertEquals(%2020-01-01T10:00:00, [%2019-01, %2020-01-01T10:00:00.000]->at(1))}",
+  "b": "{|assert((%2020-01-01T10:00:00) == ([%2019-01, %2020-01-01T10:00:00.000]->at(1)))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0183",
+  "a": "{|assertIsNot(3, [1, 2.0, 3]->max())}",
+  "b": "{|assert(!is(3, [1, 2.0, 3]->max()))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected an instance other than 3",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected an instance other than 3",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0184",
+  "a": "{|assertIsNot(4, [1, 2.0, 3]->max())}",
+  "b": "{|assert(!is(4, [1, 2.0, 3]->max()))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0204",
+  "a": "{|assertEquals('1', 1)}",
+  "b": "{|assert(('1') == (1))}",
+  "cause": "other:cross-type-primitives",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected \"1\", got 1",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected \"1\", got 1",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0205",
+  "a": "{|assertSameElements(['1'], [1])}",
+  "b": "{|assert((['1'])->sort() == ([1])->sort())}",
+  "cause": "other:cross-type-primitives",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [\"1\"] in any order, got [1]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [\"1\"] in any order, got [1]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0206",
+  "a": "{|assertEq(true, 1)}",
+  "b": "{|assert(eq(true, 1))}",
+  "cause": "other:cross-type-primitives",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected true, got 1",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected true, got 1",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0208",
+  "a": "{|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values, [1, 3])}",
+  "b": "{|assert((execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values) == ([1, 3]))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[columns=[Column[name=id, type=INTEGER, multiplicity=Bounded[lower=1, upper=1]]], dynamicColumns=[]]], multArguments=[]] vs Primitive:INTEGER)",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0212",
+  "a": "{|assertEquals([1.50D, 2.25D], [1.50D])}",
+  "b": "{|assert(([1.50D, 2.25D]) == ([1.50D]))}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [1.50, 2.25], got [1.50]",
+    "DataError: Conversion Error: Unimplemented type for cast (DECIMAL(3,2) -> DECIMAL(3,2)[])\\n\\nLINE 1: SELECT [1.50, 2.25] = 1.50 AS value\\n                              ^"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [1.50, 2.25], got [1.50]",
+    "DataError: Conversion Error: Unimplemented type for cast (DECIMAL(3,2) -> DECIMAL(3,2)[])\\n\\nLINE 3:     SELECT [1.50, 2.25] = 1.50 AS value\\n                                  ^"
+   ]
+  }
+ },
+ {
+  "id": "q0214",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.1234567890)}",
+  "b": "{|assert((%2020-01-01T10:00:00.123456789) == (%2020-01-01T10:00:00.1234567890))}",
+  "cause": "dates:nanoseconds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0219",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.123456, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())}",
+  "b": "{|assert((%2020-01-01T10:00:00.123456) == ([%2019-01-01, %2020-01-01T10:00:00.123456789]->max()))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0221",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.5, [%2019-01, %2020-01-01T10:00:00.500]->at(1))}",
+  "b": "{|assert((%2020-01-01T10:00:00.5) == ([%2019-01, %2020-01-01T10:00:00.500]->at(1)))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0222",
+  "a": "{|assertEquals(%2407-05-19T19:15:12, %2407-05-19T19:15:12.000)}",
+  "b": "{|assert((%2407-05-19T19:15:12) == (%2407-05-19T19:15:12.000))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0231",
+  "a": "{|assertEquals(%25489-01-01T10:00:00, %25489-01-01T10:00:00.000)}",
+  "b": "{|assert((%25489-01-01T10:00:00) == (%25489-01-01T10:00:00.000))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0233",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.0000000001, %2020-01-01T10:00:00.0000000002)}",
+  "b": "{|assert((%2020-01-01T10:00:00.0000000001) == (%2020-01-01T10:00:00.0000000002))}",
+  "cause": "dates:nanoseconds",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "DialectCapability: the date-time 2020-01-01T10:00:00.0000000001 has 10 fraction digits; no database keeps more than 9: refused, never cut (S181)",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "DialectCapability: the date-time 2020-01-01T10:00:00.0000000001 has 10 fraction digits; no database keeps more than 9: refused, never cut (S181)",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0310",
+  "a": "{|assertEquals(true, 1)}",
+  "b": "{|assert((true) == (1))}",
+  "cause": "other:cross-type-primitives",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected true, got 1",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected true, got 1",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0311",
+  "a": "{|assertNotEquals('1', 1)}",
+  "b": "{|assert(('1') != (1))}",
+  "cause": "other:cross-type-primitives",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0316",
+  "a": "{|assertContains([%2020-01-01T00:00, %2020-01-02]->map(x | $x), %2020-01-02T00:00)}",
+  "b": "{|assert(([%2020-01-01T00:00, %2020-01-02]->map(x | $x))->contains(%2020-01-02T00:00))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0317",
+  "a": "{|assertEquals(%2020-01-02T00:00, [%2020-01-02, %2020-01-01T00:00]->at(0))}",
+  "b": "{|assert((%2020-01-02T00:00) == ([%2020-01-02, %2020-01-01T00:00]->at(0)))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0318",
+  "a": "{|assertContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)}",
+  "b": "{|assert(([%2020-01-01T00:00, %2020-01-02])->contains(%2020-01-02T00:00))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0319",
+  "a": "{|assertEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])}",
+  "b": "{|assert(([%2020-01-01T00:00, %2020-01-02]) == ([%2020-01-01T00:00, %2020-01-02T00:00]))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0320",
+  "a": "{|assertNotContains([1, 2], '1'->fromJson())}",
+  "b": "{|assert(!(([1, 2])->contains('1'->fromJson())))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertNotContains: UNJUDGED in database mode \u2014 a Variant membership: no typed form",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0328",
+  "a": "{|assertEq(newMap([pair('a', 1)]), newMap([pair('a', 1)]))}",
+  "b": "{|assert(eq(newMap([pair('a', 1)]), newMap([pair('a', 1)])))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: assertEq over non-primitive values: eq is INSTANCE identity, which is not observable on a value wire (assertEquals is the structural compare)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: assertEq over non-primitive values: eq is INSTANCE identity, which is not observable on a value wire (assertEquals is the structural compare)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0331",
+  "a": "{|assertEquals(newMap([pair('a', 1), pair('b', 2)]), newMap([pair('b', 2), pair('a', 1)]))}",
+  "b": "{|assert((newMap([pair('a', 1), pair('b', 2)])) == (newMap([pair('b', 2), pair('a', 1)])))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0340",
+  "a": "{|assertNotEquals(1->cast(@Any), 'a'->cast(@Any))}",
+  "b": "{|assert((1->cast(@Any)) != ('a'->cast(@Any)))}",
+  "cause": "other:cross-type-primitives",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Conversion Error: Could not convert string 'a' to INT32\\n\\nLINE 1: SELECT 1 <> 'a' AS value\\n                    ^"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Conversion Error: Could not convert string 'a' to INT32\\n\\nLINE 3:     SELECT 1 <> 'a' AS value\\n                        ^"
+   ]
+  }
+ },
+ {
+  "id": "q0341",
+  "a": "{|assertNotEquals([1]->cast(@Any), [1.0]->cast(@Any))}",
+  "b": "{|assert(([1]->cast(@Any)) != ([1.0]->cast(@Any)))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0350",
+  "a": "{|assertContains(p::Q.all().e, 1.5D)}",
+  "b": "{|assert((p::Q.all().e)->contains(1.5D))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a membership with no typed form ([DECIMAL] against [PrecisionDecimal[precision=38, scale=1], PrecisionDecimal[precision=38, scale=1]])",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0360",
+  "a": "{|assertEquals(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n  2\n#->sort(~id->descending()))}",
+  "b": "{|assert((#TDS\n  id\n  1\n  2\n#) == (#TDS\n  id\n  1\n  2\n#->sort(~id->descending())))}",
+  "cause": "grids",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [[1], [2]], got [[2], [1]]",
+    "DataError: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row.\\n\\nUse \"SET scalar_subquery_error_on_multiple_rows=false\" to revert to previous behavior of returning a random row."
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [[1], [2]], got [[2], [1]]",
+    "DataError: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row.\\n\\nUse \"SET scalar_subquery_error_on_multiple_rows=false\" to revert to previous behavior of returning a random row."
+   ]
+  }
+ },
+ {
+  "id": "q0361",
+  "a": "{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#)}",
+  "b": "{|assert((#TDS\n  id\n  1\n#) == (#TDS\n  ix\n  1\n#))}",
+  "cause": "grids",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [[1]], got [[1]]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [[1]], got [[1]]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0362",
+  "a": "{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  1.0\n#)}",
+  "b": "{|assert((#TDS\n  id\n  1\n#) == (#TDS\n  id\n  1.0\n#))}",
+  "cause": "grids",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [[1]], got [[1.0]]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [[1]], got [[1.0]]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0365",
+  "a": "{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 14))}",
+  "b": "{|assert((%2015-04-16T14) == (date(2015, 4, 16, 14)))}",
+  "cause": "dates:hour-literal-render",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Conversion Error: invalid timestamp field format: \"2015-04-16T14\", expected format is (YYYY-MM-DD HH:MM:SS[.US][\u00b1HH[:MM[:SS]]| ZONE])\\n\\nLINE 1: SELECT TIMESTAMP '2015-04-16T14:00:00' = concat(lpad(CAST(2015 AS VARCHAR), 4, '0'), '-', lpad(CAST...\\n                                                 ^"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Conversion Error: invalid timestamp field format: \"2015-04-16T14\", expected format is (YYYY-MM-DD HH:MM:SS[.US][\u00b1HH[:MM[:SS]]| ZONE])\\n\\nLINE 3:     SELECT TIMESTAMP '2015-04-16T14:00:00' = concat(lpad(CAST(2015 AS VARCHAR), 4, '0'), '-', lpad(CAST...\\n                                                     ^"
+   ]
+  }
+ },
+ {
+  "id": "q0366",
+  "a": "{|assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))}",
+  "b": "{|assert((%1973-11-13T23) == (date(1973, 11, 13, 23)))}",
+  "cause": "dates:hour-literal-render",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Conversion Error: invalid timestamp field format: \"1973-11-13T23\", expected format is (YYYY-MM-DD HH:MM:SS[.US][\u00b1HH[:MM[:SS]]| ZONE])\\n\\nLINE 1: SELECT TIMESTAMP '1973-11-13T23:00:00' = concat(lpad(CAST(1973 AS VARCHAR), 4, '0'), '-', lpad(CAST...\\n                                                 ^"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Conversion Error: invalid timestamp field format: \"1973-11-13T23\", expected format is (YYYY-MM-DD HH:MM:SS[.US][\u00b1HH[:MM[:SS]]| ZONE])\\n\\nLINE 3:     SELECT TIMESTAMP '1973-11-13T23:00:00' = concat(lpad(CAST(1973 AS VARCHAR), 4, '0'), '-', lpad(CAST...\\n                                                     ^"
+   ]
+  }
+ },
+ {
+  "id": "q0367",
+  "a": "{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 15))}",
+  "b": "{|assert((%2015-04-16T14) == (date(2015, 4, 16, 15)))}",
+  "cause": "dates:hour-literal-render",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected 2015-04-16T14:00:00.000000000Z, got 2015-04-16T15:00:00.000000000Z",
+    "DataError: Conversion Error: invalid timestamp field format: \"2015-04-16T15\", expected format is (YYYY-MM-DD HH:MM:SS[.US][\u00b1HH[:MM[:SS]]| ZONE])\\n\\nLINE 1: SELECT TIMESTAMP '2015-04-16T14:00:00' = concat(lpad(CAST(2015 AS VARCHAR), 4, '0'), '-', lpad(CAST...\\n                                                 ^"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected 2015-04-16T14:00:00.000000000Z, got 2015-04-16T15:00:00.000000000Z",
+    "DataError: Conversion Error: invalid timestamp field format: \"2015-04-16T15\", expected format is (YYYY-MM-DD HH:MM:SS[.US][\u00b1HH[:MM[:SS]]| ZONE])\\n\\nLINE 3:     SELECT TIMESTAMP '2015-04-16T14:00:00' = concat(lpad(CAST(2015 AS VARCHAR), 4, '0'), '-', lpad(CAST...\\n                                                     ^"
+   ]
+  }
+ },
+ {
+  "id": "q0369",
+  "a": "{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}",
+  "b": "{|assert((%2015-04-16T14) == (%2015-04-16T14:00))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0370",
+  "a": "{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}",
+  "b": "{|assert((%2015-04-16T14) != (%2015-04-16T14:00))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0400",
+  "a": "{|assertEquals(1, [fromJson('1'), 2]->at(0))}",
+  "b": "{|assert((1) == ([fromJson('1'), 2]->at(0)))}",
+  "cause": "variants",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: an equality between two whole Variants is not computed: legend-pure compares Variants by identity, which a database cannot compute (register S401); compare a path (get), a typed value (to(@T)) or the JSON text (toString())",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: an equality between two whole Variants is not computed: legend-pure compares Variants by identity, which a database cannot compute (register S401); compare a path (get), a typed value (to(@T)) or the JSON text (toString())",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0401",
+  "a": "{|assertNotEquals(1, [fromJson('1'), 2]->at(0))}",
+  "b": "{|assert((1) != ([fromJson('1'), 2]->at(0)))}",
+  "cause": "variants",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: an equality between two whole Variants is not computed: legend-pure compares Variants by identity, which a database cannot compute (register S401); compare a path (get), a typed value (to(@T)) or the JSON text (toString())",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: an equality between two whole Variants is not computed: legend-pure compares Variants by identity, which a database cannot compute (register S401); compare a path (get), a typed value (to(@T)) or the JSON text (toString())",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0420",
+  "a": "{|assertSameElements(['a', 1], [1, 'b'])}",
+  "b": "{|assert((['a', 1])->sort() == ([1, 'b'])->sort())}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected the elements [\"a\", 1] in any order, got [1, \"b\"]",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected the elements [\"a\", 1] in any order, got [1, \"b\"]",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ]
+  }
+ },
+ {
+  "id": "q0421",
+  "a": "{|assertNotContains([1, 'a'], 'a')}",
+  "b": "{|assert(!(([1, 'a'])->contains('a')))}",
+  "cause": "other:mixed-list-side-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: a constant side of type meta::pure::metamodel::type::Any: the folds admit String, Integer and Boolean",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0422",
+  "a": "{|assertContains([1, 'a'], 'b')}",
+  "b": "{|assert(([1, 'a'])->contains('b'))}",
+  "cause": "other:mixed-list-side-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: a constant side of type meta::pure::metamodel::type::Any: the folds admit String, Integer and Boolean",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0423",
+  "a": "{|assertEmpty([1, 'a'])}",
+  "b": "{|assert(([1, 'a'])->isEmpty())}",
+  "cause": "other:mixed-list-side-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: a constant side of type meta::pure::metamodel::type::Any: the folds admit String, Integer and Boolean",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0429",
+  "a": "{|assertNotEq(1, [1, 'a']->at(0))}",
+  "b": "{|assert(!eq(1, [1, 'a']->at(0)))}",
+  "cause": "other:assert-planning",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: the program road does not plan this body: host judge's planner refused an assert [assert,declares-test-data]",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0432",
+  "a": "{|assertNotEquals(1, 1.0)}",
+  "b": "{|assert((1) != (1.0))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0439",
+  "a": "{|assertEquals([], [1]->filter(x|$x > 5))}",
+  "b": "{|assert(([]) == ([1]->filter(x|$x > 5)))}",
+  "cause": "nulls/empties",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0440",
+  "a": "{|assertEquals(1, [1]->filter(x|$x > 5))}",
+  "b": "{|assert((1) == ([1]->filter(x|$x > 5)))}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [1], got []",
+    "DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\\n\\nLINE 1: SELECT 1 = list_filter([1], x -> x > 5) AS value\\n               ^"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [1], got []",
+    "DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\\n\\nLINE 3:     SELECT 1 = list_filter([1], x -> x > 5) AS value\\n                   ^"
+   ]
+  }
+ },
+ {
+  "id": "q0441",
+  "a": "{|assertNotEquals([], [1]->filter(x|$x > 5))}",
+  "b": "{|assert(([]) != ([1]->filter(x|$x > 5)))}",
+  "cause": "nulls/empties",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than []",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than []",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0443",
+  "a": "{|assertContains([1.5, 2.5], 1.5D)}",
+  "b": "{|assert(([1.5, 2.5])->contains(1.5D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.5, 2.5] to contain 1.5",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.5, 2.5] to contain 1.5",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0444",
+  "a": "{|assertContains([1D, 2D], 1)}",
+  "b": "{|assert(([1D, 2D])->contains(1))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2] to contain 1",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2] to contain 1",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0445",
+  "a": "{|assertNotContains([1, 2], 1.0)}",
+  "b": "{|assert(!(([1, 2])->contains(1.0)))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0447",
+  "a": "{|assertEq(1, 1.0)}",
+  "b": "{|assert(eq(1, 1.0))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1, got 1.0",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1, got 1.0",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0450",
+  "a": "{|assertNotEq(1.0D, 1.00D)}",
+  "b": "{|assert(!eq(1.0D, 1.00D))}",
+  "cause": "other:assert-planning",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: the program road does not plan this body: host judge's planner refused an assert [assert,declares-test-data]",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0451",
+  "a": "{|assertIsNot(1, 1)}",
+  "b": "{|assert(!is(1, 1))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected an instance other than 1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected an instance other than 1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0476",
+  "a": "{|assertTrue(1 == 2)}",
+  "b": "{|assert(1 == 2)}",
+  "cause": "other:assertTrue-unknown",
+  "per": {
+   "DuckDB/HOST": [
+    "ERR",
+    "FAIL",
+    "TypeInferenceException: unknown function 'assertTrue' \u2014 no function of this name in the native or user catalog (unported platform function, or a misspelling)",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "ERR",
+    "FAIL",
+    "TypeInferenceException: unknown function 'assertTrue' \u2014 no function of this name in the native or user catalog (unported platform function, or a misspelling)",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0485",
+  "a": "{|assertNotEquals(%2020-01-01, %2020-01-01T00:00:00)}",
+  "b": "{|assert((%2020-01-01) != (%2020-01-01T00:00:00))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0487",
+  "a": "{|assertNotEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}",
+  "b": "{|assert((%2020-01-01T10:00:00.5) != (%2020-01-01T10:00:00.500))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than 2020-01-01T10:00:00.500000000Z",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than 2020-01-01T10:00:00.500000000Z",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0488",
+  "a": "{|assertContains([%2020-01-01T10:00:00], %2020-01-01T10:00:00.000)}",
+  "b": "{|assert(([%2020-01-01T10:00:00])->contains(%2020-01-01T10:00:00.000))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0489",
+  "a": "{|assertSameElements([%2020-01-01T10:00:00, %2021-01-01], [%2021-01-01, %2020-01-01T10:00:00.000])}",
+  "b": "{|assert(([%2020-01-01T10:00:00, %2021-01-01])->sort() == ([%2021-01-01, %2020-01-01T10:00:00.000])->sort())}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "ERR",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "ERR",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ]
+  }
+ },
+ {
+  "id": "q0493",
+  "a": "{|assertEquals([true], [1 == 1, 2 == 2])}",
+  "b": "{|assert(([true]) == ([1 == 1, 2 == 2]))}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [true], got [true, true]",
+    "DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [true], got [true, true]",
+    "DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])"
+   ]
+  }
+ },
+ {
+  "id": "q0494",
+  "a": "{|assertEquals(pair(1, 1.0), pair(1, 1))}",
+  "b": "{|assert((pair(1, 1.0)) == (pair(1, 1)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected meta::pure::functions::collection::Pair {\"first\":1,\"second\":1.0}, got meta::pure::functions::collection::Pair {\"first\":1,\"second\":1}",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (Pair<Integer, Float> against Pair<Integer, Integer>)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0497",
+  "a": "{|assertEq(pair(1, 'a'), pair(1, 'a'))}",
+  "b": "{|assert(eq(pair(1, 'a'), pair(1, 'a')))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: assertEq over non-primitive values: eq is INSTANCE identity, which is not observable on a value wire (assertEquals is the structural compare)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0498",
+  "a": "{|let p = pair(1, 'a'); assertEq($p, $p);}",
+  "b": "{|let p = pair(1, 'a'); assert(eq($p, $p));}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: assertEq over non-primitive values: eq is INSTANCE identity, which is not observable on a value wire (assertEquals is the structural compare)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0501",
+  "a": "{|assertEquals(^p::KD(d=1.0D, b=true, e=t::E.A, sd=%2020-01-01), ^p::KD(d=1.00D, b=true, e=t::E.A, sd=%2020-01-01))}",
+  "b": "{|assert((^p::KD(d=1.0D, b=true, e=t::E.A, sd=%2020-01-01)) == (^p::KD(d=1.00D, b=true, e=t::E.A, sd=%2020-01-01)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0503",
+  "a": "{|assertEquals(^p::KM(ids=[1, 2]), ^p::KM(ids=[2, 1]))}",
+  "b": "{|assert((^p::KM(ids=[1, 2])) == (^p::KM(ids=[2, 1])))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (p::KM against p::KM)",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0504",
+  "a": "{|assertEquals(^p::KNum(n=1), ^p::KNum(n=1.0))}",
+  "b": "{|assert((^p::KNum(n=1)) == (^p::KNum(n=1.0)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected p::KNum {\"n\":1}, got p::KNum {\"n\":1.0}",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (p::KNum against p::KNum)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0508",
+  "a": "{|assertEquals(newMap([pair('a', 1)]), newMap([pair('a', 1.0)]))}",
+  "b": "{|assert((newMap([pair('a', 1)])) == (newMap([pair('a', 1.0)])))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected meta::pure::functions::collection::Map {\"a\":1}, got meta::pure::functions::collection::Map {\"a\":1.0}",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (Map<String, Integer> against Map<String, Float>)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0509",
+  "a": "{|assertEquals(list([1, 2]), list([1.0, 2]))}",
+  "b": "{|assert((list([1, 2])) == (list([1.0, 2])))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (List<Integer> against List<Number>)",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0510",
+  "a": "{|assertEquals([1, 2]->sum(), 3.0)}",
+  "b": "{|assert(([1, 2]->sum()) == (3.0))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 3, got 3.0",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 3, got 3.0",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0512",
+  "a": "{|assertEquals(10 / 4, 2.5D)}",
+  "b": "{|assert((10 / 4) == (2.5D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2.5 (Float), got 2.5 (Decimal)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2.5 (Float), got 2.5 (Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0513",
+  "a": "{|assertSameElements([t::E.A], ['A'])}",
+  "b": "{|assert(([t::E.A])->sort() == (['A'])->sort())}",
+  "cause": "enum-vs-String",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [A] in any order, got [\"A\"]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [A] in any order, got [\"A\"]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0514",
+  "a": "{|assertContains([t::E.A], 'A')}",
+  "b": "{|assert(([t::E.A])->contains('A'))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a membership with no typed form ([EnumType[fqn=t::E], EnumType[fqn=t::E]] against [STRING, STRING])",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0515",
+  "a": "{|assertContains(['A'], t::E.A)}",
+  "b": "{|assert((['A'])->contains(t::E.A))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a membership with no typed form ([STRING, STRING] against [EnumType[fqn=t::E], EnumType[fqn=t::E]])",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0516",
+  "a": "{|assertEquals([t::E.A, t::E.B], ['A', 'B'])}",
+  "b": "{|assert(([t::E.A, t::E.B]) == (['A', 'B']))}",
+  "cause": "enum-vs-String",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [A, B], got [\"A\", \"B\"]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [A, B], got [\"A\", \"B\"]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0520",
+  "a": "{|assertEquals(%2020-01-01, '2020-01-01')}",
+  "b": "{|assert((%2020-01-01) == ('2020-01-01'))}",
+  "cause": "other:cross-type-primitives",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01, got \"2020-01-01\"",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01, got \"2020-01-01\"",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0521",
+  "a": "{|assertIs('1', 1)}",
+  "b": "{|assert(is('1', 1))}",
+  "cause": "other:is-not-native",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected \"1\", got 1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected \"1\", got 1",
+    "NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared by the spec and not implemented by the platform"
+   ]
+  }
+ },
+ {
+  "id": "q0524",
+  "a": "{|let xs = [1, 2]->map(i|^t::Person(name='a')); assertEquals($xs->at(0), $xs->at(0));}",
+  "b": "{|let xs = [1, 2]->map(i|^t::Person(name='a')); assert(($xs->at(0)) == ($xs->at(0)));}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0528",
+  "a": "{|assertEquals(p::Q.all()->at(0), p::Q.all()->at(0))}",
+  "b": "{|assert((p::Q.all()->at(0)) == (p::Q.all()->at(0)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column \"_iq2\" was not found because the FROM clause is missing"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "ERR",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 side-e: keyless-instance: p::Q",
+    "DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column \"_iq2\" was not found because the FROM clause is missing"
+   ]
+  }
+ },
+ {
+  "id": "q0529",
+  "a": "{|assertEquals(p::Q.all()->sortBy(x|$x.id)->at(0), p::Q.all()->sortBy(x|$x.id)->at(0))}",
+  "b": "{|assert((p::Q.all()->sortBy(x|$x.id)->at(0)) == (p::Q.all()->sortBy(x|$x.id)->at(0)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column \"_iq2\" was not found because the FROM clause is missing"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "ERR",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 side-e: keyless-instance: p::Q",
+    "DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column \"_iq2\" was not found because the FROM clause is missing"
+   ]
+  }
+ },
+ {
+  "id": "q0530",
+  "a": "{|let a = p::Q.all()->sortBy(x|$x.id)->at(0); assertEquals($a, $a);}",
+  "b": "{|let a = p::Q.all()->sortBy(x|$x.id)->at(0); assert(($a) == ($a));}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column \"_iq2\" was not found because the FROM clause is missing"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "ERR",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 side-e: keyless-instance: p::Q",
+    "DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column \"_iq2\" was not found because the FROM clause is missing"
+   ]
+  }
+ },
+ {
+  "id": "q0531",
+  "a": "{|assertEquals(p::Q.all()->filter(x|$x.id == 1), p::Q.all()->filter(x|$x.id == 1))}",
+  "b": "{|assert((p::Q.all()->filter(x|$x.id == 1)) == (p::Q.all()->filter(x|$x.id == 1)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column \"_iq1\" was not found because the FROM clause is missing"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "ERR",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 side-e: keyless-instance: p::Q",
+    "DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column \"_iq1\" was not found because the FROM clause is missing"
+   ]
+  }
+ },
+ {
+  "id": "q0532",
+  "a": "{|assertContains(p::Q.all(), p::Q.all()->filter(x|$x.id == 1)->toOne())}",
+  "b": "{|assert((p::Q.all())->contains(p::Q.all()->filter(x|$x.id == 1)->toOne()))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: No function matches the given name and argument types 'list_contains(VARCHAR, VARCHAR)'. You might need to add explicit type casts.\\n\tCandidate functions:\\n\tlist_contains(T[], T) -> BOOLEAN\\n\\n\\nLINE 1: SELECT coalesce(list_contains((SELECT CAST(coalesce(to_json(list(json_object...\\n                        ^"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "ERR",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 side: keyless-instance: p::Q",
+    "DataError: Binder Error: No function matches the given name and argument types 'list_contains(VARCHAR, VARCHAR)'. You might need to add explicit type casts.\\n\tCandidate functions:\\n\tlist_contains(T[], T) -> BOOLEAN\\n\\n\\nLINE 3:     SELECT coalesce(list_contains((SELECT CAST(coalesce(to_json(list(json_object...\\n                            ^"
+   ]
+  }
+ },
+ {
+  "id": "q0533",
+  "a": "{|assertSameElements(p::Q.all()->filter(x|$x.id == 1), p::Q.all()->filter(x|$x.id == 1))}",
+  "b": "{|assert((p::Q.all()->filter(x|$x.id == 1))->sort() == (p::Q.all()->filter(x|$x.id == 1))->sort())}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts.\\n\tCandidate functions:\\n\tlist_sort(ANY[]) -> ANY[]\\n\tlist_sort(ANY[], VARCHAR) -> ANY[]\\n\tlist_sort(ANY[], VARCHAR, VARCHAR) -> ANY[]\\n\\n\\nLINE 1: SELECT coalesce(list_transform(list_sort((SELECT CAST(coalesce(to_json(list(json_object...\\n                 ..."
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "ERR",
+    "AssertFailed: assertSameElements: UNJUDGED in database mode \u2014 side-e: keyless-instance: p::Q",
+    "DataError: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts.\\n\tCandidate functions:\\n\tlist_sort(ANY[]) -> ANY[]\\n\tlist_sort(ANY[], VARCHAR) -> ANY[]\\n\tlist_sort(ANY[], VARCHAR, VARCHAR) -> ANY[]\\n\\n\\nLINE 3:     SELECT coalesce(list_transform(list_sort((SELECT CAST(coalesce(to_json(list(json_object...\\n             ..."
+   ]
+  }
+ },
+ {
+  "id": "q0538",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.1234567, %2020-01-01T10:00:00.123456700)}",
+  "b": "{|assert((%2020-01-01T10:00:00.1234567) == (%2020-01-01T10:00:00.123456700))}",
+  "cause": "dates:nanoseconds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0540",
+  "a": "{|assertEquals([%2020-01-01T10:00:00, %2020-01-01], [%2020-01-01T10:00:00.000, %2020-01-01T00:00:00])}",
+  "b": "{|assert(([%2020-01-01T10:00:00, %2020-01-01]) == ([%2020-01-01T10:00:00.000, %2020-01-01T00:00:00]))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0541",
+  "a": "{|assertSameElements([%2020-01-01, %2020-01-02], [%2020-01-02, %2020-01-01T00:00])}",
+  "b": "{|assert(([%2020-01-01, %2020-01-02])->sort() == ([%2020-01-02, %2020-01-01T00:00])->sort())}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0542",
+  "a": "{|assertEquals(%2020-01-01T10, %2020-01-01T10:00)}",
+  "b": "{|assert((%2020-01-01T10) == (%2020-01-01T10:00))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0543",
+  "a": "{|assertEquals(%2020-01-01T10:30, %2020-01-01T10:30:00.000)}",
+  "b": "{|assert((%2020-01-01T10:30) == (%2020-01-01T10:30:00.000))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0555",
+  "a": "{|assertEquals(p::Y.all()->sortBy(x|$x.id).t, [%2407-01-01T10:00:00, %1624-01-01T10:00:00.000000001, %2020-01-01T10:00:00.5])}",
+  "b": "{|assert((p::Y.all()->sortBy(x|$x.id).t) == ([%2407-01-01T10:00:00, %1624-01-01T10:00:00.000000001, %2020-01-01T10:00:00.5]))}",
+  "cause": "dates:nanoseconds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected [2407-01-01T10:00:00.000000000Z, 1624-01-01T10:00:00.000000000Z, 2020-01-01T10:00:00.500000000Z], got [2407-01-01T10:00:00.000000000Z, 1624-01-01T10:00:00.000000001Z, 2020-01-01T10:00:00.500000000Z]",
+    "DataError: Conversion Error: Could not convert Timestamp(US) to Timestamp(NS)"
+   ]
+  }
+ },
+ {
+  "id": "q0557",
+  "a": "{|assertEquals(p::Q.all()->sortBy(x|$x.id).e, [1.5D, -2D, 1.5D])}",
+  "b": "{|assert((p::Q.all()->sortBy(x|$x.id).e) == ([1.5D, -2D, 1.5D]))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (Decimal against Decimal(38,1))",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0558",
+  "a": "{|assertEquals(p::Q.all()->sortBy(x|$x.id).e, [1.5, -2.0, 1.5])}",
+  "b": "{|assert((p::Q.all()->sortBy(x|$x.id).e) == ([1.5, -2.0, 1.5]))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.5, -2, 1.5], got [1.5, -2.0, 1.5]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.5, -2, 1.5], got [1.5, -2.0, 1.5]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0560",
+  "a": "{|assertEquals(p::Q.all()->sortBy(x|$x.id).f, [2.5, 3, 2.5])}",
+  "b": "{|assert((p::Q.all()->sortBy(x|$x.id).f) == ([2.5, 3, 2.5]))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [2.5, 3.0, 2.5], got [2.5, 3, 2.5]",
+    "NotImplementedException: a mixed list compared with a list whose elements' kind is not static and that is not on the variant carrier: not lowered"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [2.5, 3.0, 2.5], got [2.5, 3, 2.5]",
+    "NotImplementedException: a mixed list compared with a list whose elements' kind is not static and that is not on the variant carrier: not lowered"
+   ]
+  }
+ },
+ {
+  "id": "q0561",
+  "a": "{|assertEquals(%2020-01-02, [%2020-01-01T00:00, %2020-01-02]->at(1))}",
+  "b": "{|assert((%2020-01-02) == ([%2020-01-01T00:00, %2020-01-02]->at(1)))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0562",
+  "a": "{|assertNotEquals(%2020-01-02T00:00, [%2020-01-01T00:00, %2020-01-02]->at(1))}",
+  "b": "{|assert((%2020-01-02T00:00) != ([%2020-01-01T00:00, %2020-01-02]->at(1)))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0563",
+  "a": "{|assertNotContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)}",
+  "b": "{|assert(!(([%2020-01-01T00:00, %2020-01-02])->contains(%2020-01-02T00:00)))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0564",
+  "a": "{|assertEquals([%2020-01-02], [%2020-01-01T00:00, %2020-01-02]->tail())}",
+  "b": "{|assert(([%2020-01-02]) == ([%2020-01-01T00:00, %2020-01-02]->tail()))}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "ERR",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "ERR",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])"
+   ]
+  }
+ },
+ {
+  "id": "q0571",
+  "a": "{|assertNotEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])}",
+  "b": "{|assert(([%2020-01-01T00:00, %2020-01-02]) != ([%2020-01-01T00:00, %2020-01-02T00:00]))}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0572",
+  "a": "{|assertSameElements([%2020-01-01T00:00, %2020-01-02], [%2020-01-02T00:00, %2020-01-01T00:00])}",
+  "b": "{|assert(([%2020-01-01T00:00, %2020-01-02])->sort() == ([%2020-01-02T00:00, %2020-01-01T00:00])->sort())}",
+  "cause": "dates:mixed-day-list-refused-in-assert",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "NotImplementedException: values holding both days and date-times are not compared: the database carries them as one kind, so their days cannot be told apart (register S399); compare the days and the date-times apart",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0573",
+  "a": "{|let l = ['a', 'b']; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}",
+  "b": "{|let l = ['a', 'b']; [1, 0]->forAll(i | assert((1) == ($i), | $l->at($i)->toString()));}",
+  "cause": "other:assert-planning",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: a",
+    "NotImplementedException: the program road does not plan this body: host judge's planner refused an assert [assert,declares-test-data]"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: a",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]"
+   ]
+  }
+ },
+ {
+  "id": "q0574",
+  "a": "{|let l = ['a', 'b']; [1, 5]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}",
+  "b": "{|let l = ['a', 'b']; [1, 5]->forAll(i | assert((1) == ($i), | $l->at($i)->toString()));}",
+  "cause": "other:assert-planning",
+  "per": {
+   "DuckDB/HOST": [
+    "ERR",
+    "REFUSED",
+    "DataError: The system is trying to get an element at offset 5 where the collection is of size 2",
+    "NotImplementedException: the program road does not plan this body: host judge's planner refused an assert [assert,declares-test-data]"
+   ],
+   "DuckDB/DATABASE": [
+    "ERR",
+    "REFUSED",
+    "DataError: The system is trying to get an element at offset 5 where the collection is of size 2",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]"
+   ]
+  }
+ },
+ {
+  "id": "q0575",
+  "a": "{|[1, 2]->forAll(i | assertEquals(1, $i, 'element ' + $i->toString()))}",
+  "b": "{|[1, 2]->forAll(i | assert((1) == ($i), 'element ' + $i->toString()))}",
+  "cause": "other:assert-planning",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: element 2",
+    "NotImplementedException: the program road does not plan this body: host judge's planner refused an assert [assert,declares-test-data]"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: element 2",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]"
+   ]
+  }
+ },
+ {
+  "id": "q0598",
+  "a": "{|assertEquals(1.0D, 1)}",
+  "b": "{|assert((1.0D) == (1))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1.0, got 1",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1.0, got 1",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0599",
+  "a": "{|assertEquals([1, 2], [1D, 2])}",
+  "b": "{|assert(([1, 2]) == ([1D, 2]))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [1, 2] (Integer), got [1, 2] (Any)",
+    "NotImplementedException: two mixed lists' equality across the kinds Decimal (Decimal[precision=1, scale=0]) and Integer (BIGINT): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [1, 2] (Integer), got [1, 2] (Any)",
+    "NotImplementedException: two mixed lists' equality across the kinds Decimal (Decimal[precision=1, scale=0]) and Integer (BIGINT): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)"
+   ]
+  }
+ },
+ {
+  "id": "q0617",
+  "a": "{|let f = {i: Integer[1] | ^t::Person(name='a')}; assertEquals($f->eval(1), $f->eval(2));}",
+  "b": "{|let f = {i: Integer[1] | ^t::Person(name='a')}; assert(($f->eval(1)) == ($f->eval(2)));}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0619",
+  "a": "{|assertEquals(1, 1D)}",
+  "b": "{|assert((1) == (1D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1 (Integer), got 1 (Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0620",
+  "a": "{|assertNotEquals(1, 1D)}",
+  "b": "{|assert((1) != (1D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0621",
+  "a": "{|assertEquals(1.0, 1D)}",
+  "b": "{|assert((1.0) == (1D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1.0, got 1",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1.0, got 1",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0622",
+  "a": "{|assertNotEquals(1.5, 1.5D)}",
+  "b": "{|assert((1.5) != (1.5D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0624",
+  "a": "{|assertEquals(3D, 1 + 2)}",
+  "b": "{|assert((3D) == (1 + 2))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 3 (Decimal), got 3 (Integer)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 3 (Decimal), got 3 (Integer)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0625",
+  "a": "{|assertEquals(3, 1.5 * 2)}",
+  "b": "{|assert((3) == (1.5 * 2))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 3, got 3.0",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 3, got 3.0",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0630",
+  "a": "{|assertEquals(3, [1.0, 2.0]->sum())}",
+  "b": "{|assert((3) == ([1.0, 2.0]->sum()))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 3, got 3.0",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 3, got 3.0",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0637",
+  "a": "{|assertNotEq(1, 1.0)}",
+  "b": "{|assert(!eq(1, 1.0))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0639",
+  "a": "{|assertNotEquals([1, 2], [1.0, 2.0])}",
+  "b": "{|assert(([1, 2]) != ([1.0, 2.0]))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0640",
+  "a": "{|assertEquals([1, 2], [1D, 2D])}",
+  "b": "{|assert(([1, 2]) == ([1D, 2D]))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2] (Integer), got [1, 2] (Decimal)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2] (Integer), got [1, 2] (Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0643",
+  "a": "{|assertEquals([1, 2.5D], [1.0, 2.5D])}",
+  "b": "{|assert(([1, 2.5D]) == ([1.0, 2.5D]))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [1, 2.5], got [1.0, 2.5]",
+    "NotImplementedException: two mixed lists' equality across the kinds Decimal (Decimal[precision=2, scale=1]) and Float (DOUBLE): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [1, 2.5], got [1.0, 2.5]",
+    "NotImplementedException: two mixed lists' equality across the kinds Decimal (Decimal[precision=2, scale=1]) and Float (DOUBLE): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)"
+   ]
+  }
+ },
+ {
+  "id": "q0649",
+  "a": "{|assertEquals([1], 1.0)}",
+  "b": "{|assert(([1]) == (1.0))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1, got 1.0",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1, got 1.0",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0651",
+  "a": "{|assertContains([1, 2], 1.0)}",
+  "b": "{|assert(([1, 2])->contains(1.0))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2] to contain 1.0",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2] to contain 1.0",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0652",
+  "a": "{|assertContains([1.0, 2.0], 1)}",
+  "b": "{|assert(([1.0, 2.0])->contains(1))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.0, 2.0] to contain 1",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.0, 2.0] to contain 1",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0653",
+  "a": "{|assertContains([1, 2.5], 2.5D)}",
+  "b": "{|assert(([1, 2.5])->contains(2.5D))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [1, 2.5] to contain 2.5",
+    "NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[precision=2, scale=1]) and Float (DOUBLE): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [1, 2.5] to contain 2.5",
+    "NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[precision=2, scale=1]) and Float (DOUBLE): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)"
+   ]
+  }
+ },
+ {
+  "id": "q0655",
+  "a": "{|assertNotContains([1, 2.5], 2.5D)}",
+  "b": "{|assert(!(([1, 2.5])->contains(2.5D)))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[precision=2, scale=1]) and Float (DOUBLE): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "REFUSED",
+    "pass verdicts=1",
+    "NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[precision=2, scale=1]) and Float (DOUBLE): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)"
+   ]
+  }
+ },
+ {
+  "id": "q0657",
+  "a": "{|assertSameElements([1, 2], [2.0, 1.0])}",
+  "b": "{|assert(([1, 2])->sort() == ([2.0, 1.0])->sort())}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [1, 2] in any order, got [2.0, 1.0]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [1, 2] in any order, got [2.0, 1.0]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0658",
+  "a": "{|assertSameElements([1, 2.0], [2.0, 1])}",
+  "b": "{|assert(([1, 2.0])->sort() == ([2.0, 1])->sort())}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ]
+  }
+ },
+ {
+  "id": "q0659",
+  "a": "{|assertSameElements([1, 2.5D], [2.5D, 1])}",
+  "b": "{|assert(([1, 2.5D])->sort() == ([2.5D, 1])->sort())}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ]
+  }
+ },
+ {
+  "id": "q0666",
+  "a": "{|assertEquals(1.5, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}",
+  "b": "{|assert((1.5) == (p::Q.all()->filter(x | $x.id == 1)->toOne().e))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [1.5] in any order, got [1.5]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [1.5] in any order, got [1.5]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0667",
+  "a": "{|assertEquals(1.5D, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}",
+  "b": "{|assert((1.5D) == (p::Q.all()->filter(x | $x.id == 1)->toOne().e))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (Decimal(38,1) against Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0669",
+  "a": "{|assertEquals(2.5D, p::Q.all()->filter(x | $x.id == 1)->toOne().f)}",
+  "b": "{|assert((2.5D) == (p::Q.all()->filter(x | $x.id == 1)->toOne().f))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2.5] in any order, got [2.5]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2.5] in any order, got [2.5]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0670",
+  "a": "{|assertEquals(3, p::Q.all()->filter(x | $x.id == 2)->toOne().f)}",
+  "b": "{|assert((3) == (p::Q.all()->filter(x | $x.id == 2)->toOne().f))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [3] in any order, got [3.0]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [3] in any order, got [3.0]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0671",
+  "a": "{|assertEquals(1.0, p::Q.all()->filter(x | $x.id == 1)->toOne().id)}",
+  "b": "{|assert((1.0) == (p::Q.all()->filter(x | $x.id == 1)->toOne().id))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [1.0] in any order, got [1]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [1.0] in any order, got [1]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0672",
+  "a": "{|assertEquals(1, p::P.all()->toOne().d)}",
+  "b": "{|assert((1) == (p::P.all()->toOne().d))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [1] in any order, got [1]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [1] in any order, got [1]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0673",
+  "a": "{|assertEquals(1D, p::P.all()->toOne().d)}",
+  "b": "{|assert((1D) == (p::P.all()->toOne().d))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (Decimal(38,0) against Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0675",
+  "a": "{|assertEquals([1.0, 2.0, 3.0], p::Q.all()->sortBy(x | $x.id).id)}",
+  "b": "{|assert(([1.0, 2.0, 3.0]) == (p::Q.all()->sortBy(x | $x.id).id))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.0, 2.0, 3.0], got [1, 2, 3]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.0, 2.0, 3.0], got [1, 2, 3]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0676",
+  "a": "{|assertEquals([2.5, 3, 2.5], p::Q.all()->sortBy(x | $x.id).f)}",
+  "b": "{|assert(([2.5, 3, 2.5]) == (p::Q.all()->sortBy(x | $x.id).f))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [2.5, 3, 2.5], got [2.5, 3.0, 2.5]",
+    "NotImplementedException: a mixed list compared with a list whose elements' kind is not static and that is not on the variant carrier: not lowered"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "REFUSED",
+    "AssertFailed: expected [2.5, 3, 2.5], got [2.5, 3.0, 2.5]",
+    "NotImplementedException: a mixed list compared with a list whose elements' kind is not static and that is not on the variant carrier: not lowered"
+   ]
+  }
+ },
+ {
+  "id": "q0677",
+  "a": "{|assertEquals([1.5D, -2D, 1.5D], p::Q.all()->sortBy(x | $x.id).e)}",
+  "b": "{|assert(([1.5D, -2D, 1.5D]) == (p::Q.all()->sortBy(x | $x.id).e))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (Decimal(38,1) against Decimal)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0678",
+  "a": "{|assertEquals([1.5, -2.0, 1.5], p::Q.all()->sortBy(x | $x.id).e)}",
+  "b": "{|assert(([1.5, -2.0, 1.5]) == (p::Q.all()->sortBy(x | $x.id).e))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.5, -2.0, 1.5], got [1.5, -2, 1.5]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.5, -2.0, 1.5], got [1.5, -2, 1.5]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0679",
+  "a": "{|assertContains(p::Q.all().f, 3)}",
+  "b": "{|assert((p::Q.all().f)->contains(3))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2.5, 3.0, 2.5] to contain 3",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2.5, 3.0, 2.5] to contain 3",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0681",
+  "a": "{|assertContains(p::Q.all().e, 1.5)}",
+  "b": "{|assert((p::Q.all().e)->contains(1.5))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.5, -2, 1.5] to contain 1.5",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a membership with no typed form ([DECIMAL] against [FLOAT, FLOAT])",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0682",
+  "a": "{|assertContains(p::Q.all().id, 1.0)}",
+  "b": "{|assert((p::Q.all().id)->contains(1.0))}",
+  "cause": "number-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2, 3] to contain 1.0",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2, 3] to contain 1.0",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0684",
+  "a": "{|assertSameElements([3, 2.5, 2.5], p::Q.all().f)}",
+  "b": "{|assert(([3, 2.5, 2.5])->sort() == (p::Q.all().f)->sort())}",
+  "cause": "lists/order",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected the elements [3, 2.5, 2.5] in any order, got [2.5, 3.0, 2.5]",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "ERR",
+    "AssertFailed: expected the elements [3, 2.5, 2.5] in any order, got [2.5, 3.0, 2.5]",
+    "DataError: Binder Error: subqueries in lambda expressions are not supported"
+   ]
+  }
+ },
+ {
+  "id": "q0691",
+  "a": "{|assertContains([t::E.A, t::E.B], 'A')}",
+  "b": "{|assert(([t::E.A, t::E.B])->contains('A'))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a membership with no typed form ([EnumType[fqn=t::E], EnumType[fqn=t::E]] against [STRING, STRING])",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0692",
+  "a": "{|assertNotContains([t::E.A, t::E.B], 'A')}",
+  "b": "{|assert(!(([t::E.A, t::E.B])->contains('A')))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertNotContains: UNJUDGED in database mode \u2014 a membership with no typed form ([EnumType[fqn=t::E], EnumType[fqn=t::E]] against [STRING, STRING])",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0693",
+  "a": "{|assertContains(['A', 'B'], t::E.A)}",
+  "b": "{|assert((['A', 'B'])->contains(t::E.A))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a membership with no typed form ([STRING, STRING] against [EnumType[fqn=t::E], EnumType[fqn=t::E]])",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0694",
+  "a": "{|assertContains([t::E.A, t::E.B], p::E.A)}",
+  "b": "{|assert(([t::E.A, t::E.B])->contains(p::E.A))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a membership with no typed form ([EnumType[fqn=t::E], EnumType[fqn=t::E]] against [EnumType[fqn=p::E], EnumType[fqn=p::E]])",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0696",
+  "a": "{|assertEquals(t::E.A, 'A'->cast(@Any))}",
+  "b": "{|assert((t::E.A) == ('A'->cast(@Any)))}",
+  "cause": "enum-vs-String",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0697",
+  "a": "{|assertEquals(t::E.A, [t::E.A, 'A']->at(1))}",
+  "b": "{|assert((t::E.A) == ([t::E.A, 'A']->at(1)))}",
+  "cause": "enum-vs-String",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0698",
+  "a": "{|assertEquals('A', [t::E.A, 'A']->at(0))}",
+  "b": "{|assert(('A') == ([t::E.A, 'A']->at(0)))}",
+  "cause": "enum-vs-String",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0699",
+  "a": "{|assertContains([t::E.A, 'B'], 'A')}",
+  "b": "{|assert(([t::E.A, 'B'])->contains('A'))}",
+  "cause": "enum-vs-String",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a literal channel's membership: no typed form",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0701",
+  "a": "{|assertNotEq(t::E.A, 'A')}",
+  "b": "{|assert(!eq(t::E.A, 'A'))}",
+  "cause": "other:assert-planning",
+  "per": {
+   "DuckDB/HOST": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: the program road does not plan this body: host judge's planner refused an assert [assert,declares-test-data]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "NotImplementedException: the program road does not plan this body: database judge's planner refused an assert [assert,declares-test-data]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0703",
+  "a": "{|assertEquals(^p::KA(a=t::E.A), ^p::KA(a='A'))}",
+  "b": "{|assert((^p::KA(a=t::E.A)) == (^p::KA(a='A')))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Invalid Input Error: Malformed JSON at byte 0 of input: unexpected character.  Input: \"A\""
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "ERR",
+    "pass verdicts=1",
+    "DataError: Invalid Input Error: Malformed JSON at byte 0 of input: unexpected character.  Input: \"A\""
+   ]
+  }
+ },
+ {
+  "id": "q0706",
+  "a": "{|assertEquals(%2020-01-01T00:00:00, %2020-01-01)}",
+  "b": "{|assert((%2020-01-01T00:00:00) == (%2020-01-01))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0707",
+  "a": "{|assertEquals(%2020-01-01T00:00, %2020-01-01T00:00:00.000)}",
+  "b": "{|assert((%2020-01-01T00:00) == (%2020-01-01T00:00:00.000))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0708",
+  "a": "{|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:00.000)}",
+  "b": "{|assert((%2020-01-01T10:00:00) == (%2020-01-01T10:00:00.000))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0709",
+  "a": "{|assertNotEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:00.000)}",
+  "b": "{|assert((%2020-01-01T10:00:00) != (%2020-01-01T10:00:00.000))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than 2020-01-01T10:00:00.000000000Z",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected a value other than 2020-01-01T10:00:00.000000000Z",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0713",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.50)}",
+  "b": "{|assert((%2020-01-01T10:00:00.5) == (%2020-01-01T10:00:00.50))}",
+  "cause": "dates:written-precision/instant",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0714",
+  "a": "{|assertEquals(%2020-01-01T10:00:00.123456, %2020-01-01T10:00:00.123456000)}",
+  "b": "{|assert((%2020-01-01T10:00:00.123456) == (%2020-01-01T10:00:00.123456000))}",
+  "cause": "dates:nanoseconds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0715",
+  "a": "{|assertContains([%2020-01-01, %2020-01-02], %2020-01-01T00:00:00)}",
+  "b": "{|assert(([%2020-01-01, %2020-01-02])->contains(%2020-01-01T00:00:00))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01, 2020-01-02] to contain 2020-01-01T00:00:00.000000000Z",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01, 2020-01-02] to contain 2020-01-01T00:00:00.000000000Z",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0716",
+  "a": "{|assertNotContains([%2020-01-01, %2020-01-02], %2020-01-01T00:00:00)}",
+  "b": "{|assert(!(([%2020-01-01, %2020-01-02])->contains(%2020-01-01T00:00:00)))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ],
+   "DuckDB/DATABASE": [
+    "PASS",
+    "FAIL",
+    "pass verdicts=1",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0717",
+  "a": "{|assertContains([%2020-01-01T00:00:00, %2020-01-02T00:00:00], %2020-01-01)}",
+  "b": "{|assert(([%2020-01-01T00:00:00, %2020-01-02T00:00:00])->contains(%2020-01-01))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z] to contain 2020-01-01",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z] to contain 2020-01-01",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0718",
+  "a": "{|assertEquals([%2020-01-01, %2020-01-02], [%2020-01-01T00:00:00, %2020-01-02T00:00:00])}",
+  "b": "{|assert(([%2020-01-01, %2020-01-02]) == ([%2020-01-01T00:00:00, %2020-01-02T00:00:00]))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01, 2020-01-02], got [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01, 2020-01-02], got [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0720",
+  "a": "{|assertSameElements([%2020-01-02, %2020-01-01], [%2020-01-01T00:00, %2020-01-02T00:00])}",
+  "b": "{|assert(([%2020-01-02, %2020-01-01])->sort() == ([%2020-01-01T00:00, %2020-01-02T00:00])->sort())}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2020-01-02, 2020-01-01] in any order, got [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2020-01-02, 2020-01-01] in any order, got [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0723",
+  "a": "{|assertEquals(%2020-01-02T00:00:00, %2020-01-01->adjust(1, DurationUnit.DAYS))}",
+  "b": "{|assert((%2020-01-02T00:00:00) == (%2020-01-01->adjust(1, DurationUnit.DAYS)))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-02T00:00:00.000000000Z, got 2020-01-02",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-02T00:00:00.000000000Z, got 2020-01-02",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0727",
+  "a": "{|assertEquals(%2020-01-01T00:00:00, date(2020, 1, 1))}",
+  "b": "{|assert((%2020-01-01T00:00:00) == (date(2020, 1, 1)))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0731",
+  "a": "{|assertEquals(%2020-01-01T00:00:00, %2020-01-01T10:00:00->datePart())}",
+  "b": "{|assert((%2020-01-01T00:00:00) == (%2020-01-01T10:00:00->datePart()))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0733",
+  "a": "{|assertEquals(%2020-01-01T00:00:00, p::Q.all()->filter(x | $x.id == 1)->toOne().d)}",
+  "b": "{|assert((%2020-01-01T00:00:00) == (p::Q.all()->filter(x | $x.id == 1)->toOne().d))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2020-01-01T00:00:00.000000000Z] in any order, got [2020-01-01]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2020-01-01T00:00:00.000000000Z] in any order, got [2020-01-01]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0737",
+  "a": "{|assertEquals(%2020-01-01, p::R.all()->filter(x | $x.id == 1)->toOne().t)}",
+  "b": "{|assert((%2020-01-01) == (p::R.all()->filter(x | $x.id == 1)->toOne().t))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2020-01-01] in any order, got [2020-01-01T00:00:00.000000000Z]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected the elements [2020-01-01] in any order, got [2020-01-01T00:00:00.000000000Z]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0739",
+  "a": "{|assertContains(p::Q.all().d, %2020-01-01T00:00:00)}",
+  "b": "{|assert((p::Q.all().d)->contains(%2020-01-01T00:00:00))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01, 2020-01-02, 2020-01-01] to contain 2020-01-01T00:00:00.000000000Z",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01, 2020-01-02, 2020-01-01] to contain 2020-01-01T00:00:00.000000000Z",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0741",
+  "a": "{|assertContains(p::R.all().t, %2020-01-01)}",
+  "b": "{|assert((p::R.all().t)->contains(%2020-01-01))}",
+  "cause": "dates:day-vs-datetime-kinds",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z, 2020-01-01T00:00:00.000000000Z] to contain 2020-01-01",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z, 2020-01-01T00:00:00.000000000Z] to contain 2020-01-01",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0747",
+  "a": "{|assertEquals(fromJson('1')->to(@Float), 1)}",
+  "b": "{|assert((fromJson('1')->to(@Float)) == (1))}",
+  "cause": "variants",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1.0, got 1",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected 1.0, got 1",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0753",
+  "a": "{|assertContains([1, 2], fromJson('1'))}",
+  "b": "{|assert(([1, 2])->contains(fromJson('1')))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a Variant membership: no typed form",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0754",
+  "a": "{|assertNotContains([1, 2], fromJson('1'))}",
+  "b": "{|assert(!(([1, 2])->contains(fromJson('1'))))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertNotContains: UNJUDGED in database mode \u2014 a Variant membership: no typed form",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0756",
+  "a": "{|assertEquals(fromJson('[1,2]')->toMany(@Integer), [1.0, 2.0])}",
+  "b": "{|assert((fromJson('[1,2]')->toMany(@Integer)) == ([1.0, 2.0]))}",
+  "cause": "variants",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2], got [1.0, 2.0]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2], got [1.0, 2.0]",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0764",
+  "a": "{|assertEquals(^p::KS(id=1, at=%2020-01-01T00:00:00, note='x', extra='e'), ^p::K(id=1, at=%2020-01-01T00:00:00, note='x'))}",
+  "b": "{|assert((^p::KS(id=1, at=%2020-01-01T00:00:00, note='x', extra='e')) == (^p::K(id=1, at=%2020-01-01T00:00:00, note='x')))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 kind-gate: non-primitive (ClassType:ClassType[fqn=p::KS] vs ClassType:ClassType[fqn=p::K])",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0768",
+  "a": "{|assertEquals(^p::KM(ids=[1, 2]), ^p::KM(ids=[1, 2]))}",
+  "b": "{|assert((^p::KM(ids=[1, 2])) == (^p::KM(ids=[1, 2])))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (p::KM against p::KM)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0773",
+  "a": "{|assertEquals(pair(1, 1D), pair(1, 1))}",
+  "b": "{|assert((pair(1, 1D)) == (pair(1, 1)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected meta::pure::functions::collection::Pair {\"first\":1,\"second\":1} (meta::pure::functions::collection::Pair), got meta::pure::functions::collection::Pair {\"first\":1,\"second\":1} (meta::pure::functions::collection::Pair)",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (Pair<Integer, Decimal(38,0)> against Pair<Integer, Integer>)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0774",
+  "a": "{|assertEquals(pair(1, %2020-01-01), pair(1, %2020-01-01T00:00:00))}",
+  "b": "{|assert((pair(1, %2020-01-01)) == (pair(1, %2020-01-01T00:00:00)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected meta::pure::functions::collection::Pair {\"first\":1,\"second\":2020-01-01}, got meta::pure::functions::collection::Pair {\"first\":1,\"second\":2020-01-01T00:00:00.000000000Z}",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (Pair<Integer, StrictDate> against Pair<Integer, DateTime>)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0776",
+  "a": "{|assertContains([pair(1, 1)], pair(1, 1.0))}",
+  "b": "{|assert(([pair(1, 1)])->contains(pair(1, 1.0)))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [meta::pure::functions::collection::Pair {\"first\":1,\"second\":1}] to contain meta::pure::functions::collection::Pair {\"first\":1,\"second\":1.0}",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertContains: UNJUDGED in database mode \u2014 a membership with no typed form ([GenericType[rawFqn=meta::pure::functions::collection::Pair, arguments=[INTEGER, INTEGER], multArguments=[]]] against [GenericType[rawFqn=meta::pure::functions::collection::Pair, arguments=[INTEGER, FLOAT], multArguments=[]]])",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0777",
+  "a": "{|assertEquals(list([1, 2]), list([1.0, 2.0]))}",
+  "b": "{|assert((list([1, 2])) == (list([1.0, 2.0])))}",
+  "cause": "instances/keys",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1, 2], got [1.0, 2.0]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 a pair with no typed form (List<Integer> against List<Float>)",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0780",
+  "a": "{|assertEquals([1, 2, 3], execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values)}",
+  "b": "{|assert(([1, 2, 3]) == (execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 kind-gate: non-primitive (Primitive:INTEGER vs GenericType:GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[columns=[Column[name=id, type=INTEGER, multiplicity=Bounded[lower=1, upper=1]]], dynamicColumns=[]]], multArguments=[]])",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0781",
+  "a": "{|assertEquals([1.0, 2.0, 3.0], execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values)}",
+  "b": "{|assert(([1.0, 2.0, 3.0]) == (execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values))}",
+  "cause": "grids",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected [1.0, 2.0, 3.0], got [1, 2, 3]",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "PASS",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 kind-gate: non-primitive (Primitive:FLOAT vs GenericType:GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[columns=[Column[name=id, type=INTEGER, multiplicity=Bounded[lower=1, upper=1]]], dynamicColumns=[]]], multArguments=[]])",
+    "pass verdicts=1"
+   ]
+  }
+ },
+ {
+  "id": "q0782",
+  "a": "{|assertEquals([2.5, 3.0, 2.5], execute(|p::Q.all()->project([x | $x.f], ['f'])->sort('f'), p::M, p::RT.runtimeValue, []).values)}",
+  "b": "{|assert(([2.5, 3.0, 2.5]) == (execute(|p::Q.all()->project([x | $x.f], ['f'])->sort('f'), p::M, p::RT.runtimeValue, []).values))}",
+  "cause": "assert-gap:database-judge-unjudged(host=b)",
+  "per": {
+   "DuckDB/DATABASE": [
+    "REFUSED",
+    "FAIL",
+    "AssertFailed: assertEquals: UNJUDGED in database mode \u2014 kind-gate: non-primitive (Primitive:FLOAT vs GenericType:GenericType[rawFqn=meta::pure::metamodel::relation::Relation, arguments=[RelationType[columns=[Column[name=f, type=FLOAT, multiplicity=Bounded[lower=1, upper=1]]], dynamicColumns=[]]], multArguments=[]])",
+    "AssertFailed: expected true, got false"
+   ]
+  }
+ },
+ {
+  "id": "q0785",
+  "a": "{|assertEquals(true, 'true')}",
+  "b": "{|assert((true) == ('true'))}",
+  "cause": "other:cross-type-primitives",
+  "per": {
+   "DuckDB/HOST": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected true, got \"true\"",
+    "pass verdicts=1"
+   ],
+   "DuckDB/DATABASE": [
+    "FAIL",
+    "PASS",
+    "AssertFailed: expected true, got \"true\"",
+    "pass verdicts=1"
+   ]
+  }
+ }
+]

@@ -1,0 +1,104 @@
+# Rewrite each assert call in a Pure body to its upstream Pure body over the product's operators.
+import re
+
+ASSERTS = {'assertEquals', 'assertNotEquals', 'assertSameElements', 'assertContains', 'assertNotContains', 'assertEq',
+           'assertNotEq', 'assertIs', 'assertIsNot', 'assertEqWithinTolerance', 'assertSize', 'assertNotSize',
+           'assertEmpty', 'assertNotEmpty', 'assertTrue', 'assertFalse', 'assertInstanceOf'}
+OPAQUE = {'assertError', 'assertTdsEquivalent', 'assertJsonStringsEqual'}
+
+def scan_string(s, i):
+    # s[i] == "'"; Pure string with backslash escapes
+    j = i + 1
+    while s[j] != "'":
+        j += 2 if s[j] == '\\' else 1
+    return j + 1
+
+def scan_island(s, i):
+    # '#TDS' ... '#'  or  '#{' ... '}#'
+    if s.startswith('#{', i):
+        return s.index('}#', i) + 2
+    j = s.index('\n', i)
+    return s.index('#', j) + 1
+
+def find_close(s, i):
+    """s[i] is an opening bracket; return index of matching close, and the top-level comma positions."""
+    depth = 0; commas = []; j = i
+    while True:
+        c = s[j]
+        if c == "'":
+            j = scan_string(s, j); continue
+        if c == '#' and (s.startswith('#TDS', j) or s.startswith('#{', j)):
+            j = scan_island(s, j); continue
+        if c in '([{':
+            depth += 1
+        elif c in ')]}':
+            depth -= 1
+            if depth == 0:
+                return j, commas
+        elif c == ',' and depth == 1:
+            commas.append(j)
+        j += 1
+
+def P(x):
+    return '(' + x.strip() + ')'
+
+def rule(name, a):
+    a = [x.strip() for x in a]
+    m = a
+    if name == 'assertEquals':        return 'assert(%s == %s%s)' % (P(a[0]), P(a[1]), rest(a[2:]))
+    if name == 'assertNotEquals':     return 'assert(%s != %s%s)' % (P(a[0]), P(a[1]), rest(a[2:]))
+    if name == 'assertSameElements':  return 'assert(%s->sort() == %s->sort()%s)' % (P(a[0]), P(a[1]), rest(a[2:]))
+    if name == 'assertContains':      return 'assert(%s->contains(%s)%s)' % (P(a[0]), a[1], rest(a[2:]))
+    if name == 'assertNotContains':   return 'assert(!(%s->contains(%s))%s)' % (P(a[0]), a[1], rest(a[2:]))
+    if name == 'assertEq':            return 'assert(eq(%s, %s)%s)' % (a[0], a[1], rest(a[2:]))
+    if name == 'assertNotEq':         return 'assert(!eq(%s, %s)%s)' % (a[0], a[1], rest(a[2:]))
+    if name == 'assertIs':            return 'assert(is(%s, %s)%s)' % (a[0], a[1], rest(a[2:]))
+    if name == 'assertIsNot':         return 'assert(!is(%s, %s)%s)' % (a[0], a[1], rest(a[2:]))
+    if name == 'assertEqWithinTolerance':
+        return 'assert(abs(%s - %s) <= abs(%s)%s)' % (P(a[0]), P(a[1]), a[2], rest(a[3:]))
+    if name == 'assertSize':          return 'assert(%s->size() == %s%s)' % (P(a[0]), P(a[1]), rest(a[2:]))
+    if name == 'assertNotSize':       return 'assert(%s->size() != %s%s)' % (P(a[0]), P(a[1]), rest(a[2:]))
+    if name == 'assertEmpty':         return 'assert(%s->isEmpty()%s)' % (P(a[0]), rest(a[1:]))
+    if name == 'assertNotEmpty':      return 'assert(!(%s->isEmpty())%s)' % (P(a[0]), rest(a[1:]))
+    if name == 'assertTrue':          return 'assert(%s%s)' % (a[0], rest(a[1:]))
+    if name == 'assertFalse':         return 'assert(!%s%s)' % (P(a[0]), rest(a[1:]))
+    if name == 'assertInstanceOf':    return 'assert(%s->instanceOf(%s)%s)' % (P(a[0]), a[1], rest(a[2:]))
+    raise KeyError(name)
+
+def rest(xs):
+    return ''.join(', ' + x for x in xs)
+
+def rewrite(s):
+    out = []; i = 0; n = len(s)
+    while i < n:
+        c = s[i]
+        if c == "'":
+            j = scan_string(s, i); out.append(s[i:j]); i = j; continue
+        if c == '#' and (s.startswith('#TDS', i) or s.startswith('#{', i)):
+            j = scan_island(s, i); out.append(s[i:j]); i = j; continue
+        m = re.match(r'[A-Za-z_][\w]*', s[i:])
+        if m:
+            name = m.group(0)
+            prev = s[i-1] if i > 0 else ''
+            j = i + len(name)
+            if prev not in ':.$' and j < n and s[j] == '(' and (name in ASSERTS or name in OPAQUE):
+                close, commas = find_close(s, j)
+                if name in OPAQUE:
+                    out.append(s[i:close+1]); i = close + 1; continue
+                bounds = [j] + commas + [close]
+                args = [rewrite(s[bounds[k]+1:bounds[k+1]]) for k in range(len(bounds) - 1)]
+                out.append(rule(name, args)); i = close + 1; continue
+            # arrow form: $x->assertXxx(...) is rare; not handled
+            out.append(name); i = j; continue
+        out.append(c); i += 1
+    return ''.join(out)
+
+if __name__ == '__main__':
+    import sys
+    for b in ["{|assertEquals(1, 1.0)}", "{|assertSameElements(['a', 1], [1, 'b'])}",
+              "{|[1, 2]->forAll(i | assertEquals(1, $i, 'element ' + $i->toString()))}",
+              "{|assertError(|assertEquals(1, 2), 'expected 1, got 2')}",
+              "{|assertEquals(#TDS\n  id, s\n  1, x\n#, #TDS\n  id, s\n  1, z\n#)}",
+              "{|assertEqWithinTolerance(1.0, 1.0 + 1e-17, 0.0)}", "{|assertNotContains([1, 'a'], 'a')}",
+              "{|assertEquals('a, b', 'it\\'s')}", "{|assertFalse(1 == 1, 'was true')}"]:
+        print(repr(rewrite(b)))

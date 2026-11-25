@@ -1,0 +1,28 @@
+import java.sql.*;
+public class L {
+  public static void main(String[] a) throws Exception {
+    Connection c = DriverManager.getConnection("jdbc:duckdb:");
+    String[] qs = {
+      "SELECT [-0.0::DOUBLE] = [0.0::DOUBLE]",
+      "SELECT -0.0::DOUBLE IS NOT DISTINCT FROM 0.0::DOUBLE",
+      "SELECT ['nan'::DOUBLE] = ['nan'::DOUBLE]",
+      "SELECT 'nan'::DOUBLE IS NOT DISTINCT FROM 'nan'::DOUBLE",
+      "SELECT [1.0::DECIMAL(3,1)] = [1.00::DECIMAL(4,2)]",
+      "SELECT list_sort([2,1,1]) = list_sort([1,2,1])",
+      "SELECT list_sort([2,1,1]) = list_sort([1,2,2])",
+      "SELECT list_sort(['b','a']) = list_sort(['a','b'])",
+      "SELECT [1, 2.5, 3] = [1.0, 2.5, 3]",
+      "SELECT typeof([1, 2.5, 3])",
+      "SELECT list_sort([-0.0::DOUBLE, 0.0::DOUBLE]) = list_sort([0.0::DOUBLE, -0.0::DOUBLE])",
+      "SELECT list_sort(['nan'::DOUBLE, 1.0]) = list_sort([1.0, 'nan'::DOUBLE])",
+      "SELECT NULL::INTEGER[] IS NOT DISTINCT FROM NULL::INTEGER[]",
+      "SELECT [true,false] = [true,false]",
+      "SELECT 'a ' = 'a'",
+      "SELECT ['a '] = ['a']"
+    };
+    for (String q : qs) {
+      try (ResultSet r = c.createStatement().executeQuery(q)) { r.next(); System.out.println(r.getObject(1) + "  <- " + q); }
+      catch (Exception e) { System.out.println("ERR " + e.getMessage().split("\n")[0] + "  <- " + q); }
+    }
+  }
+}

@@ -1,0 +1,102 @@
+num       want=false               |1 == 1.0                                        | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=false               |1 == 1D                                         | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=false               |1.0 == 1D                                       | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=false               |1.5 == 1.5D                                     | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=true                |1D == 1.00D                                     | Du=true  H2=true  SQ=true
+num       want=true                |1 != 1.0                                        | Du=false <MOVES  H2=false <MOVES  SQ=false <MOVES
+num       want=true                |1.5 != 1.5D                                     | Du=false <MOVES  H2=false <MOVES  SQ=false <MOVES
+num       want=false               |[1, 2]->contains(1.0)                           | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=false               |[1D, 2D]->contains(1)                           | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=false               |[1.0, 2.0]->contains(1)                         | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=false               |1.0->in([1, 2])                                 | Du=false  H2=false  SQ=false
+num       want=false               |1->in([1.0, 2.0])                               | Du=false  H2=false  SQ=false
+num       want=-1                  |[1, 2]->indexOf(2.0)                            | Du=1 <MOVES  H2=ERR:DialectCapability:LIST_POSITION reac <err  SQ=1 <MOVES
+num       want=-1                  |[1.5D, 2.5D]->indexOf(2.5)                      | Du=1 <MOVES  H2=ERR:DialectCapability:LIST_POSITION reac <err  SQ=1 <MOVES
+num       want=3                   |[1, 1.0, 1D]->removeDuplicates()->size()        | Du=3  H2=ERR:DialectCapability:LIST_REDUCE reache <err  SQ=3
+num       want=2                   |[1.0, 1D]->removeDuplicates()->size()           | Du=2  H2=ERR:DialectCapability:LIST_REDUCE reache <err  SQ=2
+num       want=2                   |[1, 1.0]->distinct()->size()                    | Du=2  H2=ERR:DialectCapability:LIST_FILTER reache <err  SQ=2
+num       want=false               |[1, 2] == [1.0, 2.0]                            | Du=true <MOVES  H2=false  SQ=false
+num       want=false               |[1, 2]->sort() == [2.0, 1.0]->sort()            | Du=true <MOVES  H2=ERR:DialectCapability:LIST_SORT reached  <err  SQ=false
+num       want=false               |2 * 1.5 == 3                                    | Du=ERR:TypeInferenceException:no overload o <err  H2=ERR:TypeInferenceException:no overload o <err  SQ=ERR:TypeInferenceException:no overload o <err
+num       want=true                |10 / 4 == 2.5                                   | Du=ERR:TypeInferenceException:in call to 'm <err  H2=ERR:TypeInferenceException:in call to 'm <err  SQ=ERR:TypeInferenceException:in call to 'm <err
+num       want=false               |[1, 2]->sum() == 3.0                            | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=false               |1.5->toDecimal() == 1.5                         | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num       want=true                |1.5->toDecimal() == 1.5D                        | Du=true  H2=true  SQ=true
+num       want=false               |[1, 2.5] == [1.0, 2.5]                          | Du=false  H2=ERR:DataError:Syntax error in SQL statem <err  SQ=false
+num       want=false               |[1, 2.5]->contains(2.5D)                        | Du=ERR:NotImplementedException:a mixed list <err  H2=ERR:NotImplementedException:a mixed list <err  SQ=ERR:NotImplementedException:a mixed list <err
+num       want=false               |[1, 2.5]->at(0) == 1.0                          | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+num-col   want=[]                  |p::Q.all()->filter(x | $x.e == 1.5)->map(x | $x | Du=[1,3] <MOVES  H2=[1,3] <MOVES  SQ=[1,3] <MOVES
+num-col   want=[1,3]               |p::Q.all()->filter(x | $x.e == 1.5D)->map(x | $ | Du=[1,3]  H2=[1,3]  SQ=[1,3]
+num-col   want=[]                  |p::Q.all()->filter(x | $x.f == 3)->map(x | $x.i | Du=2 <MOVES  H2=2 <MOVES  SQ=2 <MOVES
+num-col   want=[2]                 |p::Q.all()->filter(x | $x.f == 3.0)->map(x | $x | Du=2  H2=2  SQ=2
+num-col   want=[]                  |p::Q.all()->filter(x | $x.id == 1.0)->map(x | $ | Du=1 <MOVES  H2=1 <MOVES  SQ=1 <MOVES
+num-col   want=[]                  |p::Q.all()->filter(x | $x.f->in([3, 4]))->map(x | Du=2 <MOVES  H2=2 <MOVES  SQ=2 <MOVES
+num-col   want=[]                  |p::Q.all()->filter(x | $x.e->in([1.5, 2.0]))->m | Du=[1,3] <MOVES  H2=[1,3] <MOVES  SQ=[1,3] <MOVES
+num-col   want=[]                  |p::P.all()->filter(x | $x.d == 1)->map(x | $x.i | Du=1 <MOVES  H2=1 <MOVES  SQ=1 <MOVES
+num-col   want=[1]                 |p::P.all()->filter(x | $x.d == 1D)->map(x | $x. | Du=1  H2=1  SQ=1
+num-col   want=[false,false,false] |p::Q.all()->sortBy(x | $x.id)->map(x | $x.e ==  | Du=[true,false,true] <MOVES  H2=[true,false,true] <MOVES  SQ=[true,false,true] <MOVES
+num-col   want=[false,false,false] |p::Q.all()->sortBy(x | $x.id)->map(x | $x.f ==  | Du=[false,true,false] <MOVES  H2=[false,true,false] <MOVES  SQ=[false,true,false] <MOVES
+num-col   want=[true,true,true]    |p::Q.all()->sortBy(x | $x.id)->map(x | $x.f !=  | Du=[true,false,true] <MOVES  H2=[true,false,true] <MOVES  SQ=[true,false,true] <MOVES
+num-col   want=[]                  |p::Q.all()->filter(x | [3, 4]->contains($x.f))- | Du=2 <MOVES  H2=2 <MOVES  SQ=2 <MOVES
+enum      want=false               |t::E.A == 'A'                                   | Du=false  H2=false  SQ=false
+enum      want=true                |t::E.A != 'A'                                   | Du=true  H2=true  SQ=true
+enum      want=false               |t::E.A->in(['A', 'B'])                          | Du=false  H2=false  SQ=false
+enum      want=false               |['A']->contains(t::E.A)                         | Du=false  H2=false  SQ=false
+enum      want=-1                  |['A', 'B']->indexOf(t::E.A)                     | Du=0 <MOVES  H2=ERR:DialectCapability:LIST_POSITION reac <err  SQ=0 <MOVES
+enum      want=false               |t::E.A == p::E.A                                | Du=false  H2=false  SQ=false
+enum      want=false               |t::E.A->cast(@Any) == 'A'                       | Du=false  H2=false  SQ=false
+enum      want=false               |'A'->cast(@Any) == t::E.A                       | Du=false  H2=false  SQ=false
+enum      want=false               |[t::E.A, 'A']->at(1) == t::E.A                  | Du=false  H2=false  SQ=false
+enum      want=2                   |[t::E.A, 'A']->removeDuplicates()->size()       | Du=2  H2=ERR:DialectCapability:LIST_REDUCE reache <err  SQ=2
+enum      want=true                |t::E.A->toString() == 'A'                       | Du=true  H2=true  SQ=true
+enum-col  want=[]                  |p::QE.all()->filter(x | $x.e == 'a')->map(x | $ | Du=[1,3] <MOVES  H2=[1,3] <MOVES  SQ=[1,3] <MOVES
+enum-col  want=[]                  |p::QE.all()->filter(x | $x.e == 'A')->map(x | $ | Du=[]  H2=[]  SQ=[]
+enum-col  want=[1,3]               |p::QE.all()->filter(x | $x.e == p::EE.A)->map(x | Du=[1,3]  H2=[1,3]  SQ=[1,3]
+enum-col  want=[]                  |p::QE.all()->filter(x | $x.e->in(['a', 'b']))-> | Du=[]  H2=[]  SQ=[]
+date      want=false               |%2020-01-02 == %2020-01-02T00:00                | Du=true <MOVES  H2=true <MOVES  SQ=false
+date      want=false               |%2020-01-02 == %2020-01-02T00:00:00.000         | Du=true <MOVES  H2=true <MOVES  SQ=false
+date      want=true                |%2020-01-02 != %2020-01-02T00:00                | Du=false <MOVES  H2=false <MOVES  SQ=true
+date      want=true                |%2020-01-01T10:00:00 == %2020-01-01T10:00:00.00 | Du=false <MOVES  H2=false <MOVES  SQ=false <MOVES
+date      want=true                |%2020-01-01T10 == %2020-01-01T10:00             | Du=false <MOVES  H2=false <MOVES  SQ=false <MOVES
+date      want=false               |%2020-01 == %2020-01-01                         | Du=false  H2=false  SQ=false
+date      want=false               |%2020 == %2020-01                               | Du=false  H2=false  SQ=false
+date      want=false               |%2020-01-01T10:00:00.123456789 == %2020-01-01T1 | Du=false  H2=false  SQ=false
+date      want=false               |[%2020-01-01, %2020-01-02]->contains(%2020-01-0 | Du=true <MOVES  H2=true <MOVES  SQ=false
+date      want=false               |[%2020-01-01T00:00:00, %2020-01-02T00:00:00]->c | Du=true <MOVES  H2=true <MOVES  SQ=false
+date      want=false               |%2020-01-01T00:00:00->in([%2020-01-01])         | Du=false  H2=false  SQ=false
+date      want=-1                  |[%2020-01-01, %2020-01-02]->indexOf(%2020-01-02 | Du=1 <MOVES  H2=ERR:DialectCapability:LIST_POSITION reac <err  SQ=-1
+date      want=2                   |[%2020-01-01T00:00, %2020-01-01]->removeDuplica | Du=2  H2=ERR:DialectCapability:LIST_REDUCE reache <err  SQ=2
+date      want=false               |%2020-01-01->adjust(1, DurationUnit.DAYS) == %2 | Du=true <MOVES  H2=true <MOVES  SQ=false
+date      want=false               |date(2020, 1, 1) == %2020-01-01T00:00:00        | Du=true <MOVES  H2=ERR:DataError:Function "MAKE_DATE" not f <err  SQ=false
+date      want=false               |%2020-01-01T10:00:00->datePart() == %2020-01-01 | Du=true <MOVES  H2=true <MOVES  SQ=false
+date      want=true                |%2020-01-01T10:00:00->datePart() == %2020-01-01 | Du=true  H2=true  SQ=true
+date-col  want=[]                  |p::Q.all()->filter(x | $x.d == %2020-01-01T00:0 | Du=[1,3] <MOVES  H2=[1,3] <MOVES  SQ=[]
+date-col  want=[1,3]               |p::Q.all()->filter(x | $x.d == %2020-01-01)->ma | Du=[1,3]  H2=[1,3]  SQ=[1,3]
+date-col  want=[]                  |p::R.all()->filter(x | $x.t == %2020-01-01)->ma | Du=[1,3] <MOVES  H2=[1,3] <MOVES  SQ=[]
+date-col  want=[1,3]               |p::R.all()->filter(x | $x.t == %2020-01-01T00:0 | Du=[1,3]  H2=[1,3]  SQ=[1,3]
+date-col  want=[]                  |p::Q.all()->filter(x | $x.d->in([%2020-01-01T00 | Du=[1,3] <MOVES  H2=[1,3] <MOVES  SQ=[]
+date-col  want=[1,3]               |p::Q.all()->filter(x | $x.t == %2020-01-01T10:0 | Du=[1,3]  H2=[1,3]  SQ=[1,3]
+date-col  want=[false,false,false] |p::Q.all()->sortBy(x | $x.id)->map(x | $x.d ==  | Du=[true,false,true] <MOVES  H2=[true,false,true] <MOVES  SQ=[false,false,false]
+date-col  want=[1]                 |p::N.all()->filter(x | $x.t == %2020-01-01T10:0 | Du=1  H2=1  SQ=1
+date-col  want=[2]                 |p::N.all()->filter(x | $x.t == %2020-01-01T10:0 | Du=2  H2=2  SQ=2
+variant   want=false               |fromJson('1') == 1                              | Du=false  H2=false  SQ=false
+variant   want=false               |fromJson('1')->to(@Integer) == 1.0              | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+variant   want=true                |fromJson('1')->to(@Integer) == 1                | Du=true  H2=true  SQ=true
+variant   want=false               |fromJson('1.0')->to(@Float) == 1                | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+inst      want=false               |pair(1, 1.0) == pair(1, 1)                      | Du=true <MOVES  H2=false  SQ=false
+inst      want=false               |pair(1, 1D) == pair(1, 1)                       | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+inst      want=false               |pair(1, %2020-01-01) == pair(1, %2020-01-01T00: | Du=true <MOVES  H2=false  SQ=false
+inst      want=false               |pair(1, t::E.A) == pair(1, 'A')                 | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+inst      want=false               |^p::KNum(n=1) == ^p::KNum(n=1.0)                | Du=true <MOVES  H2=true <MOVES  SQ=true <MOVES
+inst      want=true                |^p::KD(d=1.0D, b=true, e=t::E.A, sd=%2020-01-01 | Du=false <MOVES  H2=false <MOVES  SQ=false <MOVES
+inst      want=true                |^p::K(id=1, at=%2020-01-01T00:00:00, note='x')  | Du=true  H2=ERR:DataError:Invalid value "JSON '""202 <err  SQ=true
+inst      want=false               |^p::KA(a=t::E.A) == ^p::KA(a='A')               | Du=ERR:DataError:Invalid Input Error: Malfo <err  H2=true <MOVES  SQ=ERR:DataError:[SQLITE_ERROR] SQL error o <err
+inst      want=false               |^p::KA(a=1) == ^p::KA(a=1.0)                    | Du=false  H2=false  SQ=false
+inst      want=false               |[^p::KNum(n=1)]->contains(^p::KNum(n=1.0))      | Du=true <MOVES  H2=ERR:DialectCapability:collection members <err  SQ=true <MOVES
+inst      want=false               |list([1, 2]) == list([1.0, 2.0])                | Du=true <MOVES  H2=false  SQ=false
+inst      want=false               |[pair(1, 1)]->contains(pair(1, 1.0))            | Du=true <MOVES  H2=false  SQ=false
+other     want=false               |'1' == 1                                        | Du=true <MOVES  H2=true <MOVES  SQ=false
+other     want=false               |true == 1                                       | Du=true <MOVES  H2=ERR:DataError:Values of types "BOOLEAN"  <err  SQ=true <MOVES
+other     want=false               |[1, 'a'] == [1.0, 'a']                          | Du=false  H2=ERR:DataError:Syntax error in SQL statem <err  SQ=false
+other     want=true                |[] == []                                        | Du=true  H2=true  SQ=true
+other     want=false               |[1, 'a']->contains(1.0)                         | Du=false  H2=false  SQ=false

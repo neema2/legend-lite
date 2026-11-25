@@ -1,0 +1,20 @@
+import java.sql.*;
+public class Q {
+  public static void main(String[] a) throws Exception {
+    Connection c = DriverManager.getConnection("jdbc:h2:mem:q");
+    String cte = "WITH c AS (SELECT x, y FROM (VALUES (1,2),(3,1)) t(x,y)) ";
+    String[] qs = {
+      cte + "SELECT * FROM (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) AS l FROM c) AS d",
+      "SELECT * FROM (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) AS l FROM (VALUES (1,2),(3,1)) t(x,y)) AS d",
+      cte + "SELECT (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) FROM c) AS l",
+      cte + "SELECT d.l FROM (SELECT 1 AS k) z CROSS JOIN (SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) AS l FROM c) AS d",
+      "SELECT JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) AS l FROM (SELECT * FROM (VALUES (1,2),(3,1)) t(x,y)) s",
+      "SELECT g, JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) AS l FROM (VALUES (1,1,2),(1,3,1)) t(g,x,y) GROUP BY g",
+      "SELECT * FROM (SELECT g, JSON_ARRAYAGG(x ORDER BY y NULL ON NULL) AS l FROM (VALUES (1,1,2),(1,3,1)) t(g,x,y) GROUP BY g) q"
+    };
+    for (String q : qs) {
+      try (ResultSet r = c.createStatement().executeQuery(q)) { r.next(); System.out.println("OK  " + r.getObject(r.getMetaData().getColumnCount()) + "  <- " + q.substring(Math.max(0,q.length()-110))); }
+      catch (Exception e) { String m = e.getMessage().split("\n")[0]; System.out.println("ERR " + m.substring(0, Math.min(120, m.length())) + "  <- " + q.substring(Math.max(0,q.length()-110))); }
+    }
+  }
+}

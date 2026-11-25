@@ -1,0 +1,527 @@
+diff --git a/core/src/main/java/com/legend/edge/EdgeLoweringForms.java b/core/src/main/java/com/legend/edge/EdgeLoweringForms.java
+index 28651b70..177ebd7a 100644
+--- a/core/src/main/java/com/legend/edge/EdgeLoweringForms.java
++++ b/core/src/main/java/com/legend/edge/EdgeLoweringForms.java
+@@ -38,15 +38,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
+         return plain.contains(kind) ? plainOperation : checked.get();
+     }
+ 
+-    @Override
+-    public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
+-        return body;
+-    }
+ 
+-    @Override
+-    public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
+-        return written.get();
+-    }
+ 
+     /** legend-engine's protocol connection segment for its test database (H2's, as the goldens pin it), which its
+      *  object references carry whatever the database (moved from model.AsorRef, the audit's J12, 2026-11-17). */
+@@ -90,26 +82,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
+                 new com.legend.sql.OutputCol("result", com.legend.sql.SqlType.Scalar.VARCHAR, false))));
+     }
+ 
+-    /** legend-engine's statement shape writes a relation at each read; every other edge form, the product's lean SQL
+-     *  (the edge audit's J23, 2026-11-17). */
+-    @Override
+-    public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
+-            Supplier<com.legend.sql.SqlQuery> unshared) {
+-        return shared.get();
+-    }
+ 
+-    /** legend-engine's statement shape counts a keyed relation's rows as written (J23). */
+-    @Override
+-    public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
+-            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
+-        return fold.apply(q);
+-    }
+ 
+-    /** legend-engine's statement shape keeps an unread computed projection (J23). */
+-    @Override
+-    public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
+-        return com.legend.lowering.SubselectPrune.prune(q, true);
+-    }
+ 
+     /** legend-engine's one-argument parseDecimal on H2: its hardcoded {@code decimal(5, 2)}
+      *  (h2Extension2_1_214.pure transformParseDecimalH2; its goldens round through it, 123.450021 to 123.45; the audit's
+@@ -144,12 +118,6 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
+                 SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER, s));
+     }
+ 
+-    /** No union frame outside legend-engine's statement shape (L10, the lens audit's L-A.unionAlias, 2026-11-18): the
+-     *  product's lean form, as J23's. */
+-    @Override
+-    public @com.legend.base.Nullable String unionFrame() {
+-        return null;
+-    }
+ 
+ 
+     /** legend-engine's conjunct zones, on every edge style (L10): its exists form reads them ({@code existsJoin}, J19 --
+diff --git a/core/src/main/java/com/legend/lowering/CastPolicy.java b/core/src/main/java/com/legend/lowering/CastPolicy.java
+index 7587b0e8..dcf51757 100644
+--- a/core/src/main/java/com/legend/lowering/CastPolicy.java
++++ b/core/src/main/java/com/legend/lowering/CastPolicy.java
+@@ -52,7 +52,7 @@ final class CastPolicy {
+             // forms source since J40, 2026-11-18): the
+             // product writes the cast (DuckDB does not wire-convert, audit 19 F7); legend-engine's SQL leaves it to its
+             // reader, which converts on the wire
+-            return forms.wireCast(value, () -> written(c, value, isMany, forms));
++            return written(c, value, isMany, forms);
+         }
+         return written(c, value, isMany, forms);
+     }
+diff --git a/core/src/main/java/com/legend/lowering/Lowerer.java b/core/src/main/java/com/legend/lowering/Lowerer.java
+index d387135c..83810ea8 100644
+--- a/core/src/main/java/com/legend/lowering/Lowerer.java
++++ b/core/src/main/java/com/legend/lowering/Lowerer.java
+@@ -518,8 +518,8 @@ public final class Lowerer {
+         TypedSpec root = withQueryLets(body);
+         SqlQuery q;
+         if (sharing == null && shareRelations) {
+-            // a relation read more than once, written once (SharedRelations), as the shape's form chooses (J23)
+-            q = styled().forms().relations(() -> sharedLower(root), () -> lower(root));
++            // a relation read more than once, written once (SharedRelations; J23)
++            q = sharedLower(root);
+         } else {
+             q = lower(root);
+         }
+@@ -531,8 +531,7 @@ public final class Lowerer {
+             q = LetBinding.bindRepeats(q);
+         }
+         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
+-        SqlQuery counted = styled().forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
+-        return styled().forms().computedPruning(counted);
++        return SubselectPrune.prune(KeyedCounts.fold(q, tableKeys), true);
+     }
+ 
+     /** {@code root} lowered with each relation it reads more than once written once (SharedRelations): the statement's
+@@ -602,7 +601,7 @@ public final class Lowerer {
+      *  types them so, by name: WriteChecker). */
+     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
+         SqlQuery lowered = lower(source);
+-        SqlQuery rows = namedColumns(styled().forms().computedPruning(lowered));
++        SqlQuery rows = namedColumns(SubselectPrune.prune(lowered, true));
+         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
+         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
+                 .columns().forEach(c -> declared.add(c.name()));
+@@ -1220,9 +1219,9 @@ public final class Lowerer {
+             case TypedTableReference t -> tableRead(t);
+ 
+             case TypedTds tds -> tdsLiteral(tds);
+-            // a VIEW at relation position, the shape's form (the audit's K5, 2026-11-17: LoweringForms#view): the
+-            // product's body lowered flat (a name is not a nesting); legend-engine's an aliased derived table
+-            case TypedViewRelation v -> styled().forms().view(relation(v.body()), this::nextAlias, v.view());
++            // a VIEW at relation position: its body lowered flat, a name is not a nesting (the audit's K5, 2026-11-17;
++            // the two-form LoweringForms#view, identical in both forms, deleted by the edition's E0c, 2026-11-25)
++            case TypedViewRelation v -> relation(v.body());
+ 
+             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
+             case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
+@@ -1454,15 +1453,9 @@ public final class Lowerer {
+             keys.add(key instanceof SqlExpr.NullLit
+                     ? new SqlExpr.Cast(key, Fold.named(contract, k.column()).type(), SqlExpr.Reason.DECLARED)
+                     : key);
+-            // a self-aliased key drops the alias (view-frame goldens) —
+-            // EXCEPT reads of a union frame's outputs, which keep it
+-            // ("unionalias_0"."lastName" as "lastName")
+-            boolean unionRead = base.from() instanceof SqlSource.Subselect sub
+-                    && unionFrame(sub)
+-                    && e instanceof SqlExpr.Column uc
+-                    && sub.alias().equals(uc.table());
++            // a self-aliased key drops the alias (view-frame goldens)
+             ps.add(new SqlSelect.Projection(e,
+-                    !unionRead && e instanceof SqlExpr.Column c
++                    e instanceof SqlExpr.Column c
+                             && c.name().equals(k.column()) ? null : k.column(),
+                     Fold.named(contract, k.column())));
+         }
+@@ -2575,12 +2568,11 @@ public final class Lowerer {
+     private SqlSelect projectColumns(SqlSelect base, List<String> columns,
+                                      ExprType info) {
+         List<OutputCol> contract = outputsOf(info);
+-        String frame = styled().forms().unionFrame();
+         List<SqlSelect.Projection> ps = Fold.tryProjectAll(base, columns,
+-                contract, frame);
++                contract, null);
+         if (ps == null) {
+             base = isolate(base);
+-            ps = Fold.tryProjectAll(base, columns, contract, frame);
++            ps = Fold.tryProjectAll(base, columns, contract, null);
+             if (ps == null) {
+                 throw new IsolationWall("select/distinct columns " + columns
+                         + " cannot all be resolved even after isolation");
+@@ -2609,7 +2601,7 @@ public final class Lowerer {
+             SqlUnion u = union(tc);
+             SqlUnion dedup = new SqlUnion(u.branches(), false, u.outputs());
+             SqlSource.Subselect sub = new SqlSource.Subselect(
+-                    dedup, nextAlias(), styled().forms().unionFrame());
++                    dedup, nextAlias(), null);
+             List<SqlSelect.Projection> projs = new ArrayList<>();
+             for (Type.Column c : (Type.requireRelationSchema(d.info().type()))
+                     .columns()) {
+@@ -2954,17 +2946,10 @@ public final class Lowerer {
+                                 .map(SqlSelect.Projection::alias).toList());
+             }
+         } else {
+-            // a UNION-FRAMED operand keeps its frame identity through
+-            // join isolation (engine: joins against a union wrap it as
+-            // another union frame, the style's)
+-            left = unionFramed(leftSel)
+-                    ? new SqlSource.Subselect(leftSel, nextAlias(),
+-                            styled().forms().unionFrame())
+-                    : asLeftJoinSide(leftSel);
++            left = asLeftJoinSide(leftSel);
+         }
+         SqlSelect rightSel = relation(j.right());
+-        SqlSource right = asRightSide(rightSel,
+-                unionFramed(rightSel) ? styled().forms().unionFrame() : j.frameName());
++        SqlSource right = asRightSide(rightSel, j.frameName());
+         // a USER join lambda's ON keeps pure's null-safe equality (testJoinOnNullKey);
+         // a RESOLVER-SYNTHESIZED join is the mapping's definition — plain '=' (slotDemandJoins)
+         SqlExpr on;
+@@ -2988,35 +2973,9 @@ public final class Lowerer {
+         };
+         SqlSelect out = joined(new SqlSource.Join(left, right, kind, on),
+                 j.prefix(), j.right(), j.info(), leftCarry);
+-        // a join CONTAINING a union frame isolates as one more union
+-        // frame: select * from (lhs join rhs on ...) as "unionalias_N"
+-        // — downstream ops read the wrapper's outputs (engine model)
+-        if (unionSide(left) || unionSide(right)) {
+-            // §E3 M-N2: the wrapper INHERITS the joined frame's outputs
+-            // (pad-weakened) — starOf reads them straight off the
+-            // Subselect; re-asserting outputsOf(info) here would
+-            // re-echo the kind-blind contract (the SqlUnion ctor lesson)
+-            return SqlSelect.starOf(new SqlSource.Subselect(out, nextAlias(),
+-                    styled().forms().unionFrame()));
+-        }
+         return out;
+     }
+ 
+-    /** Whether {@code s} reads a union frame the style names (L10: the product names none). */
+-    private boolean unionFramed(SqlSelect s) {
+-        return s.from() instanceof SqlSource.Subselect sub && unionFrame(sub);
+-    }
+-
+-    private boolean unionSide(SqlSource s) {
+-        return s instanceof SqlSource.Subselect sub && unionFrame(sub);
+-    }
+-
+-    /** Whether {@code sub} is a union frame the style names: never where it names none (the product's). */
+-    private boolean unionFrame(SqlSource.Subselect sub) {
+-        String frame = styled().forms().unionFrame();
+-        return frame != null && frame.equals(sub.frameName());
+-    }
+-
+     /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */
+     private SqlSelect asOfJoin(TypedAsOfJoin aj) {
+         SqlSource left = asLeftJoinSide(relation(aj.left()));
+diff --git a/core/src/main/java/com/legend/lowering/LoweringForms.java b/core/src/main/java/com/legend/lowering/LoweringForms.java
+index dd485edf..2b97b23f 100644
+--- a/core/src/main/java/com/legend/lowering/LoweringForms.java
++++ b/core/src/main/java/com/legend/lowering/LoweringForms.java
+@@ -15,22 +15,18 @@ import java.util.function.Supplier;
+  * upstream's. The product never branches on an upstream flag: it asks its form, and {@link #PRODUCT} answers the
+  * product's way; the edge's forms (in {@code com.legend.edge}) answer legend-engine's.
+  *
++ * <p>Six forms that were identical in both implementations ({@code view}, {@code wireCast}, {@code relations},
++ * {@code keyedCounts}, {@code computedPruning}, {@code unionFrame}) were deleted by the edition's E0c, 2026-11-25
++ * (docs/records/edition-census-2026-11-25.md).
++ *
+  * <ul>
+  * <li>{@link #raise}: a check the plan writes -- the product writes every one ({@code checked}); legend-engine's pure/v1
+  * route writes none for its census class A, the plain operation, the database's own error passing through.</li>
+- * <li>{@link #view}: a view at relation position -- the product lowers its body flat (a name is not a nesting);
+- * legend-engine's SQL nests it as an aliased derived table ({@code ViewSelectSQLQuery}).</li>
+- * <li>{@link #wireCast}: a mapping's wire coercion -- the product writes the SQL cast (DuckDB does not wire-convert,
+- * audit 19 F7); legend-engine's SQL leaves it to its reader, which converts on the wire.</li>
+  * <li>{@link #executeValues}: a serialize's values where legend-engine's cardinality rule could apply -- the root of an
+  * engine {@code execute(...)}'s values read (the audit's J3, 2026-11-17) and a serialize in scalar position (the lens
+  * audit's L6, 2026-11-18: until then folded unconditionally) -- the product's stays the array, lite's own (the user's
+  * ruling of 2026-11-03: "the right clean thing in lite, the backward-compatible thing in compatibility mode");
+  * legend-engine's JsonBuilder writes exactly one object bare, the edge folding the wrapped array itself.</li>
+- * <li>{@link #relations}, {@link #keyedCounts}, {@link #computedPruning} (the edge audit's J23, 2026-11-17, the
+- * orchestrator's ruling (a): until then three LoweringShape flags only the edge set false): the product writes lean SQL --
+- * a relation read more than once written once, a count a declared key makes one folded to 1, an unread computed
+- * projection dropped; legend-engine's SQL does none of them.</li>
+  * <li>{@link #existsJoin} (the edge audit's J19, the user's ruling of 2026-11-17, "Yes to the rule"; register S367): a
+  * filter's correlated {@code EXISTS} over a to-many join -- legend-engine's SQL writes its "second exists emission", a
+  * join to the distinct keys ({@code ExistsJoinForm}), the edge's forms; the product's form the EXISTS as lowered, the
+@@ -45,13 +41,6 @@ public interface LoweringForms {
+     /** A raise of {@code kind}: the guarded operation ({@code checked}) or the plain one ({@code plain}). */
+     SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain);
+ 
+-    /** A view's relation: its body lowered ({@code body}), named {@code view}; {@code alias} mints an alias if one is
+-     *  written. */
+-    SqlSelect view(SqlSelect body, Supplier<String> alias, String view);
+-
+-    /** A mapping's wire coercion of {@code value}: the cast written ({@code written}) or the value as read. */
+-    SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written);
+-
+     /** A serialize's values as the product answers them ({@code own}: the object where the graph is to-one, the array
+      *  where it is many -- the product's multiplicity fact): the product's form returns them unchanged; legend-engine's
+      *  writes its JsonBuilder cardinality rule over them, in the edge's own code (the orchestrator's ruling of 2026-11-18,
+@@ -65,20 +54,6 @@ public interface LoweringForms {
+      *  empty text; legend-engine's its H2 test-connection JSON, whatever the database. */
+     String objectReferenceConnection();
+ 
+-    /** A statement whose relations read more than once are written once ({@code shared}), or at each read
+-     *  ({@code unshared}). */
+-    com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
+-            Supplier<com.legend.sql.SqlQuery> unshared);
+-
+-    /** {@code q} with the counts a declared key makes one folded to 1 ({@code fold}), or as lowered. */
+-    com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
+-            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold);
+-
+-    /** {@code q} with its unread columns dropped, and its unread computed projections dropped or kept, as the form writes
+-     *  (the lens audit's item 1, 2026-11-18: the lowering hands the statement alone; each form prunes it with the
+-     *  product's building block, SubselectPrune.prune). */
+-    com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q);
+-
+     /** A column's text parsed to a Decimal ({@code parseDecimal}'s one-argument form; the audit's J1, RULED by the user
+      *  2026-11-17): the product's an exact decimal at its Decimal's precision; legend-engine's H2 its fixed
+      *  {@code DECIMAL(5,2)}. */
+@@ -93,12 +68,6 @@ public interface LoweringForms {
+      *  sites, never the rewrite; the edge's form calls the product's building block, sql.ExistsJoins). */
+     SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites);
+ 
+-    /** The frame name a TDS union's subselect carries where the lowering names it (L10, the lens audit's L-A.unionAlias,
+-     *  2026-11-18): null is no frame -- the product's, a union is a subselect like any other; legend-engine's SQL names
+-     *  each union frame (and a join against one) and reads its columns through that name. */
+-    @com.legend.base.Nullable String unionFrame();
+-
+-
+     /** A fresh statement's WHERE merges (L10): the product's appends each predicate and keeps no zones; legend-engine's
+      *  orders the conjuncts by zone and keeps each split for its exists form ({@link WhereZones}). */
+     WhereZones whereZones();
+diff --git a/core/src/main/java/com/legend/lowering/ProductLoweringForms.java b/core/src/main/java/com/legend/lowering/ProductLoweringForms.java
+index 2f71e400..8562214d 100644
+--- a/core/src/main/java/com/legend/lowering/ProductLoweringForms.java
++++ b/core/src/main/java/com/legend/lowering/ProductLoweringForms.java
+@@ -27,15 +27,7 @@ public final class ProductLoweringForms implements LoweringForms {
+         return checked.get();
+     }
+ 
+-    @Override
+-    public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
+-        return body;
+-    }
+ 
+-    @Override
+-    public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
+-        return written.get();
+-    }
+ 
+     @Override
+     public SqlSelect executeValues(SqlSelect own) {
+@@ -48,22 +40,8 @@ public final class ProductLoweringForms implements LoweringForms {
+         return "";
+     }
+ 
+-    @Override
+-    public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
+-            Supplier<com.legend.sql.SqlQuery> unshared) {
+-        return shared.get();
+-    }
+ 
+-    @Override
+-    public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
+-            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
+-        return fold.apply(q);
+-    }
+ 
+-    @Override
+-    public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
+-        return SubselectPrune.prune(q, true);
+-    }
+ 
+     /** An exact decimal at the product's Decimal precision ({@code PureSql.type(DECIMAL)}). */
+     @Override
+@@ -100,11 +78,6 @@ public final class ProductLoweringForms implements LoweringForms {
+                         + " writes a query's rows by its result writers (JSON, CSV, Arrow)");
+     }
+ 
+-    /** No frame: a union is a subselect like any other (L10). */
+-    @Override
+-    public @com.legend.base.Nullable String unionFrame() {
+-        return null;
+-    }
+ 
+ 
+     /** Each predicate appended, no zones kept (L10): conjunct order is no answer's, and the product's EXISTS is lowered
+diff --git a/core/src/main/java/com/legend/planner/PlanMaker.java b/core/src/main/java/com/legend/planner/PlanMaker.java
+index 2d20ce9a..56546725 100644
+--- a/core/src/main/java/com/legend/planner/PlanMaker.java
++++ b/core/src/main/java/com/legend/planner/PlanMaker.java
+@@ -696,7 +696,7 @@ public final class PlanMaker {
+         if (st.prepared() instanceof Prepared.StoreWrite w) {
+             SqlDml dml = state.read(ProductStatements.storeWrite(query, w, st.temporal(), state.slots(),
+                     state.sites()));
+-            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null, state.style()),
++            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
+                     last ? ExecutionPlan.COUNT : null));
+             if (last) {
+                 state.add(count(query, w.write(), dialect, target, state.features(), state.sites(), state.style()));
+@@ -716,7 +716,7 @@ public final class PlanMaker {
+         SqlQuery q = staged.statement();
+         TypedSpec answer = p.body().get(p.body().size() - 1);
+         state.add(stampedIfRead(last ? typed(answer, q, dialect, target, state.style())
+-                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q, state.style())),
++                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)),
+                 st.reads().ownStamp()));
+     }
+ 
+@@ -939,7 +939,7 @@ public final class PlanMaker {
+         ExprType type = new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE);
+         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
+-                sql(q, dialect, target, style));
++                sql(q, dialect, target));
+     }
+ 
+     /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
+@@ -957,7 +957,7 @@ public final class PlanMaker {
+                 .lowerPlanParam(ExecutionPlan.COUNT, type);
+         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
+-                sql(q, dialect, target, style));
++                sql(q, dialect, target));
+     }
+ 
+     /**
+@@ -990,7 +990,7 @@ public final class PlanMaker {
+                                 ColumnFacts.precision(PureSpelling.typePath(root.type()),
+                                         outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS),
+                                 PlanColumns.decimal(root.type()))),
+-                        sql(lowered, dialect, target, style));
++                        sql(lowered, dialect, target));
+             }
+             case TABULAR -> {
+                 // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns
+@@ -1015,10 +1015,10 @@ public final class PlanMaker {
+         };
+     }
+ 
+-    /** A rendered statement as the plan's, on {@code target}, its raise sites offered to {@code style} (the plan's,
+-     *  {@link #sites}). */
++    /** A rendered statement as the plan's, on {@code target}, its raise sites planned ({@link #sites}). (Its unused
++     *  {@code style} parameter went with the edition's E0c, 2026-11-25.) */
+     static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
+-            @Nullable SqlQuery tree, com.legend.database.PlanStyle style) {
++            @Nullable SqlQuery tree) {
+         // each payload a slot binds named by its digest, its text the statement's content (the JSON pass, 2026-11-11:
+         // the payload's bytes once in the plan's data, as a load's are), digested once
+         Map<String, String> content = new LinkedHashMap<>();
+@@ -1095,8 +1095,8 @@ public final class PlanMaker {
+             });
+         }
+         List<String> keyFields = parts.keys().outputs().stream().map(OutputCol::name).toList();
+-        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target, style), keyFields, outputs, parts.perKeyAt(),
+-                sql(parts.body(), dialect, target, style), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
++        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
++                sql(parts.body(), dialect, target), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
+     }
+ 
+     /** The plan's snapshot for a keyed result's two reads, as its database declares it ({@link
+@@ -1124,7 +1124,7 @@ public final class PlanMaker {
+             com.legend.database.PlanStyle style) {
+         List<SqlSource.GridReport> reports = gridReports(statement);
+         if (reports.isEmpty()) {
+-            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target, style));
++            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target));
+         }
+         // the database's snapshot first, as the pivot's keyed result takes it: a database with no keyed result
+         // refuses by its own name before any statement is written
+@@ -1150,8 +1150,8 @@ public final class PlanMaker {
+         for (ExecutionPlan.Column c : columns) {
+             outputs.add(new ExecutionPlan.Keyed.Fixed(c, c.name()));
+         }
+-        return new ExecutionPlan.Keyed(sql(keys, dialect, target, style), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
+-                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target, style),
++        return new ExecutionPlan.Keyed(sql(keys, dialect, target), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
++                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target),
+                 snapshotOf(keysSnapshot), dialect.resultColumnLimit(), shape);
+     }
+ 
+@@ -1235,10 +1235,9 @@ public final class PlanMaker {
+ 
+     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
+      *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6), its raise sites
+-     *  offered to {@code style}, the plan's. */
+-    public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target,
+-            com.legend.database.PlanStyle style) {
+-        return sql(dialect.renderStatement(statement), target, statement, style);
++     *  planned. */
++    public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
++        return sql(dialect.renderStatement(statement), target, statement);
+     }
+ 
+     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */
+diff --git a/core/src/main/java/com/legend/planner/ProgramState.java b/core/src/main/java/com/legend/planner/ProgramState.java
+index 24877345..09c0ad23 100644
+--- a/core/src/main/java/com/legend/planner/ProgramState.java
++++ b/core/src/main/java/com/legend/planner/ProgramState.java
+@@ -208,7 +208,7 @@ public final class ProgramState {
+ 
+     /** {@code q} written in the program's dialect for its target. */
+     public ExecutionPlan.Sql statement(SqlQuery q) {
+-        return PlanMaker.sql(dialect.renderStatement(q), target, q, style);
++        return PlanMaker.sql(dialect.renderStatement(q), target, q);
+     }
+ 
+     /** Places {@code step} after the steps planned so far. */
+diff --git a/core/src/main/java/com/legend/testplan/JudgePlans.java b/core/src/main/java/com/legend/testplan/JudgePlans.java
+index 4109bd9d..716ba3bf 100644
+--- a/core/src/main/java/com/legend/testplan/JudgePlans.java
++++ b/core/src/main/java/com/legend/testplan/JudgePlans.java
+@@ -345,7 +345,7 @@ public final class JudgePlans {
+         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
+                         com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
+-                PlanMaker.sql(plan, env.dialect(), env.target(), env.plan().style()));
++                PlanMaker.sql(plan, env.dialect(), env.target()));
+     }
+ 
+     private static PlannedSide tabularPlanned(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
+@@ -359,8 +359,7 @@ public final class JudgePlans {
+             // column, the columns its result reports read from the real run (the seam program's S3c, 2026-10-30;
+             // until then WireProbe.staticized framed it by a describe at planning)
+             ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
+-                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target(),
+-                            env.plan().style()));
++                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target()));
+             return new PlannedSide(new TestPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
+                     new Type.RelationType(List.of()));
+         }
+diff --git a/core/src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java b/core/src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java
+index 12acb3cb..fd584f7a 100644
+--- a/core/src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java
++++ b/core/src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java
+@@ -56,10 +56,8 @@ class ProductFormsUseTheirArgumentsTest {
+     /** Each function a product form never calls that is no finding (the orchestrator's ruling of 2026-11-18, 06:40: a
+      *  hook's own input from the product's generic code, not upstream's alternative), with the reason. Not counted. */
+     static final Map<String, String> RULED = Map.of(
+-            "ProductLoweringForms#relations(Supplier, Supplier) arg 1", "2026-11-18: () -> lower(root), the product's"
+-                    + " own plain lowering, which it runs itself when sharing is off; only the choice is upstream's",
+-            "ProductLoweringForms#view(SqlSelect, Supplier, String) arg 1", "2026-11-18: this::nextAlias, the product's"
+-                    + " alias counter, handed in so the edge can name its frame",
++            // (ProductLoweringForms#relations and #view: GONE 2026-11-25 with the edition's E0c -- both forms were
++            // identical in both implementations and were deleted, docs/records/edition-census-2026-11-25.md)
+             // (executeValues' arg 1: GONE 2026-11-18 -- E-SQL's executeValues(SqlSelect own), the product's own
+             // serialization alone, no function handed)
+             // the functions inside ExistsSites (seen since the GUARD stream's widening of 2026-11-18, train 18, on E-SQL's
+diff --git a/core/src/test/java/com/legend/planner/ZonedDateTimeParameterTest.java b/core/src/test/java/com/legend/planner/ZonedDateTimeParameterTest.java
+index c3dbbdf3..c3676392 100644
+--- a/core/src/test/java/com/legend/planner/ZonedDateTimeParameterTest.java
++++ b/core/src/test/java/com/legend/planner/ZonedDateTimeParameterTest.java
+@@ -52,8 +52,7 @@ class ZonedDateTimeParameterTest {
+                     com.legend.database.Databases.dialect(type).floatLiteralKind());
+             ExecutionPlan.TdsResult t = (ExecutionPlan.TdsResult) plan.root();
+             plan = ExecutionPlan.reading(plan.parameters(), new ExecutionPlan.TdsResult(t.shape(), t.columns(),
+-                    PlanMaker.sql(q, com.legend.database.Databases.dialect(type), t.sql().target(),
+-                            com.legend.database.PlanStyle.PRODUCT)));
++                    PlanMaker.sql(q, com.legend.database.Databases.dialect(type), t.sql().target())));
+         }
+         List<Object> cells = new ArrayList<>();
+         try (Connection c = TestBackends.of(type).open()) {

@@ -1,0 +1,490 @@
+diff --git a/core/src/main/java/com/legend/Compiler.java b/core/src/main/java/com/legend/Compiler.java
+index 13c327fa..dc18eabc 100644
+--- a/core/src/main/java/com/legend/Compiler.java
++++ b/core/src/main/java/com/legend/Compiler.java
+@@ -992,6 +992,14 @@ public final class Compiler {
+      *  product's sentence, or the edge's: D1.6, W7 of docs/records/d-plan-2026-11-16.md). */
+     private static java.util.Map<String, String> compileAllBodies(ModelContext ctx,
+             java.util.function.Function<Throwable, String> words) {
++        return compileAllBodies(ctx, words, null);
++    }
++
++    /** {@link #compileAllBodies(ModelContext, java.util.function.Function)}, each comparison across types written in a
++     *  body that compiles added to {@code crossings} when it is given (lite's own check, {@link #modelCheck}). */
++    private static java.util.Map<String, String> compileAllBodies(ModelContext ctx,
++            java.util.function.Function<Throwable, String> words,
++            java.util.@com.legend.base.Nullable List<String> crossings) {
+         SpecCompiler specs = new SpecCompiler(ctx);
+         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+         // the MODULE's own bodies: the boot layer's (the system metamodel's
+@@ -1021,6 +1029,9 @@ public final class Compiler {
+                 }
+                 try {
+                     specs.compile(tf);
++                    if (crossings != null) {
++                        specs.crossingsOf(tf).forEach(c -> crossings.add(words.apply(c)));
++                    }
+                 } catch (RuntimeException e) {
+                     walls.put(tf.id().qualified(), words.apply(e));
+                 }
+@@ -1061,6 +1072,27 @@ public final class Compiler {
+         return compileErrorsOf(() -> compileModel(model), words);
+     }
+ 
++    /**
++     * A WHOLE MODEL checked as lite checks its own programs (B3 step 5a-2, the one equality's compile route): every error
++     * {@link #compileErrors(String, java.util.function.Function)} lists, then each comparison across types written in a
++     * body that compiles ({@code SpecCompiler.crossingsOf}: {@code 1 == 1.0}, an enumeration against a String; never a
++     * mapping's code, S403), each worded by {@code words}. legend-engine's and legend-pure's routes answer from
++     * {@code compileErrors} alone: upstream compiles such a body, and a query run through their doors answers it their
++     * way.
++     */
++    public static java.util.List<String> modelCheck(String model, java.util.function.Function<Throwable, String> words) {
++        ModelContext ctx;
++        try {
++            ctx = compileModel(model);
++        } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
++            return java.util.List.of(words.apply(e));
++        }
++        java.util.List<String> crossings = new java.util.ArrayList<>();
++        java.util.List<String> all = new java.util.ArrayList<>(compileAllBodies(ctx, words, crossings).values());
++        all.addAll(crossings);
++        return java.util.List.copyOf(all);
++    }
++
+     private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model,
+             java.util.function.Function<Throwable, String> words) {
+         ModelContext ctx;
+diff --git a/core/src/main/java/com/legend/TypedQuery.java b/core/src/main/java/com/legend/TypedQuery.java
+index 767166a4..2f5abd39 100644
+--- a/core/src/main/java/com/legend/TypedQuery.java
++++ b/core/src/main/java/com/legend/TypedQuery.java
+@@ -46,6 +46,17 @@ public final class TypedQuery {
+         return q;
+     }
+ 
++    /** This query with {@code bodies} as the bodies of their functions wherever it is planned (B3 step 5a-2: a function
++     *  body with each comparison across types answered by a compatibility door, {@code edge.EngineComparisons}); the
++     *  statements, the model and the resolved query kept. The door's counterpart of {@link #withBody} for the bodies the
++     *  statements call. */
++    public TypedQuery withAnsweredBodies(java.util.Map<com.legend.compiler.element.TypedFunction,
++            com.legend.compiler.spec.CompiledFunction> bodies) {
++        TypedQuery q = new TypedQuery(ctx, resolved, specs.withAnswered(bodies), options);
++        q.body = body;
++        return q;
++    }
++
+     /** This query planned under lite's own planning options ({@link com.legend.platform.PlanOption}: each off unless
+      *  asked for -- the tests ask for {@code DETERMINISTIC_AS_OF}). */
+     public TypedQuery withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
+diff --git a/core/src/main/java/com/legend/compiler/spec/Overloads.java b/core/src/main/java/com/legend/compiler/spec/Overloads.java
+index a3468db4..e78b32d5 100644
+--- a/core/src/main/java/com/legend/compiler/spec/Overloads.java
++++ b/core/src/main/java/com/legend/compiler/spec/Overloads.java
+@@ -127,8 +127,9 @@ final class Overloads {
+         // yet, so the call keeps its signature typing (the engine types
+         // a closure body by signatures too; it pastes nothing)
+         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
+-            // a function's body typed into the call: the database's comparisons, never marked (B3 step 5)
+-            return t.markingCrossings(false, () -> inlineNormalized(af, a, env));
++            // a function's body typed into the call, marked as where the call stands (B3 step 5a-2: a function's body
++            // is held to the one equality; in a mapping's code it is not)
++            return inlineNormalized(af, a, env);
+         }
+         TypedSpec shadow = derivedShadow(af, a, env);
+         if (shadow != null) {
+@@ -137,9 +138,9 @@ final class Overloads {
+         TypedSpec call = rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()),
+                 env);
+         // the one equality (B3 step 5, the user's ruling of 2026-11-24): a comparison across types, written in the body a
+-        // door receives, is typed as the marker around the call -- refused by lite's planner, rewritten by a
+-        // compatibility door (EqualityClasses); typed anywhere else (a function's body, a planning-time frame, a
+-        // mapping's operation) it is the call, the database's comparison
++        // door receives or in a function's body (step 5a-2), is typed as the marker around the call -- refused by lite's
++        // planner, rewritten by a compatibility door (EqualityClasses); typed in a mapping's code, an island's
++        // translation or a planning-time frame it is the call, the database's comparison
+         if (!t.marksCrossings()) {
+             return call;
+         }
+diff --git a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
+index 5deeaf7e..34b7d09d 100644
+--- a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
++++ b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
+@@ -45,13 +45,44 @@ public final class SpecCompiler {
+      * empty memo, never a stale hit. It also doubles as the visited-set for
+      * {@link #compileReachable}, which is why no cycle guard is needed.
+      */
+-    private final Map<TypedFunction, CompiledFunction> memo = new IdentityHashMap<>();
++    private final Map<TypedFunction, CompiledFunction> memo;
++
++    /** Bodies a compatibility door answered (B3 step 5a-2): each the body {@link #compile} returns for its function,
++     *  ahead of the memo -- the function's own typed body with each comparison across types in it answered as the door
++     *  answers it, handed over as data ({@link #withAnswered}). Empty but for a door's query. */
++    private final Map<TypedFunction, CompiledFunction> answered;
+ 
+     private final ModelContext ctx;
+ 
+     public SpecCompiler(ModelContext ctx) {
+         this.ctx = ctx;
+         this.typer = new Typer(ctx, new InferenceKernel(ctx));
++        this.memo = new IdentityHashMap<>();
++        this.answered = new IdentityHashMap<>();
++    }
++
++    private SpecCompiler(SpecCompiler of, Map<TypedFunction, CompiledFunction> answered) {
++        this.ctx = of.ctx;
++        this.typer = of.typer;
++        this.memo = of.memo;
++        this.answered = answered;
++    }
++
++    /** This compiler, its typer and its typed bodies shared, with {@code bodies} answered by a compatibility door (B3 step
++     *  5a-2, the user's ruling of 2026-11-25: "follow the substring model ... but don't refuse m2m/func for now"): for
++     *  each function a key names, {@link #compile} returns the door's body. The door reads the bodies to answer from
++     *  {@link #typedBodies} after the planner's own inliner has run over its statements, so nothing is typed that the
++     *  planner would not type. */
++    public SpecCompiler withAnswered(Map<TypedFunction, CompiledFunction> bodies) {
++        Map<TypedFunction, CompiledFunction> all = new IdentityHashMap<>(answered);
++        all.putAll(bodies);
++        return new SpecCompiler(this, java.util.Collections.unmodifiableMap(all));
++    }
++
++    /** The function bodies typed so far, by function, each as typed (none a door answered): what this compiler's demand
++     *  has typed. */
++    public Map<TypedFunction, CompiledFunction> typedBodies() {
++        return java.util.Collections.unmodifiableMap(new IdentityHashMap<>(memo));
+     }
+ 
+     private TypedSpec viewBody(TypedFunction fn) {
+@@ -83,6 +114,10 @@ public final class SpecCompiler {
+      */
+     public CompiledFunction compile(TypedFunction fn) {
+         com.legend.base.RunScope.planning("type a spec");
++        CompiledFunction door = answered.get(fn);
++        if (door != null) {
++            return door;
++        }
+         CompiledFunction cached = memo.get(fn);
+         if (cached != null) {
+             return cached;
+@@ -113,6 +148,22 @@ public final class SpecCompiler {
+         return cf;
+     }
+ 
++    /** Each comparison across types written in {@code fn}'s body, a compile error naming the two types and the fix,
++     *  passed through the body's frame (B3 step 5a-2: a function's body is held to the one equality as the query is);
++     *  none for a mapping's code, which compares by the database's rule (ruling 1; M2M and {@code ~func} not strict for
++     *  now, S403), or for a body-less function. Its body is typed once ({@link #compile}). */
++    public List<com.legend.error.LegendCompileException> crossingsOf(TypedFunction fn) {
++        com.legend.base.RunScope.planning("type a spec");
++        if (fn.body().isEmpty() || Typer.mappingCode(fn)) {
++            return List.of();
++        }
++        List<com.legend.error.LegendCompileException> out = new ArrayList<>();
++        for (com.legend.compiler.spec.typed.TypedCrossTypeComparison c : CrossTypeComparisons.in(compile(fn).body())) {
++            out.add(new TypeInferenceException(frameOf(fn), new TypeInferenceException(String.valueOf(c.refusal().getMessage()))));
++        }
++        return out;
++    }
++
+     /** Where a body's error is: its function -- or, for a property's default and a function's condition, what was
+      *  written (2026-10-21, the independent audit: their synthesized names leaked into the message). A derived
+      *  property's and a mapping's synthesized functions keep their names, which the corpora's expectations quote. */
+diff --git a/core/src/main/java/com/legend/compiler/spec/Typer.java b/core/src/main/java/com/legend/compiler/spec/Typer.java
+index dfe41545..ecfb8a86 100644
+--- a/core/src/main/java/com/legend/compiler/spec/Typer.java
++++ b/core/src/main/java/com/legend/compiler/spec/Typer.java
+@@ -148,13 +148,27 @@ final class Typer {
+             java.util.function.Supplier<R> body) {
+         java.util.List<String> rigid = new ArrayList<>(fn.typeParameters());
+         rigid.addAll(fn.multiplicityParameters());
+-        // a function's body is no body a door receives: its comparisons across types are the calls (B3 step 5)
+-        return markingCrossings(false, () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
+-                body)));
++        // a function's body is the person's Pure, held to the one equality like the query, and a door reaches it by
++        // inlining it into the statement that calls it (B3 step 5a-2, the user's ruling of 2026-11-25: "follow the
++        // substring model ... but don't refuse m2m/func for now"); mapping code compares by the database's rule: the
++        // relational mapping language by SQL's (ruling 1, the same day), M2M and ~func not strict for now (recorded)
++        return markingCrossings(!mappingCode(fn), () -> annotations.inFrame(fn.typeParameters(),
++                () -> kernel.withRigid(rigid, body)));
++    }
++
++    /** Whether {@code fn} is a mapping's code, synthesized by the normalizer: a class mapping's, an association
++     *  mapping's or a store view's function (relational, M2M or {@code ~func} alike). */
++    static boolean mappingCode(com.legend.compiler.element.TypedFunction fn) {
++        return fn.definition() instanceof com.legend.model.FunctionDefinition fd && fd.synthesizedFrom() != null
++                && switch (fd.synthesizedFrom().hat()) {
++                    case CLASS, ASSOC, VIEW -> true;
++                    case PROP, CONSTRAINT, QUERY, CONSTRAINT_MSG, DEFAULT, PRE, POST -> false;
++                };
+     }
+ 
+     /** Whether a comparison across types is typed as the marker here: in the query or test body a door receives
+-     *  ({@code SpecCompiler.typeQueryBodyMarked}), not in a function's body (B3 step 5). */
++     *  ({@code SpecCompiler.typeQueryBodyMarked}) and in a function's body (B3 step 5a-2), not in a mapping's code, an
++     *  island's translation or a planning-time frame (B3 step 5). */
+     private boolean marking;
+ 
+     /** The nodes an island's translation wrote into a statement of the query ({@code TsIslands.lifted}): typed by the
+diff --git a/core/src/main/java/com/legend/edge/EngineComparisons.java b/core/src/main/java/com/legend/edge/EngineComparisons.java
+index fd29b402..da7708f7 100644
+--- a/core/src/main/java/com/legend/edge/EngineComparisons.java
++++ b/core/src/main/java/com/legend/edge/EngineComparisons.java
+@@ -26,14 +26,69 @@ public final class EngineComparisons {
+     /** {@code query} with each comparison across types answered by the database, as legend-engine sends it; the query
+      *  itself where it has none. */
+     public static TypedQuery asTheDatabases(TypedQuery query) {
++        return answered(query, TypedCrossTypeComparison::comparison);
++    }
++
++    /**
++     * {@code query} with each comparison across types answered by {@code door}: those its statements hold, and those in
++     * the bodies of the functions and derived properties it calls (B3 step 5a-2, the user's ruling of 2026-11-25, "follow
++     * the substring model if it works for this but don't refuse m2m/func for now"). The statements are rewritten where
++     * they stand. The planner's own inliner is run over each statement that calls a function, its result unused, so that
++     * exactly the bodies the planner will type are typed (demand-driven: the first round's catch, 2026-11-25, when a walk
++     * of every callee typed {@code relationalExtensions()}); each of those bodies that holds a comparison across types is
++     * answered and handed to the planner with the query, as data ({@code TypedQuery.withAnsweredBodies}), so a statement
++     * keeps its shape -- a test's helper assert stays the call it is (the second round's catch: inlining the statement
++     * itself changed how the test planner planned 44 of legend-engine's {@code toPostgresModel} bodies). A body the
++     * planner types that the statements' inlining did not reach keeps its marker, and the lowering refuses it by name. A
++     * mapping's code is typed unmarked (ruling 1; M2M and {@code ~func} not strict for now, S403).
++     */
++    static TypedQuery answered(TypedQuery query, java.util.function.Function<TypedCrossTypeComparison, TypedSpec> door) {
+         List<TypedSpec> out = new ArrayList<>(query.body().size());
+         boolean changed = false;
++        com.legend.compiler.spec.UserCallInliner inliner = null;
+         for (TypedSpec statement : query.body()) {
+-            TypedSpec rewritten = rewrite(statement, TypedCrossTypeComparison::comparison);
++            if (callsAFunction(statement)) {
++                if (inliner == null) {
++                    inliner = new com.legend.compiler.spec.UserCallInliner(query.specs());
++                }
++                PureMeaningRewrite.inlined(inliner, statement);
++            }
++            TypedSpec rewritten = rewrite(statement, door);
+             changed |= rewritten != statement;
+             out.add(rewritten);
+         }
+-        return changed ? query.withBody(out) : query;
++        TypedQuery q = changed ? query.withBody(out) : query;
++        if (inliner == null) {
++            return q;
++        }
++        java.util.Map<com.legend.compiler.element.TypedFunction, com.legend.compiler.spec.CompiledFunction> bodies =
++                new java.util.IdentityHashMap<>();
++        for (var typed : query.specs().typedBodies().entrySet()) {
++            List<TypedSpec> body = typed.getValue().body();
++            if (com.legend.compiler.spec.CrossTypeComparisons.in(body).isEmpty()) {
++                continue;
++            }
++            List<TypedSpec> answeredBody = new ArrayList<>(body.size());
++            for (TypedSpec statement : body) {
++                answeredBody.add(rewrite(statement, door));
++            }
++            bodies.put(typed.getKey(),
++                    new com.legend.compiler.spec.CompiledFunction(typed.getValue().signature(), answeredBody));
++        }
++        return bodies.isEmpty() ? q : q.withAnsweredBodies(bodies);
++    }
++
++    /** Whether {@code n} holds a call of a user function or a derived property, anywhere. */
++    private static boolean callsAFunction(TypedSpec n) {
++        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall) {
++            return true;
++        }
++        for (TypedSpec k : n.children()) {
++            if (callsAFunction(k)) {
++                return true;
++            }
++        }
++        return false;
+     }
+ 
+     /** {@code n} with each comparison across types replaced by {@code door}'s answer for it, innermost first: the walk
+diff --git a/core/src/main/java/com/legend/edge/PureComparisons.java b/core/src/main/java/com/legend/edge/PureComparisons.java
+index c5a6e375..ec2be8c5 100644
+--- a/core/src/main/java/com/legend/edge/PureComparisons.java
++++ b/core/src/main/java/com/legend/edge/PureComparisons.java
+@@ -10,8 +10,6 @@ import com.legend.compiler.spec.typed.TypedCInteger;
+ import com.legend.compiler.spec.typed.TypedCrossTypeComparison;
+ import com.legend.compiler.spec.typed.TypedSpec;
+ 
+-import java.util.ArrayList;
+-import java.util.List;
+ 
+ /**
+  * LEGEND-PURE'S COMPARISONS ACROSS TYPES (B3 step 5, the one equality; the user's ruling of 2026-11-24, "Love it":
+@@ -31,14 +29,8 @@ public final class PureComparisons {
+     /** {@code query} with each comparison across types answered as legend-pure answers it; the query itself where it has
+      *  none. */
+     public static TypedQuery asPures(TypedQuery query) {
+-        List<TypedSpec> out = new ArrayList<>(query.body().size());
+-        boolean changed = false;
+-        for (TypedSpec statement : query.body()) {
+-            TypedSpec rewritten = EngineComparisons.rewrite(statement, PureComparisons::answer);
+-            changed |= rewritten != statement;
+-            out.add(rewritten);
+-        }
+-        return changed ? query.withBody(out) : query;
++        // the functions and derived properties a statement calls, inlined where they hold one (B3 step 5a-2)
++        return EngineComparisons.answered(query, PureComparisons::answer);
+     }
+ 
+     private static TypedSpec answer(TypedCrossTypeComparison c) {
+diff --git a/core/src/main/java/com/legend/edge/PureMeaningRewrite.java b/core/src/main/java/com/legend/edge/PureMeaningRewrite.java
+index 3b1fca18..f527ab17 100644
+--- a/core/src/main/java/com/legend/edge/PureMeaningRewrite.java
++++ b/core/src/main/java/com/legend/edge/PureMeaningRewrite.java
+@@ -223,7 +223,7 @@ final class PureMeaningRewrite {
+     }
+ 
+     /** One root inlined on its own: a let's value (the let kept, as the planner reduces it), else the statement. */
+-    private static TypedSpec inlined(UserCallInliner inliner, TypedSpec root) {
++    static TypedSpec inlined(UserCallInliner inliner, TypedSpec root) {
+         if (root instanceof TypedLet let) {
+             TypedSpec value = inliner.inlineBody(List.of(let.value())).get(0);
+             return let.mapChildren(c -> c == let.value() ? value : c);
+diff --git a/core/src/main/java/com/legend/server/LiteV1Planning.java b/core/src/main/java/com/legend/server/LiteV1Planning.java
+index 13ddc733..e7fbcad0 100644
+--- a/core/src/main/java/com/legend/server/LiteV1Planning.java
++++ b/core/src/main/java/com/legend/server/LiteV1Planning.java
+@@ -49,9 +49,10 @@ public final class LiteV1Planning {
+     // ---- the operations, each a product function every binding calls ------------------------------------------------
+ 
+     /** {@code model/check}: {@code {errors: [{kind, message, where?}]}}, every error the model has, empty when it
+-     *  compiles ({@code Compiler.compileErrors}: the first element error alone, else every body's). */
++     *  compiles ({@code Compiler.modelCheck}: the first element error alone, else every body's, then each comparison
++     *  across types written in a body -- lite's own strictness, B3 step 5a-2). */
+     public static String modelCheck(String model) {
+-        List<Json.Node> errors = com.legend.Compiler.compileErrors(model, e -> LiteV1Api.refusal(e).json()).stream()
++        List<Json.Node> errors = com.legend.Compiler.modelCheck(model, e -> LiteV1Api.refusal(e).json()).stream()
+                 .map(Json::parse).toList();
+         return Json.toCompact(Map.of("errors", errors));
+     }
+diff --git a/core/src/test/java/com/legend/compiler/spec/CrossTypeComparisonsTest.java b/core/src/test/java/com/legend/compiler/spec/CrossTypeComparisonsTest.java
+index a912df9a..b5d10317 100644
+--- a/core/src/test/java/com/legend/compiler/spec/CrossTypeComparisonsTest.java
++++ b/core/src/test/java/com/legend/compiler/spec/CrossTypeComparisonsTest.java
+@@ -79,6 +79,40 @@ class CrossTypeComparisonsTest {
+         assertEquals(1, crossings("|#TDS\nn\n1\n#->x::keep(1 == 1.0)").size());
+     }
+ 
++    /** {@link #MODEL} with a derived property and an M2M mapping that each compare across types. */
++    private static final String STRICT_MODEL = MODEL + """
++            Class x::D { n: Integer[1]; big() { $this.n > 1.5 }: Boolean[1]; }
++            Class x::S { v: Decimal[1]; }
++            Class x::T { band: String[1]; }
++            ###Mapping
++            Mapping x::M
++            (
++                x::T: Pure
++                {
++                    ~src x::S
++                    band: if($src.v < 5, |'low', |'high')
++                }
++            )
++            """;
++
++    @Test
++    @DisplayName("a function's body and a derived property's are held to the one equality: marked, and listed by lite's"
++            + " model check; a mapping's code is not (S403); the check upstream's routes answer from lists none")
++    void aFunctionsBodyIsHeldToo() {
++        ModelContext ctx = Compiler.compileModel(STRICT_MODEL);
++        TypedQuery typed = Compiler.query(ctx, "|x::loose(1)");
++        assertEquals(List.of(), CrossTypeComparisons.in(typed.body()));
++        assertEquals(1, CrossTypeComparisons.in(typed.specs().compile(ctx.findFunction("x::loose").get(0)).body())
++                .size());
++        List<String> lite = Compiler.modelCheck(STRICT_MODEL, e -> String.valueOf(e.getMessage()));
++        assertEquals(2, lite.size(), lite.toString());
++        assertTrue(lite.stream().anyMatch(m -> m.contains("== compares Integer with Float") && m.contains("x::loose")),
++                lite.toString());
++        assertTrue(lite.stream().anyMatch(m -> m.contains("> compares Integer with Float")), lite.toString());
++        assertTrue(lite.stream().noneMatch(m -> m.contains("Decimal")), "the M2M mapping's is not listed: " + lite);
++        assertEquals(List.of(), Compiler.compileErrors(STRICT_MODEL));
++    }
++
+     @Test
+     @DisplayName("the planner refuses the marker by name, naming both types and the fix")
+     void thePlannerRefusesItByName() {
+diff --git a/core/src/test/java/com/legend/edge/PureComparisonsTest.java b/core/src/test/java/com/legend/edge/PureComparisonsTest.java
+index ba3b7f85..9f0cd733 100644
+--- a/core/src/test/java/com/legend/edge/PureComparisonsTest.java
++++ b/core/src/test/java/com/legend/edge/PureComparisonsTest.java
+@@ -17,6 +17,7 @@ import java.util.List;
+ 
+ import static org.junit.jupiter.api.Assertions.assertEquals;
+ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
++import static org.junit.jupiter.api.Assertions.assertSame;
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ 
+ /**
+@@ -26,8 +27,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
+  */
+ class PureComparisonsTest {
+ 
++    private static final String MODEL = """
++            Class x::A { n: Integer[1]; big() { $this.n > 1.5 }: Boolean[1]; }
++            function x::loose(a: Integer[1]): Boolean[1] { $a == 1.0 }
++            function x::outer(a: Integer[1]): Boolean[1] { x::loose($a) }
++            function x::tight(a: Integer[1]): Boolean[1] { $a == 1 }
++            """;
++
+     private static TypedQuery typed(String query) {
+-        ModelContext ctx = Compiler.compileModel("Class x::A { n: Integer[1]; }\n");
++        ModelContext ctx = Compiler.compileModel(MODEL);
+         return Compiler.query(ctx, query);
+     }
+ 
+@@ -59,4 +67,39 @@ class PureComparisonsTest {
+         TypedQuery answered = EngineComparisons.asTheDatabases(typed("|(1 == 1.0) && (%2020-01-02 < %2020-01-03T00:00:00)"));
+         assertEquals(List.of(), CrossTypeComparisons.in(answered.body()));
+     }
++
++    @Test
++    @DisplayName("a comparison in a function the statement calls, at any depth, or in a derived property: answered in the"
++            + " body the planner reads, the statement keeping its shape; a query whose calls hold none returned as it is"
++            + " (B3 step 5a-2, the substring model, bodies handed over as data)")
++    void aFunctionsComparisonIsAnsweredInTheBodyThePlannerReads() {
++        for (String q : List.of("|x::loose(1)", "|x::outer(1)", "|^x::A(n=2).big()")) {
++            TypedQuery given = typed(q);
++            assertEquals(List.of(), CrossTypeComparisons.in(given.body()), q + ": the query's own body holds none");
++            for (TypedQuery answered : List.of(PureComparisons.asPures(given), EngineComparisons.asTheDatabases(given))) {
++                assertEquals(given.body(), answered.body(), q + ": the statements keep their shape");
++                assertTrue(given.specs().typedBodies().values().stream()
++                        .anyMatch(cf -> !CrossTypeComparisons.in(cf.body()).isEmpty()), q + ": a body held one");
++                for (var fn : given.specs().typedBodies().keySet()) {
++                    assertEquals(List.of(), CrossTypeComparisons.in(answered.specs().compile(fn).body()),
++                            q + ": " + fn.qualifiedName());
++                }
++            }
++        }
++        TypedQuery outer = typed("|x::outer(1)");
++        TypedQuery pure = PureComparisons.asPures(outer);
++        var loose = outer.context().findFunction("x::loose").get(0);
++        assertTrue(holdsFalse(pure.specs().compile(loose).body().get(0)),
++                "legend-pure's answer: Integer 1 is never Float 1.0");
++        TypedQuery tight = typed("|x::tight(1)");
++        assertSame(tight, PureComparisons.asPures(tight));
++        assertSame(tight, EngineComparisons.asTheDatabases(tight));
++    }
++
++    private static boolean holdsFalse(TypedSpec n) {
++        if (n instanceof TypedCBoolean b && !b.value()) {
++            return true;
++        }
++        return n.children().stream().anyMatch(PureComparisonsTest::holdsFalse);
++    }
+ }
+diff --git a/docs/SEMANTICS_REGISTER.md b/docs/SEMANTICS_REGISTER.md
+index 37f8642e..ca072d73 100644
+--- a/docs/SEMANTICS_REGISTER.md
++++ b/docs/SEMANTICS_REGISTER.md
+@@ -275,6 +275,7 @@ that names S104 for functions generic over relations means S112).
+ | S399 | outcome (date equality; RULED by the user 2026-11-22, "Okay sounds good let's do it", on the proposal amended to cite S139 and to name its exception; the id PROVISIONAL until landing, allocated by the compat owner; DuckDB's per-assert nanosecond reading, the session's reading of the user's rule, ACCEPTED AS INTERIM by the user 2026-11-23 ("Accept the nanosecond clause as interim"), to be asked again when the product's == decides every assert (the "one equality" work)) | legend-pure: a date is its components and its subsecond as written -- `AbstractPureDate.equals` (legend-pure-m4 `coreinstance/primitive/date/AbstractPureDate.java:30-59`) compares year through second, an unwritten component as -1, and the subsecond's written text, so `%2020-01-01T10:00:00` is not `%2020-01-01T10:00:00.000`, `.5` is not `.500` and `%2020-01-01T10` is not `%2020-01-01T10:00:00`; a StrictDate never equals a DateTime (interpreted `EqualityUtilities.java:60-72`, compiled `CompiledSupport.java:979-990`). legend-engine reads every TIMESTAMP back at nine subsecond digits (`ExecuteInDb.java:71`, `RelationalResult.java:553-575`), so a literal written to the second fails against its own column (73 such expected failures in its relational PCT manifests, e.g. `pct-manifests/relational-h2/StandardFunctions_manifest.json:57-58`), and refuses a partial date in its SQL (`extensionDefaults.pure:149-153`) | lite's product compares a date by its kind and its instant, the database comparing (a day as a DATE, a date-time as a TIMESTAMP): a year, a year-month, a day and a date-time are kinds never equal across in the asserts (the product's own `==` does not follow the kinds yet: `%2020-01-02 == %2020-01-02T00:00` is true on DuckDB and H2 and false on SQLite, measured 2026-11-23 by the narrow review of f9e74256 -- a recorded gap the "one equality" work closes, when the product's `==` decides every assert); two date-times at one instant are equal whatever their written precision (an hour, a minute, a second, subsecond digits), as `==` already compares them inside a query; the instant is compared at every digit each value carries, up to nine (the user's rule of 2026-11-22, "if something has nanos we either compare properly or refuse if cannot; otherwise compare with micro fidelity", then "do nanoseconds typed for whatever range allows, refuse if out of range"): a date-time literal with a nonzero tenth fraction digit is refused when planned, under every judge (S181); H2 reads nine digits in every year; SQLite, whose date-times are texts, one normalized nine-digit text in every year (a year outside 0000 to 9999 read from its own text). A side whose values hold both days and date-times -- a list literal, read through a `map`, a `filter`, a `sort`, a `take` or an `if`, never into a function's arguments (a function's result, `max` or `at`, is the database's value with its own kind: PCT's `max` and `min` over days and date-times pass) (`VariantEquality.dateKinds`) -- is refused by name under both judges (DuckDB's and H2's arrays carry it as one kind, so its days cannot be told apart; the final audit of c758fe95: the host had called a day contained in one; the narrow review of f9e74256: a list read through a `map` had escaped). Recorded gap: such a list bound by a `let` reaches the judges as a variable, unread -- the host judge calls a day contained in it on DuckDB and H2 (Pure: not), the database judge leaves it unjudged; the product's `contains` answers it as Pure does. DuckDB, per assert: an assert whose literals carry a digit past the microsecond (a fact of the plan; the session's reading of the user's rule, posted 2026-11-22) is read in its typed nanosecond timestamp, which holds the days 1677-09-22 to 2262-04-10, a value outside them refused by name; any other assert in its microsecond timestamp in every year, a value with a digit past the sixth (a nanosecond column's) refused by name, never cut (no test anywhere compares a date-time with nanoseconds outside those days, read in legend-pure, legend-engine and lite, while legend-pure's adjust PCT compares 1624, 2407, 25489 and -21457 without). A refusal at run is the database judge's (`JUDGED_INSTANT_NOT_HELD`): the host judge alone compares every digit it holds, and under both judges a database refusal is their disagreement, naming it (open). Open, measured at S9: Postgres, MariaDB, BigQuery and Databricks read a date-time text with a cast to their microsecond type, and ClickHouse to its DateTime64(6). A Date written as its text takes its kind from its structure (a time after the day; else the dashes after the year's sign), a year and a year-month compared as integers of their components. Its other face: where Pure calls two values at one instant different by their written precision, lite calls them equal, so `assertEquals` passes where Pure fails and `assertNotEquals`, `assertNotEq` and `assertNotContains` of such a pair fail where Pure passes (read: no such pair in legend-pure's PCT; a few upstream checks of a function's precision -- `datePart.pure:47-48`, `dateExtension.pure:24,25,31`, `testFirstDayOf.pure:17-49` -- keep passing without checking it). The row's text corrected 2026-11-22 (the dates audit's MEDIUM 5): it had said the rule never fails a program Pure passes; that is the ruling's own consequence, the rule unchanged. Corrected again the same day: a microsecond cut written in by the session with the first correction (a digit past the sixth not compared) was never ruled and contradicted S181; the user's rule on precision replaced it. The compatibility routes (the host judge alone) kept legend-pure's equality, written precision included wherever lite holds it (a value read from a database holds none, as upstream's), until 2026-11-24: B3 step 1a (one rulebook, lite's) judges them by this row's rule too, measured to move no verdict on PCT channel B or the corpus. A deliberate exception, for the written precision of one instant alone, to the user's ruling of 2026-11-03 "never more lenient than upstream"; its precedent S139 (a Decimal compared by its value, its scale dropped) | the user, 2026-11-22 (posted with both upstream answers read from the pinned sources) | `testexec/LiteHostForms.equalDates`, `edge/CompiledPureHostForms.equalDates`, `testexec/Equality.same`; `testplan/JudgmentFacts.typedPair`, `dateKind`; `lowering/VerdictSql.typedClass`; `AssertBarTest` (`assertEquals-datetime-precision-is-no-value`, `datetime-trailing-zeros-equal`, `datetime-hour-equals-its-instant`, `strictdate-is-no-datetime`, `eachBodyIsOneOutcomeUnderEveryJudgeOnEachDatabase`) | item 3 (S4) **Since 2026-11-25 (B3 step 5a):** a day against a date-time in the body a door receives is a compile error in the product (the doors as for S127). |
+ | S400 | outcome (a list of Decimals' scale; RULED by the user 2026-11-22, "I think the right way in product is that they all widen to max one", on the posted question with both upstream answers read from the pinned sources; the id PROVISIONAL until landing, allocated by the compat owner) | legend-pure: a Decimal literal is a `BigDecimal` of its written text (`ModelRepository.java:568-571`; compiled `JavaPurePrimitiveTypeMapping.java:110-113`) and a list holds each element as its own value, so `[1.0D, 10.125D]` keeps scales 1 and 3 and prints `[1.0D, 10.125D]` (`SimpleDecimalCoreInstance.java:37-45`, `CompiledSupport.java:1276-1279`; `toRepresentation.pure:46`; `assertEquals.pure:21`); both runtimes compare value and scale (S139). legend-engine writes each Decimal literal `cast(<text> as DECIMAL(32,16))` (`pureToSQLQuery.pure:718-720`, `:10028`), a list on DuckDB a `list_value` of that type (`pureToSQLQuery_variant.pure:827-833`, `duckdbExtension.pure:287`), every element at scale 16, and its PCT harness refuses such a list result (`pct_relational.pure:190-203`); on H2 a list does not plan (`relational-h2/EssentialFunctions_manifest.json:238-239`); no PCT test depends on a list's per-element scale | lite's product gives a list of Decimals its DATABASE's own type (AMENDED by the user's ruling of 2026-11-22, the core follows Pure and takes a database's native answer for a cosmetic difference, docs/records/compat-rules-of-record-2026-11-19.md, last section; the ruling's widening pass, dialect/DecimalLists, built in b67362fe, retired the same day: it cast every mixed-scale list, and on BigQuery, ClickHouse and Snowflake every Float list whose literals ride a decimal type, for no verdict): H2, MariaDB and Postgres keep each element's scale, Pure's answer (`[1.0D, 10.125D]` is `[1.0, 10.125]`); DuckDB, SQLite's JSON list, ClickHouse, Snowflake and BigQuery give the list one type natively (`[1.000, 10.125]`). A comparison's verdict does not move (S139: Decimals compare by value); a list's printed and returned scale is its database's, and so is an element's text: `[1.0D, 10.125D]->map(x | $x->toString())` is `['1.000', '10.125']` on DuckDB and SQLite, Pure's `['1.0', '10.125']`, so a verdict over that text flips (the audit of 3f2fe452; unchanged by the retirement on DuckDB, whose list unified the scales before it). RULED by the user 2026-11-23: the database's, recorded -- "For compatibility it should print in the compatibility host the thing that matches pure. For product, the types should be correct, so toString I'm happy to do whatever makes most sense for the product": the product's text is the database's native one, its verdicts typed; the compatibility edge prints Pure's spelling of what the program finally prints, and text the database computed mid-query and used further stays a recorded difference there too. The compatibility edge prints a literal Decimal at its written scale where the plan carries it (open: the edge's form, a fact of the literals) | the user, 2026-11-22; amended the same day | each database's own list type (no pass); `AssertBarTest.aDecimalLiteralIsOneOutcomeOnEveryDatabase` (each database's scale, one verdict) | item 3 (S4) |
+ | S401 | outcome (two Variants' equality; RULED by the user 2026-11-23, "Okay", on the row posted that day after the measurement: no test on any lane but item 3's own compares two whole Variants, and the semantic rule costs DuckDB 70-95x `json()`; replaces the provisional document rule of 8477c703) | legend-pure: a Variant is a class with no equality keys, so `==` is identity -- interpreted `EqualityUtilities.equal` answers false for two instances unless they are one (`EqualityUtilities.java:92-136`), and compiled `VariantInstanceImpl.equals` first asks the wrapped instance's identity (`AbstractCoreInstanceWrapper.java:348-351`) before its Jackson text (`VariantInstanceImpl.java:59-75`); asked of the compiled runtime, two separately built Variants are never equal, even with identical JSON. A Variant against a number or a String is false (`CompiledSupport.equal`, `CompiledSupport.java:1028-1100`). Upstream's Variant tests compare `toString()`/`toJson()` texts, typed values (`to(@T)`) and paths (`get`), never two Variants (`core_functions_variant/functions/**`, `core_functions_relation/relation/tests/**`). legend-engine compares a Variant column with its database's own `=` (no Variant-specific equality, none tested) and refuses `fromJson` at plan generation | lite answers Pure's way wherever the types decide it: a Variant is never equal to a value of any other type (the product's `==` folds false at planning; both judges answer not equal). A side's values are read through every expression typed `Any` to where they come from -- a cast, a collection literal's members, an `if`'s branches (never its condition), a `filter`'s, `sort`'s, `take`'s or `slice`'s list (never its predicate, key or count), a `map`'s body (its parameter read as the list's values), a native call's arguments whose declared parameter carries the call's own type variable (`at`'s and `first`'s list, never an index; `add`'s list and value), a property read off an object literal (`VariantEquality.seen`; the narrow review of f9e74256 made an `if`'s Boolean branch a value and an index or a count none) -- so a Variant inside a list of other values is seen too; a `Pair`, `List` or `Map` holding a Variant -- by its type, or in a member the plan builds, a member declared `Any` included (`pair(1, fromJson('1')->cast(@Any))`) -- and a keyed class whose equality key is declared Variant, compare their Variants and are refused alike; an object's other properties are never compared (a keyed class by its keys, a keyless one by identity, S111), so a Variant in one is not refused (the review of a39883f3). Recorded gap: an object literal whose key declared `Any` holds a Variant is compared by the database. Where only identity would decide -- two whole Variants, a Variant and an `Any` the plan cannot see, or a Variant among values of other types the database would compare it with -- lite refuses by name ("an equality between two whole Variants is not computed ... compare a path (get), a typed value (to(@T)) or the JSON text (toString())"), in the product (`==`, `!=`, `contains`, `in`, `indexOf`, `removeDuplicates`, `removeDuplicatesBy`, `distinct`, `union`, `isDistinct`) and in both judges (`assertEquals`, `assertNotEquals`, `assertSameElements`, `assertContains`, `assertEq`, `assertNotEq`, `assertIs`, `assertIsNot`). A Variant against values of other types alone: `==` false (true where both sides are empty, Pure's `[] == []`), `contains`/`in` false, `indexOf` -1; both judges answer not equal. The one difference from Pure: the same Variant compared with itself (`let v = fromJson('1'); assertEquals($v, $v)`), which Pure answers true and lite refuses. Not yet refused, recorded for the user's ruling (the final audit of 2026-11-23): a relation's comparisons of a Variant column (`distinct`, `groupBy`, an `over` partition, a join key, an aggregate's DISTINCT including Cypher's `count(DISTINCT list)`) use the database's own equality, as before item 3, and the host judge reads a grid's Variant cells by their text; under the database judge a Variant's membership among values of other types has no typed form (refused by name); an `Any` whose values come from nowhere the plan holds -- a variable, a stored property typed `Any` -- may hold a Variant the plan cannot see, and is compared by the database's equality (the open "Any keeps its own type" work). Cypher's MERGE matches a stored list property by its orderability key, as Cypher's `=` does; within one MERGE, two rows wanting `[7, 8]` and `[7.0, 8.0]` create two nodes (grouped by JSON text) where Neo4j creates one | a database has no object identity (every value read from a row is a fresh value), so Pure's answer cannot be computed; every value rule is lite's own invention and none is needed by the spec. Measured 2026-11-23: DuckDB `json()` (as written) calls equal documents different on key order and number spelling; DuckDB `json_tree` (semantic) matches Postgres jsonb on 26 of 29 pairs but costs ~60 us a comparison; DuckDB VARIANT calls different documents equal (null-valued keys in arrays of objects) | `compiler/spec/typed/VariantEquality`, `lowering/InstanceEquality.staticallyDisjoint` and `disjointAnswer`, `lowering/Scalars` (membership and deduplication rules), `testplan/JudgmentFacts.refuseIdentityOnly`; `testplan/AssertBarTest`; the final audit's probes (`docs/records/compat-assert-records-progress.md`); the tripwire measurement (142 targets) and the warm sessions' JSON probes in `docs/records/compat-assert-records-progress.md` | item 3 **Since 2026-11-25 (B3 step 5a):** a Variant compared with a value of another known type in the body a door receives is a compile error in the product, never a silent `false` (the doors as for S127). |
++| S403 | outcome (a comparison across types in a mapping's M2M or `~func` code) | legend-pure: two values of different types are never equal (`1 == 1.0` is false), and an M2M transform means what its Pure says. legend-engine runs an M2M chain's transforms on the host, with Pure's meaning, and a relational mapping's operations in the database, with SQL's | lite types a mapping's code (a class mapping's, an association mapping's or a store view's function; relational, M2M and `~func` alike) with the cross-type check off, so a comparison across types there is the database's: `$src.salary < 50000`, a Decimal against an Integer, compares as SQL compares it, and an equality across types can be true where Pure answers false. For the relational mapping language that is Pure's own meaning, since its operations are SQL's (ruling 1, the same day). For M2M and `~func` code it is this row's difference: not strict and not refused, for now. Everywhere else a person writes Pure (the query, a function, a derived property, a constraint, a service query), a comparison across types is a compile error in the product, and each compatibility door inlines the functions and derived properties a statement calls and answers it there as in the query (B3 step 5a-2) | RULED by the user 2026-11-25: "Let's go with ruling 1 and m2m/~func not strict for the moment"; "follow the substring model if it works for this but don't refuse m2m/func for now". A mapping's code is reached by the store resolver after the body a door receives exists, so a door cannot rewrite it; strictness there waits for a design the user rules | measured 2026-11-25 (a probe over PCT, both corpus lanes and lite's suites): outside the query, PCT holds no comparison across types; the corpus holds 13 in relational mapping code, 2 in derived properties, 1 in a cross-store association mapping and 1 in a library function; lite's own tests 1 in an M2M mapping (`SalaryBandMapping`); `docs/records/compat-b3-progress.md` (step 5a-2) | `compiler/spec/Typer.mappingCode`, `edge/EngineComparisons.answered`; B3 |
+ 
+ **Renumbered 2026-10-30, at main's merge into the timeseries platform branch (PR #81's review).** Main and the
+ branch had each given S115 to a row of its own: main's (a Variant cell's wire text) keeps S115, which main's code and
