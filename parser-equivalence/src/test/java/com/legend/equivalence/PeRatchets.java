@@ -190,7 +190,12 @@ public final class PeRatchets {
                     + " claude/compat-b2-nufdlk: FloatTextTest's model gone, its pin a render of the edge's SQL with no"
                     + " fixture write (FixtureWriteCensusTest), and the integer-held product pin moved into"
                     + " RelationalMappingIntegrationTest.testManyColumnTypes, one model; measured by"
-                    + " //parser-equivalence:update_ratchets; DOWN)");
+                    + " //parser-equivalence:update_ratchets; DOWN)",
+            "own_corpus.matched 3345 -> 3346 (2026-11-25, B2b S5c with S5b's review fixes on claude/compat-b2-nufdlk,"
+                    + " found by the full round's update_ratchets_test: one more own-corpus model, added by the fix"
+                    + " round's tests (ProductRelationTextTest's enumeration model the new one), matches the reference"
+                    + " grammar; measured by //parser-equivalence:update_ratchets; a floor rising, approved by the"
+                    + " user's standing word of 2026-11-24 (\"parser bumps are always okay\"); UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

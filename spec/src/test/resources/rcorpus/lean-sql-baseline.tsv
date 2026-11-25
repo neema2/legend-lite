@@ -53,7 +53,7 @@ corpus	DuckDB	meta::relational::tests::advanced::forced::structure	4	3380	92486	
 corpus	DuckDB	meta::relational::tests::advanced::forcedselfjoin	1	1058	23137	4	0	0
 corpus	DuckDB	meta::relational::tests::advanced::resultSourcing	16	48113	182350	5	12578	1
 corpus	DuckDB	meta::relational::tests::advanced::structure	20	13876	381965	42	0	0
-corpus	DuckDB	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy	13	7242	133301	11	237	0
+corpus	DuckDB	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy	13	7242	133221	11	237	0
 corpus	DuckDB	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware	8	2091	45794	0	78	0
 corpus	DuckDB	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy	7	1603	36599	0	0	0
 corpus	DuckDB	meta::relational::tests::database	0	0	0	0	0	0
@@ -65,7 +65,7 @@ corpus	DuckDB	meta::relational::tests::functions::pureToSqlQuery	0	0	0	0	0	8
 corpus	DuckDB	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations	92	43537	604737	4	448	0
 corpus	DuckDB	meta::relational::tests::functions::sqlstring	0	0	0	0	0	27
 corpus	DuckDB	meta::relational::tests::getter	2	380	6688	0	0	0
-corpus	DuckDB	meta::relational::tests::groupBy	46	14035	326401	15	476	1
+corpus	DuckDB	meta::relational::tests::groupBy	46	14021	326387	15	476	1
 corpus	DuckDB	meta::relational::tests::groupBy::datePeriods	2	1579	102940	5	252	0
 corpus	DuckDB	meta::relational::tests::injection	0	0	0	0	0	0
 corpus	DuckDB	meta::relational::tests::json	0	0	0	0	0	1
@@ -87,7 +87,7 @@ corpus	DuckDB	meta::relational::tests::mapping::embedded::advanced	28	5389	20946
 corpus	DuckDB	meta::relational::tests::mapping::embedded::advanced::inline::nested	13	3268	77270	5	30	0
 corpus	DuckDB	meta::relational::tests::mapping::embedded::advanced::inline::targetid	8	1503	47448	0	172	0
 corpus	DuckDB	meta::relational::tests::mapping::embedded::optionalNumeric	3	379	7900	0	0	0
-corpus	DuckDB	meta::relational::tests::mapping::enumeration	5	3570	64595	0	32	0
+corpus	DuckDB	meta::relational::tests::mapping::enumeration	4	2994	52626	0	32	1
 corpus	DuckDB	meta::relational::tests::mapping::extend::all	2	655	14234	2	0	0
 corpus	DuckDB	meta::relational::tests::mapping::extend::distinct	2	495	12160	2	0	0
 corpus	DuckDB	meta::relational::tests::mapping::extend::embeddedPropertyMapping	2	432	11930	0	0	0
@@ -291,7 +291,7 @@ corpus	DuckDB	meta::relational::tests::query::view	7	3443	84281	7	0	0
 corpus	DuckDB	meta::relational::tests::runtime::extractDBs	0	0	0	0	0	0
 corpus	DuckDB	meta::relational::tests::semistructured::explode	0	0	0	0	0	0
 corpus	DuckDB	meta::relational::tests::tds::distinct	4	999	25985	2	32	0
-corpus	DuckDB	meta::relational::tests::tds::groupBy	29	7796	157916	7	505	0
+corpus	DuckDB	meta::relational::tests::tds::groupBy	29	7782	157902	7	505	0
 corpus	DuckDB	meta::relational::tests::tds::slice	5	317	11123	0	0	0
 corpus	DuckDB	meta::relational::tests::tds::sort	20	3667	93004	5	0	1
 corpus	DuckDB	meta::relational::tests::tds::tabletds	8	818	24717	2	0	0
@@ -306,12 +306,12 @@ corpus	DuckDB	meta::relational::tests::tds::tdsRename	6	935	25420	3	0	0
 corpus	DuckDB	meta::relational::tests::tds::tdsRestrict	13	2275	59617	6	0	0
 corpus	DuckDB	meta::relational::tests::tds::tdsRestrictDistinct	12	1765	58673	3	0	0
 corpus	DuckDB	meta::relational::tests::tds::tdsUnion	1	169	4722	1	0	0
-corpus	DuckDB	meta::relational::tests::tds::tdsWindow	5	2504	34072	1	351	0
+corpus	DuckDB	meta::relational::tests::tds::tdsWindow	5	2490	34058	1	351	0
 corpus	DuckDB	meta::relational::tests::tds::window::routing	0	0	0	0	0	1
 corpus	DuckDB	meta::relational::tests::typeInference	0	0	0	0	0	1
 corpus	DuckDB	meta::relational::transform::autogen::tests	0	0	0	0	0	1
 corpus	DuckDB	meta::relational::validation::complex	10	8677	197512	34	44	0
-corpus	DuckDB	meta::relational::validation::showcase::standalone	8	11690	243334	17	0	0
+corpus	DuckDB	meta::relational::validation::showcase::standalone	8	11690	243214	17	0	0
 corpus	DuckDB	meta::relational::validation::tests::milestoning	14	9489	174829	20	0	0
 corpus	H2	meta::external::store::relational::modelJoins::test	1	1843	9955	1	0	0
 corpus	H2	meta::pure::alloy::connections::tests::relationalMapper	0	0	0	0	0	0
@@ -366,7 +366,7 @@ corpus	H2	meta::relational::tests::advanced::forced::structure	4	3762	95284	6	0	
 corpus	H2	meta::relational::tests::advanced::forcedselfjoin	1	1194	23920	4	0	0
 corpus	H2	meta::relational::tests::advanced::resultSourcing	16	44591	168746	5	10250	1
 corpus	H2	meta::relational::tests::advanced::structure	20	15626	395543	42	0	0
-corpus	H2	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy	13	7790	140912	11	255	0
+corpus	H2	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy	13	7790	140832	11	255	0
 corpus	H2	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware	8	2154	49993	0	80	0
 corpus	H2	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy	7	1656	40267	0	0	0
 corpus	H2	meta::relational::tests::database	0	0	0	0	0	0
@@ -400,7 +400,7 @@ corpus	H2	meta::relational::tests::mapping::embedded::advanced	28	6158	225018	5	
 corpus	H2	meta::relational::tests::mapping::embedded::advanced::inline::nested	13	3578	84407	5	32	0
 corpus	H2	meta::relational::tests::mapping::embedded::advanced::inline::targetid	8	1729	51890	0	180	0
 corpus	H2	meta::relational::tests::mapping::embedded::optionalNumeric	3	409	9493	0	0	0
-corpus	H2	meta::relational::tests::mapping::enumeration	5	4039	67793	0	38	0
+corpus	H2	meta::relational::tests::mapping::enumeration	4	3427	55241	0	38	1
 corpus	H2	meta::relational::tests::mapping::extend::all	2	767	15452	2	0	0
 corpus	H2	meta::relational::tests::mapping::extend::distinct	2	638	13401	2	0	0
 corpus	H2	meta::relational::tests::mapping::extend::embeddedPropertyMapping	2	478	13034	0	0	0
@@ -624,5 +624,5 @@ corpus	H2	meta::relational::tests::tds::window::routing	0	0	0	0	0	1
 corpus	H2	meta::relational::tests::typeInference	0	0	0	0	0	1
 corpus	H2	meta::relational::transform::autogen::tests	0	0	0	0	0	1
 corpus	H2	meta::relational::validation::complex	10	9708	204731	34	48	0
-corpus	H2	meta::relational::validation::showcase::standalone	8	12780	249400	17	0	0
+corpus	H2	meta::relational::validation::showcase::standalone	8	12780	249280	17	0	0
 corpus	H2	meta::relational::validation::tests::milestoning	14	10490	183848	20	23	0

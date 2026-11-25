@@ -498,7 +498,30 @@ product keeps refusing a TDS's csv by name.
     was their one edge writer).
   - `EdgeOnlyMembersTest`: `DateFmt#TIME_ONLY`, whose one reader went; the format is deleted with it.
 
-**Moves:** MEASURED-MOVES.
+**Moves** (the full round on `8da71e1f8`, and the pins it found):
+- **Every lane green:**
+  - the local gate, core and its lanes, the edge on H2 and SQLite;
+  - every PCT lane, channel B and the engine lanes, with no roster, ledger or golden moved;
+  - `edge_net`, and the corpus on DuckDB and H2, whose verdicts held. `testEnumInRelation`'s
+    `$result.values->cast(@TDS<Any>).csv` is lifted to the Java printer's TDS_CSV form at the door.
+  - The Postgres, `is_numeric` and datacube targets failed only as root and passed on the unprivileged rerun.
+- **The corpus's lean SQL** (`//spec:lean_sql_corpus_duckdb`, `_h2`), family `mapping::enumeration`:
+  - "queries refused" 0 -> 1 on both lanes;
+  - statements 5 -> 4;
+  - chars 3,570 -> 2,994 (H2 4,039 -> 3,427);
+  - plan JSON 64,595 -> 52,626 (H2 67,793 -> 55,241).
+  - Why: the harness plans each body as the edge admits it, without B3's print lift, and `testEnumInRelation`'s TDS csv
+    is no SQL since S5c. The run lifts it and sends the relation read alone.
+  - The refused count's growth is posted to the user through the orchestrator, with both our leans on re-pinning it.
+    It lands only on the user's word. Other families shrink in plan size by a few characters (pre-approved).
+  - A prototype that measured bodies as the run sends them (B3's lift applied) moved 25+ families up, the SQL the
+    lift's reads send. It was reverted, and the finding is B3's.
+- **The parser floor:** `own_corpus.matched` 3345 -> 3346. One more of the fix round's test models (the enumeration
+  model in `ProductRelationTextTest`) matches the reference grammar; approved by the user's standing word, "parser bumps
+  are always okay" (`PeRatchets.HISTORY`).
+- **The core lean baseline:** DuckDB's two `toCSV` rows shrink (the review fixes, above).
+- **Guards:** the dated shrinks listed above. The one entry that grows is `PLANNER_ENTRIES`' `ReprParts#pureToString`
+  caller.
 
 ## Audits
 
