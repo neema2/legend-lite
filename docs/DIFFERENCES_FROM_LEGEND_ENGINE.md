@@ -114,9 +114,13 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 4. Float literals are floating point, not exact decimals
 - **You write:** `1.1 + 0.6`.
-- **legend-engine on DuckDB** answers `1.7`: it writes the literal bare, and DuckDB computes it as a decimal. (On H2,
-  legend-engine's literal processor writes `CAST(x AS FLOAT)`, a double, so H2 answers as lite does.)
-- **lite answers** `1.7000000000000002` on every database and door: a Float is a double, compiled Pure's answer.
+- **legend-engine on DuckDB** answers `1.7`: it writes the literal bare, and DuckDB computes it as a decimal. It
+  writes the literal bare on Postgres, Databricks and Trino too, which also read it as a decimal, so the same answer is
+  expected there (read from legend-engine's code; not measured on those three). On H2, legend-engine's literal
+  processor writes `CAST(x AS FLOAT)`, a double, so H2 answers as lite does.
+- **lite answers** `1.7000000000000002` on DuckDB, H2, Postgres, Databricks, Trino, SQLite, MariaDB and MySQL, at every
+  door: a Float is a double, compiled Pure's answer. On ClickHouse, BigQuery and Snowflake lite still writes a Float
+  literal as a decimal, at every door, until each is measured with the double (register S20), and answers `1.7`.
 - **Why:** Pure's Float is floating point.
 - **To get legend-engine's DuckDB answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
 - **When:** since 2026-11-25 (the user's ruling, "yes delete the float decimal thing"; the compatibility doors no longer
@@ -288,16 +292,21 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   row ends with its own newline, so a relation with no rows is the header line alone, where legend-engine's helper
   writes a second newline (and a one-column relation's one null row reads the same as none there). Under
   `toCSV(t, true)` an enumeration's value named `null` is written `null`, as a null is: a known collision (an
-  enumeration's cell is quoted only where its name holds a comma, a quote or a line break). Each other cell is lite's
-  text of its value, as `toString` writes it: a Float six decimals (`0.1234567` is `0.123457`), where the helper
-  writes legend-pure's print; lite's CSV output format, which writes returned values, writes a Float exactly. Lite
-  keeps the `toCSV` name.
+  enumeration's cell is quoted only where its name holds a comma, a quote or a line break). A Float cell is the
+  database's own full-precision text of the double, its own cast or format function and never a text composed in SQL,
+  in lite's product and in a `toCSV` used further in a query at every door (`1e-05` on DuckDB, `1.0E-5` on H2,
+  `1.0e-05` on SQLite, each read back as the very double; NaN and the infinities each database's spelling; the user's
+  ruling of 2026-11-25, "okay make exact"; Snowflake, BigQuery and Databricks not yet measured), where the helper
+  writes legend-pure's print (`0.00001`), as a last step's `toCSV` at legend-engine's and legend-pure's doors does
+  (printed in Java, above); each other cell is lite's text of its value,
+  as `toString` writes it. Lite keeps the `toCSV` name.
 - **A TDS's `.csv`** is the same as `toCSV()` in lite's product (the user's ruling of 2026-11-25, ".csv in product, yes
   same as toCSV"), where legend-engine joins the names with `", "`, writes an empty cell `TDSNull` and ends with no
   newline; at legend-engine's and legend-pure's doors a last step's `.csv` is legend-engine's text (register S405).
 - **Until B2b's S6**, a text used further at legend-engine's door writes its Float and DateTime cells as that door
-  writes a value's text (legend-engine's in-query cast for a Float, legend-pure's `+0000` for a DateTime); a last
-  step whose relation the door lifts is legend-pure's or legend-engine's own text (above).
+  writes a value's text (legend-engine's in-query cast for a Float, legend-pure's `+0000` for a DateTime), except
+  `toCSV`'s Float cell, the database's own full-precision text there since 2026-11-25; a last step whose relation the door
+  lifts is legend-pure's or legend-engine's own text (above).
 - **Ruled:** by the user on 2026-11-19: ~18:05, "Agree with all four table printing recommendations"; ~18:12, "Yes
   record it, and count the nested cases"; ~18:36, "Null is good"; ~20:05, "toCSV yes toString or another easy
   database sql that makes sense"; and on 2026-11-25, "For csv we can do empty cell for null and "" or '' empty string

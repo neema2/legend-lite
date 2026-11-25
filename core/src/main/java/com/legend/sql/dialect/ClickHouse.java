@@ -866,7 +866,7 @@ public class ClickHouse extends AnsiSqlRenderer {
                         // 2026-11-21: its name was held by the where alone until the where went)
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(
                                 new SqlExpr.StringLit("DateTime"), new SqlExpr.StringLit(p.name()),
-                                new SqlExpr.StringLit("ClickHouse"), new SqlExpr.IntLit(6)), null)),
+                                new SqlExpr.StringLit("ClickHouse"), new SqlExpr.IntLit(6)))),
                         w -> w.append("NOT coalesce(").piece(yearOutside).append(", false) AND ").piece(fractionPast)))
                 .append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
                 .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
@@ -1942,6 +1942,9 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            // a Float's full-precision text: ClickHouse's own toString (its shortest digits; a NULL stays NULL, where
+            // CAST to a non-Nullable String refuses one), never re-spelled
+            case FLOAT_FULL_TEXT -> writer.append("toString(").expr(c.args().get(0), 0).append(")");
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)

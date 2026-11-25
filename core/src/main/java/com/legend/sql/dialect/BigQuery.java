@@ -1589,6 +1589,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "STRING");   // its own cast: SqlFn's javadoc
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
@@ -2392,7 +2393,7 @@ public class BigQuery extends AnsiSqlRenderer {
      *  bare ERROR('...') outside it, which exec could not tell for a raise: the brief's defect). */
     private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
         // a map construction's raise, its kind alone (the D part 1 audit's S4, 2026-11-15; its where went with BE's item 2)
-        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null)), "ERROR");
+        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of())), "ERROR");
     }
 
     /** A map cast to another map's key and value types, entry by entry; the empty map {@code MAP_EMPTY} typed. */

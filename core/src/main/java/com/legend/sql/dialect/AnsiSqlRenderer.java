@@ -836,7 +836,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new SqlExpr.StringLit(bound),
                         co.statedSize() != null ? new SqlExpr.IntLit(co.statedSize())
-                                : SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null));
+                                : SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0)))));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
             return writer.expr(new SqlExpr.Case(
@@ -1064,8 +1064,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
-            // a raise's message where a raise is not (a checked graph's defect row: CONSTRAINT_UNEVALUABLE), written as a
-            // raise's is (raiseMessage)
+            // a raise's message where a raise is not, written as a raise's is (raiseMessage)
             case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
@@ -1244,18 +1243,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
-     * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
+     * {@code r}'s text as a SITE of the statement under way: the user's own message where it is a {@code fail}, else the token
      * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
      * with its kind and its operands (no words: each audience words a site after the run from its record;
      * stage B's B1, 2026-11-20). A raise written outside a statement's
      * render has no table to declare it, refused by name.
      */
     protected final SqlExpr site(SqlExpr.RaiseText r) {
-        if (r.asData() != null) {
-            // the kind's text as data in an answer (a checked graph's defect): the product's words, worded at planning
-            return new SqlExpr.StringLit(r.asData());
-        }
         if (r.kind() == com.legend.sql.RaiseKind.USER_FAIL) {
             return r.operands().get(0);
         }
@@ -2267,7 +2261,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(new SqlExpr.StringLit(kind),
                         new SqlExpr.StringLit(p.name()), new SqlExpr.StringLit(product()),
-                        new SqlExpr.IntLit(kept)), null));
+                        new SqlExpr.IntLit(kept))));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
                 .append(" AS " + text + ")");
         java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");

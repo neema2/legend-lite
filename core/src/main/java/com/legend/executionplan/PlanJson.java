@@ -175,8 +175,11 @@ public final class PlanJson {
      *  {@code ExecutionPlan.Site#sentence}); a v58 plan, which carries the product's words, is refused by its version.
      *  60 since 2026-11-21 (stage B's BE, the one error model): a site carries no {@code where} (its facts are its
      *  operands), and the raise kinds whose operand was prose are replaced by kinds whose operands are facts
-     *  (VALUE_NOT_HELD, FRACTION_NOT_KEPT and the old CSV_TOO_WIDE went); a v59 plan is refused by its version. */
-    public static final int VERSION = 60;
+     *  (VALUE_NOT_HELD, FRACTION_NOT_KEPT and the old CSV_TOO_WIDE went); a v59 plan is refused by its version.
+     *  61 since 2026-11-25 (stage B's B2b S7a, the user's ruling "go with A"; the slice's review): a raise record carries
+     *  no {@code asData} (a checked graph's unevaluable-constraint defect is a string literal) and the raise kind
+     *  CONSTRAINT_UNEVALUABLE went; a v60 plan, which may carry either, is refused by its version. */
+    public static final int VERSION = 61;
 
     private PlanJson() {
     }

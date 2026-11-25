@@ -135,19 +135,24 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                         + "->meta::relational::tests::csv::toCSV()"));
     }
 
-    /** A Float cell of the CSV text, the product's text of a Float (six decimals, the trailing zeros trimmed, a whole
-     *  value keeping one, S311):
-     *  never an in-query cast's exponent (PR #118 fix round, 2026-11-18: DuckDB's wrote 1e-05, H2's 1.0E-5) -- a DOUBLE
-     *  the database computes. */
+    /** A Float cell of the CSV text, the database's own exact text of the double the database computed (the user's
+     *  ruling of 2026-11-25, "okay make exact"; S311's amendment): each lane's database writes it its own way (DuckDB's
+     *  {@code 1e-05}, H2's {@code 1.0E-5}, SQLite's {@code 1.0e-05}), and every one reads back as the very double --
+     *  until then S311's six decimals ({@code 0.00001}). */
     @Test
-    void csvTextPrintsAFloatCellAsLitesText() throws SQLException {
-        assertEquals("""
-                x
-                0.00001
-                0.00002
-                """,
-                csv("|test::Person.all()->project([p | $p.id->toFloat() / 100000.0], ['x'])->sort(asc('x'))"
-                        + "->meta::relational::tests::csv::toCSV()"));
+    void csvTextPrintsAFloatCellAsTheDatabasesExactText() throws SQLException {
+        String got = csv("|test::Person.all()->project([p | $p.id->toFloat() / 100000.0], ['x'])->sort(asc('x'))"
+                + "->meta::relational::tests::csv::toCSV()");
+        String[] lines = got.split("\n");
+        assertEquals(3, lines.length, got);
+        assertEquals("x", lines[0]);
+        assertEquals(1.0 / 100000.0, Double.parseDouble(lines[1]), got);
+        assertEquals(2.0 / 100000.0, Double.parseDouble(lines[2]), got);
+        String pinned = java.util.Map.of("duckdb", "x\n1e-05\n2e-05\n", "h2", "x\n1.0E-5\n2.0E-5\n",
+                "sqlite", "x\n1.0e-05\n2.0e-05\n").get(backend().name());
+        if (pinned != null) {
+            assertEquals(pinned, got, backend().name());
+        }
     }
 
     /** The flag in the product (the user's ruling of 2026-11-25, register S420): a null the word null, every String

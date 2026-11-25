@@ -73,7 +73,13 @@ class SqlFnSortedTest {
             "CONCAT_WS", "COS", "COSH", "COT", "CURRENT_USER_FN", "DATETIME_CANON_TEXT", "DATETIME_TO_TEXT",
             "DATE_AT_TIME", "DATE_DIFF", "DATE_TRUNC", "DATE_TRUNC_DAY", "DAYNAME", "DECIMAL_TO_TEXT",
             "DECODE_BASE64", "DEGREES", "DIVIDE", "ENCODE_BASE64", "ENDS_WITH", "EPOCH_MS", "EPOCH_NS",
-            "EPOCH_SECONDS", "EQUAL", "ERROR", "EXP", "EXTRACT", "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT", "FLOOR",
+            "EPOCH_SECONDS", "EQUAL", "ERROR", "EXP", "EXTRACT", "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT",
+            // FLOAT_FULL_TEXT added 2026-11-25 (B2b, toCSV's Float cell exact; the user's ruling "okay make exact" and
+            // B3's (B) the same day, under the standing rule that a new function only product code writes is sorted
+            // PRODUCT with a dated note and reported): the database's own full-precision text of a double, written by
+            // lowering.ProductRelationText alone
+            "FLOAT_FULL_TEXT",
+            "FLOOR",
             "FLOOR_RAW", "FORMAT", "FROM_EPOCH_MS", "FROM_EPOCH_NS", "FROM_EPOCH_SECONDS", "GREATER", "GREATER_EQUAL",
             "GREATEST", "GUID", "HASH", "IN", "INT_DIVIDE", "IS_DISTINCT_FROM", "IS_NOT_NULL", "IS_NULL",
             // IS_NUMERIC added 2026-11-18 with J20 (222d136808, train 11, the user's ruling of 2026-11-17 23:05): the

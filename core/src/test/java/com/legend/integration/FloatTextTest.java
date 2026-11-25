@@ -112,10 +112,19 @@ class FloatTextTest {
                     backend.name() + " " + col);
             org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col), table, backend.name() + " " + col
                     + ": the edge's table text is lite's -- the window closed (S6): re-point this test");
-            // the helper's toCSV used further, the same window (the review of S5b, 2026-11-25): lite's CSV layout, each
-            // cell the edge's text of its value, not lite's CSV
+            // the helper's toCSV used further (the review of S5b, 2026-11-25): its DateTime cell the same window, the edge's
+            // text of its value; its Float cell the window CLOSED, the database's own full-precision text since the
+            // user's ruling of 2026-11-25 ("okay make exact"; SqlFn.FLOAT_FULL_TEXT, B3's (B)), which no edge pass
+            // re-spells -- the same CSV at the edge's door and in the product
             String csv = Lean.runInStyle(model, "|" + rows + "->select(~" + col + ")->meta::relational::tests::csv::toCSV()",
                     StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
+            if (col.equals("x")) {
+                String product = Lean.runInStyle(model, "|" + rows + "->select(~x)->meta::relational::tests::csv::toCSV()",
+                        StorelessRuntime.RUNTIME, backend, com.legend.database.PlanStyle.PRODUCT).rows().get(0).get(0)
+                        .toString();
+                assertEquals(product, csv, backend.name() + " x toCSV: the database's own text at every door");
+                continue;
+            }
             assertEquals(col + "\n" + String.join("\n", cells) + "\n", csv, backend.name() + " " + col + " toCSV");
             org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col).replace("#TDS\n   ", "").replace("\n   ", "\n")
                     .replace("\n#", "\n"), csv, backend.name() + " " + col

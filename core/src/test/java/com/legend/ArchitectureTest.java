@@ -1392,7 +1392,8 @@ final class ArchitectureTest {
             // approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
             // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
-            // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
+            // for the edge's engine SQL (row 21, legend-engine's DECIMAL, until the user deleted it 2026-11-25: the
+            // edge's dialects now say the product's kind); the user, 2026-11-17, approved 5b's landing ('Okay')
             "lowering.Lowerer#withFloatLiteralKind(java.util.function.Supplier)",
             "com.legend.Compiler com.legend.edge.EnginePlans",
             "planner.PlanEnv#floatLiteralKind()", "com.legend.edge.EnginePlans",

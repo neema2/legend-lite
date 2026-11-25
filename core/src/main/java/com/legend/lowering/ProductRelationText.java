@@ -33,7 +33,8 @@ import java.util.function.Function;
  * the PRODUCT's own text node of its value on every plan style ({@link Styled#PRODUCT}: the cells of a text used further
  * in a query are lite's text, the user's ~18:12 ruling, "Yes record it"; until B2b's S6, under the edge's style the edge
  * dialect's value passes re-spell a Float and a DateTime cell as they re-spell any such text there -- a window recorded
- * in docs/records/compat-b2-progress.md's S5a, pinned by FloatTextTest).
+ * in docs/records/compat-b2-progress.md's S5a, pinned by FloatTextTest; closed for toCSV's Float cell, the
+ * database's full-precision text of the double since 2026-11-25, {@code SqlFn.FLOAT_FULL_TEXT}, which no pass re-spells).
  * <ul>
  *   <li>{@code toString}: legend-pure's {@code #TDS} layout -- {@code #TDS}, the names line, one {@code '   '}-prefixed
  *       line per row with its cells joined {@code ,}, {@code #}; a name quoted unless {@code ^[a-zA-Z0-9_]+$}; an empty
@@ -291,10 +292,11 @@ final class ProductRelationText {
      *  under {@code explicitNulls} ({@code toCSV(t, true)}); a String or a Variant cell quoted under {@code explicitNulls},
      *  its quotes doubled (a Variant's JSON null is {@code "null"}, never the null word: the orchestrator's ruling of
      *  2026-11-25, Q-B); a number's, a Boolean's or a date's text as it is (it never holds a comma, a quote or a line break and is
-     *  never empty: a fold of a fact fixed by the type, the review of S5b); any other cell's text quoted where it is
-     *  empty or holds a comma, a quote or a line break ({@link #escaped}). */
+     *  never empty: a fold of a fact fixed by the type, the review of S5b), a Float's the database's exact text of the
+     *  double ({@link #exactFloat}); any other cell's text quoted where it is empty or holds a comma, a quote or a line
+     *  break ({@link #escaped}). */
     private static SqlExpr csvCell(SqlExpr c, Type t, boolean explicitNulls) {
-        SqlExpr text = valueText(t, c);
+        SqlExpr text = t == Type.Primitive.FLOAT ? exactFloat(c) : valueText(t, c);
         SqlExpr rendered = PLAIN_TEXT.contains(t) ? text
                 : explicitNulls && (t == Type.Primitive.STRING || variant(t)) ? quotedCsv(text)
                 : escaped(text);
@@ -357,6 +359,19 @@ final class ProductRelationText {
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, c),
                 new SqlExpr.StringLit(variant ? "'null'" : "null"))), rendered, SqlExpr.Reason.PRINT);
+    }
+
+    /** A Float's CSV cell (the user's ruling of 2026-11-25, "okay make exact", relayed by B3; S311's amendment): the
+     *  database's own full-precision text of the double ({@link SqlFn#FLOAT_FULL_TEXT}: its own cast or format
+     *  function, each dialect's spelling, never a text composed in SQL -- B3's (B), 2026-11-25), never six decimals.
+     *  Measured exact (read back as the very double) on DuckDB, H2 and SQLite here; the text differs by database
+     *  ({@code 1e-07} on DuckDB, {@code 1.0E-7} on H2), and NaN and the infinities are each database's spelling. A value
+     *  the database holds as an integer or a decimal is read as a double first, by the database's own conversion
+     *  (DuckDB's from a DECIMAL is not always correctly rounded, {@code DuckDb}'s javadoc). */
+    private static SqlExpr exactFloat(SqlExpr x) {
+        SqlExpr d = x.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == SqlType.Scalar.DOUBLE ? x
+                : new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DECLARED);
+        return SqlExpr.Call.of(SqlFn.FLOAT_FULL_TEXT, d);
     }
 
     /** The product's text of a value of type {@code t}: the scalar toString rule's arms ({@link Scalars}), under the

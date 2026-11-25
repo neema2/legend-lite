@@ -294,7 +294,7 @@ public sealed interface SqlExpr
             case FormatLit ignored -> this;
             case DatePartLit ignored -> this;
             case JsonKindLit ignored -> this;
-            case RaiseText r -> new RaiseText(r.kind(), cs, r.asData());
+            case RaiseText r -> new RaiseText(r.kind(), cs);
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
             case KeyCell ignored -> this;
@@ -684,8 +684,9 @@ public sealed interface SqlExpr
         public enum Kind {
             /** The double: the product's literal (S20, "IEEE everywhere"). */
             DOUBLE,
-            /** The DECIMAL of its digits (the numeric charter's Rule 1): legend-engine's bare literal at the edge, and
-             *  the databases whose DOUBLE literal their lanes have not measured yet. */
+            /** The DECIMAL of its digits (the numeric charter's Rule 1): the databases whose DOUBLE literal their
+             *  lanes have not measured yet (ClickHouse, BigQuery, Snowflake). Until 2026-11-25 the compatibility edge
+             *  wrote it too, as legend-engine's bare literal (register S20). */
             DECIMAL
         }
 
@@ -1266,28 +1267,22 @@ public sealed interface SqlExpr
      * an operand (a product error is its kind and where, never the value: no text built in SQL); every door words a raise
      * after the run from its site's record (stage B's B1, 2026-11-20). Only {@link RaiseKind#USER_FAIL}'s one
      * operand, the user's own message, is the product's to write. The message argument of {@code Call(ERROR, ...)}.
-     * {@code asData}: where the kind's text is DATA in an answer rather than raised -- a checked graph's defect row --
-     * the product's words for it, a fixed text known at planning (the error layer's {@code ErrorKind} sentence and
-     * where, worded by the lowering: the D part 1 audit's S3, 2026-11-15); null for a raise, which exec words.
-     * No {@code where}: a raise is its kind and its operands, the facts, and its position in the query (the user's
+     * (Its {@code asData}, a checked graph's defect text carried beside an unread kind and operands: gone 2026-11-25,
+     * B2b's S7a, the user's ruling "go with A" -- the defect's sentence is a plain literal, as a violated constraint's
+     * is since S3b.) No {@code where}: a raise is its kind and its operands, the facts, and its position in the query (the user's
      * ruling of 2026-11-15, "its kind and where it happened in the query", held by the operands and the position;
      * stage B's BE, 2026-11-21: until then a fixed text beside the operands, which repeated them or was prose).
      */
-    record RaiseText(RaiseKind kind, List<SqlExpr> operands, @com.legend.base.Nullable String asData)
-            implements SqlExpr {
+    record RaiseText(RaiseKind kind, List<SqlExpr> operands) implements SqlExpr {
         public RaiseText {
             java.util.Objects.requireNonNull(kind, "a raise's kind");
             operands = List.copyOf(operands);
         }
 
-        public RaiseText(RaiseKind kind, List<SqlExpr> operands) {
-            this(kind, operands, null);
-        }
-
         /** A raise of {@code kind} placed by one fixed fact composed at planning, its one operand -- a bound, a
          *  native's name; never a computed value (the D part 1 audit's S4, 2026-11-15). */
         public static RaiseText placed(RaiseKind kind, String fact) {
-            return new RaiseText(kind, List.of(new StringLit(fact)), null);
+            return new RaiseText(kind, List.of(new StringLit(fact)));
         }
 
         @Override

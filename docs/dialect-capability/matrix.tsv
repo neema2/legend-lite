@@ -186,6 +186,7 @@ H2	H2	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'fa
 H2	H2	call	DECIMAL_TO_TEXT	emulated	REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')		0
 H2	H2	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 H2	H2	call	FLOAT_TO_TEXT	emulated	floatToText		0
+H2	H2	call	FLOAT_FULL_TEXT	emulated	castAs: VARCHAR		0
 H2	H2	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -418,6 +419,7 @@ Postgres	Postgres	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 Postgres	Postgres	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Postgres	Postgres	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 Postgres	Postgres	call	FLOAT_TO_TEXT	emulated	floatToText		0
+Postgres	Postgres	call	FLOAT_FULL_TEXT	emulated	castAs: VARCHAR		0
 Postgres	Postgres	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -650,6 +652,7 @@ Snowflake	Snowflake	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 Snowflake	Snowflake	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Snowflake	Snowflake	call	FLOAT_SHORTEST_TEXT	emulated	by its operands: composed / composed		0
 Snowflake	Snowflake	call	FLOAT_TO_TEXT	emulated	floatToText		0
+Snowflake	Snowflake	call	FLOAT_FULL_TEXT	emulated	floatFullText		0
 Snowflake	Snowflake	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -882,6 +885,7 @@ Trino	Trino	call	BOOL_TO_TEXT	emulated	CAST(… AS VARCHAR)		2
 Trino	Trino	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Trino	Trino	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 Trino	Trino	call	FLOAT_TO_TEXT	emulated	floatToText		0
+Trino	Trino	call	FLOAT_FULL_TEXT	emulated	castAs: VARCHAR		0
 Trino	Trino	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -1114,6 +1118,7 @@ BigQuery	BigQuery	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
 BigQuery	BigQuery	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 BigQuery	BigQuery	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 BigQuery	BigQuery	call	FLOAT_TO_TEXT	emulated	floatToText		0
+BigQuery	BigQuery	call	FLOAT_FULL_TEXT	emulated	castAs: STRING		0
 BigQuery	BigQuery	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -1346,6 +1351,7 @@ Databricks	Databricks	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
 Databricks	Databricks	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Databricks	Databricks	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 Databricks	Databricks	call	FLOAT_TO_TEXT	emulated	floatToText		0
+Databricks	Databricks	call	FLOAT_FULL_TEXT	emulated	castAs: STRING		0
 Databricks	Databricks	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -1578,6 +1584,7 @@ DuckDb	DuckDB	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 DuckDb	DuckDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 DuckDb	DuckDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 DuckDb	DuckDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+DuckDb	DuckDB	call	FLOAT_FULL_TEXT	emulated	castAs: VARCHAR		0
 DuckDb	DuckDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -1810,6 +1817,7 @@ ClickHouse	ClickHouse	call	BOOL_TO_TEXT	spelled	toString		2
 ClickHouse	ClickHouse	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 ClickHouse	ClickHouse	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 ClickHouse	ClickHouse	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ClickHouse	ClickHouse	call	FLOAT_FULL_TEXT	spelled	toString		0
 ClickHouse	ClickHouse	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -2042,6 +2050,7 @@ SQLite	SQLite	call	BOOL_TO_TEXT	emulated	textOf		2
 SQLite	SQLite	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 SQLite	SQLite	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 SQLite	SQLite	call	FLOAT_TO_TEXT	emulated	floatToText		0
+SQLite	SQLite	call	FLOAT_FULL_TEXT	emulated	exactText		0
 SQLite	SQLite	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -2274,6 +2283,7 @@ MariaDb	MariaDB	call	BOOL_TO_TEXT	emulated	textOf		2
 MariaDb	MariaDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 MariaDb	MariaDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 MariaDb	MariaDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+MariaDb	MariaDB	call	FLOAT_FULL_TEXT	emulated	castAs: CHAR		0
 MariaDb	MariaDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
@@ -2506,6 +2516,7 @@ MySql	MySQL	call	BOOL_TO_TEXT	emulated	textOf	as MariaDb	2
 MySql	MySQL	call	DECIMAL_TO_TEXT	emulated	varcharCast	as MariaDb	0
 MySql	MySQL	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as MariaDb	0
 MySql	MySQL	call	FLOAT_TO_TEXT	emulated	floatToText	as MariaDb	0
+MySql	MySQL	call	FLOAT_FULL_TEXT	emulated	castAs: CHAR	as MariaDb	0
 MySql	MySQL	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
@@ -2738,6 +2749,7 @@ MongoDb	MongoDB	call	BOOL_TO_TEXT	emulated	op1: $toString		0
 MongoDb	MongoDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 MongoDb	MongoDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 MongoDb	MongoDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+MongoDb	MongoDB	call	FLOAT_FULL_TEXT	emulated	op1: $toString		0
 MongoDb	MongoDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0

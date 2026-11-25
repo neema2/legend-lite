@@ -71,7 +71,8 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
     }
 
     /** How a Float LITERAL reaches the database in legend-engine's SQL: its literal processor for a Float, per
-     *  database (legend-engine 4.145.0, read). Lite writes a Float literal bare already, except at an extreme magnitude
+     *  database (legend-engine 4.145.0, read). Lite writes a Float literal as a double (the edge too, since 2026-11-25:
+     *  register S20), except at an extreme magnitude
      *  ({@link com.legend.sql.SqlTyping#floatDecimal}); under a {@code toString} the edge writes it as upstream does, so
      *  the database's cast prints what legend-engine's prints (Phase 5, row 8 of the edge program, 2026-11-16). */
     enum FloatLiteral {
