@@ -205,7 +205,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Coercions", "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.CellTexts")),
             Map.entry("COALESCE", Set.of(
-                    "com.legend.lowering.ProductRelationText",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     // (lowering.LiteVerdictWords, census J29's lite verdict sentences: gone 2026-11-22, item 3's S4 step 4)
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",
                     "com.legend.lowering.Dedup", "com.legend.lowering.GraphAggDecorrelate",
@@ -261,7 +261,7 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.FloatShortestText")),
             Map.entry("FLOAT_TO_TEXT", Set.of("com.legend.lowering.LiteralSpelling")),
             Map.entry("GREATER", Set.of(
-                    "com.legend.lowering.ProductRelationText",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.CollectionLanes", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.DateShifts", "com.legend.lowering.Dedup", "com.legend.lowering.KeyedCounts",
@@ -291,7 +291,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.LateralExplodeToUnion", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("IS_NULL", Set.of(
-                    "com.legend.lowering.ProductRelationText",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CheckedEnvelope",
                     "com.legend.lowering.Coercions", "com.legend.lowering.CollectionLanes",
                     "com.legend.sql.ExistsJoins", "com.legend.lowering.Fold",
@@ -365,7 +365,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars", "com.legend.sql.EnumValueTables",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("OR", Set.of(
-                    "com.legend.lowering.ProductRelationText",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.EnumSourceValues", "com.legend.lowering.MixedEncoding",
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars",
@@ -379,7 +379,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CommonSubexpressions")),
             Map.entry("REPLACE", Set.of(
-                    "com.legend.lowering.ProductRelationText",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.LiteralSpelling",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
@@ -393,7 +393,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText")),
             Map.entry("STRPOS", Set.of(
-                    "com.legend.lowering.ProductRelationText",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.FloatShortestText",
@@ -700,7 +700,7 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated")),
             Map.entry("STRING_AGG", Set.of(
-                    "com.legend.lowering.ProductRelationText",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.Aggregates", "com.legend.lowering.Fold", "com.legend.lowering.Lowerer",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.ValueCollections",
