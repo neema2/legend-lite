@@ -15,7 +15,15 @@ legend-lite reimplements legend-pure and legend-engine: it compiles Pure to SQL,
 
 A mode may change the SQL **only** where the answer itself differs and Java can't fix it afterwards (**rule zero**). Everything else is presentation in Java at the edge (**tenet 1 as amended**). The product stays lean. PMCD (both directions) and SQL plan import/export follow this program, at the edge.
 
-### 0.2 The design of record: v3
+### 0.15 LATEST (2026-11-25, late night): read `edition-v4-direction-2026-11-25.md` first
+
+The third review found v3's mechanism (a meaning pass at the store resolver's exit) not ready. The direction now:
+- an edition is a set of **overrides on the lowering's one rule selection** (`Scalars.lower`: `FeatureRules.select`, then `RULES`; raises chosen in one function by kind), handed in by the door per query;
+- placement comes from **two neutral markers stamped at G½** while `let`s still exist: "computed without reading a store" (A3's own `StatementEffects.reaches` test) and "the query of an `execute()` call".
+
+It is partly verified, with a two-hour homework list. The user's fallback if it can't be proven in time: take the database's `substring`/`indexOf` everywhere under `engine`, record the host-side-`let` tests as known differences, and delete A3. Everything else in v3 carries over. Three decisions are open (that file's §6).
+
+### 0.2 The design of record: v3 (its mechanism superseded by 0.15)
 
 **`edition-design-v3-2026-11-25.md` (v3) is the design**, a DRAFT under the third independent review. It merges v2, every ruling since (`edition-homework/v2-amendments-ruled-2026-11-25.md`, items 1-22, with the user's words) and all the research. Where v3 and an amendment's quoted ruling disagree, the ruling wins; report it.
 
