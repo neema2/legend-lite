@@ -80,20 +80,20 @@ class PureRelationTextTest {
      *  fraction-kind value a Float; a Decimal at its scale; a Boolean; a date; a time. */
     @Test
     void aValueIsLegendPuresPrint() {
-        assertEquals("7", PureRelationText.value(7L, col("i", "Integer")));
-        assertEquals("2.0", PureRelationText.value(2.0d, col("f", "Float")));
-        assertEquals("0.00001", PureRelationText.value(0.00001d, col("f", "Float")));
-        assertEquals("100000000000000000000.0", PureRelationText.value(1e20d, col("f", "Float")));
-        assertEquals("2.0", PureRelationText.value(2L, col("f", "Float")));
-        assertEquals("81.18", PureRelationText.value(new BigDecimal("81.180"), col("f", "Float")));
+        assertEquals("7", PureValueText.cell(7L, col("i", "Integer")));
+        assertEquals("2.0", PureValueText.cell(2.0d, col("f", "Float")));
+        assertEquals("0.00001", PureValueText.cell(0.00001d, col("f", "Float")));
+        assertEquals("100000000000000000000.0", PureValueText.cell(1e20d, col("f", "Float")));
+        assertEquals("2.0", PureValueText.cell(2L, col("f", "Float")));
+        assertEquals("81.18", PureValueText.cell(new BigDecimal("81.180"), col("f", "Float")));
         // a decimal the database held under a Float column is the double it is declared (the review of 2026-11-24)
-        assertEquals("0.3333333333333333", PureRelationText.value(new BigDecimal("0.333333333333333333"),
+        assertEquals("0.3333333333333333", PureValueText.cell(new BigDecimal("0.333333333333333333"),
                 col("f", "Float")));
-        assertEquals("3", PureRelationText.value(3L, col("n", "Number")));
-        assertEquals("81.18", PureRelationText.value(new BigDecimal("81.180"), col("n", "Number")));
-        assertEquals("1.50", PureRelationText.value(new BigDecimal("1.50"), col("d", "Decimal")));
-        assertEquals("true", PureRelationText.value(true, col("b", "Boolean")));
-        assertEquals("10:30:15", PureRelationText.value(new PureTimeLiteral.TimeWithSecond(10, 30, 15),
+        assertEquals("3", PureValueText.cell(3L, col("n", "Number")));
+        assertEquals("81.18", PureValueText.cell(new BigDecimal("81.180"), col("n", "Number")));
+        assertEquals("1.50", PureValueText.cell(new BigDecimal("1.50"), col("d", "Decimal")));
+        assertEquals("true", PureValueText.cell(true, col("b", "Boolean")));
+        assertEquals("10:30:15", PureValueText.cell(new PureTimeLiteral.TimeWithSecond(10, 30, 15),
                 col("t", "StrictTime")));
     }
 
@@ -102,31 +102,31 @@ class PureRelationTextTest {
      *  them on JDK 21 (2026-11-24). */
     @Test
     void aFloatIsLegendPuresDecimalFormat() {
-        assertEquals("0.0", PureRelationText.pureFloat(-0.0d));
-        assertEquals("0.0", PureRelationText.pureFloat(0.0d));
-        assertEquals("-0.25", PureRelationText.pureFloat(-0.25d));
-        assertEquals("403018489792982720.0", PureRelationText.pureFloat(4.030184897929827E17));
-        assertEquals("99999999999999990000000.0", PureRelationText.pureFloat(1e23));
-        assertEquals("\u221E", PureRelationText.pureFloat(Double.POSITIVE_INFINITY));
-        assertEquals("-\u221E", PureRelationText.pureFloat(Double.NEGATIVE_INFINITY));
-        assertEquals("NaN", PureRelationText.pureFloat(Double.NaN));
-        assertEquals("0.3", PureRelationText.pureFloat(0.3d));
-        assertEquals("0.30000000000000004", PureRelationText.pureFloat(0.1d + 0.2d));
+        assertEquals("0.0", PureValueText.pureFloat(-0.0d));
+        assertEquals("0.0", PureValueText.pureFloat(0.0d));
+        assertEquals("-0.25", PureValueText.pureFloat(-0.25d));
+        assertEquals("403018489792982720.0", PureValueText.pureFloat(4.030184897929827E17));
+        assertEquals("99999999999999990000000.0", PureValueText.pureFloat(1e23));
+        assertEquals("\u221E", PureValueText.pureFloat(Double.POSITIVE_INFINITY));
+        assertEquals("-\u221E", PureValueText.pureFloat(Double.NEGATIVE_INFINITY));
+        assertEquals("NaN", PureValueText.pureFloat(Double.NaN));
+        assertEquals("0.3", PureValueText.pureFloat(0.3d));
+        assertEquals("0.30000000000000004", PureValueText.pureFloat(0.1d + 0.2d));
     }
 
     /** A date: its day when it has no time; with one, its seconds, at least three subsecond digits (the finer ones
      *  without their trailing zeros) and {@code +0000} -- the edge's SQL composition's rule until B2b. */
     @Test
     void aDateIsItsDayOrItsTdsInstant() {
-        assertEquals("2014-01-01", PureRelationText.date(new PureDateLiteral.StrictDate(2014, 1, 1)));
+        assertEquals("2014-01-01", PureValueText.tdsDate(new PureDateLiteral.StrictDate(2014, 1, 1)));
         assertEquals("2014-01-01T10:20:30.000+0000",
-                PureRelationText.date(new PureDateLiteral.DateWithSecond(2014, 1, 1, 10, 20, 30)));
+                PureValueText.tdsDate(new PureDateLiteral.DateWithSecond(2014, 1, 1, 10, 20, 30)));
         assertEquals("2014-01-01T10:20:30.500+0000",
-                PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "5")));
+                PureValueText.tdsDate(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "5")));
         assertEquals("2014-01-01T10:20:30.1234+0000",
-                PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "1234")));
+                PureValueText.tdsDate(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "1234")));
         assertEquals("2014-01-01T10:20:30.123456789+0000",
-                PureRelationText.date(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "123456789")));
+                PureValueText.tdsDate(new PureDateLiteral.DateWithSubsecond(2014, 1, 1, 10, 20, 30, "123456789")));
     }
 
     /** s.pure matches the value's runtime type: an enumeration's value is no String, so a brace in its name is not
@@ -141,7 +141,7 @@ class PureRelationTextTest {
     @Test
     void aCellWithNoRuleIsRefusedByName() {
         com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> PureRelationText.value(List.of(1L), col("l", "Integer")));
+                () -> PureValueText.cell(List.of(1L), col("l", "Integer")));
         assertTrue(e.getMessage().contains("'l'") && e.getMessage().contains("not written at the edge"),
                 e.getMessage());
         // a date toCSV's formats cannot write (legend-pure's format raises on a missing component)
@@ -205,6 +205,21 @@ class PureRelationTextTest {
         assertEquals("xax", PureRelationText.replaced("a", List.of(new PureRelationText.Replace("", "x"))));
     }
 
+    /** A last step's Float print at legend-pure's door, legend-pure's (B2b S6a's legend-pure door, 2026-11-25): the
+     *  double the Float is declared, by legend-pure's DecimalFormat -- where the edge's SQL print pass writes
+     *  legend-engine's in-query cast. Anything else is refused by name: the door lifts a Float's print alone. */
+    @Test
+    void aLastStepsFloatIsLegendPuresPrint() {
+        ExecutionPlan.Column f = col("value", "Float");
+        assertEquals("0.000000013421", PureValueText.value(1.3421e-8d, f));
+        assertEquals("134210000.0", PureValueText.value(1.3421e8d, f));
+        assertEquals("2.0", PureValueText.value(2L, f));
+        assertEquals("0.30000000000000004", PureValueText.value(0.1d + 0.2d, f));
+        assertThrows(com.legend.error.NotImplementedException.class, () -> PureValueText.value(5L, col("v", "Integer")));
+        assertThrows(com.legend.error.NotImplementedException.class, () -> PureValueText.value(
+                new PureDateLiteral.DateWithSecond(2014, 1, 1, 10, 20, 30), col("v", "DateTime")));
+    }
+
     // ---- the writer: a run's receiver ----------------------------------------------------------------------------
 
     @Test
@@ -221,5 +236,12 @@ class PureRelationTextTest {
                 List.of(), got::add).end());
         assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(
                 PureRelationTextWriter.Form.TO_STRING, List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.VALUE));
+        // a Float's print (B2b S6a's legend-pure door): a value's answer alone, and one value
+        PureRelationTextWriter v = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, List.of(), got::add);
+        v.answers(ExecutionPlan.TdsResult.Shape.VALUE);
+        assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE,
+                List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.RELATION));
+        v.columns(List.of(col("value", "Float")));
+        assertThrows(IllegalStateException.class, v::end);
     }
 }

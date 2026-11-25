@@ -2016,6 +2016,11 @@ class JavaEvalLedgerTest {
                             // program's literal replace calls on the printed text, the user's ruling of 2026-11-24
                             // ~13:53 ("also do the replace in java too")
                             "PureRelationText.java", "PureRelationTextWriter.java",
+                            // the edge's one value printer (B2b S6a's legend-pure door, 2026-11-25, the orchestrator's
+                            // agreement, G1): the cell rules moved, unchanged, from PureRelationText (a move), and
+                            // legend-pure's print of a last step's Float at legend-pure's door, the same pureFloat --
+                            // spells a typed value, decides nothing
+                            "PureValueText.java",
                             // a program whose last step prints a relation, lifted at legend-pure's and legend-engine's
                             // doors (stage B's B2, B2b S2, 2026-11-24: the plan of record's B2; E0 = A, 2026-11-20, "E0 -
                             // yes"): reads the typed query, removes the final toString/toCSV and its literal replace

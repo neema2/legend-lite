@@ -62,8 +62,17 @@ public final class PrintedRelations {
      *  the orchestrator's request of 2026-11-24). A {@code replace} whose target or replacement is no literal, or a
      *  print this edge does not write, is null. */
     public static @com.legend.base.Nullable Side side(TypedSpec e) {
-        TypedSpec last = e;
         List<PureRelationText.Replace> replaces = new ArrayList<>();
+        TypedSpec last = beneathReplaces(e, replaces);
+        Printed printed = last == null ? null : printed(last);
+        return printed == null ? null : new Side(printed.relation(), printed.form(), replaces);
+    }
+
+    /** {@code e} beneath its {@code replace} calls, each added to {@code replaces} in the program's order; null where
+     *  one's target or replacement is no literal (nothing is read then). */
+    private static @com.legend.base.Nullable TypedSpec beneathReplaces(TypedSpec e,
+            List<PureRelationText.Replace> replaces) {
+        TypedSpec last = e;
         // the replace calls, outermost first; each with literal arguments, else nothing is read
         while (last instanceof TypedNativeCall c && c.callee().qualifiedName().equals(PlatformTypes.STRING_REPLACE)
                 && c.args().size() == 3) {
@@ -73,8 +82,34 @@ public final class PrintedRelations {
             replaces.add(0, new PureRelationText.Replace(target.value(), with.value()));
             last = c.args().get(0);
         }
-        Printed printed = printed(last);
-        return printed == null ? null : new Side(printed.relation(), printed.form(), replaces);
+        return last;
+    }
+
+    /**
+     * A program whose last step prints a Float's value, lifted at LEGEND-PURE'S door (stage B's B2b S6a, its legend-pure
+     * door, 2026-11-25; the orchestrator's agreement and relay of the same day): {@code x->toString()}, {@code x} a Float,
+     * followed by any number of {@code replace} calls with literal arguments, answers the query that computes {@code x}
+     * and legend-pure's print of the value, in Java ({@link PureRelationTextWriter.Form#VALUE},
+     * {@link PureValueText#value}) -- where the edge's SQL print pass writes legend-engine's in-query cast (on H2
+     * {@code 1.3421E-8}, where legend-pure prints {@code 0.000000013421}). Read by legend-pure's door alone: legend-engine's
+     * door's value texts, and with them the passes' deletion and a test body's value prints (B3's lift reads
+     * {@link #side}, relations alone), wait for the user's ruling. Null where the last step is no such print.
+     */
+    public static @com.legend.base.Nullable Lifted liftValue(com.legend.TypedQuery query) {
+        List<TypedSpec> body = query.body();
+        if (body.isEmpty()) {
+            return null;
+        }
+        List<PureRelationText.Replace> replaces = new ArrayList<>();
+        TypedSpec last = beneathReplaces(body.get(body.size() - 1), replaces);
+        if (!(last instanceof TypedNativeCall c && c.callee().qualifiedName().equals(PlatformTypes.TO_STRING)
+                && c.args().size() == 1
+                && c.args().get(0).info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT)) {
+            return null;
+        }
+        List<TypedSpec> lifted = new ArrayList<>(body.subList(0, body.size() - 1));
+        lifted.add(c.args().get(0));
+        return new Lifted(query.withBody(lifted), PureRelationTextWriter.Form.VALUE, replaces);
     }
 
     /** {@code query} lifted, or null where its last statement is no print of a relation this door lifts ({@link #side}). */

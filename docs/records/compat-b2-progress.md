@@ -541,6 +541,54 @@ re-pin question (the refused count's growth).
 - **The lean guard:** the corpus's lean SQL plans `testEnumInRelation`'s body again; its family's figures are in the
   commit and below.
 
+### S6: the edge's value print passes, measured; legend-pure's door built (2026-11-25)
+
+**The measurement.** A temporary probe turned off the edge's three print passes and kept F31's parses:
+- the Float text (legend-engine's in-query cast with its literal processors);
+- the DateTime `+0000` composition;
+- the TDSNull joins.
+
+Every compatibility lane ran on it: PCT A on DuckDB, SQLite and H2, the engine lanes, `edge_net`, the edge tests, and
+the corpus on DuckDB and H2. Nothing was committed.
+- **PCT channel A:** `testFloatToStringWithNegativeExponent` on DuckDB and SQLite (lite's six decimals print `0.0`).
+- **The engine lanes:** the same case on DuckDB (PASS -> FAIL); on H2 `testFloatToStringWithPositiveExponent`
+  FAIL -> PASS (LITE_FIXES: Pure's `134210000.0` where legend-engine's H2 cast prints `1.3421E8`).
+- **The corpus:** DuckDB +114 failing, H2 +109; the unordered registers -65 each (those bodies failing).
+  - 112 / 107 are legend-engine's `TDSNull`. Its empty TDS cell is an object that prints, joins and sorts as
+    `TDSNull`. The shapes on DuckDB: 76 a row's cells joined, 10 a cell's toString, 8 both, 16 others.
+  - 2 / 2 are the validation showcase: an integer-held Float in a constraint message used further, legend-engine
+    `1000000`, lite `1000000.0`.
+- **DateTime:** no move anywhere. A literal's text is the lowering's fold (`EdgeDateTimeTexts`).
+
+**The plan** (posted to the orchestrator 2026-11-25):
+- **S6a:** delete the value passes, and lift a last step's value print at the doors.
+- **S6b:** legend-engine's TDSNull at its door before planning.
+- **S6c:** F31's parses to legend-engine's door.
+
+The orchestrator agreed S6a's design. Then the user questioned whether legend-engine's door should give lite's text at
+all, and the orchestrator relayed: hold S6a's legend-engine-door parts (the passes' deletion, which both doors share
+since `PureText.PURE_V1` and the corpus plan with `UPSTREAM`'s dialects; the two validation bodies; register S404, its
+draft kept) and all of S6b; legend-pure's door may proceed. The full S6a was built and is kept aside for the ruling.
+
+**S6a, legend-pure's door, built:**
+- **One value printer (G1):** `edge/PureValueText`, the table printer's cell rules moved unchanged from
+  `PureRelationText` (legend-pure's Float, the TDS date), and the value print of a Float, the same `pureFloat`.
+- **The lift:** `PrintedRelations.liftValue` reads `x->toString()` as a last step, `x` a Float, with literal replaces,
+  and the writer's new `VALUE` form prints it. PCT's route (`PctPlanRoute`) asks it at legend-pure's door alone. The one
+  rule (`PrintedRelations.side`) and B3's test-body lift read relations alone, so legend-engine's door, the corpus and
+  every test body are unchanged.
+  - A Float only: it is legend-pure's door's measured need (H2's exponent cases), and a DateTime lift would write the
+    DateTime rule twice while the pass stands.
+- **Guards:** `WriterCarriageGuardTest`: `PureRelationText`'s `atLeast` and `doubleValue` move to `PureValueText`, newly
+  scanned (a move, no growth). `JavaEvalLedgerTest`: `PureValueText.java` is registered beside the table printer, a
+  move.
+- **Tests:** `PrintedRelationsTest.aLastStepsFloatPrintIsLiftedAtLegendPuresDoor`,
+  `PureRelationTextTest.aLastStepsFloatIsLegendPuresPrint` and the writer's VALUE form, PCT's
+  `PctPlanRoutePrintTest.aFinalFloatToStringAnswersLegendPuresPrintOfTheValue` (a computed `1e23` proves the lift ran:
+  the database's cast writes an exponent).
+- **Expected moves:** at legend-pure's door, a last step's Float prints legend-pure's text on every database. H2's two
+  exponent cases move toward Pure; the round measures them.
+
 ### The merge of B3 step 5a and its client fix (2026-11-25, `0720d8735`)
 
 B3's step 5a (`b0df6ea84`: a comparison across known types refused by the product, answered by each door) and its

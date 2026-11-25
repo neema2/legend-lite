@@ -14,7 +14,8 @@ import java.util.function.Consumer;
 /**
  * A RELATION'S ROWS PRINTED AS LEGEND-PURE'S TEXT, A RUN'S RECEIVER (stage B's B2, B2b S1, 2026-11-24): the typed rows a
  * plan's run streams -- the relation a program's last {@code toString()}/{@code toCSV()} printed, that call removed by
- * the door -- collected in their order and, at the end, written by {@link PureRelationText} in one of its forms, the
+ * the door, or since B2b S6a (2026-11-25) the one Float a last {@code toString()} printed at legend-pure's door
+ * ({@link Form#VALUE}, {@link PureValueText}) -- collected in their order and, at the end, written by {@link PureRelationText} in one of its forms, the
  * program's literal {@code replace} calls applied, and handed to {@code receiver} as one String. The text exists only
  * once the result is whole (a header names columns before any row, and a CSV's last newline follows the last row), so
  * the rows are held, as legend-engine's own TDS holds them. A writer: it spells, decides nothing, and holds no state
@@ -31,7 +32,10 @@ public final class PureRelationTextWriter implements ResultSink {
         /** legend-engine's {@code toCSV(tds, true)}: an empty cell {@code TDSNull}. */
         TO_CSV_TDS_NULL,
         /** a TDS's {@code csv} property. */
-        TDS_CSV
+        TDS_CSV,
+        /** a Float's {@code toString} at legend-pure's door (B2b S6a, 2026-11-25): the answer's one cell, legend-pure's
+         *  print of the value ({@link PureValueText#value}). */
+        VALUE
     }
 
     private final Form form;
@@ -47,13 +51,15 @@ public final class PureRelationTextWriter implements ResultSink {
         this.receiver = java.util.Objects.requireNonNull(receiver, "receiver");
     }
 
-    /** A relation's rows answer this receiver; a value or a graph fetch's objects are refused by name before any
-     *  statement is sent. */
+    /** A relation's rows answer this receiver, or a value under {@link Form#VALUE}; any other answer is refused by
+     *  name before any statement is sent. */
     @Override
     public void answers(ExecutionPlan.TdsResult.Shape shape) {
-        if (shape != ExecutionPlan.TdsResult.Shape.RELATION) {
-            throw new IllegalStateException("legend-pure's " + form + " text is of a relation's rows; the answer is "
-                    + shape);
+        ExecutionPlan.TdsResult.Shape expected = form == Form.VALUE ? ExecutionPlan.TdsResult.Shape.VALUE
+                : ExecutionPlan.TdsResult.Shape.RELATION;
+        if (shape != expected) {
+            throw new IllegalStateException("legend-pure's " + form + " text is of " + (form == Form.VALUE
+                    ? "a value" : "a relation's rows") + "; the answer is " + shape);
         }
     }
 
@@ -88,8 +94,19 @@ public final class PureRelationTextWriter implements ResultSink {
             case TO_CSV -> PureRelationText.csv(cols, rows);
             case TO_CSV_TDS_NULL -> PureRelationText.csv(cols, rows, true);
             case TDS_CSV -> PureRelationText.tdsCsvProperty(cols, rows);
+            case VALUE -> one(cols);
         };
         receiver.accept(PureRelationText.replaced(text, replaces));
+    }
+
+    /** The one value a {@link Form#VALUE} answer carries, printed: a {@code toString}'s operand is one value, so
+     *  any other count is refused by name. */
+    private String one(List<ExecutionPlan.Column> cols) {
+        if (cols.size() != 1 || rows.size() != 1 || rows.get(0).get(0) == null) {
+            throw new IllegalStateException("a value's toString prints one value; the answer holds " + rows.size()
+                    + " row(s) of " + cols.size() + " column(s)");
+        }
+        return PureValueText.value(rows.get(0).get(0), cols.get(0));
     }
 
     /** The columns the run announced: a result always announces them before its rows and its end. */

@@ -157,9 +157,15 @@ final class PctPlanRoute {
         // legend-engine's doors the edge removes a final toString()/toCSV() and hands the run a table printer as its
         // receiver): a compatibility audience's case whose last step prints a relation answers legend-pure's text,
         // printed in Java from the relation's typed rows (edge.PrintedRelations, edge.PureRelationText) -- lite's own
-        // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5)
+        // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5). Since B2b S6a's
+        // legend-pure door (2026-11-25, the orchestrator's agreement and relay), at legend-pure's door alone a case whose
+        // last step prints a Float answers legend-pure's print of the value, in Java (edge.PureValueText), where the
+        // edge's SQL print pass writes legend-engine's in-query cast; legend-engine's door waits for the user's ruling
         com.legend.edge.PrintedRelations.Lifted lifted = audience == Audience.LITE ? null
                 : com.legend.edge.PrintedRelations.lift(query);
+        if (lifted == null && audience == Audience.LEGEND_PURE) {
+            lifted = com.legend.edge.PrintedRelations.liftValue(query);
+        }
         if (lifted != null) {
             java.util.List<String> text = new java.util.ArrayList<>(1);
             com.legend.Execution.run(lifted.relation(), com.legend.testbackend.StorelessRuntime.RUNTIME,
@@ -170,7 +176,7 @@ final class PctPlanRoute {
             // query, which the product refuses at lowering, reported every lifted case as PRODUCT_REFUSES)
             PctCaseRecorder.onePlan(() -> onePlan(lifted.relation(), features));
             if (text.size() != 1) {
-                throw new IllegalStateException("a printed relation answers one text; got " + text.size());
+                throw new IllegalStateException("a printed relation or value answers one text; got " + text.size());
             }
             ExecutionPlan.Column value = new ExecutionPlan.Column("value", "String",
                     new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null);

@@ -167,11 +167,18 @@ class WriterCarriageGuardTest {
             // independent review of S1: the Float print became legend-pure's own (CompiledSupport's
             // DecimalFormat("0.0")), and an integer under a Float is the double, not the exact decimal (new BigDecimal
             // gone, doubleValue 5). It decides nothing about a value: the database computed each one
+            // 2026-11-25, B2b S6a (the orchestrator's agreement, G1: one edge value printer): the date's precision read
+            // (atLeast 1) and the Float cell's kind conversions (doubleValue 5) MOVED, unchanged, with the cell rules to
+            // PureValueText -- a move, no growth: the two files together hold what PureRelationText held
             Map.entry("PureRelationText.java", Map.ofEntries(
-                    Map.entry("atLeast", 1),
                     Map.entry("contains(\"\")", 6),
-                    Map.entry("doubleValue", 5),
                     Map.entry("startsWith(\"\")", 1))),
+            // legend-pure's text of a value, the edge's one value printer (B2b S6a, 2026-11-25): a relation's cell (the
+            // rules moved from PureRelationText, above) and a last step's value print (the deleted SQL print passes'
+            // texts, written in Java: a DateTime's kind matched by pattern, no precision read added)
+            Map.entry("PureValueText.java", Map.ofEntries(
+                    Map.entry("atLeast", 1),
+                    Map.entry("doubleValue", 5))),
             Map.entry("RaiseWords.java", Map.ofEntries(
                     Map.entry("intValue", 1),
                     Map.entry("doubleValue", 1),
@@ -320,6 +327,8 @@ class WriterCarriageGuardTest {
         // 2026-11-24): scanned with the writers they are
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationText.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
+        // the edge's one value printer, the cell rules moved out of PureRelationText (B2b S6a, 2026-11-25)
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureValueText.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();
