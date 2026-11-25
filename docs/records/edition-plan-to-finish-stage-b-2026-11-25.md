@@ -143,6 +143,67 @@ Work on the next step continues meanwhile; what the checks find is fixed in the 
 - **Awaited from B2** (another account): `toCSV` exact and S7a, `engine-java-part.md`, the S6a stash as a patch.
 - **The warm lane sessions** named in `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` §9 answer "not found" from this session, and their environment is not among this account's; the user to say how to reach them.
 
+## 6a. Progress log (kept current; newest last)
+
+**Step 1 (2026-11-25).** The edge's DECIMAL Float literal is deleted, with its regenerated pins and its gates record;
+B2's branch (`a047d2bd`) is merged; the audit's document fixes are in. Checked by a full round (292 of 292; the local
+gate 555 passed, the 14 root-only and one test the machine killed, which passes alone), an independent audit
+(`r3/audit-step1.md`) and three lanes (`lanes/`). **One moved test awaits the user's ruling:** PCT's
+`testFloatStdDev` on Postgres now fails (`3.1399999999999997` for Pure's `3.14`): Postgres's own `stddev_samp` over
+doubles is one unit low, confirmed outside the driver and Java (`lanes/round1-postgres-trino.md`). The choices put to
+the user: record it as a Postgres limit, or write the two-pass formula on Postgres. The pull request waits on it. Not
+started: `acos`/`asin`, H2's lateral, SQLite's `chunk`, PCT channel A on compiled legend-pure.
+
+**Step 2a, the stamp: proven on the main road (2026-11-25).** Built: the field `TypedNativeCall.outsideStore` (an
+unstamped call prints and hashes as before); the 18 hand-rebuild sites keep it; the stamping in
+`UserCallInliner.inlineBody` (a `let`'s value, or a last statement, that reads no store; a lambda's value never; a
+term an earlier `let` bound keeps its own stamp); `lowering/EditionTable` and `LiteEditionTable`; the lookup in
+`Scalars.lower`; `edge/EngineTable` with `substring`, `substr` and `indexOf`; the five dead lowering choices deleted.
+`EngineTableShadowTest` plans nine of the old rewrite's own test queries both ways and gets the same statement from
+each. The guards (nine tripped, all fixed in one pass from `r3/research-guards-step2a.md`), the census, every edge
+test and the product's SQL size pins pass with the table inert. A temporary switch, `-Dlegend.probe.stamp=true`
+(`PureText.STAMP_PROBE`), puts the table in the old rewrite's place at pure/v1's door; **it must be removed before
+this lands.**
+
+**What the wider run showed, and the work list before the old rewrite (A3) can be deleted.** With the switch on,
+1,044 of 1,065 edge tests pass. The 21 that differ:
+1. **Six: the old rewrite's refusals no longer happen** (a database where legend-engine's answer is unchecked; a graph
+   fetch's computed property; a function value it cannot follow). The door must keep them.
+2. **Two: `toOne` of an empty value.** The static-empty arms (`Coercions.java:63-67`, `:174-179`) are not routed
+   through the raise choice; routing them is small (`r3/research-engine-rows.md`).
+3. **Five: tests that inspect the rewritten tree for the old rewrite's function names.** To be rewritten to check SQL
+   and answers.
+4. **Seven: the test-data routes, the Arrow road and the activity SQL answer differently.** The old rewrite renames
+   calls in the tree, so it works on every road; the table works only where the lowering is handed the door's table.
+   Some roads pin the product's style (`ProductStatements.lowerTestDataSeed`, `PlanMaker` about line 955,
+   `Compiler.lowerResolved`), and some build their own inliner. Each must take the door's table and stamp. The stamp
+   should ride on the per-query compiler so no road has to be told.
+5. One: this session's own sanity test, meaningless with the switch on.
+
+**What the research changes** (`r3/`):
+- **The table needs the database** (`r3/research-engine-rows.md`): at least six rows differ by database. `PlanEnv`
+  already knows it.
+- **The stamp must also reach the raise choice,** and whole-statement choices (a keyed count, the null-unsafe flag)
+  need a slot of their own.
+- **Stamping a corpus test body** needs a walk inside the inliner that knows the frames' nodes
+  (`r3/research-strict-and-corpus.md`, part B): the draft's statement-level test would stamp a spliced frame's own
+  query code. It is dormant: only pure/v1's switch turns stamping on.
+- **Strict typing inside functions** (the same report, part A): three kinds of synthesized function are wholly
+  relational and can carry a flag; a `~func` mapping, a cross-store association and a model join mix the two
+  languages; and lite's own exposure includes DataCube's timeseries library, about 105 comparisons of a value column
+  with an integer literal, unmeasured.
+- **Rows that need posting to the user before they land:** H2's `isNumeric` in legend-engine 4.145.0 is a regex, so
+  register S370 is stale; `parseJSON`'s leniency is not in legend-engine's SQL; DuckDB's `split_part` differs from
+  Pure beyond the empty token; `dateDiff` differs for every unit, not only weeks; legend-engine's H2 `parseDate` fails
+  every PCT input.
+
+**The lanes (2026-11-25).** Six sessions in Legend Dev on Opus 5.5 at medium effort, each with stored logs
+(`lanes/`): Postgres and Trino, Databricks, SQLite and MongoDB, Snowflake, BigQuery have reported; MariaDB, MySQL and
+ClickHouse is running. Found: the Postgres test above; Snowflake's exact Float text is up to 38 digits
+(`lanes/baselines-c06ebbab.md`), for the presentation step; 19 BigQuery channel B tests fail on `main` on an untyped
+NULL in the harness's batch union, suggested to the user as a separate task. The lanes' credential script is
+`tools/cloud-lane-credentials.sh`; the way of working is `AGENTS.md`, "The fast setup".
+
 ## 7. The user's words on this plan (2026-11-25, late night)
 
 1. On the `substring` rewrite: "Substring you can leave until 16 yes" (amendment 24). Then, on the stamp: "why cant we stamp the substring if database or not when we know it and then use that at the right time? dont we need something like this to do corpus blended pure and engine?" The stamp is §2.3; if step 2 proves it, the old rewrite goes in step 3, and if not, amendment 24 stands.
