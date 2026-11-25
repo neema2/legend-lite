@@ -355,6 +355,14 @@ class PostgresToPureTest {
         // int2 '7' is '7'::int2 (2026-10-17, the regression suite's 269 typed constants)
         assertEquals("#>{s::DB.T}#->extend(~[a:r|7, b:r|true, c:r|toFloat(1.5D), d:r|'x'])->select(~[a, b, c, d])",
                 pure("select int2 '7' as a, bool 't' as b, float8 '1.5' as c, text 'x' as d from tb('s::DB.T')"));
+        // 2026-11-24: a double precision constant of more digits than a Decimal literal's cast converts exactly (15,
+        // before the point or in all, or 22 decimal places) is parseFloat of its digits, whichever way it is written
+        assertEquals("#>{s::DB.T}#->extend(~[a:r|parseFloat('0.9927456070959739'), b:r|parseFloat('-0.9927456070959739'),"
+                + " c:r|parseFloat('0.00000000000000000000001'), d:r|toFloat(0.992745607095973D),"
+                + " e:r|parseFloat('5000000000000000'), f:r|toFloat(5E+14D)])->select(~[a, b, c, d, e, f])",
+                pure("select float8 '0.9927456070959739' as a, cast(-0.9927456070959739 as float8) as b,"
+                        + " '1e-23'::float8 as c, cast(0.992745607095973 as double precision) as d,"
+                        + " cast(5e15 as float8) as e, cast(5e14 as float8) as f from tb('s::DB.T')"));
         assertEquals("value \"40000\" is out of range for type smallint",
                 refusal("select int2 '40000' from tb('s::DB.T')").getMessage());
         // beside a value, a smallint constant would compute wider in the database than Postgres's smallint does
@@ -430,6 +438,13 @@ class PostgresToPureTest {
         assertEquals("\"1e309\" is out of range for type double precision",
                 refusal("select '1e309'::float8 from tb('s::DB.T')").getMessage());
         assertTrue(pure("select '0.0'::float8 as z from tb('s::DB.T')").contains("0.0"));
+        // 2026-11-24: an exponent no number holds is still the range's error, and a zero is zero whatever its exponent
+        assertEquals("\"1e2147483648\" is out of range for type double precision",
+                refusal("select '1e2147483648'::float8 from tb('s::DB.T')").getMessage());
+        assertEquals("\"-3e-99999999999\" is out of range for type double precision",
+                refusal("select '-3e-99999999999'::float8 from tb('s::DB.T')").getMessage());
+        assertEquals("#>{s::DB.T}#->extend(~[z:r|toFloat(0D), y:r|toFloat(0.00D)])->select(~[z, y])",
+                pure("select '0e-2000000000'::float8 as z, float8 '0.00e99999999999' as y from tb('s::DB.T')"));
     }
 
     @Test

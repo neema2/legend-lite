@@ -111,6 +111,26 @@ class SqlIslandPostgresTest {
         }
     }
 
+    @org.junit.jupiter.api.Test
+    void aNumericConstantNoDoubleHoldsIsRefusedInPostgressOwnWords() throws SQLException {
+        // 2026-11-24: a numeric constant cast to a double precision is read by the island as a constant; one no double
+        // holds is the error Postgres raises for it, which names the numeric's plain digits
+        for (String cast : List.of("cast(1e400 as float8)", "cast(-1.5e-400 as double precision)",
+                "cast(-12345e305 as float8)", "cast(1e-16384 as float8)", "cast(1e131073 as float8)")) {
+            try (Connection pg = DriverManager.getConnection(EmbeddedPostgres.shared().jdbcUrl("postgres"));
+                    Statement s = pg.createStatement()) {
+                SQLException raised = org.junit.jupiter.api.Assertions.assertThrows(SQLException.class,
+                        () -> s.executeQuery("select " + cast + " from EMP"), cast);
+                String postgres = raised.getMessage().lines().findFirst().orElseThrow().replaceFirst("^ERROR: ", "");
+                var refused = org.junit.jupiter.api.Assertions.assertThrows(
+                        com.legend.error.LegendCompileException.class,
+                        () -> Lean.run(model, "#SQL{select " + cast + " from " + SqlIslandCases.SOURCE + "}#",
+                                SqlIslandCases.RUNTIME, pg), cast);
+                assertEquals("#SQL{...}# at line 1, column 13: " + postgres, refused.getMessage(), cast);
+            }
+        }
+    }
+
     private static void assertRows(SqlIslandCases.Case c, List<List<String>> rows) {
         if (c.ordered()) {
             assertEquals(c.rows(), rows, c.sql());
