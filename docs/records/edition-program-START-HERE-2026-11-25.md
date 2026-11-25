@@ -2,7 +2,30 @@
 
 *For a session, or an account, with no context at all. Written 2026-11-25 by the B3 orchestrator session.*
 
-**Status, 2026-11-25 (late):** **design v2 is the design of record in draft: `docs/records/edition-design-v2-2026-11-25.md`.** It replaces v1 (`edition-design-2026-11-25.md`), whose errors the first review found (§8 below). The user gave the go for R0 (v2, then a second independent review, then the user's go to build) and R1 (measurements M1-M6) on 2026-11-25 ("lets go"). Nothing is built. The parked E0c edits were discarded (v2's R2 redoes the dead-code list, keeping `FeatureRules`' refusal). **Read v2 first; §§1-9 below are the history that led to it.**
+**Status, 2026-11-25 (night): R0 and R1 in progress; nothing built. Read this block first; it is the current state.**
+
+Where everything is (all documentation, on `claude/compat-b3-nufdlk` unless noted):
+1. **The design draft:** `edition-design-v2-2026-11-25.md` (v2). It is **superseded in part** by the rulings that followed it. Read v2 together with item 3; v3 will merge them.
+2. **The second independent review of v2:** `edition-homework/second-review-v2-2026-11-25.md`. Verdict "not ready": the typer's call site can't decide placement, because lite types a call from its callee's signature and legend-engine places code after inlining.
+3. **Every ruling and result since v2, in order:** `edition-homework/v2-amendments-ruled-2026-11-25.md`. The landmarks:
+   - one place for meaning, a pass after inlining and store resolution; one place for format, the door's presenter;
+   - `pure` = compiled legend-pure; `engine` = the database's meaning in the database part, legend-engine's own Java (about Pure) outside it;
+   - **rule zero**: a mode changes the SQL only where the answer itself differs and Java can't fix it afterwards;
+   - **tenet 1 amended** in AGENTS.md: the product computes in the database; compatibility presents at the edge;
+   - the DECIMAL Float literal deleted (ruled);
+   - `TDSNull` is the TDS type's own, printed at the edge;
+   - comparisons under `engine` follow the database;
+   - PCT's two runs: Pure mode as close to Pure as possible, with database limitations ledgered; engine mode "the spirit of what engine does, without reproducing its bugs".
+4. **R1's measurements:**
+   - M1 (the Float literal): on `claude/compat-b2-nufdlk` at `4b6f632bf`, `docs/records/edition-homework/m1-float-literal.md`;
+   - B2's E3 homework and legend-engine's in-memory `1 == 1.0` (true): the same branch at `da231244b`, `edition-homework/e3-design.md` and `engine-m2m-xstore-equality-2026-11-25.md`;
+   - M3 to M7: `edition-homework/r1/` here (engine parity on DuckDB, Pure parity, the referee's coverage, the corpus with plain raises, the corpus harness census), with the probes as text;
+   - M2 (the H2 settings): running at B2.
+5. **Open with the user (2026-11-25, night):**
+   - whether `engine` keeps lite's checks (divide by zero and the other raises) rather than legend-engine's unchecked operations;
+   - the user's wish to change lite's SQL as little as possible for either mode, so the next step is **an inventory of every SQL difference `pure` or `engine` would make that is not typing or presentation**.
+
+Next: the inventory, then v3 (rule zero, the meaning pass, the inventory's outcome), a third independent review, then the user's go to build. The parked E0c edits were discarded; R2 redoes the dead-code list, keeping `FeatureRules`' refusal.
 
 Read this file first, then:
 1. `docs/records/edition-design-v2-2026-11-25.md`, the design (v1, `edition-design-2026-11-25.md`, is superseded);
