@@ -236,9 +236,9 @@ public final class Lowerer {
     }
 
     /** A RELATION'S TEXT ({@link RelationTexts}, the separation census's B17, 2026-11-17): the plan style's facet,
-     *  asked only when a {@code toCSV}, a TDS's {@code csv} or a relation's {@code toString} is lowered, with that call's
-     *  own refusal (the product's style throws it, at lowering, by name). A Lowerer no planner handed a style refuses
-     *  each the same way. */
+     *  asked only when a TDS's {@code csv} is lowered, with that call's own refusal (the product's style throws it, at
+     *  lowering, by name; a relation's {@code toString} and {@code toCSV} left the facet with stage B's B2b S5a and S5b,
+     *  lite's own texts, ProductRelationText). A Lowerer no planner handed a style refuses it the same way. */
     private Function<Supplier<? extends RuntimeException>, RelationTexts> relationTexts = refusal -> {
         throw refusal.get();
     };
@@ -4298,12 +4298,13 @@ public final class Lowerer {
                     when ValueCollectionOps.relationSpaceRewrite(n) != null ->
                     scalar(Objects.requireNonNull(
                             ValueCollectionOps.relationSpaceRewrite(n)), columns);
-            // F4.2 (RENDER): toCSV is a plan PROJECTION the DB executes
-            // a relation's text is legend-pure's and legend-engine's: RELATION_TEXT, refused by the product's renderer
-            // (its rows are the result writers'), written by the edge (phase D's D1.3, 2026-11-15)
+            // the relational helper's toCSV: lite's own CSV, computed by the database (stage B's B2b S5b, 2026-11-25: the
+            // user's ruling of 2026-11-19 ~20:05) -- every plan style alike, its cells the product's nodes (ProductRelationText;
+            // under the edge's style its value passes re-spell a Float and a DateTime cell until S6);
+            // legend-pure's text of a last step is the doors' Java printer's (edge.PrintedRelations)
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(styled(), tc, this::relation, nextAlias());
+                ProductRelationText.csv(tc, this::relation, nextAlias());
             // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
             // over a relation: the csv TEXT the engine prints for a TDS —
             // header names joined ', ', ','-joined cells with TDSNull, no
@@ -4314,8 +4315,9 @@ public final class Lowerer {
                 relationTexts.apply(() -> TextRefusals.relation("a TDS's csv")).csvProperty(styled(), csvRead, this::relation,
                         nextAlias());
             // a relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24: the user's
-            // rulings of 2026-11-19 ~18:05 and ~18:36) -- every plan style alike, its cells the product's
-            // (ProductRelationText); legend-pure's text of a last step is the doors' Java printer's (edge.PrintedRelations)
+            // rulings of 2026-11-19 ~18:05 and ~18:36) -- every plan style alike, its cells the product's nodes
+            // (ProductRelationText; under the edge's style its value passes re-spell a Float and a DateTime cell until
+            // S6); legend-pure's text of a last step is the doors' Java printer's (edge.PrintedRelations)
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->

@@ -10,7 +10,6 @@ import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
-import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
@@ -19,24 +18,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A RELATION'S TEXT, LEGEND-PURE'S, LOWERED (the separation census's B17, 2026-11-17: moved from the product's
- * {@code lowering.Render}, byte for byte, answering the plan style's {@link RelationTexts} facet): {@code toCSV}'s text
- * (legend-engine's {@code meta::relational::tests::csv::toCSV}, helperFunctions.pure:198-232) and a TDS's {@code csv}
- * property, each composed in SQL over the relation's rows and marked
- * {@link SqlFn#RELATION_TEXT} as before, so every later pass sees the tree it saw. The cell rule ({@code toCSVString}):
- * a NULL cell renders {@code ''} ({@code 'TDSNull'} under renderTdsNull); a date-kinded cell formats {@code yyyy-MM-dd};
- * a datetime formats then escapes; everything else is {@code toString()->escapeCSVString()} with RFC4180 double-quote
- * escaping. (A relation's {@code toString} left with stage B's B2b S5a, 2026-11-24: lite's own text, computed by the
- * database on every plan style, {@code lowering.ProductRelationText}; legend-pure's text of a last step is the doors'
- * Java printer's, {@code edge.PrintedRelations}.)
+ * A TDS'S {@code csv} TEXT, LEGEND-ENGINE'S, LOWERED (the separation census's B17, 2026-11-17: moved from the product's
+ * {@code lowering.Render}, byte for byte, answering the plan style's {@link RelationTexts} facet): a TDS's {@code csv}
+ * property, composed in SQL over the relation's rows. The cell rule ({@code toCSVString}): a NULL cell renders
+ * {@code 'TDSNull'}; a date-kinded cell formats {@code yyyy-MM-dd}; a datetime formats then escapes; everything else is
+ * {@code toString()->escapeCSVString()} with RFC4180 double-quote escaping. (A relation's {@code toString} and the
+ * helper's {@code toCSV} left with stage B's B2b S5a, 2026-11-24, and S5b, 2026-11-25: lite's own texts, computed by the
+ * database on every plan style, {@code lowering.ProductRelationText}, their Float and DateTime cells this edge's value
+ * texts until S6; legend-pure's text of a last step is the doors' Java printer's, {@code edge.PrintedRelations}. This
+ * class goes with S5c.)
  */
 final class RelationTextLowering implements RelationTexts {
-
-    @Override
-    public SqlExpr toCsv(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
-            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
-        return relationText(lowerToCsv(styled, tc, relation, alias), "toCSV");
-    }
 
     @Override
     public SqlExpr csvProperty(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedPropertyAccess read,
@@ -50,16 +42,6 @@ final class RelationTextLowering implements RelationTexts {
         return text;
     }
 
-    /** A DYNAMIC PIVOT's TEXT whose columns nothing names (its templates unresolved): its columns exist only once the
-     *  database is asked, and planning asks the database nothing (the seam program's S3a, 2026-10-30). Refused by name
-     *  here, where it would be composed (J40, 2026-11-18, the orchestrator's ruling (8): until then a deferred node,
-     *  SqlExpr.DeferredTdsString, the body planner refused after lowering, in these words). */
-    static com.legend.error.NotImplementedException dynamicPivotText() {
-        return new com.legend.error.NotImplementedException("a dynamic pivot's text (toCSV, a TDS's csv) over columns"
-                + " nothing names: its columns exist only once the database is asked, planning asks the database"
-                + " nothing, and the pivot's keyed form writes no text");
-    }
-
     private static SqlExpr cat(SqlExpr... parts) {
         SqlExpr out = parts[0];
         for (int i = 1; i < parts.length; i++) {
@@ -68,76 +50,9 @@ final class RelationTextLowering implements RelationTexts {
         return out;
     }
 
-    /** The Lowerer's toCSV dispatch target: arity/format admission +
-     *  typed-column collection + the render wrap. The 4-arg overload
-     *  accepts only the DEFAULT format pair (SimpleDateTimeFormat /
-     *  ISO8601DateFormat, as the zero-arg calls or their folded
-     *  '%t{...}' literals); anything else stays loud. */
-    static SqlExpr lowerToCsv(com.legend.lowering.Styled styled,
-            com.legend.compiler.spec.typed.TypedNativeCall tc,
-            java.util.function.Function<
-                    com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
-            String alias) {
-        boolean renderTdsNull = switch (tc.args().size()) {
-            case 1 -> false;
-            case 2, 4 -> {
-                com.legend.compiler.spec.typed.TypedSpec last =
-                        tc.args().get(tc.args().size() - 1);
-                if (!(last instanceof
-                        com.legend.compiler.spec.typed.TypedCBoolean b)) {
-                    throw new com.legend.error.NotImplementedException(
-                            "toCSV: renderTdsNull must be a literal");
-                }
-                if (tc.args().size() == 4
-                        && (!isDefaultCsvFormat(tc.args().get(1),
-                                "%t{yyyy-MM-dd HH:mm:ss}")
-                            || !isDefaultCsvFormat(tc.args().get(2),
-                                "%t{yyyy-MM-dd}"))) {
-                    throw new com.legend.error.NotImplementedException(
-                            "toCSV: only the default date formats are lowered");
-                }
-                yield b.value();
-            }
-            default -> throw new com.legend.error.NotImplementedException(
-                    "toCSV: unexpected arity " + tc.args().size());
-        };
-        SqlSelect inner = relation.apply(tc.args().get(0));
-        if (Type.relationSchema(tc.args().get(0).info().type()) instanceof Type.RelationType grt
-                && grt.isLateBound() && inner.outputs().isEmpty()) {
-            // a RAW GRID (executeInDbToTDS): its header and cells from the grid's report, a region per column its
-            // result reports (the planner-driver seam program's S3c, 2026-10-30); nothing read at planning
-            return new SqlExpr.ScalarSubquery(gridCsv(styled, inner, renderTdsNull, alias));
-        }
-        // a PIVOT inner whose columns nothing names (or an inner of no columns): its column list exists only once the
-        // database is asked -- DEFERRED, and refused by name where it reaches a statement (BodyDriver) until the
-        // pivot's keyed form writes it (the seam program's S3a)
-        if (Type.relationSchema(tc.args().get(0).info().type()) instanceof Type.RelationType drt
-                && (inner.outputs().isEmpty() || (hasDynamicPivot(inner) && !drt.dynamicColumns().isEmpty()))) {
-            throw dynamicPivotText();
-        }
-        java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
-        if (Type.relationSchema(tc.args().get(0).info().type())
-                instanceof Type.RelationType rt) {
-            for (Type.Column col : rt.columns()) {
-                byName.put(col.name(), col);
-            }
-        }
-        List<Type.Column> relCols = inner.outputs().stream()
-                .map(oc -> {
-                    Type.Column t = byName.get(oc.name());
-                    if (t == null) {
-                        throw new IllegalStateException("toCSV: output column '"
-                                + oc.name() + "' has no typed relation column");
-                    }
-                    return t;
-                }).toList();
-        return new SqlExpr.ScalarSubquery(
-                csv(styled, inner, relCols, renderTdsNull, alias));
-    }
-
     /** The toCSV default-format pair — the zero-arg format fns or their
-     *  folded literal text. The door's lift reads the same pair
-     *  ({@link PrintedRelations}). */
+     *  folded literal text: the door's lift reads it ({@link PrintedRelations}; the product's toCSV reads the text,
+     *  {@code lowering.ProductRelationText}, since S5b). It moves to the lift with S5c. */
     static boolean isDefaultCsvFormat(
             com.legend.compiler.spec.typed.TypedSpec arg, String pattern) {
         if (arg instanceof com.legend.compiler.spec.typed.TypedCString cs) {
@@ -151,61 +66,6 @@ final class RelationTextLowering implements RelationTexts {
                         : f.callee().qualifiedName().equals(
                                 "meta::pure::functions::date::ISO8601DateFormat")
                                 && pattern.equals("%t{yyyy-MM-dd}"));
-    }
-
-    /**
-     * A raw grid's toCSV text ({@code helperFunctions.pure}'s rule, as {@link #csv} spells it): the header its column
-     * names (the grid's report, {@code COLUMNS}) joined ',', each through the one escape; each row its cells (the
-     * report's {@code TEXTS}, the database's text of each, read as a String cell: the keyed plan admits an integer's
-     * and a text's columns alone, for which that text IS the value's toString) joined ',', in the grid's order; the
-     * rows joined '\n', '\n' after the header and after the last row. The planner-driver seam program's S3c,
-     * 2026-10-30.
-     */
-    private static SqlSelect gridCsv(com.legend.lowering.Styled styled, SqlSelect grid, boolean renderTdsNull, String alias) {
-        String n = alias + "_n";
-        String c = alias + "_c";
-        String l = alias + "_l";
-        SqlSource.GridReport names = new SqlSource.GridReport(grid, SqlSource.GridReport.Part.COLUMNS, n);
-        SqlSource.GridReport texts = new SqlSource.GridReport(grid, SqlSource.GridReport.Part.TEXTS, c);
-        SqlExpr name = SqlExpr.Column.of(n, names.outputs(), SqlSource.GridReport.VALUE);
-        SqlExpr header = new SqlExpr.ScalarSubquery(SqlSelect.starOf(names).withProjections(List.of(
-                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(escapeCsv(name), new SqlExpr.StringLit(",")), false, List.of(new SqlSelect.SortKey(
-                                SqlExpr.Column.of(n, names.outputs(), SqlSource.GridReport.ORD), true, null, null))),
-                        new SqlExpr.StringLit("")), "header",
-                        new OutputCol("header", SqlType.Scalar.VARCHAR, false)))));
-        SqlExpr text = cell(styled, SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.VALUE),
-                new Type.Column(SqlSource.GridReport.VALUE, Type.Primitive.STRING,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE),
-                SqlType.Scalar.VARCHAR, renderTdsNull);
-        SqlExpr row = SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.ROW);
-        OutputCol lineOut = new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false);
-        OutputCol rowOut = new OutputCol(SqlSource.GridReport.ROW, SqlType.Scalar.BIGINT, false);
-        SqlSelect lines = SqlSelect.starOf(texts).withProjections(List.of(
-                new SqlSelect.Projection(row, SqlSource.GridReport.ROW, rowOut),
-                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(text, new SqlExpr.StringLit(",")), false, List.of(new SqlSelect.SortKey(
-                                SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.ORD), true, null, null))),
-                        "_csv_line", lineOut)))
-                .withGroupBy(List.of(row));
-        SqlExpr nl = new SqlExpr.StringLit("\n");
-        SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                List.of(SqlExpr.Column.of(l, List.of(rowOut, lineOut), "_csv_line"), nl), false,
-                List.of(new SqlSelect.SortKey(SqlExpr.Column.of(l, List.of(rowOut, lineOut),
-                        SqlSource.GridReport.ROW), true, null, null))),
-                new SqlExpr.StringLit(""));
-        return SqlSelect.starOf(new SqlSource.Subselect(lines, l, null)).withProjections(List.of(
-                new SqlSelect.Projection(cat(header, nl, rowsJoined, nl), "csv",
-                        new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
-    }
-
-    /** The whole toCSV text as a one-column scalar select over the
-     *  relation plan. {@code colTypes} are the relation's PURE column
-     *  types in output order (dates dispatch by KIND — F5.4: the kind
-     *  is a typed fact, never a value sniff). */
-    private static SqlSelect csv(com.legend.lowering.Styled styled, SqlSelect inner, List<Type.Column> relCols,
-            boolean renderTdsNull, String rowAlias) {
-        return csv(styled, inner, relCols, renderTdsNull, rowAlias, ",", true);
     }
 
     /** The TDS class's {@code csv} property (tds.pure:19) over a relation:
@@ -253,7 +113,7 @@ final class RelationTextLowering implements RelationTexts {
         List<OutputCol> cols = inner.outputs();
         inner = withSortOutputs(inner);
         if (cols.size() != relCols.size()) {
-            throw new IllegalStateException("toCSV: " + cols.size()
+            throw new IllegalStateException("a TDS's csv: " + cols.size()
                     + " output columns vs " + relCols.size()
                     + " typed columns");
         }
@@ -263,7 +123,7 @@ final class RelationTextLowering implements RelationTexts {
         // never a silently unordered render.
         String aggAlias = rowAlias + "_a";
         if (cols.isEmpty()) {
-            throw new IllegalStateException("toCSV over a zero-column relation");
+            throw new IllegalStateException("a TDS's csv over a zero-column relation");
         }
         // the per-row line: cells joined ','
         SqlExpr line = cell(styled, SqlExpr.Column.of(rowAlias, cols.get(0)),
@@ -302,29 +162,6 @@ final class RelationTextLowering implements RelationTexts {
         return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
                 .withProjections(List.of(new SqlSelect.Projection(text, "csv",
                         new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
-    }
-
-    /** Whether the select tree contains a PIVOT — static or dynamic:
-     * either way the pivot's output columns are absent from the
-     * lowered outputs (witness test_Static_Pivot_Filter, whose '#TDS'
-     * lost the pivot columns exactly like the dynamic case), so the
-     * composition defers to the boundary probe. */
-    private static boolean hasDynamicPivot(SqlQuery q) {
-        if (!(q instanceof SqlSelect sel)) {
-            return q instanceof com.legend.sql.SqlUnion u
-                    && u.branches().stream().anyMatch(RelationTextLowering::hasDynamicPivot);
-        }
-        return sourceHasDynamicPivot(sel.from());
-    }
-
-    private static boolean sourceHasDynamicPivot(SqlSource s) {
-        return switch (s) {
-            case SqlSource.Pivot p -> true;
-            case SqlSource.Subselect sub -> hasDynamicPivot(sub.inner());
-            case SqlSource.Join j -> sourceHasDynamicPivot(j.left())
-                    || sourceHasDynamicPivot(j.right());
-            default -> false;
-        };
     }
 
     /** The engine {@code s()} cell (s.pure:23-38). */

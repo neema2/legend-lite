@@ -272,7 +272,7 @@ public final class AssertVerdicts {
     }
 
     /** Whether a RENDERED-TEXT pair's database arm plans without a read: a rendered grid is a {@link #staticGrid}, or a
-     *  RAW grid -- its text a keyed statement ({@code Render.gridCsv}),
+     *  RAW grid -- its text a keyed statement ({@code lowering.ProductRelationText}'s grid CSV, B2b S5b),
      *  which the program road places as a verdict's keyed wrapper since the seam program's S3c (the walk deletion,
      *  2026-11-06: testExecuteInDbToTDS); a rendered value is any. */
     static boolean renderedStatic(List<TypedSpec> args, List<TypedSpec> letPrefix) {

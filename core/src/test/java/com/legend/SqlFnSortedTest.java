@@ -235,6 +235,7 @@ class SqlFnSortedTest {
             // EQUAL: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
             Map.entry("EQUAL", Set.of(
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5b: the CSV's empty String (S420)
                     "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CalendarAgg",
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",

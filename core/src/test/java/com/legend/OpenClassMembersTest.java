@@ -56,8 +56,10 @@ class OpenClassMembersTest {
                     // the edge's relation text typing its own) -- train 17
                     "public abstract com.legend.sql.SqlExpr csvProperty(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedPropertyAccess, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
                     // (relationToString: gone 2026-11-24, stage B's B2b S5a -- a relation's toString is lite's own text,
-                    // computed by the database on every plan style, lowering.ProductRelationText; a shrink)
-                    "public abstract com.legend.sql.SqlExpr toCsv(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
+                    // computed by the database on every plan style, lowering.ProductRelationText, its Float and DateTime
+                    // cells the edge's until S6; a shrink)
+                    // (toCsv: gone 2026-11-25, stage B's B2b S5b -- the helper's toCSV is lite's own CSV, computed by the
+                    // database on every plan style, lowering.ProductRelationText, the same window; a shrink)
                     "public static com.legend.compiler.element.type.Type kindType(java.lang.String)",
                     "public static com.legend.sql.SqlExpr pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)")),
             // (com.legend.lowering.Repr: gone 2026-11-17, C5 step A -- legend-pure's representation moved to the

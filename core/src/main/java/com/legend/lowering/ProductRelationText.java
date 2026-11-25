@@ -6,6 +6,7 @@ package com.legend.lowering;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.sql.OutputCol;
@@ -16,27 +17,44 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 /**
- * A RELATION'S {@code toString()}, COMPUTED BY THE DATABASE IN THE PRODUCT (stage B's B2, B2b S5a, 2026-11-24; the
- * user's rulings of 2026-11-19 ~18:05, "Agree with all four table printing recommendations", and ~18:36, "Null is
- * good"; built from H14's spike, docs/records/compat-homework/H14-slice-shape-note.md on
- * claude/compat-table-text-db-spike). Like any other function, the database computes the text (tenet 1): one scalar
- * subquery, a {@code STRING_AGG} of the relation's rows in the relation's own order. The layout is legend-pure's
- * {@code #TDS} text -- {@code #TDS}, the names line, one {@code '   '}-prefixed line per row with its cells joined
- * {@code ,}, {@code #}; a name quoted unless {@code ^[a-zA-Z0-9_]+$} -- and each cell is the PRODUCT's own text node
- * of its value on every plan style ({@link Styled#PRODUCT}: the cells of a text used further in a query are lite's
- * text, the user's ~18:12 ruling, "Yes record it"; until B2b's S6, under the edge's style the edge dialect's value
- * passes re-spell a Float and a DateTime cell as they re-spell any such text there -- a window recorded in
- * docs/records/compat-b2-progress.md's S5a, pinned by FloatTextTest): an empty cell {@code null} ({@code 'null'} under a Variant), a
- * Variant's text and a String holding a brace or a bracket quoted with {@code \} and {@code '} escaped, every other
- * cell its scalar {@code toString()}. Where a relation's text is the program's last step, legend-pure's and
- * legend-engine's doors print legend-pure's text in Java from the rows instead ({@code edge.PrintedRelations}, B3's
- * lift). No plan-style facet, no hook, no mode. A shape it cannot write is refused by name.
+ * A RELATION'S TEXT, COMPUTED BY THE DATABASE IN THE PRODUCT (stage B's B2): its {@code toString()} (B2b S5a,
+ * 2026-11-24; the user's rulings of 2026-11-19 ~18:05, "Agree with all four table printing recommendations", and ~18:36,
+ * "Null is good"; built from H14's spike, docs/records/compat-homework/H14-slice-shape-note.md on
+ * claude/compat-table-text-db-spike) and the relational helper's {@code toCSV} (B2b S5b, 2026-11-25; the user's ruling
+ * of 2026-11-19 ~20:05, "toCSV yes toString or another easy database sql that makes sense"; a date-time cell lite's
+ * DateTime text, S312, relayed by the orchestrator 2026-11-25). Like any other function, the database computes the text
+ * (tenet 1): one scalar subquery, a {@code STRING_AGG} of the relation's rows in the relation's own order. Each cell is
+ * the PRODUCT's own text node of its value on every plan style ({@link Styled#PRODUCT}: the cells of a text used further
+ * in a query are lite's text, the user's ~18:12 ruling, "Yes record it"; until B2b's S6, under the edge's style the edge
+ * dialect's value passes re-spell a Float and a DateTime cell as they re-spell any such text there -- a window recorded
+ * in docs/records/compat-b2-progress.md's S5a, pinned by FloatTextTest).
+ * <ul>
+ *   <li>{@code toString}: legend-pure's {@code #TDS} layout -- {@code #TDS}, the names line, one {@code '   '}-prefixed
+ *       line per row with its cells joined {@code ,}, {@code #}; a name quoted unless {@code ^[a-zA-Z0-9_]+$}; an empty
+ *       cell {@code null} ({@code 'null'} under a Variant); a Variant's text and a String holding a brace or a bracket
+ *       quoted with {@code \} and {@code '} escaped; every other cell its scalar {@code toString()}.</li>
+ *   <li>{@code toCSV}: the helper's layout -- the names joined {@code ,}, then one line per row with its cells joined
+ *       {@code ,}, a newline after the names and after every row (no rows: the header and two newlines); a name
+ *       holding a comma, a quote or a line break quoted, its quotes doubled. Lite's own cells (the user's ruling of
+ *       2026-11-25, "For csv we can do empty cell for null and "" or '' empty string and the toCSV(true) do null for
+ *       null and quoted strings?"; register S420): under {@code toCSV(t)} a null is an empty field, an empty String
+ *       {@code ""}, any other cell quoted where it holds a comma, a quote or a line break; under {@code toCSV(t, true)}
+ *       a null is the word {@code null} and every String cell is quoted ({@code ""}, {@code "null"}), a number, a
+ *       Boolean or a date as under {@code toCSV(t)}. A raw grid's CSV reads the grid's report when
+ *       the plan runs, its names and its cells' texts (the planner-driver seam program's S3c, 2026-10-30, moved here from
+ *       the edge with S5b: the keyed plan admits an integer's and a text's columns alone, whose database text is the
+ *       product's).</li>
+ * </ul>
+ * Where a relation's text is the program's last step, legend-pure's and legend-engine's doors print legend-pure's text
+ * in Java from the rows instead ({@code edge.PrintedRelations}, B3's lift). No plan-style facet, no hook, no mode. A
+ * shape it cannot write is refused by name.
  */
 final class ProductRelationText {
 
@@ -50,39 +68,20 @@ final class ProductRelationText {
                     + " multiplicities (toString(rel, true)) is not written by the product");
         }
         TypedSpec rel = tc.args().get(0);
+        String what = "a relation's toString";
         if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType late && late.isLateBound()) {
-            throw new com.legend.error.NotImplementedException("a relation's toString over a raw grid (executeInDb):"
-                    + " its columns exist only when the plan runs");
+            throw new com.legend.error.NotImplementedException(what + " over a raw grid (executeInDb): its columns exist"
+                    + " only when the plan runs");
         }
-        Map<String, Type.Column> byName = new HashMap<>();
-        if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType rt) {
-            if (!rt.dynamicColumns().isEmpty()) {
-                throw new com.legend.error.NotImplementedException("a relation's toString over a pivot whose columns"
-                        + " nothing names: its columns exist only once the database is asked");
-            }
-            for (Type.Column col : rt.columns()) {
-                byName.put(col.name(), col);
-            }
-        }
+        Map<String, Type.Column> byName = columns(rel, what);
         SqlSelect inner = relation.apply(rel);
         List<OutputCol> cols = inner.outputs();
-        if (cols.isEmpty()) {
-            throw new IllegalStateException("a relation's toString over a relation of no columns");
-        }
-        Render.Lifted lifted = Render.liftOrder(inner, alias, "a relation's toString");
-        if (lifted == null) {
-            throw new com.legend.error.NotImplementedException("a relation's toString over a DISTINCT or star select"
-                    + " ordered by a key that is not one of its columns");
-        }
+        Render.Lifted lifted = ordered(inner, alias, what);
         StringBuilder header = new StringBuilder("#TDS\n   ");
         SqlExpr line = new SqlExpr.StringLit("   ");
         for (int i = 0; i < cols.size(); i++) {
             OutputCol oc = cols.get(i);
-            Type.Column typed = byName.get(oc.name());
-            if (typed == null) {
-                throw new IllegalStateException("a relation's toString: the output column '" + oc.name()
-                        + "' has no typed relation column");
-            }
+            Type.Column typed = typed(byName, oc, what);
             header.append(i == 0 ? "" : ",").append(name(oc.name()));
             SqlExpr c = cell(SqlExpr.Column.of(alias, oc), typed.type(), oc.type());
             line = i == 0 ? Scalars.cat(line, c) : Scalars.cat(line, new SqlExpr.StringLit(","), c);
@@ -97,6 +96,198 @@ final class ProductRelationText {
                 .withProjections(List.of(new SqlSelect.Projection(text, "tds",
                         new OutputCol("tds", SqlType.Scalar.VARCHAR, false))));
         return new SqlExpr.ScalarSubquery(sel);
+    }
+
+    /** {@code tc}, the helper's {@code toCSV(t)}, {@code toCSV(t, renderTdsNull)} with a literal Boolean, or
+     *  {@code toCSV(t, dateTimeFormat, dateFormat, renderTdsNull)} with the default formats (the texts its two-argument
+     *  form passes, {@code SimpleDateTimeFormat()} and {@code ISO8601DateFormat()}: dateExtension.pure:384-392), as one
+     *  scalar subquery; any other form refused by name. */
+    static SqlExpr csv(TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias) {
+        String what = "a relation's toCSV";
+        boolean explicitNulls = switch (tc.args().size()) {
+            case 1 -> false;
+            case 2, 4 -> {
+                if (tc.args().size() == 4 && !(isFormat(tc.args().get(1), "%t{yyyy-MM-dd HH:mm:ss}")
+                        && isFormat(tc.args().get(2), "%t{yyyy-MM-dd}"))) {
+                    throw new com.legend.error.NotImplementedException(what + " with date formats of its own is not"
+                            + " written by the product: only the default formats");
+                }
+                if (!(tc.args().get(tc.args().size() - 1) instanceof TypedCBoolean b)) {
+                    throw new com.legend.error.NotImplementedException(what + " whose renderTdsNull is no literal is"
+                            + " not written by the product");
+                }
+                yield b.value();
+            }
+            default -> throw new IllegalStateException(what + " of " + tc.args().size() + " arguments");
+        };
+        TypedSpec rel = tc.args().get(0);
+        SqlSelect inner = relation.apply(rel);
+        if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType late && late.isLateBound()
+                && inner.outputs().isEmpty()) {
+            if (explicitNulls) {
+                // the flag quotes a String cell alone, and a raw grid's cells reach the plan as texts whose types the
+                // database reports only when the plan runs
+                throw new com.legend.error.NotImplementedException(what + " with renderTdsNull over a raw grid"
+                        + " (executeInDb): its columns' types exist only when the plan runs");
+            }
+            return new SqlExpr.ScalarSubquery(gridCsv(inner, alias));
+        }
+        Map<String, Type.Column> byName = columns(rel, what);
+        List<OutputCol> cols = inner.outputs();
+        Render.Lifted lifted = ordered(inner, alias, what);
+        List<String> names = new ArrayList<>(cols.size());
+        SqlExpr line = null;
+        for (OutputCol oc : cols) {
+            Type.Column typed = typed(byName, oc, what);
+            if (oc.type() instanceof SqlType.Tagged) {
+                throw new com.legend.error.NotImplementedException(what + " over a mixed column: its cells' kinds"
+                        + " differ by row");
+            }
+            names.add(csvName(oc.name()));
+            SqlExpr c = csvCell(SqlExpr.Column.of(alias, oc), typed.type(), explicitNulls);
+            line = line == null ? c : Scalars.cat(line, new SqlExpr.StringLit(","), c);
+        }
+        SqlExpr rows = SqlExpr.Call.of(SqlFn.COALESCE,
+                new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(java.util.Objects.requireNonNull(line),
+                        new SqlExpr.StringLit("\n")), false, lifted.keys()),
+                new SqlExpr.StringLit(""));
+        SqlExpr text = Scalars.cat(new SqlExpr.StringLit(String.join(",", names) + "\n"), rows,
+                new SqlExpr.StringLit("\n"));
+        SqlSelect sel = SqlSelect.starOf(new SqlSource.Subselect(lifted.source(), alias, null))
+                .withProjections(List.of(new SqlSelect.Projection(text, "csv",
+                        new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
+        return new SqlExpr.ScalarSubquery(sel);
+    }
+
+    /** A raw grid's CSV (the planner-driver seam program's S3c, 2026-10-30; moved from the edge with B2b S5b): the header
+     *  the grid's reported column names ({@code COLUMNS}), each escaped, joined {@code ,}; each row its cells (the
+     *  report's {@code TEXTS}, the database's text of each, read as a String cell: the keyed plan admits an integer's and
+     *  a text's columns alone, whose database text is the product's) joined {@code ,} in the grid's order; the rows
+     *  joined by a newline, one after the header and one after the last row. Nothing is read at planning. */
+    private static SqlSelect gridCsv(SqlSelect grid, String alias) {
+        String n = alias + "_n";
+        String c = alias + "_c";
+        String l = alias + "_l";
+        SqlSource.GridReport names = new SqlSource.GridReport(grid, SqlSource.GridReport.Part.COLUMNS, n);
+        SqlSource.GridReport texts = new SqlSource.GridReport(grid, SqlSource.GridReport.Part.TEXTS, c);
+        SqlExpr name = SqlExpr.Column.of(n, names.outputs(), SqlSource.GridReport.VALUE);
+        SqlExpr header = new SqlExpr.ScalarSubquery(SqlSelect.starOf(names).withProjections(List.of(
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(escaped(name), new SqlExpr.StringLit(",")), false, List.of(new SqlSelect.SortKey(
+                                SqlExpr.Column.of(n, names.outputs(), SqlSource.GridReport.ORD), true, null, null))),
+                        new SqlExpr.StringLit("")), "header",
+                        new OutputCol("header", SqlType.Scalar.VARCHAR, false)))));
+        // a cell's text read as a String's (an empty text is a String's: a number's text is never empty)
+        SqlExpr text = csvCell(SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.VALUE), Type.Primitive.STRING,
+                false);
+        SqlExpr row = SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.ROW);
+        OutputCol lineOut = new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false);
+        OutputCol rowOut = new OutputCol(SqlSource.GridReport.ROW, SqlType.Scalar.BIGINT, false);
+        SqlSelect lines = SqlSelect.starOf(texts).withProjections(List.of(
+                new SqlSelect.Projection(row, SqlSource.GridReport.ROW, rowOut),
+                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(text, new SqlExpr.StringLit(",")), false, List.of(new SqlSelect.SortKey(
+                                SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.ORD), true, null, null))),
+                        "_csv_line", lineOut)))
+                .withGroupBy(List.of(row));
+        SqlExpr nl = new SqlExpr.StringLit("\n");
+        SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                List.of(SqlExpr.Column.of(l, List.of(rowOut, lineOut), "_csv_line"), nl), false,
+                List.of(new SqlSelect.SortKey(SqlExpr.Column.of(l, List.of(rowOut, lineOut),
+                        SqlSource.GridReport.ROW), true, null, null))),
+                new SqlExpr.StringLit(""));
+        return SqlSelect.starOf(new SqlSource.Subselect(lines, l, null)).withProjections(List.of(
+                new SqlSelect.Projection(Scalars.cat(header, nl, rowsJoined, nl), "csv",
+                        new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
+    }
+
+    /** A date format given as the default's text (the zero-argument format functions are not in lite's catalog, so
+     *  their text is the one form that reaches the lowering). */
+    private static boolean isFormat(TypedSpec arg, String text) {
+        return arg instanceof TypedCString s && s.value().equals(text);
+    }
+
+    /** {@code rel}'s typed columns by name; a pivot whose columns nothing names refused by name. */
+    private static Map<String, Type.Column> columns(TypedSpec rel, String what) {
+        Map<String, Type.Column> byName = new HashMap<>();
+        if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType rt) {
+            if (!rt.dynamicColumns().isEmpty()) {
+                throw new com.legend.error.NotImplementedException(what + " over a pivot whose columns nothing names:"
+                        + " its columns exist only once the database is asked");
+            }
+            for (Type.Column col : rt.columns()) {
+                byName.put(col.name(), col);
+            }
+        }
+        return byName;
+    }
+
+    /** {@code inner}'s order lifted over {@code alias} ({@link Render#liftOrder}); a relation whose plan names no
+     *  column, and a DISTINCT or star select ordered by a key that is no column, refused by name. */
+    private static Render.Lifted ordered(SqlSelect inner, String alias, String what) {
+        if (inner.outputs().isEmpty()) {
+            // a pivot's plan whose columns the lowering does not name (the edge's toCSV refused it by name as a dynamic
+            // pivot's text until S5b): its columns exist only once the database is asked
+            throw new com.legend.error.NotImplementedException(what + " over a relation whose plan names no column:"
+                    + " its columns exist only once the database is asked");
+        }
+        Render.Lifted lifted = Render.liftOrder(inner, alias, what);
+        if (lifted == null) {
+            throw new com.legend.error.NotImplementedException(what + " over a DISTINCT or star select ordered by a"
+                    + " key that is not one of its columns");
+        }
+        return lifted;
+    }
+
+    /** The typed relation column of the output {@code oc}. */
+    private static Type.Column typed(Map<String, Type.Column> byName, OutputCol oc, String what) {
+        Type.Column typed = byName.get(oc.name());
+        if (typed == null) {
+            throw new IllegalStateException(what + ": the output column '" + oc.name() + "' has no typed relation"
+                    + " column");
+        }
+        return typed;
+    }
+
+    /** A column's name in the CSV header: quoted, its quotes doubled, where it holds a comma, a quote or a line break.
+     *  A typed fact of the plan, written at planning (a fold of facts fixed by the types). */
+    private static String csvName(String n) {
+        return n.contains(",") || n.contains("\"") || n.contains("\n") || n.contains("\r")
+                ? "\"" + n.replace("\"", "\"\"") + "\"" : n;
+    }
+
+    /** A CSV cell (the user's ruling of 2026-11-25, register S420): a null an empty field, or the word {@code null}
+     *  under {@code explicitNulls} ({@code toCSV(t, true)}); a String cell quoted where it is empty or holds a comma, a
+     *  quote or a line break, or always under {@code explicitNulls}, its quotes doubled; any other its value's product
+     *  text, quoted where it holds a comma, a quote or a line break. */
+    private static SqlExpr csvCell(SqlExpr c, Type t, boolean explicitNulls) {
+        SqlExpr text = valueText(t, c);
+        SqlExpr rendered;
+        if (t != Type.Primitive.STRING) {
+            rendered = escaped(text);
+        } else if (explicitNulls) {
+            rendered = quotedCsv(text);
+        } else {
+            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, text,
+                    new SqlExpr.StringLit("")), new SqlExpr.StringLit("\"\""))), escaped(text), SqlExpr.Reason.PRINT);
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, c),
+                new SqlExpr.StringLit(explicitNulls ? "null" : ""))), rendered, SqlExpr.Reason.PRINT);
+    }
+
+    /** {@code text} quoted, its quotes doubled, where it holds a comma, a quote or a line break (RFC 4180's rule, the
+     *  helper's {@code escapeCSVString}). */
+    private static SqlExpr escaped(SqlExpr text) {
+        SqlExpr special = SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.OR, contains(text, ","), contains(text, "\"")),
+                SqlExpr.Call.of(SqlFn.OR, contains(text, "\n"), contains(text, "\r")));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(special, quotedCsv(text))), text, SqlExpr.Reason.PRINT);
+    }
+
+    /** {@code text} quoted, its quotes doubled. */
+    private static SqlExpr quotedCsv(SqlExpr text) {
+        return Scalars.cat(new SqlExpr.StringLit("\""),
+                SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit("\""), new SqlExpr.StringLit("\"\"")),
+                new SqlExpr.StringLit("\""));
     }
 
     /** A column's name in the header: trimmed, quoted unless it starts with a quote or is {@code ^[a-zA-Z0-9_]+$}. A

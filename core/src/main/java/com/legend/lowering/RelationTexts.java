@@ -4,7 +4,6 @@
 package com.legend.lowering;
 
 import com.legend.compiler.element.type.Type;
-import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.sql.SqlExpr;
@@ -15,12 +14,13 @@ import java.util.function.Function;
 
 /**
  * A RELATION'S TEXT, A LOWERING FACET OF THE PLAN STYLE (the separation census's B17, 2026-11-17; the orchestrator's
- * approval of the design note, the shape of {@code PlanStyle.facet}): {@code toCSV} (legend-pure's helperFunctions
- * CSV) and a TDS's {@code csv} property are legend-pure's texts of rows, so their composition is the compatibility
- * edge's ({@code edge.RelationTextLowering}); the product refuses each by name AT LOWERING
- * ({@code TextRefusals.relation}, the call site's words). The Lowerer asks the planner's style for this facet only when
- * it meets one of the two calls, carrying the call's own refusal. (A relation's {@code toString} left the facet with
- * stage B's B2b S5a, 2026-11-24: lite's own text, computed by the database on every plan style, ProductRelationText.)
+ * approval of the design note, the shape of {@code PlanStyle.facet}): a TDS's {@code csv} property is legend-engine's
+ * text of rows, so its composition is the compatibility edge's ({@code edge.RelationTextLowering}); the product refuses
+ * it by name AT LOWERING ({@code TextRefusals.relation}, the call site's words). The Lowerer asks the planner's style
+ * for this facet only when it meets the call, carrying the call's own refusal. (A relation's {@code toString} and the
+ * helper's {@code toCSV} left the facet with stage B's B2b S5a, 2026-11-24, and S5b, 2026-11-25: lite's own texts,
+ * computed by the database on every plan style, ProductRelationText, their Float and DateTime cells the edge's
+ * until S6. The facet goes with S5c.)
  *
  * <p>Its static members are the lowering's helpers the edge's composition reads (each forwards one call;
  * {@code ArchitectureTest.PLANNER_ENTRIES} lists each one the edge reaches, by its full signature, as
@@ -31,11 +31,12 @@ import java.util.function.Function;
  */
 @com.legend.base.OpenLine("B17") public interface RelationTexts {
 
-    /** {@code toCSV} of a relation ({@code tc}), its rows read by {@code relation}, under the planner's {@code styled}
-     *  (each member is handed the style its cells are printed under; the edge audit's J26, 2026-11-17). */
-    SqlExpr toCsv(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias);
+    // (toCsv: gone 2026-11-25, stage B's B2b S5b -- lite's own CSV, computed by the database on every plan style,
+    // ProductRelationText.csv)
 
-    /** A TDS's {@code csv} property over a relation ({@code read}). */
+    /** A TDS's {@code csv} property over a relation ({@code read}), its rows read by {@code relation}, under the
+     *  planner's {@code styled} (each member is handed the style its cells are printed under; the edge audit's J26,
+     *  2026-11-17). */
     SqlExpr csvProperty(Styled styled, TypedPropertyAccess read, Function<TypedSpec, SqlSelect> relation, String alias);
 
     // (refused(what): moved 2026-11-17 to TextRefusals.relation, the call site words its refusal -- the

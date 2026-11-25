@@ -32,9 +32,10 @@ final class TextRefusals {
         return refused("toString of an instance", "the product writes an object by graph fetch");
     }
 
-    /** {@code what} of a relation ({@code toCSV}, a TDS's {@code csv}): the product writes a relation's rows by its
-     *  result writers (B17, 2026-11-17; moved here from RelationTexts the same day). A relation's {@code toString} is
-     *  no longer refused (stage B's B2b S5a, 2026-11-24: lite's own text, ProductRelationText). */
+    /** {@code what} of a relation (a TDS's {@code csv}): the product writes a relation's rows by its result writers
+     *  (B17, 2026-11-17; moved here from RelationTexts the same day). A relation's {@code toString} and the helper's
+     *  {@code toCSV} are no longer refused (stage B's B2b S5a, 2026-11-24, and S5b, 2026-11-25: lite's own texts,
+     *  ProductRelationText). */
     static ModelException relation(String what) {
         return refused(what + " of a relation", "the product writes a relation's rows by its result writers (JSON, CSV,"
                 + " Arrow)");

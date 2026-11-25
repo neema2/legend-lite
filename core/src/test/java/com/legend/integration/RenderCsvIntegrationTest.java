@@ -16,14 +16,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**
- * F4.1/F4.2 (RENDER): {@code toCSV} is a platform lowering — the CSV
- * text is CONSTRUCTED BY THE DATABASE (header + cells + RFC4180
- * escaping + row joining all in SQL); Java carries the bytes. Pinned
- * against the engine's {@code meta::relational::tests::csv::toCSV}
- * semantics (helperFunctions.pure:198-232): header line, one line per
- * row each '\n'-terminated, empty cells for NULL ({@code TDSNull}
- * under the flag), dates as {@code yyyy-MM-dd}, RFC4180 double-quote
- * escaping for comma/quote-bearing text.
+ * F4.1/F4.2 (RENDER): {@code toCSV} and a relation's {@code toString} over a store's rows, lite's own texts CONSTRUCTED
+ * BY THE DATABASE (header + cells + RFC4180 escaping + row joining all in SQL; stage B's B2b S5a and S5b,
+ * lowering.ProductRelationText); Java carries the bytes. The CSV's layout is the helper's
+ * {@code meta::relational::tests::csv::toCSV} (helperFunctions.pure:198-232): header line, one line per row each
+ * '\n'-terminated, empty cells for NULL (under the flag the word {@code null}, every String quoted: register S420),
+ * RFC4180 double-quote escaping for
+ * comma/quote-bearing text; each cell the product's text of its value (a StrictDate {@code yyyy-MM-dd}).
  */
 @DisplayName("RENDER toCSV Integration")
 class RenderCsvIntegrationTest extends AbstractDatabaseTest {
@@ -32,8 +31,9 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        // every text here is planned in the edge's style, so the session is the edge's database (the audit's J22)
-        connection = backend().open(com.legend.edge.PureText.UPSTREAM);
+        // every text here is the product's (stage B's B2b S5b, 2026-11-25: until then the edge's, and the session the
+        // edge's database, the audit's J22)
+        connection = backend().open();
         try (Statement st = connection.createStatement()) {
             st.execute("CREATE TABLE T_PERSON (ID INTEGER, NAME VARCHAR,"
                     + " NICK VARCHAR, DOB DATE)");
@@ -68,23 +68,19 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                 connections: [ test::DB: [ environment: store::Conn ] ]; }
             """;
 
-    /** A relation's text is legend-pure's and legend-engine's, the compatibility edge's alone: the product refuses it
-     *  by name, pointing to its result writers (phase D's D1.3, 2026-11-15; the user's ruling of 2026-11-10, "objects
-     *  and relations are refused"), so each text here is planned in the edge's style. */
+    /** A relation's text in the product: lite's own, computed by the database (stage B's B2b S5a and S5b; until then
+     *  the edge's, each text here planned in the edge's style). */
     private String csv(String query) throws SQLException {
-        Lean.Result r = Lean.runInStyle(MODEL, query, "test::RT", connection, com.legend.edge.PureText.UPSTREAM);
-        return r.one().toString();
+        return Lean.run(MODEL, query, "test::RT", connection).one().toString();
     }
 
     @Test
-    void theProductRefusesARelationsTextByName() {
-        // each call's own sentence, at lowering (B17 of the separation census, 2026-11-17: the text is the edge's
+    void theProductRefusesATdsCsvByName() {
+        // the call's own sentence, at lowering (B17 of the separation census, 2026-11-17: the text is the edge's
         // edge.RelationTextLowering, asked through the plan style's RelationTexts facet; the product's style refuses)
         java.util.Map<String, String> refusals = new java.util.LinkedHashMap<>();
-        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::relational::tests::csv::toCSV()",
-                "toCSV");
-        // (a relation's toString: gone 2026-11-24, stage B's B2b S5a -- lite's own text, computed by the database,
-        // ProductRelationTextTest)
+        // (toCSV and a relation's toString: gone 2026-11-25 and 2026-11-24, stage B's B2b S5b and S5a -- lite's own
+        // texts, computed by the database, the tests below and ProductRelationTextTest)
         refusals.put("|test::Person.all()->project([p | $p.name], ['name'])"
                 + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv", "a TDS's csv");
         refusals.forEach((query, what) -> {
@@ -102,9 +98,9 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
         });
     }
 
-    /** A stored relation's toString: lite's own text, computed by the database on every plan style (stage B's B2b S5a,
-     *  2026-11-24; the review of S5a asked for the stored relation whose refusal this class pinned) -- here the edge's,
-     *  this class's session, whose cells hold no Float or DateTime the edge re-spells until S6: a comma and a quote
+    /** A stored relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24; the
+     *  review of S5a asked for the stored relation whose refusal this class pinned), in the product since S5b: a comma
+     *  and a quote
      *  inside a cell stay as they are (a table's text quotes no cell but a braced one), an empty cell is null, a
      *  StrictDate its day. */
     @Test
@@ -130,8 +126,9 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                         + "->meta::relational::tests::csv::toCSV()"));
     }
 
-    /** A Float cell of the CSV text as legend-pure prints it, its shortest round-trip digits plain (PR #118 fix round,
-     *  2026-11-18: DuckDB's in-query cast wrote 1e-05, H2's 1.0E-5) -- a DOUBLE the database computes. */
+    /** A Float cell of the CSV text, the product's text of a Float (six decimals, the trailing zeros trimmed, S311):
+     *  never an in-query cast's exponent (PR #118 fix round, 2026-11-18: DuckDB's wrote 1e-05, H2's 1.0E-5) -- a DOUBLE
+     *  the database computes. */
     @Test
     void csvTextPrintsAFloatCellAsLegendPure() throws SQLException {
         assertEquals("""
@@ -143,12 +140,14 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                         + "->meta::relational::tests::csv::toCSV()"));
     }
 
+    /** The flag in the product (the user's ruling of 2026-11-25, register S420): a null the word null, every String
+     *  quoted; legend-engine's TDSNull is its doors' (edge.PrintedRelations). */
     @Test
-    void renderTdsNullFlagSpellsNulls() throws SQLException {
+    void renderTdsNullFlagWritesLitesExplicitNull() throws SQLException {
         assertEquals("""
                 id,nick
                 1,"The, Ann"
-                2,TDSNull
+                2,null
                 """,
                 csv("|test::Person.all()->project([p | $p.id, p | $p.nick],"
                         + " ['id', 'nick'])->sort(asc('id'))"

@@ -78,27 +78,41 @@ class FloatTextTest {
         }
     }
 
-    /** THE WINDOW UNTIL B2b's S6 (the review of S5a, 2026-11-24): a relation's toString is lite's layout computed by the
-     *  database on every plan style (lowering.ProductRelationText), but under the edge's style the edge dialect's value
-     *  passes (edge.PurePrintForms) re-spell its Float cells as they re-spell any Float's text there: a table text used
-     *  further at the edge writes each Float cell as the edge writes that value's toString -- legend-engine's in-query
-     *  cast, 1e-05 on DuckDB, 1.0E-5 on H2 -- neither lite's text nor legend-pure's. No PCT or corpus case meets it (a
-     *  last-step table is the doors' Java printer's: PureRelationTextTest, PureRelationTextParityTest). Pinned as the
-     *  edge's own Float text, so S6's deletion of the passes moves it to lite's by name. (Until S5a, this test pinned
-     *  legend-pure's print, which the edge's own table SQL wrote, PR #118's fix round.) */
+    /** THE WINDOW UNTIL B2b's S6 (the review of S5a, 2026-11-24, and its re-review, 2026-11-25): a relation's toString
+     *  is lite's layout computed by the database on every plan style (lowering.ProductRelationText), but under the edge's
+     *  style the edge dialect's value passes (edge.PurePrintForms) re-spell its Float and DateTime cells as they re-spell
+     *  any such value's text there: a table text used further at the edge writes each cell as the edge writes that
+     *  value's toString -- a Float legend-engine's in-query cast (1e-05 on DuckDB, 1.0E-5 on H2), a DateTime
+     *  legend-pure's {@code +0000} form -- neither lite's text nor (for a Float) legend-pure's. No PCT or corpus case
+     *  meets it (a last-step table is the doors' Java printer's: PureRelationTextTest, PureRelationTextParityTest).
+     *  Pinned two ways: each cell is the edge's own text of that value (the same pass writes both, so this half holds
+     *  whatever the pass writes), and the table is NOT lite's text, so S6's deletion of the passes turns this test red
+     *  by name. (Until S5a, this test pinned legend-pure's print, which the edge's own table SQL wrote, PR #118's fix
+     *  round.) */
     @Test
-    void anEdgeTableTextUsedFurtherWritesItsFloatCellsAsTheEdgeWritesAFloat() throws Exception {
+    void anEdgeTableTextUsedFurtherWritesItsCellsAsTheEdgeWritesTheirValues() throws Exception {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
-        String rows = "#TDS\ni:Integer, x:Float\n1, 0.00001\n2, 0.0005\n3, 25000000.0\n#->sort(~i->ascending())";
-        String table = Lean.runInStyle(model, "|" + rows + "->select(~x)->toString()", StorelessRuntime.RUNTIME, backend,
-                com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
-        List<String> cells = new ArrayList<>();
-        for (List<Object> row : Lean.runInStyle(model, "|" + rows + "->extend(~t: r|$r.x->toOne()->toString())"
-                + "->select(~t)", StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows()) {
-            cells.add(String.valueOf(row.get(0)));
+        String rows = "#TDS\ni:Integer, x:Float, t:DateTime\n1, 0.00001, 2014-01-01T10:20:30.123\n2, 0.0005,"
+                + " 2020-02-29T00:00:00\n3, 25000000.0, 2014-01-01T10:20:30.5\n#->sort(~i->ascending())";
+        java.util.Map<String, String> lites = java.util.Map.of(
+                "x", "#TDS\n   x\n   0.00001\n   0.0005\n   25000000.0\n#",
+                "t", "#TDS\n   t\n   2014-01-01T10:20:30.123000000Z\n   2020-02-29T00:00:00.000000000Z\n"
+                        + "   2014-01-01T10:20:30.500000000Z\n#");
+        for (String col : List.of("x", "t")) {
+            String table = Lean.runInStyle(model, "|" + rows + "->select(~" + col + ")->toString()",
+                    StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
+            List<String> cells = new ArrayList<>();
+            for (List<Object> row : Lean.runInStyle(model, "|" + rows + "->extend(~c: r|$r." + col
+                    + "->toOne()->toString())->select(~c)", StorelessRuntime.RUNTIME, backend,
+                    com.legend.edge.PureText.UPSTREAM).rows()) {
+                cells.add(String.valueOf(row.get(0)));
+            }
+            assertEquals("#TDS\n   " + col + "\n   " + String.join("\n   ", cells) + "\n#", table,
+                    backend.name() + " " + col);
+            org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col), table, backend.name() + " " + col
+                    + ": the edge's table text is lite's -- the window closed (S6): re-point this test");
         }
-        assertEquals("#TDS\n   x\n   " + String.join("\n   ", cells) + "\n#", table, backend.name());
     }
 
     private static String edge(String model, Connection c, String query) throws Exception {

@@ -73,8 +73,52 @@ class ProductRelationTextTest {
         }
     }
 
+    /** THE HELPER'S {@code toCSV} IN THE PRODUCT (stage B's B2b S5b, 2026-11-25; the user's ruling of 2026-11-19 ~20:05,
+     *  "toCSV yes toString or another easy database sql that makes sense"): the helper's layout, each cell the product's
+     *  own text of its value -- a whole Float {@code 2.0}, a DateTime lite's nine digits and {@code Z} (S312; the
+     *  orchestrator's relay of 2026-11-25, Q1), a cell or a name holding a comma or a quote quoted with its quotes
+     *  doubled, no rows the header and two newlines; the nulls and Strings by the user's ruling of 2026-11-25 (register
+     *  S420): under {@code toCSV(t)} a null an empty field and an empty String {@code ""}, under {@code toCSV(t, true)}
+     *  a null the word {@code null} and every String quoted -- one text on each lane's database (DuckDB, H2, SQLite). */
+    @Test
+    void aRelationsCsvIsLitesOwnComputedByTheDatabase() throws Exception {
+        String csv = "->meta::relational::tests::csv::toCSV()";
+        Map<String, String> texts = new LinkedHashMap<>();
+        String basic = "#TDS\n  i:Integer, s:String, b:Boolean\n  1, a, true\n  2, b c, false\n  3, , \n#"
+                + "->sort(~i->ascending())";
+        texts.put(basic + csv, "i,s,b\n1,a,true\n2,b c,false\n3,,\n");
+        texts.put(basic + "->meta::relational::tests::csv::toCSV(true)",
+                "i,s,b\n1,\"a\",true\n2,\"b c\",false\n3,null,null\n");
+        String strings = "#TDS\n  i:Integer\n  1\n#->extend(~[e: r|'', n: r|'null', q: r|'a,b'])";
+        texts.put(strings + csv, "i,e,n,q\n1,\"\",null,\"a,b\"\n");
+        texts.put(strings + "->meta::relational::tests::csv::toCSV(true)", "i,e,n,q\n1,\"\",\"null\",\"a,b\"\n");
+        texts.put("#TDS\n  i:Integer, f:Float\n  1, 2.0\n  2, 0.00001\n  3, 1.5\n  4, 25000000.0\n  5, -0.25\n#"
+                + "->sort(~i->ascending())" + csv, "i,f\n1,2.0\n2,0.00001\n3,1.5\n4,25000000.0\n5,-0.25\n");
+        texts.put("#TDS\n  i:Integer, d:StrictDate, t:DateTime\n  1, 2014-01-02, 2014-01-01T10:20:30.123\n"
+                + "  2, 2020-02-29, 2020-02-29T00:00:00\n#->sort(~i->ascending())" + csv,
+                "i,d,t\n1,2014-01-02,2014-01-01T10:20:30.123000000Z\n2,2020-02-29,2020-02-29T00:00:00.000000000Z\n");
+        texts.put("#TDS\n  i:Integer\n  1\n#->extend(~[c: r|'a,b', q: r|'say \"hi\"', 'my, col': r|$r.i->toOne() * 2])"
+                + csv, "i,c,q,\"my, col\"\n1,\"a,b\",\"say \"\"hi\"\"\",2\n");
+        texts.put("#TDS\n  i:Integer, s:String\n  1, x\n#->filter(r|$r.i == 2)" + csv, "i,s\n\n");
+        texts.put("#TDS\n  i:Integer, s:String\n  2, b\n  3, c\n  1, a\n#->sort(~i->descending())->select(~s)" + csv,
+                "s\nc\nb\na\n");
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("");
+        try (Connection c = backend.open()) {
+            java.util.List<String> differ = new java.util.ArrayList<>();
+            for (var e : texts.entrySet()) {
+                String got = Lean.run(model, "|" + e.getKey(), StorelessRuntime.RUNTIME, c).rows().get(0).get(0)
+                        .toString();
+                if (!got.equals(e.getValue())) {
+                    differ.add(e.getKey() + "\n  expected: " + e.getValue() + "\n  got:      " + got);
+                }
+            }
+            assertEquals(java.util.List.of(), differ, backend.name());
+        }
+    }
+
     /** The shapes the product's text refuses by name (the review of S5a, 2026-11-24): the typed header, and a column
-     *  whose cells a mixed selection tags by kind. */
+     *  whose cells a mixed selection tags by kind; the CSV's (S5b, 2026-11-25): a renderTdsNull that is no literal. */
     @Test
     void theShapesItCannotWriteAreRefusedByName() throws Exception {
         Map<String, String> refusals = new LinkedHashMap<>();
@@ -82,6 +126,8 @@ class ProductRelationTextTest {
                 + " multiplicities (toString(rel, true)) is not written by the product");
         refusals.put("|#TDS\n  i:Integer\n  1\n#->extend(~m:x|[1, 2.5]->max())->toString()->length()",
                 "a relation's toString over a mixed column: its cells' kinds differ by row");
+        refusals.put("|#TDS\n  i:Integer\n  1\n#->meta::relational::tests::csv::toCSV(today() > %2000-01-01)",
+                "a relation's toCSV whose renderTdsNull is no literal is not written by the product");
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
         try (Connection c = backend.open()) {

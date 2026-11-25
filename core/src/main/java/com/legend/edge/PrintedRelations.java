@@ -24,10 +24,10 @@ import java.util.List;
  * native in lite: {@code PlatformTypes.TO_CSV}) or a TDS's {@code csv}, over a relation whose columns the compiler
  * knows, followed by any number of {@code replace} calls with literal arguments, answers the query that computes the
  * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). Anything else is not lifted: the
- * query is the door's as it was, and a print the door leaves is the edge's SQL text (RelationTextLowering), which
- * differs from the printer's in the places PureRelationTextParityTest names until B2b routes every print through it
- * (the progress record's S2). It computes no value and plans nothing; the run computes the rows and the printer spells
- * them.
+ * query is the door's as it was, and a print the door leaves is lite's own text, computed by the database
+ * ({@code lowering.ProductRelationText}, B2b S5a and S5b; until S6 its Float and DateTime cells the edge's value texts,
+ * the progress record's S5a window), or a TDS's {@code csv}, the edge's SQL text until S5c (RelationTextLowering). It
+ * computes no value and plans nothing; the run computes the rows and the printer spells them.
  */
 public final class PrintedRelations {
 
@@ -120,9 +120,9 @@ public final class PrintedRelations {
                     return new Printed(c.args().get(0), PureRelationTextWriter.Form.TO_CSV);
                 }
                 // toCSV(t, renderTdsNull), and toCSV(t, dateTimeFormat, dateFormat, renderTdsNull) with the default
-                // formats, which the helper's two-argument form passes (helperFunctions.pure:203-206) and the lowering
-                // reads as that form (RelationTextLowering.isDefaultCsvFormat); other formats are not lifted: the run
-                // answers them as it does today
+                // formats, which the helper's two-argument form passes (helperFunctions.pure:203-206): the door reads
+                // them as that form (RelationTextLowering.isDefaultCsvFormat, until S5c), as the product's lowering does
+                // (ProductRelationText); other formats are not lifted: the run answers them as it does today
                 boolean defaultFormats = c.args().size() == 4
                         && RelationTextLowering.isDefaultCsvFormat(c.args().get(1), "%t{yyyy-MM-dd HH:mm:ss}")
                         && RelationTextLowering.isDefaultCsvFormat(c.args().get(2), "%t{yyyy-MM-dd}");
@@ -147,8 +147,8 @@ public final class PrintedRelations {
     /** Whether {@code relation} is a relation whose columns the compiler knows: a relation type with at least one
      *  column and no column the database names when the plan runs. A raw grid ({@code executeInDb}, late bound), a
      *  dynamic pivot whose columns nothing names and a relation of no columns are not: the lowering answers each by its
-     *  own rule (a raw grid's toCSV from the grid's report, a refusal by name otherwise;
-     *  RelationTextLowering.lowerToCsv and lowerToString), and the door leaves them to it. */
+     *  own rule (a raw grid's toCSV from the grid's report, a refusal by name otherwise; lowering.ProductRelationText),
+     *  and the door leaves them to it. */
     private static boolean knownColumns(TypedSpec relation) {
         return com.legend.compiler.element.type.Type.relationSchema(relation.info().type())
                 instanceof com.legend.compiler.element.type.Type.RelationType schema

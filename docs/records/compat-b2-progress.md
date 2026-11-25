@@ -304,6 +304,10 @@ B3's step 2b routes every printed assert side through this branch's rule (`Print
   value (`#TDS t:DateTime 2014-01-01T10:20:30.123456#->toString()`: legend-engine's TDS `...30.123+0000`, lite
   `...30.123456+0000`), so it goes to the user as a departure with zero cases moved.
 - **(b), gap 4: no case moves.** No `toCSV` expectation in the relational store's tests holds a date-time cell.
+- **The answers (2026-11-25, relayed by the orchestrator):** (a) is ruled by the user, "Yes keep for past
+  milliseconds" -- register row S402, a reasoned departure with 0 cases moved. (b) needs no ruling: the edge's toCSV
+  date-time cell is the helper's `yyyy-MM-dd HH:mm:ss`, a correction (the edge cases golden's EDGE-2 moved to it with
+  S5a's fix round). Q1 for S5b: the product's toCSV date-time cell is lite's DateTime text, the S312 ruling.
 - **Not the printer's, for B3:** the two places the relational corpus meets a value past the millisecond are
   comparisons, not prints. `relation/tests.pure`'s `testDateTimeInclusiveRangeQuery` (lines ~1220-1232) and the test
   beside it (~1250) compare a database value `.123456789` with an expected `#TDS` literal's `.123+0000` through
@@ -334,8 +338,9 @@ an abstract Date held as a timestamp keeps today's text, the scalar toString's G
 - **One text on each lane:** `ProductRelationTextTest` pins DuckDB, H2 and SQLite: the layout and nulls, Floats
   (`2.0`, `0.00001`, `25000000.0`), a StrictDate and a DateTime (lite's nine digits and `Z`), an abstract Date held
   as a timestamp (the database's timestamp text, G2), quoted names, a braced String holding a quote and a backslash,
-  no rows, a sort by a dropped column, a Number column (`21.0` beside `2.5`, the record's known Number item), a stored
-  relation and a group's sum and average; and the refusals of `toString(rel, true)` and a mixed column.
+  no rows, a sort by a dropped column, a Number column (`21.0` beside `2.5`, the record's known Number item) and a
+  group's sum and average; and the refusals of `toString(rel, true)` and a mixed column. A stored relation's text is
+  `RenderCsvIntegrationTest`'s (under the edge's style until S5b moved that class to the product).
 - **A Decimal cell is its database's scale** (register S400, ruled 2026-11-23): `1.50` beside `-0.125` prints `1.500`
   on DuckDB, `1.50` on H2 and `1.5` on SQLite (measured 2026-11-24), as the product's scalar Decimal text does. It is
   not pinned as one text on every lane.
@@ -350,24 +355,29 @@ including the ones inside this subquery. A table text used further at the edge (
 `toString()->replace($s, ',')`) therefore writes lite's layout with the edge's Float and DateTime cells: legend-engine's
 in-query cast for a Float (`1e-05` on DuckDB, `1.0E-5` on H2) and legend-pure's `+0000` form for a DateTime. That is
 neither lite's text nor legend-pure's. No PCT or corpus case meets it (H11 §13.1; a last-step table is the Java
-printer's). It is pinned as the edge's own per-value text
-(`FloatTextTest.anEdgeTableTextUsedFurtherWritesItsFloatCellsAsTheEdgeWritesAFloat`), so S6's deletion of the passes
-moves it to lite's text by name. Until S5a this test pinned legend-pure's print, which the deleted edge SQL wrote (PR
-#118's fix round).
+printer's). It is pinned two ways (`FloatTextTest.anEdgeTableTextUsedFurtherWritesItsCellsAsTheEdgeWritesTheirValues`,
+the re-review of 2026-11-25): each Float and DateTime cell is the edge's own text of that value (relative: the same pass
+writes both sides), and the table is not lite's text (absolute), so S6's deletion of the passes turns the test red by
+name. Until S5a this test pinned legend-pure's print, which the deleted edge SQL wrote (PR #118's fix round).
 
 **Moves:**
 - **Channel B's lite lane** (`duckdb-lite`, lite's own rules; `ledger.tsv`): of the 423 rows that expected the
   deleted refusal, 390 leave because lite's text is legend-pure's (Relation 335, Standard 55), and both judges agree on
   every test. 33 remain, re-recorded (Relation 30, Standard 3: `over`'s range intervals, `asOfJoin`,
-  `testExtendMaxDate`, `testExtendMinDate`, `testDayOfWeek_Relation`), each for one reason. An untyped `#TDS` column of
-  zone-suffixed timestamps is the abstract Date (`TdsChecker`, as legend-pure's TDS inference), and such a Date cell
-  held as a timestamp prints the database's timestamp text (`2024-01-29 00:32:34`) where legend-pure prints its DateTime
-  text (`2024-01-29T00:32:34.000+0000`). That is the scalar toString's G2 gap, held with B2a's item 4 (Q3).
-- **Channel B's lite judge pins** (`ratchets.tsv`, `bazel run //pct:update_ratchets`): the 390 tests the product
-  refused now plan their database judge. Relation goes from 104 to 469 statements, 631,211 to 1,329,666 characters and
+  `testExtendMaxDate`, `testExtendMinDate`, `testDayOfWeek_Relation`), each for one reason. A `#TDS` column of the
+  abstract Date (inferred from zone-suffixed timestamps, `TdsChecker` as legend-pure's TDS inference, or declared
+  `Date`, as `testExtendMaxDate` and `testExtendMinDate` do) holds its cells as timestamps, and such a cell prints the database's timestamp text (`2024-01-29 00:32:34`) where legend-pure prints its DateTime
+  text (`2024-01-29T00:32:34.000+0000`). That is the scalar toString's G2 gap, held with B2a's item 4 (Q3). Each row
+  holds the whole actual text (the re-review's S1, 2026-11-25: read by a probe of the full failure, never committed),
+  and each test's expected text equals it but for those date spellings, so no other difference hides behind a row.
+- **Channel B's lite judge pins** (`ratchets.tsv`, `bazel run //pct:update_ratchets`): the 423 tests the product
+  refused now plan their database judge (one statement each: Relation +365, Standard +58). Relation goes from 104 to 469 statements, 631,211 to 1,329,666 characters and
   12,328,650 to 24,792,467 plan-JSON characters; Standard from 166 to 224 statements, 721,186 to 819,169 characters and
   14,214,651 to 16,098,309. That is the direct, measured cost of the ruled change (the rule of 2026-11-24 ~06:20: done
-  and reported). Essential shrinks by 272 characters of SQL and plan JSON (a shrink, pre-approved); no other row moves.
+  and reported). Essential shrinks by 272 characters of SQL and plan JSON (a shrink, pre-approved), its statement count unchanged:
+  a drift inside the 1% tolerance from the commits since the pin was set (`24b054c53`: B2b S1-S4 and B3's step 2b,
+  merged), not attributed to one of them -- no Essential test prints a relation, so S5a is not its source. No other
+  row moves.
 - The edge cases golden: EDGE-2 (`toCSV` of a date-time) moves to the helper's `yyyy-MM-dd HH:mm:ss`, S4's
   correction (b), now that the golden's runner lifts a last-step print as the doors do (`EdgeCasesGoldenTest.answer`).
 - The lean SQL baseline: DuckDB's `toString_Relation_1__String_1_` row is new (2 statements, 725 characters), where the
@@ -376,6 +386,63 @@ moves it to lite's text by name. Until S5a this test pinned legend-pure's print,
   of COALESCE, GREATER, IS_NULL, OR, REPLACE, STRPOS and the aggregate STRING_AGG (the direct cost of the ruled change,
   dated in the test); SUBSTRING leaves the functions both sides write, as the edge's toString SQL that wrote it is
   deleted (a shrink).
+
+### S5b: the helper's toCSV is lite's own CSV, computed by the database (2026-11-25)
+
+The rulings this slice builds on:
+- the user, 2026-11-19 ~20:05: "toCSV yes toString or another easy database sql that makes sense";
+- the layout the orchestrator agreed on 2026-11-24;
+- a date-time cell is lite's DateTime text: S312, "Yes always pretty print to iso nanos", relayed by the orchestrator on 2026-11-25 as Q1;
+- the CSV's nulls and Strings, ruled by the user on 2026-11-25 and relayed by the orchestrator: "For csv we can do empty cell for null and "" or '' empty string and the toCSV(true) do null for null and quoted strings?" (register S420).
+
+**The question asked first.** The agreed layout had `toCSV(t, true)` write `TDSNull`. Two guards refused that spelling in a product class:
+- `CompatSpellingGuardTest` and `CompatConstantPoolTest` both flagged it.
+- S313 and S316 hold `TDSNull` as the edge's spelling.
+
+The question went to the orchestrator with (A) write it, (B) refuse it, and (C) ignore the flag. The user's design replaced all three: lite writes its own explicit null under the flag. Nothing in the product spells `TDSNull`, and no guard moves.
+
+**The product's `toCSV`** (`lowering.ProductRelationText.csv`) is one scalar subquery the database computes, in the relation's own order (`Render.liftOrder`, as in S5a).
+- **Layout:** the helper's. The header is the names joined `,`; each row is its cells joined `,`. There is a newline after the header and after every row, so no rows gives the header and two newlines.
+- **A name** that holds a comma, a quote or a line break is quoted at planning, its quotes doubled.
+- **Under `toCSV(t)`, `toCSV(t, false)` and the four-argument form with the default formats:**
+  - a null is an empty field;
+  - an empty String is `""`;
+  - any other cell is quoted only where it holds a comma, a quote or a line break.
+- **Under `toCSV(t, true)`:**
+  - a null is the word `null`;
+  - every String cell is quoted (`""`, `"null"`, `"a"`);
+  - a number, a Boolean, a date or any other non-String cell is written as under `toCSV(t)`.
+- **Each cell** is the product's text of its value (S311, S312): `2.0`, `0.00001`, `2014-01-01T10:20:30.123000000Z`.
+- **The same rule in the CSV output format:** `result/CsvWriter` writes an empty String as `""`, so it is never read as the null.
+
+**A raw grid's CSV** (`executeInDb`) is the grid's report, read when the plan runs (the planner-driver seam program's S3c).
+- It moved from the edge with its rule unchanged. The keyed plan admits an integer's and a text's columns alone, and their database text is the product's.
+- An empty text there is a String's, so it is written `""`.
+- Under `toCSV(t, true)` a raw grid is refused by name. The flag quotes a String cell alone, and the grid's column types exist only when the plan runs.
+
+**Refused by name:**
+- the four-argument form with formats of its own;
+- a `renderTdsNull` that is no literal;
+- a raw grid under the flag;
+- a pivot whose columns nothing names;
+- a relation whose plan names no column. Until S5b the edge refused this as a dynamic pivot's text; S5a's `toString` now refuses it by name too, where it used to throw an internal error;
+- a mixed column;
+- a DISTINCT or star select ordered by a key that is no column.
+
+**The edge's `toCSV` SQL is deleted.**
+- From `RelationTextLowering`: `toCsv`, `lowerToCsv`, `gridCsv`, the five-argument `csv`, `dynamicPivotText` and `hasDynamicPivot`. The TDS `csv` property's SQL stays until S5c.
+- From the facet: the `toCsv` member (`OpenClassMembersTest`, a shrink).
+- A last-step `toCSV` on legend-pure's and legend-engine's doors is printed by the doors' Java printer (`PrintedRelations`, B3's lift), in the helper's own text, with `TDSNull` under the flag.
+- A `toCSV` used further is lite's text, inside S5a's window: the edge's Float and DateTime cells until S6.
+
+**Moves** (measured by the fast check on the merge with B3 step 4; the full round's are added below when it lands):
+- The lean SQL baseline: DuckDB's two `toCSV` rows are new (`toCSV_TabularDataSet_1__String_1_`, 2 statements, 2,143
+  characters; `toCSV_TabularDataSet_1__Boolean_1__String_1_`, 1 statement, 660 characters), where the product
+  refused; the refused count falls from 9 to 6.
+- `SqlFnSortedTest`: `ProductRelationText` joins the writers of EQUAL (the empty String's test), dated on its line.
+- No core, edge or channel B lite test moved with the CSV rule: no existing CSV output held an empty String. The
+  rule is pinned by `ResultWritersTest.anEmptyStringIsQuoted_aNullAnEmptyField`, `ProductRelationTextTest` and
+  `RenderCsvIntegrationTest`.
 
 ## Audits
 

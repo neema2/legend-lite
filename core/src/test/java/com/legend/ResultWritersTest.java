@@ -263,6 +263,15 @@ class ResultWritersTest {
                 write(new CsvWriter(out, Shape.RELATION), out, ROWS, DATA));
     }
 
+    /** An empty String is {@code ""} and a null an empty field, so the two never read alike (the user's ruling of
+     *  2026-11-25, register S420: Postgres COPY's and DuckDB's CSV convention). */
+    @Test
+    void anEmptyStringIsQuoted_aNullAnEmptyField() throws IOException {
+        StringWriter out = new StringWriter();
+        assertEquals("ID,NAME,F\r\n1,\"\",1.0\r\n2,,2.0\r\n", write(new CsvWriter(out, Shape.RELATION), out, ROWS,
+                List.of(Arrays.asList(1L, "", 1.0), Arrays.asList(2L, null, 2.0))));
+    }
+
     @Test
     void aCsvOfNoRowIsItsHeader_aPivotsGeneratedNameBare() throws IOException {
         // a pivot's generated name bare (the user's ruling of 2026-11-10; D1.4, 2026-11-15: legend-engine's quotes
