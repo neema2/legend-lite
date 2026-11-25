@@ -22656,3 +22656,47 @@ docs/records/compat-b3-progress.md, step 5. Every roster, golden and pin change 
   legend-pure's orderings of two non-numbers (the review's M3) failed four PCT tests the database's comparison passes
   (`testCompareMixedTypes`, `testDateCompare`, `testMax_Date`, `testMin_Date`); the door keeps the database's ordering,
   a day against a date-time at one instant the recorded difference.
+
+## 2026-11-25 — The edition program's step 1: the edge's DECIMAL Float literal deleted
+
+The user's ruling of 2026-11-25 ("yes delete the float decimal thing"; amendment 11 of
+docs/records/edition-homework/v2-amendments-ruled-2026-11-25.md): the compatibility edge's dialects no longer write a
+Float literal as legend-engine's bare DECIMAL on DuckDB, H2, Postgres, Databricks and Trino (`edge/PureText`'s five
+`floatLiteralKind()` overrides); a compatibility plan writes the product's literal, a double. The one recorded
+difference is register S20 (legend-engine on DuckDB computes Float literal arithmetic as DECIMAL; lite answers IEEE,
+Pure's way; on H2 legend-engine's own literal processor writes `CAST(x AS FLOAT)`, as lite does). Measured before it
+was ruled: docs/records/edition-homework/m1-float-literal.md (M1). Every roster, golden and pin change below:
+
+- **`EdgeSpellingHookTest`'s allowlist, a shrink:** row 21 (`floatLiteralKind`, the one in-query decision an edge
+  dialect was allowed to override) is removed, so an edge dialect that overrides it again fails
+  `theEdgesDialectsOverrideSpellingOnly`. Dated in the file.
+- **The H2 fail roster (`rcorpus/h2-fail-roster.txt`), -2:**
+  `meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier` and
+  `meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping` newly pass, the
+  two M1 predicted: the edge's DECIMAL on H2 was never legend-engine's own. The DuckDB rosters are unmoved.
+- **The corpus's lean-SQL pins (`rcorpus/lean-sql-baseline.tsv`), 46 rows, the compatibility doors' plans:** no
+  statement count, subselect count or refusal moves. H2: 23 families grow, 26 characters a literal
+  (`CAST(<digits> AS DOUBLE PRECISION)`; `query::function::cos` +52, `groupBy` +234, `tds::tdsWindow` +78). DuckDB: 19
+  families grow, 2 or 4 characters a literal (`1.0` written `1.0E0`; `cos` +4, `groupBy` +32, `tdsWindow` +20), and
+  four shrink (`mapping::embedded` -12, `::advanced` -60, `::advanced::inline::nested` -24,
+  `::advanced::inline::targetid` -24: a DECIMAL literal's longer spelling gone; M1's record names two of the four).
+  Growth of the compatibility doors' SQL, ruled with the deletion; the product's own pins
+  (`//core:lean_sql_baseline_test`) do not move.
+- **The corpus edge goldens (`edge/corpus_{duckdb,h2}_host_judge-host.tsv`):**
+  - H2: the two tests above read PASS; `meta::relational::tests::groupBy::testUsingSameAggFunctionTwice` and
+    `...UsingQualifier` fail as before (H2's syntax error), their recorded statement's Float literals re-spelled
+    (`34.0` to `CAST(34.0 AS DOUBLE PRECISION)`), nothing else in the line.
+  - DuckDB and H2, **not this step's:** `meta::relational::tests::mapping::enumeration::testEnumInRelation`'s verdict
+    reads `assertSameElements` where the golden said `assertEquals`, PASS before and after. The golden was stale on
+    the branch: the test run alone on the base code, with `edge/PureText` as at 296732e2
+    (`bazel run //spec:corpus_one -- duckdb host <the test>`), already adjudicates `assertSameElements`. No commit
+    after b0df6ea8 (step 5a, which last regenerated these goldens) touched the door's rewrite
+    (`edge/UpstreamTestBodies`, `compiler/spec/OrderedAsserts`); which later change moved it is not traced.
+- **pure/v1's plan text (`edge/pure_v1_plan_text.tsv`), three requests on H2:** `raise.sqrtOfNegative`, `cell.float`
+  and `cell.floatWhole` write each Float literal as `CAST(x AS DOUBLE PRECISION)`. No answer moves
+  (`edge/pure_v1_answers.tsv` is unchanged).
+- **PCT's edge contract on DuckDB (`pct/.../edge/duckdb_grammar_answers.tsv`), two answers:** `testFloatPlus`
+  1.7 to 1.7000000000000002 and `testFloatTimes` 2.1 to 2.0999999999999996, the double's arithmetic, toward compiled
+  Pure (M1's two); within the test's tolerance, so no outcome moves.
+- **`EqualityCompatEdgeTest`:** `0.1 + 0.2` at the edge's DuckDB door is `0.30000000000000004` (legend-engine's
+  DuckDB answers `0.3`, a DECIMAL): the recorded difference, S20.

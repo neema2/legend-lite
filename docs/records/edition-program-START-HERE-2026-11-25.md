@@ -51,11 +51,12 @@ The third review found v3's mechanism (a meaning pass at the store resolver's ex
 
 It is partly verified, with a two-hour homework list. The user's fallback if it can't be proven in time: take the database's `substring`/`indexOf` everywhere under `engine`, record the host-side-`let` tests as known differences, and delete A3. Everything else in v3 carries over. Three decisions are open (that file's §6).
 
-### 0.16 LATEST (2026-11-25, after the handover): the plan to finish Stage B
+### 0.16 LATEST (2026-11-25, after the handover): the design's mechanism and the plan to finish Stage B
 
-A new orchestrator session took over from B3 (`session_0195rQEk16FvwAXgknSU73Fi`, another account; B3's handover is `edition-homework/handover-b3.md`). **The order of work is now `edition-plan-to-finish-stage-b-2026-11-25.md`:** 18 numbered steps (and 15b), worked step by step under the fast dev loop, with the user's rulings on it quoted in its §6 and in the amendments file (items 24-26).
-- **The mechanism** is v4's first half only: one table at lowering, handed in by the door (that file's §2). There are no G½ markers yet, and A3 stays on pure/v1 until step 16 (ruled). It is proposed, not ruled: step 4's probe answers "is the table going to work?".
-- **Work in progress** is on `claude/modest-galileo-h6swr4`, on top of this branch. This branch moves only when a step is verified, audited and the user has said go.
+A new orchestrator session took over from B3 (`session_0195rQEk16FvwAXgknSU73Fi`; B3's handover is `edition-homework/handover-b3.md`). **Read `edition-plan-to-finish-stage-b-2026-11-25.md` next: it is the mechanism and the order of work,** with the user's words on it quoted in its section 7 and in the amendments file (items 24 to 28).
+- **The mechanism** replaces v3's pass and v4's markers. Each kind of difference is decided where it can be: comparisons across types by a setting in the type-checker; SQL differences by a table at lowering; which side of legend-engine a piece of code runs on by a stamp on the call, made while functions are expanded; presentation in Java at the edge.
+- **What judges a change** is the tests' answers, not SQL text. Small changes run a fast loop of a few tests; the full round, the audit, CI and the heavy and warm lanes run in parallel at the end of each big step.
+- **Work in progress** is on `claude/modest-galileo-h6swr4`, on top of this branch.
 
 ### 0.2 The design of record: v3 (its mechanism superseded by 0.15)
 

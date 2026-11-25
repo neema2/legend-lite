@@ -1721,7 +1721,7 @@ meta::relational::tests::mapping::embedded::testIsEmpty	1	meta::pure::functions:
 meta::relational::tests::mapping::embedded::testMapEmbeddedQualifierWithIfTwoEmbeddedProperties	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::mapping::embedded::testProjectToEmbedded	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::mapping::embedded::testProjectToEmbedded	1	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::mapping::enumeration::testEnumInRelation	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::relational::tests::mapping::enumeration::testEnumInRelation	0	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::mapping::enumeration::testEnumMappings	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::mapping::enumeration::testEnumMappings	1	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::mapping::enumeration::testEnumMappings	2	meta::pure::functions::asserts::assertEquals	PASS
