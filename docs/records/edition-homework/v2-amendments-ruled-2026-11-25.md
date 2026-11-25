@@ -80,3 +80,11 @@ Measurement added: M7, a typed census of governed constructs in the corpus harne
     - **toCSV's Float digits** "okay make exact". "Exact" means the database's own full-precision text of the double (its cast), not six decimals, and not Java's algorithm ported into SQL.
     - **ServiceTestRunner:** "sure keep on edge for now, eventually we will need real one in lite". It stays at the edge with legend-engine's exact JSON comparison; a lite-native service test runner is future work (docs/DEFERRED_TEST_EXECUTION.md).
     - **S7a:** not yet answered, asked again.
+16. **M2, the H2 settings** (B2, 418553e9d on claude/compat-b2-nufdlk, docs/records/edition-homework/m2-h2-settings.md):
+    - `DEFAULT_NULL_ORDERING=HIGH` has no effect on any lane: the H2 dialect writes explicit null placement (`H2.java:1181-1184`).
+    - `MODE=LEGACY` matters to 1 corpus test (`graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter`): a store filter compares a BOOLEAN column with an integer (`active = 1`), which H2 REGULAR refuses and LEGACY accepts. Without it, the test newly fails, away from legend-engine (an error appears).
+    - PCT A/B on H2, pure/v1's golden net, the H2 engine lane and the edge's H2 integration lane: 0 moves.
+    - Two edge tests pin the settings' identity.
+    - Recommendation: keep legend-engine's H2 session settings for the `engine` door as connection data. There's no SQL change, it's already built, and it is faithful for user #SQL islands too. PCT (`pure`) uses the product's settings (0 moves).
+    - Pre-existing, not M2's: `//pct:pct_channel_b_twice_h2_relation` (a manual lane) fails 4 cases on a clean tree ("DialectCapability: LIST_GET reached a dialect without a list encoding"); needs an owner.
+    - M1's addendum: every M1 move is arithmetic, none is a Float's text.
