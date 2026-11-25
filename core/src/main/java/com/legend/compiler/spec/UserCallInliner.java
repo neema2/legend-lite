@@ -193,6 +193,58 @@ public final class UserCallInliner {
         return reduced.get(reduced.size() - 1);
     }
 
+    /** THE STAMP (the edition program's step 2, 2026-11-25; docs/records/edition-plan-to-finish-stage-b-2026-11-25.md
+     *  section 2.3): whether this inliner stamps the calls of a statement that reads no store as outside any store
+     *  query ({@code TypedNativeCall.outsideStore}). Off unless a compatibility door's table asks
+     *  ({@code lowering.EditionTable.stampsOutsideStore}); the product never does. */
+    private boolean stampsStoreFreeValues;
+
+    private final Map<com.legend.model.FunctionId, Boolean> storeReach = new java.util.HashMap<>();
+
+    /** This inliner, stamping: the calls in a query-level {@code let}'s value that reads no store, and in a last
+     *  statement that reads none, are marked outside any store query. Here, because this is the last place a
+     *  {@code let} is still a statement of its own (it is dissolved into its readers below) and the first where the
+     *  functions it calls stand in place. */
+    public UserCallInliner stampingStoreFreeValues(boolean on) {
+        this.stampsStoreFreeValues = on;
+        return this;
+    }
+
+    /** What reads a store: an extent, a table, a from-envelope, a milestoned access, a view. */
+    private static boolean isAStoreRead(TypedSpec n) {
+        return n instanceof com.legend.compiler.spec.typed.TypedGetAll
+                || n instanceof com.legend.compiler.spec.typed.TypedTableReference
+                || n instanceof com.legend.compiler.spec.typed.TypedFrom
+                || n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess
+                || n instanceof com.legend.compiler.spec.typed.TypedViewRelation;
+    }
+
+    /** {@code reduced}, the inlined form of the statement {@code written}, with its calls stamped as outside any store
+     *  query where the statement reads no store, itself or through the functions it calls
+     *  ({@link StatementEffects#reaches}); as it is otherwise. A value that IS a lambda is never stamped: its body
+     *  runs where the lambda is applied, which may be inside a store query. */
+    private TypedSpec stampedIfStoreFree(TypedSpec written, TypedSpec reduced) {
+        if (!stampsStoreFreeValues) {
+            return reduced;
+        }
+        TypedSpec value = written instanceof TypedLet let ? let.value() : written;
+        if (value instanceof TypedLambda || StatementEffects.reaches(written, UserCallInliner::isAStoreRead, specs,
+                storeReach)) {
+            return reduced;
+        }
+        return stampOutside(reduced);
+    }
+
+    /** {@code n} with every call in it stamped; a term an earlier {@code let} bound is left as it was stamped when it
+     *  was bound (it stands here by reference, and may read a store). */
+    private TypedSpec stampOutside(TypedSpec n) {
+        if (reducedTerms.containsKey(n)) {
+            return n;
+        }
+        TypedSpec kids = n.mapChildren(this::stampOutside);
+        return kids instanceof TypedNativeCall c ? c.stampedOutsideStore(true) : kids;
+    }
+
     public List<TypedSpec> inlineBody(List<TypedSpec> body) {
         return inlineBody(body, null);
     }
@@ -222,16 +274,15 @@ public final class UserCallInliner {
                     throw new NotImplementedException(
                             "only let statements may precede the query expression");
                 }
-                scope.put(let.name(), reduce(let.value(), scope));
+                scope.put(let.name(), stampedIfStoreFree(let, reduce(let.value(), scope)));
             }
             // graph-tree args are NOT β-reduced (source spelling is the
             // serialize key) — the resolver reads consumed lets through this
             // (engine inScopeVars)
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            java.util.function.Supplier<TypedSpec> reduction = () -> last instanceof TypedLet let
-                    ? reduce(let.value(), scope)
-                    : reduce(last, scope);
+            java.util.function.Supplier<TypedSpec> reduction = () -> stampedIfStoreFree(last,
+                    last instanceof TypedLet let ? reduce(let.value(), scope) : reduce(last, scope));
             // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
             TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);
             readOnce(scope.terms, result);

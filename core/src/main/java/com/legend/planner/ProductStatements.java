@@ -122,7 +122,9 @@ public final class ProductStatements {
         PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows, style).withOptions(query.options())
                 : env(ctx, runtime, features, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
-        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered);
+        // the stamp (the edition program's step 2): asked for by a door whose table's two columns differ, never the product
+        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered,
+                env.styled().edition().stampsOutsideStore());
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
@@ -179,15 +181,16 @@ public final class ProductStatements {
     /** {@code statements} inlined with the splice hook {@code first} records into; inlined again, its frames read as
      *  their CTE, where it pastes one more than once (M3g, B10). */
     private static Inlined inline(SpecCompiler specs, List<TypedSpec> statements, @Nullable Integer mark,
-            ProgramFrames.Recorder first, boolean frameAnswered) {
+            ProgramFrames.Recorder first, boolean frameAnswered, boolean stamp) {
         ProgramFrames.Recorder recorder = first;
-        UserCallInliner inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
+        UserCallInliner inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder))
+                .stampingStoreFreeValues(stamp);
         List<TypedSpec> body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark), recorder,
                 frameAnswered);
         ProgramFrames.Recorder again = recorder.again(body);
         if (again != null) {
             recorder = again;
-            inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
+            inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder)).stampingStoreFreeValues(stamp);
             body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark), recorder, frameAnswered);
         }
         return new Inlined(body, Collections.unmodifiableMap(new LinkedHashMap<>(inliner.queryLets())),

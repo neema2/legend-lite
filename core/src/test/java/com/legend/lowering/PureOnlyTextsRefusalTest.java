@@ -49,7 +49,7 @@ class PureOnlyTextsRefusalTest {
     @Test
     void theProductsStyleRefusesEachMemberWithItsCallsRefusal() {
         Styled configured = new Styled(r -> PlanStyle.PRODUCT.facet(PureOnlyTexts.class, r), Styled.PRODUCT.forms(),
-                Styled.LITE_DATE_TIMES, ProductListTexts.INSTANCE);
+                Styled.LITE_DATE_TIMES, ProductListTexts.INSTANCE, EditionTable.LITE);
         for (Styled styled : List.of(Styled.PRODUCT, configured)) {
             MEMBERS.forEach((name, call) -> {
                 ModelException refusal = TextRefusals.representation();

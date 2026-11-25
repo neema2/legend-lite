@@ -59,5 +59,10 @@ import java.util.List;
             // catalog words every assert failure, and the database judge plans for lite's flow alone)
             // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
             // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
-            com.legend.sql.dialect.DatabaseSettingsForm.class);
+            com.legend.sql.dialect.DatabaseSettingsForm.class,
+            // the edition's table (the edition program's step 2, 2026-11-25;
+            // docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.2): the product's has no row; a
+            // compatibility door's names, per native, the product rule its audience means. The one kind the other
+            // lowering forms fold into as the program goes
+            com.legend.lowering.EditionTable.class);
 }

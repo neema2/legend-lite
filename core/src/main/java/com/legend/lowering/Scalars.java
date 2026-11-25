@@ -2818,6 +2818,12 @@ final class Scalars {
     static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs, Set<Feature> features,
             com.legend.platform.ImplementationTable implementations, Styled styled) {
         com.legend.model.FunctionId key = call.callee().id();
+        // the edition's table (EditionTable): a door's row names another product native whose rule lowers this call,
+        // by the call's stamp; the product's table has no row
+        com.legend.model.FunctionId as = styled.edition().lowersAs(key, call.outsideStore(), features);
+        if (as != null) {
+            key = as;
+        }
         Rule rule = FeatureRules.select(key, features);
         if (rule != null) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR-FEATURE");

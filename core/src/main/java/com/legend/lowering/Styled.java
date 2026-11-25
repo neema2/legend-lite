@@ -22,9 +22,11 @@ import java.util.function.Supplier;
  *                  product's lite text, the edge's legend-pure's
  * @param lists     a list's text, a two-form kind ({@link ListTexts}, census B8, 2026-11-17): the product's JSON array,
  *                  the edge's {@code [a, b]}
+ * @param edition   the edition's table ({@link EditionTable}, the edition program's step 2, 2026-11-25): the product's
+ *                  has no row; a compatibility door's names, per native, the product rule its audience means
  */
 public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly,
-        LoweringForms forms, DateTimeTexts dateTimes, ListTexts lists) {
+        LoweringForms forms, DateTimeTexts dateTimes, ListTexts lists, EditionTable edition) {
 
     /** The product's form of a DateTime's text: lite's canonical text, {@code DATETIME_TO_TEXT}, the value alone. A
      *  literal's written text is the edge's alone (legend-pure prints a literal at its written precision): the product's
@@ -37,5 +39,5 @@ public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyText
      *  lite's written (no plain raise, {@link ProductLoweringForms}); lite's text of a DateTime. */
     public static final Styled PRODUCT = new Styled(refusal -> {
         throw refusal.get();
-    }, ProductLoweringForms.INSTANCE, LITE_DATE_TIMES, ProductListTexts.INSTANCE);
+    }, ProductLoweringForms.INSTANCE, LITE_DATE_TIMES, ProductListTexts.INSTANCE, EditionTable.LITE);
 }
