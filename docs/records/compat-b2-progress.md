@@ -404,24 +404,27 @@ The question went to the orchestrator with (A) write it, (B) refuse it, and (C) 
 **The product's `toCSV`** (`lowering.ProductRelationText.csv`) is one scalar subquery the database computes, in the relation's own order (`Render.liftOrder`, as in S5a).
 - **Layout:** the helper's. The header is the names joined `,`; each row is its cells joined `,`. There is a newline after the header and after every row, so no rows gives the header and two newlines.
 - **A name** that holds a comma, a quote or a line break is quoted at planning, its quotes doubled.
-- **Under `toCSV(t)`, `toCSV(t, false)` and the four-argument form with the default formats:**
+- **Under `toCSV(t)` and `toCSV(t, false)`** (the four-argument form, with formats, is refused by name since the
+  review's fix round: the orchestrator's ruling of 2026-11-25, Q-A):
   - a null is an empty field;
   - an empty String is `""`;
   - any other cell is quoted only where it holds a comma, a quote or a line break.
 - **Under `toCSV(t, true)`:**
   - a null is the word `null`;
-  - every String cell is quoted (`""`, `"null"`, `"a"`);
+  - every String cell is quoted (`""`, `"null"`, `"a"`), and every Variant cell since the review's fix round (a
+    Variant's JSON null `"null"`, never the null word: the orchestrator's ruling of 2026-11-25, Q-B);
   - a number, a Boolean, a date or any other non-String cell is written as under `toCSV(t)`.
 - **Each cell** is the product's text of its value (S311, S312): `2.0`, `0.00001`, `2014-01-01T10:20:30.123000000Z`.
 - **The same rule in the CSV output format:** `result/CsvWriter` writes an empty String as `""`, so it is never read as the null.
 
 **A raw grid's CSV** (`executeInDb`) is the grid's report, read when the plan runs (the planner-driver seam program's S3c).
-- It moved from the edge with its rule unchanged. The keyed plan admits an integer's and a text's columns alone, and their database text is the product's.
+- It moved from the edge with its layout and cells unchanged but for the two ruled changes below. The keyed plan
+  admits an integer's and a text's columns alone, and their database text is the product's.
 - An empty text there is a String's, so it is written `""`.
 - Under `toCSV(t, true)` a raw grid is refused by name. The flag quotes a String cell alone, and the grid's column types exist only when the plan runs.
 
 **Refused by name:**
-- the four-argument form with formats of its own;
+- the four-argument form (with formats of its own until the review's fix round; every four-argument form since);
 - a `renderTdsNull` that is no literal;
 - a raw grid under the flag;
 - a pivot whose columns nothing names;
@@ -444,10 +447,65 @@ The question went to the orchestrator with (A) write it, (B) refuse it, and (C) 
   rule is pinned by `ResultWritersTest.anEmptyStringIsQuoted_aNullAnEmptyField`, `ProductRelationTextTest` and
   `RenderCsvIntegrationTest`.
 
+**The full round** on `d7af55aae`, S5b alone (B3's step 5a set aside on `b2-merge-b3-5a` until B3's fix): every lane
+green -- the local gate, core and its lanes, the edge on H2 and SQLite, every PCT lane, channel B, the engine lanes,
+`edge_net`, and the corpus on DuckDB and H2, whose verdicts held. The Postgres, `is_numeric` and datacube targets
+failed only as root and passed on the unprivileged rerun. Pushed 2026-11-25 and reported to the orchestrator. The
+corpus and PCT were read for an unlifted `toCSV` (the review's item): none moved.
+
+**The review's fix round** (below, in the audits table), landed with S5c in one commit, so each pushed commit is green
+(the LENGTH writers balance only with both). Its moves: the lean SQL baseline's two `toCSV` rows on DuckDB shrink --
+2,143 -> 1,372 and 660 -> 406 characters, their repeated text 515 -> 240 and 90 -> 0, their plan JSON 44,096 -> 28,125
+and 13,324 -> 8,028 -- as a number's, a Boolean's and a date's text is no longer escaped.
+
+### S5c: the edge's relation texts and their facet deleted (2026-11-25)
+
+The plan was agreed by the orchestrator on 2026-11-25: the door peels the type-level TDS casts and lifts that one
+`.csv` to the Java printer's TDS_CSV form. `RelationTextLowering` and the `RelationTexts` facet are deleted. The
+product keeps refusing a TDS's csv by name.
+
+- **Deleted.** `edge/RelationTextLowering` (the TDS csv property's SQL, the last of it) and `lowering/RelationTexts`
+  (the plan style's B17 facet, with its forwarders `pureToString` and `kindType`).
+  - The Lowerer loses its `relationTexts` field and `withRelationTexts`. `PlanEnv.configure` no longer asks for the
+    facet.
+  - `PlanStyleFacets.KINDS` loses the kind, and the edge's style (`PureText.facet`) its answer.
+- **The product.** A TDS's `csv` is refused by name on every plan style (`TextRefusals.tdsCsv`, at the Lowerer's two
+  arms): "a TDS's csv is legend-engine's text, printed only as a query's last step at legend-pure's and legend-engine's
+  doors: the product writes a relation's rows by its result writers (JSON, CSV, Arrow), and its text by toString and
+  toCSV". A relation's `toString` and `toCSV` are lite's own texts (S5a, S5b).
+  - The second arm is the review's: a `#TDS` literal's `csv` was taken by the TDS class's field read and its rows
+    reached the renderer as a mixed list (an internal wall before S5c too). It is now refused by the same sentence.
+  - pure/v1's execute refuses every value answer today (`EngineAnswers.engine`), so the facet's SQL text it loses
+    moved no answer there.
+- **The door.** `PrintedRelations.side` peels the type-level TDS casts (`ResultEnvelopeSplice.peelTdsCasts`, the
+  resolver's own rule) before it reads a TDS's csv. testEnumInRelation's
+  `$result.values->cast(@TDS<Any>).csv` is then lifted to the Java printer's TDS_CSV form.
+  - The lift's default-format test reads the literal text the lowering reads: the zero-argument format functions are
+    not in lite's catalog.
+- **The edge's list text** (`PureListTexts`) reads the same `pureToString` through the representation's facade,
+  `lowering.ReprParts`. This is a dated listed-caller entry in `ArchitectureTest.PLANNER_ENTRIES`, and the one guard
+  row that is not a shrink.
+- **Guards, each a dated shrink:**
+  - `OpenClassMembersTest`: the facet's entry.
+  - `ArchitectureTest`: the facet's planner entries, its planted host door and its facet rule.
+  - `HookRulingTest`: the facet's ruling, its facade and its implementer.
+  - `HookLambdasTest`: `PlanEnv`'s facet reaches 2 -> 1.
+  - `EdgeSeparationTest`: B17's class and its four dependency rows.
+  - `PlanStyleSurfaceTest`: the kind.
+  - `JavaEvalLedgerTest`: `RelationTextLowering.java`'s row.
+  - `PlantedHostDoors`: the planted implementer.
+  - `SqlFnSortedTest`: ENDS_WITH, LENGTH, MINUS and STRPOS leave the functions both sides write (`RelationTextLowering`
+    was their one edge writer).
+  - `EdgeOnlyMembersTest`: `DateFmt#TIME_ONLY`, whose one reader went; the format is deleted with it.
+
+**Moves:** MEASURED-MOVES.
+
 ## Audits
 
 | When | Scope | Findings | Fixed |
 |---|---|---|---|
+| 2026-11-25 | B2b S5b's fix round and S5c, `d7af55aae..3a4fe1d81`, a subagent, read-only | 3 must-fix, each a guard the deletion left red: `SqlFnSortedTest` (ENDS_WITH, LENGTH, MINUS and STRPOS no longer written by the edge), `EdgeOnlyMembersTest` (`DateFmt#TIME_ONLY`, now read by nothing), `PrintedRelationsTest` (a csv over a cast to a TDS is now lifted). Should-fix: an empty relation and one null row in a one-column CSV both `s\n\n`, where `result/CsvWriter` writes the header alone (a semantics question); the refusal's sentence named legend-pure's text and the edge; pure/v1's execute does not lift; the moves unmeasured; the PAD SPACE fix pinned on no MariaDB or MySQL lane. Nits: a comment on the four-argument form, an enum value spelled `null` under the flag, stale comments, merge markers in the fix round's commit. The fixes (a), (b), (c), (d) clean, `peelTdsCasts` clean, no loosening | the three guards (the first two dated shrinks, the deleted format with its pin; the third a lifted cast); the sentence names legend-engine's text and the doors, and a `#TDS` literal's csv, which reached the renderer as a mixed list, is refused by it too; pure/v1 refuses every value answer today, recorded; the moves measured by the full round; a plan pin of `CHAR_LENGTH` on MariaDB and MySQL (`sql/dialect/CsvEmptyStringTest`: a dialect's test, the one place a test may name both databases); the comments corrected; the merge markers squashed out. Posted to the orchestrator: the empty relation (Q-C) and the enum named `null` (Q-D) |
+| 2026-11-25 | B2b S5b, `d7af55aae`, a subagent, read-only | 1 must-fix: on MariaDB and MySQL (PAD SPACE) the empty test `= ''` matched a String of spaces, written `""` (a value lost). Should-fix: the four-argument form admitted and its formats ignored (invariant 4); every non-String cell escaped (each date repeated 6 times, lean SQL); S312 and S316 not amended for toCSV; the window unpinned for toCSV; test gaps (a raw grid under the flag and its empty text, CR/LF, a quoted header name, Variant and enumeration cells, the toCSV refusals); the corpus and PCT to read for an unlifted toCSV. Nits: wording (Render, the parity test's title, a test name, DIFFERENCES §14), S420's reader evidence (pandas lossy; DuckDB's quoted nulls), an Any cell's empty text, a Variant's JSON null under the flag, a late-bound relation's refusal words, a date carried as text | the empty test reads the length, folded into the escape (an Any cell's empty text with it); a number's, a Boolean's and a date's text unescaped (a fold of a type's fact); the four-argument form refused by name (Q-A) and a Variant quoted under the flag (Q-B), both ruled by the orchestrator 2026-11-25 and named in S420; S312 and S316 amended for S5b; FloatTextTest's window pin covers toCSV; the tests added (TaggedListTest's raw grid CSV, its empty text and its flag refusal; ProductRelationTextTest's CR/LF, spaces, a quoted header name, an enumeration, the mixed-column and four-argument refusals); S420's readers quoted from PostgreSQL's and DuckDB's documentation; the wording fixed; the corpus and PCT read on the full round of `d7af55aae`, no unlifted `toCSV` moved. Left as recorded: a Variant cell unpinned in the lane tests (no Variant on H2 and SQLite there), a late-bound relation's refusal words, a date carried as text (probe at S6) |
 | 2026-11-24 | B2b S5a, `1d6da1b6b`, a subagent, read-only, given the code, H14's spike and the rulings | 2 must-fix: under the edge's style the edge dialect's value passes re-spell the table text's Float and DateTime cells, the pin of that deleted and nothing recorded, the javadoc's "whatever the plan's style" false; channel B's lite ledger stale (423 rows expect the deleted refusal). Should-fix: tests (a sort by a dropped column, a Variant cell, a quote or a backslash in a braced String, a Number or Decimal cell, a stored relation, the refusals). Nits: stale wording (`JavaEvalLedgerTest`, `TextRefusals`, `Render`, `RelationTextLowering`, the parity test, `AggOrderNullPlacementTest`), double blank lines, a Number on a DECIMAL slot unpinned, a relation with no sort. Invariants, the order's lift, the cells' rules and the guards found clean | the window recorded and pinned as the edge's own text (`FloatTextTest`), the javadoc corrected; the ledger re-measured (390 leave, 33 re-recorded, the G2 gap) and the judge pins moved by the measured cost; the tests added (a Decimal is its database's scale, S400, so it is not one text on every lane; a Variant cell is channel B's lite lane's, whose Variant tests now pass); the wording and blank lines fixed; the Number and no-sort nits recorded. A DISTINCT select ordered by an expression stays unpinned (no Pure relation function writes one) |
 | 2026-11-24 | B2b's MIDPOINT design audit, `54f8be8e3..607d24dcc`, a subagent, read-only, given the plan of record, the tenets and the record | verdict "sound to continue"; no must-fix. Should-fix: the CSV prints unmeasured against the SQL text; two mechanisms in one defect object; `side()` at S5/S6; legend-pure's value prints at S6. Nits: a String cell under any column type; the ledger's reason; a Decimal in a Number column; the route's comment; two differences not yet register rows | the CSV measured and pinned (gap 4; a TDS literal's csv); the record kept, with the orchestrator's agreement (G4); S5/S6 and S4/S6 items carried; the nits fixed or recorded; (a) and (b) for the user's word after S4 |
 | 2026-11-24 | B2b S3, `ba8acecdb`, a subagent, read-only | must-fix: the generated host tables (`lite-raise.ts`, `_type_facts.py`) list every `RaiseKind`, and a new one was added without regenerating them. Questions 1-5 clean: S3a's text byte-identical for every id; the old message a bare literal, the children walk in step, the simple name identical, the guard edits legitimate. Nits: two stale comments (`SqlExpr.RaiseText`, `RaiseTextTest`); the null message's children walk unpinned | the must-fix made moot: `CONSTRAINT_VIOLATED` is no `RaiseKind` (the gate also measured the record's plan growth, so the sentence is a plain literal); the comments corrected; the children walk pinned |

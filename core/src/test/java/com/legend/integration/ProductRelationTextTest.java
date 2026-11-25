@@ -102,8 +102,15 @@ class ProductRelationTextTest {
         texts.put("#TDS\n  i:Integer, s:String\n  1, x\n#->filter(r|$r.i == 2)" + csv, "i,s\n\n");
         texts.put("#TDS\n  i:Integer, s:String\n  2, b\n  3, c\n  1, a\n#->sort(~i->descending())->select(~s)" + csv,
                 "s\nc\nb\na\n");
+        // the review of S5b (2026-11-25): a line feed and a carriage return inside a String, a String of spaces (never ""),
+        // a header name holding a quote, and an enumeration's cell (as a non-String cell: quoted where needed)
+        texts.put("#TDS\n  i:Integer\n  1\n#->extend(~[l: r|'a\\nb', r: r|'c\\rd', sp: r|' ', 'say \"q\"': r|2])" + csv,
+                "i,l,r,sp,\"say \"\"q\"\"\"\n1,\"a\nb\",\"c\rd\", ,2\n");
+        texts.put("#TDS\n  i:Integer\n  1\n#->extend(~e: r|t::Color.RED)" + csv, "i,e\n1,RED\n");
+        texts.put("#TDS\n  i:Integer\n  1\n#->extend(~e: r|t::Color.RED)->meta::relational::tests::csv::toCSV(true)",
+                "i,e\n1,RED\n");
         TestBackend backend = LaneFloor.backend();
-        String model = backend.withStorelessRuntime("");
+        String model = backend.withStorelessRuntime("Enum t::Color { RED, GREEN }");
         try (Connection c = backend.open()) {
             java.util.List<String> differ = new java.util.ArrayList<>();
             for (var e : texts.entrySet()) {
@@ -126,6 +133,11 @@ class ProductRelationTextTest {
                 + " multiplicities (toString(rel, true)) is not written by the product");
         refusals.put("|#TDS\n  i:Integer\n  1\n#->extend(~m:x|[1, 2.5]->max())->toString()->length()",
                 "a relation's toString over a mixed column: its cells' kinds differ by row");
+        refusals.put("|#TDS\n  i:Integer\n  1\n#->extend(~m:x|[1, 2.5]->max())->meta::relational::tests::csv::toCSV()"
+                + "->length()", "a relation's toCSV over a mixed column: its cells' kinds differ by row");
+        refusals.put("|#TDS\n  i:Integer\n  1\n#->meta::relational::tests::csv::toCSV('%t{yyyy-MM-dd HH:mm:ss}',"
+                + " '%t{yyyy-MM-dd}', false)", "a relation's toCSV with date formats: the product writes a date by its own"
+                + " text; toCSV(t) or toCSV(t, renderTdsNull)");
         refusals.put("|#TDS\n  i:Integer\n  1\n#->meta::relational::tests::csv::toCSV(today() > %2000-01-01)",
                 "a relation's toCSV whose renderTdsNull is no literal is not written by the product");
         TestBackend backend = LaneFloor.backend();

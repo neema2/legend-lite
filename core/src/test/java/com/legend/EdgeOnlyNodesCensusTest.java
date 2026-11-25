@@ -55,8 +55,9 @@ class EdgeOnlyNodesCensusTest {
             // (FORMAT_PADDED: gone from SqlFn 2026-11-17, B8 (i) -- the edge composes it at lowering)
             // (INSTANCE_TEXT: gone from SqlFn 2026-11-17, B8 -- the edge writes it at lowering, Scalars.pureToString)
             // (REPRESENTATION_TEXT: gone from SqlFn 2026-11-17, B8 (i) -- the edge writes it at lowering)
-            // (RELATION_TEXT: gone from SqlFn 2026-11-17, B8 -- the edge's RelationTextLowering returns the text
-            // itself; the product refuses through the RelationTexts facet)
+            // (RELATION_TEXT: gone from SqlFn 2026-11-17, B8 -- the edge's RelationTextLowering returned the text
+            // itself and the product refused through the RelationTexts facet, both deleted 2026-11-25, stage B's B2b
+            // S5c)
             // (TEXT_FORMS: gone from SqlFn 2026-11-17, B8 -- a list's text is the two-form hook ListTexts, the
             // product's form ProductListTexts, the edge's PureListTexts; HookRulingTest pins it)
             // (TRACE_TEXT: gone from SqlFn 2026-11-17, B8 (ii) -- the plan style's traceText, HookRulingTest)
@@ -137,5 +138,5 @@ class EdgeOnlyNodesCensusTest {
 
     // theProductRefusesLegendPuresTextsByName and theProductWritesItsOwnFormNeverUpstreamsText went 2026-11-17 with
     // RELATION_TEXT and TEXT_FORMS (B8): no dialect meets either now; the product's refusal of a relation's text and
-    // its own list text are HookRulingTest's (the RelationTexts facet, the ListTexts two-form kind).
+    // its own list text are HookRulingTest's (the ListTexts two-form kind; the RelationTexts facet gone 2026-11-25, B2b S5c).
 }

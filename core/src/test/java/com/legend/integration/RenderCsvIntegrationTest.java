@@ -76,13 +76,16 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
 
     @Test
     void theProductRefusesATdsCsvByName() {
-        // the call's own sentence, at lowering (B17 of the separation census, 2026-11-17: the text is the edge's
-        // edge.RelationTextLowering, asked through the plan style's RelationTexts facet; the product's style refuses)
+        // the call's own sentence, at lowering, on every plan style (stage B's B2b S5c, 2026-11-25: the edge's SQL
+        // composition and the plan style's RelationTexts facet deleted; a last step's csv is the doors' Java printer's)
         java.util.Map<String, String> refusals = new java.util.LinkedHashMap<>();
         // (toCSV and a relation's toString: gone 2026-11-25 and 2026-11-24, stage B's B2b S5b and S5a -- lite's own
         // texts, computed by the database, the tests below and ProductRelationTextTest)
         refusals.put("|test::Person.all()->project([p | $p.name], ['name'])"
                 + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv", "a TDS's csv");
+        // a #TDS literal's csv: the same sentence (the review of S5c, 2026-11-25: until then its rows reached the
+        // renderer as a mixed list)
+        refusals.put("|#TDS\n  i:Integer, s:String\n  1, a\n#.csv", "a TDS's csv");
         refusals.forEach((query, what) -> {
             Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
                     () -> Lean.run(MODEL, query, "test::RT", connection));
@@ -93,8 +96,9 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
             com.legend.error.LegendCompileException compile = assertInstanceOf(
                     com.legend.error.LegendCompileException.class, cause, refused.toString());
             assertEquals(com.legend.error.LegendCompileException.Phase.LOWER, compile.phase(), query);
-            assertEquals(what + " of a relation is legend-pure's text, the compatibility edge's: the product writes a"
-                    + " relation's rows by its result writers (JSON, CSV, Arrow)", compile.getMessage(), query);
+            assertEquals(what + " is legend-engine's text, printed only as a query's last step at legend-pure's and"
+                    + " legend-engine's doors: the product writes a relation's rows by its result writers (JSON, CSV,"
+                    + " Arrow), and its text by toString and toCSV", compile.getMessage(), query);
         });
     }
 
@@ -126,11 +130,12 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                         + "->meta::relational::tests::csv::toCSV()"));
     }
 
-    /** A Float cell of the CSV text, the product's text of a Float (six decimals, the trailing zeros trimmed, S311):
+    /** A Float cell of the CSV text, the product's text of a Float (six decimals, the trailing zeros trimmed, a whole
+     *  value keeping one, S311):
      *  never an in-query cast's exponent (PR #118 fix round, 2026-11-18: DuckDB's wrote 1e-05, H2's 1.0E-5) -- a DOUBLE
      *  the database computes. */
     @Test
-    void csvTextPrintsAFloatCellAsLegendPure() throws SQLException {
+    void csvTextPrintsAFloatCellAsLitesText() throws SQLException {
         assertEquals("""
                 x
                 0.00001

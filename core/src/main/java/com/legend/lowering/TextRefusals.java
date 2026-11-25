@@ -32,13 +32,16 @@ final class TextRefusals {
         return refused("toString of an instance", "the product writes an object by graph fetch");
     }
 
-    /** {@code what} of a relation (a TDS's {@code csv}): the product writes a relation's rows by its result writers
-     *  (B17, 2026-11-17; moved here from RelationTexts the same day). A relation's {@code toString} and the helper's
-     *  {@code toCSV} are no longer refused (stage B's B2b S5a, 2026-11-24, and S5b, 2026-11-25: lite's own texts,
-     *  ProductRelationText). */
-    static ModelException relation(String what) {
-        return refused(what + " of a relation", "the product writes a relation's rows by its result writers (JSON, CSV,"
-                + " Arrow)");
+    /** A TDS's {@code csv} (legend-engine's TDS class, tds.pure:19): the product writes a relation's rows by its result
+     *  writers and its text by {@code toString} and {@code toCSV} (B17, 2026-11-17, moved here from RelationTexts the
+     *  same day; a relation's {@code toString} and the helper's {@code toCSV} lite's own texts since stage B's B2b S5a,
+     *  2026-11-24, and S5b, 2026-11-25, ProductRelationText). Refused on every plan style since S5c (2026-11-25): a
+     *  last step's csv is printed by legend-pure's and legend-engine's doors (edge.PrintedRelations; the review of S5c
+     *  asked that the sentence name legend-engine's text, as the edge's own styles meet it too). */
+    static ModelException tdsCsv() {
+        return new ModelException(LegendCompileException.Phase.LOWER, "a TDS's csv is legend-engine's text, printed"
+                + " only as a query's last step at legend-pure's and legend-engine's doors: the product writes a"
+                + " relation's rows by its result writers (JSON, CSV, Arrow), and its text by toString and toCSV");
     }
 
     /** A user's {@code toRepresentation}. */

@@ -26,7 +26,7 @@ import java.util.List;
  * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). Anything else is not lifted: the
  * query is the door's as it was, and a print the door leaves is lite's own text, computed by the database
  * ({@code lowering.ProductRelationText}, B2b S5a and S5b; until S6 its Float and DateTime cells the edge's value texts,
- * the progress record's S5a window), or a TDS's {@code csv}, the edge's SQL text until S5c (RelationTextLowering). It
+ * the progress record's S5a window), and a TDS's {@code csv} the door does not lift is refused by name (B2b S5c). It
  * computes no value and plans nothing; the run computes the rows and the printer spells them.
  */
 public final class PrintedRelations {
@@ -121,11 +121,12 @@ public final class PrintedRelations {
                 }
                 // toCSV(t, renderTdsNull), and toCSV(t, dateTimeFormat, dateFormat, renderTdsNull) with the default
                 // formats, which the helper's two-argument form passes (helperFunctions.pure:203-206): the door reads
-                // them as that form (RelationTextLowering.isDefaultCsvFormat, until S5c), as the product's lowering does
-                // (ProductRelationText); other formats are not lifted: the run answers them as it does today
+                // them as that form (the zero-argument format functions are not in lite's catalog, so their text is
+                // the one form that reaches it); other formats are not lifted, and the product refuses every
+                // four-argument form by name (ProductRelationText, the orchestrator's Q-A of 2026-11-25)
                 boolean defaultFormats = c.args().size() == 4
-                        && RelationTextLowering.isDefaultCsvFormat(c.args().get(1), "%t{yyyy-MM-dd HH:mm:ss}")
-                        && RelationTextLowering.isDefaultCsvFormat(c.args().get(2), "%t{yyyy-MM-dd}");
+                        && c.args().get(1) instanceof TypedCString dt && dt.value().equals("%t{yyyy-MM-dd HH:mm:ss}")
+                        && c.args().get(2) instanceof TypedCString d && d.value().equals("%t{yyyy-MM-dd}");
                 if ((c.args().size() == 2 || defaultFormats)
                         && c.args().get(c.args().size() - 1) instanceof TypedCBoolean renderTdsNull) {
                     return new Printed(c.args().get(0), renderTdsNull.value()
@@ -135,11 +136,15 @@ public final class PrintedRelations {
             }
             return null;
         }
-        // a TDS's csv over a relation, as the lowering reads it (Render.csvOverRelation); a read over a cast to a TDS
-        // class is the resolver's (Anchors.tdsCsvRead) and is not lifted
-        if (e instanceof TypedPropertyAccess p && p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
-                && knownColumns(p.source())) {
-            return new Printed(p.source(), PureRelationTextWriter.Form.TDS_CSV);
+        // a TDS's csv over a relation, as the lowering reads it (Render.csvOverRelation), and over a type-level cast to a
+        // TDS class, peeled as the resolver peels it (ResultEnvelopeSplice.peelTdsCasts, Anchors.tdsCsvRead; stage B's
+        // B2b S5c, 2026-11-25, the orchestrator's agreement: the product refuses a TDS's csv by name, so the door lifts
+        // the one the relational tests write, testEnumInRelation's)
+        if (e instanceof TypedPropertyAccess p && p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)) {
+            TypedSpec relation = com.legend.compiler.spec.ResultEnvelopeSplice.peelTdsCasts(p.source());
+            if (knownColumns(relation)) {
+                return new Printed(relation, PureRelationTextWriter.Form.TDS_CSV);
+            }
         }
         return null;
     }

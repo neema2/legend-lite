@@ -18,20 +18,21 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * THE JAVA PRINTER AGAINST THE EDGE'S SQL TEXT (stage B's B2, B2b S1, 2026-11-24): legend-pure's text of a relation as
- * the edge composed it in SQL ({@code edge.RelationTextLowering}) and as {@link com.legend.edge.PureRelationText}
- * prints it in Java from the same relation's typed rows, run on the same session in the edge's style, on each lane's
- * database (DuckDB, H2, SQLite). The toString and toCSV halves measured equal on every carrier but the corrections
- * pinned below, until B2b's S5a and S5b deleted the edge's toString and toCSV SQL (2026-11-24 and 2026-11-25); a TDS's
- * csv stands until S5c.
+ * THE JAVA PRINTER'S CORRECTIONS, ONCE MEASURED AGAINST THE EDGE'S SQL TEXT (stage B's B2, B2b S1, 2026-11-24):
+ * legend-pure's text of a relation as the edge composed it in SQL ({@code edge.RelationTextLowering}) and as {@link
+ * com.legend.edge.PureRelationText} prints it in Java from the same relation's typed rows, run on the same session
+ * in the edge's style, on each lane's database (DuckDB, H2, SQLite). The toString and toCSV halves measured equal on
+ * every carrier but the corrections pinned below, until B2b's S5a and S5b deleted the edge's toString and toCSV SQL
+ * (2026-11-24 and 2026-11-25), and S5c its TDS csv (2026-11-25): what stays is the Java printer's corrections and
+ * its CSV forms.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class PureRelationTextParityTest {
 
     // (theJavaPrinterWritesTheEdgesSqlText: gone 2026-11-24, stage B's B2b S5a -- the edge's SQL toString is deleted: a
-    // relation's toString is lite's own text, computed by the database on every plan style (ProductRelationTextTest; its
-    // Float and DateTime cells the edge's until S6, FloatTextTest), and legend-pure's text of a last step is the doors' Java printer's; its measure held until then, every carrier
-    // equal on each lane but the corrections below)
+    // relation's toString is lite's own text, computed by the database on every plan style (ProductRelationTextTest;
+    // its Float and DateTime cells the edge's until S6, FloatTextTest), and legend-pure's text of a last step is the
+    // doors' Java printer's; its measure held until then, every carrier equal on each lane but the corrections below)
 
     /**
      * WHERE THE EDGE'S SQL TEXT IS WRONG, the Java printer writes legend-pure's (measured 2026-11-24 on each lane; B2b's
@@ -96,12 +97,12 @@ class PureRelationTextParityTest {
 
     /**
      * A TDS's {@code csv} property, measured where it applies (B2b's midpoint audit, 2026-11-24): on a TDS value -- after
-     * any relation function {@code .csv} reads a column named csv. The edge's SQL refuses a TDS literal's csv by name
-     * (its rows reach the renderer as a mixed list); the printer writes legend-engine's text, so the door's lift answers
-     * it (the progress record's S2 window).
+     * any relation function {@code .csv} reads a column named csv. Unlifted, it is refused by name on every plan style
+     * (B2b S5c and its review, 2026-11-25: until then a TDS literal's csv reached the renderer as a mixed list, the
+     * TDS class's field read taking it); the printer writes legend-engine's text, so the door's lift answers it.
      */
     @Test
-    void aTdsLiteralsCsvIsRefusedByTheSqlAndWrittenByThePrinter() throws Exception {
+    void aTdsLiteralsCsvIsRefusedUnliftedAndWrittenByThePrinter() throws Exception {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
         String rel = "#TDS\n  i:Integer, s:String\n  3, c\n  1, a\n  2, \n#";
@@ -112,7 +113,9 @@ class PureRelationTextParityTest {
             for (Throwable t = refused; t != null; t = t.getCause()) {
                 chain += t.getMessage() + " | ";
             }
-            org.junit.jupiter.api.Assertions.assertTrue(chain.contains("a tagged list reached the renderer"), chain);
+            org.junit.jupiter.api.Assertions.assertTrue(chain.contains("a TDS's csv is legend-engine's text, printed only as a"
+                    + " query's last step"),
+                    chain);
             assertEquals("i, s\n3,c\n1,a\n2,TDSNull", printed(model, rel, c, PureRelationTextWriter.Form.TDS_CSV),
                     backend.name());
         }

@@ -45,7 +45,8 @@ class PlanStyleSurfaceTest {
 
     /** The facet kinds, in order. */
     static final List<String> KINDS = List.of("com.legend.testplan.EngineTestText", "com.legend.planner.UpstreamPlans",
-            "com.legend.lowering.RelationTexts", "com.legend.lowering.PureOnlyTexts", "com.legend.lowering.ResultEnvelopes");
+            // (com.legend.lowering.RelationTexts: gone 2026-11-25 with the facet, stage B's B2b S5c; a shrink)
+            "com.legend.lowering.PureOnlyTexts", "com.legend.lowering.ResultEnvelopes");
 
     /** Members of a TWO_FORMS kind that break criterion (a), each with its reason: found 2026-11-17. */
     static final Map<String, String> TWO_FORM_EXCEPTIONS = Map.of();

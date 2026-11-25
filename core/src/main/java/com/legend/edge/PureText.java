@@ -79,9 +79,9 @@ public final class PureText {
             if (kind == com.legend.planner.UpstreamPlans.class) {
                 return kind.cast(EnginePlans.FACET);
             }
-            if (kind == com.legend.lowering.RelationTexts.class) {
-                return kind.cast(new RelationTextLowering());
-            }
+            // (lowering.RelationTexts: gone 2026-11-25, stage B's B2b S5c -- a relation's toString and toCSV are lite's own
+            // texts, ProductRelationText; legend-pure's and legend-engine's texts of a last step, a TDS's csv among them,
+            // the doors' Java printer's, PrintedRelations)
             if (kind == com.legend.lowering.PureOnlyTexts.class) {
                 return kind.cast(EdgePureOnlyTexts.INSTANCE);
             }

@@ -87,7 +87,7 @@ class FloatTextTest {
      *  meets it (a last-step table is the doors' Java printer's: PureRelationTextTest, PureRelationTextParityTest).
      *  Pinned two ways: each cell is the edge's own text of that value (the same pass writes both, so this half holds
      *  whatever the pass writes), and the table is NOT lite's text, so S6's deletion of the passes turns this test red
-     *  by name. (Until S5a, this test pinned legend-pure's print, which the edge's own table SQL wrote, PR #118's fix
+     *  by name; the helper's toCSV used further alike (S5b, 2026-11-25). (Until S5a, this test pinned legend-pure's print, which the edge's own table SQL wrote, PR #118's fix
      *  round.) */
     @Test
     void anEdgeTableTextUsedFurtherWritesItsCellsAsTheEdgeWritesTheirValues() throws Exception {
@@ -112,6 +112,14 @@ class FloatTextTest {
                     backend.name() + " " + col);
             org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col), table, backend.name() + " " + col
                     + ": the edge's table text is lite's -- the window closed (S6): re-point this test");
+            // the helper's toCSV used further, the same window (the review of S5b, 2026-11-25): lite's CSV layout, each
+            // cell the edge's text of its value, not lite's CSV
+            String csv = Lean.runInStyle(model, "|" + rows + "->select(~" + col + ")->meta::relational::tests::csv::toCSV()",
+                    StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
+            assertEquals(col + "\n" + String.join("\n", cells) + "\n", csv, backend.name() + " " + col + " toCSV");
+            org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col).replace("#TDS\n   ", "").replace("\n   ", "\n")
+                    .replace("\n#", "\n"), csv, backend.name() + " " + col
+                    + ": the edge's CSV is lite's -- the window closed (S6): re-point this test");
         }
     }
 

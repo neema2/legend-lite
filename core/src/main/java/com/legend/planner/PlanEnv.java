@@ -188,7 +188,6 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
 
     public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {
         return lowerer.withDbTimeZone(timeZone())
-                .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r))
                 .withStyled(styled())
                 .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r))
                 .withTraceText(this::traceText);

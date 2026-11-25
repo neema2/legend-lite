@@ -114,10 +114,13 @@ class PrintedRelationsTest {
     }
 
     @Test
-    void aTdsCsvPropertyOverARelationIsLiftedAndOverACastIsTheRuns() {
+    void aTdsCsvPropertyOverARelationOrACastToATdsIsLifted() {
         assertEquals(PureRelationTextWriter.Form.TDS_CSV, form("|" + REL + ".csv"));
-        // the read over a cast to a TDS class is the resolver's (Anchors.tdsCsvRead): not lifted
-        assertNull(PrintedRelations.lift(typed("|" + REL + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv")));
+        // the read over a cast to a TDS class: the door peels the type-level casts as the resolver does
+        // (ResultEnvelopeSplice.peelTdsCasts) and lifts it (stage B's B2b S5c, 2026-11-25: until then the edge's SQL
+        // composed it, edge.RelationTextLowering, and the door left it to the run)
+        assertEquals(PureRelationTextWriter.Form.TDS_CSV,
+                form("|" + REL + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv"));
     }
 
     @Test

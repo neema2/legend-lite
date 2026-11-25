@@ -160,8 +160,8 @@ public enum SqlFn {
      *  fractional ones from 1e-17 below 2^53), at least one fraction digit, NaN and the infinities by name. One call per
      *  value, which each dialect spells (dialect/FloatShortestText the portable decomposition; a dialect whose text of a
      *  double is long reads it once). A message's text of a Float (the judges', both judges alike, G2); legend-pure's
-     *  print form is the same text, so the compatibility edge writes this node for a relation text's Float cell
-     *  (edge/RelationTextLowering), legend-engine's in-query cast for {@link #FLOAT_TO_TEXT} elsewhere. Outside the
+     *  print form is the same text (the compatibility edge wrote this node for a relation text's Float cell until B2b's
+     *  S5a-S5c deleted its relation texts; legend-engine's in-query cast for {@link #FLOAT_TO_TEXT} elsewhere). Outside the
      *  windows the database's own exponent notation stays, which differs per database: logged for after separation
      *  ("one canonical Float text outside the windows"). */
     FLOAT_SHORTEST_TEXT,
@@ -169,9 +169,8 @@ public enum SqlFn {
      *  zeros trimmed, a whole value keeping one ({@code 2.0}), NaN and the infinities by name (the user's ruling of
      *  2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15; S311 amended by the user's ruling of 2026-11-23, "I think
      *  we do it as 2.0") -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
-     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms) and
-     *  {@link #FLOAT_SHORTEST_TEXT}, legend-pure's print form, for a relation text's cell (edge/RelationTextLowering;
-     *  PR #118 fix round, 2026-11-18). */
+     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms; its
+     *  relation texts' {@link #FLOAT_SHORTEST_TEXT} cells, PR #118's fix round, went with B2b S5a-S5c). */
     FLOAT_TO_TEXT,
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
@@ -200,7 +199,7 @@ public enum SqlFn {
     // the id at lowering through the plan style's PureOnlyTexts facet, read by Scalars.pureToString under the caller's
     // explicit Styled; the product refuses at lowering)
     // (a relation's text: gone 2026-11-17, the separation census's B8 -- the edge's
-    // RelationTextLowering writes the text itself at lowering (B17's facet); the product refuses at lowering)
+    // RelationTextLowering wrote the text itself at lowering (B17's facet) until B2b S5c deleted it, 2026-11-25)
     // (a user's toRepresentation: gone 2026-11-17, the separation census's B8 (i) -- the edge
     // writes legend-pure's representation at lowering through the plan style's PureOnlyTexts facet; the product
     // refuses at lowering)

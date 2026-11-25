@@ -274,17 +274,23 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Where the text is used further** inside the query (`->toString()->length()`), the database computes lite's own
   text:
   - a whole Float prints `2.0`;
-  - a date with a time prints `2000-10-25T06:30:00.000000Z`, where legend-pure prints `+0000`;
+  - a date with a time prints `2000-10-25T06:30:00.000000000Z`, where legend-pure prints `+0000`;
   - an empty cell prints `null`.
-- **`toCSV` too:** lite's route prints a relation's `toCSV` in the database, a standard CSV layout with lite's own
-  value texts. Lite keeps the `toCSV` name. Compiling legend-engine's own `toCSV` program instead waits on four gaps
-  in lite (H15 §11).
+- **`toCSV` too:** lite's route prints a relation's `toCSV` in the database, the helper's layout with lite's own value
+  texts: a null is an empty field and an empty String `""`, and under `toCSV(t, true)` a null is the word `null` and
+  every String is quoted, where legend-engine writes `TDSNull` and an empty String as nothing (register S420). Lite
+  keeps the `toCSV` name.
+- **Until B2b's S6**, a text used further at legend-engine's door writes its Float and DateTime cells as that door
+  writes a value's text (legend-engine's in-query cast for a Float, legend-pure's `+0000` for a DateTime); a last
+  step is always legend-pure's or legend-engine's own text.
 - **Ruled:** by the user on 2026-11-19: ~18:05, "Agree with all four table printing recommendations"; ~18:12, "Yes
   record it, and count the nested cases"; ~18:36, "Null is good"; ~20:05, "toCSV yes toString or another easy
-  database sql that makes sense".
-- **When:** stage B (B2).
-- **Measured:** count pending; the nested cases are counted before B2 is built.
-- **Register:** a row comes with B2.
+  database sql that makes sense"; and on 2026-11-25, "For csv we can do empty cell for null and "" or '' empty string
+  and the toCSV(true) do null for null and quoted strings?".
+- **When:** stage B (B2b S5a and S5b, 2026-11-24 and 2026-11-25).
+- **Measured:** no PCT or corpus case prints a table used further; channel B's lite lane prints 423 tables, of which
+  390 are legend-pure's text and 33 differ only by an abstract Date's text (docs/records/compat-b2-progress.md, S5a).
+- **Register:** S312 and S316 as amended for S5a and S5b (docs/records/d-register-rows-2026-11-16.md), S402, S420.
 
 ### 15. Two date-times at the same instant are equal, whatever their written precision (item 3, stage B)
 - **You write** `assertEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)`, or compare a literal written to the

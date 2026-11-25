@@ -133,8 +133,8 @@ public final class BodyPlanner {
                 env.tableReplace(),
                 env.postProcessors().extractCtes(),
                 env.postProcessors().nonExecutable());
-        // (a dynamic pivot's text over columns nothing names: refused by the edge AT LOWERING since 2026-11-18, J40's
-        // DeferredTdsString deletion -- edge.RelationTextLowering, the same words)
+        // (a dynamic pivot's text over columns nothing names: refused AT LOWERING since 2026-11-18, J40's
+        // DeferredTdsString deletion -- lite's own text's refusal since B2b S5a and S5b, ProductRelationText)
         return named ? lowerer.namedColumns(plan) : plan;
     }
 

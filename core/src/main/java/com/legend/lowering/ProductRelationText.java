@@ -6,7 +6,6 @@ package com.legend.lowering;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCBoolean;
-import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.sql.OutputCol;
@@ -46,9 +45,10 @@ import java.util.function.Function;
  *       2026-11-25, "For csv we can do empty cell for null and "" or '' empty string and the toCSV(true) do null for
  *       null and quoted strings?"; register S420): under {@code toCSV(t)} a null is an empty field, an empty String
  *       {@code ""}, any other cell quoted where it holds a comma, a quote or a line break; under {@code toCSV(t, true)}
- *       a null is the word {@code null} and every String cell is quoted ({@code ""}, {@code "null"}), a number, a
- *       Boolean or a date as under {@code toCSV(t)}. A raw grid's CSV reads the grid's report when
- *       the plan runs, its names and its cells' texts (the planner-driver seam program's S3c, 2026-10-30, moved here from
+ *       a null is the word {@code null} and every String or Variant cell is quoted ({@code ""}, {@code "null"}), a
+ *       number, a Boolean, a date or an enumeration as under {@code toCSV(t)}; the four-argument form, with formats,
+ *       is refused by name (the orchestrator's rulings of 2026-11-25, Q-A and Q-B). A raw grid's CSV reads the grid's
+ *       report when the plan runs, its names and its cells' texts (the planner-driver seam program's S3c, 2026-10-30, moved here from
  *       the edge with S5b: the keyed plan admits an integer's and a text's columns alone, whose database text is the
  *       product's).</li>
  * </ul>
@@ -98,26 +98,23 @@ final class ProductRelationText {
         return new SqlExpr.ScalarSubquery(sel);
     }
 
-    /** {@code tc}, the helper's {@code toCSV(t)}, {@code toCSV(t, renderTdsNull)} with a literal Boolean, or
-     *  {@code toCSV(t, dateTimeFormat, dateFormat, renderTdsNull)} with the default formats (the texts its two-argument
-     *  form passes, {@code SimpleDateTimeFormat()} and {@code ISO8601DateFormat()}: dateExtension.pure:384-392), as one
-     *  scalar subquery; any other form refused by name. */
+    /** {@code tc}, the helper's {@code toCSV(t)} or {@code toCSV(t, renderTdsNull)} with a literal Boolean, as one
+     *  scalar subquery; any other form refused by name -- the four-argument {@code toCSV(t, dateTimeFormat, dateFormat,
+     *  renderTdsNull)} among them, as the product writes a date by its own text and never ignores what a program
+     *  spelled out (the orchestrator's ruling of 2026-11-25, Q-A; register S420). */
     static SqlExpr csv(TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias) {
         String what = "a relation's toCSV";
         boolean explicitNulls = switch (tc.args().size()) {
             case 1 -> false;
-            case 2, 4 -> {
-                if (tc.args().size() == 4 && !(isFormat(tc.args().get(1), "%t{yyyy-MM-dd HH:mm:ss}")
-                        && isFormat(tc.args().get(2), "%t{yyyy-MM-dd}"))) {
-                    throw new com.legend.error.NotImplementedException(what + " with date formats of its own is not"
-                            + " written by the product: only the default formats");
-                }
-                if (!(tc.args().get(tc.args().size() - 1) instanceof TypedCBoolean b)) {
+            case 2 -> {
+                if (!(tc.args().get(1) instanceof TypedCBoolean b)) {
                     throw new com.legend.error.NotImplementedException(what + " whose renderTdsNull is no literal is"
                             + " not written by the product");
                 }
                 yield b.value();
             }
+            case 4 -> throw new com.legend.error.NotImplementedException(what + " with date formats: the product writes"
+                    + " a date by its own text; toCSV(t) or toCSV(t, renderTdsNull)");
             default -> throw new IllegalStateException(what + " of " + tc.args().size() + " arguments");
         };
         TypedSpec rel = tc.args().get(0);
@@ -201,12 +198,6 @@ final class ProductRelationText {
                         new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
     }
 
-    /** A date format given as the default's text (the zero-argument format functions are not in lite's catalog, so
-     *  their text is the one form that reaches the lowering). */
-    private static boolean isFormat(TypedSpec arg, String text) {
-        return arg instanceof TypedCString s && s.value().equals(text);
-    }
-
     /** {@code rel}'s typed columns by name; a pivot whose columns nothing names refused by name. */
     private static Map<String, Type.Column> columns(TypedSpec rel, String what) {
         Map<String, Type.Column> byName = new HashMap<>();
@@ -257,29 +248,39 @@ final class ProductRelationText {
     }
 
     /** A CSV cell (the user's ruling of 2026-11-25, register S420): a null an empty field, or the word {@code null}
-     *  under {@code explicitNulls} ({@code toCSV(t, true)}); a String cell quoted where it is empty or holds a comma, a
-     *  quote or a line break, or always under {@code explicitNulls}, its quotes doubled; any other its value's product
-     *  text, quoted where it holds a comma, a quote or a line break. */
+     *  under {@code explicitNulls} ({@code toCSV(t, true)}); a String or a Variant cell quoted under {@code explicitNulls},
+     *  its quotes doubled (a Variant's JSON null is {@code "null"}, never the null word: the orchestrator's ruling of
+     *  2026-11-25, Q-B); a number's, a Boolean's or a date's text as it is (it never holds a comma, a quote or a line break and is
+     *  never empty: a fold of a fact fixed by the type, the review of S5b); any other cell's text quoted where it is
+     *  empty or holds a comma, a quote or a line break ({@link #escaped}). */
     private static SqlExpr csvCell(SqlExpr c, Type t, boolean explicitNulls) {
         SqlExpr text = valueText(t, c);
-        SqlExpr rendered;
-        if (t != Type.Primitive.STRING) {
-            rendered = escaped(text);
-        } else if (explicitNulls) {
-            rendered = quotedCsv(text);
-        } else {
-            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, text,
-                    new SqlExpr.StringLit("")), new SqlExpr.StringLit("\"\""))), escaped(text), SqlExpr.Reason.PRINT);
-        }
+        SqlExpr rendered = PLAIN_TEXT.contains(t) ? text
+                : explicitNulls && (t == Type.Primitive.STRING || variant(t)) ? quotedCsv(text)
+                : escaped(text);
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, c),
                 new SqlExpr.StringLit(explicitNulls ? "null" : ""))), rendered, SqlExpr.Reason.PRINT);
     }
 
-    /** {@code text} quoted, its quotes doubled, where it holds a comma, a quote or a line break (RFC 4180's rule, the
-     *  helper's {@code escapeCSVString}). */
+    /** Whether {@code t} is Pure's Variant. */
+    private static boolean variant(Type t) {
+        return t instanceof Type.ClassType vc && PlatformTypes.isVariant(vc);
+    }
+
+    /** The types whose text never holds a comma, a quote or a line break and is never empty. */
+    private static final java.util.Set<Type> PLAIN_TEXT = java.util.Set.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,
+            Type.Primitive.DECIMAL, Type.Primitive.NUMBER, Type.Primitive.BOOLEAN, Type.Primitive.DATE,
+            Type.Primitive.STRICT_DATE, Type.Primitive.DATE_TIME, Type.Primitive.LATEST_DATE, Type.Primitive.STRICT_TIME);
+
+    /** {@code text} quoted, its quotes doubled, where it is empty (an empty String {@code ""}, never the null's empty
+     *  field) or holds a comma, a quote or a line break (RFC 4180's rule, the helper's {@code escapeCSVString}). The
+     *  empty test reads the length: MariaDB's and MySQL's PAD SPACE collation holds {@code ' ' = ''} (the review of
+     *  S5b's MUST-FIX: a String of spaces was written {@code ""}). */
     private static SqlExpr escaped(SqlExpr text) {
-        SqlExpr special = SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.OR, contains(text, ","), contains(text, "\"")),
-                SqlExpr.Call.of(SqlFn.OR, contains(text, "\n"), contains(text, "\r")));
+        SqlExpr special = SqlExpr.Call.of(SqlFn.OR,
+                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.LENGTH, text), new SqlExpr.IntLit(0)),
+                SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.OR, contains(text, ","), contains(text, "\"")),
+                        SqlExpr.Call.of(SqlFn.OR, contains(text, "\n"), contains(text, "\r"))));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(special, quotedCsv(text))), text, SqlExpr.Reason.PRINT);
     }
 
@@ -304,7 +305,7 @@ final class ProductRelationText {
             throw new com.legend.error.NotImplementedException("a relation's toString over a mixed column: its"
                     + " cells' kinds differ by row");
         }
-        boolean variant = t instanceof Type.ClassType vc && PlatformTypes.isVariant(vc);
+        boolean variant = variant(t);
         SqlExpr rendered;
         if (variant) {
             rendered = quoted(valueText(t, c));

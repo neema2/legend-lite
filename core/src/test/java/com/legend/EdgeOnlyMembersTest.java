@@ -283,8 +283,8 @@ class EdgeOnlyMembersTest {
             Map.entry("com.legend.server.LiteV1Api$Runner#run(com.legend.TypedQuery, java.lang.String, com.legend.result.Output)",
                     "2026-11-18: lite v1's own answer and runner seams"),
             // (ModelInput$Data#model, ModelInput$Text#code: gone 2026-11-18 with the type to the edge, J40.ModelInput)
-            Map.entry("com.legend.sql.DateFmt#TIME_ONLY",
-                    "2026-11-18: a MIR date format, lite's own vocabulary (the edge cannot add one: MIR is sealed)"),
+            // (DateFmt#TIME_ONLY: gone 2026-11-25, a shrink -- its one reader, edge.RelationTextLowering, went with stage B's
+            // B2b S5c, and the format with it)
             Map.entry("com.legend.sql.SqlDdl$DropSchema#<init>(java.lang.String, boolean)",
                     "2026-11-18: MIR DDL, lite's own vocabulary (the edge cannot add one: MIR is sealed)"),
             Map.entry("com.legend.testdatagen.TestDataPlanner#seedFacts(com.legend.compiler.element.ModelContext, com.legend.testdatagen.TestDataPlanner$Seed)",

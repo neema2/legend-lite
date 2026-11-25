@@ -406,6 +406,19 @@ class TaggedListTest {
             Exception text = assertThrows(Exception.class, () -> program(c, "$rs->toString();"));
             assertTrue(String.valueOf(text.getMessage()).contains("a relation's toString over a raw grid (executeInDb):"
                     + " its columns exist only when the plan runs"), text.toString());
+            // its CSV (stage B's B2b S5b, 2026-11-25; the review of S5b): the grid's report read when the plan runs, lite's
+            // own CSV -- an empty text a String's, written "" (register S420) -- and under renderTdsNull refused by name,
+            // the flag quoting a String's cell alone and the grid's types existing only when the plan runs
+            assertEquals("A,B\n1,x\n2,y\n", program(c, "$rs->meta::relational::tests::csv::toCSV();"));
+            // (a body of its own: a grid let and never read is a step before the last, which the program road refuses)
+            assertEquals("E,F\n\"\",a b\n", Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
+                    CONN_LET.substring(0, CONN_LET.indexOf("let rs")) + "meta::relational::metamodel::execute::executeInDb("
+                    + "'select \\'\\' as E, \\'a b\\' as F', $c)->meta::relational::tests::csv::toCSV();}",
+                    StorelessRuntime.RUNTIME, c).one());
+            Exception flagged = assertThrows(Exception.class, () -> program(c,
+                    "$rs->meta::relational::tests::csv::toCSV(true);"));
+            assertTrue(String.valueOf(flagged.getMessage()).contains("a relation's toCSV with renderTdsNull over a raw"
+                    + " grid (executeInDb): its columns' types exist only when the plan runs"), flagged.toString());
             // (on the edge a raw grid's text is refused by name: TaggedListEdgeTest, the edge's test -- F's census
             // line A5, 2026-11-17: a product test names no edge class)
         }

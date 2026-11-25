@@ -168,10 +168,10 @@ class HookLambdasTest {
                     Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
             // (PlanAllocations$1#engines(): gone 2026-11-18, J40.PlanStyle -- the activity's upstream text is the edge's
             // form of the two-form ActivityTexts, which asks its own facet)
-            // the Lowerer's relation-text and result-envelope facets, each asked with its call's refusal (B8)
+            // the Lowerer's result-envelope facet, asked with its call's refusal (B8; the relation-text facet gone
+            // 2026-11-25, stage B's B2b S5c, a shrink)
             Map.entry("com.legend.planner.PlanEnv#configure(com.legend.lowering.Lowerer)",
-                    Set.of("(facet reaches 2)", "com.legend.lowering.RelationTexts",
-                            "com.legend.lowering.ResultEnvelopes")),
+                    Set.of("(facet reaches 1)", "com.legend.lowering.ResultEnvelopes")),
             // the lowering helpers' Pure-only texts, asked with its call's refusal (B8); the three kinds beside it are
             // twoForm's, named in the same method
             Map.entry("com.legend.planner.PlanEnv#styled()",
@@ -495,7 +495,7 @@ class HookLambdasTest {
         assertEquals(Map.of(f + "#plans(com.legend.database.PlanStyle)", Set.of("com.legend.planner.UpstreamPlans",
                         "(facet reaches 1)"),
                 f + "#both(com.legend.database.PlanStyle)", Set.of("com.legend.lowering.PureOnlyTexts",
-                        "com.legend.lowering.RelationTexts", "(facet reaches 2)"),
+                        "com.legend.lowering.ResultEnvelopes", "(facet reaches 2)"),
                 f + "#byReference(com.legend.database.PlanStyle)", Set.of("(facet reaches 1)")),
                 facetCallers(facets), "a facet's asks are read: a call of either overload and a reference");
         assertEquals(Map.of(f + "#plans(com.legend.database.PlanStyle)", "com.legend.planner.UpstreamPlans",
@@ -557,9 +557,11 @@ class HookLambdasTest {
             return style.facet(com.legend.planner.UpstreamPlans.class);
         }
 
+        // (its second facet ResultEnvelopes since 2026-11-25, stage B's B2b S5c: RelationTexts, the one it asked
+        // before, was deleted; the planted reach is the same, two facets with a refusal's overload)
         static Object both(PlanStyle style) {
             return List.of(style.facet(com.legend.lowering.PureOnlyTexts.class),
-                    style.facet(com.legend.lowering.RelationTexts.class, IllegalStateException::new));
+                    style.facet(com.legend.lowering.ResultEnvelopes.class, IllegalStateException::new));
         }
 
         static java.util.function.Function<Class<com.legend.lowering.ResultEnvelopes>,

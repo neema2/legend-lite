@@ -75,8 +75,9 @@ public interface PlanStyle {
      *  at lowering. */
     boolean judgesEngineText();
 
-    /** {@link #facet(Class)}, asked where the call that needs it is known (the separation census's B17, 2026-11-17: a
-     *  lowering facet, {@code lowering.RelationTexts}): the product's style throws {@code refusal}'s exception -- the
+    /** {@link #facet(Class)}, asked where the call that needs it is known (the separation census's B17, 2026-11-17, for
+     *  a lowering facet; {@code lowering.ResultEnvelopes} since B2b S5c deleted {@code lowering.RelationTexts}): the
+     *  product's style throws {@code refusal}'s exception -- the
      *  call's own sentence, a user can act on, and its phase -- the edge's answers as {@link #facet(Class)} does. */
     <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal);
 

@@ -384,10 +384,11 @@ final class Anchors {
     /** The TDS class's csv property (PlatformTypes.TDS_CSV_PROPERTY,
      * tds.pure:19) over a TDS-shaped chain (an executed result cast to
      * {@code TDS<Any>}): the read over the chain beneath the type-level
-     * casts — the chain resolves structurally, the read rides along as the
-     * lowerer's CSV render (Render.lowerTdsCsvProperty, which dispatches on
-     * the same property constant over a schema-typed source). Null = not
-     * that shape. */
+     * casts — the chain resolves structurally, the read rides along to the
+     * lowerer's TDS csv arm, which refuses it by name on every plan style
+     * (stage B's B2b S5c, 2026-11-25: a last step's csv is printed by
+     * legend-pure's and legend-engine's doors, edge.PrintedRelations, which
+     * peel the same casts). Null = not that shape. */
     static @com.legend.base.Nullable TypedPropertyAccess tdsCsvRead(TypedPropertyAccess pa,
             java.util.function.Predicate<TypedSpec> anchored) {
         if (!pa.property().equals(PlatformTypes.TDS_CSV_PROPERTY)

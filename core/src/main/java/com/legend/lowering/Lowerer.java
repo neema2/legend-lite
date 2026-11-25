@@ -95,7 +95,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 /**
  * Phase I &mdash; relation-pipeline lowering (M2 scope: table/TDS sources +
  * filter/select/rename/sort/slicing/distinct; mappings and class sources are
@@ -235,13 +234,9 @@ public final class Lowerer {
         return this;
     }
 
-    /** A RELATION'S TEXT ({@link RelationTexts}, the separation census's B17, 2026-11-17): the plan style's facet,
-     *  asked only when a TDS's {@code csv} is lowered, with that call's own refusal (the product's style throws it, at
-     *  lowering, by name; a relation's {@code toString} and {@code toCSV} left the facet with stage B's B2b S5a and S5b,
-     *  lite's own texts, ProductRelationText). A Lowerer no planner handed a style refuses it the same way. */
-    private Function<Supplier<? extends RuntimeException>, RelationTexts> relationTexts = refusal -> {
-        throw refusal.get();
-    };
+    // (relationTexts, the plan style's relation-text facet (the separation census's B17, 2026-11-17): gone 2026-11-25,
+    // stage B's B2b S5c -- a relation's toString and toCSV are lite's own texts (ProductRelationText, S5a and S5b), and
+    // a TDS's csv is refused by name on every plan style, legend-engine's text of a last step the doors' Java printer's)
 
     /** An execution's trace text in a TDS cell (the separation census's B8 (ii), 2026-11-17): the plan style's
      *  {@code traceText}, the id in the product's. A Lowerer no planner handed a style refuses one by name. */
@@ -300,13 +295,6 @@ public final class Lowerer {
     /** The result-envelope facet, the product's refusal {@code refusal}. */
     ResultEnvelopes resultEnvelopes(java.util.function.Supplier<? extends RuntimeException> refusal) {
         return resultEnvelopes.apply(refusal);
-    }
-
-    /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
-    public Lowerer withRelationTexts(
-            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {
-        this.relationTexts = style;
-        return this;
     }
 
     /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
@@ -3898,6 +3886,13 @@ public final class Lowerer {
                     && PlatformTypes
                             .isListCarrier(p.source().info().type()) ->
                     scalar(p.source(), columns);
+            // a TDS VALUE's csv property (a #TDS literal: the TDS class has a layout, so the field reads below would
+            // take it and its rows reach the renderer as a mixed list): refused by name, as over a relation (the
+            // TDS csv arm, stage B's B2b S5c, 2026-11-25; until then the renderer's tagged-list wall)
+            case TypedPropertyAccess p when p.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
+                    && PlatformTypes.isTdsShaped(p.source().info().type())
+                    && classLayout.apply(p.source().info().type()).isPresent() ->
+                throw TextRefusals.tdsCsv();
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     && Stamps.isMany(p.source()) ->
                     manyPropertyMap(p, columns);
@@ -4305,15 +4300,13 @@ public final class Lowerer {
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
                 ProductRelationText.csv(tc, this::relation, nextAlias());
-            // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
-            // over a relation: the csv TEXT the engine prints for a TDS —
-            // header names joined ', ', ','-joined cells with TDSNull, no
-            // trailing newline (enumeration golden testEnumInRelation)
+            // the TDS class's csv property (tds.pure:19 `csv: String[1]`) over a relation: legend-engine's text of a TDS,
+            // refused by name on every plan style (stage B's B2b S5c, 2026-11-25: the edge's SQL composition deleted;
+            // a last step's csv at legend-pure's and legend-engine's doors is the doors' Java printer's, PrintedRelations)
             case TypedPropertyAccess csvRead
                     when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && Render.csvOverRelation(csvRead) ->
-                relationTexts.apply(() -> TextRefusals.relation("a TDS's csv")).csvProperty(styled(), csvRead, this::relation,
-                        nextAlias());
+                throw TextRefusals.tdsCsv();
             // a relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24: the user's
             // rulings of 2026-11-19 ~18:05 and ~18:36) -- every plan style alike, its cells the product's nodes
             // (ProductRelationText; under the edge's style its value passes re-spell a Float and a DateTime cell until

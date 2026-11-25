@@ -1281,26 +1281,20 @@ final class ArchitectureTest {
             // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
             // 2026-11-16): data, a list of classes
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
-            // B17 of the separation census (2026-11-17, the precedent above's one facade, one row): a relation's
-            // legend-pure text is the edge's (edge.RelationTextLowering), and each lowering read it makes -- a cell's
-            // print, a date-time's text -- is the facade's (lowering.RelationTexts), each member admitted by this row
-            // (and the edge's list text, PureListTexts, a mixed list's elements printed by the same facade: B8's TEXT_FORMS,
-            // 2026-11-17)
-            // (listed by member, no "#*", 2026-11-17, the GUARD stream's C.4, as the engine-text facade above)
-            "lowering.RelationTexts#kindType(java.lang.String)", "com.legend.edge.RelationTextLowering",
-            // its signature takes the planner's Styled in place of the two facets (2026-11-17, train 7's J26 and pforms,
-            // 449c51793a; re-cut on d-stage c37207858)
-            "lowering.RelationTexts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
-                    + "com.legend.sql.SqlExpr)",
-            "com.legend.edge.PureListTexts com.legend.edge.RelationTextLowering",
+            // (B17 of the separation census, lowering.RelationTexts#kindType and #pureToString: gone 2026-11-25 with the
+            // facet, stage B's B2b S5c -- a relation's toString and toCSV are lite's own texts, ProductRelationText, and
+            // a TDS's csv is refused by name; the edge's list text, PureListTexts, reads the same pureToString through
+            // the representation's facade below)
             // C5 step A (2026-11-17, the orchestrator's ruling: one facade, each member listed, no #*): legend-pure's
             // representation (toRepresentation, an assert's message) is the edge's (edge.EdgePureOnlyTexts), and the
             // product parts it is built from -- a concatenation, a Pure toString, a date
             // literal's text -- are the facade's (lowering.ReprParts); a date-time's text and the style's date-time
-            // facet are the lowering's own readers, the same as RelationTextLowering's
+            // facet are the lowering's own readers
             "lowering.ReprParts#cat([Lcom.legend.sql.SqlExpr;)", "com.legend.edge.EdgePureOnlyTexts",
+            // + edge.PureListTexts (2026-11-25, stage B's B2b S5c: its mixed list's elements printed by this same
+            // pureToString, which it read through lowering.RelationTexts until that facade was deleted)
             "lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
-                    + "com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+                    + "com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts com.legend.edge.PureListTexts",
             // (lowering.ReprParts#heldAsInteger left 2026-11-24, B2a's end design audit: since B2a the product prints
             // every Float by one rule, so the integer-held question is the edge's alone, EdgePureOnlyTexts; a shrink)
             // the styled string entry's parts, asked by the edge's ResultEnvelopes facet (L-B.TypedJsonResult, the
@@ -5063,11 +5057,11 @@ final class ArchitectureTest {
     record HostDoorRule(String name, java.util.function.Consumer<JavaClasses> check, Class<?> planted) {
     }
 
-    /** The test-planning facets' planted host implementers, one per kind of {@code PlanStyleFacets.KINDS}. */
+    /** The test-planning facets' planted host implementers, one per kind of {@code PlanStyleFacets.KINDS} (the relation
+     *  text's gone 2026-11-25 with its facet, stage B's B2b S5c; a shrink). */
     private static final java.util.Map<Class<?>, Class<?>> FACET_PLANTS = java.util.Map.of(
             com.legend.planner.UpstreamPlans.class, planner.PlantedHostDoors.Facet.class,
             com.legend.testplan.EngineTestText.class, planner.PlantedHostDoors.TestText.class,
-            com.legend.lowering.RelationTexts.class, planner.PlantedHostDoors.RelationText.class,
             com.legend.lowering.PureOnlyTexts.class, planner.PlantedHostDoors.PureOnlyText.class,
             com.legend.lowering.ResultEnvelopes.class, planner.PlantedHostDoors.ResultEnvelope.class);
 
@@ -5145,7 +5139,7 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(java.util.Set.of(
                 "theHostsDoorsReachNoEdge", "dialectsAreTheProductsOrTheEdges",
                 "onlyTheEdgeImplementsAStylesFacet UpstreamPlans", "onlyTheEdgeImplementsAStylesFacet EngineTestText",
-                "onlyTheEdgeImplementsAStylesFacet RelationTexts", "onlyTheEdgeImplementsAStylesFacet PureOnlyTexts",
+                "onlyTheEdgeImplementsAStylesFacet PureOnlyTexts",
                 "onlyTheEdgeImplementsAStylesFacet ResultEnvelopes",
                 "onlyTheEdgeCallsTheSpellingDoors", "reflectionIsBannedInProduction",
                 "onlyTheEdgeImplementsTheHooksUpstreamSide")), names, "the rules over the hosts' doors");

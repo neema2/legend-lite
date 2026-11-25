@@ -77,9 +77,7 @@ class HookRulingTest {
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
             Map.entry(com.legend.lowering.PureOnlyTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class))),
-            // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
-            Map.entry(com.legend.lowering.RelationTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class))),
+            // (census B17, 2026-11-17, lowering.RelationTexts: gone 2026-11-25 with the facet, stage B's B2b S5c; a shrink)
             // census C4, 2026-11-17: the engine-text assert's arm, and the hook only its answers hand out (the
             // collector): each reached through the facet the product refuses. (The database judge's batch, BatchTexts,
             // the second such hook: deleted, NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A
@@ -229,9 +227,9 @@ class HookRulingTest {
      *  helper the product itself uses, and the set is pinned exactly -- shrink-only, a new one is seen. Every other
      *  method of a ruled hook is a bare signature. */
     static final Map<Class<?>, java.util.Set<String>> FACADES = Map.of(
-            // pureToString (Scalars', every value's text), dateTimeText (LiteralSpelling's, the product's cells),
-            // kindType (MixedEncoding's, the lowering's mixed lists)
-            com.legend.lowering.RelationTexts.class, java.util.Set.of("pureToString", "kindType"));   // dateTimeText gone 2026-11-17 (census B9: the edge's own, edge.EdgeDateTimeTexts)
+            // (lowering.RelationTexts' pureToString and kindType: gone 2026-11-25 with the facet, stage B's B2b S5c; a
+            // shrink -- its dateTimeText went 2026-11-17, census B9)
+            );
 
     /** The product's refusals of a ruled hook (criterion (b)): its own implementations, which refuse by name, pinned. */
     static final java.util.Set<String> PRODUCT_REFUSALS = java.util.Set.of(
@@ -542,7 +540,6 @@ class HookRulingTest {
                 "EdgeRun <- com.legend.edge.AppealRun",
                 "Edge <- com.legend.edge.CompatEdge",
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
-                "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
                 "UpstreamPlans <- com.legend.edge.EnginePlans$1",
                 "EngineTestText <- com.legend.edge.EdgeEngineTestText",

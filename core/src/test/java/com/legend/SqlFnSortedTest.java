@@ -229,9 +229,9 @@ class SqlFnSortedTest {
             Map.entry("DATETIME_TO_TEXT", Set.of(
                     "com.legend.lowering.Styled",
                     "com.legend.sql.dialect.DateTimeText", "com.legend.testdatagen.LitePrinting")),
-            Map.entry("ENDS_WITH", Set.of(
-                    "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
-                    "com.legend.sql.dialect.FloatShortestText")),
+            // (ENDS_WITH: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
+            // went with stage B's B2b S5c (a TDS's csv refused by name in the product, a last step's printed by the doors' Java
+            // printer); the product's writers keep theirs)
             // EQUAL: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
             Map.entry("EQUAL", Set.of(
@@ -303,11 +303,9 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CellTexts",
                     "com.legend.sql.dialect.FrameGuard", "com.legend.sql.dialect.LateralExplodeToUnion",
                     "com.legend.testdatagen.LitePrinting", "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("LENGTH", Set.of(
-                    "com.legend.lowering.AsorReaders", "com.legend.lowering.Scalars",
-                    "com.legend.lowering.SnapshotEnvelope", "com.legend.lowering.VerdictSql",
-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CellTexts",
-                    "com.legend.testdatagen.TestDataPlanner")),
+            // (LENGTH: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
+            // went with stage B's B2b S5c (a TDS's csv refused by name in the product, a last step's printed by the doors' Java
+            // printer); the product's writers keep theirs)
             Map.entry("LESS", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.KeyedCounts",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
@@ -339,17 +337,9 @@ class SqlFnSortedTest {
             Map.entry("LPAD", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
                     "com.legend.lowering.SnapshotEnvelope", "com.legend.sql.dialect.StringCountsAsInt")),
-            Map.entry("MINUS", Set.of(
-                    "com.legend.lowering.AsorReaders", "com.legend.lowering.CalendarAgg",
-                    "com.legend.lowering.Comparators", "com.legend.lowering.DateShifts",
-                    "com.legend.lowering.FeatureRules", "com.legend.lowering.InstanceEquality",
-                    "com.legend.lowering.ListEncodings",
-                    "com.legend.lowering.Lowerer", "com.legend.lowering.MixedEncoding",
-                    "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
-                    "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql",
-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CheckedDefectsToLists",
-                    "com.legend.sql.dialect.QuantileOrder", "com.legend.sql.dialect.WindowAggregatesAsCorrelated",
-                    "com.legend.testdatagen.TestDataPlanner")),
+            // (MINUS: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
+            // went with stage B's B2b S5c (a TDS's csv refused by name in the product, a last step's printed by the doors' Java
+            // printer); the product's writers keep theirs)
             Map.entry("NOT", Set.of(
                     "com.legend.lowering.CheckedEnvelope", "com.legend.sql.ExistsJoins",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.NullSemantics",
@@ -393,12 +383,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.Fold",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText")),
-            Map.entry("STRPOS", Set.of(
-                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
-                    "com.legend.lowering.CanonicalRenderSql",
-                    "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
-                    "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.FloatShortestText",
-                    "com.legend.testdatagen.TestDataPlanner")),
+            // (STRPOS: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
+            // went with stage B's B2b S5c (a TDS's csv refused by name in the product, a last step's printed by the doors' Java
+            // printer); the product's writers keep theirs)
             // (SUBSTRING: both sides' no more, 2026-11-25, a shrink -- the edge's toString SQL that wrote it went with
             // stage B's B2b S5a, edge.RelationTextLowering's tdsCell and dateTimeTextTds; the product's writers keep theirs)
             // (DIVIDE, FLOOR, GREATEST, LN, POW and TIMES: both sides' no more -- compiled legend-pure's 2-ULP Float

@@ -17,12 +17,12 @@ import java.util.List;
     }
 
     /** The facet kinds, in the order they were added: the engine-text assert's arm (W9's judge half, 2026-11-16);
-     *  upstream's plan text at planning (W9's planner half, 2026-11-16: {@code planner.UpstreamPlans}); a relation's
-     *  text at lowering (the separation census's B17, 2026-11-17: {@code lowering.RelationTexts}, asked with its
-     *  call's refusal); a text only legend-pure writes at lowering (B8 (i), 2026-11-17: {@code lowering.PureOnlyTexts}); legend-engine's result
+     *  upstream's plan text at planning (W9's planner half, 2026-11-16: {@code planner.UpstreamPlans}); (a relation's
+     *  text at lowering, the separation census's B17's {@code lowering.RelationTexts}: gone 2026-11-25, stage B's B2b
+     *  S5c, a shrink); a text only legend-pure writes at lowering (B8 (i), 2026-11-17: {@code lowering.PureOnlyTexts}); legend-engine's result
      *  envelope at lowering (Phase 6's B5, 2026-11-17: {@code lowering.ResultEnvelopes}, asked with its call's refusal). */
     public static final List<Class<?>> KINDS = List.of(EngineTestText.class, com.legend.planner.UpstreamPlans.class,
-            com.legend.lowering.RelationTexts.class, com.legend.lowering.PureOnlyTexts.class,
+            com.legend.lowering.PureOnlyTexts.class,
             com.legend.lowering.ResultEnvelopes.class);
 
     /** The TWO-FORM kinds ({@code PlanStyle.twoForm}, the orchestrator's ruling of 2026-11-17, census B9): each a value
