@@ -158,3 +158,13 @@ Measurement added: M7, a typed census of governed constructs in the corpus harne
     - **Side findings, handled by B3:**
       - ClickHouse parses the Float literal `123456789.12345679` one ulp low (pre-existing; probably its `precise_float_parsing` setting): recorded as an F-row, not chased.
       - S120's parenthesis was wrong (on JDK 21, DecimalFormat("0.0") and legend-engine's Java both write `123456789123456784.0`): a factual correction B2 lands with a dated note.
+
+## After the handover to a new orchestrator session (2026-11-25, late night)
+
+The plan these rule on is `docs/records/edition-plan-to-finish-stage-b-2026-11-25.md`; its step numbers are the ones cited.
+
+24. **A3 stays until step 16** (the user: "Substring you can leave until 16 yes"). pure/v1 keeps A3 as it is, so no test moves; the `engine` table takes `substring`/`indexOf` for the corpus's `execute()` and PCT's engine run only. A3's fate (the G½ fact for exactness, or the user's fallback of amendment-era v4 §6) is decided at step 16.
+25. **The fold cut-back is in the plan, as a late step** (the user: "Folds we need to fix but can be a later step in the plan at the end"). It is step 15b: a probe first, the list ruled, then the allowlist guard. Until then the editions need one change only, made in step 5: a fold never answers a comparison across types.
+26. **The working loop** (the user: "Landing - read agents.md for fast dev loop with interim milestones that have independent audits - you can do subagents for audits and tesimf using opus 5.5 but I want to go step by step at the beginning at least"). Each step: a fast check, one full round with `//gates:local`, one independent audit by a subagent on Opus 5.5; then the orchestrator stops, reports and waits for the user's go. CI at milestones through a pull request.
+27. **Not ruled:** the mechanism (one table at lowering). The user asked "Is the table thing going to work?"; step 4 opens with a two-row probe that answers it.
+
