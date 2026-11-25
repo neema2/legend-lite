@@ -46,3 +46,25 @@ door now matches it.
    array element. The script must be copied outside the workspace, and `chmod o+x /root` was needed.
 3. `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` section 9.3 does not say that a channel B suite is one JUnit test
    whose result is its census, diff and ledger lines.
+
+## Follow-up: is it Postgres itself? (the user's question, 2026-11-25)
+
+Yes. Two independent checks:
+
+**Computed outside any database.** The exact standard deviation of the three doubles is 3.139999999999999902…, and the
+nearest double to that is 3.14: the correctly rounded answer. In plain double arithmetic the two-pass method, the
+sum-of-squares formula and Welford's running update all give 3.14; the Youngs-Cramer running update, which Postgres
+uses for `float8`, gives 3.1399999999999997, the value the lane saw.
+
+**Run on the server with no driver and no Java.** The tests' own embedded server (PostgreSQL 16.15), `psql` over a
+Unix socket:
+
+| Statement | Answer | Bits |
+|---|---|---|
+| `stddev_samp` over the three `float8` values | 3.1399999999999997 | `40091eb851eb851e` |
+| `sqrt(sum((x - m) * (x - m)) / 2)` over the same values | 3.14 | `40091eb851eb851f` |
+| `stddev_samp` over the three as `numeric` | 3.1400000000000000 | |
+| `3.14::float8` | | `40091eb851eb851f` |
+
+Postgres's own `stddev_samp` over doubles is one unit in the last place below the correct double. The two-pass
+formula on the same server is correct.
