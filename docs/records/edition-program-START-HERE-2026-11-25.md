@@ -2,10 +2,10 @@
 
 *For a session, or an account, with no context at all. Written 2026-11-25 by the B3 orchestrator session.*
 
-**Status, 2026-11-25 (evening):** the user ruled the design. Building was **paused by the user** pending an independent design review. **The review is back** (§8; the full report is `docs/records/edition-homework/independent-review-2026-11-25.md`). Its verdict: sound for comparisons (E1, E2) once its must-fixes are made; **not ready for E3, E4 or the §11 amendments**. Several of the design's factual claims are wrong (§8 lists them); the design document carries a banner saying so until it is amended. Nothing of the edition is built. A first slice of dead-code deletion (E0c) was started and parked uncommitted, and is not on any branch; it must be redone from §9's corrected list. **No building until the must-fixes are answered, the user has ruled §7's decisions, and the user has given an explicit go.**
+**Status, 2026-11-25 (late):** **design v2 is the design of record in draft: `docs/records/edition-design-v2-2026-11-25.md`.** It replaces v1 (`edition-design-2026-11-25.md`), whose errors the first review found (§8 below). The user gave the go for R0 (v2, then a second independent review, then the user's go to build) and R1 (measurements M1-M6) on 2026-11-25 ("lets go"). Nothing is built. The parked E0c edits were discarded (v2's R2 redoes the dead-code list, keeping `FeatureRules`' refusal). **Read v2 first; §§1-9 below are the history that led to it.**
 
 Read this file first, then:
-1. `docs/records/edition-design-2026-11-25.md`, the design;
+1. `docs/records/edition-design-v2-2026-11-25.md`, the design (v1, `edition-design-2026-11-25.md`, is superseded);
 2. `docs/records/edition-census-2026-11-25.md`, every place lite does something different for an audience.
 
 ---

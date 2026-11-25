@@ -2,6 +2,8 @@
 
 *The design of record, ruled by the user on 2026-11-25. Building is paused at the user's word until an independent design review has reported and the user has read the final design; start at `docs/records/edition-program-START-HERE-2026-11-25.md`.*
 
+> **SUPERSEDED (2026-11-25, late) by `edition-design-v2-2026-11-25.md`.** Kept as history.
+>
 > **Corrections pending (2026-11-25, evening).** An independent review found several of this design's claims wrong: A3's helper blind spot, the one hook in `Overloads`, §3 as the entire list, `pure` as legend-pure's meaning, one `engine` edition, M2M's "in memory" as a mapping property, E3's "no moves", ruling 3's 2-ULP premise, and `FeatureRules` as dead. Until this design is amended, read START HERE §8.1 beside it, and treat those sentences as wrong. The full report: `docs/records/edition-homework/independent-review-2026-11-25.md`.
 
 **Ruled so far (the user, 2026-11-25):** "Edition seems best of all options"; per project ("Can start per project"); the names `pure`, `engine`, `lite`; M2M, `~func`, derived properties in mappings and graph fetch strict in `lite` and upstream's meaning elsewhere, by the typer, "not like previous door way"; doors only set editions at first; "Yes to all the amendments" (§11); "Yes to 1&2" (legend-engine's feature flags in a `lite` program refused by name; upstream's text as a value test-harness only); `ServiceTestRunner` kept ("we will need right").
