@@ -44,8 +44,8 @@ final class SubQueryLift {
     static TypedSpec lift(TypedSpec n, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
             Map<String, TypedSpec> letBindings,
-            java.util.function.Predicate<TypedSpec> storeRooted) {
-        return walk(n, context, ctx, specs, letBindings, storeRooted, false);
+            java.util.function.Predicate<TypedSpec> storeRooted, boolean transformsOutsideStore) {
+        return walk(n, context, ctx, specs, letBindings, storeRooted, false, transformsOutsideStore);
     }
 
     private static final java.util.Set<String> EXISTENCE = java.util.Set.of(
@@ -55,7 +55,8 @@ final class SubQueryLift {
     private static TypedSpec walk(TypedSpec n, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
             Map<String, TypedSpec> letBindings,
-            java.util.function.Predicate<TypedSpec> storeRooted, boolean underLambda) {
+            java.util.function.Predicate<TypedSpec> storeRooted, boolean underLambda,
+            boolean transformsOutsideStore) {
         if (n instanceof com.legend.compiler.spec.typed.TypedFrom) {
             // a from() carries its OWN mapping/runtime context: its
             // subqueries lift when the resolver reaches it (the TypedFrom
@@ -80,7 +81,7 @@ final class SubQueryLift {
                             new java.util.LinkedHashSet<>(
                                     letBindings.keySet()))) {
                 return resolveScalarRead(chain, pa, context, ctx, specs,
-                        letBindings);
+                        letBindings, transformsOutsideStore);
             }
         }
         if (underLambda && n instanceof TypedNativeCall ec && ec.args().size() == 1
@@ -94,11 +95,12 @@ final class SubQueryLift {
             // lowerer's relation-predicate family) — the engine's
             // isEmpty/isNotEmpty over the fetched instances
             return new TypedNativeCall(ec.callee(), List.of(resolveExistsRelation(
-                    ec.args().get(0), context, ctx, specs, letBindings)), ec.info(), null, ec.outsideStore());
+                    ec.args().get(0), context, ctx, specs, letBindings, transformsOutsideStore)), ec.info(), null,
+                    ec.outsideStore());
         }
         boolean nowUnder = underLambda || n instanceof TypedLambda;
         return SyntheticHeads.rebuildChildren(n,
-                c -> walk(c, context, ctx, specs, letBindings, storeRooted, nowUnder));
+                c -> walk(c, context, ctx, specs, letBindings, storeRooted, nowUnder, transformsOutsideStore));
     }
 
     /** {@code toOne/first/graphFetch} wrappers peel down to the
@@ -203,7 +205,7 @@ final class SubQueryLift {
      *  its many-row relation identity: it is the for-each FROM root). */
     static TypedSpec resolveDatesRelation(TypedSpec datesArg,
             StoreResolver.Context context, ModelContext ctx,
-            SpecCompiler specs, Map<String, TypedSpec> letBindings) {
+            SpecCompiler specs, Map<String, TypedSpec> letBindings, boolean transformsOutsideStore) {
         if (!(datesArg instanceof TypedPropertyAccess pa)
                 || !(Type.asClassType(pa.source().info().type()) instanceof Type.ClassType ct)) {
             throw new com.legend.error.NotImplementedException(
@@ -237,7 +239,7 @@ final class SubQueryLift {
                         context.runtimeFqn(), proj.info()));
         TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
                 m, r, context.chainMappings(), context.jsonSources()), proj.info());
-        TypedSpec resolved = new StoreResolver(ctx, specs)
+        TypedSpec resolved = new StoreResolver(ctx, specs).withTransformsOutsideStore(transformsOutsideStore)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);
         while (resolved instanceof TypedFrom fr) {
@@ -251,7 +253,7 @@ final class SubQueryLift {
      * the same context (the scalar-read path's recursion). */
     private static TypedSpec resolveExistsRelation(TypedSpec chain,
             StoreResolver.Context context, ModelContext ctx, SpecCompiler specs,
-            Map<String, TypedSpec> letBindings) {
+            Map<String, TypedSpec> letBindings, boolean transformsOutsideStore) {
         Type ct = chain.info().type();
         var one = Multiplicity.Bounded.ONE;
         String v = "_ex";
@@ -274,7 +276,7 @@ final class SubQueryLift {
                 : Optional.of(new TypedPackageableRef(context.runtimeFqn(), proj.info()));
         TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
                 m, r, context.chainMappings(), context.jsonSources()), proj.info());
-        TypedSpec resolved = new StoreResolver(ctx, specs)
+        TypedSpec resolved = new StoreResolver(ctx, specs).withTransformsOutsideStore(transformsOutsideStore)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);
         while (resolved instanceof TypedFrom fr) {
@@ -286,7 +288,7 @@ final class SubQueryLift {
     private static TypedSpec resolveScalarRead(TypedSpec chain,
             TypedPropertyAccess pa, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
-            Map<String, TypedSpec> letBindings) {
+            Map<String, TypedSpec> letBindings, boolean transformsOutsideStore) {
         Type.ClassType ct = (Type.ClassType) chain.info().type();
         var one = Multiplicity.Bounded.ONE;
         var optional = Multiplicity.Bounded.ZERO_ONE;
@@ -318,7 +320,7 @@ final class SubQueryLift {
                         context.runtimeFqn(), proj.info()));
         TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
                 m, r, context.chainMappings(), context.jsonSources()), proj.info());
-        TypedSpec resolved = new StoreResolver(ctx, specs)
+        TypedSpec resolved = new StoreResolver(ctx, specs).withTransformsOutsideStore(transformsOutsideStore)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);
         while (resolved instanceof TypedFrom fr) {

@@ -143,6 +143,15 @@ final class EngineTable implements EditionTable {
         return true;
     }
 
+    /** legend-engine runs a model-to-model mapping's transforms in its own Java (Pure's meaning) under a graph fetch
+     *  ({@code storeContract.pure:89-91}) and over a model connection with no chain to a store; in a TDS query over a
+     *  chain whose source is a store it pushes them into the source query ({@code chain.pure:111-116}), the
+     *  database's meaning. */
+    @Override
+    public boolean transformsOutsideStore(boolean fetchesAGraph, boolean chained) {
+        return fetchesAGraph || !chained;
+    }
+
     @Override
     public EditionTable on(Supplier<@com.legend.base.Nullable DatabaseType> onDatabase) {
         return new EngineTable(onDatabase);

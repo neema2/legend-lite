@@ -63,6 +63,13 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
         return outside == outsideStore ? this : new TypedNativeCall(callee, args, info, pos, outside);
     }
 
+    /** {@code n} with every native call in it stamped as outside any store query: code the planner knows whole to be
+     *  outside (a model-to-model mapping's transforms where the audience's own Java runs them). */
+    public static TypedSpec allStampedOutsideStore(TypedSpec n) {
+        TypedSpec kids = n.mapChildren(TypedNativeCall::allStampedOutsideStore);
+        return kids instanceof TypedNativeCall c ? c.stampedOutsideStore(true) : kids;
+    }
+
     @Override
     public boolean equals(Object o) {
         return o instanceof TypedNativeCall other

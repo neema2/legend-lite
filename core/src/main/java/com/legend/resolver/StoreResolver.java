@@ -114,6 +114,19 @@ public final class StoreResolver {
         return this;
     }
 
+    private boolean transformsOutsideStore;
+
+    /** THE STAMP ON A MODEL-TO-MODEL MAPPING'S TRANSFORMS (the edition program's step 2, 2026-11-25): with
+     *  {@code outside}, the native calls of each transform this resolution composes are stamped as outside any store
+     *  query ({@code TypedNativeCall.outsideStore}), for the lowering's edition table. The planner decides it per
+     *  statement from its door's table ({@code lowering.EditionTable.transformsOutsideStore}); the product never
+     *  asks. Every resolver this one makes for a nested resolution carries it. */
+    public StoreResolver withTransformsOutsideStore(boolean outside) {
+        this.transformsOutsideStore = outside;
+        sources.setTransformsOutsideStore(outside);
+        return this;
+    }
+
     private GraphEmission.@com.legend.base.Nullable SerializeTypeConfig serializeTypeCfg;
     private boolean checkedEnvelope;   // graphFetchChecked defect gate
     /** Recursive navigate-target materialization (stateless service). */
@@ -235,7 +248,7 @@ public final class StoreResolver {
                 out.add(stmt);
                 continue;
             }
-            stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings, this::storeRooted);
+            stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings, this::storeRooted, transformsOutsideStore);
             out.add(ObjectReferenceDecode.rewrite(resolveNode(stmt, context), ctx, sources));
         }
         for (int i = 0; i < out.size(); i++) {
@@ -383,7 +396,7 @@ public final class StoreResolver {
             // in-query CLASS SUBQUERIES under lambdas lift FIRST
             // (SubQueryLift) under THIS from()'s context
             TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
-                    inner, ctx, specs, letBindings, this::storeRooted);
+                    inner, ctx, specs, letBindings, this::storeRooted, transformsOutsideStore);
             return new TypedFrom(resolveNode(liftedSrc, inner),
                     from.context(), from.executedExtent(), from.extentFrame(), from.info());
         }
@@ -2960,7 +2973,7 @@ public final class StoreResolver {
         if (g.forEachDate()) {
             g = new TypedGetAll(g.classFqn(), List.of(   // dates resolve NOW
                     SubQueryLift.resolveDatesRelation(g.milestoning().get(0),
-                            chainContext, ctx, specs, letBindings)),
+                            chainContext, ctx, specs, letBindings, transformsOutsideStore)),
                     false, true, g.info());
         }
         if (g.milestoning().size() > 2) {

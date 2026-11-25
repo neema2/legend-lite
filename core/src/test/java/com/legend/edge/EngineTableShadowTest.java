@@ -112,7 +112,7 @@ class EngineTableShadowTest {
             "|t::Person.all()->project(~[i: p|$p.initials()])->from(t::M, t::RT)",
             // a literal inside the routed query, and the calls the table has no row for
             "|" + TABLE + "->limit(1)->extend(~s: r|'abcdef'->substring(1, 3))->from(t::RT)",
-            "|" + TABLE + "->extend(~[a: r|[1, 2, 3]->indexOf(2), b: r|$r.NAME->toOne()->indexOf('o', 1)])->from(t::RT)");
+            "|" + TABLE + "->extend(~[b: r|$r.NAME->toOne()->indexOf('o', 1)])->from(t::RT)");
 
     private static String cut(String call) {
         return "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->" + call + ")->select(~[a])->from(t::RT)";

@@ -37,4 +37,9 @@ public final class LiteEditionTable implements EditionTable {
     public boolean stampsOutsideStore() {
         return false;
     }
+
+    @Override
+    public boolean transformsOutsideStore(boolean fetchesAGraph, boolean chained) {
+        return false;
+    }
 }

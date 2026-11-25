@@ -41,6 +41,12 @@ public interface EditionTable {
     /** Whether this table's two columns differ, so the planner stamps the calls outside a store query. */
     boolean stampsOutsideStore();
 
+    /** Whether, for this audience, a model-to-model mapping's transforms run outside any store query in a statement
+     *  that fetches a graph or not ({@code fetchesAGraph}) and whose mappings are chained over a store or not
+     *  ({@code chained}): where they do, the resolver stamps them as it composes them. Asked only of a table that
+     *  stamps. */
+    boolean transformsOutsideStore(boolean fetchesAGraph, boolean chained);
+
     /** This table for the statements of one planning, which run on {@code database} (asked only when a row is
      *  chosen, after the planner has decided the runtime; null where the planning names no single database). The
      *  lowering imports no dialect and names no database: the planner binds the table before handing it over. */

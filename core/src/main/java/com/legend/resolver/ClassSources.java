@@ -103,6 +103,14 @@ public final class ClassSources {
     private java.util.function.Function<String, List<com.legend.plan.LazyRows.Parameter>>
             constructedParameters = id -> List.of();
 
+    /** Whether a model-to-model mapping's transforms are stamped as outside any store query as they are composed
+     *  ({@link StoreResolver#withTransformsOutsideStore}). */
+    private boolean transformsOutsideStore;
+
+    void setTransformsOutsideStore(boolean outside) {
+        this.transformsOutsideStore = outside;
+    }
+
     void setConstructedRows(
             java.util.function.Function<String, Map<String, List<List<String>>>> rows,
             java.util.function.Function<String, List<com.legend.plan.LazyRows.Parameter>> parameters) {
@@ -768,6 +776,15 @@ public final class ClassSources {
             // substitute every $src.prop read with the upstream's binding —
             // the composed table sits over the upstream's own pipeline.
             if (Type.asClassType(pipeline.info().type()) instanceof Type.ClassType src) {
+                if (transformsOutsideStore) {
+                    // the stamp (the edition program's step 2): the transforms are the user's Pure -- the filters on
+                    // the source extent and each property's expression -- stamped here, where they are still the
+                    // mapping's own code, before they are substituted into the source's rows
+                    return composeModelToModel(mappingFqn, classFqn, binding,
+                            TypedNativeCall.allStampedOutsideStore(pipeline), mapper,
+                            (TypedNewInstance) TypedNativeCall.allStampedOutsideStore(ctor), src, upstreamMapping,
+                            contextKey);
+                }
                 return composeModelToModel(mappingFqn, classFqn, binding,
                         pipeline, mapper, ctor, src, upstreamMapping, contextKey);
             }
@@ -904,7 +921,7 @@ public final class ClassSources {
         // across instances — no corpus shape does; a cycle dies by stack,
         // loudly, not silently.
         if (anchoredInFlow(pipeline)) {
-            var nested = new StoreResolver(ctx, specs)
+            var nested = new StoreResolver(ctx, specs).withTransformsOutsideStore(transformsOutsideStore)
                     .resolve(java.util.List.of(pipeline), null, mappingFqn);
             pipeline = nested.get(0);
         }

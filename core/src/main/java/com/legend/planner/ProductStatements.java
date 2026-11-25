@@ -153,7 +153,14 @@ public final class ProductStatements {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
                 PlanTextRoutines.of(specs, env)));
-        body = BodyPlanner.resolver(specs, env).resolve(body, runtime);   // Phase H
+        // the stamp on a model-to-model mapping's transforms: the door's table says where its audience runs them
+        com.legend.lowering.EditionTable edition = env.styled().edition();
+        boolean transformsOutside = edition.stampsOutsideStore() && edition.transformsOutsideStore(
+                reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedGraphFetch),
+                reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom f
+                        && !f.context().chainMappings().isEmpty()));
+        body = BodyPlanner.resolver(specs, env).withTransformsOutsideStore(transformsOutside)
+                .resolve(body, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by name),
         // then every store the statement touches must be bound to it (C3b)
         Compiler.executesOn(ctx, runtime);
@@ -167,6 +174,16 @@ public final class ProductStatements {
                 frames.renames(), env.tableReplace(), lets, specs);
         PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
         return new Statement(BodyPlanner.prepare(body, widened), temporal, inlined.reads(), stores);
+    }
+
+    /** Whether any node of {@code body} is one {@code what} names. */
+    private static boolean reads(List<TypedSpec> body, java.util.function.Predicate<TypedSpec> what) {
+        for (TypedSpec s : body) {
+            if (what.test(s) || reads(s.children(), what)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** {@code features} with the flags {@code statements} carry as written ({@code withFeatureFlags} calls). */
