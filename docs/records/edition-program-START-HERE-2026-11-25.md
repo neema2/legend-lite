@@ -2,7 +2,7 @@
 
 *For a session, or an account, with no context at all. Written 2026-11-25 by the B3 orchestrator session.*
 
-**Status, 2026-11-25:** the user ruled the design. Building was **paused by the user** pending an independent design review, which was running when this was written; its findings go in §8, and the user gives the go after reading them. Nothing of the edition is built. A first slice of dead-code deletion (E0c) was started and parked uncommitted, and is not on any branch.
+**Status, 2026-11-25 (evening):** the user ruled the design. Building was **paused by the user** pending an independent design review. **The review is back** (§8; the full report is `docs/records/edition-homework/independent-review-2026-11-25.md`). Its verdict: sound for comparisons (E1, E2) once its must-fixes are made; **not ready for E3, E4 or the §11 amendments**. Several of the design's factual claims are wrong (§8 lists them); the design document carries a banner saying so until it is amended. Nothing of the edition is built. A first slice of dead-code deletion (E0c) was started and parked uncommitted, and is not on any branch; it must be redone from §9's corrected list. **No building until the must-fixes are answered, the user has ruled §7's decisions, and the user has given an explicit go.**
 
 Read this file first, then:
 1. `docs/records/edition-design-2026-11-25.md`, the design;
@@ -223,23 +223,99 @@ The full text is in `docs/records/edition-design-2026-11-25.md`.
 
 ## 7. Open decisions (the user's)
 
-1. **The independent review's findings** (§8), and the user's explicit go after reading the final design.
+1. **The independent review's findings** (§8): the design is amended for each must-fix, then the user's explicit go after reading the amended design.
 2. **`substring` (E4).** Today's rewrite (A3: `edge/PureMeaningCheck`, `PureMeaningRewrite`, `EngineSubstitutes`) is exact for the query: the database's `substring` inside store-reading code, Pure's elsewhere, as legend-engine does. It refuses `substring` reached through mappings. An edition rule can't see store-readiness inside a shared function body.
    - Candidate fix, which the review evaluates: an explicit "legend-engine `substring`" call whose definition the planner resolves per use, the database's function inside a store query and Pure's elsewhere. The planner already knows where each call ends up, and never reads the edition.
    - Until ruled, A3 stays as it is. **Nothing may make `substring` less exact than today without the user's word.**
-3. **Comparisons in the `engine` edition.** legend-engine compares in Java, with Pure's meaning, in code that reads no store. Today's door and the design both use the database's comparison everywhere: an existing gap that isn't stated as a trade-off yet. The same candidate fix as `substring` may apply.
+3. **Comparisons in the `engine` edition.** legend-engine compares in Java, with Pure's meaning, in code that reads no store. Today's door and the design both use the database's comparison everywhere: an existing gap that isn't stated as a trade-off yet. The same candidate fix as `substring` may apply. **The review (§8.3) found this premise conflicts with S127's measurement** (legend-engine's generated-Java executor answers `1 == 1.0` true): ask the engine runner before ruling.
 4. **B2's questions, posted, not yet ruled:**
    - S7a: a checked graph's defect record as a plain literal (recommended A);
    - S7b: single values on `pure/v1` execute (recommended A, keep refusing for now);
    - `.csv` of a `#TDS` literal: `toCSV()` (recommended) or Pure's source text;
    - a raw grid's last-step CSV at the doors: A now, C after the edition;
    - `toCSV()`'s Float digits: keep six decimals, or exact (recommended exact).
+5. **What is `pure`?** legend-pure's meaning (Pure's comparisons, Pure's texts, the S137/S144 rewrites kept), or lite's rules with Pure's comparisons (the design as written)?
+6. **One `engine` edition or two?** pure/v1 and the corpus differ today (§8.1).
+7. **`substring`:** exact (§8.3 alternatives a to c) or simpler (d, with recorded losses)? This replaces item 2's candidate.
+8. **H2's settings and the DECIMAL Float literals:** keep them as legend-engine's meaning (the design), or delete them (B4's plan)?
+9. **May lite's own projects choose `engine`** (§11.3 of the design)? That would make cross-type equality and legend-engine's other departures a product mode; G3 and the fidelity tenet aren't amended for it.
+10. **pure/v1 losing `planToString` and `executionPlan` inside programs** (ruling 2's consequence).
+11. **Ruling 3, re-asked** on the corrected fact: legend-engine's JSON compare is exact.
 
 ---
 
 ## 8. The independent review
 
-*Placeholder: the review was running when this was written. Its verdict, must-fixes, should-fixes, the full table of what gets worse for whom, and the hidden decisions it found go here. The design is amended to answer each must-fix before anything is built.*
+The full report, with every file and line reference: `docs/records/edition-homework/independent-review-2026-11-25.md`. A reviewer with no stake in the design read the design, the census, the code at 7c2ac303 and the project's rules. It was told to find what gets worse, for whom, and which decisions were glossed over.
+
+**Verdict:** "Sound with must-fixes for E0c to E2. Not ready to approve for E3/E4 or the §11 amendments until the must-fixes are done."
+
+### 8.1 The design's claims the review found wrong
+
+Treat these sentences in the design as **wrong until it is amended**:
+
+| The design says | The truth (with the review's evidence) |
+|---|---|
+| A3 (today's `substring` rewrite) has "the same blind spot as comparisons: a helper that calls them doesn't get the rewrite" | False. A3 already follows user calls and rewrites per call site (`PureMeaningRewrite.java:107-154`; `PureMeaningRewriteTest.aFunctionCalledHostSideAndStoreSideIsRewrittenAtTheStoreSideUseAlone`). Its real gaps: mapping code, graph fetch properties, databases other than H2 and DuckDB. |
+| Every edition-dependent construct passes one site in `Overloads` | False. Float literals aren't calls; casts and slices have their own checkers; `StaticFold` folds `==` and Float text before the site; `LiteralUnroll` folds literal-only `in`/`contains`/`==` to Pure's `false` after it, at G½; generic code is known only after inlining; H2's settings aren't expressions. |
+| §3's table is the entire list | False. Missing: DateTime text (S312), list text (S316c), legend-pure-only texts (S314), the DECIMAL Float literal (S20), `isNumeric` (S370), `parseDecimal(5,2)`, lenient `parseJSON`, the ten plain raise kinds, H2's settings, `executeValues`' bare single object. |
+| `pure` is legend-pure's meaning | It is lite's rules plus Pure's comparisons. |
+| One `engine` edition fits pure/v1 and the corpus | They differ today: pure/v1 has A3 and plain raises; the corpus has neither, and has the test-body rewrites. The corpus's own test code runs as compiled Pure upstream, with only `execute()` sent to the database. |
+| M2M's "in memory" can be recorded by the normalizer | It is a property of the query: `chain.pure:104-116` pushes chained M2M into the store query for TDS results; graph fetch runs in Java. |
+| "Today each door admits one origin's code"; per project means the same answers through either door | One `HeldModels` serves lite's API and pure/v1 for the same text (`HeldModels.java:44-49`, :74-76). The per-project declaration is in no phase. |
+| The switch count stays at one | The typer would also read feature flags (written in programs, or attached by doors). That is a second exception. Flags scoped to a `from(...)` subtree can't reach cached function bodies. |
+| H2's `MODE=LEGACY` / null ordering are door input | They change answers (null order): a door-chosen meaning. Keeping them reverses B4's plan to remove them. |
+| Ruling 3: legend-engine's JSON compare allows 2 ULP | False since 2026-11-24: exact (`JsonNodeComparator.java:153-157`; `EqualToJson.java:88-89`, whose header javadoc is stale). And a Java comparator is a judge, which never sees the edition. **Ruling 3 must be re-asked.** |
+| E3: "Expected moves: none" | PCT moves: Float text (further from Pure's), DateTime text, `TDSNull` cells, parse errors. pure/v1's Float text from `format`, lists and generic bodies can't be caught by a typer rule. |
+| `pure` should refuse `assertSize` over a relation and be strict for `assertJsonStringsEqual` | Those rewrites are legend-pure's own meaning (S137, S144); PCT applies them today. The design moves PCT away from Pure. |
+| E0c: `FeatureRules` is dead | False. `requireConsumed` (`FeatureRules.java:117`) is the live refusal of two flags. Keep it, or replace it with a guard first. |
+| "M2M/XStore in memory gets Pure's `false`, legend-engine's real behaviour" | S127's measured evidence says legend-engine's generated-Java executor answers `1 == 1.0` **true**. Not verified for XStore or M2M: ask the engine runner. |
+
+There are also two phases named E5 (per-package editions in §10, formats to presenters in §10b).
+
+### 8.2 What gets worse, by phase and audience
+
+| Phase | Lite's product | legend-engine's door (pure/v1, corpus) | legend-pure's door (PCT) |
+|---|---|---|---|
+| E0c | Nothing, if `FeatureRules`' refusal is kept | same | same |
+| E1 | Nothing, unless held models are shared | The tab's pure/v1 uses the host's held model: if it's `lite`, `generatePlan` with a crossing is refused; if it's keyed by edition, the trading model compiles twice (5 to 6 s) | nothing |
+| E2 | Crossings in function bodies and mapping code become compile errors (unmarked today); the prelude and normalized platform bodies are typed `lite`, unverified | Possibly a wrong answer for in-memory XStore/M2M (S127, unverified) | A crossing in a function body moves from the database's comparison to `false`, and where both sides may be empty, to a **new refusal** (`PureComparisons.java:58`) |
+| E3 | nothing | Float text from `format`, lists, generic bodies is missed by a typer rule | Moves: Float text, DateTime text, `TDSNull`, parse errors |
+| E4 | nothing | `substring` (§8.3): less exact than today at pure/v1; better for graph fetch properties and `~func`; **wrong where today refuses** (chained M2M with a TDS result) | `assertSize` and `assertJsonStringsEqual` move away from Pure |
+| E5 to E7 | — | One `engine` edition merges plain raises (pure/v1) with checked raises (corpus): corpus error tests may move. `planToString` and `executionPlan` inside a pure/v1 program are answered today and **refused** under ruling 2 | H2's settings and the DECIMAL Float literals leave PCT: null order and arithmetic move |
+
+Lean SQL: `pure`'s literal `false` and a guard-free `substring` make SQL smaller; PCT's six-decimal Float text adds about 33 characters per value (S311). The lean-SQL pins will move.
+
+### 8.3 Why `substring` can't stay exact as designed
+
+legend-engine's answer depends on **where the call runs**: the database's SUBSTRING in code sent to the database, Pure's in code it runs in Java (the H16 probe). Today's A3 sees that, per call site, after typing. An edition rule runs inside the typer, which types each function body **once per query** (`SpecCompiler.java:48`, :81-95), before any call site is known. So the rule must choose one answer per function, and the design chose "the database's everywhere". That loses three exact cases (a host-side `let`; an out-of-bounds raise; a function called from both sides), and gives a wrong answer for chained M2M with a TDS result and for checked graph fetch constraints.
+
+The alternatives:
+- **(a) Placement-resolved instruction (the review's recommendation to evaluate).** Under `engine` the typer writes an explicit `engineSubstring(...)` (likewise `indexOf`, `toOne` of an empty value). It means "the database's SUBSTRING where legend-engine sends the code to the database; Pure's otherwise", in every edition. One planner pass stamps each occurrence with its placement (reusing `StatementEffects`, before G½ folds host-side `let`s), and the store resolver supplies chained M2M and graph fetch. Exact where A3 is, plus mapping code. Cost: legend-engine's placement rule lives in the core, as a native's documented meaning (tension with G5).
+- **(b) Per-placement typed bodies.** Exact, but more complex, and breaks the one-site claim.
+- **(c) Hybrid.** Keep A3 at the door for the query and its helpers; an `engine` row only for resolver-demanded code. Strictly better than today, but keeps one door rewrite.
+- **(d) The design's choice.** The database's everywhere, each lost case a register row ruled by the user.
+
+The same placement question applies to comparisons in the `engine` edition (§7 item 3), but §7's premise ("legend-engine compares in Java with Pure's meaning") conflicts with S127's measurement and must be checked first.
+
+### 8.4 Must-fixes before approval
+
+1. Correct the A3 claim; rewrite the `substring` row with a chosen alternative, listing every case that changes.
+2. Make §3 the real list, or name the phase that handles each missing item.
+3. Correct "one read site": name each gap (literals, casts, slices, folds, generic code) and how it is handled.
+4. Restate E3's moves per audience; add a DateTime row or admit the move; handle Float text from `format`, lists and generic bodies.
+5. E1: specify how `HeldModels`, `LiteV1Api.Models` and layered libraries serve two doors.
+6. Correct ruling 3's premise and re-ask it.
+7. Check the M2M/XStore claims against S127 and `chain.pure` by asking the engine runner.
+8. Amend the switch rule honestly for the flags the typer reads, or move the flags elsewhere.
+
+**Should-fix:** keep `FeatureRules`' refusal in E0c; reword the guard so doors may set the edition; settle the duplicate E5; keep the migration report (every comparison legend-engine's door loosened, ruled 2026-11-24); decide the prelude's and normalized bodies' edition; fix §10c's PCT-runner slip (it is the testable runner, `TestExecutionContextHelper.java:46`); widen the E4 hook beyond single calls (the order-free `assertEquals` rewrite reads goldens across statements); amend G5, G3 and the fidelity tenet, or bound §11.3.
+
+**Not verified:** whether lite's corpus runs `sortCsv`; PCT move counts for E2 to E4; whether the prelude and normalized platform bodies contain crossings; legend-engine's XStore/M2M answer for `1 == 1.0`.
+
+### 8.5 The decisions the review found the user was never asked
+
+These are in §7 as items 5 to 11.
 
 ---
 
@@ -265,7 +341,7 @@ Every moved test result is shown to the user. Every divergence gets a register r
 - `JudgePlans.shapeOf`'s unused `style`.
 - `testexecutionplan/JsonGrammar` (one form, `JudgeJson.STRICT`).
 - `DatabaseAsserts`' dead `appealOn` branch (:310-313).
-- `lowering/FeatureRules` and the no-op substring flag's registry (`RegistryKeys.featureOverrides`, `ImplementationTable`:80-88, the `Implementation` / `Registrations` / `PlatformRegistrations` entries, the select in `Scalars`). Keep the `Feature` enum: the edge still reads the flag.
+- ~~`lowering/FeatureRules`~~ **Not dead (the review, §8.1): keep it.** `requireConsumed` (`FeatureRules.java:117`) is the live refusal of `USE_DB_NATIVE_IMPLICIT_NULL_ORDERING` and `VARIANT_TYPE_AS_INPUT`, and what lets `CORRECT_SQL_SUBSTRING_INDEXING` through. The no-op substring flag's registry (`RegistryKeys.featureOverrides`, `ImplementationTable`:80-88, the `Implementation` / `Registrations` / `PlatformRegistrations` entries, the select in `Scalars`) may go only if the refusal is kept. Keep the `Feature` enum: the edge still reads the flag.
 
 **Guards to update:** `ProductFormsUseTheirArgumentsTest.RULED` (drop the `relations` and `view` entries, with a dated note), `LoweringForms`' doc, and any hook-list pins (`HookLambdasTest`, `HookRulingTest`) the deletions touch.
 
