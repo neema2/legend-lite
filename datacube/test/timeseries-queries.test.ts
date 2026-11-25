@@ -575,7 +575,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
   it('a person\'s own Pure: a column with gaps put onto every date by step, zero and time, by name', async () => {
     const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
     const t = await asTest(engine).execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
-      ->extend(~[t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS), g:x|if($x.close > 102, |$x.close, |[])])
+      ->extend(~[t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS), g:x|if($x.close > 102.0, |$x.close, |[])])
       ->timeseries::fillStep(~symbol, ~day, ~g, ~g, ~st)
       ->timeseries::fillZero(~g, ~z)
       ->timeseries::fillTime(~symbol, ~day, ~g, ~t, ~t, ~g, ~tm)

@@ -148,7 +148,40 @@ final class Typer {
             java.util.function.Supplier<R> body) {
         java.util.List<String> rigid = new ArrayList<>(fn.typeParameters());
         rigid.addAll(fn.multiplicityParameters());
-        return annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid, body));
+        // a function's body is no body a door receives: its comparisons across types are the calls (B3 step 5)
+        return markingCrossings(false, () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
+                body)));
+    }
+
+    /** Whether a comparison across types is typed as the marker here: in the query or test body a door receives
+     *  ({@code SpecCompiler.typeQueryBodyMarked}), not in a function's body (B3 step 5). */
+    private boolean marking;
+
+    /** The nodes an island's translation wrote into a statement of the query ({@code TsIslands.lifted}): typed by the
+     *  island's own language's rule, its comparisons never marked, as the island arm types an island where it stands
+     *  (B3 step 5a's client regression, 2026-11-25: a #TS{...}# island lifted ahead of its statement was typed marked,
+     *  and the datacube's timeseries queries were refused). */
+    private final java.util.Set<ValueSpecification> islandOutput =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /** {@code node}, an island's translation, typed by the island's rule wherever it is met. */
+    void islandOutput(ValueSpecification node) {
+        islandOutput.add(node);
+    }
+
+    boolean marksCrossings() {
+        return marking;
+    }
+
+    /** {@code body} typed with comparisons across types marked ({@code on}) or not. */
+    <R> R markingCrossings(boolean on, java.util.function.Supplier<R> body) {
+        boolean was = marking;
+        marking = on;
+        try {
+            return body.get();
+        } finally {
+            marking = was;
+        }
     }
 
     /** The model snapshot &mdash; the checkers' lookup surface. */
@@ -182,6 +215,10 @@ final class Typer {
         if (pre != null) {
             return pre;
         }
+        // an island's translation compares by the island's language's rule (B3 step 5): typed unmarked
+        if (marking && !islandOutput.isEmpty() && islandOutput.contains(vs)) {
+            return markingCrossings(false, () -> synth(vs, env));
+        }
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as
             // its desugared lambda.
@@ -214,8 +251,10 @@ final class Typer {
             // #SQL{...}#: Postgres SQL, translated to the Relation expression it means and typed as one
             // (SqlIslands; docs/LEGEND_SQL_STUDY_2026_10_11.md §3)
             // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
-            case com.legend.protocol.spec.SqlIsland si ->
-                    synth(SqlIslands.desugar(si, this, ctx, env), env);
+            // an island compares by its own language's rule (SQL's, Cypher's: 100 against a Float column is a valid
+            // comparison there), so its comparisons are the database's, never marked (B3 step 5, 2026-11-25)
+            case com.legend.protocol.spec.SqlIsland si -> markingCrossings(false,
+                    () -> synth(SqlIslands.desugar(si, this, ctx, env), env));
             case com.legend.protocol.spec.GqlIsland gi ->
                     throw new com.legend.error.NotImplementedException(
                             "#GQL{...}# expression islands are not compilable"

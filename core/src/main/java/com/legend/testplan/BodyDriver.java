@@ -318,9 +318,16 @@ public final class BodyDriver {
             // program, step 3: assertNotEq(1, 2) inlined to assert(!eq(1, 2), ...) folds so)
             return com.legend.compiler.spec.AssertMessages.holds(specs);
         }
-        return isHelperAssertRoot(bare, preRoot) || assertHelper && preRoot instanceof
+        TypedSpec root = isHelperAssertRoot(bare, preRoot) || assertHelper && preRoot instanceof
                 com.legend.compiler.spec.typed.TypedNativeCall nc && assertsPackageNative(nc)
                 && com.legend.builtin.NativeFn.Verdict.of(nc.callee().id()).isPresent() ? preRoot : null;
+        if (root != null) {
+            // the helper's assert under the order rule too, read with the inlined lets before it (B3 step 4's review,
+            // H1, 2026-11-24: an assertEquals of unordered rows inside a helper escaped the refusal)
+            com.legend.compiler.spec.OrderedAsserts.rewrite(root, body.subList(0, body.size() - 1),
+                    com.legend.compiler.spec.OrderedAsserts::refused);
+        }
+        return root;
     }
 
     /** The statement's env widened with the tableReplace maps of every

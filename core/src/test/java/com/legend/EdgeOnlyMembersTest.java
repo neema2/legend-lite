@@ -105,6 +105,19 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // B3 step 5 (the one equality; the user's ruling of 2026-11-24, "Love it"): the typer's marker of a comparison
+            // across types, its components what a door reads to answer it (the product refuses the whole marker); and
+            // the catalog's assertSameElements overloads, which the door's order-free rewrite builds its typed call from
+            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#kind()",
+                    "2026-11-25: the marker's kind, read by legend-pure's door to answer it (B3 step 5)"),
+            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#operator()",
+                    "2026-11-25: the marker's operator, as legend-pure's door names it in a refusal (B3 step 5)"),
+            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#left()",
+                    "2026-11-25: the marker's first type, as legend-pure's door names it in a refusal (B3 step 5)"),
+            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#right()",
+                    "2026-11-25: the marker's second type, as legend-pure's door names it in a refusal (B3 step 5)"),
+            Map.entry("com.legend.builtin.Pure#AT_ASSERTS_ASSERT_SAME_ELEMENTS",
+                    "2026-11-25: the catalog's assertSameElements overloads, the door's order-free rewrite's typed call (B3 step 4)"),
             // (EnvelopeParts#relation/#objects, RelationParts#names/#typeNames/#cells: moved 2026-11-18 to
             // HookRulingTest.HOOK_ENTRIES by the orchestrator's ruling -- the ResultEnvelopes facet's argument types)
             // the orchestrator's ruling of 2026-11-18 (train 18, J40.VerdictSql, E-Java's 9dd14f6fdc): VerdictSql keeps the

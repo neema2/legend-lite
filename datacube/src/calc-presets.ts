@@ -190,8 +190,11 @@ function placed(
   v: ValueSpecification,
   edge: (k: ValueSpecification) => ValueSpecification,
 ): ValueSpecification {
-  return fn('if', fn('lessThan', v, edge(guess)), lambda([], minus(guess, lit.integer(1))),
-    lambda([], fn('if', fn('greaterThanEqual', v, edge(plus(guess, lit.integer(1)))),
+  // the value compared as a Float, as its edge is (a division): one type on each side, lite's one equality (B3 step 5,
+  // the user's ruling of 2026-11-24) -- a value of any number type, an Integer, a Decimal, placed by its own edges
+  const at = fn('toFloat', v);
+  return fn('if', fn('lessThan', at, edge(guess)), lambda([], minus(guess, lit.integer(1))),
+    lambda([], fn('if', fn('greaterThanEqual', at, edge(plus(guess, lit.integer(1)))),
       lambda([], plus(guess, lit.integer(1))), lambda([], guess))));
 }
 
@@ -333,7 +336,8 @@ export function showAsColumns(
       // the first row has no row before: its change is empty (SQL's NULL through toOne), never a guess; and a change
       // from nothing has no ratio -- empty too, where a database would refuse a division by zero
       const change = minus(one(base), one(before));
-      const ratio = fn('if', fn('equal', one(before), lit.integer(0)), lambda([], collection([])),
+      // a zero of any number type (one type each side of the comparison: lite's one equality, B3 step 5)
+      const ratio = fn('if', fn('equal', fn('toFloat', one(before)), lit.float(0)), lambda([], collection([])),
         lambda([], divide(change, one(before))));
       return [
         { name: before, window: { fn: 'lag', column: base, partition, order } },
@@ -429,7 +433,9 @@ export function ringTotalColumn(measure: string, across: string): DerivedColumn 
  * nothing is (showAsColumns' percentChange) -- where a database would refuse the division, or answer infinity.
  */
 function share(part: ValueSpecification, whole: string): ValueSpecification {
-  return fn('if', fn('equal', one(whole), lit.integer(0)), lambda([], collection([])), lambda([], divide(part, one(whole))));
+  // a zero of any number type (one type each side of the comparison: lite's one equality, B3 step 5)
+  return fn('if', fn('equal', fn('toFloat', one(whole)), lit.float(0)), lambda([], collection([])),
+    lambda([], divide(part, one(whole))));
 }
 
 /** A Marimekko's columns: where each column starts across and how wide it is, where each cell starts up and ends. */
@@ -497,7 +503,8 @@ export function waffleColumns(measure: string, order: readonly SortSpec[]): Deri
   return [
     { name: run, window: { fn: 'sum', column: measure, partition: [], order: [...order], frame: 'running' } },
     { name: all, window: wholeOf('sum', measure) },
-    { name: to, lambda: row(fn('if', fn('equal', one(all), lit.integer(0)), lambda([], collection([])),
+    // a zero of any number type (one type each side of the comparison: lite's one equality, B3 step 5)
+    { name: to, lambda: row(fn('if', fn('equal', fn('toFloat', one(all)), lit.float(0)), lambda([], collection([])),
       lambda([], fn('round', times(divide(one(run), one(all)), lit.integer(WAFFLE_CELLS)))))) },
     { name: before, window: { fn: 'lag', column: to, partition: [], order: [...order] } },
     { name: from, lambda: row(fn('if', fn('isEmpty', col(before)), lambda([], lit.integer(0)), lambda([], one(before)))) },

@@ -438,8 +438,87 @@ Measured with a second, wider half (a print or a join of such rows: `toString`, 
 order-free form yet for a join of a list that is not Strings, of bare cells, or for a print the lift does not read. That
 half is deferred, for the user's word.
 
-**A known loosening at the door (recorded):** upstream's `assertEquals(golden, $tds.rows.values)` -- a TDS's cells
-flattened -- with no defined order becomes `assertSameElements` of the cells, Pure's element multiset: a cell moved
-between rows of a wrong answer is no longer caught there (the host judge's row multiset caught it, `flatCellsRowCohesion`
-pinned it). It changes no verdict on a correct answer; Pure has no tuple to write a row multiset with. The product
-refuses the shape; sorted, it compares in order.
+**A TDS's flattened cells at the door:** upstream's `assertEquals(golden, $tds.rows.values)` -- a TDS's cells
+flattened -- with no defined order is compared as ROWS since step 5a (the user, 2026-11-24, "should we somehow tuple
+compare? Even if no real tuple type?"): the door cuts a golden of literal cells into rows of the actual's columns (a
+typed table literal) and makes the assert `assertSameElements` of the two tables, a multiset of rows with the columns
+checked (`UpstreamTestBodies.asRows`; `flatCellsRowCohesion` pins that a cell moved between rows fails). A golden it
+cannot cut -- not literal, a width that does not divide, a cell of another kind than its column (a day in a date-time
+column: step 5a's review, H1) -- stays Pure's element multiset of cells, recorded: a cell moved between rows of a wrong
+answer is not caught there. The product refuses the shape; sorted, it compares in order.
+
+**Step 4's review (bb95cdc7, no confirmed wrong verdict on a test that exists) -- fixed with step 5's first slice:** H1
+an assert inside a helper is refused where the judges inline it (`BodyDriver.helperAssertRoot`); M1 every `assertEquals`
+overload has its `assertSameElements` twin at the door (`assertNotEquals` has none in Pure: left as written, so lite
+refuses it by name -- none in the corpus or PCT); M2 one value on either side is no order (no refusal, no rewrite); M3
+the walk's scope (a lambda's parameters are values, its lets read in order; an `assertError`'s lambda not walked), one
+walk shared by the planner and the door (`OrderedAsserts.rewrite`); M4 an `assertEquals` of two grids compares their
+rows in order, and S131 amended (rows and grids built; JSON roots and prints or joins to follow); M5 an
+`assertSameElements` of two grids is the grid pair's row multiset with its columns checked, on both judges (it was a
+pool of loose cells on the host and unjudged on the database judge); M6 the test plan's format 41 -> 42. LOWs: the
+stale descriptions fixed; unit tests for the walk (`OrderedAssertsTest`). Recorded: a single value picked from
+unordered rows, `assert($a == $b)`, natives OrderView does not list.
+
+## Step 5 -- the one equality (built in slices from 2026-11-24)
+
+**Slice 5a, comparisons across known types (the user's ruling of 2026-11-24, "Love it"):**
+- `compiler/spec/EqualityClasses`: the rule's types -- Integer, Float, Decimal (any precision) each a type; String;
+  Boolean; Byte; a day; a date-time; a time; each enumeration; Variant; a class, crossing another only when neither is a
+  subtype of the other. Known only at run time, never marked: Number, the abstract Date, LatestDate, Any, a type
+  variable, a generic, a function, a relation. The comparisons, known by their declarations' identities: `==`, `!=`
+  (its `equal`), `eq`, `<`, `<=`, `>`, `>=`, `compare`, two-argument `max`/`min`; `in`, `contains`, `indexOf` against
+  the collection's element type.
+- The typer types such a call as the marker `TypedCrossTypeComparison` (its kind, its operator, the two types) around
+  the call -- **in the query or test body a door receives** (`SpecCompiler.typeQueryBodyMarked`, `TypedQuery.body`).
+  Measured 2026-11-25: marking everywhere the typer runs broke about 32 corpus tests a database, the marker reaching
+  passes after every door -- a function's body typed when the planner inlines it, an `execute(...)` frame typed at
+  planning, a relational mapping's normalized operations. Those keep the database's comparison for everyone, by
+  construction (`Typer.inFunctionScope` types unmarked); lite's strictness over a function's body comes with the
+  compile route (the next sub-slice). An island (`#SQL{...}#`, Cypher) compares by its own language's rule, unmarked.
+- Lite refuses the marker by name (TYPE phase): the test planner (`TestPlanner.lifted`) and every query's planning
+  entry (`PlanMaker.plan`) before anything is planned; the lowering for one that reached it another way.
+- legend-engine's door (`edge/EngineComparisons`: the pure/v1 routes, the corpus's test-body door, PCT's engine
+  audience) rewrites each marker to the call itself, the database's comparison; legend-pure's door
+  (`edge/PureComparisons`: PCT's channels A and B) to Pure's answer by the types alone -- an equality `false` (refused
+  by name where both sides may be empty: Pure says true then), a membership `false` or -1, an ordering across number
+  kinds the comparison itself.
+- **Step 5a's review (2026-11-25), fixed before the commit:** H1 a date cell of another kind than its column is not
+  cut into rows (a day lowers to midnight, so it could pass a wrong date-time); M1 an argument written in the received
+  body keeps its markers when the call's body is inlined (`Overloads.inlineNormalized` hands the body the argument as
+  the caller typed it); M2 the host halves' execute answers legend-engine's meaning (`HostAnswers.hosted` checks it as
+  pure/v1's execute does) and a test-data seed refuses a marker by name (`ProductStatements.lowerTestDataSeed`); the
+  service test runner runs the product's meaning (census C1), so it refuses by name -- if it becomes legend-engine's
+  door, both rewrites come with it; M3 measured, not changed: refusing legend-pure's orderings of two non-numbers failed four
+  PCT tests the database's comparison passes (testCompareMixedTypes, testDateCompare, testMax_Date, testMin_Date), so
+  the door keeps the database's comparison and the difference is recorded -- a day against a date-time at one instant,
+  which legend-pure orders the day first and the database ties; M4 `max`/`min` over two Dates
+  marked; an enumeration against the `Enum` class and two classes that share a subclass are not crossings. LOWs:
+  PlanMaker refuses before it reads the runtime; an Integer cell beyond a long is not cut; stale text fixed.
+  Recorded: a refusal of `!=` names `==` (the parser writes `!=` as `not(equal(...))`); legend-pure's door does not
+  evaluate a side its types answer (legend-pure does, so a side that raises raises there).
+- Still to build: the migration report (each door lists what it loosened), the IDE's compile route, and the measured
+  re-pins. Then 5b (types known only at run time: the tag beside the value), 5c (the asserts as their Pure bodies,
+  VerdictSql's comparison layer deleted).
+
+**Step 5a's client regression (2026-11-25, after b0df6ea8 landed):** B2, merging step 5a, found eight //gates:local
+targets red (seven datacube tests, //python:headless_test); the step's round had not run //gates:local, and every round
+runs it from then on. 50 of the 51 refusals came from a #TS{...}# island lifted ahead of its statement
+(`TsIslands.lifted`), typed with comparisons marked where an island compares by its own language's rule: the
+translation is now typed by the island's rule wherever it is spliced (`Typer.islandOutput`). The datacube's presets
+generated comparisons across types (the share's, the change's and the waffle chart's zero guards against a Float
+measure; a value against its Float bin edge): each now compares in one type through `toFloat()`. Six hand-written test
+queries compared a Float with an Integer literal and now write `60.0`, `102.0`, `5.0`, `50.0` -- the rule working as
+ruled (option A, kept by the user on 2026-11-25); TsIslandTest's query and its expected statement write `150.0`, and
+the datacube feature checks' calculated column `big` writes `$x.notional > 500000.0`. The
+H2 lane's floor line for `TypeInferenceIntegrationTest#testMinNumbers` went with the test's old answer. Twelve runs of
+the IQ parity cases with settings (the precision cases and one of divide_by_zero_error's) were refused, Integer against
+Decimal: settings reach no island yet, so the harness ran each case's printed translation as an ordinary query, which
+is typed with the cross-type check on. The product never reads a translation back: an #IQ{...}# island is a SqlIsland,
+typed with the check off (step 5a), like #SQL's and Cypher's. A first fix wrote the translator's promotions out
+(`toDecimal`, decimal zeros); it was reverted, since it changed the SQL the product sends (`CAST(id AS DECIMAL) > 2.5`
+for `id > 2.5`, which can keep the database off an index) to suit a test's shortcut. The user ("Shouldn't IQ be
+excluded exactly like #sql and #Ts etc?"): the harness now runs such a case as the island it stands for, its settings
+written as IQ's SET statements before its SQL (`IqParity.setStatements`: a database's option `SET OPTION PUBLIC.x`, a
+query's `SET TEMPORARY OPTION x`, the island reading them as `IqSettings.resolve` reads the settings). A case given a
+database property (CaseSensitive, Collation, BlankPadding, CommProtocol), which no statement sets, still runs its
+printed translation until the settings' Pure plumbing lands; none of those is refused today.

@@ -50,6 +50,10 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // 2026-11-25 (B3 step 5, the one equality): whether the typer marks a comparison across types -- on while it
+            // types the body a door receives (SpecCompiler.typeQueryBodyMarked), off inside a function's body or an
+            // island, set and restored around each by Typer.markingCrossings, one instance per query's typing
+            "Typer.marking",
             // 2026-11-11 (B4, the audit's finding 2): one program's decision of its model's registration on the
             // process's catalog, a latch set once by the program's planning (ProgramState.registerOnTheCatalog), and the
             // load it decided, placed ahead of every step that reads the catalog -- one instance per program pass

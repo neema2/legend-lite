@@ -46,7 +46,10 @@ public class Test_LegendLite_LiteRules_EssentialFunctions_PCT extends PCTReportC
             // legend-pure's text refused by name: an instance's toString, format's %r and %05d are the compatibility edge's (2026-11-19)
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "\"toString of an instance is legend-pure's text, the compatibility edge's: the product writes an object by graph fetch\""),   // a COMPAT row, failing with lite's text
             one("meta::pure::functions::string::tests::format::testFormatRepr_Function_1__Boolean_1_", "format's %r is legend-pure's text, the compatibility edge's: the product's format writes %s, %d, %f and %t{}"),
-            one("meta::pure::functions::string::tests::format::testFormatIntegerWithZeroPadding_Function_1__Boolean_1_", "format's %05d is legend-pure's text, the compatibility edge's: the product's format writes %s, %d, %f and %t{}"));
+            one("meta::pure::functions::string::tests::format::testFormatIntegerWithZeroPadding_Function_1__Boolean_1_", "format's %05d is legend-pure's text, the compatibility edge's: the product's format writes %s, %d, %f and %t{}"),
+            // B3 step 5 (the one equality; the user's ruling of 2026-11-24): a comparison of two values whose types are
+            // known and differ is a compile error under lite's own rules -- legend-pure's PCT answers it at its door
+            one("meta::pure::functions::collection::tests::contains::testContainsNonPrimitive_Function_1__Boolean_1_", "\"contains compares meta::pure::functions::collection::tests::model::CO_Firm with Integer: two values are equal only when they have the same type and the same value, so this comparison is a mistake -- write both sides in one type (1.0 for 1, toFloat(), toString(), an enumeration's own value)\""));
 
     public static Test suite() {
         LiteRulesLedger.requireLite("Essential");

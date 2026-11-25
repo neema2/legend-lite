@@ -131,7 +131,7 @@ final class PctPlanRoute {
     static Answer execute(String model, String expression) throws IOException {
         // the tests' planning options: as-of joins answer the same row on every database (PlanOption, off by default;
         // the user, 2026-11-07: "our tests should use the option")
-        TypedQuery query = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
+        TypedQuery typed = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
                 .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
@@ -139,6 +139,13 @@ final class PctPlanRoute {
         // -Dpct.audience=engine (the ENGINE lane, H7), lite's own rules under -Dpct.channela.rules=LITE (the LITE-PCT
         // lane's channel A); a combination refused by name
         Audience audience = Audience.current();
+        // each comparison across types as the audience's door answers it (B3 step 5, the one equality; the user's ruling
+        // of 2026-11-24): legend-pure's Pure's answer, legend-engine's the database's comparison, lite's own refused
+        TypedQuery query = switch (audience) {
+            case LEGEND_PURE -> com.legend.edge.PureComparisons.asPures(typed);
+            case LEGEND_ENGINE -> com.legend.edge.EngineComparisons.asTheDatabases(typed);
+            case LITE -> typed;
+        };
         // no feature flag for any audience (A3 of the compatibility program, piece 2, 2026-11-19: substring is Pure's by
         // default; S130), as upstream's own PCT adapters set none. Until then legend-pure's audience set
         // CORRECT_SQL_SUBSTRING_INDEXING; piece 2's change applied to #124's audience at the stage-A batch's merge,

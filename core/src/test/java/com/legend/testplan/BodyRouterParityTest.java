@@ -903,8 +903,10 @@ class BodyRouterParityTest {
                         + "->filter(r|$r.a > 0));}", "AssertFailed"),
                 java.util.Map.entry("{| assertNotEquals(" + grid + "->filter(r|$r.a > 1), " + grid
                         + "->filter(r|$r.a > 0));}", "ok"),
-                // a defined order on both sides: the rows a multiset (the actual side is not sorted)
-                java.util.Map.entry("{| assertEquals(#TDS\na,b\n2,y\n1,x\n#, " + grid + ");}", "ok"),
+                // a defined order on both sides, two literal grids in different orders: in order an AssertFailed (B3 step 4's review, M4, 2026-11-24),
+                // as a multiset of rows a pass (M5)
+                java.util.Map.entry("{| assertEquals(#TDS\na,b\n2,y\n1,x\n#, " + grid + ");}", "AssertFailed"),
+                java.util.Map.entry("{| assertSameElements(#TDS\na,b\n2,y\n1,x\n#, " + grid + ");}", "ok"),
                 // the actual side sorted: the rows compared in order
                 java.util.Map.entry("{| assertEquals(#TDS\na,b\n2,y\n1,x\n#, " + grid + "->sort(asc('a')));}",
                         "AssertFailed"),

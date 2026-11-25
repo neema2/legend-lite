@@ -195,7 +195,15 @@ public final class PeRatchets {
                     + " found by the full round's update_ratchets_test: one more own-corpus model, added by the fix"
                     + " round's tests (ProductRelationTextTest's enumeration model the new one), matches the reference"
                     + " grammar; measured by //parser-equivalence:update_ratchets; a floor rising, approved by the"
-                    + " user's standing word of 2026-11-24 (\"parser bumps are always okay\"); UP)");
+                    + " user's standing word of 2026-11-24 (\"parser bumps are always okay\"); UP)",
+            "own_corpus.matched 3345 -> 3346 (2026-11-25, B3 step 5a on claude/compat-b3-nufdlk: the one equality's"
+                    + " tests' models (CrossTypeComparisonsTest's -- an enumeration, classes with two supertypes, a"
+                    + " function and a relation-generic function) match the reference grammar; measured by"
+                    + " //parser-equivalence:update_ratchets; a floor rising, approved by the user's standing word of"
+                    + " 2026-11-24 (\"parser bumps are always okay\"); UP)",
+            "own_corpus.matched 3346/3346 -> 3347 (2026-11-25, B3 step 5a and its client fix (96f0d33c) merged into"
+                    + " claude/compat-b2-nufdlk, measured by //parser-equivalence:update_ratchets on the merged tree: both"
+                    + " sides' models together; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

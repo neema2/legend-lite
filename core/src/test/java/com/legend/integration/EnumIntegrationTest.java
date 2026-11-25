@@ -405,7 +405,7 @@ class EnumIntegrationTest {
             // WHEN: We query for PENDING tasks through Execution.run
             String pureQuery = """
                     model::Task.all()
-                        ->filter({t | $t.status == 'PENDING'})
+                        ->filter({t | $t.status == model::TaskStatus.PENDING})
                         ->project(~[name:t|$t.name])
                     """;
 
@@ -500,7 +500,7 @@ class EnumIntegrationTest {
             // WHEN: Query for HIGH or CRITICAL priority
             String pureQuery = """
                     model::Issue.all()
-                        ->filter({i | $i.priority == 'HIGH' || $i.priority == 'CRITICAL'})
+                        ->filter({i | $i.priority == model::Priority.HIGH || $i.priority == model::Priority.CRITICAL})
                         ->project(~[title:i|$i.title, priority:i|$i.priority])
                     """;
 

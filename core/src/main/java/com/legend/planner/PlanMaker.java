@@ -90,6 +90,10 @@ public final class PlanMaker {
      *  Data fill, and a model whose fill could not be written was refused on every road). */
     public static ExecutionPlan plan(TypedQuery query, @Nullable String given, Set<Feature> features,
             boolean projectDatabase, com.legend.database.PlanStyle style) {
+        // a comparison across types in the query (B3 step 5, the one equality): a compile error, refused by name before
+        // anything else is read -- a compatibility door rewrote upstream's before this (edge.EngineComparisons,
+        // edge.PureComparisons)
+        com.legend.compiler.spec.CrossTypeComparisons.refuse(query.body());
         String runtime = runtimeOf(query, given);
         // THE QUERY DOOR (B6, B12 item 1): a test's kinds refused by name before anything is planned
         QueryDoor.refuseTestOnly(query, runtime);

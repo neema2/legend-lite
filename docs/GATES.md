@@ -22614,3 +22614,45 @@ row multiset is deleted. Record: docs/records/compat-b3-progress.md, step 4. Eve
   rule on lite's own lane (its `assertEquals` of a map over a grouped relation); the compatibility lanes unmoved.
 - **The lean SQL ladder, r08 and r09:** the list compare is in order (`e.__l IS NOT DISTINCT FROM a.__l`), the
   incidental multiset's `list_sort` gone with the judge's flag (regenerated).
+
+## 2026-11-25 — B3 step 5a: a comparison across known types refused by the product, answered by each door
+
+The user's ruling of 2026-11-24 ("Love it"; option A of 2026-11-25, "keep A": any mix of known types is an error, no
+exceptions): two values are equal only when they have the same type and the same value, so a comparison whose two
+sides' types are known and differ (`1 == 1.0`, an enumeration against a String, a day against a date-time, two classes
+no value can be of) is typed as a marker in the body a door receives (`compiler/spec/EqualityClasses`,
+`TypedCrossTypeComparison`); lite's planner refuses it by name; legend-engine's door answers it with the database's
+comparison (`edge/EngineComparisons`), legend-pure's with Pure's answer by the types (`edge/PureComparisons`). Record:
+docs/records/compat-b3-progress.md, step 5. Every roster, golden and pin change below:
+
+- **The edge corpus goldens (DuckDB 140 rows, H2 126):** step 4's review M2 -- one value on either side is no order --
+  so the asserts the door had rewritten to `assertSameElements` are `assertEquals` again; every verdict unmoved (PASS
+  before and after).
+- **PCT channel B's ledger (duckdb-lite) +16:** the comparisons across known types PCT's lite lane writes, each refused
+  by name (Grammar 10, Standard 5, Essential 1); the compatibility lanes unmoved (legend-pure's door answers each).
+  Of the 18 first measured, eq's and equal's `testEqNonPrimitive`/`testEqualNonPrimitive` pass since the review's M4
+  (LeftClass and RightClass share a subclass in legend-pure's model, BottomClass, so one value can be of both and they
+  are no crossing) and left the ledger.
+- **The LiteRules ledgers (channel A's lite lanes):** Grammar 12, Standard 5, Essential 1 -- the same refusals, and the
+  two NonPrimitive tests kept: channel A's route hands lite the classes the query names, without BottomClass, so lite
+  refuses them by name there (dated in the file).
+- **The native claims (`native-claims.tsv`):** regenerated for the new comparison classes' reads.
+- **PCT ratchets (channel B lite, `ratchets.tsv`), DOWN:** the refused bodies plan no judge -- judge statements
+  Grammar 179 -> 169, Standard 166 -> 160, Essential 476 -> 475; judge characters Grammar 389,012 -> 373,350, Standard
+  721,186 -> 680,832, Essential 919,010 -> 904,191, Relation 631,211 -> 627,627 (and their plan-JSON totals).
+- **Lean SQL (`lean-sql/baseline.tsv`), refused UP as the ruled change's direct cost:** on DuckDB 40 more queries
+  refused (14 -> 54: channel A's and core's queries that compare across known types, each refused by name),
+  statements 5,226 -> 5,179, characters 1,186,176 -> 1,175,504; the other databases alike; the two-argument `max` and
+  `min` families gone from the planned set (each case they held compares two number types). G3's refused count is
+  shrink-only: this move is dated here, the measured cost of the user's ruling of 2026-11-24.
+- **The cast and case census (`lean-sql/cast-case-census.tsv`), DOWN:** the refused queries' casts and cases leave
+  it (DuckDB carrier casts 358 -> 324, carrier cases 152 -> 120, operator cases 75 -> 67; the other databases alike).
+- **The query capture:** the marker is a family of channel A's DuckDB plans (0 statements: each refused).
+- **IdentityGuardrailTest NAME_COMPARE 206 -> 207:** `PlatformTypes.isEnumClass` (an enumeration against the `Enum`
+  class is no crossing; the review's M4), dated in its file.
+- **parser-equivalence `own_corpus.matched` 3345 -> 3346:** CrossTypeComparisonsTest's model (UP, the standing word
+  "parser bumps are always okay"), dated in PeRatchets.
+- **The corpus rosters (DuckDB, H2) and PCT's compatibility lanes:** unmoved. Measured and reverted: refusing
+  legend-pure's orderings of two non-numbers (the review's M3) failed four PCT tests the database's comparison passes
+  (`testCompareMixedTypes`, `testDateCompare`, `testMax_Date`, `testMin_Date`); the door keeps the database's ordering,
+  a day against a date-time at one instant the recorded difference.

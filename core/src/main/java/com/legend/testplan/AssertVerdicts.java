@@ -256,6 +256,13 @@ public final class AssertVerdicts {
         return staticGrid(e) && staticGrid(a);
     }
 
+    /** Whether both sides are whole tables -- a relation or a legacy TDS, never a table's rows or cells -- with their
+     *  declared columns: the pair {@code assertSameElements} compares as a multiset of rows (B3 step 4's review, M5). */
+    static boolean wholeTables(TypedSpec e, TypedSpec a) {
+        return com.legend.compiler.element.type.PlatformTypes.isTdsShaped(e.info().type())
+                && com.legend.compiler.element.type.PlatformTypes.isTdsShaped(a.info().type()) && sqlGridPair(e, a);
+    }
+
     /** Two static grids whose column names or widths differ: the grid owner's verdict is false (TdsCompare.grids). */
     static boolean gridSchemasDiffer(TypedSpec e, TypedSpec a) {
         var se = com.legend.compiler.element.type.Type.schemaView(e.info().type());
@@ -507,9 +514,10 @@ public final class AssertVerdicts {
                         && com.legend.compiler.element.type.Type.isRelation(
                                 args.get(1).info().type())) {
                     if (sqlGridPair(args.get(0), args.get(1))) {
-                        boolean sorted = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
-                                == com.legend.compiler.spec.OrderView.SORTED;
-                        yield arm.gridPair(name, wantEqual, args, sorted, letPrefix, specs, env, hook);
+                        // the rows in order (step 4's review, M4, 2026-11-24): a side with no defined order is refused
+                        // before it reaches here (OrderedAsserts), and made assertSameElements at the compatibility
+                        // door, so an assertEquals of two grids compares their rows in order
+                        yield arm.gridPair(name, wantEqual, args, true, letPrefix, specs, env, hook);
                     }
                     // two grids whose declared schemas differ (a width, a name, a kind) or whose columns the
                     // planning does not know: the database judge has no form for them and fails by name, never handing
@@ -542,6 +550,15 @@ public final class AssertVerdicts {
                 if (rse != null) {
                     com.legend.diagnostics.VerdictCensus.sqlRoute(name, "rendered-text");
                     yield rse;
+                }
+                // two grids: their rows as a multiset, the columns checked -- the grid pair's arm (step 4's review, M5,
+                // 2026-11-24: until then a pool of loose cells on the host judge and unjudged by the database judge;
+                // it is the form lite's refusal names and the door writes for upstream's unordered grids)
+                // (two whole tables: a relation or a legacy TDS, each with its declared columns -- the door's rows of a
+                // TDS's flattened cells meet a TDS there, UpstreamTestBodies.asRows, 2026-11-25; a table's flattened
+                // cells stay a pool of cells, Pure's element multiset)
+                if (wholeTables(args.get(0), args.get(1))) {
+                    yield arm.gridPair(name, true, args, false, letPrefix, specs, env, hook);
                 }
                 boolean seGridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
@@ -915,7 +932,7 @@ public final class AssertVerdicts {
                 }
                 if (com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
                         && com.legend.compiler.element.type.Type.isRelation(args.get(1).info().type())) {
-                    yield HostJudge.planGridPair(name, wantEqual, args, letPrefix, hook);
+                    yield HostJudge.planGridPair(name, wantEqual, args, true, hook);
                 }
                 boolean gridPair = tabularShaped(args.get(0)) || tabularShaped(args.get(1));
                 HostSides.Check equals = HostJudge.planEquals(name, wantEqual, args, gridPair, letPrefix, env, hook);
@@ -929,8 +946,15 @@ public final class AssertVerdicts {
                     yield null;
                 }
                 HostSides.Check rendered = renderedPlan(name, true, args, letPrefix, hook, false);
-                yield rendered != null ? rendered : HostJudge.planSameElements(args,
-                        tabularShaped(args.get(0)) || tabularShaped(args.get(1)), letPrefix, env, hook);
+                if (rendered != null) {
+                    yield rendered;
+                }
+                // two grids: their rows as a multiset, the columns checked (step 4's review, M5, 2026-11-24)
+                if (wholeTables(args.get(0), args.get(1))) {
+                    yield HostJudge.planGridPair(name, true, args, false, hook);
+                }
+                yield HostJudge.planSameElements(args, tabularShaped(args.get(0)) || tabularShaped(args.get(1)),
+                        letPrefix, env, hook);
             }
             case ASSERT_SIZE -> args.size() < 2 ? null : HostJudge.planSize(args, letPrefix, hook);
             // both texts one String each by their types, so the judgment never meets another shape (S3)

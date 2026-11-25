@@ -221,12 +221,12 @@ class Grids(unittest.TestCase):
     def test_a_filter_and_a_calculated_column_reach_the_relation_and_its_rows(self):
         grid = self.page.grid(TRADES, name='trades_shaped')
         grid.filter(('region', 'equal', 'EMEA'))
-        grid.calculate('big', '$x.notional->toOne() > 50')
+        grid.calculate('big', '$x.notional->toOne() > 50.0')
         grid.group('desk')
         relation = grid.relation
         # the finest level the grid shows: its rows filtered and extended, grouped by its innermost group, as Create a
         # Class makes a class of them
-        for part in ("filter(x|$x.region == 'EMEA')", 'big:x|$x.notional->toOne() > 50', 'groupBy(~[desk]'):
+        for part in ("filter(x|$x.region == 'EMEA')", 'big:x|$x.notional->toOne() > 50.0', 'groupBy(~[desk]'):
             self.assertIn(part, relation)
         rows = grid.to_pandas().set_index('desk').sort_index()
         emea = TRADES[TRADES.region == 'EMEA'].assign(big=lambda d: d.notional > 50)

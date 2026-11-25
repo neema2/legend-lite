@@ -1604,12 +1604,17 @@ class UserFunctionIntegrationTest {
                                     col(r:TDSRow[1]|[test::Stat.total, test::Stat.mean]->indexOf(test::Stat.mean), 'at')])
                     }
                     """);
+            // written in the query: a compile error (B3 step 5, the one equality; the user's ruling of 2026-11-24 -- an
+            // enumeration against a String or another enumeration is two types); in a function's body (test::said,
+            // below) the comparison stays the fold's, until the compile-route slice
             for (String q : List.of("test::Stat.mean == 'mean'", "test::Stat.mean == test::Other.mean",
                     "test::Stat.mean->in(['mean'])", "['mean']->contains(test::Stat.mean)",
-                    "[test::Stat.mean]->contains('mean')")) {
-                assertEquals(List.of("ne"), column(exec(model, "|if(" + q + ", |'eq', |'ne')"), 0), q);
+                    "[test::Stat.mean]->contains('mean')", "test::Stat.mean != 'mean'")) {
+                com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                        com.legend.error.ModelException.class, () -> exec(model, "|if(" + q + ", |'eq', |'ne')"), q);
+                org.junit.jupiter.api.Assertions.assertTrue(refused.getMessage().contains("two values are equal only"),
+                        refused.getMessage());
             }
-            assertEquals(List.of("eq"), column(exec(model, "|if(test::Stat.mean != 'mean', |'eq', |'ne')"), 0));
             assertEquals(List.of("eq"), column(exec(model, "|if([test::Stat.total, test::Stat.mean]"
                     + "->contains(test::Stat.mean), |'eq', |'ne')"), 0), "one enumeration's values compare");
             var result = exec(model, PEOPLE + "->test::said()->sort('first')");

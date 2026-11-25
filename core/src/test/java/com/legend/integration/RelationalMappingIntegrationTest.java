@@ -933,7 +933,7 @@ class RelationalMappingIntegrationTest {
                         TaskStatus: EnumerationMapping TaskStatusMap { PENDING: 'PENDING', IN_PROGRESS: 'IN_PROGRESS', DONE: 'DONE' }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "model::Task.all()->filter({t|$t.status == 'PENDING'})->project(~[name:t|$t.name])");
+            var r = exec(m, "model::Task.all()->filter({t|$t.status == model::TaskStatus.PENDING})->project(~[name:t|$t.name])");
             assertEquals(2, r.rowCount());
         }
 

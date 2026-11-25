@@ -105,9 +105,14 @@ public final class TsIslands {
         collect(statement, island -> {
             TsToPure.Bound bound = TsToPure.bindShared(translated(island, typer, model, scope), scope.names(), taken);
             lets.addAll(bound.lets());
-            islands.put(island, NameResolver.resolveQuery(bound.answer()));
+            ValueSpecification answer = NameResolver.resolveQuery(bound.answer());
+            // the island's translation compares by the island's rule (B3 step 5), wherever it now stands
+            typer.islandOutput(answer);
+            islands.put(island, answer);
         });
-        return new Lifted(lets.stream().map(NameResolver::resolveQuery).toList(), replaced(statement, islands));
+        List<ValueSpecification> boundLets = lets.stream().map(NameResolver::resolveQuery).toList();
+        boundLets.forEach(typer::islandOutput);
+        return new Lifted(boundLets, replaced(statement, islands));
     }
 
     /** Each {@code #TS{...}#} island of {@code v} outside every lambda, in order. */

@@ -408,7 +408,7 @@ public final class ChannelB {
      *  until then the test planner asked the plan style's two-form); under lite's own rules the body itself. */
     private static com.legend.TypedQuery typed(ModelContext ctx, ValueSpecification resolved) {
         com.legend.TypedQuery typed = com.legend.Compiler.queryResolved(ctx, resolved);
-        return lite() ? typed : com.legend.edge.UpstreamTestBodies.admitted(typed);
+        return lite() ? typed : com.legend.edge.UpstreamTestBodies.admittedForPure(typed);
     }
 
     /** {@link #typed(ModelContext, ValueSpecification)} with, under the compatibility rules, each relation's printed

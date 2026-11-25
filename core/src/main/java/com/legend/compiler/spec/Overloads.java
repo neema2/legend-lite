@@ -127,13 +127,26 @@ final class Overloads {
         // yet, so the call keeps its signature typing (the engine types
         // a closure body by signatures too; it pastes nothing)
         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
-            return inlineNormalized(af, a, env);
+            // a function's body typed into the call: the database's comparisons, never marked (B3 step 5)
+            return t.markingCrossings(false, () -> inlineNormalized(af, a, env));
         }
         TypedSpec shadow = derivedShadow(af, a, env);
         if (shadow != null) {
             return shadow;
         }
-        return rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()), env);
+        TypedSpec call = rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()),
+                env);
+        // the one equality (B3 step 5, the user's ruling of 2026-11-24): a comparison across types, written in the body a
+        // door receives, is typed as the marker around the call -- refused by lite's planner, rewritten by a
+        // compatibility door (EqualityClasses); typed anywhere else (a function's body, a planning-time frame, a
+        // mapping's operation) it is the call, the database's comparison
+        if (!t.marksCrossings()) {
+            return call;
+        }
+        return EqualityClasses.crossing(a.chosen(), a.args(), ctx)
+                .<TypedSpec>map(c -> new com.legend.compiler.spec.typed.TypedCrossTypeComparison(call, c.kind(),
+                        c.operator(), c.left(), c.right(), af.pos()))
+                .orElse(call);
     }
 
     /** Leg 6a — the receiver's OWN qualified property SHADOWS an
@@ -368,6 +381,11 @@ final class Overloads {
             TypedSpec typedArg = a.args().get(i);
             subst.put(chosen.parameters().get(i).name(), arg);
             if (!(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
+                typedArgs.put(arg, typedArg);
+            } else if (CrossTypeComparisons.holds(typedArg)) {
+                // an argument written in the body a door receives keeps its comparisons across types (a marker is typed
+                // only there): the body is typed unmarked, its argument as the caller typed it (B3 step 5a's review,
+                // M1, 2026-11-25)
                 typedArgs.put(arg, typedArg);
             }
         }

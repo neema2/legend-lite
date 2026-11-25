@@ -3661,6 +3661,10 @@ public final class Lowerer {
                     && Type.relationValued(pa.source().info())
                     && Type.schemaView(pa.source().info().type()) instanceof Type.RelationType grt
                     && grt.isLateBound() -> gridReport(pa);
+            // a comparison across types reaches the lowering only when no planner entry refused it first (one in a user
+            // function the planner inlined, or in a mapping): refused here by the same words (B3 step 5)
+            case com.legend.compiler.spec.typed.TypedCrossTypeComparison x
+                    -> throw x.refusal();
             case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.

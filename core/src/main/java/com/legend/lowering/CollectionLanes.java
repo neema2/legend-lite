@@ -133,6 +133,8 @@ final class CollectionLanes {
             case TypedFilter f -> valueLane(f.source());
             case TypedMap m -> valueLane(m.source());
             case TypedCast c -> valueLane(c.source());
+            // a comparison across types (B3 step 5): refused before the lowering; its call's lane if it is met
+            case com.legend.compiler.spec.typed.TypedCrossTypeComparison x -> valueLane(x.comparison());
             // meta::json navigation: the SOURCE decides; a result envelope is
             // one scalar string value
             case com.legend.compiler.spec.typed.TypedJsonAccess ja -> valueLane(ja.source());

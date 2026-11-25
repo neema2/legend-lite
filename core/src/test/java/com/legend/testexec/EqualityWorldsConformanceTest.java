@@ -72,6 +72,17 @@ class EqualityWorldsConformanceTest {
                 "World 2 moved (" + reason + "): " + pureA + " == " + pureB);
     }
 
+    /** A comparison across types (B3 step 5): the judge's rule answers {@code world1}; the product refuses it when the
+     *  query is compiled, naming the two types. */
+    private static void refusedByTheProduct(boolean world1, String pureA, String pureB, Object javaA, Object javaB) {
+        assertEquals(world1, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB), LITE),
+                "World 1 moved: " + pureA + " == " + pureB);
+        com.legend.error.ModelException e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> world2(pureA, pureB));
+        org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("two values are equal only when"),
+                e.getMessage());
+    }
+
     @Test
     @DisplayName("shared ground: both worlds agree")
     void sharedGround() throws Exception {
@@ -95,11 +106,10 @@ class EqualityWorldsConformanceTest {
     @Test
     @DisplayName("declared divergences: each world pinned at its own verdict")
     void declaredDivergences() throws Exception {
-        // SQL numeric coercion: 1 = 1.0 is TRUE in SQL (and in the
-        // engine's relational execution — the frontier); pure equal is
-        // cross-KIND false (integral vs float)
-        diverge(false, true, "1", "1.0", 1L, 1.0d,
-                "SQL numeric coercion — engine-relational parity");
+        // the one equality (B3 step 5, the user's ruling of 2026-11-24): an Integer and a Float are two types, so the
+        // product refuses 1 == 1.0 as a compile error (World 2); the judge's own rule says false (World 1). Until then
+        // World 2 answered SQL's numeric coercion, true (legend-engine's door still does: EngineComparisons)
+        refusedByTheProduct(false, "1", "1.0", 1L, 1.0d);
         // SQL three-valued logic: empty == empty through a runtime read
         // is SQL NULL where pure says TRUE (the recorded residual; the
         // STATIC [] == [] arm answers true, this pins the RUNTIME path)
@@ -121,8 +131,8 @@ class EqualityWorldsConformanceTest {
         // numeric in both worlds" row MIS-CITED testIntToDecimal (that
         // test is Decimal×Decimal) — the engine assert seam rules
         // cross-primitive-kind FALSE; SQL '=' coerces TRUE
-        diverge(false, true, "8", "8D", 8L, new java.math.BigDecimal("8"),
-                "SQL numeric coercion vs engine same-kind-only eq");
+        // B3 step 5: an Integer and a Decimal are two types -- refused by the product, false by the judge's rule
+        refusedByTheProduct(false, "8", "8D", 8L, new java.math.BigDecimal("8"));
         // register S139 (the user's ruling, 2026-11-05): a Decimal by value, so the two worlds agree -- on every route
         // since B3 step 1a (2026-11-24; until then the edge kept the engine assert seam's scale-sensitive equals)
         agree(true, "3.0d", "3.00d", new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));
