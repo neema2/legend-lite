@@ -107,9 +107,6 @@ RAISE_FORMS: dict[str, list[dict[str, object]]] = {
     'RANGE_STEP_ZERO': [
         {'arity': -1, 'emptySlot': -1, 'template': 'range step must not be 0', 'slots': [], 'shape': 'TEMPLATE'},
     ],
-    'CONSTRAINT_UNEVALUABLE': [
-        {'arity': -1, 'emptySlot': -1, 'template': 'Unable to evaluate constraint [%1$s]: data not available - check your mappings', 'slots': [], 'shape': 'TEMPLATE'},
-    ],
     'LIST_LENGTHS_DIFFER': [
         {'arity': -1, 'emptySlot': -1, 'template': '%1$s: the two value lists differ in length', 'slots': [], 'shape': 'TEMPLATE'},
     ],

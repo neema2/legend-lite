@@ -866,7 +866,7 @@ public class ClickHouse extends AnsiSqlRenderer {
                         // 2026-11-21: its name was held by the where alone until the where went)
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(
                                 new SqlExpr.StringLit("DateTime"), new SqlExpr.StringLit(p.name()),
-                                new SqlExpr.StringLit("ClickHouse"), new SqlExpr.IntLit(6)), null)),
+                                new SqlExpr.StringLit("ClickHouse"), new SqlExpr.IntLit(6)))),
                         w -> w.append("NOT coalesce(").piece(yearOutside).append(", false) AND ").piece(fractionPast)))
                 .append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
                 .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");

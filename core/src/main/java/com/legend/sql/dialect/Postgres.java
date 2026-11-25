@@ -474,7 +474,7 @@ public class Postgres extends AnsiSqlRenderer {
     /** A map's raise of {@code kind} (DuckDB's words the edge's, D1.1), raised as a map (the CASE's type). */
     private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
         // a map construction's raise, its kind alone (the D part 1 audit's S4, 2026-11-15; its where went with BE's item 2)
-        SqlWriter.Piece text = raise(raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null)), null, true);
+        SqlWriter.Piece text = raise(raiseArgs(new SqlExpr.RaiseText(kind, List.of())), null, true);
         return w -> w.append("CAST(").piece(text).append(" AS JSONB[])");
     }
 

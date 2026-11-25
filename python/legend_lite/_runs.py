@@ -25,7 +25,8 @@ from ._runframe import in_run, runs
 # held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
 # runs (test_engine) -- so the two cannot drift apart unseen
 # 59 since 2026-11-20 (stage B's B1): a site's facts, no words; the plan's raises its kinds
-PLAN_VERSION = 60
+# 61 since 2026-11-25 (B2b S7a): no raise record carries words as data; CONSTRAINT_UNEVALUABLE went
+PLAN_VERSION = 61
 
 
 class LoadRefused(ValueError):

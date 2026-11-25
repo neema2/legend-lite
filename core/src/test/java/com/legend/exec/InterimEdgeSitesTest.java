@@ -74,7 +74,7 @@ class InterimEdgeSitesTest {
                 if (sql.tree() != null) {
                     int raises = 0;
                     for (SqlExpr.RaiseText r : raises(sql.tree())) {
-                        if (r.asData() == null && r.kind() != RaiseKind.USER_FAIL) {
+                        if (r.kind() != RaiseKind.USER_FAIL) {
                             raises++;
                         }
                     }

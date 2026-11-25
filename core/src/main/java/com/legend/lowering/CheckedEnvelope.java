@@ -90,12 +90,12 @@ final class CheckedEnvelope {
             cases.add(new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, pred),
-                            // CONSTRAINT_UNEVALUABLE, its constraint's id the operand: DATA in a successful answer, so
-                            // its words are worded here, at planning -- the one catalog's sentence over the constraint's
-                            // id, legend-engine's (stage B's BE, 2026-11-21: until then lite's own, the edge spelling
-                            // the engine's, D1.1)
-                            defect(cc, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.CONSTRAINT_UNEVALUABLE,
-                                    List.of(new SqlExpr.StringLit(cc.id())),
+                            // CONSTRAINT_UNEVALUABLE, DATA in a successful answer: the one catalog's sentence over the
+                            // constraint's id, legend-engine's, a plain literal worded at planning (a fold of a model
+                            // fact), as a violated constraint's is since S3b -- B2b's S7a, 2026-11-25, the user's ruling
+                            // "go with A": until then a raise record (RaiseText.asData) whose kind and operands no
+                            // reader read, the same literal in the SQL
+                            defect(cc, new SqlExpr.StringLit(
                                     com.legend.error.ErrorKind.CONSTRAINT_UNEVALUABLE.sentence(List.of(cc.id()))))),
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.NOT, pred),
