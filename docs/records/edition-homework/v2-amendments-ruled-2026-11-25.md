@@ -88,3 +88,10 @@ Measurement added: M7, a typed census of governed constructs in the corpus harne
     - Recommendation: keep legend-engine's H2 session settings for the `engine` door as connection data. There's no SQL change, it's already built, and it is faithful for user #SQL islands too. PCT (`pure`) uses the product's settings (0 moves).
     - Pre-existing, not M2's: `//pct:pct_channel_b_twice_h2_relation` (a manual lane) fails 4 cases on a clean tree ("DialectCapability: LIST_GET reached a dialect without a list encoding"); needs an owner.
     - M1's addendum: every M1 move is arithmetic, none is a Float's text.
+17. **S7a RULED: A** (the user, 2026-11-25, night: "go with A").
+    - A checked graph fetch's UNEVALUABLE defect sentence becomes a plain text literal in the SQL, like CONSTRAINT_VIOLATED's (S3b). `SqlExpr.RaiseText.asData`'s unread record goes, and `PlanTypesAreDataTest.PROSE_RESIDUE`'s entry becomes a declared fact: "a defect's sentence, a model constant inside a successful answer".
+    - The SQL is unchanged; the database keeps building and streaming the checked JSON.
+    - Reasons:
+      - B (the writer words defects from typed rows) would make Java touch every checked row on the way out, for no audience difference: both sentences are worded the same for every door today.
+      - The user's option D (the message as a plan parameter) was considered. Bound at planning, it only moves the prose into the parameter list. Supplied by the door at run time, it is the recorded fallback if these sentences ever need to differ per audience, because it keeps the database-built JSON streaming.
+    - Owner: B2, with a slice after toCSV exact.
