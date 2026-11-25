@@ -9,10 +9,12 @@ import datetime
 import json
 import os
 import re
+import subprocess
 import threading
 import unittest
-from pathlib import Path
 from decimal import Decimal
+from pathlib import Path
+from typing import ClassVar
 from unittest import mock
 
 import duckdb
@@ -20,364 +22,412 @@ import pandas as pd
 import pyarrow.ipc
 
 import legend_lite as ll
-from legend_lite import datacube
-from legend_lite import _pool
+from legend_lite import _pool, datacube
 from legend_lite._headless import Headless, bundle
 from legend_lite._planned import Database, PlannedSql
 from legend_lite.engine import Engine
 from legend_lite.frames import Frames
 
-TRADES = pd.DataFrame({
-    'region': ['EMEA', 'EMEA', 'AMER', 'APAC', 'AMER', 'EMEA'],
-    'desk': ['Rates', 'FX', 'Rates', 'FX', 'FX', 'Rates'],
-    'notional': [100.0, 250.5, 75.25, 10.0, 40.0, 1.5],
-    'qty': [1, 2, 3, 4, 5, 6],
-})
+TRADES = pd.DataFrame(
+    {
+        "region": ["EMEA", "EMEA", "AMER", "APAC", "AMER", "EMEA"],
+        "desk": ["Rates", "FX", "Rates", "FX", "FX", "Rates"],
+        "notional": [100.0, 250.5, 75.25, 10.0, 40.0, 1.5],
+        "qty": [1, 2, 3, 4, 5, 6],
+    }
+)
 
 
 def column(view, name):
     """A view's column of values, by its name."""
-    at = [c['name'] for c in view.columns].index(name)
+    at = [c["name"] for c in view.columns].index(name)
     return [row[at] for row in view.rows]
 
 
 def groups(view, measure):
     """A grouped view's level-1 groups: label -> the measure's value."""
-    labels, values = column(view, '__tree'), column(view, measure)
-    return {labels[i]: values[i] for i, t in enumerate(view.tree) if t['level'] == 1}
+    labels, values = column(view, "__tree"), column(view, measure)
+    return {labels[i]: values[i] for i, t in enumerate(view.tree) if t["level"] == 1}
 
 
 class Grids(unittest.TestCase):
     def setUp(self):
-        self.page = ll.Page('Headless trades')
+        self.page = ll.Page("Headless trades")
 
     def test_a_column_on_a_quartile_is_the_databases_as_pandas_computes_it(self):
         # chart batch 4's aggregates, a box plot's box: Pure's percentile, continuous -- between two values, the point
         # between them, as pandas' quantile
-        grid = self.page.grid(TRADES, name='trades_quartiles', rows=['region'],
-                              measures={'notional': 'percentile25', 'qty': 'percentile75'})
+        grid = self.page.grid(
+            TRADES,
+            name="trades_quartiles",
+            rows=["region"],
+            measures={"notional": "percentile25", "qty": "percentile75"},
+        )
         view = grid.view()
-        by_region = TRADES.groupby('region')
+        by_region = TRADES.groupby("region")
         first, third = by_region.notional.quantile(0.25), by_region.qty.quantile(0.75)
-        self.assertEqual(set(groups(view, 'notional')), set(first.index))
-        for region, value in groups(view, 'notional').items():
+        self.assertEqual(set(groups(view, "notional")), set(first.index))
+        for region, value in groups(view, "notional").items():
             self.assertAlmostEqual(value, first[region])
-        for region, value in groups(view, 'qty').items():
+        for region, value in groups(view, "qty").items():
             # an Integer's quartile is a Number: a number in Python whichever the database answered, an exact decimal
             # (its text in the view) a Decimal, as a Decimal column's
             self.assertIsInstance(value, (int, float, Decimal), region)
             self.assertAlmostEqual(float(value), third[region])
 
     def test_a_grouped_grid_shows_what_pandas_computes(self):
-        grid = self.page.grid(TRADES, name='trades_grouped', rows=['region'], measures={'notional': 'sum', 'qty': 'sum'})
+        grid = self.page.grid(
+            TRADES, name="trades_grouped", rows=["region"], measures={"notional": "sum", "qty": "sum"}
+        )
         view = grid.view()
         # as on screen: the groups' labels first, then the columns, each aggregated
-        self.assertEqual([c['name'] for c in view.columns], ['__tree', 'desk', 'notional', 'qty'])
-        expected = TRADES.groupby('region')[['notional', 'qty']].sum()
-        self.assertEqual(groups(view, 'qty'), expected.qty.to_dict())
-        for region, notional in groups(view, 'notional').items():
+        self.assertEqual([c["name"] for c in view.columns], ["__tree", "desk", "notional", "qty"])
+        expected = TRADES.groupby("region")[["notional", "qty"]].sum()
+        self.assertEqual(groups(view, "qty"), expected.qty.to_dict())
+        for region, notional in groups(view, "notional").items():
             self.assertIsInstance(notional, float)
             self.assertAlmostEqual(notional, expected.notional[region])
         # a column not measured shows its one value, or none when the group holds several (uniqueValueOnly)
-        desks = {r: (d.iloc[0] if d.nunique() == 1 else None) for r, d in TRADES.groupby('region').desk}
-        self.assertEqual(groups(view, 'desk'), desks)
-        self.assertTrue(all(t['group'] and not t['expanded'] for t in view.tree))
+        desks = {r: (d.iloc[0] if d.nunique() == 1 else None) for r, d in TRADES.groupby("region").desk}
+        self.assertEqual(groups(view, "desk"), desks)
+        self.assertTrue(all(t["group"] and not t["expanded"] for t in view.tree))
         self.assertEqual(view.truncated, [])
-        self.assertIn('groupBy', view.query)
-        self.assertIn('GROUP BY', view.sql.upper())
+        self.assertIn("groupBy", view.query)
+        self.assertIn("GROUP BY", view.sql.upper())
 
     def test_a_pivot_totals_heatmap_is_its_own_set_and_cleared_by_configure(self):
         # a total's heatmap is its own (export-render.ts heatmapSetting; the audit of neema2/legend-lite#57): Python sets
         # and clears it by the total's own column, as the screen's menu does, and its kind and Aggregation are its
         # measure's, refused on the total
         import pandas as pd
-        frame = pd.DataFrame({'region': ['EMEA', 'EMEA', 'APAC'], 'desk': ['A', 'B', 'A'], 'qty': [1200, 34, 5000]})
-        grid = self.page.grid(frame, name='trades_totals', rows=['region'], columns=['desk'], measures={'qty': 'sum'})
-        total = '__pivot_total____|__qty'
-        red = r'background(-color)?:\s*(#ff0000|rgb\(255,\s*0,\s*0\))'
-        self.assertNotRegex(grid.export('html').lower(), red)
-        grid.configure({'columns': {total: {'heatmap': {'from': '#ffffff', 'to': '#ff0000'}}}})
-        self.assertRegex(grid.export('html').lower(), red)
-        grid.configure({'columns': {total: {'heatmap': None}}})
-        self.assertNotRegex(grid.export('html').lower(), red)
+
+        frame = pd.DataFrame({"region": ["EMEA", "EMEA", "APAC"], "desk": ["A", "B", "A"], "qty": [1200, 34, 5000]})
+        grid = self.page.grid(frame, name="trades_totals", rows=["region"], columns=["desk"], measures={"qty": "sum"})
+        total = "__pivot_total____|__qty"
+        red = r"background(-color)?:\s*(#ff0000|rgb\(255,\s*0,\s*0\))"
+        self.assertNotRegex(grid.export("html").lower(), red)
+        grid.configure({"columns": {total: {"heatmap": {"from": "#ffffff", "to": "#ff0000"}}}})
+        self.assertRegex(grid.export("html").lower(), red)
+        grid.configure({"columns": {total: {"heatmap": None}}})
+        self.assertNotRegex(grid.export("html").lower(), red)
         with self.assertRaisesRegex(ValueError, "is the pivot total of 'qty'"):
-            grid.configure({'columns': {total: {'aggregateFn': 'max'}}})
+            grid.configure({"columns": {total: {"aggregateFn": "max"}}})
         with self.assertRaisesRegex(ValueError, "is not a column of the grid"):
-            grid.configure({'columns': {'__pivot_total____|__nope': {'hidden': True}}})
+            grid.configure({"columns": {"__pivot_total____|__nope": {"hidden": True}}})
 
     def test_conditional_formats_are_set_by_name_and_drawn_in_the_export(self):
         # Excel's conditional formats (DataCube's conditional.ts, through the gestures the screen's Conditional
         # Formatting menu sends): data bars, an icon set, a rule, a three-colour scale -- kept in the grid's
         # configuration, drawn in its HTML export as on screen, cleared at once, refused in DataCube's words
         import pandas as pd
-        frame = pd.DataFrame({'desk': ['A', 'B', 'C'], 'qty': [10, -5, 40]})
-        grid = self.page.grid(frame, name='trades_formats')
-        grid.data_bars('qty').icon_set('qty', 'trafficLights').highlight('qty', {'op': 'lessThan', 'value': 0}, 'redText')
-        kept = grid._cube['configuration']['columns']['qty']
-        self.assertEqual(kept['iconSet'], {'set': 'trafficLights'})
-        self.assertEqual(kept['rules'], [{'when': {'op': 'lessThan', 'value': 0}, 'style': {'foreground': '#c62828'}}])
-        html = grid.export('html')
-        self.assertIn('linear-gradient', html)
+
+        frame = pd.DataFrame({"desk": ["A", "B", "C"], "qty": [10, -5, 40]})
+        grid = self.page.grid(frame, name="trades_formats")
+        grid.data_bars("qty").icon_set("qty", "trafficLights").highlight(
+            "qty", {"op": "lessThan", "value": 0}, "redText"
+        )
+        kept = grid._cube["configuration"]["columns"]["qty"]
+        self.assertEqual(kept["iconSet"], {"set": "trafficLights"})
+        self.assertEqual(kept["rules"], [{"when": {"op": "lessThan", "value": 0}, "style": {"foreground": "#c62828"}}])
+        html = grid.export("html")
+        self.assertIn("linear-gradient", html)
         self.assertIn('title="high">●<', html)
-        grid.color_scale('qty', '#f8696b', '#63be7b', mid='#ffeb84')
-        self.assertEqual(grid._cube['configuration']['columns']['qty']['heatmap'], {'from': '#f8696b', 'to': '#63be7b', 'mid': '#ffeb84'})
-        grid.clear_formats('qty')
-        self.assertNotIn('qty', grid._cube['configuration'].get('columns', {}))
-        self.assertNotIn('linear-gradient', grid.export('html'))
+        grid.color_scale("qty", "#f8696b", "#63be7b", mid="#ffeb84")
+        self.assertEqual(
+            grid._cube["configuration"]["columns"]["qty"]["heatmap"],
+            {"from": "#f8696b", "to": "#63be7b", "mid": "#ffeb84"},
+        )
+        grid.clear_formats("qty")
+        self.assertNotIn("qty", grid._cube["configuration"].get("columns", {}))
+        self.assertNotIn("linear-gradient", grid.export("html"))
         with self.assertRaisesRegex(ValueError, 'one of arrows, trafficLights, symbols, flags, not "stars"'):
-            grid.icon_set('qty', 'stars')
-        with self.assertRaisesRegex(ValueError, 'count is a whole number from 1, not 0'):
-            grid.highlight('qty', {'op': 'top', 'count': 0})
+            grid.icon_set("qty", "stars")
+        with self.assertRaisesRegex(ValueError, "count is a whole number from 1, not 0"):
+            grid.highlight("qty", {"op": "top", "count": 0})
 
     def test_a_format_code_writes_the_column_as_excel_would(self):
         # Excel's number format codes (DataCube's format-code.ts, through the gesture format.code): the grid's text, a
         # section's colour in the HTML export, the code itself in the workbook; refused in DataCube's words
         import pandas as pd
-        frame = pd.DataFrame({'desk': ['A', 'B'], 'pnl': [1_250_000.0, -40_000.0]})
-        grid = self.page.grid(frame, name='trades_codes')
-        grid.format_code('pnl', '#,##0.0,,"M";[Red](#,##0.0,,"M")')
-        self.assertEqual(grid._cube['configuration']['columns']['pnl']['format'], {'kind': 'auto', 'code': '#,##0.0,,"M";[Red](#,##0.0,,"M")'})
-        html = grid.export('html')
-        self.assertIn('1.3M', html)
-        self.assertIn('(0.0M)', html)
-        self.assertRegex(html.lower(), 'color:#ff0000')
-        grid.format_code('pnl', None)
-        self.assertNotIn('pnl', grid._cube['configuration'].get('columns', {}))
-        with self.assertRaisesRegex(ValueError, 'has an exponent, which DataCube does not read'):
-            grid.format_code('pnl', '0.00E+00')
+
+        frame = pd.DataFrame({"desk": ["A", "B"], "pnl": [1_250_000.0, -40_000.0]})
+        grid = self.page.grid(frame, name="trades_codes")
+        grid.format_code("pnl", '#,##0.0,,"M";[Red](#,##0.0,,"M")')
+        self.assertEqual(
+            grid._cube["configuration"]["columns"]["pnl"]["format"],
+            {"kind": "auto", "code": '#,##0.0,,"M";[Red](#,##0.0,,"M")'},
+        )
+        html = grid.export("html")
+        self.assertIn("1.3M", html)
+        self.assertIn("(0.0M)", html)
+        self.assertRegex(html.lower(), "color:#ff0000")
+        grid.format_code("pnl", None)
+        self.assertNotIn("pnl", grid._cube["configuration"].get("columns", {}))
+        with self.assertRaisesRegex(ValueError, "has an exponent, which DataCube does not read"):
+            grid.format_code("pnl", "0.00E+00")
 
     def test_a_columns_values_gathered_into_named_groups(self):
         # Tableau's groups (DataCube's snapshot.ts ValueGroups, through the column.calculate gesture the Group Values
         # window sends): a dimension the grid groups by, its rest under a name or as itself; refused in DataCube's words
         import pandas as pd
-        frame = pd.DataFrame({'desk': ['FX', 'Rates', 'EQ', 'FX'], 'year': [2024, 2025, 2026, 2026], 'qty': [1, 2, 3, 4]})
-        grid = self.page.grid(frame, name='trades_groups')
-        grid.group_values('desk', {'Macro': ['FX', 'Rates']}).group('desk_group')
-        self.assertEqual(groups(grid.view(), 'qty'), {'Macro': 7, 'EQ': 3})
-        grid.group_values('year', {'Recent': [2025, 2026]}, other='Earlier', name='era').group('era')
-        self.assertEqual(groups(grid.view(), 'qty'), {'Recent': 9, 'Earlier': 1})
-        with self.assertRaisesRegex(ValueError, 'year is Integer: its values in no group need a name'):
-            grid.group_values('year', {'Recent': [2026]}, name='era2')
-        with self.assertRaisesRegex(ValueError, 'are in A and B: a value is in one group'):
-            grid.group_values('desk', {'A': ['FX'], 'B': ['FX']}, name='twice')
+
+        frame = pd.DataFrame(
+            {"desk": ["FX", "Rates", "EQ", "FX"], "year": [2024, 2025, 2026, 2026], "qty": [1, 2, 3, 4]}
+        )
+        grid = self.page.grid(frame, name="trades_groups")
+        grid.group_values("desk", {"Macro": ["FX", "Rates"]}).group("desk_group")
+        self.assertEqual(groups(grid.view(), "qty"), {"Macro": 7, "EQ": 3})
+        grid.group_values("year", {"Recent": [2025, 2026]}, other="Earlier", name="era").group("era")
+        self.assertEqual(groups(grid.view(), "qty"), {"Recent": 9, "Earlier": 1})
+        with self.assertRaisesRegex(ValueError, "year is Integer: its values in no group need a name"):
+            grid.group_values("year", {"Recent": [2026]}, name="era2")
+        with self.assertRaisesRegex(ValueError, "are in A and B: a value is in one group"):
+            grid.group_values("desk", {"A": ["FX"], "B": ["FX"]}, name="twice")
 
     def test_aggregates_of_two_columns_and_the_counts(self):
         # a correlation and max by -- Column Properties' Aggregation with its second column (DataCube's snapshot.ts
         # SECOND_COLUMN) -- and a text column's counts as a calculated column and its Aggregation make them: its distinct
         # values in a number column of its own, and its blanks
         import pandas as pd
-        frame = pd.DataFrame({'desk': ['A', 'A', 'A', 'B', 'B'], 'customer': ['c1', 'c1', 'c2', 'c3', None],
-                              'qty': [1.0, 2.0, 3.0, 5.0, 6.0], 'px': [2.0, 4.0, 7.0, 1.0, 3.0]})
-        grid = self.page.grid(frame, name='trades_two', rows=['desk'])
-        grid.column('qty', aggregate='maxBy', weight='px')
-        grid.calculate('customers', 'if($x.customer->isEmpty(), |0, |1)').column('customers', aggregate='distinctCount', weight='customer')
-        grid.calculate('blanks', 'if($x.customer->isEmpty(), |1, |0)')
-        self.assertEqual(groups(grid.view(), 'qty'), {'A': 3, 'B': 6})
-        self.assertEqual(groups(grid.view(), 'customers'), {'A': 2, 'B': 1})
-        self.assertEqual(groups(grid.view(), 'blanks'), {'A': 0, 'B': 1})
-        grid.column('px', aggregate='corr', weight='qty')
-        self.assertAlmostEqual(groups(grid.view(), 'px')['B'], 1.0)
+
+        frame = pd.DataFrame(
+            {
+                "desk": ["A", "A", "A", "B", "B"],
+                "customer": ["c1", "c1", "c2", "c3", None],
+                "qty": [1.0, 2.0, 3.0, 5.0, 6.0],
+                "px": [2.0, 4.0, 7.0, 1.0, 3.0],
+            }
+        )
+        grid = self.page.grid(frame, name="trades_two", rows=["desk"])
+        grid.column("qty", aggregate="maxBy", weight="px")
+        grid.calculate("customers", "if($x.customer->isEmpty(), |0, |1)").column(
+            "customers", aggregate="distinctCount", weight="customer"
+        )
+        grid.calculate("blanks", "if($x.customer->isEmpty(), |1, |0)")
+        self.assertEqual(groups(grid.view(), "qty"), {"A": 3, "B": 6})
+        self.assertEqual(groups(grid.view(), "customers"), {"A": 2, "B": 1})
+        self.assertEqual(groups(grid.view(), "blanks"), {"A": 0, "B": 1})
+        grid.column("px", aggregate="corr", weight="qty")
+        self.assertAlmostEqual(groups(grid.view(), "px")["B"], 1.0)
         # refused in DataCube's words: a correlation of text, a count of nothing it counts
-        with self.assertRaisesRegex(ValueError, "px's paired column 'customer' is a String column: a correlation reads a number"):
-            grid.column('px', aggregate='corr', weight='customer')
+        with self.assertRaisesRegex(
+            ValueError, "px's paired column 'customer' is a String column: a correlation reads a number"
+        ):
+            grid.column("px", aggregate="corr", weight="customer")
         # a text column's distinct count is a number: not its own Aggregation, said with the way it is made
-        with self.assertRaisesRegex(ValueError, "'distinctCount' is not offered on customer, a String column: .*a number column of its own"):
-            grid.measure('customer', 'distinctCount', name='n')
+        with self.assertRaisesRegex(
+            ValueError, "'distinctCount' is not offered on customer, a String column: .*a number column of its own"
+        ):
+            grid.measure("customer", "distinctCount", name="n")
 
     def test_a_grid_exports_as_its_export_menu_makes_the_file(self):
         # the screen's own core (export-render.ts), run headless: each format DataCube's Export menu offers, with the
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap
         import csv
         import io
+
         import pandas as pd
-        frame = pd.DataFrame({'region': ['EMEA', 'EMEA', 'APAC'], 'qty': [1200, 34, 5000]})
-        grid = self.page.grid(frame, name='trades_exported', rows=['region'], measures={'qty': 'sum'})
-        grid.configure({'columns': {'qty': {'heatmap': {'from': '#ffffff', 'to': '#ff0000'}}}})
+
+        frame = pd.DataFrame({"region": ["EMEA", "EMEA", "APAC"], "qty": [1200, 34, 5000]})
+        grid = self.page.grid(frame, name="trades_exported", rows=["region"], measures={"qty": "sum"})
+        grid.configure({"columns": {"qty": {"heatmap": {"from": "#ffffff", "to": "#ff0000"}}}})
         # CSV: the raw values, each group's sum on its own row
-        rows = list(csv.reader(io.StringIO(grid.export('csv'))))
+        rows = list(csv.reader(io.StringIO(grid.export("csv"))))
         header, body = rows[0], rows[1:]
-        self.assertIn('qty', header)
-        region, qty = header.index('region'), header.index('qty')
-        self.assertEqual({r[region]: r[qty] for r in body}, {'EMEA': '1234', 'APAC': '5000'}, rows)
+        self.assertIn("qty", header)
+        region, qty = header.index("region"), header.index("qty")
+        self.assertEqual({r[region]: r[qty] for r in body}, {"EMEA": "1234", "APAC": "5000"}, rows)
         # formatted where a person reads it: the separator, as the screen draws it
-        text, html = grid.export('text'), grid.export('html')
-        self.assertIn('1,234', text)
-        self.assertIn('5,000', html)
+        text, html = grid.export("text"), grid.export("html")
+        self.assertIn("1,234", text)
+        self.assertIn("5,000", html)
         # the heatmap's colours, as the grid draws them: the top of the scale its `to`
-        self.assertRegex(html.lower(), r'background(-color)?:\s*(#ff0000|rgb\(255,\s*0,\s*0\))')
-        self.assertTrue(grid.export('excel').startswith(b'PK'), 'a workbook is a zip')
-        self.assertTrue(grid.export('pdf').startswith(b'%PDF'))
+        self.assertRegex(html.lower(), r"background(-color)?:\s*(#ff0000|rgb\(255,\s*0,\s*0\))")
+        self.assertTrue(grid.export("excel").startswith(b"PK"), "a workbook is a zip")
+        self.assertTrue(grid.export("pdf").startswith(b"%PDF"))
         # the kinds its Export menu offers, judged by DataCube (export-render.ts EXPORT_KINDS), in its words
-        with self.assertRaisesRegex(ValueError,
-                                    "a grid exports as one of 'csv', 'excel', 'html', 'text', 'pdf', not \"docx\""):
-            grid.export('docx')
+        with self.assertRaisesRegex(
+            ValueError, "a grid exports as one of 'csv', 'excel', 'html', 'text', 'pdf', not \"docx\""
+        ):
+            grid.export("docx")
         import tempfile
+
         with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(grid.export('excel', to=Path(folder) / 'trades.xlsx').read_bytes()[:2], b'PK')
+            self.assertEqual(grid.export("excel", to=Path(folder) / "trades.xlsx").read_bytes()[:2], b"PK")
             # the file's bytes as the export wrote them, on every system (CSV's own CRLF kept, never doubled)
-            written = grid.export('csv', to=Path(folder) / 'trades.csv')
-            self.assertEqual(written.read_bytes(), grid.export('csv').encode('utf-8'))
+            written = grid.export("csv", to=Path(folder) / "trades.csv")
+            self.assertEqual(written.read_bytes(), grid.export("csv").encode("utf-8"))
 
     def test_a_filter_and_a_calculated_column_reach_the_relation_and_its_rows(self):
-        grid = self.page.grid(TRADES, name='trades_shaped')
-        grid.filter(('region', 'equal', 'EMEA'))
-        grid.calculate('big', '$x.notional->toOne() > 50')
-        grid.group('desk')
+        grid = self.page.grid(TRADES, name="trades_shaped")
+        grid.filter(("region", "equal", "EMEA"))
+        grid.calculate("big", "$x.notional->toOne() > 50")
+        grid.group("desk")
         relation = grid.relation
         # the finest level the grid shows: its rows filtered and extended, grouped by its innermost group, as Create a
         # Class makes a class of them
-        for part in ("filter(x|$x.region == 'EMEA')", 'big:x|$x.notional->toOne() > 50', 'groupBy(~[desk]'):
+        for part in ("filter(x|$x.region == 'EMEA')", "big:x|$x.notional->toOne() > 50", "groupBy(~[desk]"):
             self.assertIn(part, relation)
-        rows = grid.to_pandas().set_index('desk').sort_index()
-        emea = TRADES[TRADES.region == 'EMEA'].assign(big=lambda d: d.notional > 50)
-        one = lambda d: d.iloc[0] if d.nunique() == 1 else None  # noqa: E731 -- uniqueValueOnly
+        rows = grid.to_pandas().set_index("desk").sort_index()
+        emea = TRADES[TRADES.region == "EMEA"].assign(big=lambda d: d.notional > 50)
+        one = lambda d: d.iloc[0] if d.nunique() == 1 else None
         # a Boolean with nulls stays a boolean (pandas' nullable type, frames.to_pandas): its null pandas' NA
-        expected = emea.groupby('desk').agg(region=('region', one), notional=('notional', 'sum'), qty=('qty', 'sum'),
-                                            big=('big', one)).sort_index().astype({'big': 'boolean'})
+        expected = (
+            emea.groupby("desk")
+            .agg(region=("region", one), notional=("notional", "sum"), qty=("qty", "sum"), big=("big", one))
+            .sort_index()
+            .astype({"big": "boolean"})
+        )
         self.assertEqual(sorted(rows.columns), sorted(expected.columns))
         pd.testing.assert_frame_equal(rows[list(expected.columns)], expected, check_dtype=False)
 
     def test_a_flat_grid_shows_its_rows_and_its_relation_is_them(self):
-        grid = self.page.grid(TRADES, name='trades_flat')
+        grid = self.page.grid(TRADES, name="trades_flat")
         view = grid.view()
-        self.assertEqual([c['name'] for c in view.columns], list(TRADES.columns))
-        self.assertEqual(sorted(column(view, 'qty')), sorted(TRADES.qty))
-        self.assertNotIn('groupBy', grid.relation)
+        self.assertEqual([c["name"] for c in view.columns], list(TRADES.columns))
+        self.assertEqual(sorted(column(view, "qty")), sorted(TRADES.qty))
+        self.assertNotIn("groupBy", grid.relation)
         self.assertEqual(view.to_pandas().shape, TRADES.shape)
-        pd.testing.assert_frame_equal(grid.to_pandas().sort_values('qty').reset_index(drop=True), TRADES, check_dtype=False)
+        pd.testing.assert_frame_equal(
+            grid.to_pandas().sort_values("qty").reset_index(drop=True), TRADES, check_dtype=False
+        )
 
     def test_its_rows_and_its_view_keep_an_integer_with_nulls_an_integer(self):
         # typed by the plan (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15.3a): an Integer stays an integer, nulls and
         # all, in what the grid shows and in its rows -- never 1.0
-        frame = pd.DataFrame({'desk': ['FX', 'EQ'], 'qty': pd.array([1, None], dtype='Int64')})
-        grid = self.page.grid(frame, name='trades_nulls')
+        frame = pd.DataFrame({"desk": ["FX", "EQ"], "qty": pd.array([1, None], dtype="Int64")})
+        grid = self.page.grid(frame, name="trades_nulls")
         for out in (grid.view().to_pandas(), grid.to_pandas()):
-            self.assertEqual(str(out.qty.dtype), 'Int64')
+            self.assertEqual(str(out.qty.dtype), "Int64")
             self.assertEqual(sorted(out.qty.dropna().tolist()), [1])
             self.assertEqual(int(out.qty.isna().sum()), 1)
 
     def test_an_integer_past_64_bits_stays_exact_in_its_view(self):
-        frame = pd.DataFrame({'k': ['a', 'a'], 'n': [2 ** 63 - 1, 2 ** 63 - 1]})
-        out = self.page.grid(frame, name='trades_wide', rows=['k'], measures={'n': 'sum'}).view().to_pandas()
-        self.assertEqual(out.n.tolist()[-1], 2 * (2 ** 63 - 1))
+        frame = pd.DataFrame({"k": ["a", "a"], "n": [2**63 - 1, 2**63 - 1]})
+        out = self.page.grid(frame, name="trades_wide", rows=["k"], measures={"n": "sum"}).view().to_pandas()
+        self.assertEqual(out.n.tolist()[-1], 2 * (2**63 - 1))
 
     def test_a_grid_edited_over_a_frame_whose_columns_moved_says_what_opening_it_changed(self):
         # a function frame read again at the edit: its new column comes in hidden, written with the edit and said, in
         # DataCube's words, as a load says it
-        now = {'frame': TRADES}
-        grid = self.page.grid(lambda: now['frame'], name='trades_moving', rows=['desk'])
-        now['frame'] = TRADES.assign(extra=1)
-        with self.assertWarnsRegex(UserWarning, 'new column since this cube was saved, hidden: extra'):
-            grid.group('region')
-        self.assertIn('extra', [c['name'] for c in grid._query['columns']])
+        now = {"frame": TRADES}
+        grid = self.page.grid(lambda: now["frame"], name="trades_moving", rows=["desk"])
+        now["frame"] = TRADES.assign(extra=1)
+        with self.assertWarnsRegex(UserWarning, "new column since this cube was saved, hidden: extra"):
+            grid.group("region")
+        self.assertIn("extra", [c["name"] for c in grid._query["columns"]])
 
     def test_its_rows_read_a_live_frame_once(self):
         # one query, one read of the frame as it is then: a function frame called once (Frames.serving holds it still)
         calls = []
-        grid = self.page.grid(lambda: calls.append(1) or TRADES, name='trades_called')
+        grid = self.page.grid(lambda: calls.append(1) or TRADES, name="trades_called")
         before = len(calls)
         grid.to_pandas()
         self.assertEqual(len(calls) - before, 1)
 
     def test_a_grid_changed_in_python_is_viewed_as_it_is_now(self):
-        grid = self.page.grid(TRADES, name='trades_changing', rows=['desk'], measures={'qty': 'sum'})
-        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.sum().to_dict())
-        grid.filter(('qty', 'greaterThan', 2))
-        self.assertEqual(groups(grid.view(), 'qty'), TRADES[TRADES.qty > 2].groupby('desk').qty.sum().to_dict())
+        grid = self.page.grid(TRADES, name="trades_changing", rows=["desk"], measures={"qty": "sum"})
+        self.assertEqual(groups(grid.view(), "qty"), TRADES.groupby("desk").qty.sum().to_dict())
+        grid.filter(("qty", "greaterThan", 2))
+        self.assertEqual(groups(grid.view(), "qty"), TRADES[TRADES.qty > 2].groupby("desk").qty.sum().to_dict())
 
     def test_its_configuration_is_folded_in_as_on_screen(self):
         # the row cap, a hidden column and a column's aggregate: what the tab folds into its query and lays out
-        flat = self.page.grid(TRADES, name='trades_capped')
-        flat.configure({'maxRows': 2, 'columns': {'desk': {'hidden': True}}})
+        flat = self.page.grid(TRADES, name="trades_capped")
+        flat.configure({"maxRows": 2, "columns": {"desk": {"hidden": True}}})
         view = flat.view()
-        self.assertEqual(len(view.rows), 2, 'the row cap, as on screen')
-        self.assertEqual(view.total_rows, len(TRADES), 'and how many rows there are in all')
-        self.assertNotIn('desk', [c['name'] for c in view.columns], 'a hidden column, not shown')
-        grouped = self.page.grid(TRADES, name='trades_aggregated', rows=['desk'])
-        grouped.configure({'columns': {'qty': {'aggregateFn': 'max'}}})
-        self.assertEqual(groups(grouped.view(), 'qty'), TRADES.groupby('desk').qty.max().to_dict())
-        self.assertIn('max()', grouped.relation)
-        rows = grouped.to_pandas().set_index('desk').qty.to_dict()
-        self.assertEqual(rows, TRADES.groupby('desk').qty.max().to_dict())
+        self.assertEqual(len(view.rows), 2, "the row cap, as on screen")
+        self.assertEqual(view.total_rows, len(TRADES), "and how many rows there are in all")
+        self.assertNotIn("desk", [c["name"] for c in view.columns], "a hidden column, not shown")
+        grouped = self.page.grid(TRADES, name="trades_aggregated", rows=["desk"])
+        grouped.configure({"columns": {"qty": {"aggregateFn": "max"}}})
+        self.assertEqual(groups(grouped.view(), "qty"), TRADES.groupby("desk").qty.max().to_dict())
+        self.assertIn("max()", grouped.relation)
+        rows = grouped.to_pandas().set_index("desk").qty.to_dict()
+        self.assertEqual(rows, TRADES.groupby("desk").qty.max().to_dict())
         # set as DataCube sets a host's settings, then folded: after an edit wrote its query (a row cap and an Aggregation
         # folded in), the setting still holds; each column's merged into what it has; None clears one
-        edited = self.page.grid(TRADES, name='trades_edited', rows=['desk'], measures={'qty': 'sum'},
-                                sort=[('qty', 'desc')])
-        edited.configure({'columns': {'qty': {'aggregateFn': 'max'}}})
-        self.assertEqual(groups(edited.view(), 'qty'), TRADES.groupby('desk').qty.max().to_dict())
-        edited.configure({'maxRows': 2})
-        self.assertEqual(edited._query['maxRows'], 2, 'folded into the query, as the screen folds it')
-        edited.configure({'columns': {'qty': {'hidden': True}}})
-        self.assertEqual(edited._cube['configuration']['columns']['qty'], {'aggregateFn': 'max', 'hidden': True})
-        self.assertEqual(edited._cube['configuration']['maxRows'], 2)
-        edited.configure({'maxRows': None, 'columns': {'qty': {'hidden': None}}})
-        self.assertEqual(edited._cube['configuration']['columns']['qty'], {'aggregateFn': 'max'})
-        self.assertNotIn('maxRows', edited._cube['configuration'], 'the cap cleared')
-        self.assertNotIn('maxRows', edited._query, 'and out of the query')
+        edited = self.page.grid(
+            TRADES, name="trades_edited", rows=["desk"], measures={"qty": "sum"}, sort=[("qty", "desc")]
+        )
+        edited.configure({"columns": {"qty": {"aggregateFn": "max"}}})
+        self.assertEqual(groups(edited.view(), "qty"), TRADES.groupby("desk").qty.max().to_dict())
+        edited.configure({"maxRows": 2})
+        self.assertEqual(edited._query["maxRows"], 2, "folded into the query, as the screen folds it")
+        edited.configure({"columns": {"qty": {"hidden": True}}})
+        self.assertEqual(edited._cube["configuration"]["columns"]["qty"], {"aggregateFn": "max", "hidden": True})
+        self.assertEqual(edited._cube["configuration"]["maxRows"], 2)
+        edited.configure({"maxRows": None, "columns": {"qty": {"hidden": None}}})
+        self.assertEqual(edited._cube["configuration"]["columns"]["qty"], {"aggregateFn": "max"})
+        self.assertNotIn("maxRows", edited._cube["configuration"], "the cap cleared")
+        self.assertNotIn("maxRows", edited._query, "and out of the query")
 
     def test_an_aggregation_set_reaches_the_view_and_a_measure_of_no_grouping_shows_the_rows(self):
         # an aggregate that is not the column's default, set as grid.measure and Column Properties set it, reaches the
         # grid's rows; cleared, the column is on its default again
-        grid = self.page.grid(TRADES, name='trades_max', rows=['desk'])
-        grid.measure('qty', 'max')
-        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.max().to_dict())
-        grid.column('qty', aggregate='min')
-        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.min().to_dict())
-        grid.column('qty', aggregate=None)
-        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.sum().to_dict())
+        grid = self.page.grid(TRADES, name="trades_max", rows=["desk"])
+        grid.measure("qty", "max")
+        self.assertEqual(groups(grid.view(), "qty"), TRADES.groupby("desk").qty.max().to_dict())
+        grid.column("qty", aggregate="min")
+        self.assertEqual(groups(grid.view(), "qty"), TRADES.groupby("desk").qty.min().to_dict())
+        grid.column("qty", aggregate=None)
+        self.assertEqual(groups(grid.view(), "qty"), TRADES.groupby("desk").qty.sum().to_dict())
         # a weighted average with its weight, and the weight cleared with it
-        grid.column('notional', aggregate='wavg', weight='qty')
+        grid.column("notional", aggregate="wavg", weight="qty")
         weighted = (TRADES.notional * TRADES.qty).groupby(TRADES.desk).sum() / TRADES.qty.groupby(TRADES.desk).sum()
-        for desk, value in groups(grid.view(), 'notional').items():
+        for desk, value in groups(grid.view(), "notional").items():
             self.assertAlmostEqual(value, weighted[desk])
-        grid.column('notional', aggregate=None, weight=None)
-        self.assertNotIn('notional', grid._cube['configuration'].get('columns', {}))
+        grid.column("notional", aggregate=None, weight=None)
+        self.assertNotIn("notional", grid._cube["configuration"].get("columns", {}))
         # with nothing grouped, a measure shows the rows as they are, as the screen does: no one-row total
-        flat = self.page.grid(TRADES, name='trades_flat_measure')
-        flat.measure('qty', 'max')
+        flat = self.page.grid(TRADES, name="trades_flat_measure")
+        flat.measure("qty", "max")
         self.assertEqual(len(flat.view().rows), len(TRADES))
 
     def test_a_grid_read_while_another_thread_registers_frames_does_not_wait_on_it(self):
         # the session's lock and the frames' lock, taken in one order by both: a grid read beside frames registered
         import threading
-        grid = self.page.grid(TRADES, name='trades_threads', rows=['desk'], measures={'qty': 'sum'})
+
+        grid = self.page.grid(TRADES, name="trades_threads", rows=["desk"], measures={"qty": "sum"})
         failures: list[BaseException] = []
 
         def register() -> None:
             try:
                 for i in range(20):
-                    self.page.grid(TRADES, name=f'trades_beside_{i}')
+                    self.page.grid(TRADES, name=f"trades_beside_{i}")
             except BaseException as e:  # noqa: BLE001 -- reported below
                 failures.append(e)
+
         other = threading.Thread(target=register)
         other.start()
         for _ in range(20):
-            self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.sum().to_dict())
+            self.assertEqual(groups(grid.view(), "qty"), TRADES.groupby("desk").qty.sum().to_dict())
         other.join(timeout=60)
-        self.assertFalse(other.is_alive(), 'the registering thread finished')
+        self.assertFalse(other.is_alive(), "the registering thread finished")
         self.assertEqual(failures, [])
 
     def test_called_inside_a_running_event_loop_as_a_notebook_cell_is(self):
         # Jupyter runs a cell inside its own asyncio loop: the headless engine runs on a loop of its own, on its own
         # thread, so a synchronous call from inside a running loop answers, and never touches that loop
         import asyncio
-        grid = self.page.grid(TRADES, name='trades_in_a_loop', rows=['desk'], measures={'qty': 'sum'})
+
+        grid = self.page.grid(TRADES, name="trades_in_a_loop", rows=["desk"], measures={"qty": "sum"})
 
         async def cell():
             running = asyncio.get_running_loop()
             view = grid.view()
             self.assertIs(asyncio.get_running_loop(), running)
-            return groups(view, 'qty')
-        self.assertEqual(asyncio.run(cell()), TRADES.groupby('desk').qty.sum().to_dict())
+            return groups(view, "qty")
+
+        self.assertEqual(asyncio.run(cell()), TRADES.groupby("desk").qty.sum().to_dict())
 
     def test_numbers_cross_exactly(self):
-        exact = pd.DataFrame({'id': [9007199254740993, 1], 'x': [float('nan'), float('inf')]})
-        view = self.page.grid(exact, name='exact_numbers').view()
-        ids = column(view, 'id')
-        self.assertEqual(sorted(ids), [1, 9007199254740993], 'an integer past 2^53, exact')
+        exact = pd.DataFrame({"id": [9007199254740993, 1], "x": [float("nan"), float("inf")]})
+        view = self.page.grid(exact, name="exact_numbers").view()
+        ids = column(view, "id")
+        self.assertEqual(sorted(ids), [1, 9007199254740993], "an integer past 2^53, exact")
         # pandas' NaN is a missing value as the frame is registered (Arrow reads it so), infinity a float
-        self.assertEqual(sorted(column(view, 'x'), key=str), [None, float('inf')])
-
+        self.assertEqual(sorted(column(view, "x"), key=str), [None, float("inf")])
 
 
 class Files(unittest.TestCase):
@@ -391,167 +441,191 @@ class Files(unittest.TestCase):
         self.engine = Engine(self.frames, headless=datacube._session.headless)
 
     def send(self, path, body):
-        return self.engine.answer('POST', path, '', json.dumps(body))
+        return self.engine.answer("POST", path, "", json.dumps(body))
 
     def upload(self, data, size=4 * 1024 * 1024):
         """A file's bytes sent as the page sends them (file-part.json): a part at a time, each saying where it starts."""
         upload, at = None, 0
         for start in range(0, max(len(data), 1), size):
-            part = data[start:start + size]
-            answer = self.send('/file-part.json', {**({'upload': upload} if upload else {}), 'at': at,
-                                                   'bytes': base64.b64encode(part).decode()})
+            part = data[start : start + size]
+            answer = self.send(
+                "/file-part.json",
+                {**({"upload": upload} if upload else {}), "at": at, "bytes": base64.b64encode(part).decode()},
+            )
             self.assertEqual(answer.status, 200, answer.body[:300])
-            upload, at = json.loads(answer.body)['upload'], at + len(part)
-            self.assertEqual(json.loads(answer.body)['size'], at)
+            upload, at = json.loads(answer.body)["upload"], at + len(part)
+            self.assertEqual(json.loads(answer.body)["size"], at)
         return upload
 
     def file(self, name, text, table, size=4 * 1024 * 1024):
-        return self.send('/file.json', {'upload': self.upload(text.encode(), size), 'name': name, 'table': table})
+        return self.send("/file.json", {"upload": self.upload(text.encode(), size), "name": name, "table": table})
 
     def read(self, name, text, table):
         """A file read: what arrived, as upload.ts says it; let go of when the test ends."""
         answer = self.file(name, text, table)
         self.assertEqual(answer.status, 200, answer.body[:300])
         said = json.loads(answer.body)
-        self.addCleanup(self.send, '/forget.json', {'name': name, 'table': said['table']})
+        self.addCleanup(self.send, "/forget.json", {"name": name, "table": said["table"]})
         return said
 
     def tables(self, name):
         return self.frames.connection._con.execute(
-            'SELECT count(*) FROM duckdb_tables() WHERE lower(table_name) = lower(?)', [name]).fetchone()[0]
+            "SELECT count(*) FROM duckdb_tables() WHERE lower(table_name) = lower(?)", [name]
+        ).fetchone()[0]
 
     def test_the_engine_says_it_takes_files(self):
-        answer = self.engine.answer('GET', '/services.json', '', None)
-        self.assertTrue(json.loads(answer.body)['files'])
+        answer = self.engine.answer("GET", "/services.json", "", None)
+        self.assertTrue(json.loads(answer.body)["files"])
 
     def test_a_csv_is_read_into_its_table_its_model_served_then_let_go_of(self):
-        answer = self.file('books.csv', 'title,pages\nDune,412\nEmma,474\n', 'files_books')
+        answer = self.file("books.csv", "title,pages\nDune,412\nEmma,474\n", "files_books")
         self.assertEqual(answer.status, 200, answer.body[:300])
         said = json.loads(answer.body)
-        self.assertEqual((said['table'], said['rowCount'], said['fileName']), ('files_books', 2, 'books.csv'))
-        rows = self.frames.connection._con.execute('SELECT title, pages FROM files_books ORDER BY pages').fetchall()
-        self.assertEqual(rows, [('Dune', 412), ('Emma', 474)])
+        self.assertEqual((said["table"], said["rowCount"], said["fileName"]), ("files_books", 2, "books.csv"))
+        rows = self.frames.connection._con.execute("SELECT title, pages FROM files_books ORDER BY pages").fetchall()
+        self.assertEqual(rows, [("Dune", 412), ("Emma", 474)])
         with self.frames.serving() as models:
-            self.assertEqual(models['files_books'], said['model'])
+            self.assertEqual(models["files_books"], said["model"])
         # its last grid gone: its table dropped by DataCube's code, its model served no more
-        self.assertEqual(self.send('/forget.json', {'name': 'books.csv', 'table': 'files_books'}).status, 204)
+        self.assertEqual(self.send("/forget.json", {"name": "books.csv", "table": "files_books"}).status, 204)
         with self.frames.serving() as models:
-            self.assertNotIn('files_books', models)
-        self.assertEqual(self.tables('files_books'), 0)
+            self.assertNotIn("files_books", models)
+        self.assertEqual(self.tables("files_books"), 0)
 
     def test_two_pages_asking_one_name_each_get_a_table_of_their_own(self):
-        first = self.read('data.csv', 'a\n1\n', 'files_data')
-        second = self.read('data.csv', 'a\n2\n3\n', 'files_data')
-        self.assertEqual((first['table'], second['table']), ('files_data', 'files_data_2'))
+        first = self.read("data.csv", "a\n1\n", "files_data")
+        second = self.read("data.csv", "a\n2\n3\n", "files_data")
+        self.assertEqual((first["table"], second["table"]), ("files_data", "files_data_2"))
         # the first page letting its file go drops its own table, never the other page's
-        self.assertEqual(self.send('/forget.json', {'name': 'data.csv', 'table': 'files_data'}).status, 204)
-        self.assertEqual(self.frames.connection._con.execute('SELECT count(*) FROM files_data_2').fetchone()[0], 2)
+        self.assertEqual(self.send("/forget.json", {"name": "data.csv", "table": "files_data"}).status, 204)
+        self.assertEqual(self.frames.connection._con.execute("SELECT count(*) FROM files_data_2").fetchone()[0], 2)
         with self.frames.serving() as models:
-            self.assertIn('files_data_2', models)
+            self.assertIn("files_data_2", models)
 
     def test_a_files_table_named_False_is_read_by_a_query(self):
         # Pure's literals are `true` and `false` as spelled: `False` names a file's table (frames.reading_file), and
         # SQL's FALSE, a keyword in any case, is quoted where a query planned over the file's model reads it
-        said = self.read('f.csv', 'a\n1\n2\n', 'False')
-        self.assertEqual(said['table'], 'False')
-        query = json.dumps({'_type': 'lambda', 'body': [said['source']], 'parameters': []})
-        answer = self.send('/plan-and-run.json', {'lambda': query, 'model': said['model'], 'runtime': said['runtime']})
+        said = self.read("f.csv", "a\n1\n2\n", "False")
+        self.assertEqual(said["table"], "False")
+        query = json.dumps({"_type": "lambda", "body": [said["source"]], "parameters": []})
+        answer = self.send("/plan-and-run.json", {"lambda": query, "model": said["model"], "runtime": said["runtime"]})
         self.assertEqual(answer.status, 200, answer.body[:300])
-        self.assertEqual(sorted(pyarrow.ipc.open_stream(answer.body).read_all()['a'].to_pylist()), [1, 2])
+        self.assertEqual(sorted(pyarrow.ipc.open_stream(answer.body).read_all()["a"].to_pylist()), [1, 2])
 
     def test_a_file_comes_a_part_at_a_time_however_large(self):
         # a CSV larger than any one call may be (16 MiB), in the page's 4 MiB parts; and one in parts of three bytes,
         # a character split between two of them
         rows = 700_000
-        big = 'id,name\n' + ''.join(f'{i},row number {i:08d}\n' for i in range(rows))
+        big = "id,name\n" + "".join(f"{i},row number {i:08d}\n" for i in range(rows))
         self.assertGreater(len(big), 16 * 1024 * 1024)
-        said = self.read('big.csv', big, 'files_big')
-        self.assertEqual(said['rowCount'], rows)
-        small = self.send('/file.json', {'upload': self.upload('w\nJosé\nZoë\n'.encode(), 3), 'name': 'w.csv',
-                                         'table': 'files_parts'})
+        said = self.read("big.csv", big, "files_big")
+        self.assertEqual(said["rowCount"], rows)
+        small = self.send(
+            "/file.json", {"upload": self.upload("w\nJosé\nZoë\n".encode(), 3), "name": "w.csv", "table": "files_parts"}
+        )
         self.assertEqual(small.status, 200, small.body[:300])
-        self.addCleanup(self.send, '/forget.json', {'name': 'w.csv', 'table': 'files_parts'})
-        self.assertEqual(self.frames.connection._con.execute('SELECT w FROM files_parts ORDER BY w').fetchall(),
-                         [('José',), ('Zoë',)])
+        self.addCleanup(self.send, "/forget.json", {"name": "w.csv", "table": "files_parts"})
+        self.assertEqual(
+            self.frames.connection._con.execute("SELECT w FROM files_parts ORDER BY w").fetchall(),
+            [("José",), ("Zoë",)],
+        )
 
     def test_a_part_out_of_order_or_of_no_upload_is_refused_never_written(self):
-        first = json.loads(self.send('/file-part.json', {'at': 0, 'bytes': base64.b64encode(b'a\n1\n').decode()}).body)
-        upload = first['upload']
+        first = json.loads(self.send("/file-part.json", {"at": 0, "bytes": base64.b64encode(b"a\n1\n").decode()}).body)
+        upload = first["upload"]
         # sent again, or skipping ahead: refused, the file as it was
         for at in (0, 2, 9):
-            self.assertEqual(self.send('/file-part.json', {'upload': upload, 'at': at, 'bytes': 'Mgo='}).status, 409, at)
-        self.assertEqual(json.loads(self.send('/file-part.json', {'upload': upload, 'at': 4, 'bytes': 'Mgo='}).body)['size'], 6)
-        self.assertEqual(self.send('/file-part.json', {'upload': 'nope', 'at': 0, 'bytes': 'Mgo='}).status, 404)
+            self.assertEqual(
+                self.send("/file-part.json", {"upload": upload, "at": at, "bytes": "Mgo="}).status, 409, at
+            )
+        self.assertEqual(
+            json.loads(self.send("/file-part.json", {"upload": upload, "at": 4, "bytes": "Mgo="}).body)["size"], 6
+        )
+        self.assertEqual(self.send("/file-part.json", {"upload": "nope", "at": 0, "bytes": "Mgo="}).status, 404)
         # an upload begins at its first byte; a part's bytes are base64; its position a count of bytes
-        for body in ({'at': 3, 'bytes': 'Mgo='}, {'at': 0, 'bytes': '%%%'}, {'at': -1, 'bytes': ''}, {'at': True, 'bytes': ''},
-                     {'at': 0}):
-            self.assertEqual(self.send('/file-part.json', body).status, 400, body)
+        for body in (
+            {"at": 3, "bytes": "Mgo="},
+            {"at": 0, "bytes": "%%%"},
+            {"at": -1, "bytes": ""},
+            {"at": True, "bytes": ""},
+            {"at": 0},
+        ):
+            self.assertEqual(self.send("/file-part.json", body).status, 400, body)
         # read once: its parts are gone, and the upload with them
-        answer = self.send('/file.json', {'upload': upload, 'name': 'p.csv', 'table': 'files_once'})
+        answer = self.send("/file.json", {"upload": upload, "name": "p.csv", "table": "files_once"})
         self.assertEqual(answer.status, 200, answer.body[:300])
-        self.addCleanup(self.send, '/forget.json', {'name': 'p.csv', 'table': 'files_once'})
-        self.assertEqual(self.frames.connection._con.execute('SELECT a FROM files_once ORDER BY a').fetchall(), [(1,), (2,)])
-        self.assertEqual(self.send('/file.json', {'upload': upload, 'name': 'p.csv', 'table': 'files_again'}).status, 404)
-        self.assertEqual(self.send('/file-part.json', {'upload': upload, 'at': 6, 'bytes': ''}).status, 404)
+        self.addCleanup(self.send, "/forget.json", {"name": "p.csv", "table": "files_once"})
+        self.assertEqual(
+            self.frames.connection._con.execute("SELECT a FROM files_once ORDER BY a").fetchall(), [(1,), (2,)]
+        )
+        self.assertEqual(
+            self.send("/file.json", {"upload": upload, "name": "p.csv", "table": "files_again"}).status, 404
+        )
+        self.assertEqual(self.send("/file-part.json", {"upload": upload, "at": 6, "bytes": ""}).status, 404)
 
     def test_a_name_held_by_a_frame_or_another_table_is_not_taken(self):
-        self.frames.register('files_frame', pd.DataFrame({'a': [1]}))
-        self.addCleanup(self.frames.unregister, 'files_frame')
-        self.frames.connection._con.execute('CREATE TABLE files_mine AS SELECT 1 AS a')
-        self.addCleanup(self.frames.connection._con.execute, 'DROP TABLE IF EXISTS files_mine')
-        self.frames.connection._con.execute('CREATE TEMP TABLE files_temp AS SELECT 1 AS a')
-        self.addCleanup(self.frames.connection._con.execute, 'DROP TABLE IF EXISTS temp.files_temp')
-        for asked in ('files_frame', 'files_mine', 'files_temp'):
+        self.frames.register("files_frame", pd.DataFrame({"a": [1]}))
+        self.addCleanup(self.frames.unregister, "files_frame")
+        self.frames.connection._con.execute("CREATE TABLE files_mine AS SELECT 1 AS a")
+        self.addCleanup(self.frames.connection._con.execute, "DROP TABLE IF EXISTS files_mine")
+        self.frames.connection._con.execute("CREATE TEMP TABLE files_temp AS SELECT 1 AS a")
+        self.addCleanup(self.frames.connection._con.execute, "DROP TABLE IF EXISTS temp.files_temp")
+        for asked in ("files_frame", "files_mine", "files_temp"):
             with self.subTest(asked=asked):
-                self.assertEqual(self.read('x.csv', 'a\n1\n', asked)['table'], f'{asked}_2')
+                self.assertEqual(self.read("x.csv", "a\n1\n", asked)["table"], f"{asked}_2")
         # and what is not a name, or is legend-lite's own, is refused
-        for asked in ('not a name', 'true', '__legend_lite_files_frame'):
+        for asked in ("not a name", "true", "__legend_lite_files_frame"):
             with self.subTest(asked=asked):
-                self.assertEqual(self.file('x.csv', 'a\n1\n', asked).status, 400)
+                self.assertEqual(self.file("x.csv", "a\n1\n", asked).status, 400)
         # a page drops only a table a file of its was read into
-        self.assertEqual(self.send('/forget.json', {'name': 'x.csv', 'table': 'files_mine'}).status, 404)
-        self.assertEqual(self.tables('files_mine'), 1)
-        self.assertEqual(self.frames['files_frame'].name, 'files_frame')
+        self.assertEqual(self.send("/forget.json", {"name": "x.csv", "table": "files_mine"}).status, 404)
+        self.assertEqual(self.tables("files_mine"), 1)
+        self.assertEqual(self.frames["files_frame"].name, "files_frame")
 
     def test_a_frame_cannot_take_a_files_name_nor_does_show_choose_one(self):
-        self.read('frame.csv', 'a\n1\n', 'files_shown')
+        self.read("frame.csv", "a\n1\n", "files_shown")
         with self.assertRaisesRegex(ValueError, "a page's file was read into a table named 'files_shown'"):
-            self.frames.register('files_shown', pd.DataFrame({'a': [1]}))
-        self.assertTrue(self.frames.taken('files_shown'))
+            self.frames.register("files_shown", pd.DataFrame({"a": [1]}))
+        self.assertTrue(self.frames.taken("files_shown"))
 
     def test_a_header_a_person_wrote_is_read_into_a_model_the_compiler_takes(self):
         header = '"a ""quoted"" one",b}c,"line\nbreak",plain'
-        said = self.read('odd.csv', f'{header}\n1,2,3,4\n', 'files_odd')
-        names = [r[0] for r in self.frames.connection._con.execute(
-            "SELECT column_name FROM duckdb_columns() WHERE table_name = 'files_odd' ORDER BY column_index").fetchall()]
-        self.assertEqual(names, ['a "quoted" one', 'b}c', 'line\nbreak', 'plain'])
+        said = self.read("odd.csv", f"{header}\n1,2,3,4\n", "files_odd")
+        names = [
+            r[0]
+            for r in self.frames.connection._con.execute(
+                "SELECT column_name FROM duckdb_columns() WHERE table_name = 'files_odd' ORDER BY column_index"
+            ).fetchall()
+        ]
+        self.assertEqual(names, ['a "quoted" one', "b}c", "line\nbreak", "plain"])
         # the model the writer wrote for those names compiles, and types the source with them (it is served, and only
         # served models are run)
-        columns = ll.relation_type(said['model'], {'_type': 'lambda', 'parameters': [], 'body': [said['source']]})
+        columns = ll.relation_type(said["model"], {"_type": "lambda", "parameters": [], "body": [said["source"]]})
         self.assertEqual([c.name for c in columns], names)
 
     def test_a_drop_that_fails_leaves_the_table_served_to_be_let_go_of_again(self):
-        self.read('keep.csv', 'a\n1\n', 'files_keep')
+        self.read("keep.csv", "a\n1\n", "files_keep")
         real = datacube._session.headless()
 
         class Refusing:
             def call(self, function, *args):
-                if function == 'forget':
-                    raise RuntimeError('the drop failed')
+                if function == "forget":
+                    raise RuntimeError("the drop failed")
                 return real.call(function, *args)
+
         refusing = Engine(self.frames, headless=Refusing)
-        answer = refusing.answer('POST', '/forget.json', '', json.dumps({'name': 'keep.csv', 'table': 'files_keep'}))
+        answer = refusing.answer("POST", "/forget.json", "", json.dumps({"name": "keep.csv", "table": "files_keep"}))
         self.assertEqual(answer.status, 422, answer.body[:300])
         with self.frames.serving() as models:
-            self.assertIn('files_keep', models)
-        self.assertEqual(self.tables('files_keep'), 1)
+            self.assertIn("files_keep", models)
+        self.assertEqual(self.tables("files_keep"), 1)
 
     def test_a_file_duckdb_cannot_read_leaves_nothing_under_its_name(self):
-        answer = self.file('bad.parquet', 'not a parquet file', 'files_bad')
+        answer = self.file("bad.parquet", "not a parquet file", "files_bad")
         self.assertEqual(answer.status, 422, answer.body[:300])
-        self.assertEqual(self.tables('files_bad'), 0)
+        self.assertEqual(self.tables("files_bad"), 0)
         with self.frames.serving() as models:
-            self.assertNotIn('files_bad', models)
+            self.assertNotIn("files_bad", models)
 
     def test_a_file_that_changes_while_it_is_read_is_refused_its_table_dropped(self):
         # the tenets audit's LOW 9 (2026-11-11): the plan names the file by the digest taken before DuckDB reads its
@@ -559,44 +633,45 @@ class Files(unittest.TestCase):
         # change is simulated where it is seen: the second hash differs from the first
         import tempfile
         from unittest import mock
+
         from legend_lite import engine as engine_module
+
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        path = Path(folder.name, 'moving.csv')
-        path.write_text('a\n1\n2\n')
+        path = Path(folder.name, "moving.csv")
+        path.write_text("a\n1\n2\n")
         real = engine_module._bytes_of
         seen = []
 
         def changing(p):
             size, digest = real(p)
             seen.append(digest)
-            return (size, digest) if len(seen) == 1 else (size + 1, '0' * 64)
+            return (size, digest) if len(seen) == 1 else (size + 1, "0" * 64)
 
-        with mock.patch.object(engine_module, '_bytes_of', changing):
-            with self.assertRaises(ValueError) as refused:
-                self.engine.read_file(path, 'moving.csv')
-        self.assertIn('the file moving.csv changed while it was read', str(refused.exception))
-        self.assertEqual(len(seen), 2, 'hashed before the read and again after it')
-        self.assertEqual(self.tables('moving'), 0)
+        with mock.patch.object(engine_module, "_bytes_of", changing), self.assertRaises(ValueError) as refused:
+            self.engine.read_file(path, "moving.csv")
+        self.assertIn("the file moving.csv changed while it was read", str(refused.exception))
+        self.assertEqual(len(seen), 2, "hashed before the read and again after it")
+        self.assertEqual(self.tables("moving"), 0)
         with self.frames.serving() as models:
-            self.assertNotIn('moving', models)
+            self.assertNotIn("moving", models)
         # unchanged, it is read and kept as before
-        said = self.engine.read_file(path, 'moving.csv')
+        said = self.engine.read_file(path, "moving.csv")
         self.addCleanup(self.engine.forget_read, said)
-        self.assertEqual(self.frames.connection._con.execute(f'SELECT count(*) FROM {said["table"]}').fetchone()[0], 2)
+        self.assertEqual(self.frames.connection._con.execute(f"SELECT count(*) FROM {said['table']}").fetchone()[0], 2)
 
     def test_without_its_bundle_reading_a_file_says_so_never_hides_it(self):
         import os
         from unittest import mock
-        missing = os.path.join(os.sep, 'no', 'such', 'bundle.js')
-        engine = Engine(self.frames, headless=lambda: Headless(bundle()))
-        with mock.patch.dict(os.environ, {'LEGEND_LITE_DATACUBE': missing}):
-            # given DataCube's code, the engine offers files; the bundle missing is said where a file is read
-            self.assertTrue(json.loads(engine.answer('GET', '/services.json', '', None).body)['files'])
-            answer = engine.answer('POST', '/file-part.json', '', json.dumps({'at': 0, 'bytes': 'YQoxCg=='}))
-            self.assertEqual(answer.status, 500)
-            self.assertIn(f"DataCube's code is not at {missing}", answer.body.decode('utf-8'))
 
+        missing = os.path.join(os.sep, "no", "such", "bundle.js")
+        engine = Engine(self.frames, headless=lambda: Headless(bundle()))
+        with mock.patch.dict(os.environ, {"LEGEND_LITE_DATACUBE": missing}):
+            # given DataCube's code, the engine offers files; the bundle missing is said where a file is read
+            self.assertTrue(json.loads(engine.answer("GET", "/services.json", "", None).body)["files"])
+            answer = engine.answer("POST", "/file-part.json", "", json.dumps({"at": 0, "bytes": "YQoxCg=="}))
+            self.assertEqual(answer.status, 500)
+            self.assertIn(f"DataCube's code is not at {missing}", answer.body.decode("utf-8"))
 
 
 class Remote(unittest.TestCase):
@@ -610,43 +685,54 @@ class Remote(unittest.TestCase):
         import http.server
         import tempfile
         import threading
+
         import pyarrow as pa
         import pyarrow.parquet as pq
 
         cls.folder = tempfile.TemporaryDirectory()
-        pq.write_table(pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': [1, 2, 3]}), f'{cls.folder.name}/trades.parquet')
-        Path(cls.folder.name, 'desks.csv').write_text('desk,head\nFX,Ana\nEQ,Ben\n')
+        pq.write_table(pa.table({"desk": ["FX", "EQ", "FX"], "qty": [1, 2, 3]}), f"{cls.folder.name}/trades.parquet")
+        Path(cls.folder.name, "desks.csv").write_text("desk,head\nFX,Ana\nEQ,Ben\n")
+
         class Quiet(http.server.SimpleHTTPRequestHandler):
             # the files a test marked gone (a link that no longer answers): 404, the file left where it is -- deleting it
             # raced the server's own handle on Windows (the closing audit's item 8, 2026-11-13)
-            gone: set[str] = set()
+            gone: ClassVar[set[str]] = set()
 
             def send_head(self):
                 import posixpath
                 import urllib.parse
+
                 if posixpath.basename(urllib.parse.urlsplit(self.path).path) in Quiet.gone:
-                    self.send_error(404, 'gone')
+                    self.send_error(404, "gone")
                     return None
                 return super().send_head()
 
-            def log_message(self, *_):
+            def log_message(self, format, *args):
                 pass
+
         cls.quiet = Quiet
         handler = functools.partial(Quiet, directory=cls.folder.name)
-        cls.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
+        cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
-        cls.base = f'http://127.0.0.1:{cls.server.server_address[1]}'
+        cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         # Iceberg tables (G5): one whose every file is served, and three naming a file on this machine where its data
         # file, its manifest and its manifest list would be -- none of which exist, so a read of one would fail (and a
         # manifest that cannot be read ends the process inside DuckDB 1.5.5's iceberg_scan): each is refused first
         import iceberg_table
+
         served = Path(cls.folder.name)
         # named as a page names one: its table's URL marked #iceberg (remote.ts inferFormat)
-        cls.iceberg = iceberg_table.write(served, 'trades_iceberg', cls.base, [[('FX', 1), ('EQ', 2)], [('FX', 3)]]) + '#iceberg'
-        here = cls.iceberg_here = served / 'not-served'
+        cls.iceberg = (
+            iceberg_table.write(served, "trades_iceberg", cls.base, [[("FX", 1), ("EQ", 2)], [("FX", 3)]]) + "#iceberg"
+        )
+        here = cls.iceberg_here = served / "not-served"
         cls.iceberg_local = {
-            what: iceberg_table.write(served, f'local_{what}', cls.base, [[('FX', 1)]], **{f'{what}_url': str(here / what)})
-            + '#iceberg' for what in ('data', 'manifest', 'list')}
+            what: iceberg_table.write(
+                served, f"local_{what}", cls.base, [[("FX", 1)]], **{f"{what}_url": str(here / what)}
+            )
+            + "#iceberg"
+            for what in ("data", "manifest", "list")
+        }
 
     @classmethod
     def tearDownClass(cls):
@@ -657,69 +743,95 @@ class Remote(unittest.TestCase):
         self.frames = datacube._session.frames
         self.engine = Engine(self.frames, headless=datacube._session.headless)
 
-    def mount(self, url, name='remote'):
-        return self.engine.answer('POST', '/remote.json', '', json.dumps({'url': url, 'name': name}))
+    def mount(self, url, name="remote"):
+        return self.engine.answer("POST", "/remote.json", "", json.dumps({"url": url, "name": name}))
 
     def test_the_engine_says_it_reads_remote_files(self):
-        self.assertTrue(json.loads(self.engine.answer('GET', '/services.json', '', None).body)['remote'])
+        self.assertTrue(json.loads(self.engine.answer("GET", "/services.json", "", None).body)["remote"])
 
     def test_a_remote_parquet_and_csv_are_read_through_views_their_models_served(self):
-        for url, name, count in ((f'{self.base}/trades.parquet', 'remote_trades', 3), (f'{self.base}/desks.csv', 'remote_desks', 2)):
+        for url, name, count in (
+            (f"{self.base}/trades.parquet", "remote_trades", 3),
+            (f"{self.base}/desks.csv", "remote_desks", 2),
+        ):
             with self.subTest(url=url):
                 answer = self.mount(url, name)
                 self.assertEqual(answer.status, 200, answer.body[:300])
-                model = json.loads(answer.body)['model']
-                self.assertEqual(self.frames.connection._con.execute(f'SELECT count(*) FROM {name}').fetchone()[0], count)
+                model = json.loads(answer.body)["model"]
+                self.assertEqual(
+                    self.frames.connection._con.execute(f"SELECT count(*) FROM {name}").fetchone()[0], count
+                )
                 with self.frames.serving() as models:
                     self.assertEqual(models[name], model)
         # read with the extension the wheel carries, from its folder: none was downloaded
         httpfs = self.frames.connection._con.execute(
-            "SELECT loaded, install_path FROM duckdb_extensions() WHERE extension_name = 'httpfs'").fetchone()
+            "SELECT loaded, install_path FROM duckdb_extensions() WHERE extension_name = 'httpfs'"
+        ).fetchone()
         self.assertTrue(httpfs[0])
         # as the system compares paths (Windows: whatever the case of the drive letter, either slash), links not
         # followed (the runfiles are links on macOS and Linux)
-        carried = os.path.normcase(os.path.abspath(os.environ['LEGEND_LITE_DUCKDB_EXTENSIONS']))
+        carried = os.path.normcase(os.path.abspath(os.environ["LEGEND_LITE_DUCKDB_EXTENSIONS"]))
         self.assertTrue(os.path.normcase(os.path.abspath(httpfs[1])).startswith(carried + os.sep), httpfs[1])
 
     def test_a_remote_files_keys_are_bound_into_its_secret_never_written(self):
         # credentials by name (B3, 2026-11-11): DataCube's mount names the secret's fields and binds their values on
         # Python's DuckDB (duckdb-python measured here); the secret is temporary, scoped to the file, and the database's
         # own listing redacts its values
-        sentinel = 'SENTINEL-' + os.urandom(4).hex()
-        url = f'{self.base}/desks.csv'
-        answer = self.engine.answer('POST', '/remote.json', '', json.dumps({'url': url, 'name': 'remote_keyed', 's3': {
-            'accessKeyId': sentinel + '-key', 'secretAccessKey': sentinel + '-secret', 'region': 'eu-west-1'}}))
+        sentinel = "SENTINEL-" + os.urandom(4).hex()
+        url = f"{self.base}/desks.csv"
+        answer = self.engine.answer(
+            "POST",
+            "/remote.json",
+            "",
+            json.dumps(
+                {
+                    "url": url,
+                    "name": "remote_keyed",
+                    "s3": {
+                        "accessKeyId": sentinel + "-key",
+                        "secretAccessKey": sentinel + "-secret",
+                        "region": "eu-west-1",
+                    },
+                }
+            ),
+        )
         self.assertEqual(answer.status, 200, answer.body[:300])
-        self.assertNotIn(sentinel.encode('utf-8'), answer.body)
-        self.assertEqual(self.frames.connection._con.execute('SELECT count(*) FROM remote_keyed').fetchone()[0], 2)
+        self.assertNotIn(sentinel.encode("utf-8"), answer.body)
+        self.assertEqual(self.frames.connection._con.execute("SELECT count(*) FROM remote_keyed").fetchone()[0], 2)
         # the database's own listing redacts the secret (an access key's id it shows, as AWS does)
         name, persistent, scope, written = self.frames.connection._con.execute(
             "SELECT name, persistent, scope, secret_string LIKE ? FROM duckdb_secrets() WHERE name = 'datacube_s3_remote_keyed'",
-            ['%' + sentinel + '-secret%']).fetchone()
-        self.assertEqual((name, persistent, scope, written), ('datacube_s3_remote_keyed', False, [url], False))
+            ["%" + sentinel + "-secret%"],
+        ).fetchone()
+        self.assertEqual((name, persistent, scope, written), ("datacube_s3_remote_keyed", False, [url], False))
 
     def test_a_presigned_url_is_bound_to_each_reads_connection_never_written(self):
         # a bearer URL (B3's Q3, 2026-11-11, the user's ruling: "Yes do option 2"): its query string its token, held by
         # Python and bound to the session variable the view reads -- set on each read's cursor, a variable being one
         # connection's (measured) -- never in the view's text nor in the mount's plan
         import duckdb
-        sentinel = 'SENTINEL-' + os.urandom(4).hex()
-        url = f'{self.base}/trades.parquet?X-Amz-Signature={sentinel}'
-        answer = self.mount(url, 'remote_signed')
+
+        sentinel = "SENTINEL-" + os.urandom(4).hex()
+        url = f"{self.base}/trades.parquet?X-Amz-Signature={sentinel}"
+        answer = self.mount(url, "remote_signed")
         self.assertEqual(answer.status, 200, answer.body[:300])
-        text = self.frames.connection._con.execute("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_signed'").fetchone()[0]
+        text = self.frames.connection._con.execute(
+            "SELECT sql FROM duckdb_views() WHERE view_name = 'remote_signed'"
+        ).fetchone()[0]
         self.assertNotIn(sentinel, text)
-        self.assertIn('getvariable', text)
+        self.assertIn("getvariable", text)
         # two reads, two cursors: each reads the file through the setting replayed on it
         for _ in range(2):
             with self.frames.reading() as read:
                 # the test's own question, no plan's: typed by name as a plan's statement (_planned.py)
-                self.assertEqual(read.execute(PlannedSql('SELECT count(*) FROM remote_signed')).fetchone()[0], 3)
+                counted = read.execute(PlannedSql("SELECT count(*) FROM remote_signed")).fetchone()
+                assert counted is not None
+                self.assertEqual(counted[0], 3)
         # a cursor the setting was not replayed on reads nothing
         bare = self.frames.connection._con.cursor()
         try:
             with self.assertRaises(duckdb.Error):
-                bare.execute('SELECT count(*) FROM remote_signed').fetchone()
+                bare.execute("SELECT count(*) FROM remote_signed").fetchone()
         finally:
             bare.close()
 
@@ -728,159 +840,193 @@ class Remote(unittest.TestCase):
         # that expired, a file gone -- so a read's failure, and a mount's, is said with every value Python holds taken
         # out (the whole URL, its query string, each parameter long enough to be a token), the address named
         import shutil
+
         import duckdb
-        sentinel = 'SENTINEL-' + os.urandom(6).hex()
+
+        sentinel = "SENTINEL-" + os.urandom(6).hex()
         served = Path(self.folder.name)
-        shutil.copy(served / 'trades.parquet', served / 'expiring.parquet')
-        url = f'{self.base}/expiring.parquet?X-Amz-Expires=300&X-Amz-Signature={sentinel}'
-        answer = self.mount(url, 'remote_expiring')
+        shutil.copy(served / "trades.parquet", served / "expiring.parquet")
+        url = f"{self.base}/expiring.parquet?X-Amz-Expires=300&X-Amz-Signature={sentinel}"
+        answer = self.mount(url, "remote_expiring")
         self.assertEqual(answer.status, 200, answer.body[:300])
         with self.frames.reading() as read:
-            self.assertEqual(read.execute(PlannedSql('SELECT count(*) FROM remote_expiring')).fetchone()[0], 3)
+            counted = read.execute(PlannedSql("SELECT count(*) FROM remote_expiring")).fetchone()
+            assert counted is not None
+            self.assertEqual(counted[0], 3)
         # the link no longer answers: the read fails, in DuckDB's words, without the token (the server answers 404 for it:
         # the file left in place, never deleted from under the server's handle)
-        self.quiet.gone.add('expiring.parquet')
-        self.addCleanup(self.quiet.gone.discard, 'expiring.parquet')
-        with self.frames.reading() as read:
-            with self.assertRaises(duckdb.Error) as failed:
-                read.execute(PlannedSql('SELECT count(*) FROM remote_expiring')).fetchone()
+        self.quiet.gone.add("expiring.parquet")
+        self.addCleanup(self.quiet.gone.discard, "expiring.parquet")
+        with self.frames.reading() as read, self.assertRaises(duckdb.Error) as failed:
+            read.execute(PlannedSql("SELECT count(*) FROM remote_expiring")).fetchone()
         self.assertNotIn(sentinel, str(failed.exception))
-        self.assertIsNone(failed.exception.__context__, 'the database\'s own error, which holds the URL, is not chained')
+        self.assertIsNone(failed.exception.__context__, "the database's own error, which holds the URL, is not chained")
         # a page's mount of a link that does not answer (Page.load): named by its address, the token in no word
         with self.assertRaises(ValueError) as refused:
-            self.engine.mount_remote(f'{self.base}/gone.parquet?X-Amz-Signature={sentinel}')
+            self.engine.mount_remote(f"{self.base}/gone.parquet?X-Amz-Signature={sentinel}")
         self.assertNotIn(sentinel, str(refused.exception))
         self.assertIsNone(refused.exception.__context__)
-        self.assertIn(f'{self.base}/gone.parquet is not read', str(refused.exception))
+        self.assertIn(f"{self.base}/gone.parquet is not read", str(refused.exception))
         # and as /remote.json answers it
-        answer = self.mount(f'{self.base}/gone.parquet?X-Amz-Signature={sentinel}', 'remote_gone')
+        answer = self.mount(f"{self.base}/gone.parquet?X-Amz-Signature={sentinel}", "remote_gone")
         self.assertNotEqual(answer.status, 200)
-        self.assertNotIn(sentinel.encode('utf-8'), answer.body)
+        self.assertNotIn(sentinel.encode("utf-8"), answer.body)
 
     def test_a_mounts_setting_binds_the_url_only_to_the_name_the_mount_holds_it_by(self):
         # the tenets audit's LOW 6 (2026-11-11): the page's URL is bound to the held bind the mount names (its answer's
         # bearer) and to no other: a setting binding another name, or another field, is refused by name, never a value
         from legend_lite.engine import _connection_settings
-        url = f'{self.base}/trades.parquet?X-Amz-Signature=SENTINEL-name-check'
-        setting = {'sql': 'SET VARIABLE v = ?', 'binds': [{'_type': 'held', 'name': 'datacube_url_t', 'field': 'URL'}]}
-        answered = {'SET VARIABLE v = ?'}  # the statement the mount's plan carried (the bridge's membership, _planned.py)
-        settings, held = _connection_settings([setting], url, 'datacube_url_t', answered)
-        self.assertEqual((settings, held), ((('SET VARIABLE v = ?', (url,)),), (url,)))
-        for bearer, bind in (('datacube_url_other', setting['binds'][0]), (None, setting['binds'][0]),
-                             ('datacube_url_t', {'_type': 'held', 'name': 'datacube_url_t', 'field': 'KEY_ID'})):
+
+        url = f"{self.base}/trades.parquet?X-Amz-Signature=SENTINEL-name-check"
+        setting = {"sql": "SET VARIABLE v = ?", "binds": [{"_type": "held", "name": "datacube_url_t", "field": "URL"}]}
+        answered = {
+            "SET VARIABLE v = ?"
+        }  # the statement the mount's plan carried (the bridge's membership, _planned.py)
+        settings, held = _connection_settings([setting], url, "datacube_url_t", answered)
+        self.assertEqual((settings, held), ((("SET VARIABLE v = ?", (url,)),), (url,)))
+        for bearer, bind in (
+            ("datacube_url_other", setting["binds"][0]),
+            (None, setting["binds"][0]),
+            ("datacube_url_t", {"_type": "held", "name": "datacube_url_t", "field": "KEY_ID"}),
+        ):
             with self.subTest(bearer=bearer, bind=bind):
                 with self.assertRaises(ValueError) as refused:
-                    _connection_settings([{'sql': 'SET VARIABLE v = ?', 'binds': [bind]}], url, bearer, answered)
-                self.assertIn(f"binds {bind['name']}.{bind['field']}, which this engine holds nothing for", str(refused.exception))
-                self.assertNotIn('SENTINEL', str(refused.exception))
+                    _connection_settings([{"sql": "SET VARIABLE v = ?", "binds": [bind]}], url, bearer, answered)
+                self.assertIn(
+                    f"binds {bind['name']}.{bind['field']}, which this engine holds nothing for", str(refused.exception)
+                )
+                self.assertNotIn("SENTINEL", str(refused.exception))
 
     def test_a_remote_iceberg_table_is_read_through_a_view_with_the_extensions_carried(self):
-        answer = self.mount(self.iceberg, 'remote_iceberg')
+        answer = self.mount(self.iceberg, "remote_iceberg")
         self.assertEqual(answer.status, 200, answer.body[-600:])
-        rows = self.frames.connection._con.execute('SELECT desk, qty FROM remote_iceberg ORDER BY qty').fetchall()
-        self.assertEqual(rows, [('FX', 1), ('EQ', 2), ('FX', 3)])
+        rows = self.frames.connection._con.execute("SELECT desk, qty FROM remote_iceberg ORDER BY qty").fetchall()
+        self.assertEqual(rows, [("FX", 1), ("EQ", 2), ("FX", 3)])
         with self.frames.serving() as models:
-            self.assertEqual(models['remote_iceberg'], json.loads(answer.body)['model'])
-        carried = os.path.normcase(os.path.abspath(os.environ['LEGEND_LITE_DUCKDB_EXTENSIONS']))
-        for extension in ('iceberg', 'avro'):
+            self.assertEqual(models["remote_iceberg"], json.loads(answer.body)["model"])
+        carried = os.path.normcase(os.path.abspath(os.environ["LEGEND_LITE_DUCKDB_EXTENSIONS"]))
+        for extension in ("iceberg", "avro"):
             with self.subTest(extension=extension):
                 loaded, path = self.frames.connection._con.execute(
-                    'SELECT loaded, install_path FROM duckdb_extensions() WHERE extension_name = ?', [extension]).fetchone()
+                    "SELECT loaded, install_path FROM duckdb_extensions() WHERE extension_name = ?", [extension]
+                ).fetchone()
                 self.assertTrue(loaded)
                 self.assertTrue(os.path.normcase(os.path.abspath(path)).startswith(carried + os.sep), path)
 
     def test_an_iceberg_table_naming_a_file_on_this_machine_is_refused_before_any_view_reads_it(self):
         for what, url in self.iceberg_local.items():
             with self.subTest(names=what):
-                answer = self.mount(url, f'iceberg_{what}')
+                answer = self.mount(url, f"iceberg_{what}")
                 self.assertEqual(answer.status, 400, answer.body[:300])
-                self.assertIn(b'every file it names is a remote one', answer.body)
-                self.assertIn(repr(str(self.iceberg_here / what)), answer.body.decode('utf-8'))
-                self.assertFalse(self.frames.taken(f'iceberg_{what}'))
+                self.assertIn(b"every file it names is a remote one", answer.body)
+                self.assertIn(repr(str(self.iceberg_here / what)), answer.body.decode("utf-8"))
+                self.assertFalse(self.frames.taken(f"iceberg_{what}"))
 
     def test_a_url_that_is_not_remote_is_refused_before_anything_runs(self):
-        local = Path(self.folder.name, 'desks.csv')
-        port = self.base.rsplit(':', 1)[1]
-        for url in (str(local), local.as_uri(), 'C:\\Users\\x\\secret.csv', 'ftp://127.0.0.1/x.csv', 'http://', '~/.ssh/id_rsa',
-                    # what Python's own reading of a URL takes for http, which DuckDB reads from this machine instead
-                    f'HTTP://127.0.0.1:{port}/desks.csv', f' http://127.0.0.1:{port}/desks.csv',
-                    f'ht\ttp://127.0.0.1:{port}/desks.csv', f'http://127.0.0.1:{port}/desks.csv\n',
-                    f'http://127.0.0.1:{port}/desks.csv\x7f', 'azure://account/c/x.parquet'):
+        local = Path(self.folder.name, "desks.csv")
+        port = self.base.rsplit(":", 1)[1]
+        for url in (
+            str(local),
+            local.as_uri(),
+            "C:\\Users\\x\\secret.csv",
+            "ftp://127.0.0.1/x.csv",
+            "http://",
+            "~/.ssh/id_rsa",
+            # what Python's own reading of a URL takes for http, which DuckDB reads from this machine instead
+            f"HTTP://127.0.0.1:{port}/desks.csv",
+            f" http://127.0.0.1:{port}/desks.csv",
+            f"ht\ttp://127.0.0.1:{port}/desks.csv",
+            f"http://127.0.0.1:{port}/desks.csv\n",
+            f"http://127.0.0.1:{port}/desks.csv\x7f",
+            "azure://account/c/x.parquet",
+        ):
             with self.subTest(url=url):
-                answer = self.mount(url, 'remote_refused')
+                answer = self.mount(url, "remote_refused")
                 self.assertEqual(answer.status, 400, answer.body[:300])
-                self.assertIn(b'never from this machine', answer.body)
-        self.assertFalse(self.frames.taken('remote_refused'))
+                self.assertIn(b"never from this machine", answer.body)
+        self.assertFalse(self.frames.taken("remote_refused"))
 
     def test_a_duckdb_the_extensions_are_not_for_is_said_by_name(self):
         import tempfile
         from unittest import mock
+
         with tempfile.TemporaryDirectory() as other:
-            (Path(other) / 'v0.0.1' / 'osx_arm64').mkdir(parents=True)
-            with mock.patch.dict(os.environ, {'LEGEND_LITE_DUCKDB_EXTENSIONS': other}):
-                answer = self.mount(f'{self.base}/trades.parquet', 'remote_version')
+            (Path(other) / "v0.0.1" / "osx_arm64").mkdir(parents=True)
+            with mock.patch.dict(os.environ, {"LEGEND_LITE_DUCKDB_EXTENSIONS": other}):
+                answer = self.mount(f"{self.base}/trades.parquet", "remote_version")
                 self.assertEqual(answer.status, 404)
-                self.assertIn(b'for duckdb 0.0.1', answer.body)
+                self.assertIn(b"for duckdb 0.0.1", answer.body)
 
     def test_a_database_of_the_persons_own_is_left_as_they_keep_it(self):
         import duckdb
+
         own = duckdb.connect()
         engine = Engine(ll.Frames(connection=own), headless=datacube._session.headless)
-        self.assertFalse(json.loads(engine.answer('GET', '/services.json', '', None).body)['remote'])
-        self.assertEqual(engine.answer('POST', '/remote.json', '', json.dumps(
-            {'url': f'{self.base}/trades.parquet', 'name': 'remote_own'})).status, 404)
-        self.assertEqual(own.execute("SELECT current_setting('autoinstall_known_extensions')").fetchone()[0], True)
+        self.assertFalse(json.loads(engine.answer("GET", "/services.json", "", None).body)["remote"])
+        self.assertEqual(
+            engine.answer(
+                "POST", "/remote.json", "", json.dumps({"url": f"{self.base}/trades.parquet", "name": "remote_own"})
+            ).status,
+            404,
+        )
+        setting = own.execute("SELECT current_setting('autoinstall_known_extensions')").fetchone()
+        assert setting is not None
+        self.assertEqual(setting[0], True)
 
     def test_a_remote_view_is_not_let_go_of_as_a_files_table(self):
-        self.assertEqual(self.mount(f'{self.base}/desks.csv', 'remote_kept').status, 200)
-        answer = self.engine.answer('POST', '/forget.json', '', json.dumps({'name': 'desks.csv', 'table': 'remote_kept'}))
+        self.assertEqual(self.mount(f"{self.base}/desks.csv", "remote_kept").status, 200)
+        answer = self.engine.answer(
+            "POST", "/forget.json", "", json.dumps({"name": "desks.csv", "table": "remote_kept"})
+        )
         self.assertEqual(answer.status, 404)
-        self.assertEqual(self.frames.connection._con.execute('SELECT count(*) FROM remote_kept').fetchone()[0], 2)
+        self.assertEqual(self.frames.connection._con.execute("SELECT count(*) FROM remote_kept").fetchone()[0], 2)
 
     def test_without_the_extensions_the_engine_reads_no_remote_file(self):
         from unittest import mock
-        with mock.patch.dict(os.environ, {'LEGEND_LITE_DUCKDB_EXTENSIONS': os.path.join(os.sep, 'no', 'such', 'folder')}):
-            self.assertFalse(json.loads(self.engine.answer('GET', '/services.json', '', None).body)['remote'])
-            self.assertEqual(self.mount(f'{self.base}/trades.parquet', 'remote_none').status, 404)
 
+        with mock.patch.dict(
+            os.environ, {"LEGEND_LITE_DUCKDB_EXTENSIONS": os.path.join(os.sep, "no", "such", "folder")}
+        ):
+            self.assertFalse(json.loads(self.engine.answer("GET", "/services.json", "", None).body)["remote"])
+            self.assertEqual(self.mount(f"{self.base}/trades.parquet", "remote_none").status, 404)
 
 
 def _act(grid, action, filters):
     """One action of DataCube's parity.json, through Python's Page and Grid: the call a program makes for what a
     person does on the screen (datacube/test/parity-screen.test.ts names the screen's). ``filters``: the conditions set
     so far -- a cell's filter on the screen adds one to the grid's, and Python's filter() sets them all."""
-    do = action['do']
-    if do == 'group':
-        grid.group(*action['rows'])
-    elif do == 'pivot':
-        grid.pivot(*action['columns'])
-    elif do == 'addSort':
-        grid.sort(action['column'], action['direction'])
-    elif do == 'headerSort':
+    do = action["do"]
+    if do == "group":
+        grid.group(*action["rows"])
+    elif do == "pivot":
+        grid.pivot(*action["columns"])
+    elif do == "addSort":
+        grid.sort(action["column"], action["direction"])
+    elif do == "headerSort":
         # a header click sorts the column alone, in its first direction; Python has no such call, so a case clicks a
         # header only on a grid with no sort, where sort() adding one is the same edit
-        if grid._query.get('sorts'):
-            raise AssertionError('parity.json clicks a header of a sorted grid: Python has no call that sorts alone')
-        grid.sort(action['column'], action['direction'])
-    elif do == 'aggregate':
-        grid.column(action['column'], aggregate=action['fn'])
-    elif do == 'wavg':
-        grid.column(action['column'], aggregate='wavg', weight=action['weight'])
-    elif do == 'calculate':
+        if grid._query.get("sorts"):
+            raise AssertionError("parity.json clicks a header of a sorted grid: Python has no call that sorts alone")
+        grid.sort(action["column"], action["direction"])
+    elif do == "aggregate":
+        grid.column(action["column"], aggregate=action["fn"])
+    elif do == "wavg":
+        grid.column(action["column"], aggregate="wavg", weight=action["weight"])
+    elif do == "calculate":
         # the expression as Python takes one: over the row $x, without the lambda's head
-        assert action['expression'].startswith('x|'), action['expression']
-        grid.calculate(action['name'], action['expression'][len('x|'):])
-    elif do == 'kind':
-        grid.column(action['column'], kind=action['kind'])
-    elif do == 'heatmap':
-        grid.configure({'columns': {action['column']: {'heatmap': {'from': action['from'], 'to': action['to']}}}})
-    elif do == 'hide':
-        grid.configure({'columns': {action['column']: {'hidden': True}}})
-    elif do == 'filter':
-        filters.append((action['column'], action['operator'], action['value']))
+        assert action["expression"].startswith("x|"), action["expression"]
+        grid.calculate(action["name"], action["expression"][len("x|") :])
+    elif do == "kind":
+        grid.column(action["column"], kind=action["kind"])
+    elif do == "heatmap":
+        grid.configure({"columns": {action["column"]: {"heatmap": {"from": action["from"], "to": action["to"]}}}})
+    elif do == "hide":
+        grid.configure({"columns": {action["column"]: {"hidden": True}}})
+    elif do == "filter":
+        filters.append((action["column"], action["operator"], action["value"]))
         grid.filter(filters if len(filters) > 1 else filters[0])
     else:
-        raise AssertionError(f'parity.json names an action Python does not do: {do!r}')
+        raise AssertionError(f"parity.json names an action Python does not do: {do!r}")
 
 
 class ParityWithTheScreen(unittest.TestCase):
@@ -893,124 +1039,169 @@ class ParityWithTheScreen(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.fixture = json.loads(Path(os.environ['LEGEND_LITE_PARITY']).read_text('utf-8'))
+        cls.fixture = json.loads(Path(os.environ["LEGEND_LITE_PARITY"]).read_text("utf-8"))
         # one frame for every case (a name served again serves the same frame: Page.grid), its dates as dates
-        dates = {cls.fixture['columns'].index(c) for c in cls.fixture['dates']}
-        rows = [[datetime.date.fromisoformat(v) if i in dates else v for i, v in enumerate(r)] for r in cls.fixture['rows']]
-        cls.frame = pd.DataFrame(rows, columns=cls.fixture['columns'])
+        dates = {cls.fixture["columns"].index(c) for c in cls.fixture["dates"]}
+        rows = [
+            [datetime.date.fromisoformat(v) if i in dates else v for i, v in enumerate(r)] for r in cls.fixture["rows"]
+        ]
+        cls.frame = pd.DataFrame(rows, columns=cls.fixture["columns"])
         # a page's first grid, for a case of its second
-        cls.first = pd.DataFrame({'a': ['x'], 'b': [1]})
+        cls.first = pd.DataFrame({"a": ["x"], "b": [1]})
 
     def test_each_case_writes_the_screens_document(self):
-        self.assertGreater(len(self.fixture['cases']), 25)
-        for case in self.fixture['cases']:
-            with self.subTest(case['name']):
-                page = ll.Page(self.fixture['page'])
-                if case.get('capped'):
-                    page.grid(self.first, name='first')
-                grid = page.grid(self.frame, name=self.fixture['frame'])
+        self.assertGreater(len(self.fixture["cases"]), 25)
+        for case in self.fixture["cases"]:
+            with self.subTest(case["name"]):
+                page = ll.Page(self.fixture["page"])
+                if case.get("capped"):
+                    page.grid(self.first, name="first")
+                grid = page.grid(self.frame, name=self.fixture["frame"])
                 filters = []
-                for action in case['actions']:
+                for action in case["actions"]:
                     before = len(page._commands)
                     _act(grid, action, filters)
                     # an action that is one edit on both sides holds the grid command the screen built for it: Python's
                     # call built the same one (datacube/test/parity-screen.test.ts names which actions those are)
-                    if 'command' in action:
-                        self.assertEqual(page._commands[before:], [action['command']], action['do'])
-                written = json.loads(page.to_json())['cubes'][-1]['cube']
-                self.assertEqual(written, case['cube'])
+                    if "command" in action:
+                        self.assertEqual(page._commands[before:], [action["command"]], action["do"])
+                written = json.loads(page.to_json())["cubes"][-1]["cube"]
+                self.assertEqual(written, case["cube"])
 
     def test_the_cases_hold_commands(self):
         # the screen writes each one-edit action's command into the cases (PARITY_UPDATE): none held, none compared
-        held = [a['do'] for case in self.fixture['cases'] for a in case['actions'] if 'command' in a]
+        held = [a["do"] for case in self.fixture["cases"] for a in case["actions"] if "command" in a]
         self.assertGreater(len(held), 15)
-        self.assertEqual({'group', 'pivot', 'addSort', 'heatmap', 'hide', 'calculate', 'aggregate', 'kind', 'wavg'},
-                         set(held))
+        self.assertEqual(
+            {"group", "pivot", "addSort", "heatmap", "hide", "calculate", "aggregate", "kind", "wavg"}, set(held)
+        )
+
 
 class Joins(unittest.TestCase):
     """Two of a page's grids joined headless (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.4): DataCube's own join --
     the model of both frames by legend-lite's writer, the join typed by the compiler, its grid's cube for addGrid, what it
     will do before it is made -- run in V8 over Python's frames, and its rows planned and run by Python."""
 
-    TRADES = pd.DataFrame({'trade_id': [1, 2, 3, 4, 5], 'customer_id': pd.array([10, 10, 20, None, 99], dtype='Int64'),
-                           'qty': [5.0, 7.0, 1.0, 2.0, 3.0]})
+    TRADES = pd.DataFrame(
+        {
+            "trade_id": [1, 2, 3, 4, 5],
+            "customer_id": pd.array([10, 10, 20, None, 99], dtype="Int64"),
+            "qty": [5.0, 7.0, 1.0, 2.0, 3.0],
+        }
+    )
     # customer 20 listed twice: trade 3 comes out twice
-    CUSTOMERS = pd.DataFrame({'customer_id': [10, 20, 20, 30], 'region': ['EMEA', 'AMER', 'APAC', 'EMEA']})
-    HOW = {'form': 'join', 'kind': 'left', 'on': {'rows': [{'left': 'customer_id', 'op': '==', 'right': 'customer_id'}]},
-           'prefix': 'c_', 'keep': None}
+    CUSTOMERS = pd.DataFrame({"customer_id": [10, 20, 20, 30], "region": ["EMEA", "AMER", "APAC", "EMEA"]})
+    HOW: ClassVar[dict] = {
+        "form": "join",
+        "kind": "left",
+        "on": {"rows": [{"left": "customer_id", "op": "==", "right": "customer_id"}]},
+        "prefix": "c_",
+        "keep": None,
+    }
 
     def setUp(self):
-        self.page = ll.Page('Headless joins')
-        self.trades = trades = self.page.grid(self.TRADES, name='join_trades')
-        self.customers = customers = self.page.grid(self.CUSTOMERS, name='join_customers')
+        self.page = ll.Page("Headless joins")
+        self.trades = trades = self.page.grid(self.TRADES, name="join_trades")
+        self.customers = customers = self.page.grid(self.CUSTOMERS, name="join_customers")
         # each grid as the page has it, under the name it shows: its tile's title, else what it reads (joinInputOf)
-        trades.title = 'trades'
+        trades.title = "trades"
         # what the host serves, as DataCube takes it: its frames, files and remote files (host-tables.ts HostTables)
-        self.spec = {'mine': trades.id, 'theirs': customers.id, 'host': datacube._session.frames.hosted()}
+        self.spec = {"mine": trades.id, "theirs": customers.id, "host": datacube._session.frames.hosted()}
         self.headless = datacube._session.headless()
 
     def ask(self, function, how, **added):
         # in one read of the frames, as every caller asks (page.join, the engine's join.json): a join's questions are rows
         # the engine's plan-and-run reads over it (D15, D16)
         with datacube._session.frames.reading():
-            return json.loads(self.headless.call(function, json.dumps({**self.spec, 'page': json.loads(self.page.to_json()),
-                                                                        'how': how, **added})))
+            return json.loads(
+                self.headless.call(
+                    function, json.dumps({**self.spec, "page": json.loads(self.page.to_json()), "how": how, **added})
+                )
+            )
 
     def test_two_frames_joined_as_the_tabs_join_joins_them(self):
         sheet = self.page.sheets[0].id
-        said = self.ask('joinCube', self.HOW, sheet=sheet, title=None)
-        command = said['command']
-        cube = command['document']
+        said = self.ask("joinCube", self.HOW, sheet=sheet, title=None)
+        command = said["command"]
+        cube = command["document"]
         # added as the tab's Join… adds one: beside its first input, on the sheet asked for
-        self.assertEqual({k: v for k, v in command.items() if k != 'document'},
-                         {'kind': 'addGrid', 'sheet': sheet, 'near': self.trades.id, 'title': None, 'columns': None})
-        self.assertEqual(cube['source']['_type'], 'join')
-        self.assertEqual(cube['source']['name'], 'trades \u22c8 join_customers', 'its title, else what it reads')
-        self.assertEqual([c['name'] for c in cube['source']['columns']], ['trade_id', 'customer_id', 'qty', 'c_customer_id', 'region'])
-        self.assertEqual(cube['source']['left']['source'], {'_type': 'frame', 'name': 'join_trades', 'columns': cube['source']['left']['source']['columns']})
+        self.assertEqual(
+            {k: v for k, v in command.items() if k != "document"},
+            {"kind": "addGrid", "sheet": sheet, "near": self.trades.id, "title": None, "columns": None},
+        )
+        self.assertEqual(cube["source"]["_type"], "join")
+        self.assertEqual(cube["source"]["name"], "trades \u22c8 join_customers", "its title, else what it reads")
+        self.assertEqual(
+            [c["name"] for c in cube["source"]["columns"]],
+            ["trade_id", "customer_id", "qty", "c_customer_id", "region"],
+        )
+        self.assertEqual(
+            cube["source"]["left"]["source"],
+            {"_type": "frame", "name": "join_trades", "columns": cube["source"]["left"]["source"]["columns"]},
+        )
         # its rows, planned by Python's own compiler over the join's model and run on the frames' database
-        with ll.HeldModel(said['model']) as held:
-            rows = datacube._session.frames.run(held.plan(said['relation'], said['runtime'])).to_pylist()
-        pairs = sorted((r['trade_id'], r['region']) for r in rows)
-        self.assertEqual(pairs, [(1, 'EMEA'), (2, 'EMEA'), (3, 'AMER'), (3, 'APAC'), (4, None), (5, None)])
+        with ll.HeldModel(said["model"]) as held:
+            rows = datacube._session.frames.run(held.plan(said["relation"], said["runtime"])).to_pylist()
+        pairs = sorted((r["trade_id"], r["region"]) for r in rows)
+        self.assertEqual(pairs, [(1, "EMEA"), (2, "EMEA"), (3, "AMER"), (3, "APAC"), (4, None), (5, None)])
         # a page takes it as it takes every grid: the page command addGrid, as given
         doc = json.loads(self.page.to_json())
-        held = [x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]]
-        applied = json.loads(self.headless.call('pageApply', self.page.to_json(), json.dumps(held), json.dumps([command])))
-        self.assertNotIn('problems', applied)
+        held = [x["id"] for part in ("cubes", "views", "sheets") for x in doc[part]]
+        applied = json.loads(
+            self.headless.call("pageApply", self.page.to_json(), json.dumps(held), json.dumps([command]))
+        )
+        self.assertNotIn("problems", applied)
         # under the id the command gave it (the page's cubes in reading order: beside the trades' grid)
-        added = next(c for c in json.loads(applied['page'])['cubes'] if c['id'] == applied['commands'][0]['id'])
-        self.assertEqual(added['cube']['source']['_type'], 'join')
+        added = next(c for c in json.loads(applied["page"])["cubes"] if c["id"] == applied["commands"][0]["id"])
+        self.assertEqual(added["cube"]["source"]["_type"], "join")
 
     def test_what_a_join_will_do_before_it_is_made_in_the_windows_words(self):
-        said = self.ask('joinQuestions', self.HOW)
-        self.assertEqual(said['counts'], {'mine': 5, 'matched': 3, 'joined': 6, 'repeated': {'keys': 1, 'most': 2}})
-        self.assertEqual(said['words'][0], '3 rows of my 5 rows find a match, 2 rows do not.')
-        anti = self.ask('joinQuestions', {'form': 'anti', 'on': self.HOW['on']})
-        self.assertEqual(anti['words'], ['3 rows of my 5 rows have a match, 2 rows none.', 'It keeps 2 rows, each once.'])
+        said = self.ask("joinQuestions", self.HOW)
+        self.assertEqual(said["counts"], {"mine": 5, "matched": 3, "joined": 6, "repeated": {"keys": 1, "most": 2}})
+        self.assertEqual(said["words"][0], "3 rows of my 5 rows find a match, 2 rows do not.")
+        anti = self.ask("joinQuestions", {"form": "anti", "on": self.HOW["on"]})
+        self.assertEqual(
+            anti["words"], ["3 rows of my 5 rows have a match, 2 rows none.", "It keeps 2 rows, each once."]
+        )
 
     def test_what_the_compiler_refuses_is_said_in_its_words(self):
-        sheet = {'sheet': self.page.sheets[0].id, 'title': None}
+        sheet = {"sheet": self.page.sheets[0].id, "title": None}
         with self.assertRaisesRegex(Exception, "no column 'nope'"):
-            self.ask('joinCube', {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'customer_id'}]}}, **sheet)
+            self.ask(
+                "joinCube",
+                {**self.HOW, "on": {"rows": [{"left": "nope", "op": "==", "right": "customer_id"}]}},
+                **sheet,
+            )
         with self.assertRaisesRegex(Exception, "a join's form is one of"):
-            self.ask('joinCube', {'form': 'cross'}, **sheet)
+            self.ask("joinCube", {"form": "cross"}, **sheet)
         # a grid the page does not hold, or a chart: refused in DataCube's words
         with self.assertRaisesRegex(Exception, "'grid-9' is not a tile of the page"):
-            json.loads(self.headless.call('joinCube', json.dumps({**self.spec, 'theirs': 'grid-9', 'page': json.loads(self.page.to_json()),
-                                                                  'how': self.HOW, **sheet})))
+            json.loads(
+                self.headless.call(
+                    "joinCube",
+                    json.dumps(
+                        {
+                            **self.spec,
+                            "theirs": "grid-9",
+                            "page": json.loads(self.page.to_json()),
+                            "how": self.HOW,
+                            **sheet,
+                        }
+                    ),
+                )
+            )
 
 
 # A failure at a fetch, as DuckDB raises it: a value that does not convert -- or, now and then, DuckDB's interrupt in its
 # place. DuckDB 1.5.5 answers a worker's conversion failure as an interrupt in a race of its threads (measured on the
 # pinned DuckDB, 2026-11-14, with no legend-lite code: about 1 in 20 on a cursor or in a transaction, 0 in 60 with one
 # thread), and aborts the transaction either way (100 of 100), so the read ends there, named by what DuckDB raised.
-_FETCH_FAILED = r'Conversion|INTERRUPT Error: Interrupted!'
+_FETCH_FAILED = r"Conversion|INTERRUPT Error: Interrupted!"
 
 
 def _named(failed: BaseException) -> str:
     """The words a read's end names ``failed`` by, as a pattern: the failure DuckDB raised at the fetch."""
-    return re.escape('INTERRUPT Error: Interrupted!') if 'Conversion' not in str(failed) else 'Conversion'
+    return re.escape("INTERRUPT Error: Interrupted!") if "Conversion" not in str(failed) else "Conversion"
 
 
 class OneRead(unittest.TestCase):
@@ -1022,7 +1213,7 @@ class OneRead(unittest.TestCase):
 
     def setUp(self):
         self.frames = Frames()
-        self.frames.register('trades', TRADES)
+        self.frames.register("trades", TRADES)
         self.headless = Headless(bundle(), connection=self.frames.connection, reading=self.frames.reading_now)
         self.addCleanup(self.headless.close)
 
@@ -1030,9 +1221,19 @@ class OneRead(unittest.TestCase):
         """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64. The test
         stands in for DataCube's planner: its own question is declared answered first, as the bridge sends only what the
         session's planner answered (the orchestrator's ruling of 2026-11-12, _planned.py across_the_bridge)."""
-        self.headless._answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'raises': [], 'root': {
-            '_type': 'tdsResult', 'columns': [], 'sql': {'statement': sql, 'slots': []}}}}))
-        said = self.headless.evaluate(f'legendLiteHost.query({json.dumps(sql)})')
+        self.headless._answered.record(
+            "queryPlan",
+            "OK\n"
+            + json.dumps(
+                {
+                    "plan": {
+                        "raises": [],
+                        "root": {"_type": "tdsResult", "columns": [], "sql": {"statement": sql, "slots": []}},
+                    }
+                }
+            ),
+        )
+        said = self.headless.evaluate(f"legendLiteHost.query({json.dumps(sql)})")
         return pyarrow.ipc.open_stream(base64.b64decode(said)).read_all().to_pylist()
 
     def test_a_frame_registered_meanwhile_waits_for_no_call_which_reads_the_frames_as_they_were(self):
@@ -1042,57 +1243,63 @@ class OneRead(unittest.TestCase):
             # DataCube's call waiting on its host, mid-call: the frames are not to be held meanwhile
             asked.set()
             go.wait(20)
-            return 200, '{}'
+            return 200, "{}"
 
         def call():
             with self.frames.reading():
                 self.headless.evaluate("legendLiteHost.fetch('GET', '/api/lite/v1/ping', null)")
-                seen['rows'] = self.rows('SELECT count(*) AS n FROM trades')
+                seen["rows"] = self.rows("SELECT count(*) AS n FROM trades")
 
-        with mock.patch('legend_lite._headless.answer_fetch', slow):
+        with mock.patch("legend_lite._headless.answer_fetch", slow):
             calling = threading.Thread(target=call)
             calling.start()
             self.assertTrue(asked.wait(20))
-            registering = threading.Thread(target=self.frames.register, args=('trades', TRADES.head(2)))
+            registering = threading.Thread(target=self.frames.register, args=("trades", TRADES.head(2)))
             registering.start()
             registering.join(10)
             # before D15 the call held the frames' lock until it ended: the frame waited on it, and it on the frame
-            self.assertFalse(registering.is_alive(), 'registering a frame waited on a call into DataCube')
+            self.assertFalse(registering.is_alive(), "registering a frame waited on a call into DataCube")
             go.set()
             calling.join(20)
-        self.assertEqual(seen['rows'], [{'n': 6}], 'the call read the frame as it was when its read began')
+        self.assertEqual(seen["rows"], [{"n": 6}], "the call read the frame as it was when its read began")
         with self.frames.reading():
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 2}], 'a read after it reads it as it is')
+            self.assertEqual(
+                self.rows("SELECT count(*) AS n FROM trades"), [{"n": 2}], "a read after it reads it as it is"
+            )
 
     def test_a_read_sees_a_table_as_it_was_when_it_began_though_it_is_replaced_before_its_first_query(self):
         # DuckDB begins a transaction on a database at its first read, not at BEGIN: the read pins it as it begins, so a
         # table replaced before the read's first query (a frame read once, a copied table of the database's own) is
         # still read as it was
-        self.frames.register('streamed', pyarrow.RecordBatchReader.from_batches(
-            pyarrow.schema([('n', pyarrow.int64())]), [pyarrow.record_batch([[1, 2, 3, 4, 5, 6]], names=['n'])]))
+        self.frames.register(
+            "streamed",
+            pyarrow.RecordBatchReader.from_batches(
+                pyarrow.schema([("n", pyarrow.int64())]), [pyarrow.record_batch([[1, 2, 3, 4, 5, 6]], names=["n"])]
+            ),
+        )
         with self.frames.reading():
-            replacing = threading.Thread(target=self.frames.register, args=('streamed', TRADES.head(2)))
+            replacing = threading.Thread(target=self.frames.register, args=("streamed", TRADES.head(2)))
             replacing.start()
             replacing.join(10)
             self.assertFalse(replacing.is_alive())
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 6}])
+            self.assertEqual(self.rows("SELECT count(*) AS n FROM streamed"), [{"n": 6}])
         with self.frames.reading():
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 2}])
+            self.assertEqual(self.rows("SELECT count(*) AS n FROM streamed"), [{"n": 2}])
 
     def test_nothing_is_written_inside_a_read_on_its_thread_and_a_page_is_shown_only_with_datacubes_site(self):
         # F39: a write the read would not see is refused in words, on the read's own thread; F40: what shows a page asks
         # for DataCube's site, refused in words where the install carries none (this lane's engine has none)
         with self.frames.reading():
-            for write in (lambda: self.frames.register('other', TRADES), lambda: self.frames.unregister('trades')):
-                with self.assertRaisesRegex(RuntimeError, 'a write inside it would not be read'):
+            for write in (lambda: self.frames.register("other", TRADES), lambda: self.frames.unregister("trades")):
+                with self.assertRaisesRegex(RuntimeError, "a write inside it would not be read"):
                     write()
-        self.assertIn('trades', self.frames)
+        self.assertIn("trades", self.frames)
         session = datacube._session
         self.assertIsNone(session.engine().site, "this lane's install carries no site")
         with self.assertRaisesRegex(ValueError, "is not a directory: DataCube's pages are not in this install"):
             session.shown_engine()
         with self.assertRaisesRegex(ValueError, "is not a directory: DataCube's pages are not in this install"):
-            ll.show(TRADES, 'not_shown', browser=False, inline=False)
+            ll.show(TRADES, "not_shown", browser=False, inline=False)
 
     def test_a_query_that_fails_as_it_runs_ends_the_read_and_the_next_call_reads_afresh(self):
         # the user's ruling of 2026-11-13, (1b): a value that does not convert aborts DuckDB's transaction, and the read
@@ -1100,60 +1307,70 @@ class OneRead(unittest.TestCase):
         # planned inside the read's run (G4) and no silent move to a newer snapshot (G7); until then (F36) the read began
         # and pinned another transaction, and its next query ran
         with self.frames.reading():
-            with self.assertRaisesRegex(Exception, 'Conversion'):
+            with self.assertRaisesRegex(Exception, "Conversion"):
                 self.rows("SELECT CAST('x' AS INTEGER) AS n")
-            with self.assertRaisesRegex(Exception, r"this read ended at the failure that aborted its transaction \(Conversion"):
-                self.rows('SELECT count(*) AS n FROM trades')
+            with self.assertRaisesRegex(
+                Exception, r"this read ended at the failure that aborted its transaction \(Conversion"
+            ):
+                self.rows("SELECT count(*) AS n FROM trades")
         with self.frames.reading():
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 6}])
+            self.assertEqual(self.rows("SELECT count(*) AS n FROM trades"), [{"n": 6}])
 
     def test_the_read_ends_by_the_failure_that_aborted_it_never_one_refused_before_it(self):
         # the C4 audit's M4, 2026-11-13: a table not there (a catalog's refusal) leaves DuckDB's transaction standing; a
         # value that does not convert after it aborts it -- and the read's later queries name THAT one, never the first
         with self.frames.reading():
-            with self.assertRaisesRegex(Exception, 'Catalog'):
-                self.rows('SELECT * FROM no_such_table')
-            with self.assertRaisesRegex(Exception, 'Conversion'):
+            with self.assertRaisesRegex(Exception, "Catalog"):
+                self.rows("SELECT * FROM no_such_table")
+            with self.assertRaisesRegex(Exception, "Conversion"):
                 self.rows("SELECT CAST('x' AS INTEGER) AS n")
             with self.assertRaises(Exception) as ended:
-                self.rows('SELECT count(*) AS n FROM trades')
-            self.assertRegex(str(ended.exception), r'this read ended at the failure that aborted its transaction \(Conversion')
-            self.assertNotRegex(str(ended.exception), r'ran \(Catalog')
+                self.rows("SELECT count(*) AS n FROM trades")
+            self.assertRegex(
+                str(ended.exception), r"this read ended at the failure that aborted its transaction \(Conversion"
+            )
+            self.assertNotRegex(str(ended.exception), r"ran \(Catalog")
 
     def test_a_refusal_after_the_abort_never_replaces_the_failure_that_ended_the_read(self):
         # the follow-up audit's G3, 2026-11-14: after a value that does not convert aborts the transaction, DuckDB still
         # raises a parse, a catalog and a binder refusal as themselves (they come before a statement runs) -- and the
         # read's end stays named by the conversion, never by the refusal that came last
         with self.frames.reading():
-            with self.assertRaisesRegex(Exception, 'Conversion'):
+            with self.assertRaisesRegex(Exception, "Conversion"):
                 self.rows("SELECT CAST('x' AS INTEGER) AS n")
-            for refused, kind in (('SELEC 1', 'Parser'), ('SELECT * FROM no_such_table', 'Catalog'),
-                                  ('SELECT no_col FROM trades', 'Binder')):
+            for refused, kind in (
+                ("SELEC 1", "Parser"),
+                ("SELECT * FROM no_such_table", "Catalog"),
+                ("SELECT no_col FROM trades", "Binder"),
+            ):
                 with self.assertRaisesRegex(Exception, kind):
                     self.rows(refused)
             with self.assertRaises(Exception) as ended:
-                self.rows('SELECT count(*) AS n FROM trades')
-            self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
+                self.rows("SELECT count(*) AS n FROM trades")
+            self.assertRegex(str(ended.exception), r"aborted its transaction \(Conversion")
 
     def test_an_invalid_input_never_replaces_the_failure_that_ended_the_read_in_either_order(self):
         # the final audit of 9af16fbe58's P7: a statement given fewer values than its `?`s is an InvalidInputException,
         # raised whether or not the read's transaction is aborted: after the abort it never replaces the failure that
         # ended the read; first, it is the failure that ends it (it aborts the transaction itself, measured)
         with self.frames.reading() as read:
-            with self.assertRaisesRegex(Exception, 'Conversion'):
+            with self.assertRaisesRegex(Exception, "Conversion"):
                 self.rows("SELECT CAST('x' AS INTEGER) AS n")
             with self.assertRaises(duckdb.InvalidInputException):
-                read.execute(PlannedSql('SELECT ? AS a'), ())
+                read.execute(PlannedSql("SELECT ? AS a"), ())
             with self.assertRaises(Exception) as ended:
-                self.rows('SELECT count(*) AS n FROM trades')
-            self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
+                self.rows("SELECT count(*) AS n FROM trades")
+            self.assertRegex(str(ended.exception), r"aborted its transaction \(Conversion")
         with self.frames.reading() as read:
             with self.assertRaises(duckdb.InvalidInputException):
-                read.execute(PlannedSql('SELECT ? AS a'), ())
+                read.execute(PlannedSql("SELECT ? AS a"), ())
             with self.assertRaises(Exception) as ended:
-                self.rows('SELECT count(*) AS n FROM trades')
-            self.assertRegex(str(ended.exception), r'aborted its transaction \(Invalid Input Error: Values were not'
-                             r' provided')
+                self.rows("SELECT count(*) AS n FROM trades")
+            self.assertRegex(
+                str(ended.exception),
+                r"aborted its transaction \(Invalid Input Error: Values were not"
+                r" provided",
+            )
 
     def test_a_file_not_there_never_replaces_the_failure_that_ended_the_read_in_either_order(self):
         # the C4 final fix round's B1, 2026-11-14: a view over a parquet file that is gone raises an IOException at bind,
@@ -1163,81 +1380,90 @@ class OneRead(unittest.TestCase):
         # small round's item 5), so a DuckDB that moved it would fail here, not pass unread
         self.assertTrue(issubclass(duckdb.HTTPException, duckdb.IOException))
         import tempfile
+
         import pyarrow.parquet as pq
+
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        for order in ('the conversion first', 'the file first'):
-            parquet = Path(folder.name) / 'gone.parquet'
-            pq.write_table(pyarrow.table({'a': [1]}), parquet)
+        for order in ("the conversion first", "the file first"):
+            parquet = Path(folder.name) / "gone.parquet"
+            pq.write_table(pyarrow.table({"a": [1]}), parquet)
             with self.frames.reading() as read:
                 read.execute(PlannedSql(f"CREATE VIEW gone AS SELECT * FROM read_parquet('{parquet.as_posix()}')"))
                 parquet.unlink()
-                if order == 'the conversion first':
-                    with self.assertRaisesRegex(Exception, 'Conversion'):
+                if order == "the conversion first":
+                    with self.assertRaisesRegex(Exception, "Conversion"):
                         self.rows("SELECT CAST('x' AS INTEGER) AS n")
                 # through DataCube's code, the failure is DuckDB's words (the JavaScript bridge carries no class)
-                with self.assertRaisesRegex(Exception, 'IO Error: No files found'):
-                    self.rows('SELECT * FROM gone')
+                with self.assertRaisesRegex(Exception, "IO Error: No files found"):
+                    self.rows("SELECT * FROM gone")
                 with self.assertRaises(Exception) as ended:
-                    self.rows('SELECT count(*) AS n FROM trades')
-                self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion' if order ==
-                                 'the conversion first' else r'aborted its transaction \(IO Error: No files found', order)
+                    self.rows("SELECT count(*) AS n FROM trades")
+                self.assertRegex(
+                    str(ended.exception),
+                    r"aborted its transaction \(Conversion"
+                    if order == "the conversion first"
+                    else r"aborted its transaction \(IO Error: No files found",
+                    order,
+                )
 
     def test_a_file_the_database_may_not_touch_never_ends_the_read_nor_names_its_end(self):
         # the C4 final fix round's B1, 2026-11-14: a PermissionException is refused before its statement runs -- it
         # leaves the transaction standing (the next statement runs, measured on the pinned DuckDB) -- and DuckDB raises
         # it as itself after an abort too: first, the read goes on and the failure that then aborts it names the end;
         # after the abort, it never replaces that failure
-        for n, order in enumerate(('the refusal first', 'the conversion first')):
+        for n, order in enumerate(("the refusal first", "the conversion first")):
             if n:
                 # the setting is the database's own, so each order reads a fresh one
                 self.setUp()
             with self.frames.reading() as read:
-                read.execute(PlannedSql('SET enable_external_access = false'))
+                read.execute(PlannedSql("SET enable_external_access = false"))
                 touch = "SELECT * FROM read_csv('no_such_folder/x.csv')"
-                if order == 'the refusal first':
-                    with self.assertRaisesRegex(Exception, 'Permission Error'):
+                if order == "the refusal first":
+                    with self.assertRaisesRegex(Exception, "Permission Error"):
                         self.rows(touch)
-                    self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': len(TRADES)}])
-                with self.assertRaisesRegex(Exception, 'Conversion'):
+                    self.assertEqual(self.rows("SELECT count(*) AS n FROM trades"), [{"n": len(TRADES)}])
+                with self.assertRaisesRegex(Exception, "Conversion"):
                     self.rows("SELECT CAST('x' AS INTEGER) AS n")
-                if order == 'the conversion first':
-                    with self.assertRaisesRegex(Exception, 'Permission Error'):
+                if order == "the conversion first":
+                    with self.assertRaisesRegex(Exception, "Permission Error"):
                         self.rows(touch)
                 with self.assertRaises(Exception) as ended:
-                    self.rows('SELECT count(*) AS n FROM trades')
-                self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion', order)
+                    self.rows("SELECT count(*) AS n FROM trades")
+                self.assertRegex(str(ended.exception), r"aborted its transaction \(Conversion", order)
 
     def test_a_failure_at_the_fetch_ends_the_read_by_its_own_words(self):
         # the follow-up audit's G3, 2026-11-14: DuckDB converts as it streams, so a value that does not convert past the
         # first rows it hands over fails at the FETCH (to_arrow_table), not at the statement -- measured at 3M rows --
         # and that failure aborts the transaction as one at the statement does: the read's later query names it
-        late = ("SELECT (CASE WHEN i < 2900000 THEN '1' ELSE 'x' END)::INTEGER AS v FROM range(3000000) t(i)")
+        late = "SELECT (CASE WHEN i < 2900000 THEN '1' ELSE 'x' END)::INTEGER AS v FROM range(3000000) t(i)"
         with self.frames.reading():
             with self.assertRaisesRegex(Exception, _FETCH_FAILED) as failed:
                 self.rows(late)
             with self.assertRaises(Exception) as ended:
-                self.rows('SELECT count(*) AS n FROM trades')
-            self.assertRegex(str(ended.exception), r'aborted its transaction \(' + _named(failed.exception))
+                self.rows("SELECT count(*) AS n FROM trades")
+            self.assertRegex(str(ended.exception), r"aborted its transaction \(" + _named(failed.exception))
 
     def test_a_plans_run_records_a_failure_at_its_fetch(self):
         # Reading.run fetches through the read too (the follow-up audit's G3, 2026-11-14): a plan whose rows fail as
         # they stream ends the read, named by that failure
         from legend_lite import compiler
-        late = ("SELECT (CASE WHEN i < 2900000 THEN '1' ELSE 'x' END)::INTEGER AS v FROM range(3000000) t(i)")
+
+        late = "SELECT (CASE WHEN i < 2900000 THEN '1' ELSE 'x' END)::INTEGER AS v FROM range(3000000) t(i)"
         with self.frames.reading() as read:
             with self.assertRaisesRegex(Exception, _FETCH_FAILED) as failed:
                 read.run(compiler.Plan(PlannedSql(late), ()))
             with self.assertRaises(duckdb.TransactionException) as ended:
-                read.execute(PlannedSql('SELECT 1'))
-            self.assertRegex(str(ended.exception), r'aborted its transaction \(' + _named(failed.exception))
+                read.execute(PlannedSql("SELECT 1"))
+            self.assertRegex(str(ended.exception), r"aborted its transaction \(" + _named(failed.exception))
 
     def test_a_failure_said_after_blank_lines_is_named_by_its_first_words(self):
         # a message led by a line break or spaces is named by its first line that says something; one that says
         # nothing, by its class (the follow-up audit's G3, 2026-11-14: its first line was read, and could be blank)
         from legend_lite.frames import Reading
 
-        for said, named in (('\n  \nthe value does not convert', 'the value does not convert'), ('  \n \n', 'Spaced')):
+        for said, named in (("\n  \nthe value does not convert", "the value does not convert"), ("  \n \n", "Spaced")):
+
             class Spaced(duckdb.ConversionException):
                 def __str__(self, said=said):
                     return said
@@ -1248,14 +1474,14 @@ class OneRead(unittest.TestCase):
 
                 def execute(self, sql, params=None):
                     self.calls += 1
-                    raise Spaced() if self.calls == 1 else duckdb.TransactionException('Current transaction is aborted')
+                    raise Spaced() if self.calls == 1 else duckdb.TransactionException("Current transaction is aborted")
 
             read = Reading(Database(Failing()), {}, {})
             with self.assertRaises(Spaced):
-                read.execute(PlannedSql('SELECT 1'))
+                read.execute(PlannedSql("SELECT 1"))
             with self.assertRaises(duckdb.TransactionException) as ended:
-                read.execute(PlannedSql('SELECT 1'))
-            self.assertIn(f'aborted its transaction ({named})', str(ended.exception))
+                read.execute(PlannedSql("SELECT 1"))
+            self.assertIn(f"aborted its transaction ({named})", str(ended.exception))
 
     def test_a_failure_with_no_words_ends_the_read_by_its_class(self):
         # an empty message is safe: the read's end is named by the failure's class (the C4 audit's M4, 2026-11-13: its
@@ -1264,7 +1490,7 @@ class OneRead(unittest.TestCase):
 
         class Silent(duckdb.ConversionException):
             def __str__(self):
-                return ''
+                return ""
 
         class Failing:
             def __init__(self):
@@ -1272,45 +1498,48 @@ class OneRead(unittest.TestCase):
 
             def execute(self, sql, params=None):
                 self.calls += 1
-                raise Silent() if self.calls == 1 else duckdb.TransactionException('Current transaction is aborted')
+                raise Silent() if self.calls == 1 else duckdb.TransactionException("Current transaction is aborted")
 
         read = Reading(Database(Failing()), {}, {})
         with self.assertRaises(Silent):
-            read.execute(PlannedSql('SELECT 1'))
-        with self.assertRaisesRegex(duckdb.TransactionException, r'aborted its transaction \(Silent\)'):
-            read.execute(PlannedSql('SELECT 1'))
+            read.execute(PlannedSql("SELECT 1"))
+        with self.assertRaisesRegex(duckdb.TransactionException, r"aborted its transaction \(Silent\)"):
+            read.execute(PlannedSql("SELECT 1"))
 
     def test_a_query_refused_before_it_runs_leaves_the_read_as_it_was(self):
         # a table not there is refused before the statement runs: DuckDB's transaction stands, and the read goes on
         with self.frames.reading():
-            with self.assertRaisesRegex(Exception, 'Catalog'):
-                self.rows('SELECT * FROM no_such_table')
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 6}])
+            with self.assertRaisesRegex(Exception, "Catalog"):
+                self.rows("SELECT * FROM no_such_table")
+            self.assertEqual(self.rows("SELECT count(*) AS n FROM trades"), [{"n": 6}])
 
     def test_what_a_call_asks_of_the_engine_is_answered_on_datacubes_thread_over_its_read(self):
         answered = []
 
         def answers(path, body, over):
             answered.append((threading.current_thread().name, path, over))
-            return 200, 'application/json', b'{}'
+            return 200, "application/json", b"{}"
 
         self.headless.answers = lambda: answers
         with self.frames.reading() as over:
             self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')")
         # before D15 it was answered on the caller's thread, which held the frames
-        self.assertEqual(answered, [('legend-lite-datacube', '/plan-and-run.json', over)])
+        self.assertEqual(answered, [("legend-lite-datacube", "/plan-and-run.json", over)])
         # a call made in no read: nothing it asks of the engine is answered, said in words
-        with self.assertRaisesRegex(Exception, 'made in no read of the frames'):
+        with self.assertRaisesRegex(Exception, "made in no read of the frames"):
             self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')")
 
     def test_a_call_made_from_datacubes_own_thread_is_refused_never_left_waiting(self):
         # F38: an answer of the engine's that called DataCube again would wait on its own caller's turn for ever
         def answers(path, body, over):
-            self.headless.evaluate('1')
-            return 200, 'application/json', b'{}'
+            self.headless.evaluate("1")
+            return 200, "application/json", b"{}"
 
         self.headless.answers = lambda: answers
-        with self.frames.reading(), self.assertRaisesRegex(Exception, "the engine's own thread cannot wait for the engine"):
+        with (
+            self.frames.reading(),
+            self.assertRaisesRegex(Exception, "the engine's own thread cannot wait for the engine"),
+        ):
             self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')", timeout=20)
 
     def test_a_library_call_on_datacubes_thread_waits_on_no_pool_thread(self):
@@ -1325,10 +1554,10 @@ class OneRead(unittest.TestCase):
             # a host answer that calls the library (a model home's fetch does), as _home.home_call calls it
             return 200, json.dumps(_pool._on_compiler_threads(lambda: threading.current_thread().name))
 
-        with mock.patch('legend_lite._headless.answer_fetch', fetched), self.frames.reading():
+        with mock.patch("legend_lite._headless.answer_fetch", fetched), self.frames.reading():
             said = self.headless.evaluate("legendLiteHost.fetch('GET', '/sdlc/api/projects', null)", timeout=20)
         # before D15 it waited for a pool thread that was waiting for it
-        self.assertEqual(json.loads(json.loads(said)['body']), 'legend-lite-datacube')
+        self.assertEqual(json.loads(json.loads(said)["body"]), "legend-lite-datacube")
         free.set()
         for f in started:
             f.result(10)
@@ -1341,50 +1570,51 @@ class OneRowsPath(unittest.TestCase):
     none (this lane's)."""
 
     def test_a_frames_grid_is_read_by_the_engines_plan_and_run_for_its_view_rows_and_export(self):
-        page = ll.Page('One rows path')
-        grid = page.grid(TRADES, name='trades_one_path', rows=['region'], measures={'notional': 'sum'})
+        page = ll.Page("One rows path")
+        grid = page.grid(TRADES, name="trades_one_path", rows=["region"], measures={"notional": "sum"})
         engine = datacube._session.engine()
         asked = []
         planned = engine._plan_and_run_over
 
         def counted(question, over):
-            asked.append(question['model'])
+            asked.append(question["model"])
             return planned(question, over)
 
-        with mock.patch.object(engine, '_plan_and_run_over', counted):
+        with mock.patch.object(engine, "_plan_and_run_over", counted):
             view = grid.view()
             after_view = len(asked)
             rows = grid.to_pandas()
             after_rows = len(asked)
-            grid.export('csv')
+            grid.export("csv")
         # before D16 a frame's grid was planned in DataCube and run on the database directly: none of these asked it
-        self.assertGreater(after_view, 0, 'its view')
-        self.assertGreater(after_rows, after_view, 'its rows')
-        self.assertGreater(len(asked), after_rows, 'its export')
-        model = datacube._session.frames['trades_one_path'].model
+        self.assertGreater(after_view, 0, "its view")
+        self.assertGreater(after_rows, after_view, "its rows")
+        self.assertGreater(len(asked), after_rows, "its export")
+        model = datacube._session.frames["trades_one_path"].model
         self.assertEqual(set(asked), {model}, "each over the frame's own model")
-        self.assertEqual(sorted(groups(view, 'notional')), ['AMER', 'APAC', 'EMEA'])
-        self.assertEqual(sorted(rows['region']), ['AMER', 'APAC', 'EMEA'], 'its rows at their finest level: by region')
+        self.assertEqual(sorted(groups(view, "notional")), ["AMER", "APAC", "EMEA"])
+        self.assertEqual(sorted(rows["region"]), ["AMER", "APAC", "EMEA"], "its rows at their finest level: by region")
 
     def test_a_read_that_began_before_a_frame_changed_says_no_change_of_it(self):
         # F30: a Python call's queries note the frames' models as they are now -- never as its read began, which would say
         # the frame changed back (and on again at a tab's next query): a page told of changes that never were
-        page = ll.Page('Noted')
-        grid = page.grid(TRADES, name='trades_noted')
+        page = ll.Page("Noted")
+        grid = page.grid(TRADES, name="trades_noted")
         engine, frames = datacube._session.engine(), datacube._session.frames
         grid.view()
         with frames.reading():
-            changing = threading.Thread(target=datacube._session.register, args=(TRADES.assign(extra=1), 'trades_noted'))
+            changing = threading.Thread(
+                target=datacube._session.register, args=(TRADES.assign(extra=1), "trades_noted")
+            )
             changing.start()
             changing.join(20)
             # as a tab's next query notes it: the frame as it is now
             engine._noted(frames.models())
-            before = engine.version('trades_noted')
+            before = engine.version("trades_noted")
             # read over the frame as the read began: refused (F28), and noting nothing stale
             with contextlib.suppress(Exception):
                 grid.view()
-            self.assertEqual(engine.version('trades_noted'), before, 'no change said of a frame that did not change')
-
+            self.assertEqual(engine.version("trades_noted"), before, "no change said of a frame that did not change")
 
 
 class V8Started(unittest.TestCase):
@@ -1394,13 +1624,19 @@ class V8Started(unittest.TestCase):
     its context: OneRead's, a notebook's, the warehouse snap's second engine). Each case runs in a process of its own,
     whose V8 nothing has started yet."""
 
-    def run_alone(self, body: str) -> 'subprocess.CompletedProcess[str]':
-        import subprocess
+    def run_alone(self, body: str) -> subprocess.CompletedProcess[str]:
         import sys
         import textwrap
+
         env = dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in sys.path if p))
-        return subprocess.run([sys.executable, '-X', 'faulthandler', '-c', textwrap.dedent(body)], env=env,
-                              capture_output=True, text=True, timeout=300)
+        return subprocess.run(
+            [sys.executable, "-X", "faulthandler", "-c", textwrap.dedent(body)],
+            check=False,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
 
     def test_v8_is_started_by_the_engine_with_no_memory_protection_keys(self):
         ran = self.run_alone("""
@@ -1417,8 +1653,10 @@ class V8Started(unittest.TestCase):
                 print(json.dumps({'seen': seen, 'two': h.evaluate('1 + 1')}))
         """)
         self.assertEqual(ran.returncode, 0, ran.stderr[-2000:])
-        self.assertEqual(json.loads(ran.stdout.strip().splitlines()[-1]),
-                         {'seen': [['--single-threaded', '--no-memory-protection-keys']], 'two': 2})
+        self.assertEqual(
+            json.loads(ran.stdout.strip().splitlines()[-1]),
+            {"seen": [["--single-threaded", "--no-memory-protection-keys"]], "two": 2},
+        )
 
     def test_v8_started_by_other_code_first_is_refused_in_words(self):
         ran = self.run_alone("""
@@ -1433,7 +1671,7 @@ class V8Started(unittest.TestCase):
         """)
         self.assertEqual(ran.returncode, 0, ran.stderr[-2000:])
         self.assertIn("refused: V8 was started in this process before DataCube's engine", ran.stdout)
-        self.assertIn('open DataCube first, or restart the Python process', ran.stdout)
+        self.assertIn("open DataCube first, or restart the Python process", ran.stdout)
 
     def test_an_engine_made_on_a_thread_started_before_another_engines_starts_its_context(self):
         # the crash's shape: the first engine starts V8 on its own thread; a thread started before then makes the second
@@ -1455,9 +1693,10 @@ class V8Started(unittest.TestCase):
             first.close(); made['second'].close()
         """)
         self.assertEqual(ran.returncode, 0, ran.stderr[-2000:])
-        self.assertEqual(ran.stdout.strip().splitlines()[-1], '2 4')
+        self.assertEqual(ran.stdout.strip().splitlines()[-1], "2 4")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
 
 
@@ -1466,7 +1705,7 @@ class ModelTexts(unittest.TestCase):
     model text's elements, the models DataCube's code held and an opened project's database by the text): a text edited
     is answered afresh, never by the text it was, and the engine's holds go with it."""
 
-    MODEL = '''
+    MODEL = """
 ###Pure
 Class m::Party
 {
@@ -1492,77 +1731,87 @@ Data m::Rows
       '%s';
   }#
 }
-'''
+"""
 
     def test_an_edited_text_gets_its_own_elements_and_holds(self):
-        a = self.MODEL % 'ID,NAME\\n1,Meridian\\n'
-        b = a.replace('  name: String[1];\n', '  name: String[1];\n  rating: Integer[0..1];\n')
+        a = self.MODEL % "ID,NAME\\n1,Meridian\\n"
+        b = a.replace("  name: String[1];\n", "  name: String[1];\n  rating: Integer[0..1];\n")
         with Headless(bundle()) as h:
+
             def ask(kind, **fields):
                 # as DataCube's code asks its planner: the host's call in V8 (calls.ts planner)
-                request = json.dumps({'id': 1, 'kind': kind, **fields})
-                return json.loads(h.evaluate(f'legendLiteHost.planner({json.dumps(request)})'))
+                request = json.dumps({"id": 1, "kind": kind, **fields})
+                return json.loads(h.evaluate(f"legendLiteHost.planner({json.dumps(request)})"))
 
             def elements(text):
-                return ask('modelElements', request=json.dumps({'model': text}))['answer']
+                return ask("modelElements", request=json.dumps({"model": text}))["answer"]
 
             first = elements(a)
             self.assertIn('"name"', first)
-            self.assertNotIn('rating', first)
+            self.assertNotIn("rating", first)
             # the edited text answered afresh, and the text it was answered as before
-            self.assertIn('rating', elements(b))
+            self.assertIn("rating", elements(b))
             self.assertEqual(elements(a), first)
             # each text held is its own model, the engine's holds one per text
-            held_a, held_b = ask('hold', model=a), ask('hold', model=b)
-            self.assertTrue(held_a['answer'].startswith('OK\n') and held_b['answer'].startswith('OK\n'))
+            held_a, held_b = ask("hold", model=a), ask("hold", model=b)
+            self.assertTrue(held_a["answer"].startswith("OK\n") and held_b["answer"].startswith("OK\n"))
             self.assertEqual(sorted(h._held), sorted([(a, None), (b, None)]))
-        self.assertEqual(h._held, {}, 'its own holds let go as it closes')
+        self.assertEqual(h._held, {}, "its own holds let go as it closes")
 
     def test_a_third_model_held_lets_the_oldest_go(self):
         # the engine's own holds are the latest _HELD_KEPT models': a third model held releases the oldest one's handle
         from legend_lite import _headless
+
         self.assertEqual(_headless._HELD_KEPT, 2)
-        texts = [self.MODEL % 'ID,NAME\\n1,Meridian\\n',
-                 self.MODEL % 'ID,NAME\\n1,Meridian\\n2,Halberd\\n',
-                 self.MODEL % 'ID,NAME\\n1,Meridian\\n2,Halberd\\n3,Kestrel\\n']
+        texts = [
+            self.MODEL % "ID,NAME\\n1,Meridian\\n",
+            self.MODEL % "ID,NAME\\n1,Meridian\\n2,Halberd\\n",
+            self.MODEL % "ID,NAME\\n1,Meridian\\n2,Halberd\\n3,Kestrel\\n",
+        ]
         with Headless(bundle()) as h:
+
             def hold(text):
-                request = json.dumps({'id': 1, 'kind': 'hold', 'model': text})
-                held = json.loads(h.evaluate(f'legendLiteHost.planner({json.dumps(request)})'))
-                self.assertTrue(held['answer'].startswith('OK\n'), held)
+                request = json.dumps({"id": 1, "kind": "hold", "model": text})
+                held = json.loads(h.evaluate(f"legendLiteHost.planner({json.dumps(request)})"))
+                self.assertTrue(held["answer"].startswith("OK\n"), held)
 
             hold(texts[0])
             hold(texts[1])
             oldest = h._held[(texts[0], None)]
-            with mock.patch.object(h, '_let_go', wraps=h._let_go) as let_go:
+            with mock.patch.object(h, "_let_go", wraps=h._let_go) as let_go:
                 hold(texts[2])
             let_go.assert_called_once_with(oldest)
             self.assertEqual(list(h._held), [(texts[1], None), (texts[2], None)])
             # the oldest held again is held afresh, and the then-oldest let go in its turn
             hold(texts[0])
             self.assertEqual(list(h._held), [(texts[2], None), (texts[0], None)])
-        self.assertEqual(h._held, {}, 'its own holds let go as it closes')
+        self.assertEqual(h._held, {}, "its own holds let go as it closes")
 
     def test_an_edited_projects_rows_are_its_own_database(self):
         from legend_lite import projects
-        a = self.MODEL % 'ID,NAME\\n1,Meridian\\n'
-        b = self.MODEL % 'ID,NAME\\n1,Meridian\\n2,Halberd\\n'
+
+        a = self.MODEL % "ID,NAME\\n1,Meridian\\n"
+        b = self.MODEL % "ID,NAME\\n1,Meridian\\n2,Halberd\\n"
         frames = Frames()
         databases = projects.ProjectDatabases(frames.connection, guard=frames.using_connection)
 
         def rows(model):
             with databases.using(model) as project:
-                return project.cursor._con.execute('SELECT count(*) FROM P.PARTY').fetchone()[0]
+                assert project is not None
+                return project.cursor._con.execute("SELECT count(*) FROM P.PARTY").fetchone()[0]
 
         # the edited text's rows, never the text it was; and the text it was still its own
         self.assertEqual((rows(a), rows(b), rows(a)), (1, 2, 1))
         with databases.using(b) as project:
+            assert project is not None
             self.assertEqual(project.held.model, b)
         self.assertEqual(len(databases.names), 2)
         # the names remembered are the latest few texts', each the whole text: one let go is only asked again
         for n in range(projects._NAMED_KEPT + 1):
-            self.assertEqual(rows(a.replace('Class m::Party', f'Class m::Other{n} {{ x: Integer[1]; }}\nClass m::Party')), 1)
+            self.assertEqual(
+                rows(a.replace("Class m::Party", f"Class m::Other{n} {{ x: Integer[1]; }}\nClass m::Party")), 1
+            )
         self.assertEqual(len(databases._named), projects._NAMED_KEPT)
         self.assertNotIn(a, databases._named)
         self.assertEqual(rows(a), 1)
-        self.assertEqual(len(databases.names), 2, 'the same rows, the same database')
+        self.assertEqual(len(databases.names), 2, "the same rows, the same database")

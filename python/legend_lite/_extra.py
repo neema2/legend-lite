@@ -9,12 +9,14 @@ from __future__ import annotations
 import importlib.util
 
 # the datacube extra's packages, by the module each is imported as (python/BUILD.bazel, the wheel's extra_requires)
-DATACUBE_MODULES = ('duckdb', 'pyarrow', 'py_mini_racer')
+DATACUBE_MODULES = ("duckdb", "pyarrow", "py_mini_racer")
 
 
 def require_datacube() -> None:
     """Nothing when the datacube extra is installed; refused, naming it, when any of its packages is missing."""
     missing = [m for m in DATACUBE_MODULES if importlib.util.find_spec(m) is None]
     if missing:
-        raise ImportError(f"DataCube needs legend-lite's datacube extra ({', '.join(missing)} not installed): "
-                          "pip install 'legend-lite[datacube]'")
+        raise ImportError(
+            f"DataCube needs legend-lite's datacube extra ({', '.join(missing)} not installed): "
+            "pip install 'legend-lite[datacube]'"
+        )

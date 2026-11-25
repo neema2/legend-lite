@@ -20,12 +20,21 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import compiler
+
 # the plan the planner answered, by the type the runners take: named here as it always was (C5-P)
 from ._planned import PlanText  # noqa: F401
-# the runners, the run side's since C5-P (2026-11-15: _runs.py): named here as they always were
-from ._runs import (HostLoad, Landed, LoadRefused, PLAN_VERSION, open_project, run_host_load,  # noqa: F401
-                    run_load, run_write)
 
+# the runners, the run side's since C5-P (2026-11-15: _runs.py): named here as they always were
+from ._runs import (
+    PLAN_VERSION,  # noqa: F401 -- read from this module by others
+    HostLoad,  # noqa: F401 -- a name this module has carried: kept for whoever imports it from here
+    Landed,  # noqa: F401 -- a name this module has carried: kept for whoever imports it from here
+    LoadRefused,  # noqa: F401 -- read from this module by others
+    open_project,
+    run_host_load,  # noqa: F401
+    run_load,  # noqa: F401 -- read from this module by others
+    run_write,  # noqa: F401 -- read from this module by others
+)
 
 
 class NotAModel(compiler.LegendError):
@@ -57,8 +66,12 @@ _NAMED_KEPT = 8
 class ProjectDatabases:
     """The project databases on one DuckDB connection (an engine's Frames'): ``using`` a model's, made the first time."""
 
-    def __init__(self, connection: Any, database_type: str = 'DuckDB',
-                 guard: Callable[[], AbstractContextManager[Any]] = nullcontext) -> None:
+    def __init__(
+        self,
+        connection: Any,
+        database_type: str = "DuckDB",
+        guard: Callable[[], AbstractContextManager[Any]] = nullcontext,
+    ) -> None:
         """``guard``: what every use of ``connection`` from another thread holds (an engine's Frames' lock): a database
         is made under it, never beside a query on the frames."""
         self._connection = connection
@@ -106,15 +119,15 @@ class ProjectDatabases:
             if surface:
                 raise NotAModel(refused.message, refused.kind, refused.where, refused.raise_) from refused
             statements = None
-        if statements is None or statements.get('load') is None:
+        if statements is None or statements.get("load") is None:
             yield None
             return
         with self._guard(), self._lock:
-            opened = self._open.get(statements['name'])
+            opened = self._open.get(statements["name"])
             if opened is None:
                 opened = self._make(model, statements)
-                self._open[statements['name']] = opened
-            self._named[model] = statements['name']
+                self._open[statements["name"]] = opened
+            self._named[model] = statements["name"]
             self._named.move_to_end(model)
             while len(self._named) > _NAMED_KEPT:
                 self._named.popitem(last=False)

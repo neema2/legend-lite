@@ -18,36 +18,41 @@ import os
 
 from python.runfiles import runfiles
 
-files = runfiles.Create()
+_runfiles = runfiles.Create()
+assert _runfiles is not None, "run under Bazel: its runfiles hold what this reads"
+files = _runfiles
 # the library, the site, DataCube's headless bundle and DuckDB's extensions, each by its runfiles path (BUILD.bazel)
-_GIVEN = ('LEGEND_LITE_LIBRARY', 'LEGEND_LITE_SITE',
-          'LEGEND_LITE_DATACUBE', 'LEGEND_LITE_DUCKDB_EXTENSIONS')
+_GIVEN = ("LEGEND_LITE_LIBRARY", "LEGEND_LITE_SITE", "LEGEND_LITE_DATACUBE", "LEGEND_LITE_DUCKDB_EXTENSIONS")
 for name in _GIVEN:
     if name not in os.environ:
         # the library and the site come by `bazel run`, which gives the binary its env (BUILD.bazel)
-        raise SystemExit('start it with `bazel run //python:repl`: it finds the library, the site, DataCube\'s own '
-                         'code and DuckDB\'s extensions through that')
+        raise SystemExit(
+            "start it with `bazel run //python:repl`: it finds the library, the site, DataCube's own "
+            "code and DuckDB's extensions through that"
+        )
     path = files.Rlocation(os.environ[name])
     if not path or not os.path.exists(path):
-        raise SystemExit(f'{name}: {os.environ[name]} is not in the runfiles')
+        raise SystemExit(f"{name}: {os.environ[name]} is not in the runfiles")
     os.environ[name] = path
 
-import pandas as pd  # noqa: E402
+import pandas as pd
 
-import legend_lite as ll  # noqa: E402
+import legend_lite as ll
 
-trades = pd.DataFrame({
-    'region': ['EMEA', 'EMEA', 'AMER', 'AMER', 'APAC', 'APAC', 'EMEA', 'AMER'],
-    'desk': ['Rates', 'FX', 'Rates', 'Credit', 'FX', 'Rates', 'Credit', 'FX'],
-    'year': [2023, 2024, 2023, 2024, 2023, 2024, 2024, 2023],
-    'notional': [100.5, 200.25, 300.75, 50.0, 75.0, 10.0, 42.0, 12.5],
-    'qty': [10, 20, 30, 5, 6, 1, 4, 7],
-})
+trades = pd.DataFrame(
+    {
+        "region": ["EMEA", "EMEA", "AMER", "AMER", "APAC", "APAC", "EMEA", "AMER"],
+        "desk": ["Rates", "FX", "Rates", "Credit", "FX", "Rates", "Credit", "FX"],
+        "year": [2023, 2024, 2023, 2024, 2023, 2024, 2024, 2023],
+        "notional": [100.5, 200.25, 300.75, 50.0, 75.0, 10.0, 42.0, 12.5],
+        "qty": [10, 20, 30, 5, 6, 1, 4, 7],
+    }
+)
 
 code.interact(
-    banner='legend-lite: `ll` and `pd` are imported, and `trades` is a sample DataFrame.\n'
-           '  cube = ll.show(trades)   -- DataCube on it, in the browser\n'
-           'At this prompt a change shows on the cube\'s next click (or cube.refresh()); Ctrl-D quits.',
-    local={'ll': ll, 'pd': pd, 'trades': trades},
-    exitmsg='',
+    banner="legend-lite: `ll` and `pd` are imported, and `trades` is a sample DataFrame.\n"
+    "  cube = ll.show(trades)   -- DataCube on it, in the browser\n"
+    "At this prompt a change shows on the cube's next click (or cube.refresh()); Ctrl-D quits.",
+    local={"ll": ll, "pd": pd, "trades": trades},
+    exitmsg="",
 )

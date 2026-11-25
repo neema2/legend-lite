@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import atexit
 import collections
+import contextlib
 import os
 import sys
 import threading
@@ -38,31 +39,31 @@ if TYPE_CHECKING:
 
 def _site() -> Path:
     """DataCube's built pages: LEGEND_LITE_SITE, else the ones shipped inside this package."""
-    explicit = os.environ.get('LEGEND_LITE_SITE')
-    return Path(explicit) if explicit else Path(__file__).with_name('_site')
+    explicit = os.environ.get("LEGEND_LITE_SITE")
+    return Path(explicit) if explicit else Path(__file__).with_name("_site")
 
 
 def _stays() -> bool:
     """Whether the process stays after its main code: ``python -i``, the interactive prompt, IPython, a notebook."""
-    if sys.flags.interactive or hasattr(sys, 'ps1'):
+    if sys.flags.interactive or hasattr(sys, "ps1"):
         return True
-    ipython = sys.modules.get('IPython')
+    ipython = sys.modules.get("IPython")
     return ipython is not None and ipython.get_ipython() is not None
 
 
 def _marimo() -> bool:
     """Whether this code runs in a marimo notebook, whose cells show their last expression. Read from what is already
     loaded: nothing is imported to ask."""
-    marimo = sys.modules.get('marimo')
-    running = getattr(marimo, 'running_in_notebook', None) if marimo is not None else None
+    marimo = sys.modules.get("marimo")
+    running = getattr(marimo, "running_in_notebook", None) if marimo is not None else None
     return running is not None and running()
 
 
 def _kernel() -> bool:
     """Whether this process is a notebook's kernel (Jupyter, VS Code, Colab: IPython's kernel), whose front end shows a
     widget under the cell. Read from what is already loaded: nothing is imported to ask."""
-    zmqshell = sys.modules.get('ipykernel.zmqshell')
-    ipython = sys.modules.get('IPython')
+    zmqshell = sys.modules.get("ipykernel.zmqshell")
+    ipython = sys.modules.get("IPython")
     if zmqshell is None or ipython is None:
         return False
     return isinstance(ipython.get_ipython(), zmqshell.ZMQInteractiveShell)
@@ -86,7 +87,7 @@ class PageTab:
         """The page's link: DataCube's page on the engine, and the engine's token (in the fragment, never sent)."""
         self._open()
         web = self._session.web()
-        return f'{web.url}/engine.html?page={self._page._key}#token={web.token}'
+        return f"{web.url}/engine.html?page={self._page._key}#token={web.token}"
 
     def close(self) -> None:
         """Stops serving the page; the tab keeps what it shows. The last tab closed stops the web server."""
@@ -103,10 +104,14 @@ class PageTab:
 
     def _open(self) -> None:
         if self._closed:
-            raise ValueError(f'the page {self.page.name!r} was closed in its tab: show it again')
+            raise ValueError(f"the page {self.page.name!r} was closed in its tab: show it again")
 
     def __repr__(self) -> str:
-        return f'<DataCube page {self.page.name!r}: {self.url}>' if not self._closed else f'<DataCube page {self.page.name!r}: closed>'
+        return (
+            f"<DataCube page {self.page.name!r}: {self.url}>"
+            if not self._closed
+            else f"<DataCube page {self.page.name!r}: closed>"
+        )
 
 
 class Cube(PageTab):
@@ -139,10 +144,10 @@ class Cube(PageTab):
 
     def _open(self) -> None:
         if self._closed:
-            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
+            raise ValueError(f"the cube {self.name!r} was closed: show the frame again")
 
     def __repr__(self) -> str:
-        return f'<DataCube {self.name!r}: {self.url}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
+        return f"<DataCube {self.name!r}: {self.url}>" if not self._closed else f"<DataCube {self.name!r}: closed>"
 
 
 class _Session:
@@ -198,8 +203,9 @@ class _Session:
                 # a page's file is read into the frames' database by DataCube's own code, headless (file.json); every
                 # query planned in this process, by Python's own compiler (a host plans in process: the program's §1.1)
                 site = _site()
-                self._engine = Engine(self.frames, site=site if site.is_dir() else None, headless=self.headless,
-                                      keeper=self.keeper)
+                self._engine = Engine(
+                    self.frames, site=site if site.is_dir() else None, headless=self.headless, keeper=self.keeper
+                )
             return self._engine
 
     def shown_engine(self) -> Engine:
@@ -207,7 +213,7 @@ class _Session:
         this install carries none, which reads grids in Python alone."""
         engine = self.engine()
         if engine.site is None:
-            raise ValueError(f'the site {_site()} is not a directory: DataCube\'s pages are not in this install')
+            raise ValueError(f"the site {_site()} is not a directory: DataCube's pages are not in this install")
         return engine
 
     def headless(self) -> Any:
@@ -220,6 +226,7 @@ class _Session:
                 self._headless = None
             if self._headless is None:
                 from ._headless import Headless, bundle
+
                 # a call made in a read of the frames (Frames.reading) queries through it (D15)
                 self._headless = Headless(bundle(), connection=self.frames.connection, reading=self.frames.reading_now)
                 # what DataCube's code asks of the engine beside it (a grid's rows where they are), answered by this
@@ -237,7 +244,7 @@ class _Session:
         (``headless``), so it takes no session lock (the call's caller may hold it, waiting)."""
         engine = self._engine
         if engine is None:
-            raise RuntimeError('this session made DataCube\'s engine without its own: no grid\'s rows can be read')
+            raise RuntimeError("this session made DataCube's engine without its own: no grid's rows can be read")
         return engine.answer_over(path, body, over)
 
     def held_copies(self) -> dict[str, dict[str, Any]]:
@@ -265,13 +272,17 @@ class _Session:
         session serves, a snapped grid's over the copy its engine holds: ``{page, held, edits, reads}``, or
         ``{problems}``. The keeper's, asked holding nothing (the session's lock first, then the frames')."""
         from . import _json
+
         headless = self.headless()
         copies = self.held_copies()
         with self.frames.reading():
-            said = _json.loads(headless.call('pageRebase', _json.dumps(page), _json.dumps(held), _json.dumps(edits),
-                                             self.frames.hosted(), copies))
-        if 'page' in said:
-            said['page'] = _json.loads(said['page'])
+            said = _json.loads(
+                headless.call(
+                    "pageRebase", _json.dumps(page), _json.dumps(held), _json.dumps(edits), self.frames.hosted(), copies
+                )
+            )
+        if "page" in said:
+            said["page"] = _json.loads(said["page"])
         return said
 
     def _page_written(self, key: str, version: int) -> None:
@@ -293,8 +304,9 @@ class _Session:
             if name is None:
                 name = self._next_name()
             # shown by a cube of its name, or read by a page shown
-            shown = name.lower() in self.cubes or any(f.lower() == name.lower()
-                                                      for view in self.pages for f in view._page._frames())
+            shown = name.lower() in self.cubes or any(
+                f.lower() == name.lower() for view in self.pages for f in view._page._frames()
+            )
             self.frames.register(name, frame)
             # an engine is made by what shows a frame (a tab, a notebook's cube, a page shown) or reads a grid (D16):
             # none yet, nothing has been served and nobody is told
@@ -317,6 +329,7 @@ class _Session:
         not snapped already). Built outside the session's lock, as any page is: a snap's copy is made on the engine's own
         threads, which ask for DataCube's code (the session's lock first, then the frames')."""
         from .page import Page
+
         with self._lock:
             shown = self.cubes.get(name.lower()) if name is not None else None
             if shown is not None and shown._closed:
@@ -356,7 +369,7 @@ class _Session:
     def _next_name(self) -> str:
         n = 1
         # a page's file's table holds its name too (the engine's file.json)
-        while (name := 'frame' if n == 1 else f'frame_{n}').lower() in self.cubes or self.frames.taken(name):
+        while (name := "frame" if n == 1 else f"frame_{n}").lower() in self.cubes or self.frames.taken(name):
             n += 1
         return name
 
@@ -434,10 +447,10 @@ class _Session:
         if self._hooked:
             return
         self._hooked = True
-        ipython = sys.modules.get('IPython')
+        ipython = sys.modules.get("IPython")
         shell = ipython.get_ipython() if ipython is not None else None
         if shell is not None:
-            shell.events.register('post_run_cell', self.after_cell)
+            shell.events.register("post_run_cell", self.after_cell)
         atexit.register(self._at_exit)
 
     def waits(self) -> bool:
@@ -458,12 +471,16 @@ class _Session:
         if not self.waits():
             # an app's link only printed (never opened here) ends with the script, as it was asked
             if open_cubes:
-                print('the script ended, and its DataCube with it (no cube was opened in a browser)', flush=True)
+                print("the script ended, and its DataCube with it (no cube was opened in a browser)", flush=True)
             return
-        names = (['DataCube'] if open_cubes else []) + [f'Legend {app.capitalize()}' for app in apps]
-        links = '\n  '.join([c.url for c in open_cubes] + [f'Legend {app.capitalize()}: {url}' for app, url in apps.items()])
-        print(f'{" and ".join(names)} {"is" if len(names) == 1 else "are"} still open at\n  {links}\npress Ctrl-C to finish',
-              flush=True)
+        names = (["DataCube"] if open_cubes else []) + [f"Legend {app.capitalize()}" for app in apps]
+        links = "\n  ".join(
+            [c.url for c in open_cubes] + [f"Legend {app.capitalize()}: {url}" for app, url in apps.items()]
+        )
+        print(
+            f"{' and '.join(names)} {'is' if len(names) == 1 else 'are'} still open at\n  {links}\npress Ctrl-C to finish",
+            flush=True,
+        )
         try:
             while True:
                 time.sleep(1)
@@ -494,8 +511,9 @@ def _current() -> _Session:
         return _session
     try:
         from marimo._runtime.context import get_context
+
         context = get_context()
-    except Exception:
+    except Exception:  # noqa: BLE001 -- marimo's own error outside a notebook, whatever its type: no context
         return _session
     key = id(context)
     with _marimo_lock:
@@ -529,6 +547,7 @@ def _let_go_gone() -> None:
     context that takes a collected one's id never finds the gone session. A call inside a run leaves the queue for the
     next: the drain is the queue's only way out, and a run plans nothing (G4)."""
     from ._runframe import current_run
+
     if current_run() is not None:
         return
     while True:
@@ -558,7 +577,7 @@ class _Unraisable:
     sys.unraisablehook, which CPython calls with an error raised in __del__ -- as it called it with an error raised in a
     weakref.finalize callback, when a gone session was let go by its finalizer."""
 
-    __slots__ = ('error',)
+    __slots__ = ("error",)
 
     def __init__(self, error: BaseException) -> None:
         self.error = error
@@ -584,24 +603,23 @@ def _release_now(key: int, session: _Session) -> None:
         if _marimo_sessions.get(key) is session:
             del _marimo_sessions[key]
     for cube in list(session.cubes.values()):
-        try:
+        # its channel may have gone with the session: the frame is still let go below
+        with contextlib.suppress(Exception):
             cube.close()
-        except Exception:
-            # its channel may have gone with the session: the frame is still let go below
-            pass
     if session._headless is not None:
         try:
             session._headless.close()
-        except Exception as e:
-            _report('DataCube code', e)
+        except Exception as e:  # noqa: BLE001 -- closing goes on: each part's failure is reported, none stops the rest
+            _report("DataCube code", e)
     try:
         session.frames.close()
-    except Exception as e:
-        _report('frames', e)
+    except Exception as e:  # noqa: BLE001 -- closing goes on: each part's failure is reported, none stops the rest
+        _report("frames", e)
 
 
-def show(frame: Any, name: str | None = None, *, browser: bool = True,
-         inline: bool | None = None, snap: bool = False) -> Cube | DataCube | PageTab | PageCube:
+def show(
+    frame: Any, name: str | None = None, *, browser: bool = True, inline: bool | None = None, snap: bool = False
+) -> Cube | DataCube | PageTab | PageCube:
     """Shows DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) and returns
     at once: under the cell in a Jupyter notebook; in a marimo notebook, as the cell's output when it is the cell's last
     expression (marimo's way); in a browser tab anywhere else (a plain script that opened one waits at its end until
@@ -614,6 +632,7 @@ def show(frame: Any, name: str | None = None, *, browser: bool = True,
     ``inline=False`` opens a tab from a notebook's kernel too (a console that shows no widget: Spyder's, qtconsole);
     under the cell needs the notebook extra (``pip install 'legend-lite[notebook]'``)."""
     from .page import Page
+
     if isinstance(frame, Page):
         if snap:
             raise ValueError("a page's grids snap one by one: grid.snap(), or page.grid(df, snap=True)")
@@ -622,6 +641,7 @@ def show(frame: Any, name: str | None = None, *, browser: bool = True,
         # a marimo notebook: the cube for the cell to show, as its last expression (marimo's way: nothing is added to
         # the cell's output, which would show it twice); the cell's next run closes it
         from .notebook import for_marimo
+
         return for_marimo(frame, name, snap)
     if inline is None:
         # a name shown again shows where it showed; a new one under the cell in a notebook's kernel, else in a tab
@@ -630,10 +650,11 @@ def show(frame: Any, name: str | None = None, *, browser: bool = True,
     if inline:
         # the notebook extra: without anywidget, the import says how to install it
         from .notebook import shown
+
         return shown(frame, name, snap)
     session = _current()
     cube = session.show(frame, name, snap)
-    print(f'DataCube: {cube.url}', flush=True)
+    print(f"DataCube: {cube.url}", flush=True)
     if browser and webbrowser.open(cube.url):
         session.opened = True
     return cube
@@ -643,13 +664,13 @@ def query(*, browser: bool = True) -> str:
     """Legend Query in a browser tab, served by this Python (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md E): its queries
     planned by this Python's planner and run on its DuckDB, its saved queries those kept beside its pages, its projects
     those in this Python's Depot. Returns the tab's link (``browser=False`` opens none)."""
-    return _app('query', browser)
+    return _app("query", browser)
 
 
 def studio(*, browser: bool = True) -> str:
     """Legend Studio in a browser tab, served by this Python (E): its projects in this Python's SDLC and Depot (the
     repository ``ll.home`` keeps), compiled and run here. Returns the tab's link (``browser=False`` opens none)."""
-    return _app('studio', browser)
+    return _app("studio", browser)
 
 
 def _app(app: str, browser: bool) -> str:
@@ -658,11 +679,11 @@ def _app(app: str, browser: bool) -> str:
     session = _current()
     with session._lock:
         web = session.web()
-        url = f'{web.url}/{app}/demo/index.html?token={web.token}'
+        url = f"{web.url}/{app}/demo/index.html?token={web.token}"
         # the web server kept for it, and a plain script's end waits for it as for a cube
         session.apps[app] = url
         session._hook()
-    print(f'Legend {app.capitalize()}: {url}', flush=True)
+    print(f"Legend {app.capitalize()}: {url}", flush=True)
     if browser and webbrowser.open(url):
         session.opened = True
     return url
@@ -673,15 +694,17 @@ def _show_page(page: Page, *, browser: bool, inline: bool | None) -> PageTab | P
     else in a browser tab; live from then on."""
     if _marimo() and inline is not False:
         from .notebook import page_for_marimo
+
         return page_for_marimo(page)
     if inline is None:
         inline = _kernel()
     if inline:
         from .notebook import shown_page
+
         return shown_page(page)
     session = page._session
     tab = session.show_page(page)
-    print(f'DataCube: {tab.url}', flush=True)
+    print(f"DataCube: {tab.url}", flush=True)
     if browser and webbrowser.open(tab.url):
         session.opened = True
     return tab

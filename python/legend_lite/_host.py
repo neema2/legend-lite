@@ -9,17 +9,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import compiler
-from . import _runs
+from . import _runs, compiler
 from ._planned import PlannedSql
 
-DUCKDB = 'DuckDB'
+DUCKDB = "DuckDB"
 
 
 def name(table: str, *, schema: str | None = None, database: str | None = None) -> dict[str, Any]:
     """A relation's name: a person's or a host's (a frame's, a copy's), quoted by the dialect."""
-    return {'name': table, **({'schema': schema} if schema is not None else {}),
-            **({'database': database} if database is not None else {})}
+    return {
+        "name": table,
+        **({"schema": schema} if schema is not None else {}),
+        **({"database": database} if database is not None else {}),
+    }
 
 
 def statements(*operations: dict[str, Any], database_type: str = DUCKDB) -> list[PlannedSql]:

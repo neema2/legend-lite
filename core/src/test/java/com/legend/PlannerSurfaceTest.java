@@ -1682,15 +1682,26 @@ class PlannerSurfaceTest {
     static List<String> pythonViolations(String plannerSource, List<String> packageSources, String headlessSource) {
         List<String> out = new ArrayList<>();
         Map<String, List<String>> rows = new TreeMap<>();
-        Matcher row = Pattern.compile("(?m)^    '(\\w+)': \\('(lite_\\w+)', lambda m: \\((.*)\\)\\),$")
+        // 2026-11-23, the Python tooling task (Ruff's formatter held on python/, //tools/format:format_test): the
+        // package's strings are double-quoted and its long literals one element a line, so the patterns here and the
+        // splices below (pyNotPlanning, pythonsSurfaceRefusesAPlantedKindAndCall) read that spelling. What each one
+        // reads, and every listing it is held to, is unchanged.
+        Matcher row = Pattern.compile("(?m)^    \"(\\w+)\": \\(\"(lite_\\w+)\", lambda m: \\((.*)\\)\\),$")
                 .matcher(plannerSource);
         while (row.find()) {
             List<String> r = new ArrayList<>(List.of(row.group(2)));
-            Matcher f = Pattern.compile("m\\['(\\w+)'\\]").matcher(row.group(3));
+            Matcher f = Pattern.compile("m\\[\"(\\w+)\"\\]").matcher(row.group(3));
             while (f.find()) {
                 r.add(f.group(1));
             }
             rows.put(row.group(1), r);
+        }
+        // 2026-11-23, the Python tooling task: Ruff's formatter wraps a row longer than its width over several lines,
+        // which the one-line pattern above does not read -- so a row opened and not read is named, never passed over
+        for (String opened : found(plannerSource, "(?m)^    \"(\\w+)\": \\(")) {
+            if (!rows.containsKey(opened)) {
+                out.add("a Python planner kind's row not written on one line: " + opened);
+            }
         }
         listedAs(out, "a Python planner kind", rows.keySet(), PY_KINDS.keySet());
         rows.forEach((kind, r) -> {
@@ -1716,7 +1727,7 @@ class PlannerSurfaceTest {
             }
         });
         listedAs(out, "a Python refused kind", found(plannerSource.substring(plannerSource.indexOf("REFUSED")),
-                "\\n    '(\\w+)': \""), PY_REFUSED);
+                "\\n    \"(\\w+)\": \""), PY_REFUSED);
         // every native name the package spells
         Set<String> names = new TreeSet<>();
         for (String text : packageSources) {
@@ -1733,7 +1744,7 @@ class PlannerSurfaceTest {
         }
         // the bridge
         String calls = pythonBody(headlessSource, headlessSource.indexOf("def _calls("));
-        listedAs(out, "a bridge call", found(calls, "'(\\w+)': self\\._\\w+"), BRIDGE_CALLS.keySet());
+        listedAs(out, "a bridge call", found(calls, "\"(\\w+)\": self\\._\\w+"), BRIDGE_CALLS.keySet());
         for (String call : BRIDGE_STATEMENTS) {
             int at = headlessSource.indexOf("async def _" + call + "(");
             String body = at < 0 ? "" : pythonBody(headlessSource, at);
@@ -2487,10 +2498,10 @@ class PlannerSurfaceTest {
 
     /** {@code _NOT_PLANNING}'s names, as _library.py writes its frozenset. */
     static Set<String> pyNotPlanning(String library) {
-        Matcher m = Pattern.compile("_NOT_PLANNING = frozenset\\(\\{([^}]*)\\}\\)", Pattern.DOTALL).matcher(library);
+        Matcher m = Pattern.compile("_NOT_PLANNING = frozenset\\(\\s*\\{([^}]*)\\}\\s*\\)", Pattern.DOTALL).matcher(library);
         assertTrue(m.find(), "_NOT_PLANNING is read");
         Set<String> out = new TreeSet<>();
-        Matcher name = Pattern.compile("'([^']*)'").matcher(m.group(1));
+        Matcher name = Pattern.compile("\"([^\"]*)\"").matcher(m.group(1));
         while (name.find()) {
             out.add(name.group(1));
         }
@@ -2507,7 +2518,8 @@ class PlannerSurfaceTest {
         expected.addAll(PY_NOT_PLANNING_EXEMPT.keySet());
         assertEquals(expected, pyNotPlanning(read(PY_LIBRARY)));
         // the check bites: a planner entry let through is named
-        String planted = read(PY_LIBRARY).replace("'lite_release_model',", "'lite_release_model', 'lite_plan_json_held',");
+        String planted = read(PY_LIBRARY).replace("\"lite_release_model\",",
+                "\"lite_release_model\", \"lite_plan_json_held\",");
         assertTrue(pyNotPlanning(planted).contains("lite_plan_json_held"), "the splice's anchor");
         assertTrue(!expected.equals(pyNotPlanning(planted)));
     }
@@ -2524,10 +2536,10 @@ class PlannerSurfaceTest {
      *  statement-carrying bridge call that skips the bridge's check. */
     @Test
     void pythonsSurfaceRefusesAPlantedKindAndCall() {
-        String planner = read(PY_PLANNER).replace("    'warm': (", "    'runSql': ('lite_run_sql', lambda m: (m['sql'],)),\n"
-                + "    'warm': (");
-        String headless = read(PY_HEADLESS).replace("'engine': self._engine}", "'engine': self._engine,"
-                + " 'run': self._run}").replace("statement = across_the_bridge(sql, \"the hosted DataCube's query\","
+        String planner = read(PY_PLANNER).replace("    \"warm\": (",
+                "    \"runSql\": (\"lite_run_sql\", lambda m: (m[\"sql\"],)),\n    \"warm\": (");
+        String headless = read(PY_HEADLESS).replace("\"engine\": self._engine,",
+                "\"engine\": self._engine, \"run\": self._run,").replace("statement = across_the_bridge(sql, \"the hosted DataCube's query\","
                 + " self._answered)", "statement = sql");
         List<String> found = pythonViolations(planner, pythonPackage(), headless);
         assertEquals(List.of("a Python planner kind no row lists: runSql (named for a statement)",

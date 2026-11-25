@@ -10,20 +10,31 @@ declarations are read by the seam (``_plans.declared``)."""
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
 
 from ._plans import Declared, Plan, PlanParamsRefused, multiplicity
-from ._types import (UnknownType, is_boolean, is_date, is_date_time, is_decimal, is_float, is_integer, is_number,
-                     is_strict_date, is_string)
+from ._types import (
+    UnknownType,
+    is_boolean,
+    is_date,
+    is_date_time,
+    is_decimal,
+    is_float,
+    is_integer,
+    is_number,
+    is_strict_date,
+    is_string,
+)
 
 # the 64-bit range an Integer takes on every host (the orchestrator's ruling (a), 2026-11-17)
-_LONG_MIN, _LONG_MAX = -(2 ** 63), 2 ** 63 - 1
+_LONG_MIN, _LONG_MAX = -(2**63), 2**63 - 1
 
-_STRICT_DATE = re.compile(r'(\d{4})-(\d{2})-(\d{2})')
-_DATE_TIME = re.compile(r'(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?Z?')
-_DECIMAL = re.compile(r'-?\d+(\.\d+)?')
+_STRICT_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+_DATE_TIME = re.compile(r"(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?Z?")
+_DECIMAL = re.compile(r"-?\d+(\.\d+)?")
 
 
 def _whole(value: Any) -> bool:
@@ -58,7 +69,7 @@ Checked = One | Many | NoValue
 
 
 class _Refused:
-    __slots__ = ('why',)
+    __slots__ = ("why",)
 
     def __init__(self, why: str) -> None:
         self.why = why
@@ -76,7 +87,7 @@ def check(declarations: list[Declared] | tuple[Declared, ...], values: dict[str,
         value = given.get(p.name)
         if value is None or (isinstance(value, list) and not value):
             if p.lower > 0:
-                missing.append(f'{p.name}:{p.typed}')
+                missing.append(f"{p.name}:{p.typed}")
             else:
                 out[p.name] = NoValue()
             continue
@@ -85,7 +96,9 @@ def check(declarations: list[Declared] | tuple[Declared, ...], values: dict[str,
             invalid.append(f"parameter '{p.name}' ({p.typed}): {problem}")
     wrong = None if not invalid else f"values their parameters do not take: [{'; '.join(invalid)}]"
     if missing:
-        raise ParametersRefused(f"no value for the parameter(s) {', '.join(missing)}" + ('' if wrong is None else f'; {wrong}'))
+        raise ParametersRefused(
+            f"no value for the parameter(s) {', '.join(missing)}" + ("" if wrong is None else f"; {wrong}")
+        )
     if wrong is not None:
         raise ParametersRefused(wrong)
     return out
@@ -94,20 +107,20 @@ def check(declarations: list[Declared] | tuple[Declared, ...], values: dict[str,
 def _checked(p: Declared, value: Any, out: dict[str, Checked]) -> str | None:
     if p.upper == 1:
         if isinstance(value, list):
-            return f'takes one value, given a list of {len(value)}'
+            return f"takes one value, given a list of {len(value)}"
         c = value_of(p, value)
         if isinstance(c, _Refused):
             return c.why
         out[p.name] = One(c)
         return None
     if not isinstance(value, list):
-        return 'takes a list, given one value'
+        return "takes a list, given one value"
     if len(value) < p.lower or (p.upper is not None and len(value) > p.upper):
-        return f'takes {multiplicity(p.lower, p.upper)} values, given {len(value)}'
+        return f"takes {multiplicity(p.lower, p.upper)} values, given {len(value)}"
     converted = []
     for v in value:
         if v is None:
-            return 'a list holds no null'
+            return "a list holds no null"
         c = value_of(p, v)
         if isinstance(c, _Refused):
             return c.why
@@ -120,52 +133,58 @@ def _shown(v: Any) -> str:
     if isinstance(v, str):
         return json.dumps(v, ensure_ascii=False)
     if isinstance(v, bool):
-        return 'true' if v else 'false'
+        return "true" if v else "false"
     return str(v)
 
 
 def _kind(v: Any) -> str:
     """A value's kind as the words name it, one spelling on every host (JSON's: string, number, boolean)."""
     if isinstance(v, bool):
-        return 'boolean'
+        return "boolean"
     if isinstance(v, (int, float)):
-        return 'number'
+        return "number"
     if isinstance(v, str):
-        return 'string'
+        return "string"
     return type(v).__name__
 
 
 def value_of(p: Declared, v: Any) -> Any:
     """``v`` (one value, not None) of ``p`` as its slot binds it, or why it is not one ``p`` takes (``_Refused``)."""
+
     def not_a(expected: str) -> _Refused:
-        return _Refused(f'given {_shown(v)} ({_kind(v)}): {expected}')
+        return _Refused(f"given {_shown(v)} ({_kind(v)}): {expected}")
 
     if p.enum_values:
-        return v if isinstance(v, str) and v in p.enum_values else _Refused(
-            f"{_shown(v)} is not a value of {p.type} [{', '.join(p.enum_values)}]")
+        return (
+            v
+            if isinstance(v, str) and v in p.enum_values
+            else _Refused(f"{_shown(v)} is not a value of {p.type} [{', '.join(p.enum_values)}]")
+        )
 
     def integer() -> Any:
         if _whole(v) and _LONG_MIN <= v <= _LONG_MAX:
             return v
-        return not_a('an Integer is a whole number within the 64-bit range')
+        return not_a("an Integer is a whole number within the 64-bit range")
 
     def floating() -> Any:
         if isinstance(v, bool) or not isinstance(v, (int, float)):
-            return not_a('a Float is a number')
+            return not_a("a Float is a number")
         f = float(v)
-        return f if f == f and f not in (float('inf'), float('-inf')) else _Refused(
-            f'{_shown(v)} is not finite: no SQL literal stands for it')
+        return f if math.isfinite(f) else _Refused(f"{_shown(v)} is not finite: no SQL literal stands for it")
 
     def decimal() -> Any:
-        return v if isinstance(v, str) and _DECIMAL.fullmatch(v) else not_a('a Decimal is its plain digits as text')
+        return v if isinstance(v, str) and _DECIMAL.fullmatch(v) else not_a("a Decimal is its plain digits as text")
 
     def strict_date() -> Any:
         d = _STRICT_DATE.fullmatch(v) if isinstance(v, str) else None
         if d is None:
             return None
         year = int(d.group(1))
-        return v if 1 <= year <= 9999 else _Refused(
-            f'{v} is outside the years 1 to 9999: no date text a database reads stands for it')
+        return (
+            v
+            if 1 <= year <= 9999
+            else _Refused(f"{v} is outside the years 1 to 9999: no date text a database reads stands for it")
+        )
 
     def date_time() -> Any:
         t = _DATE_TIME.fullmatch(v) if isinstance(v, str) else None
@@ -173,10 +192,12 @@ def value_of(p: Declared, v: Any) -> Any:
             return None
         year = int(t.group(1))
         if not 1 <= year <= 9999:
-            return _Refused(f'{v} is outside the years 1 to 9999: no date-time text a database reads stands for it')
+            return _Refused(f"{v} is outside the years 1 to 9999: no date-time text a database reads stands for it")
         # the text its cast reads, every digit to the nanosecond, as Java's runner writes it (PlanRunner.dateTimeText)
-        return (f'{t.group(1)}-{t.group(2)}-{t.group(3)} {t.group(4)}:{t.group(5)}:{t.group(6) or "00"}.'
-                f'{(t.group(7) or "").ljust(9, "0")}')
+        return (
+            f"{t.group(1)}-{t.group(2)}-{t.group(3)} {t.group(4)}:{t.group(5)}:{t.group(6) or '00'}."
+            f"{(t.group(7) or '').ljust(9, '0')}"
+        )
 
     # the declared type asked of _types, the one reader of a type (never spelled here: test_frames' TypeNamesAreReadHere)
     try:
@@ -193,16 +214,19 @@ def value_of(p: Declared, v: Any) -> Any:
                 return integer()
             return floating() if isinstance(v, float) else decimal()
         if is_boolean(p.type):
-            return v if isinstance(v, bool) else not_a('a Boolean is a boolean')
+            return v if isinstance(v, bool) else not_a("a Boolean is a boolean")
         if is_string(p.type):
-            return v if isinstance(v, str) else not_a('a String is a string')
+            return v if isinstance(v, str) else not_a("a String is a string")
         if is_strict_date(p.type):
             found = strict_date()
-            return found if found is not None else not_a('a StrictDate is its text YYYY-MM-DD')
+            return found if found is not None else not_a("a StrictDate is its text YYYY-MM-DD")
         if is_date_time(p.type):
             found = date_time()
-            return found if found is not None else not_a(
-                'a DateTime is its ISO 8601 text in UTC, YYYY-MM-DDTHH:MM[:SS[.fffffffff]]')
+            return (
+                found
+                if found is not None
+                else not_a("a DateTime is its ISO 8601 text in UTC, YYYY-MM-DDTHH:MM[:SS[.fffffffff]]")
+            )
         if is_date(p.type):
             found = strict_date()
             if found is None:
@@ -210,7 +234,7 @@ def value_of(p: Declared, v: Any) -> Any:
             return found if found is not None else not_a("a Date is a StrictDate's or a DateTime's text")
     except UnknownType:
         pass
-    return _Refused(f'a {p.type} value is not bound by a plan')
+    return _Refused(f"a {p.type} value is not bound by a plan")
 
 
 def bind(plan: Plan, values: dict[str, Any] | None = None) -> tuple[Any, ...]:
@@ -224,12 +248,14 @@ def bind(plan: Plan, values: dict[str, Any] | None = None) -> tuple[Any, ...]:
     checked = check(plan.parameters, values)
     out: list[Any] = []
     for kind, what in plan.slots:
-        if kind == 'payload':
+        if kind == "payload":
             out.append(what)
             continue
         value = checked[what]
         if isinstance(value, Many):
-            raise PlanParamsRefused(f"'{what}' binds one value, and its parameter takes a list: a list is bound by an"
-                                    " array slot, which a host running the plan's text does not bind")
+            raise PlanParamsRefused(
+                f"'{what}' binds one value, and its parameter takes a list: a list is bound by an"
+                " array slot, which a host running the plan's text does not bind"
+            )
         out.append(value.value if isinstance(value, One) else None)
     return tuple(out)

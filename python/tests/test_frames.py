@@ -6,6 +6,7 @@ import datetime
 import json
 import unittest
 from decimal import Decimal
+from typing import ClassVar, cast
 
 import pandas as pd
 import polars as pl
@@ -18,11 +19,13 @@ GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])-
 
 
 def trades():
-    return pd.DataFrame({
-        'id': [1, 2, 3, 4, 5],
-        'desk': ['FX', 'EQ', 'FX', 'RATES', 'EQ'],
-        'qty': [10.5, 20.0, 30.25, 1.0, 7.5],
-    })
+    return pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4, 5],
+            "desk": ["FX", "EQ", "FX", "RATES", "EQ"],
+            "qty": [10.5, 20.0, 30.25, 1.0, 7.5],
+        }
+    )
 
 
 def streamed(frame):
@@ -34,96 +37,100 @@ def streamed(frame):
 def by_desk(df):
     """What GROUP computes, computed by pandas."""
     kept = df[df.qty > 5]
-    return [{'desk': d, 'q': q} for d, q in kept.groupby('desk')['qty'].sum().sort_index().items()]
+    return [{"desk": d, "q": q} for d, q in kept.groupby("desk")["qty"].sum().sort_index().items()]
 
 
 class Answers(unittest.TestCase):
     def test_a_query_answers_as_pandas_computes_it(self):
         df = trades()
-        table = ll.Frames().register('trades', df)
+        table = ll.Frames().register("trades", df)
         self.assertEqual(table.execute(GROUP).to_pylist(), by_desk(df))
 
     def test_the_compiler_types_the_frame(self):
-        table = ll.Frames().register('trades', trades())
-        self.assertEqual([(c.name, c.type) for c in table.columns], [('id', 'Integer'), ('desk', 'String'), ('qty', 'Float')])
-        self.assertEqual(table.accessor, '#>{trades::DB.trades}#')
-        self.assertIn('type: DuckDB;', table.model)
+        table = ll.Frames().register("trades", trades())
+        self.assertEqual(
+            [(c.name, c.type) for c in table.columns], [("id", "Integer"), ("desk", "String"), ("qty", "Float")]
+        )
+        self.assertEqual(table.accessor, "#>{trades::DB.trades}#")
+        self.assertIn("type: DuckDB;", table.model)
 
     def test_a_frame_holds_its_model_while_registered(self):
         frames = ll.Frames()
-        table = frames.register('held_trades', pd.DataFrame({'desk': ['A', 'B'], 'qty': [1, 2]}))
+        table = frames.register("held_trades", pd.DataFrame({"desk": ["A", "B"], "qty": [1, 2]}))
         held = table.held
         self.assertIsNotNone(held)
-        self.assertEqual(table.execute('->select(~[desk])').num_rows, 2)
+        self.assertEqual(table.execute("->select(~[desk])").num_rows, 2)
         # registered again with other columns: a new model held, the one before let go
-        again = frames.register('held_trades', pd.DataFrame({'desk': ['A'], 'qty': [1], 'note': ['x']}))
-        with self.assertRaisesRegex(ValueError, 'was let go'):
-            held.plan(again._tree('->select(~[desk])'), again.runtime)
-        frames.unregister('held_trades')
-        with self.assertRaisesRegex(ValueError, 'was let go'):
-            again.held.plan(again._tree('->select(~[desk])'), again.runtime)
+        again = frames.register("held_trades", pd.DataFrame({"desk": ["A"], "qty": [1], "note": ["x"]}))
+        with self.assertRaisesRegex(ValueError, "was let go"):
+            held.plan(again._tree("->select(~[desk])"), again.runtime)
+        frames.unregister("held_trades")
+        with self.assertRaisesRegex(ValueError, "was let go"):
+            again.held.plan(again._tree("->select(~[desk])"), again.runtime)
         frames.close()
 
     def test_a_query_is_text_a_tree_or_a_step_on_the_table(self):
-        table = ll.Frames().register('trades', trades())
+        table = ll.Frames().register("trades", trades())
         step = table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist()
         text = table.execute("|#>{trades::DB.trades}#->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist()
         tree = table.execute(ll.parse("|#>{trades::DB.trades}#->filter(x|$x.desk == 'EQ')->select(~[id])")).to_pylist()
-        self.assertEqual(step, [{'id': 2}, {'id': 5}])
+        self.assertEqual(step, [{"id": 2}, {"id": 5}])
         self.assertEqual(text, step)
         self.assertEqual(tree, step)
 
     def test_pandas_polars_and_arrow_answer_alike(self):
         df = trades()
         frames = ll.Frames()
-        answers = [frames.register(name, frame).execute(GROUP).to_pylist()
-                   for name, frame in (('a', df), ('b', pl.from_pandas(df)), ('c', pa.Table.from_pandas(df)))]
+        answers = [
+            frames.register(name, frame).execute(GROUP).to_pylist()
+            for name, frame in (("a", df), ("b", pl.from_pandas(df)), ("c", pa.Table.from_pandas(df)))
+        ]
         self.assertEqual(answers, [by_desk(df)] * 3)
 
     def test_a_name_that_needs_quoting_in_sql_reads_as_written(self):
-        df = pd.DataFrame({'total pnl': [1.5, 2.5], 'select': ['a', 'b']})
-        table = ll.Frames().register('t', df)
-        self.assertEqual(table.execute("->filter(x|$x.select == 'b')").to_pylist(), [{'total pnl': 2.5, 'select': 'b'}])
+        df = pd.DataFrame({"total pnl": [1.5, 2.5], "select": ["a", "b"]})
+        table = ll.Frames().register("t", df)
+        self.assertEqual(table.execute("->filter(x|$x.select == 'b')").to_pylist(), [{"total pnl": 2.5, "select": "b"}])
 
 
 class ReadAtEachQuery(unittest.TestCase):
     def test_a_frame_is_read_as_it_is_at_each_query(self):
         df = trades()
-        table = ll.Frames().register('trades', df)
+        table = ll.Frames().register("trades", df)
         before = table.execute(GROUP).to_pylist()
-        df.loc[0, 'qty'] = 1000.0
+        df.loc[0, "qty"] = 1000.0
         self.assertNotEqual(table.execute(GROUP).to_pylist(), before)
         self.assertEqual(table.execute(GROUP).to_pylist(), by_desk(df))
 
     def test_a_stream_is_read_once_into_a_table_of_its_own(self):
         # it can be read only once: its rows copied when it is registered, and never read again
         df = trades()
-        table = ll.Frames().register('trades', streamed(df))
+        table = ll.Frames().register("trades", streamed(df))
         self.assertFalse(table.live)
         copied = by_desk(df)
-        df.loc[0, 'qty'] = 1000.0
+        df.loc[0, "qty"] = 1000.0
         self.assertEqual(table.execute(GROUP).to_pylist(), copied)
-        self.assertEqual(table.execute(GROUP).to_pylist(), copied, 'asked again, the stream is not read again')
+        self.assertEqual(table.execute(GROUP).to_pylist(), copied, "asked again, the stream is not read again")
 
     def test_a_function_making_a_stream_is_read_at_each_query(self):
-        holder = {'df': trades()}
-        table = ll.Frames().register('trades', lambda: streamed(holder['df']))
+        holder = {"df": trades()}
+        table = ll.Frames().register("trades", lambda: streamed(holder["df"]))
         self.assertTrue(table.live)
-        holder['df'] = trades().iloc[:2]
-        self.assertEqual(table.execute('->select(~[id])').to_pylist(), [{'id': 1}, {'id': 2}])
+        holder["df"] = trades().iloc[:2]
+        self.assertEqual(table.execute("->select(~[id])").to_pylist(), [{"id": 1}, {"id": 2}])
 
     def test_a_live_frame_that_gains_a_column_gets_its_model_written_again(self):
         df = trades()
-        table = ll.Frames().register('trades', df)
-        df['fee'] = [1, 2, 3, 4, 5]
-        self.assertEqual(table.execute('->select(~[id, fee])->filter(x|$x.fee > 4)').to_pylist(), [{'id': 5, 'fee': 5}])
-        self.assertEqual(table.columns[-1].name, 'fee')
+        table = ll.Frames().register("trades", df)
+        df["fee"] = [1, 2, 3, 4, 5]
+        self.assertEqual(table.execute("->select(~[id, fee])->filter(x|$x.fee > 4)").to_pylist(), [{"id": 5, "fee": 5}])
+        self.assertEqual(table.columns[-1].name, "fee")
 
     def test_a_function_frame_follows_the_frame_it_returns(self):
-        holder = {'df': trades()}
-        table = ll.Frames().register('trades', lambda: holder['df'])
-        holder['df'] = trades().iloc[:2]
-        self.assertEqual(table.execute('->select(~[id])').to_pylist(), [{'id': 1}, {'id': 2}])
+        holder = {"df": trades()}
+        table = ll.Frames().register("trades", lambda: holder["df"])
+        holder["df"] = trades().iloc[:2]
+        self.assertEqual(table.execute("->select(~[id])").to_pylist(), [{"id": 1}, {"id": 2}])
 
 
 class NamedAndAttached(unittest.TestCase):
@@ -134,7 +141,9 @@ class NamedAndAttached(unittest.TestCase):
 
     def test_the_plan_names_the_frame_never_its_bytes(self):
         from unittest import mock
+
         from legend_lite import frames as module
+
         ran = []
         real = module.run_host_load
 
@@ -143,114 +152,144 @@ class NamedAndAttached(unittest.TestCase):
             return real(plan, connection, **kw)
 
         df = trades()
-        df.loc[0, 'desk'] = 'SENTINEL_7f3a'
-        with mock.patch.object(module, 'run_host_load', recording):
-            live = ll.Frames().register('trades', df)
-            once = ll.Frames().register('streamed', streamed(df))
+        df.loc[0, "desk"] = "SENTINEL_7f3a"
+        with mock.patch.object(module, "run_host_load", recording):
+            live = ll.Frames().register("trades", df)
+            once = ll.Frames().register("streamed", streamed(df))
         self.assertEqual(len(ran), 2)
         for plan in ran:
-            self.assertNotIn('SENTINEL_7f3a', plan, 'no row of the frame is in its plan')
+            self.assertNotIn("SENTINEL_7f3a", plan, "no row of the frame is in its plan")
         # each the plan the planner answered, as its text (the re-audit's M1)
         ran = [json.loads(plan) for plan in ran]
-        attach = [s for s in ran[0]['root']['steps'] if s['_type'] == 'attach']
-        self.assertEqual(attach, [{'_type': 'attach', 'held': 'trades', 'as': '__legend_lite_trades', 'reach': 'CONNECTION'}])
-        self.assertEqual([s['_type'] for s in ran[1]['root']['steps']], ['attach', 'statement', 'statement'])
-        self.assertEqual(ran[1]['root']['steps'][0]['reach'], 'DATABASE', 'a stream read once is attached for the load alone')
-        self.assertEqual(live.execute('->filter(x|$x.id == 1)->select(~[desk])').to_pylist(), [{'desk': 'SENTINEL_7f3a'}])
-        self.assertEqual(once.execute('->filter(x|$x.id == 1)->select(~[desk])').to_pylist(), [{'desk': 'SENTINEL_7f3a'}])
+        attach = [s for s in ran[0]["root"]["steps"] if s["_type"] == "attach"]
+        self.assertEqual(
+            attach, [{"_type": "attach", "held": "trades", "as": "__legend_lite_trades", "reach": "CONNECTION"}]
+        )
+        self.assertEqual([s["_type"] for s in ran[1]["root"]["steps"]], ["attach", "statement", "statement"])
+        self.assertEqual(
+            ran[1]["root"]["steps"][0]["reach"], "DATABASE", "a stream read once is attached for the load alone"
+        )
+        self.assertEqual(
+            live.execute("->filter(x|$x.id == 1)->select(~[desk])").to_pylist(), [{"desk": "SENTINEL_7f3a"}]
+        )
+        self.assertEqual(
+            once.execute("->filter(x|$x.id == 1)->select(~[desk])").to_pylist(), [{"desk": "SENTINEL_7f3a"}]
+        )
 
     def test_a_frame_queried_twice_sees_its_change_between_the_queries_on_each_reads_cursor(self):
         df = trades()
         frames = ll.Frames()
-        frames.register('trades', df)
+        frames.register("trades", df)
         # the test's own question, no plan's: typed by name as a plan's statement (_planned.py)
-        total = PlannedSql('SELECT sum(qty) FROM main.trades')
+        total = PlannedSql("SELECT sum(qty) FROM main.trades")
         with frames.reading() as read:
             before = read.execute(total).fetchone()[0]
-        df.loc[0, 'qty'] = 1000.0
+        df.loc[0, "qty"] = 1000.0
         with frames.reading() as read:
             after = read.execute(total).fetchone()[0]
-        self.assertEqual((before, after), (69.25, 1058.75), 'each read attaches the frame by its name, as it is then')
+        self.assertEqual((before, after), (69.25, 1058.75), "each read attaches the frame by its name, as it is then")
 
     def test_a_plan_naming_a_frame_the_host_does_not_hold_is_refused_by_name(self):
         from legend_lite import compiler, projects
+
         frames = ll.Frames()
-        plan = compiler.frame_load({'databaseType': 'DuckDB', 'held': 'ghost', 'as': '__legend_lite_ghost', 'live': True,
-                                    'schema': 'main', 'relation': 'ghost'})
+        plan = compiler.frame_load(
+            {
+                "databaseType": "DuckDB",
+                "held": "ghost",
+                "as": "__legend_lite_ghost",
+                "live": True,
+                "schema": "main",
+                "relation": "ghost",
+            }
+        )
         with self.assertRaises(projects.LoadRefused) as refused:
             projects.run_host_load(plan, frames.connection, values=lambda held: None)
-        self.assertEqual(str(refused.exception), "'ghost' is not a value this host holds: nothing is attached as "
-                                                 '__legend_lite_ghost')
-        self.assertEqual(frames.connection._con.execute(
-            "SELECT count(*) FROM duckdb_views() WHERE view_name = 'ghost'").fetchone()[0], 0, 'nothing ran after it')
+        self.assertEqual(
+            str(refused.exception), "'ghost' is not a value this host holds: nothing is attached as __legend_lite_ghost"
+        )
+        self.assertEqual(
+            frames.connection._con.execute("SELECT count(*) FROM duckdb_views() WHERE view_name = 'ghost'").fetchone()[
+                0
+            ],
+            0,
+            "nothing ran after it",
+        )
         # a key that could carry the frame's rows is refused by the planner by name
-        with self.assertRaisesRegex(ll.LegendError, 'has no key rows'):
-            compiler.frame_load({'databaseType': 'DuckDB', 'held': 'f', 'as': 'x', 'live': True, 'relation': 'f',
-                                 'rows': [[1]]})
+        with self.assertRaisesRegex(ll.LegendError, "has no key rows"):
+            compiler.frame_load(
+                {"databaseType": "DuckDB", "held": "f", "as": "x", "live": True, "relation": "f", "rows": [[1]]}
+            )
 
 
 class Names(unittest.TestCase):
     def test_registering_a_name_again_replaces_its_table_a_view_or_a_streams_table(self):
         frames = ll.Frames()
-        live = frames.register('trades', trades())
-        copied = frames.register('trades', streamed(trades().iloc[:1]))
-        self.assertEqual(copied.execute('->select(~[id])').to_pylist(), [{'id': 1}])
-        again = frames.register('trades', trades())
-        self.assertEqual(len(again.execute('->select(~[id])')), 5)
+        live = frames.register("trades", trades())
+        copied = frames.register("trades", streamed(trades().iloc[:1]))
+        self.assertEqual(copied.execute("->select(~[id])").to_pylist(), [{"id": 1}])
+        again = frames.register("trades", trades())
+        self.assertEqual(len(again.execute("->select(~[id])")), 5)
         for old in (live, copied):
             with self.assertRaises(ValueError):
-                old.execute('->select(~[id])')
+                old.execute("->select(~[id])")
 
     def test_names_are_one_name_whatever_their_case_as_in_duckdb(self):
         frames = ll.Frames()
-        frames.register('Trades', trades())
-        replaced = frames.register('trades', trades().iloc[:2])
-        self.assertIs(frames['TRADES'], replaced)
-        self.assertEqual(len(replaced.execute('->select(~[id])')), 2)
+        frames.register("Trades", trades())
+        replaced = frames.register("trades", trades().iloc[:2])
+        self.assertIs(frames["TRADES"], replaced)
+        self.assertEqual(len(replaced.execute("->select(~[id])")), 2)
 
     def test_a_table_frames_did_not_make_is_never_replaced(self):
         frames = ll.Frames()
-        frames.connection._con.execute('CREATE TABLE ledger (id INTEGER)')
+        frames.connection._con.execute("CREATE TABLE ledger (id INTEGER)")
         with self.assertRaises(ValueError):
-            frames.register('Ledger', trades())
-        self.assertEqual(frames.connection._con.execute('SELECT count(*) FROM ledger').fetchone(), (0,))
+            frames.register("Ledger", trades())
+        self.assertEqual(frames.connection._con.execute("SELECT count(*) FROM ledger").fetchone(), (0,))
 
     def test_a_frame_that_cannot_be_served_leaves_its_name_free(self):
         # a column of nothing but nulls (no type a Pure column can have), a frame of no columns, a stream of none:
         # refused, and nothing of either left behind
-        for frame in (pd.DataFrame({'id': [1, 2], 'nothing': [None, None]}), pd.DataFrame(), streamed(pa.table({}))):
+        for frame in (pd.DataFrame({"id": [1, 2], "nothing": [None, None]}), pd.DataFrame(), streamed(pa.table({}))):
             frames = ll.Frames()
-            with self.assertRaises(Exception):
-                frames.register('trades', frame)
-            self.assertNotIn('trades', frames)
-            self.assertEqual(len(frames.register('trades', trades()).execute('->select(~[id])')), 5)
+            with self.assertRaises(Exception):  # noqa: B017 -- whichever error the database or the dataframe library raises: the point is that it is not swallowed
+                frames.register("trades", frame)
+            self.assertNotIn("trades", frames)
+            self.assertEqual(len(frames.register("trades", trades()).execute("->select(~[id])")), 5)
 
     def test_unregister_and_close_take_the_tables_out(self):
         frames = ll.Frames()
-        one = frames.register('one', trades())
-        frames.register('two', streamed(trades()))
-        frames.unregister('one')
+        one = frames.register("one", trades())
+        frames.register("two", streamed(trades()))
+        frames.unregister("one")
         with self.assertRaises(ValueError):
-            one.execute('->select(~[id])')
+            one.execute("->select(~[id])")
         frames.close()
-        left = frames.connection._con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name IN ('one', 'two')").fetchone()
-        views = frames.connection._con.execute("SELECT count(*) FROM duckdb_views() WHERE view_name IN ('one', 'two')").fetchone()
+        left = frames.connection._con.execute(
+            "SELECT count(*) FROM duckdb_tables() WHERE table_name IN ('one', 'two')"
+        ).fetchone()
+        views = frames.connection._con.execute(
+            "SELECT count(*) FROM duckdb_views() WHERE view_name IN ('one', 'two')"
+        ).fetchone()
         self.assertEqual((left, views), ((0,), (0,)))
 
     def test_a_pure_literal_cannot_name_a_frame(self):
         with self.assertRaises(ValueError):
-            ll.Frames().register('true', trades())
+            ll.Frames().register("true", trades())
 
     def test_a_name_is_refused_as_a_literal_only_as_pure_spells_one(self):
         # Pure's literals are `true` and `false`, as spelled: `True` is an identifier, for a page's file's table as for
         # a frame (frames.py read the file's name lowercased, and refused it)
         frames = ll.Frames()
-        table = frames.register('True', trades())
+        table = frames.register("True", trades())
         # SQL's TRUE is a keyword in any case: the frame's table is quoted where a query reads it
-        self.assertEqual(table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist(), [{'id': 2}, {'id': 5}])
-        with frames.reading_file('False') as name:
-            self.assertEqual(name, 'False')
-        with self.assertRaises(ValueError), frames.reading_file('false'):
+        self.assertEqual(
+            table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist(), [{"id": 2}, {"id": 5}]
+        )
+        with frames.reading_file("False") as name:
+            self.assertEqual(name, "False")
+        with self.assertRaises(ValueError), frames.reading_file("false"):
             pass
 
     def test_a_name_pure_takes_and_sql_reserves_reads_its_rows_a_view_or_a_table(self):
@@ -259,42 +298,49 @@ class Names(unittest.TestCase):
         for make in (trades, lambda: streamed(trades())):
             with self.subTest(stream=make is not trades):
                 frames = ll.Frames()
-                table = frames.register('order', make())
-                self.assertEqual(table.accessor, '#>{order::DB.order}#')
-                self.assertEqual(table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist(),
-                                 [{'id': 2}, {'id': 5}])
+                table = frames.register("order", make())
+                self.assertEqual(table.accessor, "#>{order::DB.order}#")
+                self.assertEqual(
+                    table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist(), [{"id": 2}, {"id": 5}]
+                )
                 frames.close()
 
 
 class Session(unittest.TestCase):
     def test_the_session_answers_in_utc_on_any_machine(self):
         frames = ll.Frames()
-        self.assertEqual(frames.connection._con.execute("SELECT current_setting('TimeZone')").fetchone(), ('UTC',))
+        self.assertEqual(frames.connection._con.execute("SELECT current_setting('TimeZone')").fetchone(), ("UTC",))
 
     def test_a_given_connection_is_set_the_same_way(self):
         import duckdb
+
         con = duckdb.connect()
         con.execute("SET TimeZone='Pacific/Kiritimati'")
         ll.Frames(con)
-        self.assertEqual(con.execute("SELECT current_setting('TimeZone')").fetchone(), ('UTC',))
+        self.assertEqual(con.execute("SELECT current_setting('TimeZone')").fetchone(), ("UTC",))
 
 
 class Conversions(unittest.TestCase):
     """A column the model declares by a conversion (the writer's own: copySelectList) holds its value exactly."""
 
     def test_an_unsigned_64_bit_integer_is_an_exact_decimal(self):
-        frame = pa.table({'u': pa.array([2 ** 64 - 1, 1], pa.uint64())})
+        frame = pa.table({"u": pa.array([2**64 - 1, 1], pa.uint64())})
         for given in (frame, streamed(frame)):
-            table = ll.Frames().register('t', given)
-            self.assertEqual([(c.name, c.type) for c in table.columns], [('u', 'Decimal')])
-            self.assertEqual(table.execute('->select(~[u])').to_pylist(), [{'u': Decimal(2 ** 64 - 1)}, {'u': Decimal(1)}])
+            table = ll.Frames().register("t", given)
+            self.assertEqual([(c.name, c.type) for c in table.columns], [("u", "Decimal")])
+            self.assertEqual(
+                table.execute("->select(~[u])").to_pylist(), [{"u": Decimal(2**64 - 1)}, {"u": Decimal(1)}]
+            )
 
     def test_a_zoned_timestamp_is_its_utc_instant(self):
-        at = pd.Timestamp('2026-10-08 09:30', tz='America/New_York')
-        for given in (pd.DataFrame({'at': [at]}), streamed(pd.DataFrame({'at': [at]}))):
-            table = ll.Frames().register('t', given)
-            self.assertEqual([(c.name, c.type) for c in table.columns], [('at', 'DateTime')])
-            self.assertEqual(table.execute('->select(~[at])').to_pylist(), [{'at': datetime.datetime(2026, 10, 8, 13, 30)}])
+        at = pd.Timestamp("2026-10-08 09:30", tz="America/New_York")
+        for given in (pd.DataFrame({"at": [at]}), streamed(pd.DataFrame({"at": [at]}))):
+            table = ll.Frames().register("t", given)
+            self.assertEqual([(c.name, c.type) for c in table.columns], [("at", "DateTime")])
+            self.assertEqual(
+                table.execute("->select(~[at])").to_pylist(),
+                [{"at": datetime.datetime(2026, 10, 8, 13, 30)}],  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
+            )
 
 
 class TypedByPlan(unittest.TestCase):
@@ -302,83 +348,121 @@ class TypedByPlan(unittest.TestCase):
     tab's executor types its own: each column the compiler's type, each value exact."""
 
     def test_each_column_carries_the_compilers_type_and_its_value_exact(self):
-        frame = pa.table({
-            'i': pa.array([1, None], pa.int32()),
-            'f': pa.array([1.5, None]),
-            'd': pa.array([Decimal('300.75'), None], pa.decimal128(10, 2)),
-            's': pa.array(['a', None]),
-            'b': pa.array([True, None]),
-            'day': pa.array([datetime.date(2024, 1, 2), None]),
-            'at': pa.array([datetime.datetime(2024, 1, 2, 3, 4, 5, 123456), None], pa.timestamp('us')),
-            'v': pa.array(['{"a": [1, 2.50]}', None], pa.json_()),
-        })
-        table = ll.Frames().register('t', frame)
-        rows = table.execute('->select()')
-        self.assertEqual({f.name: f.metadata[b'legend.type'].decode() for f in rows.schema},
-                         {'i': 'Integer', 'f': 'Float', 'd': 'Decimal', 's': 'String', 'b': 'Boolean', 'day': 'StrictDate',
-                          'at': 'DateTime', 'v': 'meta::pure::metamodel::variant::Variant'})
-        self.assertEqual(rows.schema.field('i').type, pa.int64())
+        frame = pa.table(
+            {
+                "i": pa.array([1, None], pa.int32()),
+                "f": pa.array([1.5, None]),
+                "d": pa.array([Decimal("300.75"), None], pa.decimal128(10, 2)),
+                "s": pa.array(["a", None]),
+                "b": pa.array([True, None]),
+                "day": pa.array([datetime.date(2024, 1, 2), None]),
+                "at": pa.array([datetime.datetime(2024, 1, 2, 3, 4, 5, 123456), None], pa.timestamp("us")),  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
+                "v": pa.array(['{"a": [1, 2.50]}', None], pa.json_()),
+            }
+        )
+        table = ll.Frames().register("t", frame)
+        rows = table.execute("->select()")
+        self.assertEqual(
+            {f.name: f.metadata[b"legend.type"].decode() for f in rows.schema},
+            {
+                "i": "Integer",
+                "f": "Float",
+                "d": "Decimal",
+                "s": "String",
+                "b": "Boolean",
+                "day": "StrictDate",
+                "at": "DateTime",
+                "v": "meta::pure::metamodel::variant::Variant",
+            },
+        )
+        self.assertEqual(rows.schema.field("i").type, pa.int64())
         # a Decimal exact, a DateTime as stored (UTC) to the microsecond, a Variant its JSON text
-        self.assertEqual(rows.to_pylist()[0], {
-            'i': 1, 'f': 1.5, 'd': Decimal('300.75'), 's': 'a', 'b': True, 'day': datetime.date(2024, 1, 2),
-            'at': datetime.datetime(2024, 1, 2, 3, 4, 5, 123456), 'v': '{"a": [1, 2.50]}'})
+        self.assertEqual(
+            rows.to_pylist()[0],
+            {
+                "i": 1,
+                "f": 1.5,
+                "d": Decimal("300.75"),
+                "s": "a",
+                "b": True,
+                "day": datetime.date(2024, 1, 2),
+                "at": datetime.datetime(2024, 1, 2, 3, 4, 5, 123456),  # noqa: DTZ001 -- zone-less on purpose: the value under test is a frame's own, which names no zone
+                "v": '{"a": [1, 2.50]}',
+            },
+        )
         self.assertEqual(set(rows.to_pylist()[1].values()), {None})
 
     def test_a_variant_stored_as_a_struct_is_its_json_whatever_the_shape_of_the_query(self):
         # a nested value (a STRUCT in DuckDB) is a Variant: its JSON text under a bare limit, a filter and a sort as
         # under a projection -- the planner's (47349d82a), never a dict one shape and text the other
-        frame = pa.table({'id': [1, 2], 'customer': pa.array([{'name': 'A', 'tier': 2}, None])})
-        table = ll.Frames().register('t', frame)
-        for steps in ('->limit(5)', '->filter(x|$x.id > 0)', '->sort(~id->ascending())', '->select()'):
+        frame = pa.table({"id": [1, 2], "customer": pa.array([{"name": "A", "tier": 2}, None])})
+        table = ll.Frames().register("t", frame)
+        for steps in ("->limit(5)", "->filter(x|$x.id > 0)", "->sort(~id->ascending())", "->select()"):
             with self.subTest(steps=steps):
                 rows = table.execute(steps)
-                self.assertEqual(rows.schema.field('customer').metadata[b'legend.type'],
-                                 b'meta::pure::metamodel::variant::Variant')
-                self.assertEqual(rows.to_pylist()[0]['customer'], '{"name":"A","tier":2}')
+                self.assertEqual(
+                    rows.schema.field("customer").metadata[b"legend.type"], b"meta::pure::metamodel::variant::Variant"
+                )
+                self.assertEqual(rows.to_pylist()[0]["customer"], '{"name":"A","tier":2}')
 
     def test_a_sum_of_integers_is_an_integer_and_past_64_bits_exact(self):
         # DuckDB answers a SUM of integers as an exact decimal(38, 0): an Integer, so an int64; past 64 bits, the
         # database's exact decimal, never wrapped
-        frame = pa.table({'k': ['a', 'a'], 'n': pa.array([2 ** 63 - 1, 2 ** 63 - 1]), 'm': pa.array([1, None], pa.int32())})
-        rows = ll.Frames().register('t', frame).execute('->groupBy(~[k], ~[s: x|$x.n : y|$y->sum(), t: x|$x.m : y|$y->sum()])')
-        self.assertEqual(rows.schema.field('t').type, pa.int64())
-        self.assertEqual(rows.schema.field('s').metadata[b'legend.type'], b'Integer')
-        self.assertEqual(rows.to_pylist(), [{'k': 'a', 's': 2 * (2 ** 63 - 1), 't': 1}])
+        frame = pa.table({"k": ["a", "a"], "n": pa.array([2**63 - 1, 2**63 - 1]), "m": pa.array([1, None], pa.int32())})
+        rows = (
+            ll.Frames()
+            .register("t", frame)
+            .execute("->groupBy(~[k], ~[s: x|$x.n : y|$y->sum(), t: x|$x.m : y|$y->sum()])")
+        )
+        self.assertEqual(rows.schema.field("t").type, pa.int64())
+        self.assertEqual(rows.schema.field("s").metadata[b"legend.type"], b"Integer")
+        self.assertEqual(rows.to_pylist(), [{"k": "a", "s": 2 * (2**63 - 1), "t": 1}])
 
     def test_a_column_the_plan_does_not_type_is_refused(self):
         from legend_lite.frames import typed_by_plan
-        plan = ll.Plan('SELECT 1 AS a, 2 AS b', (ll.Column('a', 'Integer', {}),))
+
+        plan = ll.Plan(cast(PlannedSql, "SELECT 1 AS a, 2 AS b"), (ll.Column("a", "Integer", {}),))
         with self.assertRaises(RuntimeError) as e:
-            typed_by_plan(pa.table({'a': [1], 'b': [2]}), plan)
+            typed_by_plan(pa.table({"a": [1], "b": [2]}), plan)
         self.assertIn("does not type the result column 'b'", str(e.exception))
 
     def test_a_precise_integer_is_an_integer(self):
         # a column named by a precise primitive (the lattice knows them: _type_facts) is the plain primitive it refines:
         # an Int or a BigInt is an Integer by legend-lite's lattice (_types, generated), so an int64, and its name kept
         from legend_lite.frames import typed_by_plan
-        plan = ll.Plan('SELECT a, b', (ll.Column('a', 'meta::pure::precisePrimitives::Int', {}),
-                                       ll.Column('b', 'meta::pure::precisePrimitives::BigInt', {})))
-        rows = typed_by_plan(pa.table({'a': pa.array([1], pa.int32()), 'b': pa.array([2], pa.int16())}), plan)
+
+        plan = ll.Plan(
+            cast(PlannedSql, "SELECT a, b"),
+            (
+                ll.Column("a", "meta::pure::precisePrimitives::Int", {}),
+                ll.Column("b", "meta::pure::precisePrimitives::BigInt", {}),
+            ),
+        )
+        rows = typed_by_plan(pa.table({"a": pa.array([1], pa.int32()), "b": pa.array([2], pa.int16())}), plan)
         self.assertEqual([f.type for f in rows.schema], [pa.int64(), pa.int64()])
-        self.assertEqual(rows.schema.field('a').metadata[b'legend.type'], b'meta::pure::precisePrimitives::Int')
+        self.assertEqual(rows.schema.field("a").metadata[b"legend.type"], b"meta::pure::precisePrimitives::Int")
 
     def test_a_column_typed_by_a_name_legend_lite_does_not_read_is_refused(self):
         # never read as a guess: a column of the wrong type converts wrongly without a word (types.ts typeFact)
         from legend_lite.frames import typed_by_plan
-        plan = ll.Plan('SELECT a', (ll.Column('a', 'my::Side', {}),))
+
+        plan = ll.Plan(cast(PlannedSql, "SELECT a"), (ll.Column("a", "my::Side", {}),))
         with self.assertRaises(RuntimeError) as e:
-            typed_by_plan(pa.table({'a': ['BUY']}), plan)
+            typed_by_plan(pa.table({"a": ["BUY"]}), plan)
         self.assertIn("the compiler typed a column 'my::Side', which legend-lite does not read", str(e.exception))
 
     def test_pandas_keeps_an_integer_and_a_boolean_with_nulls(self):
         from legend_lite.frames import to_pandas
-        frame = pa.table({'i': pa.array([1, None]), 'b': pa.array([True, None]), 'd': pa.array([Decimal('0.10'), None])})
-        out = to_pandas(ll.Frames().register('t', frame).execute('->select()'))
-        self.assertEqual((str(out['i'].dtype), str(out['b'].dtype)), ('Int64', 'boolean'))
-        self.assertEqual((out['i'][0], out['b'][0], out['d'][0]), (1, True, Decimal('0.10')))
+
+        frame = pa.table(
+            {"i": pa.array([1, None]), "b": pa.array([True, None]), "d": pa.array([Decimal("0.10"), None])}
+        )
+        out = to_pandas(ll.Frames().register("t", frame).execute("->select()"))
+        self.assertEqual((str(out["i"].dtype), str(out["b"].dtype)), ("Int64", "boolean"))
+        self.assertEqual((out["i"][0], out["b"][0], out["d"][0]), (1, True, Decimal("0.10")))
         # an integer, never 1.0 (numpy's float64 is a float)
-        self.assertNotIsInstance(out['i'][0], float)
-        self.assertTrue(pd.isna(out['i'][1]) and pd.isna(out['b'][1]))
+        self.assertNotIsInstance(out["i"][0], float)
+        self.assertTrue(pd.isna(out["i"][1]) and pd.isna(out["b"][1]))
 
 
 class ModelTypesCarried(unittest.TestCase):
@@ -389,21 +473,24 @@ class ModelTypesCarried(unittest.TestCase):
     (TypedByPlan's pin)."""
 
     def test_an_enumerations_column_is_carried_and_a_bare_unknown_name_refused(self):
-        from legend_lite._plans import Column, Plan
         from legend_lite._planned import PlannedSql
+        from legend_lite._plans import Column, Plan
         from legend_lite._reads import UntypedColumn, typed_by_plan
-        rows = pa.table({'Country': ['US', None]})
+
+        rows = pa.table({"Country": ["US", None]})
 
         def plan(type_):
-            return Plan(PlannedSql('SELECT 1'), (Column('Country', type_, {'name': 'Country', 'type': type_}),))
+            return Plan(PlannedSql("SELECT 1"), (Column("Country", type_, {"name": "Country", "type": type_}),))
 
-        typed = typed_by_plan(rows, plan('demo::types::Country'), model_types=True)
-        self.assertEqual((typed.column('Country').to_pylist(), typed.schema.field('Country').metadata[b'legend.type']),
-                         (['US', None], b'demo::types::Country'))
+        typed = typed_by_plan(rows, plan("demo::types::Country"), model_types=True)
+        self.assertEqual(
+            (typed.column("Country").to_pylist(), typed.schema.field("Country").metadata[b"legend.type"]),
+            (["US", None], b"demo::types::Country"),
+        )
         with self.assertRaisesRegex(UntypedColumn, "'Countri'"):
-            typed_by_plan(rows, plan('Countri'), model_types=True)
+            typed_by_plan(rows, plan("Countri"), model_types=True)
         with self.assertRaisesRegex(UntypedColumn, "'demo::types::Country'"):
-            typed_by_plan(rows, plan('demo::types::Country'))
+            typed_by_plan(rows, plan("demo::types::Country"))
 
 
 class TypeNamesAreReadHere(unittest.TestCase):
@@ -419,18 +506,20 @@ class TypeNamesAreReadHere(unittest.TestCase):
         import io
         import pathlib
         import tokenize
+
         import legend_lite
         from legend_lite._type_facts import TYPE_FACTS
+
         names = set(TYPE_FACTS) | {plain for plain, _ in TYPE_FACTS.values()}
         package = pathlib.Path(legend_lite.__file__).parent
-        modules = sorted(f for f in package.glob('*.py') if f.name not in ('_types.py', '_type_facts.py'))
-        self.assertIn('page.py', [f.name for f in modules], 'the scan found the package')
+        modules = sorted(f for f in package.glob("*.py") if f.name not in ("_types.py", "_type_facts.py"))
+        self.assertIn("page.py", [f.name for f in modules], "the scan found the package")
         spelled = []
         for module in modules:
-            for token in tokenize.generate_tokens(io.StringIO(module.read_text('utf-8')).readline):
+            for token in tokenize.generate_tokens(io.StringIO(module.read_text("utf-8")).readline):
                 if token.type == tokenize.STRING and ast.literal_eval(token.string) in names:
-                    spelled.append(f'{module.name}:{token.start[0]} {token.string}')
-        self.assertEqual(spelled, [], 'a type is asked of legend_lite._types, never spelled')
+                    spelled.append(f"{module.name}:{token.start[0]} {token.string}")
+        self.assertEqual(spelled, [], "a type is asked of legend_lite._types, never spelled")
 
 
 class ModelFor(unittest.TestCase):
@@ -439,38 +528,42 @@ class ModelFor(unittest.TestCase):
 
     def setUp(self):
         self.frames = ll.Frames()
-        self.table = self.frames.register('trades', trades())
+        self.table = self.frames.register("trades", trades())
 
     def project(self, n=0):
         """A page's own model over the frame's table, its Database under a package of its own."""
-        return self.table.model.replace('trades::DB', f'proj{n}::store::DB')
+        return self.table.model.replace("trades::DB", f"proj{n}::store::DB")
 
     def test_a_frames_own_and_a_page_model_over_it_are_planned(self):
         self.assertIs(self.frames.model_for(self.table.model), self.table.held)
         held = self.frames.model_for(self.project())
         self.assertIsNotNone(held)
-        self.assertIs(self.frames.model_for(self.project()), held, 'held while recent, the one model')
-        self.assertIn('FROM trades', held.plan(ll.parse('|#>{proj0::store::DB.trades}#->select(~[desk])'), self.table.runtime).sql)
+        self.assertIs(self.frames.model_for(self.project()), held, "held while recent, the one model")
+        self.assertIn(
+            "FROM trades", held.plan(ll.parse("|#>{proj0::store::DB.trades}#->select(~[desk])"), self.table.runtime).sql
+        )
 
     def test_a_table_in_another_schema_or_a_model_that_does_not_compile_is_refused(self):
         # the frame's table by name, but in a schema of another name: not the table Python serves
-        other = '###Relational\nDatabase proj::DB\n(\n  Schema other\n  (\n    Table trades\n    (\n      id BIGINT\n    )\n  )\n)\n'
+        other = "###Relational\nDatabase proj::DB\n(\n  Schema other\n  (\n    Table trades\n    (\n      id BIGINT\n    )\n  )\n)\n"
         # each reads as a model (so the refusal is the rule's, never a parse's)
-        schemas = [sch['name'] for e in ll.model_elements(other) if e.get('_type') == 'relational' for sch in e['schemas']]
-        self.assertEqual(schemas, ['other'])
+        schemas = [
+            sch["name"] for e in ll.model_elements(other) if e.get("_type") == "relational" for sch in e["schemas"]
+        ]
+        self.assertEqual(schemas, ["other"])
         self.assertIsNone(self.frames.model_for(other))
-        broken = self.project() + '\n###Pure\nClass proj0::A\n{\n  x: proj0::Nope[1];\n}\n'
+        broken = self.project() + "\n###Pure\nClass proj0::A\n{\n  x: proj0::Nope[1];\n}\n"
         self.assertTrue(ll.model_elements(broken))
         # 2026-11-15 (the C5 follow-up's held item, the orchestrator's release of the user's ruling of 2026-11-10): a
         # model of the served tables that does not compile is refused by the compiler's own words, no longer None (which
         # told the page this engine serves none of its tables)
-        with self.assertRaisesRegex(ll.LegendError, 'proj0::Nope') as refused:
+        with self.assertRaisesRegex(ll.LegendError, "proj0::Nope") as refused:
             self.frames.model_for(broken)
-        self.assertEqual(refused.exception.kind, ll.compiler.error_kind('COMPILE'))
+        self.assertEqual(refused.exception.kind, ll.compiler.error_kind("COMPILE"))
         # and one that does not parse (the C5 follow-up's check, 2026-11-15: until then None, as "no model")
         with self.assertRaises(ll.LegendError) as refused:
-            self.frames.model_for(self.project() + '\n###Pure\nClass proj0::A {')
-        self.assertEqual(refused.exception.kind, ll.compiler.error_kind('PARSE'))
+            self.frames.model_for(self.project() + "\n###Pure\nClass proj0::A {")
+        self.assertEqual(refused.exception.kind, ll.compiler.error_kind("PARSE"))
 
     def test_only_the_most_recent_are_held_each_let_go_of_as_it_is_evicted(self):
         first = self.frames.model_for(self.project(0))
@@ -479,7 +572,7 @@ class ModelFor(unittest.TestCase):
         self.assertEqual(len(self.frames._admitted), 8)
         self.assertNotIn(self.project(0), self.frames._admitted)
         with self.assertRaises(ValueError):
-            first.handle  # let go of (closed)
+            _ = first.handle  # let go of (closed)
         # asked again, held again
         self.assertIsNotNone(self.frames.model_for(self.project(0)))
 
@@ -490,57 +583,61 @@ class JsonConnection(unittest.TestCase):
     text by its digest, verified once (compiler.plan_params), and bound where Python runs the plan."""
 
     # a quote, a backslash, a line break, in an order no sort would give
-    RECORDS = [{'name': "it's"}, {'name': 'back\\slash'}, {'name': 'two\nlines'}, {'name': 'a'}]
-    QUERY = '|m::P.all()->project(~[name: p|$p.name])'
+    RECORDS: ClassVar[list] = [{"name": "it's"}, {"name": "back\\slash"}, {"name": "two\nlines"}, {"name": "a"}]
+    QUERY = "|m::P.all()->project(~[name: p|$p.name])"
 
     @staticmethod
     def model(records):
         # the payload as JSON, written into the Pure string literal of its data: URL ('\\' and "'" escaped)
-        url = ('data:application/json,' + json.dumps(records)).replace('\\', '\\\\').replace("'", "\\'")
+        url = ("data:application/json," + json.dumps(records)).replace("\\", "\\\\").replace("'", "\\'")
         return (
-            'Class m::Raw { name: String[1]; }\nClass m::P { name: String[1]; }\n###Mapping\n'
-            'Mapping m::MM ( *m::P: Pure { ~src m::Raw name: $src.name } )\n###Runtime\n'
-            'Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonModelConnection {\n'
-            f"    class: m::Raw; url: '{url}'; }} }}# ] ]; }}\n")
+            "Class m::Raw { name: String[1]; }\nClass m::P { name: String[1]; }\n###Mapping\n"
+            "Mapping m::MM ( *m::P: Pure { ~src m::Raw name: $src.name } )\n###Runtime\n"
+            "Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonModelConnection {\n"
+            f"    class: m::Raw; url: '{url}'; }} }}# ] ]; }}\n"
+        )
 
     def test_its_records_are_read_back_exactly_in_payload_order(self):
-        plan = ll.plan(self.model(self.RECORDS), ll.parse(self.QUERY), 'm::RT')
-        self.assertIn('?', plan.sql)
-        self.assertNotIn('back', plan.sql)
+        plan = ll.plan(self.model(self.RECORDS), ll.parse(self.QUERY), "m::RT")
+        self.assertIn("?", plan.sql)
+        self.assertNotIn("back", plan.sql)
         self.assertEqual([json.loads(p) for p in plan.params], [self.RECORDS])
         frames = ll.Frames()
-        self.assertEqual(frames.run(plan).column('name').to_pylist(), [r['name'] for r in self.RECORDS])
+        self.assertEqual(frames.run(plan).column("name").to_pylist(), [r["name"] for r in self.RECORDS])
         with frames.reading() as read:
-            self.assertEqual(read.run(plan).column('name').to_pylist(), [r['name'] for r in self.RECORDS])
+            self.assertEqual(read.run(plan).column("name").to_pylist(), [r["name"] for r in self.RECORDS])
         # an empty array: no record, no row
-        empty = ll.plan(self.model([]), ll.parse(self.QUERY), 'm::RT')
+        empty = ll.plan(self.model([]), ll.parse(self.QUERY), "m::RT")
         self.assertEqual(frames.run(empty).num_rows, 0)
 
     def test_a_payload_that_is_not_its_digest_or_another_slot_is_refused_by_name(self):
         from legend_lite import compiler
+
         model = self.model(self.RECORDS)
-        planned = compiler.operation('query/plan', {'model': model, 'query': ll.parse(self.QUERY), 'runtime': 'm::RT'})
-        statement = planned['plan']['root']['sql']
-        digest = next(iter(statement['content']))
-        statement['content'][digest] = statement['content'][digest].replace('back', 'BACK')
+        planned = compiler.operation("query/plan", {"model": model, "query": ll.parse(self.QUERY), "runtime": "m::RT"})
+        statement = planned["plan"]["root"]["sql"]
+        digest = next(iter(statement["content"]))
+        statement["content"][digest] = statement["content"][digest].replace("back", "BACK")
         with self.assertRaises(compiler.PlanParamsRefused) as refused:
-            compiler.plan_params(planned['plan'])
+            compiler.plan_params(planned["plan"])
         self.assertIn("the data: source's payload is not the data it was planned against", str(refused.exception))
-        statement['slots'][0]['binding'] = {'_type': 'source', 'location': 'file:///x.json'}
+        statement["slots"][0]["binding"] = {"_type": "source", "location": "file:///x.json"}
         with self.assertRaises(compiler.PlanParamsRefused) as refused:
-            compiler.plan_params(planned['plan'])
-        self.assertIn("binds a file source's path, which a host running the plan's text does not bind", str(refused.exception))
+            compiler.plan_params(planned["plan"])
+        self.assertIn(
+            "binds a file source's path, which a host running the plan's text does not bind", str(refused.exception)
+        )
 
 
 class Refusals(unittest.TestCase):
     def test_a_name_is_a_plain_identifier(self):
         with self.assertRaises(ValueError):
-            ll.Frames().register('my trades', trades())
+            ll.Frames().register("my trades", trades())
 
     def test_a_query_the_compiler_refuses_says_why(self):
-        table = ll.Frames().register('trades', trades())
+        table = ll.Frames().register("trades", trades())
         with self.assertRaises(ll.LegendError) as e:
-            table.execute('->filter(x|$x.nope == 1)')
+            table.execute("->filter(x|$x.nope == 1)")
         self.assertIn("'nope'", e.exception.message)
 
 
@@ -550,13 +647,13 @@ class ARaiseIsWorded(unittest.TestCase):
     (error.ErrorKind, generated into _type_facts.py) -- never the database's envelope or the value."""
 
     def test_a_divide_by_zero_raises_its_kinds_sentence(self):
-        table = ll.Frames().register('trades', trades())
+        table = ll.Frames().register("trades", trades())
         with self.assertRaises(Exception) as raised:
-            table.execute('->extend(~[r: x|$x.id->toOne() / ($x.id->toOne() - 1)])->select(~r)')
-        self.assertEqual(str(raised.exception), 'Division by zero')
+            table.execute("->extend(~[r: x|$x.id->toOne() / ($x.id->toOne() - 1)])->select(~r)")
+        self.assertEqual(str(raised.exception), "Division by zero")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 
 
@@ -566,33 +663,45 @@ class ParametersBoundAtRun(unittest.TestCase):
 
     def setUp(self):
         self.frames = ll.Frames()
-        self.table = self.frames.register('trades', pd.DataFrame({'desk': ['FX', 'EQ', 'FX'], 'qty': [1, 2, 3]}))
+        self.table = self.frames.register("trades", pd.DataFrame({"desk": ["FX", "EQ", "FX"], "qty": [1, 2, 3]}))
 
     def query(self, params, body):
-        return f'{{{params}|{self.table.accessor}{body}->select(~[desk, qty])->from({self.table.runtime})}}'
+        return f"{{{params}|{self.table.accessor}{body}->select(~[desk, qty])->from({self.table.runtime})}}"
 
     def test_a_parameter_is_bound_at_run_and_never_in_the_text(self):
-        plan = self.table.plan(self.query('d:String[1]', '->filter(r|$r.desk == $d)'))
-        self.assertNotIn('FX', plan.sql)
-        self.assertEqual([p.name for p in plan.parameters], ['d'])
-        self.assertEqual(self.frames.run(plan, {'d': 'FX'}).column('qty').to_pylist(), [1, 3])
-        self.assertEqual(self.frames.run(plan, {'d': 'EQ'}).column('qty').to_pylist(), [2], 'the same plan, another value')
-        self.assertEqual(self.table.execute(self.query('n:Integer[1]', '->filter(r|$r.qty > $n)'), {'n': 1})
-                         .column('qty').to_pylist(), [2, 3])
+        plan = self.table.plan(self.query("d:String[1]", "->filter(r|$r.desk == $d)"))
+        self.assertNotIn("FX", plan.sql)
+        self.assertEqual([p.name for p in plan.parameters], ["d"])
+        self.assertEqual(self.frames.run(plan, {"d": "FX"}).column("qty").to_pylist(), [1, 3])
+        self.assertEqual(
+            self.frames.run(plan, {"d": "EQ"}).column("qty").to_pylist(), [2], "the same plan, another value"
+        )
+        self.assertEqual(
+            self.table.execute(self.query("n:Integer[1]", "->filter(r|$r.qty > $n)"), {"n": 1})
+            .column("qty")
+            .to_pylist(),
+            [2, 3],
+        )
 
     def test_a_refused_value_is_lites_parameters_refusal_and_nothing_runs(self):
         from unittest import mock
+
         from legend_lite import compiler
-        plan = self.table.plan(self.query('d:String[1]', '->filter(r|$r.desk == $d)'))
+
+        plan = self.table.plan(self.query("d:String[1]", "->filter(r|$r.desk == $d)"))
         # the product's parameters kind (F's rename, §3): read from the product, here as it will read
-        with mock.patch.object(compiler, '_KINDS', {'PARSE': 'parse', 'COMPILE': 'compile', 'PARAMETERS': 'parameters'}):
+        with mock.patch.object(
+            compiler, "_KINDS", {"PARSE": "parse", "COMPILE": "compile", "PARAMETERS": "parameters"}
+        ):
             with self.assertRaises(ll.LegendError) as refused:
                 self.frames.run(plan, {})
-            self.assertEqual((refused.exception.kind, refused.exception.message),
-                             ('parameters', 'no value for the parameter(s) d:String[1]'))
+            self.assertEqual(
+                (refused.exception.kind, refused.exception.message),
+                ("parameters", "no value for the parameter(s) d:String[1]"),
+            )
             with self.assertRaises(ll.LegendError) as refused:
-                self.frames.run(plan, {'d': True})
-            self.assertIn('given true (boolean): a String is a string', refused.exception.message)
+                self.frames.run(plan, {"d": True})
+            self.assertIn("given true (boolean): a String is a string", refused.exception.message)
 
 
 class TheProductsKinds(unittest.TestCase):
@@ -602,14 +711,18 @@ class TheProductsKinds(unittest.TestCase):
 
     def test_a_model_refusal_follows_the_products_kinds_renamed(self):
         from unittest import mock
+
         from legend_lite import compiler, frames, projects
-        renamed = {'PARSE': 'unparsed', 'COMPILE': 'untyped', 'INTERNAL': 'failed'}
-        with mock.patch.object(compiler, '_KINDS', renamed):
-            self.assertTrue(compiler.refuses_the_text(ll.LegendError('no', 'untyped')))
-            self.assertFalse(compiler.refuses_the_text(ll.LegendError('no', 'compile')))
-            self.assertIsInstance(frames._refusal(ll.LegendError('no', 'unparsed')), frames.ModelRefused)
-            self.assertNotIsInstance(frames._refusal(ll.LegendError('no', 'failed')), frames.ModelRefused)
-            with mock.patch.object(compiler, 'project_data', side_effect=ll.LegendError('no model', 'untyped')):
-                with self.assertRaises(projects.NotAModel):
-                    with projects.ProjectDatabases(None).using('m', surface=True):
-                        pass
+
+        renamed = {"PARSE": "unparsed", "COMPILE": "untyped", "INTERNAL": "failed"}
+        with mock.patch.object(compiler, "_KINDS", renamed):
+            self.assertTrue(compiler.refuses_the_text(ll.LegendError("no", "untyped")))
+            self.assertFalse(compiler.refuses_the_text(ll.LegendError("no", "compile")))
+            self.assertIsInstance(frames._refusal(ll.LegendError("no", "unparsed")), frames.ModelRefused)
+            self.assertNotIsInstance(frames._refusal(ll.LegendError("no", "failed")), frames.ModelRefused)
+            with (
+                mock.patch.object(compiler, "project_data", side_effect=ll.LegendError("no model", "untyped")),
+                self.assertRaises(projects.NotAModel),
+                projects.ProjectDatabases(None).using("m", surface=True),
+            ):
+                pass

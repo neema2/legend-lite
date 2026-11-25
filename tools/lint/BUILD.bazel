@@ -1,0 +1,5 @@
+load("//tools/guards:defs.bzl", "guards_package")
+
+# PYTHON'S LINTER AND TYPE CHECKER (2026-11-23): linters.bzl holds Ruff's and ty's aspects and the test rules made of
+# them; a package holds its Python targets to them with a ruff_test and a ty_test (//python).
+guards_package()

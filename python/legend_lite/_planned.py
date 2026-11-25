@@ -23,7 +23,7 @@ import json
 import re
 from collections import OrderedDict
 from collections.abc import Container, Iterable, Sequence
-from typing import Any
+from typing import Any, ClassVar
 
 from ._raised import declare_sites, worded
 from ._runframe import current_run
@@ -59,8 +59,10 @@ def plan_from_answer(text: str) -> PlanText:
 def read_plan(plan: Any, where: str) -> dict:
     """``plan``'s JSON, if it is a plan the planner answered; else refused by name, ``where`` naming what was to run it."""
     if type(plan) is not PlanText:
-        raise NotPlanned(f"not a plan the planner answered, so not run by {where}: a {type(plan).__name__} (a host runs only"
-                         ' what the planner answered: _planned.py)')
+        raise NotPlanned(
+            f"not a plan the planner answered, so not run by {where}: a {type(plan).__name__} (a host runs only"
+            " what the planner answered: _planned.py)"
+        )
     return json.loads(plan)
 
 
@@ -85,9 +87,11 @@ def across_the_bridge(text: str, what: str, answered: Container[str]) -> Planned
     if not isinstance(text, str):
         raise NotPlanned(f"{what}: a statement is text, not {type(text).__name__}")
     if text not in answered:
-        shown = text if len(text) <= 120 else text[:117] + '...'
-        raise NotPlanned(f"{what}: not a statement this session's planner answered, so not sent: {shown!r} (a host sends "
-                         'only what a plan carries or the planner wrote: _planned.py)')
+        shown = text if len(text) <= 120 else text[:117] + "..."
+        raise NotPlanned(
+            f"{what}: not a statement this session's planner answered, so not sent: {shown!r} (a host sends "
+            "only what a plan carries or the planner wrote: _planned.py)"
+        )
     return PlannedSql(text)
 
 
@@ -112,16 +116,30 @@ class Answered:
     CAPACITY = 4096
     KEYED_CAPACITY = 256
     # an answer whose statements DataCube's code hands the database, by the request's kind
-    PLANS = frozenset({'fileLoad', 'remoteMount', 'snapStream', 'snapCopy', 'outputPlan', 'synthesize'})
+    PLANS = frozenset({"fileLoad", "remoteMount", "snapStream", "snapCopy", "outputPlan", "synthesize"})
     # lite's query/plan, over a model given and over one held: its plan is ``{"plan": <PlanJson>}`` (lite API v1, the
     # host train, 2026-11-17)
-    QUERY_PLANS = frozenset({'queryPlan', 'queryPlanHeld'})
+    QUERY_PLANS = frozenset({"queryPlan", "queryPlanHeld"})
     # a plan's fields that hold a statement or a list of them (PlanJson's spellings)
-    _STATEMENT_FIELDS = frozenset({'statement', 'sql', 'statements', 'after', 'session', 'read', 'reset', 'prepare',
-                                   'count', 'begin', 'commit', 'rollback'})
+    _STATEMENT_FIELDS = frozenset(
+        {
+            "statement",
+            "sql",
+            "statements",
+            "after",
+            "session",
+            "read",
+            "reset",
+            "prepare",
+            "count",
+            "begin",
+            "commit",
+            "rollback",
+        }
+    )
 
     # per step kind, the fields that hold no statement of this database's (H3)
-    _NOT_HERE = {'stream': frozenset({'sql'}), 'update': frozenset({'count'})}
+    _NOT_HERE: ClassVar[dict] = {"stream": frozenset({"sql"}), "update": frozenset({"count"})}
 
     def __init__(self) -> None:
         self._texts: OrderedDict[str, None] = OrderedDict()
@@ -132,8 +150,8 @@ class Answered:
 
     def record(self, kind: str, answer: str) -> None:
         """The statements the planner's ``answer`` to a request of ``kind`` carries, kept; a refusal carries none."""
-        tag, _, payload = answer.partition('\n')
-        if tag != 'OK':
+        tag, _, payload = answer.partition("\n")
+        if tag != "OK":
             return
         self._this, self._this_keyed = set(), set()
         try:
@@ -152,41 +170,43 @@ class Answered:
         the re-audit's S3 let one carry a text this session's planner had answered) -- a source ``query``, a
         ``selectList``, a ``replacing`` expression, each refused by name here, the planner never asked (the platform
         refuses each too: HostOperationsJson)."""
-        if asked.get('kind') != 'hostOperations':
+        if asked.get("kind") != "hostOperations":
             return None
-        operations = asked.get('operations')
+        operations = asked.get("operations")
         for op in json.loads(operations) if isinstance(operations, str) else []:
-            source = op.get('from') if isinstance(op, dict) else None
-            keys = ['query'] if isinstance(source, dict) and 'query' in source else []
-            keys += [k for k in ('selectList', 'replacing') if isinstance(op, dict) and k in op]
+            source = op.get("from") if isinstance(op, dict) else None
+            keys = ["query"] if isinstance(source, dict) and "query" in source else []
+            keys += [k for k in ("selectList", "replacing") if isinstance(op, dict) and k in op]
             if keys:
-                return (f"a host operation ({op.get('op')}) takes no SQL, and its {keys[0]} is SQL: a query is planned from"
-                        ' its pull, a copy\'s conversions are the platform\'s from its columns\' catalog (convert)'
-                        ' (_planned.py Answered.refusal)')
+                return (
+                    f"a host operation ({op.get('op')}) takes no SQL, and its {keys[0]} is SQL: a query is planned from"
+                    " its pull, a copy's conversions are the platform's from its columns' catalog (convert)"
+                    " (_planned.py Answered.refusal)"
+                )
         return None
 
     def _record(self, kind: str, payload: str) -> None:
-        if kind == 'catalogColumnsSql':
+        if kind == "catalogColumnsSql":
             self._add(payload)
-        elif kind == 'sessionSetup':
+        elif kind == "sessionSetup":
             self._all(json.loads(payload))
-        elif kind == 'hostOperations':
+        elif kind == "hostOperations":
             for statements in json.loads(payload):
                 self._all(statements)
-        elif kind == 'projectData':
+        elif kind == "projectData":
             database = json.loads(payload)
-            for step in ('open', 'use', 'close'):
+            for step in ("open", "use", "close"):
                 self._all(database[step])
-            if database.get('load') is not None:
-                self._plan(database['load'])
+            if database.get("load") is not None:
+                self._plan(database["load"])
         elif kind in self.QUERY_PLANS:
-            plan = json.loads(payload)['plan']
+            plan = json.loads(payload)["plan"]
             # the raises its statement can send, worded by the planner (_raised.declare_sites; phase D's option (D))
-            declare_sites(plan, f'a {kind} answer')
+            declare_sites(plan, f"a {kind} answer")
             self._plan(plan)
         elif kind in self.PLANS:
             plan = json.loads(payload)
-            declare_sites(plan, f'a {kind} answer')
+            declare_sites(plan, f"a {kind} answer")
             self._plan(plan)
 
     def __contains__(self, text: object) -> bool:
@@ -210,14 +230,14 @@ class Answered:
 
     def _add(self, text: object) -> None:
         if not isinstance(text, str):
-            raise ValueError(f"a planner's statement is text, not {type(text).__name__}")
+            raise ValueError(f"a planner's statement is text, not {type(text).__name__}")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         self._this.add(text)
         self._texts[text] = None
         self._texts.move_to_end(text)
 
     def _all(self, texts: object) -> None:
         if not isinstance(texts, list):
-            raise ValueError(f"a planner's statements are a list, not {type(texts).__name__}")
+            raise ValueError(f"a planner's statements are a list, not {type(texts).__name__}")  # noqa: TRY004 -- ValueError is this API's one refusal of a value, its type included
         for text in texts:
             self._add(text)
 
@@ -229,21 +249,21 @@ class Answered:
             return
         if not isinstance(node, dict):
             return
-        regions = node.get('regions')
-        if isinstance(node.get('statement'), str) and regions:
-            self._this_keyed.add(node['statement'])
-            self._keyed[node['statement']] = tuple(regions)
-            self._keyed.move_to_end(node['statement'])
-        if 'steps' in node and isinstance(node.get('content'), dict):
+        regions = node.get("regions")
+        if isinstance(node.get("statement"), str) and regions:
+            self._this_keyed.add(node["statement"])
+            self._keyed[node["statement"]] = tuple(regions)
+            self._keyed.move_to_end(node["statement"])
+        if "steps" in node and isinstance(node.get("content"), dict):
             # a load's bundle: each statements blob its steps read, by digest (DataRef.Statements: a JSON list)
-            for blob in node['content'].values():
+            for blob in node["content"].values():
                 self._all(json.loads(blob))
-        not_here = self._NOT_HERE.get(node.get('_type'), frozenset())
+        not_here = self._NOT_HERE.get(node.get("_type"), frozenset())
         for key, value in node.items():
-            if key in ('tree', 'content', 'regions') or key in not_here:
+            if key in ("tree", "content", "regions") or key in not_here:
                 continue
             if key in self._STATEMENT_FIELDS and isinstance(value, str):
-                if not (key == 'statement' and regions):
+                if not (key == "statement" and regions):
                     self._add(value)
             elif key in self._STATEMENT_FIELDS and isinstance(value, list) and all(isinstance(v, str) for v in value):
                 self._all(value)
@@ -272,24 +292,24 @@ def _keyed_text(body: str, regions: tuple[dict, ...], n: int) -> str | None:
     out = []
     at = 0
     for r in regions:
-        out.append(body[at:r['start']])
+        out.append(body[at : r["start"]])
         if n == 0:
-            if r.get('empty') is None:
+            if r.get("empty") is None:
                 return None
-            out.append(r['empty'])
+            out.append(r["empty"])
         else:
-            out.append(r['lead'])
+            out.append(r["lead"])
             for k in range(n):
                 if k > 0:
-                    out.append(r['separator'])
-                cursor = r['start']
-                for counter in r['counters']:
+                    out.append(r["separator"])
+                cursor = r["start"]
+                for counter in r["counters"]:
                     out.append(body[cursor:counter] + str(k))
                     cursor = counter
-                out.append(body[cursor:r['end']])
-        at = r['end']
+                out.append(body[cursor : r["end"]])
+        at = r["end"]
     out.append(body[at:])
-    return ''.join(out)
+    return "".join(out)
 
 
 def require(statement: Any, where: str) -> PlannedSql:
@@ -300,19 +320,21 @@ def require(statement: Any, where: str) -> PlannedSql:
         return statement
     shown = statement if isinstance(statement, str) else type(statement).__name__
     if isinstance(shown, str) and len(shown) > 120:
-        shown = shown[:117] + '...'
-    raise NotPlanned(f"not a plan's statement, so not sent to {where}: {shown!r} (a host sends only what a plan "
-                     'carries or the planner wrote: _planned.py)')
+        shown = shown[:117] + "..."
+    raise NotPlanned(
+        f"not a plan's statement, so not sent to {where}: {shown!r} (a host sends only what a plan "
+        "carries or the planner wrote: _planned.py)"
+    )
 
 
-_PLAIN_NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+_PLAIN_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 class Result:
     """A statement's answer as the host reads it: its rows, its Arrow table, its columns' description -- never the
     connection DuckDB answers with, which runs any text (``execute`` returns it)."""
 
-    __slots__ = ('_answer', '_statement')
+    __slots__ = ("_answer", "_statement")
 
     def __init__(self, answer: Any, statement: str) -> None:
         self._answer = answer
@@ -368,11 +390,11 @@ class Database:
     Nothing else of DuckDB's is reachable through it, so a module holds no way to send what no plan carries. Made by
     :func:`connect`, or over a connection a person handed the host (Frames(connection=...): theirs to keep)."""
 
-    __slots__ = ('_con', '_began')
+    __slots__ = ("_began", "_con")
 
     def __init__(self, connection: Any) -> None:
         if isinstance(connection, (Database, Result)):
-            raise TypeError('a Database holds a duckdb-python connection, not another wrapper')
+            raise TypeError("a Database holds a duckdb-python connection, not another wrapper")
         self._con = connection
         # whether a transaction this Database began is still open (its own begin, not yet committed or rolled back):
         # what a read's end rolls back, and nothing else (the C5 follow-up, 2026-11-15)
@@ -390,19 +412,19 @@ class Database:
     # a transaction's bounds are RUN ACTS (C5-P, 2026-11-15, the orchestrator's A3, as Java's session holds them): each
     # refused by name outside a run, as the one send is
     def begin(self) -> None:
-        _framed('a transaction begun')
+        _framed("a transaction begun")
         self._con.begin()
         self._began = True
 
     def commit(self) -> None:
-        _framed('a transaction committed')
+        _framed("a transaction committed")
         try:
             self._con.commit()
         finally:
             self._began = False
 
     def rollback(self) -> None:
-        _framed('a transaction rolled back')
+        _framed("a transaction rolled back")
         try:
             self._con.rollback()
         finally:
@@ -425,13 +447,13 @@ class Database:
             if not _PLAIN_NAME.fullmatch(name):
                 raise NotPlanned(f"a stream lands in a table named plainly (letters, digits, '_'), not {name!r}")
         # a run act, as a transaction's bounds are (C5-P's audit S3, 2026-11-15)
-        _framed('a stream landed')
-        self._con.from_arrow(reader).create(table if schema is None else f'{schema}.{table}')
+        _framed("a stream landed")
+        self._con.from_arrow(reader).create(table if schema is None else f"{schema}.{table}")
 
     def _send_planned(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:
         # the one send's own check, here too (the re-audit's M2, 2026-11-12: this, `_run` until then, sent whatever it
         # was handed, and the guard refused no call of it -- it refuses any reference to it outside this module now)
-        sql = require(sql, 'the database')
+        sql = require(sql, "the database")
         failure: BaseException | None = None
         try:
             return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql), sql)
@@ -457,8 +479,9 @@ class Unframed(RuntimeError):
 def _framed(act: str) -> None:
     """``act``, a run's act on the host's database (a transaction's bound), refused by name outside any run."""
     if current_run() is None:
-        raise Unframed(f'{act} only inside a run (_runframe.runs, in_run): a transaction\'s bounds are the run'
-                       " side's (G4)")
+        raise Unframed(
+            f"{act} only inside a run (_runframe.runs, in_run): a transaction's bounds are the run side's (G4)"
+        )
 
 
 def send(target: Database, statement: Any, params: Sequence[Any] | None = None) -> Result:
@@ -469,8 +492,10 @@ def send(target: Database, statement: Any, params: Sequence[Any] | None = None) 
     frame wrapped some sends, and 12 senders, named in the run wall, sent outside one)."""
     if not isinstance(target, Database):
         raise NotPlanned(f"the one send runs on the host's Database, not on a {type(target).__name__}")
-    sql = require(statement, 'the database')
+    sql = require(statement, "the database")
     if current_run() is None:
-        raise Unframed('a plan\'s statement is sent only inside a run (_runframe.runs, in_run): the run side sends it,'
-                       ' handed what the planner answered (G4)')
+        raise Unframed(
+            "a plan's statement is sent only inside a run (_runframe.runs, in_run): the run side sends it,"
+            " handed what the planner answered (G4)"
+        )
     return target._send_planned(sql, params)

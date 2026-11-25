@@ -13,6 +13,8 @@ def call(name: str, *args: str) -> str:
     """One of the warehouse's wire entries; its answer text (``OK\\n...`` or ``ERR\\n...``). Any other name is refused by
     name: the planner's, and the library's other services, are the planning key's."""
     if name not in SERVICE_KEY_NAMES:
-        raise ValueError(f'{name} is not the service key\'s: it carries {sorted(SERVICE_KEY_NAMES)} alone (the planning'
-                         ' key, _library.py, carries the rest)')
+        raise ValueError(
+            f"{name} is not the service key's: it carries {sorted(SERVICE_KEY_NAMES)} alone (the planning"
+            " key, _library.py, carries the rest)"
+        )
     return loaded().call(name, *args)

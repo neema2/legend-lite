@@ -336,7 +336,10 @@ describe('L8: every command kind and source kind, against who makes and reads it
   const ownPython = SOURCES.under(PY, '.py').filter((f) => !f.endsWith('/_commands.py'));
   const python = ownPython.map((f) => pythonCode(SOURCES.read(f))).join('\n');
   const exported = SOURCES.under('src/headless', '.ts').flatMap((f) => exportedFunctions(SOURCES.read(f)));
-  const asked = (name: string): boolean => python.includes(`'${name}'`);
+  // 2026-11-23, the Python tooling task (Ruff's formatter held on python/, //tools/format:format_test): Python's strings
+  // are double-quoted and a long dict's first key is on the line after its brace, so this and the Timeseries pattern
+  // below (byPython) read that spelling. What each reads, and every ledger it is held to, is unchanged.
+  const asked = (name: string): boolean => python.includes(`"${name}"`);
   /** Python's own code calls the generated builder of `kind` (`_commands.grid_add_sort(`, `_commands.page_move_sheet(`). */
   const builds = (kind: string): boolean =>
     new RegExp(`\\b_commands\\.(?:grid|page)_${kind.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}\\(`).test(python);
@@ -608,7 +611,7 @@ describe("every change of a timeseries tile, made by its viewer and by Python's 
   // the viewer's changes: each an edit (its #edit, or editTimeseries over its spec); Python's, each a change its
   // Timeseries methods tell (its _edit)
   const byViewer = new Set([...viewer.matchAll(/(?:#edit\(|editTimeseries\(this\.#spec, )\{ kind: '([a-z]+)'/g)].map((m) => m[1]!));
-  const byPython = new Set([...timeseries.matchAll(/\{'kind': '([a-z]+)'/g)].map((m) => m[1]!));
+  const byPython = new Set([...timeseries.matchAll(/\{\s*"kind": "([a-z]+)"/g)].map((m) => m[1]!));
 
   it('the change kinds are read where they are made', () => {
     assert.ok(kinds.length >= 13 && kinds.includes('plot') && kinds.includes('slots'), `TsChange's kinds: ${kinds.join(', ')}`);

@@ -479,7 +479,7 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
     "windows_amd64": "sha256-ZbMfACxwrF+BLSk7hVK5d9HA5nUtChEnF2RUyBhO0AE=",
 }.items()]
 
-# DuckDB's httpfs extension for Python's DuckDB (1.5.5, as duckdb's Python wheel is pinned: tools/python/requirements.in;
+# DuckDB's httpfs extension for Python's DuckDB (1.5.5, as duckdb's Python wheel is pinned: pyproject.toml;
 # it must match exactly), one per platform, pinned by content. Pinned 2026-10-12 on the user's ruling that day: httpfs
 # hermetic in the build (never downloaded where legend-lite runs, CI reading remote files offline), and Python reading
 # only remote URL schemes. A page on Python reads a remote file through it
@@ -578,8 +578,9 @@ use_repo(
 
 # PYTHON (Bazel workplan P1-07; decision D12: 3.12): one hermetic interpreter, never the machine's python3
 # (binaries start from a bash stub: .bazelrc bootstrap_impl),
-# and one locked pip hub. The lock changes only by `bazel run //tools/python:requirements.update`, and
-# //tools/python:lock_matches_requirements checks it offline.
+# and one locked pip hub. The lock is uv's (//:uv.lock, written from //:pyproject.toml; pip-compile's
+# requirements_lock.txt until 2026-11-23): it changes only by `bazel run //:uv_lock.update`, and
+# //tools/python:lock_matches_pyproject checks it offline.
 bazel_dep(name = "rules_python", version = "2.3.4")
 
 # no implicit __init__.py: a module is a package only when it says so
@@ -618,6 +619,17 @@ pip.default(
 pip.parse(
     hub_name = "pypi",
     python_version = "3.12",
-    requirements_lock = "//tools/python:requirements_lock.txt",
+    uv_lock = "//:uv.lock",
 )
 use_repo(pip, "pypi")
+
+# uv itself, for //:uv_lock alone (a build never runs it: the hub reads the lock's text): the release that wrote
+# the lock
+uv = use_extension("@rules_python//python/uv:uv.bzl", "uv", dev_dependency = True)
+uv.configure(version = "0.13.6")
+
+# PYTHON'S LINTER, FORMATTER AND TYPE CHECKER (2026-11-23): Ruff and ty, each a pinned binary rules_lint brings (ruff
+# 0.16.8, ty 0.0.81 at this release: they move with it), run as aspects over the Python targets (tools/lint) and as
+# `bazel run //tools/format`; their settings are //:pyproject.toml's. Not on Windows (rules_lint's actions are bash;
+# aspect-build/rules_lint#1029).
+bazel_dep(name = "aspect_rules_lint", version = "2.9.1", dev_dependency = True)

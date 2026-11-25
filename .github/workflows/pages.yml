@@ -50,7 +50,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.cache/bazel-repo/content_addressable
-          key: bazel-repo-linux=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
+          key: bazel-repo-linux=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'uv.lock', 'tools/postgres/postgres.bzl') }}
           restore-keys: |
             bazel-repo-linux=
       - name: Linux host prerequisites of the hermetic toolchain (D7)

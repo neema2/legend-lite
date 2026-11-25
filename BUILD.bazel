@@ -1,4 +1,5 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@rules_python//python/uv:lock.bzl", "lock")
 load("//tools/deps:pools.bzl", "POOLS")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/jars:defs.bzl", "java_runtime_jars")
@@ -7,6 +8,26 @@ load("//tools/jars:defs.bzl", "java_runtime_jars")
 # can read (MODULE.bazel says which pool is whose; tools/deps/pools.bzl lists them),
 # and as the home for workspace-wide targets later.
 exports_files(["MODULE.bazel", "release.MODULE.bazel"] + ["%s_install.json" % pool for pool in POOLS])
+
+# THE PYTHON DEPENDENCIES (Bazel workplan P1-07; uv's lock since 2026-11-23): pyproject.toml names them; uv.lock pins
+# every one, for every platform, with its hashes, and the pip hub reads it (MODULE.bazel). `bazel run //:uv_lock.update`
+# is the only way the lock changes: it runs uv (the network; never part of a build). The gate's check is offline,
+# //tools/python:lock_matches_pyproject.
+lock(
+    name = "uv_lock",
+    srcs = ["pyproject.toml"],
+    out = "uv.lock",
+    tags = ["manual"],
+)
+
+exports_files(
+    [
+        "pyproject.toml",
+        "uv.lock",
+    ],
+    # pyproject.toml is also Ruff's and ty's settings, read by their aspects on any Python target (tools/lint)
+    visibility = ["//visibility:public"],
+)
 
 # the project's licence, its notice (Apache-2.0; legend-pure, legend-engine and legend-studio credited) and the
 # third-party software it redistributes, shipped in its packages (//python:wheel, //site:dist, //datacube:app)

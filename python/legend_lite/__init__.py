@@ -44,35 +44,59 @@ from .compiler import (
 # Nor is home: it is the whole package's (//python:legend_lite, beside the engine that keeps its pages), not the
 # compiler's bindings'
 __all__ = [
-    'Column', 'HeldModel', 'LegendError', 'Plan', 'catalog_columns_sql', 'check', 'create_association', 'create_class',
-    'create_data_space', 'database_from_catalog', 'model_elements', 'parse', 'plan', 'plan_text', 'print_tree',
-    'relation_type', 'session_setup', 'table_model', 'ts_item', 'ts_statement',
+    "Column",
+    "HeldModel",
+    "LegendError",
+    "Plan",
+    "catalog_columns_sql",
+    "check",
+    "create_association",
+    "create_class",
+    "create_data_space",
+    "database_from_catalog",
+    "model_elements",
+    "parse",
+    "plan",
+    "plan_text",
+    "print_tree",
+    "relation_type",
+    "session_setup",
+    "table_model",
+    "ts_item",
+    "ts_statement",
 ]
 
 
 def __getattr__(name: str):
     # Frames, Engine and show are DataCube's (the datacube extra: _extra.py), DataCube needs anywidget too; the compiler
     # needs none of them, so each loads only when asked for
-    if name == 'Frames':
+    if name == "Frames":
         from .frames import Frames
+
         return Frames
-    if name == 'Engine':
+    if name == "Engine":
         from .engine import Engine
+
         return Engine
-    if name == 'show':
+    if name == "show":
         from .datacube import show
+
         return show
-    if name in ('query', 'studio'):
+    if name in ("query", "studio"):
         # Legend Query and Studio served by this Python (E)
         from . import datacube
+
         return getattr(datacube, name)
-    if name == 'DataCube':
+    if name == "DataCube":
         from .notebook import DataCube
+
         return DataCube
-    if name == 'Page':
+    if name == "Page":
         from .page import Page
+
         return Page
-    if name == 'home':
+    if name == "home":
         from ._home import home
+
         return home
     raise AttributeError(f"module 'legend_lite' has no attribute {name!r}")

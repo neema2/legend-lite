@@ -187,7 +187,12 @@ test_suite(
         "//tools/js:late_bundle_test",
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",
-        "//tools/python:lock_matches_requirements",
+        "//tools/python:lock_matches_pyproject",
+        # Python's formatter, linter and type checker over legend-lite's package (2026-11-23): Ruff's format, Ruff's
+        # default rules and ty, each with nothing to say (Linux and macOS; tools/lint, tools/format)
+        "//tools/format:format_test",
+        "//python:ruff_test",
+        "//python:ty_test",
         "//scripts/corpus:density_gate",
         "//scripts/corpus:executed_gate",
         "//scripts/corpus:stacking_gate",
@@ -551,7 +556,8 @@ test_suite(
         # the oracle's batteries' heavy half (H7, 2026-11-19; CP-9): each battery re-asked of legend-engine, one JVM per
         # database, failing on drift from the answers //pct:batteries_test compares lite with per push
         "//tools/engine-runner:batteries_oracle_test",
-        "//tools/python:requirements.test",
+        # //tools/python:requirements.test went with pip-compile's lock (2026-11-23: the Python lock is uv's, //:uv.lock,
+        # and rules_python's uv rule makes no test; the per-push check is //tools/python:lock_matches_pyproject)
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an
         # account's credentials (its §4, never in the repository; a CI workflow for them is not built), and the SQLite
         # lanes run in-process but are manual until a per-push lane for them is the user's call

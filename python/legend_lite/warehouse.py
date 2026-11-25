@@ -31,7 +31,7 @@ from ._planned import PlannedSql, Unframed, require
 from ._runframe import current_run, runs
 
 # a whole number the statement API binds: 64-bit, as the server's DuckDB binds an int64
-_INT64 = range(-2 ** 63, 2 ** 63)
+_INT64 = range(-(2**63), 2**63)
 
 
 def _parameter(value: Any) -> Any:
@@ -43,13 +43,15 @@ def _parameter(value: Any) -> Any:
         return value
     if isinstance(value, int):
         if value not in _INT64:
-            raise WarehouseError(f'the warehouse binds a whole number of 64 bits, not {value}')
+            raise WarehouseError(f"the warehouse binds a whole number of 64 bits, not {value}")
         return value
     if isinstance(value, Decimal):
         return str(value)
     if isinstance(value, date) and not isinstance(value, datetime):
         return value.isoformat()
-    raise WarehouseError(f'the warehouse binds a string, a number, a boolean or null, not {type(value).__name__}: {value!r}')
+    raise WarehouseError(
+        f"the warehouse binds a string, a number, a boolean or null, not {type(value).__name__}: {value!r}"
+    )
 
 
 # how long one call may take on the wire: a poll waits up to 10 s on the server (the binding's), a chunk is read whole
@@ -68,7 +70,7 @@ class SessionExpired(WarehouseError):
     """The warehouse refused the token: expired, or issued by a warehouse that has since restarted."""
 
     def __init__(self, base_url: str, principal: str) -> None:
-        super().__init__(f'the warehouse session for {principal} has expired — sign in again', 'AUTH_INVALID')
+        super().__init__(f"the warehouse session for {principal} has expired — sign in again", "AUTH_INVALID")
         self.base_url = base_url
         self.principal = principal
 
@@ -86,7 +88,7 @@ class Session:
 # where a call of the library runs: here, unless a host whose callers are many threads (the engine's connections)
 # hands in its own pool -- a thread that calls the library is attached to it for good, so a host keeps the calls on a
 # few (set_library_thread); the HTTP never runs there
-_on_library: Callable[[Callable[[], str]], str] = lambda call: call()  # noqa: E731
+_on_library: Callable[[Callable[[], str]], str] = lambda call: call()
 
 
 def set_library_thread(run: Callable[[Callable[[], str]], str]) -> None:
@@ -97,28 +99,28 @@ def set_library_thread(run: Callable[[Callable[[], str]], str]) -> None:
 
 def _binding(entry: str, *args: str) -> dict[str, Any] | list[Any]:
     # the service key (C5-P, A1): the warehouse's wire alone, no planner entry reachable through it
-    tag, _, rest = _on_library(lambda: _services.call(entry, *args)).partition('\n')
-    if tag != 'OK':
-        raise RuntimeError(f'the native library could not answer {entry}: {rest}')
+    tag, _, rest = _on_library(lambda: _services.call(entry, *args)).partition("\n")
+    if tag != "OK":
+        raise RuntimeError(f"the native library could not answer {entry}: {rest}")
     return json.loads(rest)
 
 
 def _call(op: str, args: dict[str, Any]) -> dict[str, Any]:
     """The call the binding names; a refusal of its arguments is this driver's bug, raised."""
-    said = _binding('lite_warehouse_call', op, json.dumps(args))
-    if not isinstance(said, dict) or 'error' in said:
-        raise RuntimeError(f'the warehouse binding refused {op}: {said}')
+    said = _binding("lite_warehouse_call", op, json.dumps(args))
+    if not isinstance(said, dict) or "error" in said:
+        raise RuntimeError(f"the warehouse binding refused {op}: {said}")
     return said
 
 
 def _read(op: str, status: int, body: str) -> Any:
     # a C string ends at its first NUL: an answer carrying one is read with it replaced, never cut short
-    return _binding('lite_warehouse_read', op, str(status), body.replace('\0', '\ufffd'))
+    return _binding("lite_warehouse_read", op, str(status), body.replace("\0", "\ufffd"))
 
 
 def _refused(said: Any) -> bool:
     """A refusal: an error and no step (a statement's failed step carries its error too, and is an answer)."""
-    return isinstance(said, dict) and 'error' in said and 'step' not in said
+    return isinstance(said, dict) and "error" in said and "step" not in said
 
 
 def _words(said: dict[str, Any]) -> str:
@@ -129,7 +131,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     """A redirect is not followed: urllib's own would carry the bearer token to wherever it points (another host,
     plain http), which a browser's fetch never does. Answered as the redirect it is, and so refused."""
 
-    def redirect_request(self, *_: Any) -> None:
+    def redirect_request(self, req: Any, fp: Any, code: Any, msg: Any, headers: Any, newurl: Any) -> None:
         return None
 
 
@@ -141,17 +143,23 @@ def _urlopen(request: urllib.request.Request) -> Any:
     one (C5-P's audit S3, here since its final round, item 4, 2026-11-15: until then _reach checked, and a request
     opened past it went unchecked)."""
     if current_run() is None:
-        raise Unframed("a call of the warehouse's SQL API is made only inside a run (_runframe.runs, in_run): the run"
-                       ' side makes it (G4)')
+        raise Unframed(
+            "a call of the warehouse's SQL API is made only inside a run (_runframe.runs, in_run): the run"
+            " side makes it (G4)"
+        )
     return _OPENER.open(request, timeout=_WIRE_TIMEOUT_S)
 
 
 def _reach(base_url: str, call: dict[str, Any]) -> tuple[int, bytes]:
     """The call made, and its answer's status and bytes; a refused connection said as what it is. Every call is a run's,
     refused outside one where the request goes out (``_urlopen``)."""
-    body = call['body']
-    request = urllib.request.Request(base_url.rstrip('/') + call['path'], method=call['method'],
-                                     data=body.encode('utf-8') if body is not None else None, headers=call['headers'])
+    body = call["body"]
+    request = urllib.request.Request(
+        base_url.rstrip("/") + call["path"],
+        method=call["method"],
+        data=body.encode("utf-8") if body is not None else None,
+        headers=call["headers"],
+    )
     try:
         with _urlopen(request) as r:
             return r.status, r.read()
@@ -159,8 +167,8 @@ def _reach(base_url: str, call: dict[str, Any]) -> tuple[int, bytes]:
         with answered:
             return answered.code, answered.read()
     except (urllib.error.URLError, http.client.HTTPException, OSError) as unreachable:
-        reason = getattr(unreachable, 'reason', unreachable)
-        raise WarehouseError(f'cannot reach the warehouse at {base_url} — {reason}') from unreachable
+        reason = getattr(unreachable, "reason", unreachable)
+        raise WarehouseError(f"cannot reach the warehouse at {base_url} — {reason}") from unreachable
 
 
 @runs("the warehouse's SQL API")
@@ -168,38 +176,38 @@ def _exchange(base_url: str, op: str, args: dict[str, Any]) -> Any:
     """One call of the SQL API made and its answer read: a send, so a run (C5-P, 2026-11-15, the orchestrator's A2: a
     sign-in, a listing, a poll, a statement's history or close, each framed as every send is)."""
     status, body = _reach(base_url, _call(op, args))
-    return _read(op, status, body.decode('utf-8', errors='replace'))
+    return _read(op, status, body.decode("utf-8", errors="replace"))
 
 
 def _remote(base_url: str) -> str:
     """A warehouse is reached over HTTP(S) only: a remote address by its scheme (R4's rule for what Python reads)."""
-    if urlsplit(base_url).scheme not in ('http', 'https') or not urlsplit(base_url).netloc:
-        raise WarehouseError(f'a warehouse is an http:// or https:// address, not {base_url!r}')
+    if urlsplit(base_url).scheme not in ("http", "https") or not urlsplit(base_url).netloc:
+        raise WarehouseError(f"a warehouse is an http:// or https:// address, not {base_url!r}")
     return base_url
 
 
 def sign_in(base_url: str, user: str, password: str) -> Session:
     """Sign in by the warehouse's own user list: the password sent once and not kept, only the token."""
-    t = _exchange(_remote(base_url), 'login', {'user': user, 'password': password})
+    t = _exchange(_remote(base_url), "login", {"user": user, "password": password})
     if _refused(t):
-        raise WarehouseError(f'sign-in failed — {_words(t)}', t['error']['code'])
-    return Session(base_url, t['token'], t['principal'], t['expiresAt'])
+        raise WarehouseError(f"sign-in failed — {_words(t)}", t["error"]["code"])
+    return Session(base_url, t["token"], t["principal"], t["expiresAt"])
 
 
 def sign_in_with_key(base_url: str, key: str) -> Session:
     """The single-user warehouse's sign-in: the launch key it printed, for a token like a password's."""
-    t = _exchange(_remote(base_url), 'loginKey', {'key': key})
+    t = _exchange(_remote(base_url), "loginKey", {"key": key})
     if _refused(t):
-        raise WarehouseError(f'sign-in failed — {_words(t)}', t['error']['code'])
-    return Session(base_url, t['token'], t['principal'], t['expiresAt'])
+        raise WarehouseError(f"sign-in failed — {_words(t)}", t["error"]["code"])
+    return Session(base_url, t["token"], t["principal"], t["expiresAt"])
 
 
 def list_objects(session: Session) -> list[dict[str, Any]]:
     """What the user may read in every catalog: each table or view with its columns (structured, as the catalog
     reads them), its catalog, and that catalog's database type, as a Pure connection names it."""
-    objects = _exchange(session.base_url, 'objects', {'token': session.token})
+    objects = _exchange(session.base_url, "objects", {"token": session.token})
     if _refused(objects):
-        raise WarehouseError(f'could not list the tables — {_words(objects)}', objects['error']['code'])
+        raise WarehouseError(f"could not list the tables — {_words(objects)}", objects["error"]["code"])
     return objects
 
 
@@ -211,7 +219,7 @@ def connect(base_url: str, user: str, password: str) -> tuple[Session, list[dict
 
 def _seconds_left(expires_at: str, now: float) -> float | None:
     try:
-        return datetime.fromisoformat(expires_at.replace('Z', '+00:00')).timestamp() - now
+        return datetime.fromisoformat(expires_at).timestamp() - now
     except ValueError:
         return None
 
@@ -222,7 +230,7 @@ class Warehouse:
     asked for a password mid-work; the server stops refreshing at its session limit, and the next call then says the
     session expired."""
 
-    def __init__(self, session: Session, catalog: str = 'main', clock: Callable[[], float] = time.time) -> None:
+    def __init__(self, session: Session, catalog: str = "main", clock: Callable[[], float] = time.time) -> None:
         self._session = session
         self._catalog = catalog
         self._clock = clock
@@ -248,9 +256,13 @@ class Warehouse:
 
     def renew(self, session: Session) -> None:
         """A fresh token for the SAME user at the same warehouse; anyone else's session is refused."""
-        if session.principal != self._session.principal or session.base_url.rstrip('/') != self._session.base_url.rstrip('/'):
-            raise WarehouseError(f'this warehouse is read as {self._session.principal}; signed in as {session.principal}, '
-                                 f'open a table to work as {session.principal}')
+        if session.principal != self._session.principal or session.base_url.rstrip(
+            "/"
+        ) != self._session.base_url.rstrip("/"):
+            raise WarehouseError(
+                f"this warehouse is read as {self._session.principal}; signed in as {session.principal}, "
+                f"open a table to work as {session.principal}"
+            )
         with self._lock:
             self._session = session
             self._issued = self._clock()
@@ -261,85 +273,101 @@ class Warehouse:
 
     def refresh_token(self) -> None:
         """Swap the token for a fresh one now: same user, a new expiry."""
-        t = self._call('refresh', {}, refresh=False)
-        self.renew(replace(self._session, token=t['token'], principal=t['principal'], expires_at=t['expiresAt']))
+        t = self._call("refresh", {}, refresh=False)
+        self.renew(replace(self._session, token=t["token"], principal=t["principal"], expires_at=t["expiresAt"]))
 
     def objects(self) -> list[dict[str, Any]]:
         """What this user may read in every catalog (``list_objects``), the token refreshed first when it nears its end;
         a token refused is an expired session."""
-        return self._call('objects', {})
+        return self._call("objects", {})
 
     def check(self, statement_id: str) -> str:
         """Whether a statement is on the warehouse's record for this user (its history: the caller's own only)."""
-        history = self._call('history', {'limit': 1000})
+        history = self._call("history", {"limit": 1000})
         who = self._session.principal
-        found = next((h for h in history if h['statementId'] == statement_id), None)
+        found = next((h for h in history if h["statementId"] == statement_id), None)
         if found is None:
             return f"Not on the warehouse's record for {who}: no statement {statement_id} in its last {len(history)}."
-        rows = found.get('rowCount')
-        said = (f"On the warehouse's record for {who}: statement {statement_id}, {found['state']}, "
-                f"{'its rows uncounted' if rows is None else f'{rows:,} rows'}, submitted {found['submittedAt']}")
-        return said + (f", finished {found['finishedAt']}" if found.get('finishedAt') else '') + '.'
+        rows = found.get("rowCount")
+        said = (
+            f"On the warehouse's record for {who}: statement {statement_id}, {found['state']}, "
+            f"{'its rows uncounted' if rows is None else f'{rows:,} rows'}, submitted {found['submittedAt']}"
+        )
+        return said + (f", finished {found['finishedAt']}" if found.get("finishedAt") else "") + "."
 
-    def arrow_chunks(self, sql: PlannedSql, on_receipt: Callable[[dict[str, Any]], None] | None = None,
-                     params: tuple[Any, ...] | list[Any] = ()) -> Iterator[bytes]:
+    def arrow_chunks(
+        self,
+        sql: PlannedSql,
+        on_receipt: Callable[[dict[str, Any]], None] | None = None,
+        params: tuple[Any, ...] | list[Any] = (),
+    ) -> Iterator[bytes]:
         """The result of ``sql`` as the server wrote it: one Arrow IPC stream per chunk, in order. The statement is
         closed once every chunk is read, so the server frees it; ``on_receipt`` hears what the server issued for it
         (its id and its count) before the first chunk. Only a plan's statement is sent (_planned.py), and only inside a run
         (C5-P). ``params``: the values its ``?``s bind, in order (_params.bind), carried as the statement API's positional
         ``parameters`` and bound by the server at run -- never pasted into its text (the host train, 2026-11-17: the
         orchestrator's ruling (a)); none, the key is not sent."""
-        planned = require(sql, 'the warehouse')
+        planned = require(sql, "the warehouse")
         parameters = [_parameter(v) for v in params]
         # a plane's send is a run's, as the one send is (C5-P, 2026-11-15: the audit's item 2 -- framed by construction,
         # whatever name the method is reached by): sent in no run, refused by name before anything is submitted
         if current_run() is None:
-            raise Unframed("a plan's statement is sent to the warehouse only inside a run (_runframe.runs, in_run): the"
-                           ' run side sends it, handed what the planner answered (G4)')
-        step = self._call('submit', {'sql': planned, 'catalog': self._catalog,
-                                     **({'parameters': parameters} if parameters else {})})
-        statement = step.get('statementId')
+            raise Unframed(
+                "a plan's statement is sent to the warehouse only inside a run (_runframe.runs, in_run): the"
+                " run side sends it, handed what the planner answered (G4)"
+            )
+        step = self._call(
+            "submit", {"sql": planned, "catalog": self._catalog, **({"parameters": parameters} if parameters else {})}
+        )
+        statement = step.get("statementId")
         # where a read that ends early leaves its statement (the caller stops, or a call fails): still running,
         # cancelled; done, its result closed; read to the end (or failed there), nothing -- the tab's rule
-        ending: str | None = 'cancel'
+        ending: str | None = "cancel"
         try:
-            while step['step'] == 'poll':
-                step = self._call('poll', {'statementId': step['statementId']})
-            if step['step'] == 'failed':
+            while step["step"] == "poll":
+                step = self._call("poll", {"statementId": step["statementId"]})
+            if step["step"] == "failed":
                 ending = None
-                raise WarehouseError(f"{step['error']['code']}: {step['error']['message']}", step['error']['code'])
-            ending = 'closeStatement'
+                raise WarehouseError(f"{step['error']['code']}: {step['error']['message']}", step["error"]["code"])
+            ending = "closeStatement"
             if on_receipt is not None:
-                receipt = {'statementId': step['statementId'], 'as': self._session.principal,
-                           'where': f'the warehouse at {urlsplit(self._session.base_url).netloc}'}
-                on_receipt({**receipt, **({'serverRows': step['rowCount']} if 'rowCount' in step else {})})
-            for index in range(step['chunkCount']):
+                receipt = {
+                    "statementId": step["statementId"],
+                    "as": self._session.principal,
+                    "where": f"the warehouse at {urlsplit(self._session.base_url).netloc}",
+                }
+                on_receipt({**receipt, **({"serverRows": step["rowCount"]} if "rowCount" in step else {})})
+            for index in range(step["chunkCount"]):
                 # a chunk's bytes are this driver's: only a failed chunk's answer is the binding's to read
-                status, body = _reach(self._session.base_url, _call('fetchChunk', {
-                    'statementId': step['statementId'], 'index': index, 'token': self._session.token}))
+                status, body = _reach(
+                    self._session.base_url,
+                    _call(
+                        "fetchChunk", {"statementId": step["statementId"], "index": index, "token": self._session.token}
+                    ),
+                )
                 if status != 200:
-                    self._raise(_read('fetchChunk', status, body.decode('utf-8', errors='replace')))
+                    self._raise(_read("fetchChunk", status, body.decode("utf-8", errors="replace")))
                 yield body
         finally:
             # the server may free the result now, not at expiry, and stop a statement still running; what it answers
             # changes nothing here (the rows were read, or the read has failed)
             if ending is not None and statement is not None:
                 try:
-                    self._call(ending, {'statementId': statement})
+                    self._call(ending, {"statementId": statement})
                 except WarehouseError:
                     pass
 
     def _raise(self, said: Any) -> None:
         if not _refused(said):
             return
-        if said.get('expired'):
+        if said.get("expired"):
             raise SessionExpired(self._session.base_url, self._session.principal)
-        raise WarehouseError(_words(said), said['error']['code'])
+        raise WarehouseError(_words(said), said["error"]["code"])
 
     def _call(self, op: str, args: dict[str, Any], refresh: bool = True) -> Any:
         if refresh:
             self._refresh_if_ending()
-        said = _exchange(self._session.base_url, op, {**args, 'token': self._session.token})
+        said = _exchange(self._session.base_url, op, {**args, "token": self._session.token})
         self._raise(said)
         return said
 

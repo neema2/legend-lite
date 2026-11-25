@@ -9,29 +9,54 @@ from pathlib import Path
 
 from python.runfiles import runfiles
 
-files = runfiles.Create()
-for name in ('LEGEND_LITE_LIBRARY', 'LEGEND_LITE_CORPUS_MODEL', 'LEGEND_LITE_CORPUS_QUERIES', 'LEGEND_LITE_JVM_ANSWERS',
-             'LEGEND_LITE_WHEEL', 'LEGEND_LITE_DEPENDENCY_WHEELS', 'LEGEND_LITE_SITE', 'LEGEND_LITE_DATACUBE',
-             'LEGEND_LITE_DUCKDB_EXTENSIONS', 'LEGEND_LITE_MODEL_CASES', 'LEGEND_LITE_SQLAPI_CORPUS', 'LEGEND_LITE_CHART_RULES',
-             'LEGEND_LITE_PARITY', 'LEGEND_LITE_CORPUS_PAGE', 'LEGEND_LITE_TAB_HEADLESS', 'LEGEND_LITE_MARKETS_MODEL',
-             'LEGEND_LITE_MARKETS_DATA', 'LEGEND_LITE_MARKETS_PAGE', 'LEGEND_LITE_MARKETS_OWN', 'LEGEND_LITE_GS_QUANT_SIGNATURES',
-             'LEGEND_LITE_BUILDER_PYTHON', 'LEGEND_LITE_RUN_LOAD_FIXTURE', 'LEGEND_LITE_KEYED_FIXTURE',
-             'LEGEND_LITE_RAISE_FIXTURE', 'LEGEND_LITE_API_CASES', 'LEGEND_LITE_ENGINE_LIBRARY',
-             'LEGEND_LITE_ENGINE_WHEEL'):
+_runfiles = runfiles.Create()
+assert _runfiles is not None, "run under Bazel: its runfiles hold what this reads"
+files = _runfiles
+for name in (
+    "LEGEND_LITE_LIBRARY",
+    "LEGEND_LITE_CORPUS_MODEL",
+    "LEGEND_LITE_CORPUS_QUERIES",
+    "LEGEND_LITE_JVM_ANSWERS",
+    "LEGEND_LITE_WHEEL",
+    "LEGEND_LITE_DEPENDENCY_WHEELS",
+    "LEGEND_LITE_SITE",
+    "LEGEND_LITE_DATACUBE",
+    "LEGEND_LITE_DUCKDB_EXTENSIONS",
+    "LEGEND_LITE_MODEL_CASES",
+    "LEGEND_LITE_SQLAPI_CORPUS",
+    "LEGEND_LITE_CHART_RULES",
+    "LEGEND_LITE_PARITY",
+    "LEGEND_LITE_CORPUS_PAGE",
+    "LEGEND_LITE_TAB_HEADLESS",
+    "LEGEND_LITE_MARKETS_MODEL",
+    "LEGEND_LITE_MARKETS_DATA",
+    "LEGEND_LITE_MARKETS_PAGE",
+    "LEGEND_LITE_MARKETS_OWN",
+    "LEGEND_LITE_GS_QUANT_SIGNATURES",
+    "LEGEND_LITE_BUILDER_PYTHON",
+    "LEGEND_LITE_RUN_LOAD_FIXTURE",
+    "LEGEND_LITE_KEYED_FIXTURE",
+    "LEGEND_LITE_RAISE_FIXTURE",
+    "LEGEND_LITE_API_CASES",
+    "LEGEND_LITE_ENGINE_LIBRARY",
+    "LEGEND_LITE_ENGINE_WHEEL",
+):
     if name not in os.environ:
         continue
     # one path, or several separated by spaces ($(rlocationpaths ...)), handed on as os.pathsep separates them (a
     # resolved path may hold a space); the site and DuckDB's extension folder are directories, every other a file
-    is_there = Path.is_dir if name in ('LEGEND_LITE_SITE', 'LEGEND_LITE_DUCKDB_EXTENSIONS') else Path.is_file
-    paths = [files.Rlocation(p) for p in os.environ[name].split()]
-    for given, path in zip(os.environ[name].split(), paths):
+    is_there = Path.is_dir if name in ("LEGEND_LITE_SITE", "LEGEND_LITE_DUCKDB_EXTENSIONS") else Path.is_file
+    paths = []
+    for given in os.environ[name].split():
+        path = files.Rlocation(given)
         if not path or not is_there(Path(path)):
-            sys.exit(f'{name}: {given} is not in the runfiles')
+            sys.exit(f"{name}: {given} is not in the runfiles")
+        paths.append(path)
     os.environ[name] = os.pathsep.join(paths)
 
 # this user's legend-lite folder (the pages DataCube saves) a folder of the test's own, never a person's: a test that
 # does not name one still asks where it is (services.json), and a Windows test is given no home to find one in
-os.environ.setdefault('LEGEND_LITE_HOME', str(Path(os.environ.get('TEST_TMPDIR') or '.', 'legend-lite-home').resolve()))
+os.environ.setdefault("LEGEND_LITE_HOME", str(Path(os.environ.get("TEST_TMPDIR") or ".", "legend-lite-home").resolve()))
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 suite = unittest.defaultTestLoader.loadTestsFromNames(sys.argv[1:])

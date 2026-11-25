@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .._loader import EngineMissing, engine_loaded
 
-__all__ = ['EngineMissing', 'engine_library']
+__all__ = ["EngineMissing", "engine_library"]
 
 
 class EngineLibrary:

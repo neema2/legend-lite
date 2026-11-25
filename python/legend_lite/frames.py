@@ -32,8 +32,9 @@ import contextlib
 import re
 import sys
 import threading
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any
 
 from ._extra import require_datacube
 
@@ -46,24 +47,37 @@ import pyarrow as pa
 from . import _host, compiler
 from ._params import ParametersRefused
 from ._planned import Database, connect
+
 # the run side (C5-P, 2026-11-15): what sends a plan's statements and reads their answer, frames.py's until then and
 # named here as they always were; frames.py plans, then hands the run its statements
-from ._reads import (TYPE_KEY, Reading, UntypedColumn, begin_read, end_read, held_texts,  # noqa: F401
-                     redact_held, redacted, run_plan, to_pandas, typed_by_plan)
+from ._reads import (
+    TYPE_KEY,  # noqa: F401 -- a name this module has carried: kept for whoever imports it from here
+    ConnectionSettings,
+    Reading,
+    UntypedColumn,  # noqa: F401 -- read from this module by others
+    begin_read,
+    end_read,
+    held_texts,  # noqa: F401
+    redact_held,  # noqa: F401 -- read from this module by others
+    redacted,  # noqa: F401 -- a name this module has carried: kept for whoever imports it from here
+    run_plan,
+    to_pandas,  # noqa: F401 -- read from this module by others
+    typed_by_plan,  # noqa: F401 -- read from this module by others
+)
 from ._runs import LoadRefused, ask, run_host_load, run_statements
 
 # a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
 # of the compiler's rule, ModelChanges.isIdentifier (its regex and LITERAL_WORDS), kept here so a name is refused before
 # anything is made under it (the user's ruling, 2026-10-16: a copy, named, over moving the check into the model writer)
-_NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\Z')
+_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 # the plain identifiers Pure reads as literals, so no package can be named by them (ModelChanges.LITERAL_WORDS)
-_LITERALS = ('true', 'false')
+_LITERALS = ("true", "false")
 # the names Frames gives what it registers for a frame read at each query (its Arrow source): never a page's file's
 # table's
-_OWN = '__legend_lite_'
+_OWN = "__legend_lite_"
 
 # the catalog question's columns, in its order, as the model writer names them (compiler.catalog_columns_sql)
-_CATALOG_FIELDS = ('name', 'dataType', 'logicalType', 'precision', 'scale', 'notNull')
+_CATALOG_FIELDS = ("name", "dataType", "logicalType", "precision", "scale", "notNull")
 
 # how many models a page sent Python holds at once (Frames.model_for): a page's project, as its revisions move
 _ADMITTED = 8
@@ -87,7 +101,7 @@ def _refusal(refused: compiler.LegendError) -> compiler.LegendError:
 def _arrow(frame: Any) -> pa.Table:
     """A frame as an Arrow table. pandas through its own converter, without its index (``reset_index()``
     keeps one as a column); pandas is not imported here -- a pandas frame means it already is."""
-    pandas = sys.modules.get('pandas')
+    pandas = sys.modules.get("pandas")
     if pandas is not None and isinstance(frame, pandas.DataFrame):
         return pa.Table.from_pandas(frame, preserve_index=False)
     if isinstance(frame, pa.Table):
@@ -109,14 +123,14 @@ class Table:
         self._read = read
         # the frame (or function) it was registered with, as given: what a page's grid asks for by name is it
         self.given = given
-        self._registered = f'{_OWN}{name}'
+        self._registered = f"{_OWN}{name}"
         # its table or view, in the database's own main schema: named for the host's operations (D5)
-        self._target = _host.name(name, schema='main')
+        self._target = _host.name(name, schema="main")
         self._schema: pa.Schema | None = None
         self._closed = False
-        self.model = ''
-        self.runtime = ''
-        self.accessor = ''
+        self.model = ""
+        self.runtime = ""
+        self.accessor = ""
         self.source: dict[str, Any] = {}
         self.excluded: tuple[str, ...] = ()
         self.columns: tuple[compiler.Column, ...] = ()
@@ -161,49 +175,68 @@ class Table:
         columns changed is dropped, not replaced: the copy below may change its kind of select). Until then the frame's
         Arrow was registered on the connection outside any plan (census M14-frames)."""
         con = self._frames.connection
-        kind = 'view' if self.live else 'table'
+        kind = "view" if self.live else "table"
         self._arrow = arrow
-        plan = compiler.frame_load({'databaseType': 'DuckDB', 'held': self.name, 'as': self._registered,
-                                    'live': self.live, 'schema': 'main', 'relation': self.name})
+        plan = compiler.frame_load(
+            {
+                "databaseType": "DuckDB",
+                "held": self.name,
+                "as": self._registered,
+                "live": self.live,
+                "schema": "main",
+                "relation": self.name,
+            }
+        )
         try:
             self._attached = run_host_load(plan, con, values=self._value).attached
         finally:
             # a frame read once is the database's from now on: its rows are let go
             if not self.live:
                 self._arrow = None
-        rows = ask(con, compiler.catalog_columns_sql('main', self.name), "a catalog's question")
+        rows = ask(con, compiler.catalog_columns_sql("main", self.name), "a catalog's question")
         columns = [dict(zip(_CATALOG_FIELDS, row)) for row in rows]
-        written = compiler.table_model({
-            'table': self.name,
-            'pkg': self.name,
-            # a frame is ours to convert: the view applies the conversions as it reads, the copy as it is made
-            'convertible': True,
-            'databaseType': 'DuckDB',
-            'columns': columns,
-        })
-        if written['conversions']:
+        written = compiler.table_model(
+            {
+                "table": self.name,
+                "pkg": self.name,
+                # a frame is ours to convert: the view applies the conversions as it reads, the copy as it is made
+                "convertible": True,
+                "databaseType": "DuckDB",
+                "columns": columns,
+            }
+        )
+        if written["conversions"]:
             source = _host.name(self._registered) if self.live else self._target
             # its columns as the catalog holds them: the platform writes each conversion (the final audit's item 1(d),
             # 2026-11-12: never the planner's select list handed back)
-            _host.run(con, {'op': 'relation', 'kind': kind, 'target': self._target, 'replace': True,
-                            'convert': columns, 'from': {'relation': source}})
-        self.model = written['model']
-        self.runtime = written['runtime']
-        self.source = written['source']
-        self.accessor = written['accessor']
-        self.excluded = tuple(written['excluded'])
+            _host.run(
+                con,
+                {
+                    "op": "relation",
+                    "kind": kind,
+                    "target": self._target,
+                    "replace": True,
+                    "convert": columns,
+                    "from": {"relation": source},
+                },
+            )
+        self.model = written["model"]
+        self.runtime = written["runtime"]
+        self.source = written["source"]
+        self.accessor = written["accessor"]
+        self.excluded = tuple(written["excluded"])
         # the model as it is now held; the one before (columns changed) let go
         held, before = compiler.HeldModel(self.model), self.held
         self.held = held
         if before is not None:
             before.close()
-        self.columns = self.relation_type({'_type': 'lambda', 'body': [self.source], 'parameters': []})
+        self.columns = self.relation_type({"_type": "lambda", "body": [self.source], "parameters": []})
         self._schema = arrow.schema
 
     def _drop(self) -> None:
         """Takes the frame out of DuckDB, and makes this handle unusable."""
         con = self._frames.connection
-        _host.run(con, {'op': 'drop', 'kind': 'view' if self.live else 'table', 'target': self._target})
+        _host.run(con, {"op": "drop", "kind": "view" if self.live else "table", "target": self._target})
         # what its load attached for the connection, let go
         for _held, as_ in self._attached:
             con.unregister(as_)
@@ -226,11 +259,11 @@ class Table:
         if isinstance(query, dict):
             return query
         # "->filter(...)": a query that starts at this table
-        return compiler.parse('|' + self.accessor + query if query.lstrip().startswith('->') else query)
+        return compiler.parse("|" + self.accessor + query if query.lstrip().startswith("->") else query)
 
     def _model(self) -> compiler.HeldModel:
         if self.held is None:
-            raise ValueError(f'the frame {self.name!r} has no model yet')
+            raise ValueError(f"the frame {self.name!r} has no model yet")
         return self.held
 
     def relation_type(self, tree: dict[str, Any]) -> tuple[compiler.Column, ...]:
@@ -239,7 +272,7 @@ class Table:
 
     def _ready(self) -> None:
         if self._closed:
-            raise ValueError(f'the frame {self.name!r} was registered again or unregistered: use the new table')
+            raise ValueError(f"the frame {self.name!r} was registered again or unregistered: use the new table")
         # held still (Frames.serving), it was read as the query began: read once per query, a function frame called once
         if self.live and not self._frames._still:
             self._refresh()
@@ -276,13 +309,19 @@ class _File:
     leaf: dict[str, Any] | None
     # a remote file's settings of the connection (a bearer URL's session variable: B3's Q3), each a statement and the
     # values it binds, which every read's cursor runs (a cursor is a connection of its own, a variable one connection's)
-    settings: tuple[tuple[str, tuple[Any, ...]], ...] = ()
+    settings: ConnectionSettings = ()
     # the values those settings bind that the engine holds (a bearer URL: B3's Q3), taken out of a read's failure (M2)
     held_values: tuple[str, ...] = ()
 
     def hosted(self) -> dict[str, Any]:
         """As DataCube's headless code takes it (headless host-tables.ts HostFile)."""
-        return {'model': self.model, 'runtime': self.runtime, 'source': self.source, 'table': self.name, 'leaf': self.leaf}
+        return {
+            "model": self.model,
+            "runtime": self.runtime,
+            "source": self.source,
+            "table": self.name,
+            "leaf": self.leaf,
+        }
 
 
 class Frames:
@@ -303,11 +342,11 @@ class Frames:
         self.owns_connection = connection is None
         # the session the planner's SQL expects, set on the connection and on each read's own cursor (Frames.reading):
         # a cursor is a session of its own, which a connection's settings do not reach
-        self._setup = compiler.session_setup('DuckDB')
+        self._setup = compiler.session_setup("DuckDB")
         # what pins a read's transaction just begun (``reading``): DuckDB begins one on a database when it is first
         # read, so this database's catalog is read then -- one of Frames' own names asked for, never a table. Planned
         # here once, so a read's run plans nothing (C5-P, 2026-11-15: until then planned at each read, beside its run)
-        (self._pin,) = _host.statements({'op': 'relationExists', 'name': _host.name(f'{_OWN}pinned', schema='main')})
+        (self._pin,) = _host.statements({"op": "relationExists", "name": _host.name(f"{_OWN}pinned", schema="main")})
         run_statements(self.connection, self._setup, "a session's setup")
         self._lock = threading.RLock()
         # each thread's read in progress (``reading``): what DataCube's code, asked a call by it, reads through
@@ -348,14 +387,15 @@ class Frames:
             # meanwhile (a tab asking its version, which takes no lock) finds it all along, never a frame gone
             old = self._tables.get(key)
             if key in self._files:
-                raise ValueError(f'a page\'s file was read into a table named {self._files[key].name!r}: '
-                                 'a frame takes another name')
+                raise ValueError(
+                    f"a page's file was read into a table named {self._files[key].name!r}: a frame takes another name"
+                )
             if key in self._reserved:
-                raise ValueError(f'a snap is being copied into a table named {name!r}: a frame takes another name')
+                raise ValueError(f"a snap is being copied into a table named {name!r}: a frame takes another name")
             if old is not None:
                 old._drop()
             elif self._exists(name):
-                raise ValueError(f'the database already has a table or view named {name!r}, and Frames did not make it')
+                raise ValueError(f"the database already has a table or view named {name!r}, and Frames did not make it")
             table = Table(self, name, read, live, frame)
             try:
                 table._load(arrow)
@@ -397,8 +437,10 @@ class Frames:
                     table._ready()
             self._still += 1
             try:
-                yield {**{table.name: table.model for table in self._tables.values()},
-                       **{f.name: f.model for f in self._files.values()}}
+                yield {
+                    **{table.name: table.model for table in self._tables.values()},
+                    **{f.name: f.model for f in self._files.values()},
+                }
             finally:
                 self._still -= 1
 
@@ -420,7 +462,10 @@ class Frames:
         frame is read again -- a live one is read once a query, as its read begins (``reading``) -- and none is older
         than a read's own (F30)."""
         with self._lock:
-            return {**{t.name: t.model for t in self._tables.values()}, **{f.name: f.model for f in self._files.values()}}
+            return {
+                **{t.name: t.model for t in self._tables.values()},
+                **{f.name: f.model for f in self._files.values()},
+            }
 
     def unserved(self, model: str) -> list[str]:
         """The tables ``model``'s Databases declare that this database does not serve now -- one of its own schema
@@ -454,12 +499,12 @@ class Frames:
         own: set[str] = set()
         other: set[str] = set()
         for element in elements:
-            for schema in element.get('schemas', []) if element.get('_type') == 'relational' else []:
-                names = {str(t.get('name', '')) for t in schema.get('tables', [])}
-                if schema.get('name') in ('default', 'main'):
+            for schema in element.get("schemas", []) if element.get("_type") == "relational" else []:
+                names = {str(t.get("name", "")) for t in schema.get("tables", [])}
+                if schema.get("name") in ("default", "main"):
                     own |= {n.lower() for n in names}
                 else:
-                    other |= {f'{schema.get("name")}.{n}' for n in names}
+                    other |= {f"{schema.get('name')}.{n}" for n in names}
         return own, other
 
     def model_for(self, model: str) -> compiler.HeldModel | None:
@@ -510,12 +555,12 @@ class Frames:
         if not _NAME.match(asked) or asked in _LITERALS:
             raise ValueError(f"a file's table is named by a plain identifier (letters, digits, '_'), not {asked!r}")
         if asked.lower().startswith(_OWN):
-            raise ValueError(f'a name beginning {_OWN} is legend-lite\'s own, not a file\'s: {asked!r}')
+            raise ValueError(f"a name beginning {_OWN} is legend-lite's own, not a file's: {asked!r}")
         self._writing()
         with self._lock:
             name, n = asked, 2
             while self._taken(name):
-                name, n = f'{asked}_{n}', n + 1
+                name, n = f"{asked}_{n}", n + 1
             try:
                 yield name
             except BaseException:
@@ -523,8 +568,10 @@ class Frames:
                 dropped = self._files.pop(name.lower(), None)
                 if dropped is not None:
                     dropped.held.close()
-                _host.run(self.connection, {'op': 'drop', 'kind': 'view' if view else 'table',
-                                            'target': _host.name(name, schema='main')})
+                _host.run(
+                    self.connection,
+                    {"op": "drop", "kind": "view" if view else "table", "target": _host.name(name, schema="main")},
+                )
                 raise
 
     @contextlib.contextmanager
@@ -539,12 +586,12 @@ class Frames:
         if not _NAME.match(asked) or asked in _LITERALS:
             raise ValueError(f"a file's table is named by a plain identifier (letters, digits, '_'), not {asked!r}")
         if asked.lower().startswith(_OWN):
-            raise ValueError(f'a name beginning {_OWN} is legend-lite\'s own, not a file\'s: {asked!r}')
+            raise ValueError(f"a name beginning {_OWN} is legend-lite's own, not a file's: {asked!r}")
         self._writing()
         with self._lock:
             name, n = asked, 2
             while self._taken(name):
-                name, n = f'{asked}_{n}', n + 1
+                name, n = f"{asked}_{n}", n + 1
             self._reserved.add(name.lower())
         cursor: Database | None = None
         try:
@@ -556,7 +603,7 @@ class Frames:
                 dropped = self._files.pop(name.lower(), None)
                 if dropped is not None:
                     dropped.held.close()
-                _host.run(self.connection, {'op': 'drop', 'kind': 'table', 'target': _host.name(name, schema='main')})
+                _host.run(self.connection, {"op": "drop", "kind": "table", "target": _host.name(name, schema="main")})
             raise
         finally:
             if cursor is not None:
@@ -564,17 +611,32 @@ class Frames:
             with self._lock:
                 self._reserved.discard(name.lower())
 
-    def keep_file(self, name: str, made: Mapping[str, Any], view: bool = False,
-                  settings: tuple[tuple[str, tuple[Any, ...]], ...] = (), held: tuple[str, ...] = ()) -> None:
+    def keep_file(
+        self,
+        name: str,
+        made: Mapping[str, Any],
+        view: bool = False,
+        settings: ConnectionSettings = (),
+        held: tuple[str, ...] = (),
+    ) -> None:
         """The table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy
         (``reading_file``'s name), as DataCube's code read it (``made``: its model, runtime and the relation that reads
         it -- ``source`` -- and, a page's file or remote file, the file it is: headless ingest's and mount's ``leaf``):
         served beside the frames' from now on, a file by what a page names it by (``hosted``). ``settings``: a remote
         file's settings of the connection, run on every read's cursor while it is kept (B3's Q3); ``held``, the values
         they bind that the engine holds, taken out of a failure's words (M2)."""
-        model = compiler.HeldModel(made['model'])
-        kept = _File(name, made['model'], view, model, made.get('runtime', ''), made.get('source'), made.get('leaf'),
-                     tuple(settings), tuple(held))
+        model = compiler.HeldModel(made["model"])
+        kept = _File(
+            name,
+            made["model"],
+            view,
+            model,
+            made.get("runtime", ""),
+            made.get("source"),
+            made.get("leaf"),
+            tuple(settings),
+            tuple(held),
+        )
         with self._lock:
             before = self._files.get(name.lower())
             self._files[name.lower()] = kept
@@ -627,7 +689,7 @@ class Frames:
             return True
         # this database's own and its temporary ones, which a bare name reads: a project's database attached beside it
         # (C5) holds none of the names a file may take
-        return _host.count(self.connection, {'op': 'nameTaken', 'name': name}) > 0
+        return _host.count(self.connection, {"op": "nameTaken", "name": name}) > 0
 
     def taken(self, name: str) -> bool:
         """Whether ``name`` is a frame's or a page's file's table: a frame of that name cannot be registered."""
@@ -635,7 +697,7 @@ class Frames:
             return name.lower() in self._tables or name.lower() in self._files or name.lower() in self._reserved
 
     def _exists(self, name: str) -> bool:
-        return _host.count(self.connection, {'op': 'relationExists', 'name': _host.name(name, schema='main')}) > 0
+        return _host.count(self.connection, {"op": "relationExists", "name": _host.name(name, schema="main")}) > 0
 
     def unregister(self, name: str) -> None:
         """Takes a frame's table out of the database; its handle stops working."""
@@ -652,8 +714,14 @@ class Frames:
             files, self._files = list(self._files.values()), {}
             try:
                 for f in files:
-                    _host.run(self.connection, {'op': 'drop', 'kind': 'view' if f.view else 'table',
-                                                'target': _host.name(f.name, schema='main')})
+                    _host.run(
+                        self.connection,
+                        {
+                            "op": "drop",
+                            "kind": "view" if f.view else "table",
+                            "target": _host.name(f.name, schema="main"),
+                        },
+                    )
             finally:
                 # every model let go, a drop that failed or not, and every model a page sent
                 for f in files:
@@ -672,7 +740,7 @@ class Frames:
         read on the same thread is the one read. Nothing is written inside one on its thread (``register``,
         ``unregister``, ``holding``, ``reading_file``: refused in words): what a read would not see is written before it
         begins."""
-        outer: Reading | None = getattr(self._local, 'reading', None)
+        outer: Reading | None = getattr(self._local, "reading", None)
         if outer is not None:
             yield outer
             return
@@ -689,14 +757,22 @@ class Frames:
                 # the connection with its bound values (B3's Q3: a bearer URL's session variable, which a view of it
                 # reads, is one connection's), the attachments, and the transaction begun and pinned while the lock is
                 # held -- this read sees the database as it is now
-                begin_read(cursor, self._setup, [s for kept in self._files.values() for s in kept.settings],
-                           attachments, self._pin)
+                begin_read(
+                    cursor,
+                    self._setup,
+                    [s for kept in self._files.values() for s in kept.settings],
+                    attachments,
+                    self._pin,
+                )
             except BaseException:
                 cursor.close()
                 raise
-            read = Reading(cursor, self._hosted(), {**{t.name: t.model for t in self._tables.values()},
-                                                    **{f.name: f.model for f in self._files.values()}},
-                           tuple(v for f in self._files.values() for v in f.held_values))
+            read = Reading(
+                cursor,
+                self._hosted(),
+                {**{t.name: t.model for t in self._tables.values()}, **{f.name: f.model for f in self._files.values()}},
+                tuple(v for f in self._files.values() for v in f.held_values),
+            )
         self._local.reading = read
         try:
             yield read
@@ -711,12 +787,14 @@ class Frames:
 
     def reading_now(self) -> Reading | None:
         """The read this thread is in (``reading``), or None."""
-        return getattr(self._local, 'reading', None)
+        return getattr(self._local, "reading", None)
 
     def _writing(self) -> None:
         if self.reading_now() is not None:
-            raise RuntimeError('the frames are read on this thread (Frames.reading), which sees them as they were when it '
-                               'began: a write inside it would not be read -- write before the read begins')
+            raise RuntimeError(
+                "the frames are read on this thread (Frames.reading), which sees them as they were when it "
+                "began: a write inside it would not be read -- write before the read begins"
+            )
 
     def hosted(self) -> dict[str, dict[str, Any]]:
         """What this database serves a page's cubes over, as DataCube's headless code takes it (headless host-tables.ts
@@ -731,10 +809,15 @@ class Frames:
 
     def _hosted(self) -> dict[str, dict[str, Any]]:
         with self._lock:
-            frames = {t.name: {'model': t.model, 'runtime': t.runtime, 'accessor': t.accessor} for t in self._tables.values()}
-            read = [f for f in self._files.values() if f.leaf is not None]
-        return {'frames': frames, 'files': {f.leaf['sha256']: f.hosted() for f in read if 'sha256' in f.leaf},
-                'remotes': {f.leaf['url']: f.hosted() for f in read if 'url' in f.leaf}}
+            frames = {
+                t.name: {"model": t.model, "runtime": t.runtime, "accessor": t.accessor} for t in self._tables.values()
+            }
+            read = [(f, f.leaf) for f in self._files.values() if f.leaf is not None]
+        return {
+            "frames": frames,
+            "files": {leaf["sha256"]: f.hosted() for f, leaf in read if "sha256" in leaf},
+            "remotes": {leaf["url"]: f.hosted() for f, leaf in read if "url" in leaf},
+        }
 
     def owned(self) -> list[str]:
         """The tables and views of this database a page's grids read -- each frame's, each page's file's -- and each name a
@@ -747,7 +830,7 @@ class Frames:
     def read_files(self) -> dict[str, str]:
         """Each page's file this database read in, by its bytes' hash (its ``leaf``'s): the table it was read into."""
         with self._lock:
-            return {f.leaf['sha256']: f.name for f in self._files.values() if f.leaf is not None and 'sha256' in f.leaf}
+            return {f.leaf["sha256"]: f.name for f in self._files.values() if f.leaf is not None and "sha256" in f.leaf}
 
     def __getitem__(self, name: str) -> Table:
         return self._tables[name.lower()]
@@ -759,5 +842,5 @@ class Frames:
         """Why a page that reads ``reads`` (its frames, as DataCube says) is not admitted by a keeper on this database,
         or None: the keeper's admission of every editor's write (``PageKeeper.settle``'s ``admit``) -- a tab's and
         Python's alike, by this one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md, the S7 audit's Y-10)."""
-        missing = [f for f in reads['frames'] if f not in self]
-        return f'the page reads the frames {", ".join(missing)}, which this engine does not serve' if missing else None
+        missing = [f for f in reads["frames"] if f not in self]
+        return f"the page reads the frames {', '.join(missing)}, which this engine does not serve" if missing else None

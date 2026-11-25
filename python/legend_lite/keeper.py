@@ -55,14 +55,14 @@ COMBINED_AT_MOST = 64
 FOLLOWED_FOR = 300.0
 # what a page reads that its host holds a table for: a snap's copies by table, its files by their bytes' hash, its remote
 # files by URL -- each kept while a page reads it (``letting_go``)
-HOLDS = ('copies', 'files', 'remotes')
+HOLDS = ("copies", "files", "remotes")
 
 
 class Stale(Exception):
     """A write against a version that is no longer the page's: ``version`` is the page's now."""
 
     def __init__(self, version: int) -> None:
-        super().__init__(f'the page is at version {version}')
+        super().__init__(f"the page is at version {version}")
         self.version = version
 
 
@@ -78,9 +78,10 @@ class Settled:
     (``page_hash``), which the writer's own page must hash to (W17); and, combined, the page the keeper made and every id
     it has held -- read with the version, under one lock -- which the writer's screen is set to
     (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version)."""
+
     version: int
     combined: bool
-    hash: str = ''
+    hash: str = ""
     page: dict[str, Any] | None = None
     held: list[str] | None = None
 
@@ -92,7 +93,7 @@ class _Taken(Exception):
 def page_hash(doc: Mapping[str, Any]) -> str:
     """The hash every editor checks a page by (W17): SHA-256 of the page's canonical JSON (_json.canonical: compact, keys
     in code point order, numbers their own digits), as DataCube's page-hash.ts computes it of the page it shows."""
-    return hashlib.sha256(_json.canonical(doc).encode('utf-8')).hexdigest()
+    return hashlib.sha256(_json.canonical(doc).encode("utf-8")).hexdigest()
 
 
 @dataclass
@@ -111,7 +112,7 @@ class _Kept:
     # shown somewhere (a tab, a notebook widget): what an open page may read and write
     served: bool = False
     # the page's hash (page_hash), kept with each version: what an open page checks its own by (W17)
-    hash: str = ''
+    hash: str = ""
     # the last write taken from each writer (a tab's id: its write's number), so one sent again is applied once
     taken: dict[str, int] = field(default_factory=dict)
 
@@ -141,8 +142,9 @@ class PageKeeper:
         """A page kept from now on (a new Python page), at version 1."""
         kept_reads = _reads(reads)
         with self._lock:
-            self._pages[key] = _Kept(1, copy.deepcopy(doc), kept_reads, sorted(set(held)), {1: _holds(kept_reads)},
-                                     hash=page_hash(doc))
+            self._pages[key] = _Kept(
+                1, copy.deepcopy(doc), kept_reads, sorted(set(held)), {1: _holds(kept_reads)}, hash=page_hash(doc)
+            )
             self._have_read(kept_reads)
         return 1
 
@@ -162,13 +164,13 @@ class PageKeeper:
         DataCube said with its last write (pageReads), read together; or None."""
         with self._lock:
             kept = self._pages.get(key)
-            return None if kept is None else (kept.version, kept.doc, list(kept.reads['ids']))
+            return None if kept is None else (kept.version, kept.doc, list(kept.reads["ids"]))
 
     def frames(self, key: str) -> list[str] | None:
         """The frames the page reads, as DataCube said with its last write, or None."""
         with self._lock:
             kept = self._pages.get(key)
-            return None if kept is None else list(kept.reads['frames'])
+            return None if kept is None else list(kept.reads["frames"])
 
     def held(self, key: str) -> list[str]:
         """Every id the page has held."""
@@ -180,7 +182,7 @@ class PageKeeper:
         """The page's hash now (page_hash), or '' when the page is not kept."""
         with self._lock:
             kept = self._pages.get(key)
-            return '' if kept is None else kept.hash
+            return "" if kept is None else kept.hash
 
     def write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:
         """The page made ``doc`` (reading what ``reads`` says), at version ``base``: its new version -- or, the page no
@@ -188,8 +190,16 @@ class PageKeeper:
         ``KeyError``. What the keeper takes from its editors is ``settle``'s and ``restore``'s; this is theirs."""
         return self._write(key, base, doc, reads, held)[0]
 
-    def _write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str],
-               writer: str | None = None, seq: int = 0) -> tuple[int, str, dict[str, Any], list[str]]:
+    def _write(
+        self,
+        key: str,
+        base: int,
+        doc: dict[str, Any],
+        reads: Mapping[str, list[str]],
+        held: list[str],
+        writer: str | None = None,
+        seq: int = 0,
+    ) -> tuple[int, str, dict[str, Any], list[str]]:
         """``write``, and the page at the version it answers -- its hash, its document (the keeper's own: read it, never
         change it) and every id it has held -- read with it, under the lock: another writer may move the page before the
         caller reads anything else (the D19 audit's 3). ``writer``'s write ``seq`` taken with it; one taken already is
@@ -202,7 +212,7 @@ class PageKeeper:
                 raise _Taken()
             if kept.version != base:
                 raise Stale(kept.version)
-            kept.held = sorted(set(kept.held) | set(held) | set(kept_reads['ids']))
+            kept.held = sorted(set(kept.held) | set(held) | set(kept_reads["ids"]))
             if writer is not None:
                 kept.taken[writer] = seq
             if kept_doc == kept.doc and kept_reads == kept.reads:
@@ -226,8 +236,9 @@ class PageKeeper:
                 traceback.print_exc()
         return wrote
 
-    def settle(self, key: str, base: int, edits: list[Any], admit: Admit | None = None, writer: str | None = None,
-               seq: int = 0) -> Settled:
+    def settle(
+        self, key: str, base: int, edits: list[Any], admit: Admit | None = None, writer: str | None = None, seq: int = 0
+    ) -> Settled:
         """A WRITE, SETTLED (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4, H1): ``edits``, made by a writer at version
         ``base``, applied by DataCube to the page as it is now (``combine``: headless pageRebase -- at ``base`` nothing to
         combine, past it made again on top) and what they make kept -- or ``Refused``: one does not apply there, in
@@ -235,7 +246,7 @@ class PageKeeper:
         editor's own, so none is renamed (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md). ``writer``'s write
         ``seq`` (a tab's) is taken once: sent again, it is answered with the page as it is now, which holds it."""
         if self.combine is None:
-            raise Refused('this page keeps no rule to apply its edits by')
+            raise Refused("this page keeps no rule to apply its edits by")
         for _ in range(COMBINED_AT_MOST):
             with self._lock:
                 kept = self._pages[key]
@@ -244,17 +255,22 @@ class PageKeeper:
             if taken:
                 return self._taken(key)
             if not 1 <= base <= at:
-                raise Refused(f'the page is at version {at}, not {base}: it is shown as it is now')
+                raise Refused(f"the page is at version {at}, not {base}: it is shown as it is now")
             said = self.combine(now, now_held, edits)
-            if 'problems' in said:
-                raise Refused('the page changed where it is open while this change was made: ' + '; '.join(said['problems'])
-                              if at != base else '; '.join(said['problems']))
+            if "problems" in said:
+                raise Refused(
+                    "the page changed where it is open while this change was made: " + "; ".join(said["problems"])
+                    if at != base
+                    else "; ".join(said["problems"])
+                )
             if admit is not None:
-                refused = admit(said['reads'])
+                refused = admit(said["reads"])
                 if refused is not None:
                     raise Refused(refused)
             try:
-                version, written_hash, doc, held = self._write(key, at, said['page'], said['reads'], said['held'], writer, seq)
+                version, written_hash, doc, held = self._write(
+                    key, at, said["page"], said["reads"], said["held"], writer, seq
+                )
             except Stale:
                 continue
             except _Taken:
@@ -264,7 +280,7 @@ class PageKeeper:
             if at == base:
                 return Settled(version, False, written_hash)
             return Settled(version, True, written_hash, doc, held)
-        raise Refused('the page kept changing where it is open while this change was made: make it again')
+        raise Refused("the page kept changing where it is open while this change was made: make it again")
 
     def _taken(self, key: str) -> Settled:
         """A write taken already, answered as one the keeper made another page of: the page as it is now, which holds it."""
@@ -279,9 +295,11 @@ class PageKeeper:
         try:
             return self.write(key, base, doc, reads, held)
         except Stale:
-            raise Refused('the page changed where it is open while this was loaded: it is shown as it is now') from None
+            raise Refused("the page changed where it is open while this was loaded: it is shown as it is now") from None
 
-    def snapshot(self, key: str, writer: str | None = None, fence: int | None = None) -> tuple[int, dict[str, Any], list[str], str, int] | None:
+    def snapshot(
+        self, key: str, writer: str | None = None, fence: int | None = None
+    ) -> tuple[int, dict[str, Any], list[str], str, int] | None:
         """The page whole, as a page open on it reads it: its version, its document (the keeper's own: read it, never
         change it), every id it has held, its hash, and the last write taken from ``writer`` (0: none, or no writer) --
         the five under one lock, so a write taken is in the page read with it -- or None. ``fence``: ``writer``'s writes
@@ -331,13 +349,13 @@ class PageKeeper:
         for kind in HOLDS:
             self._read[kind] |= set(reads[kind])
 
-    def has_read(self, key: str, kind: str = 'copies') -> bool:
+    def has_read(self, key: str, kind: str = "copies") -> bool:
         """Whether a page kept has read ``key`` -- a copy by its table, a file by its bytes' hash, a remote file by its URL
         (``kind``, one of HOLDS): the keeper's to let go from then on (``letting_go``), never its maker's."""
         with self._lock:
             return key in self._read[kind]
 
-    def letting_go(self, held: Iterable[str], kind: str = 'copies') -> list[str]:
+    def letting_go(self, held: Iterable[str], kind: str = "copies") -> list[str]:
         """Of ``held`` (the copies, files or remote files its host holds, ``kind``, by their keys), the ones nothing reads
         any more, to let go: read by a page kept once, and now by none -- neither by a page as it is, nor at a version a
         page open on it shows (as it last said within ``FOLLOWED_FOR`` seconds), nor at any version since, which that
@@ -354,7 +372,7 @@ class PageKeeper:
                         read.update(then[kind])
             return sorted(k for k in set(held) if k in self._read[kind] and k not in read)
 
-    def gone(self, key: str, kind: str = 'copies') -> None:
+    def gone(self, key: str, kind: str = "copies") -> None:
         """``key`` let go of (a copy's table is never given again; a file read anew is the keeper's once a page reads it
         again)."""
         with self._lock:
@@ -363,7 +381,7 @@ class PageKeeper:
 
 def _reads(reads: Mapping[str, list[str]]) -> dict[str, list[str]]:
     """What a page reads, as kept: its frames, its copies, its files, its remote files and its ids, each a sorted list."""
-    return {part: sorted(set(reads.get(part, []))) for part in ('frames', *HOLDS, 'ids')}
+    return {part: sorted(set(reads.get(part, []))) for part in ("frames", *HOLDS, "ids")}
 
 
 def _holds(reads: Mapping[str, list[str]]) -> dict[str, list[str]]:
