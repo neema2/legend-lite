@@ -230,7 +230,7 @@ final class DateShifts {
                 com.legend.compiler.spec.typed.TypedNativeCall asAdjust =
                         new com.legend.compiler.spec.typed.TypedNativeCall(n.callee(),
                                 List.of(n.args().get(0), ni.properties().get("number"),
-                                        ni.properties().get("unit")), n.info());
+                                        ni.properties().get("unit")), n.info(), null, n.outsideStore());
                 return java.util.Objects.requireNonNull(rules.get(adjustKey)).apply(asAdjust,
                         List.of(args.get(0), SqlExpr.StructGet.of(args.get(1), "number"), args.get(1)));
             });

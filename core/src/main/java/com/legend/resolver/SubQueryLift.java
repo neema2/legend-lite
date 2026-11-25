@@ -94,7 +94,7 @@ final class SubQueryLift {
             // lowerer's relation-predicate family) — the engine's
             // isEmpty/isNotEmpty over the fetched instances
             return new TypedNativeCall(ec.callee(), List.of(resolveExistsRelation(
-                    ec.args().get(0), context, ctx, specs, letBindings)), ec.info());
+                    ec.args().get(0), context, ctx, specs, letBindings)), ec.info(), null, ec.outsideStore());
         }
         boolean nowUnder = underLambda || n instanceof TypedLambda;
         return SyntheticHeads.rebuildChildren(n,

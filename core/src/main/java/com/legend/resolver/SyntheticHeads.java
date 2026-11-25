@@ -1647,7 +1647,8 @@ final class SyntheticHeads {
                 TypedSpec rewrapped = un == paw.source() ? canon
                         : new TypedNativeCall(
                                 ((TypedNativeCall) paw.source()).callee(),
-                                List.of(canon), paw.source().info());
+                                List.of(canon), paw.source().info(), null,
+                                ((TypedNativeCall) paw.source()).outsideStore());
                 return new TypedPropertyAccess(rewrapped,
                         paw.property(), paw.info());
             }

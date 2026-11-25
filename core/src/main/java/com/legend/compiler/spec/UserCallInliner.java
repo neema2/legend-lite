@@ -512,7 +512,7 @@ public final class UserCallInliner {
                 pargs.add(rewrite(a));
             }
             return NormalizeFolds.foldReflection(
-                    new TypedNativeCall(call.callee(), pargs, call.info(), null));
+                    new TypedNativeCall(call.callee(), pargs, call.info(), null, call.outsideStore()));
         }
         if (row instanceof com.legend.platform.Implementation.Refused refused
                 && refused.reason() != com.legend.platform.Implementation.Reason.MOOT) {
@@ -777,7 +777,7 @@ public final class UserCallInliner {
         }
         ExprType ni = new ExprType(callInfo.type(), reduced.info().multiplicity());
         return switch (reduced) {
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos());
+            case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos(), c.outsideStore());
             case com.legend.compiler.spec.typed.TypedCollection tc -> tc.withInfo(ni);
             case TypedUserCall uc -> uc.withInfo(ni);
             default -> reduced;
@@ -1680,7 +1680,7 @@ public final class UserCallInliner {
                 args.add(a instanceof TypedVariable v2
                         && v2.name().equals(param) ? lit : a);
             }
-            return new TypedNativeCall(nc.callee(), args, nc.info(), nc.pos());
+            return new TypedNativeCall(nc.callee(), args, nc.info(), nc.pos(), nc.outsideStore());
         }
         if (referencesVar(node, param)) {
             throw new IllegalStateException("effectful map body reads the"

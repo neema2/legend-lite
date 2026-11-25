@@ -1719,7 +1719,7 @@ final class StackBuilder {
         }
         List<TypedSpec> erased = kids.stream().map(c -> erase(c, tVar, sVar)).toList();
         if (n instanceof TypedNativeCall nc) {
-            return new TypedNativeCall(nc.callee(), erased, nc.info(), null);
+            return new TypedNativeCall(nc.callee(), erased, nc.info(), null, nc.outsideStore());
         }
         return n.withChildren(erased);
     }
