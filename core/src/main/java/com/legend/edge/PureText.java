@@ -135,6 +135,11 @@ public final class PureText {
                 // legend-engine's AggregationAwareActivity, the routed query's print (J5 of the edge audit, 2026-11-17)
                 return kind.cast((com.legend.planner.RoutedQueries) AggAwareActivities::routingActivity);
             }
+            if (kind == com.legend.lowering.EditionTable.class) {
+                // the edition's table (the edition program's step 2): PCT's and the corpus's doors hand no row yet,
+                // the product's table as it is
+                return productForm;
+            }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");
         }
@@ -166,6 +171,11 @@ public final class PureText {
      *  route writes no check for in its SQL -- the database decides (rem's and divide's {@code mod} and {@code /},
      *  {@code sqrt}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice}, {@code range}, {@code processCast},
      *  the parses' plain casts). */
+    /** THE STAMP'S PROBE (the edition program's step 2a; temporary, never landed): {@code -Dlegend.probe.stamp=true}
+     *  hands pure/v1 legend-engine's table ({@link EngineTable}) and skips the A3 rewrite
+     *  ({@link PureV1Routes#checkMeaning}). */
+    static final boolean STAMP_PROBE = Boolean.getBoolean("legend.probe.stamp");
+
     static final java.util.Set<com.legend.sql.RaiseKind> ENGINE_UNCHECKED = java.util.Collections.unmodifiableSet(
             java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
                     com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
@@ -224,6 +234,11 @@ public final class PureText {
             if (kind == com.legend.lowering.LoweringForms.class) {
                 java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
                 return kind.cast(EdgeLoweringForms.PURE_V1);
+            }
+            if (kind == com.legend.lowering.EditionTable.class && STAMP_PROBE) {
+                // THE STAMP'S PROBE (the edition program's step 2a; temporary, never landed): legend-engine's table in
+                // place of the A3 rewrite, so A3's own tests and pure/v1's answers judge the stamp
+                return kind.cast(EngineTable.INSTANCE);
             }
             return UPSTREAM.twoForm(kind, productForm);
         }

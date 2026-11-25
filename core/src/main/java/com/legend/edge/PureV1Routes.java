@@ -330,6 +330,10 @@ public final class PureV1Routes {
      *  is returned as it is. */
     static com.legend.TypedQuery checkMeaning(com.legend.TypedQuery query, com.legend.compiler.element.ModelContext ctx,
             @com.legend.base.Nullable String runtime, @com.legend.base.Nullable String mapping) {
+        if (PureText.STAMP_PROBE) {
+            // the stamp's probe (temporary): the table and the stamp answer in the rewrite's place
+            return EngineComparisons.asTheDatabases(query);
+        }
         return PureMeaningRewrite.rewrite(EngineComparisons.asTheDatabases(query), ctx, runtime, mapping,
                 PureMeaningRewrite::engine).query();
     }
