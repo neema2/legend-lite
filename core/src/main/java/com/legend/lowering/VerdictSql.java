@@ -977,8 +977,8 @@ public final class VerdictSql {
         }
         SqlExpr v = SqlExpr.Column.of("t", rows.outputs(), O);
         // every date-time read as the judge's instant (the dialect's JUDGE cast to TIMESTAMP: a value the database
-        // types as a date-time, as it holds it, every digit; SQLite's, a text, in one form at nine digits; a text with
-        // more digits than the database's date-time reads refused by name -- S399, S181, the user's rule of
+        // types as a date-time, as it holds it, every digit; SQLite's, a text, as the one text of its instant; a text
+        // with more digits than the database's date-time reads refused by name -- S399, S181, the user's rule of
         // 2026-11-22) --
         // a stored one as it is held, a written one from its text: an hour's text read at its minute; a day's text (a
         // DateTime over a column that holds days: the egress writes its day alone, the dates audit's MEDIUM 4) read

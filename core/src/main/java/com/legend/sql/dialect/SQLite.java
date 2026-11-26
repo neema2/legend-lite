@@ -39,9 +39,11 @@ import java.util.Set;
  *
  * <p>What differs from DuckDB, measured:
  * <ul>
- *   <li>a value has no declared type: INTEGER, REAL, TEXT, BLOB or NULL, per value. A boolean is 1 or 0, a date and a
- *       date-time are their ISO text ({@code 'YYYY-MM-DD'}, {@code 'YYYY-MM-DD HH:MM:SS[.f]'}), and a CAST to a type
- *       name casts by its affinity only ({@code CAST('2024-01-01' AS DATE)} is 2024): every cast is decided here;</li>
+ *   <li>a value has no declared type: INTEGER, REAL, TEXT, BLOB or NULL, per value. A boolean is 1 or 0, a date is
+ *       its ISO text ({@code 'YYYY-MM-DD'}) and a date-time ONE text per instant ({@code 'YYYY-MM-DD HH:MM:SS'}, then
+ *       a point and its fraction's digits only where it has one, no trailing zero: {@link #timestampLit}, 2026-11-26),
+ *       so the text's comparison is the instant's; and a CAST to a type name casts by its affinity only
+ *       ({@code CAST('2024-01-01' AS DATE)} is 2024): every cast is decided here;</li>
  *   <li>there is no exact decimal: a decimal is a REAL, and a root decimal column is its text at its scale
  *       ({@code printf('%.2f', x)}), read back exact by the typed reader;</li>
  *   <li>a list, a struct, a map and a Variant are JSON text (JSON1): {@code json_array}, {@code json_object}; a list
@@ -166,6 +168,40 @@ public class SQLite extends AnsiSqlRenderer {
         }
         writer.append(" FROM json_each(");
         return bindPayload(writer, u).append(") AS legend_payload");
+    }
+
+    /** {@inheritDoc} And a column the store declares a date-time: SQLite gives it no type, so its text is whatever
+     *  wrote the table -- this dialect's own loads the one text of each instant ({@link #timestampLit}), a user's own
+     *  table the digits of a second its writer chose -- and it is read into that one text at every reference
+     *  ({@link #storedRead}), so every clause compares one form. */
+    @Override
+    protected boolean readsStored(com.legend.sql.SqlDdl.ColumnType t) {
+        return storedInstant(t) || super.readsStored(t);
+    }
+
+    private static boolean storedInstant(com.legend.sql.SqlDdl.ColumnType t) {
+        return t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p
+                && (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP
+                        || p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP_NS);
+    }
+
+    /** {@inheritDoc} A stored date-time ({@link #readsStored}) as the one text of its instant: SQLite's own date-time
+     *  text -- {@code YYYY-MM-DD}, then {@code HH:MM}, its seconds and any digits of a second, each optional -- with
+     *  the time, minute or second it does not write taken from the midnight it would be (by its length) and its
+     *  fraction's trailing zeros dropped, and the 'T' SQLite also reads between day and time a space: the one
+     *  normalization of a text this dialect did not make. Only a text of that shape is touched (a four-digit year, and
+     *  from its twentieth character nothing but a point and digits, so its only 'T' is that one): the one text of an
+     *  instant is itself, and a text with an offset after it, or a year outside 0000 to 9999, is read as it is held,
+     *  as before. */
+    @Override
+    protected SqlWriter storedRead(SqlWriter writer, SqlExpr.StoredRead r) {
+        if (!storedInstant(r.stored())) {
+            return super.storedRead(writer, r);
+        }
+        return writer.append("(CASE WHEN ltrim(substr(").expr(r.column(), 0).append(", 20), '.0123456789') = '' AND"
+                + " substr(").expr(r.column(), 0).append(", 5, 1) = '-' THEN ").piece(shortest(w -> w.append("replace(")
+                        .expr(r.column(), 0).append(", 'T', ' ') || substr('0000-00-00 00:00:00.', length(")
+                        .expr(r.column(), 0).append(") + 1)"))).append(" ELSE ").expr(r.column(), 0).append(" END)");
     }
 
     /** {@inheritDoc} 9: a date-time is its text, every digit kept (S181, A7, 2026-11-10). */
@@ -759,17 +795,85 @@ public class SQLite extends AnsiSqlRenderer {
         return "'" + iso + "'";
     }
 
-    /** A date-time is its ISO text with a space (the form SQLite's date functions write, so texts compare as
-     *  instants), its fraction as written. */
+    /** The ISO shapes a date-time literal arrives in: a day, then optionally its hour, minute, second and up to nine
+     *  digits of a second ({@code keptFraction} has refused more: S181), then optionally {@code Z} or an offset from
+     *  UTC ({@code +HH}, {@code +HH:MM}, {@code +HHMM}: a test-data cell's, a TDS cell's); the year as it is written
+     *  (Pure's spelling, or Java's signed one for a year past four digits). */
+    private static final java.util.regex.Pattern DATE_TIME_LITERAL = java.util.regex.Pattern.compile(
+            "([+-]?\\d+)-(\\d{2})-(\\d{2})(?:[ T](\\d{2})(?::(\\d{2})(?::(\\d{2})(?:\\.(\\d{0,9}))?)?)?"
+                    + "(Z|[+-]\\d{2}(?::?\\d{2})?)?)?");
+
+    /**
+     * THE ONE TEXT OF A DATE-TIME (the owner's ruling of 2026-11-26, "Shouldn't we normalize to at least pretend it's a
+     * date? ... Is it not just a cheap string format?"; register S399's "a date-time by its instant"). SQLite has no
+     * date-time type, so a date-time is held here as text, and since that day as ONE text per instant:
+     * {@code 'YYYY-MM-DD HH:MM:SS'}, then a point and the fraction's digits only where the fraction is not zero, with
+     * no trailing zero -- the text DuckDB's cast prints of a TIMESTAMP, and what SQLite's own {@code datetime()}
+     * writes.
+     * One instant has one text, so the text's own comparison is the instant's: {@code =}, {@code <>}, {@code IN},
+     * {@code DISTINCT}, {@code GROUP BY} and a join's key, and {@code <}, {@code >} and a sort too (a text that ends
+     * sorts before the texts that extend it, and fractions with no trailing zero compare digit by digit as their
+     * numbers do), for the years 0000 to 9999; a year outside them keeps Pure's spelling of it before the same time, so
+     * it is equal to itself and ordered as text, as before. Until then the fraction was held as written, and
+     * {@code '2014-01-01 00:00:00' = '2014-01-01 00:00:00.000'} is 0 (measured).
+     *
+     * <p>The text is made at each SOURCE of a date-time, never at a comparison: a literal and a loaded cell here, when
+     * the plan is made (the spelling of a constant: no SQL at run); this dialect's own date functions, which write a
+     * whole second already, or a fraction it trims ({@link #shortest}); a text read as a date-time and a store's own
+     * column by SQL at run ({@link #instantOf}, {@link #storedRead}): the two sources this dialect did not write. A
+     * value with no time of day (a day's ten characters, which a Date-typed slot may hold beside date-times) is no
+     * date-time and stays as it is; every reader below reads both.
+     *
+     * <p>{@code iso}'s 'T' is a space, an hour, minute or second it does not write {@code 00}, its fraction's trailing
+     * zeros dropped; an offset from UTC it carries is applied (a date-time is held as its UTC wall time: the literal's
+     * own arithmetic, a constant's spelling) and {@code Z} dropped. A literal in no ISO shape is refused by name, never
+     * passed on as written.
+     */
     @Override
     protected String timestampLit(String iso) {
-        return "'" + iso.replace('T', ' ') + "'";
+        java.util.regex.Matcher m = DATE_TIME_LITERAL.matcher(iso);
+        if (!m.matches()) {
+            throw new DialectCapability("the date-time literal '" + iso + "' is in no ISO shape (a day, then"
+                    + " HH[:MM[:SS[.fffffffff]]] and an offset): SQLite holds a date-time as one text per instant, and"
+                    + " this literal has none");
+        }
+        String day = m.group(1) + "-" + m.group(2) + "-" + m.group(3);
+        String time = (m.group(4) == null ? "00" : m.group(4)) + ":" + (m.group(5) == null ? "00" : m.group(5)) + ":"
+                + (m.group(6) == null ? "00" : m.group(6));
+        String offset = m.group(8);
+        int seconds = offset == null || offset.equals("Z") ? 0 : (offset.charAt(0) == '-' ? -1 : 1)
+                * (Integer.parseInt(offset.substring(1, 3)) * 3600
+                        + (offset.length() > 3 ? Integer.parseInt(offset.substring(offset.length() - 2)) * 60 : 0));
+        if (seconds != 0) {
+            // the wall time at UTC, its year spelled as a literal's is: four digits within 0000 to 9999, else Pure's
+            java.time.LocalDateTime utc = java.time.LocalDateTime.of(Integer.parseInt(m.group(1)),
+                    Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), Integer.parseInt(time.substring(0, 2)),
+                    Integer.parseInt(time.substring(3, 5)), Integer.parseInt(time.substring(6, 8)))
+                    .minusSeconds(seconds);
+            int year = utc.getYear();
+            day = (year >= 0 && year <= 9999 ? String.format(Locale.ROOT, "%04d", year) : Integer.toString(year))
+                    + String.format(Locale.ROOT, "-%02d-%02d", utc.getMonthValue(), utc.getDayOfMonth());
+            time = String.format(Locale.ROOT, "%02d:%02d:%02d", utc.getHour(), utc.getMinute(), utc.getSecond());
+        }
+        String fraction = m.group(7) == null ? "" : m.group(7).replaceFirst("0+$", "");
+        return "'" + day + " " + time + (fraction.isEmpty() ? "" : "." + fraction) + "'";
     }
 
-    /** A time of day is its text. */
+    /** {@code x}, a text that ends in a point and digits (a second and its fraction, as this dialect's own functions
+     *  write one), as the one text of its instant ({@link #timestampLit}): its trailing zeros dropped, and its point
+     *  where no digit is left. Only for a text whose point is known to be there: without one, the second's own zeros
+     *  would go. */
+    private static SqlWriter.Piece shortest(SqlWriter.Piece x) {
+        return w -> w.append("rtrim(rtrim(").piece(x).append(", '0'), '.')");
+    }
+
+    /** A time of day is its text, its fraction's trailing zeros dropped and, where none is left, its point: the
+     *  text a date-time's own time of day has here ({@code substr(t, 12)} of the one text of an instant,
+     *  {@link #timestampLit}), so the two compare as one value ({@code %10:20:30.500} is the time of
+     *  {@code %2014-01-01T10:20:30.5}). */
     @Override
     protected String timeLit(String iso) {
-        return "'" + iso + "'";
+        return "'" + (iso.indexOf('.') < 0 ? iso : iso.replaceFirst("0+$", "").replaceFirst("\\.$", "")) + "'";
     }
 
     /** A Float literal is a REAL; the infinities are REALs past the range ({@code 9e999}, measured: Infinity); NaN has
@@ -1341,21 +1445,35 @@ public class SQLite extends AnsiSqlRenderer {
         SqlType target = c.target();
         SqlExpr v = c.value();
         if (target == SqlType.Scalar.TIMESTAMP && judged(c)) {
-            // a judge's instant (register S399): a date-time is held here as its text, so it is read in one form,
-            // 'YYYY-MM-DD HH:MM:SS.fffffffff', and two texts of one instant compare equal (the dates audit's HIGH 3,
+            // a judge's instant (register S399): a date-time is held here as its text, so both sides are read as the
+            // one text of their instant ('YYYY-MM-DD HH:MM:SS', then a point and the fraction's digits with no
+            // trailing zero: timestampLit), and two texts of one instant compare equal (the dates audit's HIGH 3,
             // 2026-11-22: until then '10:00:00.5' was not '10:00:00.50'); every digit a date-time here carries is
             // compared -- nine, the digits a literal and a load keep here (literalFractionDigits,
             // timestampColumnDigits; S181 refuses more) -- never cut (the user's rule of 2026-11-22)
             SqlType from = typeOf(v);
+            if (from == SqlType.Scalar.TIMESTAMP) {
+                // a value this dialect types a date-time is that one text already (2026-11-26: every source writes
+                // it), so it is compared as it is held -- until then read through the whole arm below, about 600
+                // characters a value. Two readings are kept, each as before: a DAY's text, which a Date-typed slot
+                // may hold beside date-times, is its midnight (as every database's date-time of a day is), and a
+                // nonzero digit past the ninth -- only a user's own text has one -- is refused, never compared
+                String past = "substr(__i0.t, instr(__i0.t, '.') + 10)";
+                return writer.append("(SELECT CASE WHEN instr(__i0.t, ' ') = 0 THEN __i0.t || ' 00:00:00' WHEN"
+                        + " instr(__i0.t, '.') > 0 AND ltrim(" + past + ", '0123456789') = '' AND ltrim(" + past
+                        + ", '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE __i0.t END FROM (SELECT ")
+                        .expr(v, 0).append(" AS t) AS __i0)");
+            }
             SqlWriter.Piece t = from == SqlType.Scalar.DATE ? w -> w.append("(").expr(v, 0).append(" || ' 00:00:00')")
-                    : from == SqlType.Scalar.TIMESTAMP ? w -> w.expr(v, 0) : padded(dateTimeText(w -> w.expr(v, 0)));
-            // its fraction the run of digits after the point (a zone after it is no digit of it); one with a nonzero
-            // digit past its ninth refused, never cut
+                    : padded(dateTimeText(w -> w.expr(v, 0)));
+            // a text that is not yet a date-time (a literal's written text, a day): its second by SQLite's reading
+            // of it, its fraction the run of digits after the point (a zone after it is no digit of it), one with a
+            // nonzero digit past its ninth refused, never cut; then the trailing zeros dropped (shortest)
             String f = "substr(__i0.t, instr(__i0.t, '.') + 1)";
             return writer.append("(SELECT CASE WHEN __it.t IS NULL THEN NULL WHEN length(__it.d) > 9 AND ltrim(substr("
-                    + "__it.d, 10), '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE coalesce(strftime("
-                    + "'%Y-%m-%d %H:%M:%S', __it.t), " + WIDE_YEAR_SECOND + ") || '.' || substr(__it.d || '000000000', 1,"
-                    + " 9) END FROM (SELECT __i0.t AS t, CASE WHEN"
+                    + "__it.d, 10), '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE ").piece(shortest(w -> w
+                            .append("coalesce(strftime('%Y-%m-%d %H:%M:%S', __it.t), " + WIDE_YEAR_SECOND
+                                    + ") || '.' || __it.d"))).append(" END FROM (SELECT __i0.t AS t, CASE WHEN"
                     + " instr(__i0.t, '.') > 0 THEN substr(" + f + ", 1, length(" + f + ") - length(ltrim(" + f
                     + ", '0123456789'))) ELSE '' END AS d FROM (SELECT ").piece(t).append(" AS t) AS __i0) AS __it)");
         }
@@ -1490,14 +1608,19 @@ public class SQLite extends AnsiSqlRenderer {
                     : w -> w.append("CAST(").piece(value).append(" AS INTEGER)");
             case DOUBLE -> w -> w.append("CAST(").piece(value).append(" AS REAL)");
             case DATE -> w -> w.append("date(").piece(value).append(")");
+            // the one text of a date-time (timestampLit): a day's midnight by a constant; a text that is not this
+            // dialect's own -- a user's, a Variant's string -- read into it by SQL at run (instantOf)
             case TIMESTAMP -> from == SqlType.Scalar.DATE
                     ? w -> w.append("(").piece(value).append(" || ' 00:00:00')")
-                    : from == SqlType.Scalar.VARCHAR ? padded(dateTimeText(value)) : value;
+                    : from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
+                            ? instantOf(padded(dateTimeText(value))) : value;
             // a zoned date-time is held as its naive UTC text: its offset applied at the cast
             case TIMESTAMPTZ -> from == SqlType.Scalar.DATE
                     ? w -> w.append("(").piece(value).append(" || ' 00:00:00')")
-                    : from == SqlType.Scalar.VARCHAR ? w -> w.append("(SELECT ").piece(utcOf(w2 -> w2.append("__u.t")))
-                            .append(" FROM (SELECT ").piece(padded(dateTimeText(value))).append(" AS t) AS __u)")
+                    : from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
+                            ? instantOf(w -> w.append("(SELECT ").piece(utcOf(w2 -> w2.append("__u.t")))
+                                    .append(" FROM (SELECT ").piece(padded(dateTimeText(value)))
+                                    .append(" AS t) AS __u)"))
                     : value;
             case JSON -> w -> w.append("json_quote(").piece(value).append(")");
             // a time of day is its text: a date-time text's from its twelfth character, a date's midnight
@@ -1847,7 +1970,8 @@ public class SQLite extends AnsiSqlRenderer {
 
             // ---- temporal
             case TODAY -> writer.append("date('now')");
-            case NOW -> writer.append("strftime('%Y-%m-%d %H:%M:%f', 'now')");
+            // SQLite's %f writes three digits of a second, always: the instant's one text has no trailing zero
+            case NOW -> writer.piece(shortest(w -> w.append("strftime('%Y-%m-%d %H:%M:%f', 'now')")));
             case DATE_TRUNC_DAY -> writer.append("date(").expr(a.get(0), 0).append(")");
             case PARSE_DATE -> writer.piece(parsedDate(a.get(0)));
             case EXTRACT -> writer.piece(extract(a));
@@ -1864,16 +1988,18 @@ public class SQLite extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC text: UTC's wall time is the instant's, either way
             case TIMEZONE -> timezone(writer, c, parentPrec);
-            // a date's text, a space, a time's text: the date-time text SQLite's date functions read
-            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 3).append(" || ' ' || ")
-                    .expr(a.get(1), 3));
+            // a date's text, a space, a time's text ('HH:MM:SS' and the digits of a second it was written with): the
+            // one text of the instant has no trailing zero, so the time's are dropped (a point is given to a time
+            // with none, for the trim to stop at: substr('.', 2) is empty, and no branch skips an operand)
+            case DATE_AT_TIME -> writer.piece(shortest(w -> w.expr(a.get(0), 3).append(" || ' ' || ").expr(a.get(1), 3)
+                    .append(" || substr('.', 1 + (instr(").expr(a.get(1), 0).append(", '.') > 0))")));
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000.0)");
             case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: SQLite keeps"
                     + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("datetime(").expr(a.get(0), 0).append(", 'unixepoch')");
-            case FROM_EPOCH_MS -> writer.append("strftime('%Y-%m-%d %H:%M:%f', ").expr(a.get(0), 6)
-                    .append(" / 1000.0, 'unixepoch')");
+            case FROM_EPOCH_MS -> writer.piece(shortest(w -> w.append("strftime('%Y-%m-%d %H:%M:%f', ")
+                    .expr(a.get(0), 6).append(" / 1000.0, 'unixepoch')")));
             case DAYNAME -> writer.piece(dayName(a.get(0)));
             case MONTHNAME -> writer.piece(monthName(a.get(0), false));
             case STRFTIME -> strftimeArm(writer, c);
@@ -2539,11 +2665,69 @@ public class SQLite extends AnsiSqlRenderer {
                 + " AS rest FROM (SELECT ").piece(text).append(" AS t) AS __pd) AS __pd2)");
     }
 
-    /** Pure's parseDate of a text: its date's fields padded ({@link #padded}), its time and fraction as written; a text
-     *  that is no date raises. */
+    /**
+     * A date-time TEXT that is not this dialect's own -- a user's text cast to a date-time, a Variant's string, a
+     * parsed text ({@code text}: its 'T' a space and its day's fields padded already) -- read into the one text of its
+     * instant ({@link #timestampLit}), by SQL at run: with a store's own column ({@link #storedRead}), the one kind of
+     * source that needs it. Its second by SQLite's own reading of the text (an offset it carries applied, as DuckDB's
+     * cast applies one) or, where that reads none (a year outside 0000 to 9999, an hour alone), its own day and time as
+     * written, an hour, minute or second it does not write {@code 00}; its fraction the run of digits after its point,
+     * every one kept (S181 refuses no text the database parses) but its trailing zeros. A day alone is its midnight;
+     * NULL stays NULL.
+     */
+    private static SqlWriter.Piece instantOf(SqlWriter.Piece text) {
+        String p = "instr(__i0.t, ' ')";
+        String f = "substr(__i0.t, instr(__i0.t, '.') + 1)";
+        return w -> w.append("(SELECT ").piece(shortest(w2 -> w2.append("coalesce(strftime('%Y-%m-%d %H:%M:%S',"
+                + " __it.t), __it.day || ' ' || __it.tm || substr('00:00:00', length(__it.tm) + 1)) || '.' || __it.d")))
+                .append(" FROM (SELECT __i0.t AS t, CASE WHEN " + p + " = 0 THEN __i0.t ELSE substr(__i0.t, 1, " + p
+                        + " - 1) END AS day, CASE WHEN " + p + " = 0 THEN '' ELSE substr(__i0.t, " + p
+                        + " + 1, 8) END AS tm, CASE WHEN instr(__i0.t, '.') > 0 THEN substr(" + f + ", 1, length(" + f
+                        + ") - length(ltrim(" + f + ", '0123456789'))) ELSE '' END AS d FROM (SELECT ").piece(text)
+                .append(" AS t) AS __i0) AS __it)");
+    }
+
+    /** A date or date-time written in full ISO shape (trimmed, its 'T' or a space between day and time): what
+     *  {@link #parsedDate} answers for it when it is a real day and time, else no match. */
+    private static final java.util.regex.Pattern PARSED_LITERAL = java.util.regex.Pattern.compile(
+            "(\\d{4})-(\\d{2})-(\\d{2})(?:[ T](\\d{2})(?::(\\d{2})(?::(\\d{2})(?:\\.\\d{1,9})?)?)?)?");
+
+    /** The text {@link #parsedDate} answers for the CONSTANT text {@code text}, spelled when the plan is made (a
+     *  constant's spelling, as a date-time literal's is: no SQL at run), or null where the database must read it: a
+     *  text in any other shape (unpadded fields, an offset, more digits), or one that is no real day or time, which
+     *  the statement reads and raises on as it does a row's. A day is its ten characters; a day and time the one text
+     *  of its instant ({@link #timestampLit}). */
+    private @com.legend.base.Nullable String parsedLiteral(String text) {
+        String t = text.trim();
+        java.util.regex.Matcher m = PARSED_LITERAL.matcher(t);
+        if (!m.matches()) {
+            return null;
+        }
+        try {
+            java.time.LocalDate.of(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)),
+                    Integer.parseInt(m.group(3)));
+            java.time.LocalTime.of(m.group(4) == null ? 0 : Integer.parseInt(m.group(4)),
+                    m.group(5) == null ? 0 : Integer.parseInt(m.group(5)),
+                    m.group(6) == null ? 0 : Integer.parseInt(m.group(6)));
+        } catch (java.time.DateTimeException notADate) {
+            return null;
+        }
+        return m.group(4) == null ? dateLit(t) : timestampLit(t);
+    }
+
+    /** Pure's parseDate of a text: its date's fields padded ({@link #padded}); a day alone stays its day (the cast
+     *  around it decides what it is), a text with a time of day is read into the one text of its instant
+     *  ({@link #instantOf}); a text that is no date raises. A constant text in full ISO shape is spelled when the
+     *  plan is made ({@link #parsedLiteral}). */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
-        return w -> w.append("(SELECT CASE WHEN date(substr(__pp.t, 1, 10)) = substr(__pp.t, 1, 10) AND (length(__pp.t)"
-                + " = 10 OR substr(__pp.t, 11, 1) = ' ') THEN __pp.t ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+        String constant = x instanceof SqlExpr.StringLit lit ? parsedLiteral(lit.value()) : null;
+        if (constant != null) {
+            return w -> w.append(constant);
+        }
+        String day = "date(substr(__pp.t, 1, 10)) = substr(__pp.t, 1, 10)";
+        return w -> w.append("(SELECT CASE WHEN " + day + " AND length(__pp.t) = 10 THEN __pp.t WHEN " + day
+                + " AND substr(__pp.t, 11, 1) = ' ' THEN ").piece(instantOf(w2 -> w2.append("__pp.t")))
+                .append(" ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
                         com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))))).append(" END FROM (SELECT ")
                 .piece(padded(dateTimeText(w2 -> w2.expr(x, 0)))).append(" AS t) AS __pp)");
     }
@@ -2644,21 +2828,21 @@ public class SQLite extends AnsiSqlRenderer {
     }
 
     /** A date-time's microseconds since the epoch: its whole seconds ({@code unixepoch} of its first 19 characters,
-     *  exact) and its fraction's digits, as written (SQLite's own functions keep milliseconds). */
+     *  exact) and the first six digits of its fraction, which the one text of a date-time ({@link #timestampLit})
+     *  holds from its twenty-first character, where it has any (a whole second and a day's text have none: 0;
+     *  SQLite's own functions keep milliseconds). */
     private static SqlWriter.Piece micros(SqlExpr t) {
-        return w -> w.append("(unixepoch(substr(").expr(t, 0).append(", 1, 19)) * 1000000 + CASE WHEN instr(")
-                .expr(t, 0).append(", '.') > 0 THEN CAST(substr(substr(").expr(t, 0).append(", instr(").expr(t, 0)
-                .append(", '.') + 1) || '000000', 1, 6) AS INTEGER) ELSE 0 END)");
+        return w -> w.append("(unixepoch(substr(").expr(t, 0).append(", 1, 19)) * 1000000 + CAST(substr(substr(")
+                .expr(t, 0).append(", 21) || '000000', 1, 6) AS INTEGER))");
     }
 
-    /** A date-time of the given microseconds since the epoch: its seconds by {@code datetime}, its fraction's digits
-     *  (none when whole; else six, trailing zeros trimmed). */
+    /** A date-time of the given microseconds since the epoch, as the one text of its instant ({@link #timestampLit}):
+     *  its seconds by {@code strftime} (floored: a time before 1970 has a negative count), a point and its six digits,
+     *  the trailing zeros dropped ({@link #shortest}). */
     private static SqlWriter.Piece fromMicros(SqlWriter.Piece us) {
-        SqlWriter.Piece secs = w -> w.append("((").piece(us).append(" - ((").piece(us)
-                .append(" % 1000000) + 1000000) % 1000000) / 1000000)");
         SqlWriter.Piece frac = w -> w.append("(((").piece(us).append(" % 1000000) + 1000000) % 1000000)");
-        return w -> w.append("(datetime(").piece(secs).append(", 'unixepoch') || CASE WHEN ").piece(frac)
-                .append(" = 0 THEN '' ELSE '.' || rtrim(printf('%06d', ").piece(frac).append("), '0') END)");
+        return shortest(w -> w.append("strftime('%Y-%m-%d %H:%M:%S.', (").piece(us).append(" - ").piece(frac)
+                .append(") / 1000000, 'unixepoch') || printf('%06d', ").piece(frac).append(")"));
     }
 
     /** A date part of a date, a Pure integer: the ISO day of the week Monday 1 to Sunday 7, the week the ISO week. */
@@ -2699,7 +2883,7 @@ public class SQLite extends AnsiSqlRenderer {
             case HOUR -> w -> w.append("strftime('%Y-%m-%d %H:00:00', ").expr(t, 0).append(")");
             case MINUTE -> w -> w.append("strftime('%Y-%m-%d %H:%M:00', ").expr(t, 0).append(")");
             case SECOND -> w -> w.append("strftime('%Y-%m-%d %H:%M:%S', ").expr(t, 0).append(")");
-            case MILLISECOND -> w -> w.append("strftime('%Y-%m-%d %H:%M:%f', ").expr(t, 0).append(")");
+            case MILLISECOND -> shortest(w -> w.append("strftime('%Y-%m-%d %H:%M:%f', ").expr(t, 0).append(")"));
             case MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured SQLite spelling");
         };
@@ -2707,7 +2891,8 @@ public class SQLite extends AnsiSqlRenderer {
 
     /** A date plus an interval. Whole years and months by the date functions' modifiers, a month past the month's end
      *  clamped ({@code 'floor'}, SQLite 3.46: 2020-01-31 + 1 month is 2020-02-29, as DuckDB's); a date plus days is a
-     *  date; anything finer in microseconds. A date-time keeps its fraction's digits through whole units. */
+     *  date; anything finer in microseconds. A date-time keeps its fraction's digits through whole units (the date
+     *  functions move its second; a day's text has none, and becomes its midnight). */
     private SqlWriter.Piece addInterval(List<SqlExpr> a, SqlExpr.Call c) {
         com.legend.sql.DatePart unit = part(a.get(0));
         SqlExpr n = a.get(1);
@@ -2737,7 +2922,21 @@ public class SQLite extends AnsiSqlRenderer {
             return w -> w.append("date(").expr(t, 0).append(", printf('%+d days', ").expr(n, 6)
                     .append(" * " + days + "))");
         }
+        if (micros % 1000000L == 0) {
+            // whole seconds move the second alone: the fraction is the value's own, carried as it is held (every
+            // digit of it; until 2026-11-26 the sum was made in microseconds, the value written three times and its
+            // digits past the sixth dropped)
+            return w -> w.append("(datetime(").piece(seconds(t)).append(" + ").expr(n, 6)
+                    .append(" * " + micros / 1000000L + ", 'unixepoch') || substr(").expr(t, 0).append(", 20))");
+        }
         return fromMicros(w -> w.append("(").piece(micros(t)).append(" + ").expr(n, 6).append(" * " + micros + ")"));
+    }
+
+    /** A date-time's whole seconds since the epoch ({@code unixepoch} of its first 19 characters, exact; of a day's
+     *  text its midnight's): its instant floored to the second, a time before 1970 included (its text's fraction is
+     *  never negative). */
+    private static SqlWriter.Piece seconds(SqlExpr t) {
+        return w -> w.append("unixepoch(substr(").expr(t, 0).append(", 1, 19))");
     }
 
     /** A fixed-length unit's length in microseconds; null for a calendar one. */
@@ -2787,8 +2986,14 @@ public class SQLite extends AnsiSqlRenderer {
         return w -> w.append("CAST(strftime('" + code + "', ").expr(t, 0).append(") AS INTEGER)");
     }
 
-    /** The unit boundaries between two date-times: each floored to the unit, in microseconds. */
+    /** The unit boundaries between two date-times: each floored to the unit -- in whole seconds where the unit is
+     *  whole seconds (the floor of a floor: the fraction decides nothing), else in microseconds. */
     private static SqlWriter.Piece boundaries(SqlExpr from, SqlExpr to, long unit) {
+        if (unit % 1000000L == 0) {
+            long s = unit / 1000000L;
+            return w -> w.append("(").piece(floorDiv(seconds(to), s)).append(" - ").piece(floorDiv(seconds(from), s))
+                    .append(")");
+        }
         return w -> w.append("(").piece(floorDiv(micros(to), unit)).append(" - ").piece(floorDiv(micros(from), unit))
                 .append(")");
     }
@@ -2800,12 +3005,23 @@ public class SQLite extends AnsiSqlRenderer {
     }
 
     /** DuckDB's time_bucket with the base's origins (1970-01-01; weeks the Monday 1969-12-29): fixed units binned in
-     *  microseconds, floored; months and years by the month index since 1970-01, floored to the bucket's size. */
+     *  seconds, a unit finer than a second in microseconds, floored; months and years by the month index since
+     *  1970-01, floored to the bucket's size. */
     private static SqlWriter.Piece timeBucket(List<SqlExpr> a) {
         com.legend.sql.DatePart unit = part(a.get(0));
         SqlExpr n = a.get(1);
         SqlExpr t = a.get(2);
         Long micros = intervalMicros(unit);
+        if (micros != null && micros % 1000000L == 0) {
+            // a bucket of whole seconds starts on a whole second: binned in seconds (the floor of a floor: the
+            // fraction decides nothing), the start written by datetime -- until 2026-11-26 in microseconds, the value
+            // written twelve times
+            long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400L : 0L;
+            SqlWriter.Piece size = w -> w.append("(").expr(n, 6).append(" * " + micros / 1000000L + ")");
+            SqlWriter.Piece m = w -> w.append("(").piece(seconds(t)).append(" - (" + origin + "))");
+            return w -> w.append("datetime(((").piece(m).append(" - (((").piece(m).append(") % ").piece(size)
+                    .append(" + ").piece(size).append(") % ").piece(size).append(")) + (" + origin + ")), 'unixepoch')");
+        }
         if (micros != null) {
             long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
             SqlWriter.Piece size = w -> w.append("(").expr(n, 6).append(" * " + micros + ")");
@@ -2830,10 +3046,8 @@ public class SQLite extends AnsiSqlRenderer {
         if (a.size() != 6) {
             throw wall(c.fn(), "make_timestamp of " + a.size() + " arguments");
         }
-        SqlExpr s = a.get(5);
-        return writer.append("(printf('%04d-%02d-%02d %02d:%02d:', ").list(a.subList(0, 5)).append(") || CASE WHEN ")
-                .expr(s, 4).append(" = CAST(").expr(s, 0).append(" AS INTEGER) THEN printf('%02d', ").expr(s, 0)
-                .append(") ELSE rtrim(printf('%09.6f', ").expr(s, 0).append("), '0') END)");
+        // its seconds to the microsecond, as before, then the trailing zeros dropped (shortest: the point is printf's)
+        return writer.piece(shortest(w -> w.append("printf('%04d-%02d-%02d %02d:%02d:%09.6f', ").list(a).append(")")));
     }
 
     private static final String[] MONTHS = {"January", "February", "March", "April", "May", "June", "July", "August",
@@ -2862,11 +3076,11 @@ public class SQLite extends AnsiSqlRenderer {
         };
     }
 
-    /** A date-time's fraction as {@code digits} digits: its text's, zero-padded. */
+    /** A date-time's fraction as {@code digits} digits: its text's, which the one text of a date-time
+     *  ({@link #timestampLit}) holds from its twenty-first character where it has any, zero-padded. */
     private static SqlWriter.Piece fraction(SqlExpr t, int digits) {
         String zeros = "0".repeat(digits);
-        return w -> w.append("substr(CASE WHEN instr(").expr(t, 0).append(", '.') > 0 THEN substr(").expr(t, 0)
-                .append(", instr(").expr(t, 0).append(", '.') + 1) ELSE '' END || '" + zeros + "', 1, " + digits + ")");
+        return w -> w.append("substr(substr(").expr(t, 0).append(", 21) || '" + zeros + "', 1, " + digits + ")");
     }
 
     /** A date-time formatted by DuckDB's strftime parts: runs of codes SQLite's strftime has, concatenated with the
@@ -3345,6 +3559,24 @@ public class SQLite extends AnsiSqlRenderer {
             case FLOAT, DECIMAL, NUMBER -> null;
             case DATE, DATE_TIME -> new ParameterType("TEXT", new RenderedStatement.AsText(null));
         };
+    }
+
+    /** {@inheritDoc} A Date's or a DateTime's text as the one text of its instant ({@link #timestampLit}): the runner
+     *  binds a date-time's with nine digits of a second, always ({@code 'uuuu-MM-dd HH:mm:ss.SSSSSSSSS'}), so the
+     *  statement drops the trailing zeros and, where none is left, the point -- read from the text's twentieth
+     *  character, so a day's text ({@code 'uuuu-MM-dd'}), which has none there, is itself. The value is the
+     *  database's to read, never spelled by the runner for one database (exec names none). */
+    @Override
+    protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
+        com.legend.sql.DeclaredKind declared = p.declared();
+        ParameterType type = declared == null ? null : parameterType(declared);
+        RenderedStatement.AsText asText = type == null ? null : type.asText();
+        if (type == null || asText == null) {
+            return super.placeholder(writer, p);
+        }
+        // bound as its text, which is its type here: no cast names one
+        return writer.append("(substr(").bind(textBind(p, asText)).append(", 1, 19) || rtrim(rtrim(substr(")
+                .bind(textBind(p, asText)).append(", 20), '0'), '.'))");
     }
 
     // ==================================================================

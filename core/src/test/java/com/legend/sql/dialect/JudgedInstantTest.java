@@ -121,5 +121,20 @@ class JudgedInstantTest {
         everyYearCompared(sqlite, "jdbc:sqlite::memory:");
         assertTrue(same(sqlite, "jdbc:sqlite::memory:", SqlExpr.Reason.JUDGE_NANOS,
                 text("9999-12-31 23:59:59.123456789"), text("9999-12-31T23:59:59.123456789")));
+        // a date-time is held as the one text of its instant (SQLite.timestampLit, 2026-11-26), and a text is read
+        // into the same one: a value and a text written with other digits are one instant, in every year
+        SqlExpr.Reason r = SqlExpr.Reason.JUDGE;
+        assertTrue(same(sqlite, "jdbc:sqlite::memory:", r, new SqlExpr.TimestampLit("2020-01-01T10:00:00.500"),
+                text("2020-01-01 10:00:00.5")));
+        assertTrue(same(sqlite, "jdbc:sqlite::memory:", r, new SqlExpr.TimestampLit("2020-01-01T10:00:00"),
+                text("2020-01-01T10:00:00.000")));
+        assertTrue(same(sqlite, "jdbc:sqlite::memory:", r, new SqlExpr.TimestampLit("2020-01-01T10:00:00.000"),
+                new SqlExpr.TimestampLit("2020-01-01T10:00:00")));
+        assertFalse(same(sqlite, "jdbc:sqlite::memory:", r, new SqlExpr.TimestampLit("2020-01-01T10:00:00.5"),
+                text("2020-01-01 10:00:00.05")));
+        assertTrue(same(sqlite, "jdbc:sqlite::memory:", r, new SqlExpr.TimestampLit("-21457-01-01T00:00:00.50"),
+                text("-21457-01-01 00:00:00.5")));
+        assertTrue(same(sqlite, "jdbc:sqlite::memory:", r, new SqlExpr.TimestampLit("25489-03-04T10:30:00"),
+                text("25489-03-04T10:30:00.0")));
     }
 }
