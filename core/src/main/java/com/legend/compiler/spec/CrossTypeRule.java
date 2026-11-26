@@ -1,0 +1,35 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.compiler.spec;
+
+import com.legend.compiler.spec.typed.TypedCrossTypeComparison;
+import com.legend.compiler.spec.typed.TypedSpec;
+
+/**
+ * THE COMPARISON SETTING (the edition program's step 2b, 2026-11-26;
+ * docs/records/edition-plan-to-finish-stage-b-2026-11-25.md §2, the first of the four kinds of difference): what a
+ * comparison across types IS, for the code a door admits. Three audiences disagree -- lite refuses it (the equality
+ * rule: two values are equal only when they have the same type and the same value), legend-engine sends it to the
+ * database as written, legend-pure answers it by the types alone -- and the type-checker is the one place that sees
+ * every piece of code a query reaches: the query, a function's body when the function is used, a mapping's Pure when
+ * the store is resolved. So the door hands the type-checker its setting for the query ({@code TypedQuery.comparing}),
+ * and the type-checker asks it where it types such a comparison ({@code Overloads.applyGeneric}); the answer is typed
+ * code that means the same to everything after it. Until this step a door rewrote the typed query once, after it was
+ * typed (the edge's EngineComparisons and PureComparisons walks), which never reached a body.
+ *
+ * <p>The crossing handed in is the typer's record of the comparison: the call it typed, which comparison it is, the two
+ * types, where it was written. A rule returns the call, another typed node of the call's type, the record itself (a
+ * marker the planner then refuses by name), or raises.
+ *
+ * <p>Code written in another language is never asked about: an island's translation (SQL's, Cypher's, the timeseries
+ * language's) compares by its own language's rule.
+ */
+public interface CrossTypeRule {
+
+    /** A comparison across types written in the query or test body the door receives. */
+    TypedSpec inQuery(TypedCrossTypeComparison crossing);
+
+    /** One written in a body the query reaches: a function's, a derived property's, a constraint's, a mapping's. */
+    TypedSpec inBody(TypedCrossTypeComparison crossing);
+}

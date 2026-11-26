@@ -45,13 +45,18 @@ public final class UpstreamTestBodies {
     /** {@code typed} as legend-pure's own tests read it (PCT's channel B): each comparison across types answered as
      *  legend-pure answers it ({@link PureComparisons}, B3 step 5), then {@link #admitted}. */
     public static com.legend.TypedQuery admittedForPure(com.legend.TypedQuery given) {
-        return admitted(PureComparisons.asPures(given));
+        return rewritten(PureComparisons.asPures(given));
     }
 
     /** {@code typed} as legend-engine's runners read it: each comparison across types the database's
-     *  ({@link EngineComparisons}, B3 step 5), the body rewritten (above), the query itself where nothing is. */
+     *  ({@link EngineComparisons}, B3 step 5), the body rewritten (above). */
     public static com.legend.TypedQuery admitted(com.legend.TypedQuery given) {
-        com.legend.TypedQuery typed = EngineComparisons.asTheDatabases(given);
+        return rewritten(EngineComparisons.asTheDatabases(given));
+    }
+
+    /** {@code typed}, a body typed under its audience's comparison setting, with the body's rewrites (above); itself
+     *  where nothing is rewritten. */
+    private static com.legend.TypedQuery rewritten(com.legend.TypedQuery typed) {
         List<TypedSpec> read = rowsOrderFree(typed, joinsOrderFree(typed, jsonGoldensCleaned(countedAsOne(typed.body()))));
         return read == typed.body() ? typed : typed.withBody(read);
     }

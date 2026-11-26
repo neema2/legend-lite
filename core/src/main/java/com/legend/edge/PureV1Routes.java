@@ -268,9 +268,8 @@ public final class PureV1Routes {
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("function"));
             // compiled and typed once: the target it names and its plan come off the one typed query
             return model.with(models, ctx -> {
-                com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
+                com.legend.TypedQuery query = asLegendEngine(com.legend.Compiler.query(ctx, lambda));
                 String runtime = runtimeOf(request, query);
-                query = asLegendEngine(query);
                 // a value the program wrote and folds (a String or Boolean literal, a model's DDL text): upstream's own
                 // constant node (M5, the user's ruling); a diagnostic's (print) stays refused below, as upstream refuses
                 // it (S128); a value the database computes (|1+1) is a statement, below
@@ -309,9 +308,8 @@ public final class PureV1Routes {
             // the model compiled ONCE (leg 8 step 3; a host that holds models answers over the one it holds for the
             // text), and the query typed once, here: the runner plans and runs it
             return ModelInput.of(request.getObj("model")).with(models, model -> {
-                com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
+                com.legend.TypedQuery query = asLegendEngine(com.legend.Compiler.query(model, lambda));
                 String runtime = runtimeOf(request, query);
-                query = asLegendEngine(query);
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.engine(out, facts(query))));
@@ -325,7 +323,8 @@ public final class PureV1Routes {
 
     /** LEGEND-ENGINE'S MEANING AT THIS DOOR (the user's ruling of 2026-11-20 ~07:55, "Delete the settings, make engine
      *  only mode for engine for everything", claude/compat-program 25ede64f §1): the query the route plans and runs.
-     *  A comparison across types is the database's own ({@link EngineComparisons}). Every other difference is decided
+     *  A comparison across types is the database's own: the query is typed under legend-engine's comparison setting
+     *  ({@link EngineComparisons}; asked where the query is typed, before anything reads it). Every other difference is decided
      *  where the query is planned, in this door's style ({@link PureText#PURE_V1}): the lowering asks legend-engine's
      *  table for each call ({@link EngineTable}), by the planner's stamp of the code legend-engine's own Java runs,
      *  and a call whose answer is not checked on the request's database is refused by name there, before anything is
@@ -360,9 +359,8 @@ public final class PureV1Routes {
             LambdaFunction lambda = ProtocolReader.lambda(
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
             return ModelInput.of(request.getObj("model")).with(models, model -> {
-                com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
+                com.legend.TypedQuery query = asLegendEngine(com.legend.Compiler.query(model, lambda));
                 String runtime = runtimeOf(request, query);
-                query = asLegendEngine(query);
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.arrow(out, facts(query))));
                 } catch (java.io.IOException e) {

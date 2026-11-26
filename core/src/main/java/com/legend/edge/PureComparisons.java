@@ -5,13 +5,11 @@ package com.legend.edge;
 
 import com.legend.TypedQuery;
 import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.spec.CrossTypeRule;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCrossTypeComparison;
 import com.legend.compiler.spec.typed.TypedSpec;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * LEGEND-PURE'S COMPARISONS ACROSS TYPES (B3 step 5, the one equality; the user's ruling of 2026-11-24, "Love it":
@@ -22,23 +20,35 @@ import java.util.List;
  * a date-time at one instant is the recorded exception: legend-pure orders the day first, the database ties them). The
  * types decide it: nothing is computed from a value. A side answered by its types alone is not evaluated (legend-pure
  * evaluates it, so a side that raises raises there).
+ *
+ * <p>This is legend-pure's door's comparison setting ({@link CrossTypeRule}; the edition program's step 2b,
+ * 2026-11-26): the type-checker asks it where it types a comparison across types. In the query the answer is
+ * legend-pure's, above (until step 2b a rewrite of the typed query's markers, after it was typed). In a body the
+ * query reaches it is still the call, the database's comparison, as before the setting: legend-pure's answer there
+ * is a later step of the program, each test it moves read first.
  */
-public final class PureComparisons {
+public final class PureComparisons implements CrossTypeRule {
+
+    /** legend-pure's setting. */
+    static final PureComparisons RULE = new PureComparisons();
 
     private PureComparisons() {
     }
 
-    /** {@code query} with each comparison across types answered as legend-pure answers it; the query itself where it has
-     *  none. */
+    /** {@code query} typed with each comparison across types written in it answered as legend-pure answers it. The door
+     *  asks where it types the query, before anything reads its body ({@code TypedQuery.comparing}). */
     public static TypedQuery asPures(TypedQuery query) {
-        List<TypedSpec> out = new ArrayList<>(query.body().size());
-        boolean changed = false;
-        for (TypedSpec statement : query.body()) {
-            TypedSpec rewritten = EngineComparisons.rewrite(statement, PureComparisons::answer);
-            changed |= rewritten != statement;
-            out.add(rewritten);
-        }
-        return changed ? query.withBody(out) : query;
+        return query.comparing(RULE);
+    }
+
+    @Override
+    public TypedSpec inQuery(TypedCrossTypeComparison crossing) {
+        return answer(crossing);
+    }
+
+    @Override
+    public TypedSpec inBody(TypedCrossTypeComparison crossing) {
+        return crossing.comparison();
     }
 
     private static TypedSpec answer(TypedCrossTypeComparison c) {

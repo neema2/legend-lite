@@ -50,8 +50,14 @@ public final class SpecCompiler {
     private final ModelContext ctx;
 
     public SpecCompiler(ModelContext ctx) {
+        this(ctx, LiteCrossTypeRule.INSTANCE);
+    }
+
+    /** A compiler whose comparisons across types are {@code crossTypes}'s: a door's setting for the query it admits
+     *  ({@link CrossTypeRule}; {@code TypedQuery.comparing}). */
+    public SpecCompiler(ModelContext ctx, CrossTypeRule crossTypes) {
         this.ctx = ctx;
-        this.typer = new Typer(ctx, new InferenceKernel(ctx));
+        this.typer = new Typer(ctx, new InferenceKernel(ctx), java.util.Objects.requireNonNull(crossTypes));
     }
 
     private TypedSpec viewBody(TypedFunction fn) {
@@ -320,9 +326,10 @@ public final class SpecCompiler {
     }
 
     /** {@link #typeQueryBody} for the body a door receives ({@code TypedQuery.body}): each comparison across types in it
-     *  typed as the marker the planner refuses and a compatibility door rewrites (B3 step 5, the one equality). */
+     *  is the comparison setting's answer for the query ({@link CrossTypeRule#inQuery}; B3 step 5, the one equality) --
+     *  lite's the marker its planner refuses. */
     public List<TypedSpec> typeQueryBodyMarked(ValueSpecification query) {
-        return typer.markingCrossings(true, () -> typeQueryBody(query));
+        return typer.comparing(Typer.Compared.QUERY, () -> typeQueryBody(query));
     }
 
     /**
@@ -387,7 +394,7 @@ public final class SpecCompiler {
                 ValueSpecification typing = stmt;
                 Env typingScope = scope;
                 TypedSpec typed = islandStatements.contains(stmt)
-                        ? typer.markingCrossings(false, () -> typer.typeBody(typing, typingScope, Expected.infer()))
+                        ? typer.comparing(Typer.Compared.UNREAD, () -> typer.typeBody(typing, typingScope, Expected.infer()))
                         : typer.typeBody(stmt, scope, Expected.infer());
                 body.add(typed);
                 if (typed instanceof TypedLet let) {
@@ -431,7 +438,7 @@ public final class SpecCompiler {
                 // a #SQL{...}# statement written in several statements (RETURNING, the writes design's leg 4; an ON
                 // CONFLICT DO UPDATE's check of its keys, PR #67's second review)
                 List<ValueSpecification> written = SqlIslands.statements(si,
-                        source -> typer.markingCrossings(false, () -> typer.synth(source, Env.empty())), ctx);
+                        source -> typer.comparing(Typer.Compared.UNREAD, () -> typer.synth(source, Env.empty())), ctx);
                 island.addAll(written);
                 out.addAll(written);
             } else {
