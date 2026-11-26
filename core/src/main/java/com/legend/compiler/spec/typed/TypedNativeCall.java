@@ -52,12 +52,6 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
         this(callee, args, info, null, false);
     }
 
-    /** This call with other arguments and type: its callee, its position and its stamp kept. The one way a pass
-     *  rebuilds a call it was given. */
-    public TypedNativeCall withArgs(List<TypedSpec> newArgs, ExprType newInfo) {
-        return new TypedNativeCall(callee, newArgs, newInfo, pos, outsideStore);
-    }
-
     /** This call stamped as outside any store query, or not. */
     public TypedNativeCall stampedOutsideStore(boolean outside) {
         return outside == outsideStore ? this : new TypedNativeCall(callee, args, info, pos, outside);

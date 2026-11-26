@@ -206,25 +206,98 @@ public final class UserCallInliner {
     }
 
     /** {@code reduced}, the inlined form of the statement {@code written}, with its calls stamped as outside any store
-     *  query where the statement reads no store, itself or through the functions it calls
-     *  ({@link StatementEffects#reaches}); as it is otherwise. A value that IS a lambda is never stamped: its body
-     *  runs where the lambda is applied, which may be inside a store query. */
-    private TypedSpec stampedIfStoreFree(boolean stamp, TypedSpec written, TypedSpec reduced) {
+     *  query where the statement is no part of one; as it is otherwise. A statement is part of a store query where:
+     *  <ul>
+     *    <li>it reads a store, itself or through the functions it calls ({@link StatementEffects#reaches}), or its
+     *        reduced form does in code of its own (a function value an earlier {@code let} holds, applied here, is
+     *        this statement's code);</li>
+     *    <li>it reads a FRAGMENT: an earlier {@code let} bound to a relation that reads a store and was not executed
+     *        (no {@code from}). Such a relation is built on by its readers and executed by one of them, so they are
+     *        one query; {@code fragments} names them, and this statement joins them where it is one itself. A
+     *        {@code let} that was executed holds a value, and its reader is no part of its query.</li>
+     *  </ul>
+     *  CODE AS A VALUE is never stamped where it is bound: a lambda's body runs where the lambda is applied, which may
+     *  be inside a store query, so it is stamped there ({@link #stampOutside}). A function value that is computed
+     *  some other way than by writing the lambda (or a collection of lambdas) is refused by name: the calls that make
+     *  the value run here, the code it holds runs where it is applied, and the two cannot be told apart in one term. */
+    private TypedSpec stampedIfStoreFree(boolean stamp, TypedSpec written, TypedSpec reduced,
+            java.util.Set<String> fragments) {
         if (!stamp) {
             return reduced;
         }
-        TypedSpec value = written instanceof TypedLet let ? let.value() : written;
-        if (value instanceof TypedLambda || StatementEffects.reaches(written, UserCallInliner::isAStoreRead, specs,
-                storeReach)) {
+        TypedLet let = written instanceof TypedLet l ? l : null;
+        TypedSpec value = let != null ? let.value() : written;
+        if (StatementEffects.reaches(written, UserCallInliner::isAStoreRead, specs, storeReach)
+                || !java.util.Collections.disjoint(FreeVars.of(value), fragments) || readsAStoreItself(reduced)) {
+            if (let != null && com.legend.compiler.element.type.Type.isRelation(value.info().type())
+                    && !holds(value, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom)) {
+                fragments.add(let.name());
+            }
             return reduced;
+        }
+        if (holdsCode(reduced.info().type())) {
+            if (isCodeAlone(reduced)) {
+                return reduced;
+            }
+            throw new NotImplementedException("a function value that is computed"
+                    + (let != null ? " (the let '" + let.name() + "')" : "") + ": the calls that make it run where it"
+                    + " is made and the code it holds runs where it is applied, and the planner cannot place the two"
+                    + " apart; write the lambda itself as the let's value");
         }
         return stampOutside(reduced);
     }
 
-    /** {@code n} with every call in it stamped; a term an earlier {@code let} bound is left as it was stamped when it
-     *  was bound (it stands here by reference, and may read a store). */
+    /** Whether {@code t} is a function's type, or holds one (a collection or a pair of functions). */
+    private static boolean holdsCode(com.legend.compiler.element.type.Type t) {
+        return t instanceof com.legend.compiler.element.type.Type.FunctionType
+                || t instanceof com.legend.compiler.element.type.Type.GenericType g
+                        && g.arguments().stream().anyMatch(UserCallInliner::holdsCode);
+    }
+
+    /** Whether {@code n} is a lambda as written, or a collection of them: code and nothing else. */
+    private static boolean isCodeAlone(TypedSpec n) {
+        return n instanceof TypedLambda
+                || n instanceof com.legend.compiler.spec.typed.TypedCollection c && !c.children().isEmpty()
+                        && c.children().stream().allMatch(UserCallInliner::isCodeAlone);
+    }
+
+    private static boolean holds(TypedSpec n, java.util.function.Predicate<TypedSpec> what) {
+        if (what.test(n)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (holds(c, what)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code n}, a reduced statement, reads a store in code of its own: a store read standing in it, or
+     *  reached through a function it still calls. A value an earlier {@code let} bound stands by reference and is not
+     *  this statement's code (it was read, or its {@code let} is a fragment, named); a function value is, where it
+     *  stands here. */
+    private boolean readsAStoreItself(TypedSpec n) {
+        if (reducedTerms.containsKey(n) && !holdsCode(n.info().type())) {
+            return false;
+        }
+        if (isAStoreRead(n) || n instanceof com.legend.compiler.spec.typed.TypedUserCall
+                && StatementEffects.reaches(n, UserCallInliner::isAStoreRead, specs, storeReach)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsAStoreItself(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code n} with every call in it stamped. A value an earlier {@code let} bound is left as it was stamped when it
+     *  was bound (it stands here by reference, and may read a store); a function value an earlier {@code let} holds is
+     *  stamped here, a copy of its own, because its code runs where it is applied. */
     private TypedSpec stampOutside(TypedSpec n) {
-        if (reducedTerms.containsKey(n)) {
+        if (reducedTerms.containsKey(n) && !holdsCode(n.info().type())) {
             return n;
         }
         TypedSpec kids = n.mapChildren(this::stampOutside);
@@ -251,7 +324,7 @@ public final class UserCallInliner {
      *  outside any store query ({@code TypedNativeCall.outsideStore}). Here, because this is the last place a
      *  {@code let} is still a statement of its own (it is dissolved into its readers below) and the first where the
      *  functions it calls stand in place. Asked for only by a compatibility door whose table's two columns differ
-     *  ({@code lowering.EditionTable.stampsOutsideStore}); the product never asks. A QUERY's statements only: a test
+     *  ({@code planner.Edition.stampsOutsideStore}); the product never asks. A QUERY's statements only: a test
      *  body's statements read frames, whose spliced chains are store queries inside a statement that itself reads no
      *  store, and need the frame-aware walk (the plan's step 3). */
     public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement,
@@ -268,13 +341,15 @@ public final class UserCallInliner {
         // future fix. A value the database draws anew where it is written (random(), generateGuid()), read more
         // than once, is no trade but a wrong answer, so it is refused by name until materialization is built
         // (readOnce; the branch's generateGuid-only refusal of 2026-10-18 folded into it at main's merge, 2026-10-22).
+        // the lets that are fragments of a store query a later statement executes (the stamp: stampedIfStoreFree)
+        java.util.Set<String> fragments = new java.util.HashSet<>();
         try (Scope scope = new Scope()) {
             for (int i = 0; i < body.size() - 1; i++) {
                 if (!(body.get(i) instanceof TypedLet let)) {
                     throw new NotImplementedException(
                             "only let statements may precede the query expression");
                 }
-                scope.put(let.name(), stampedIfStoreFree(stampStoreFree, let, reduce(let.value(), scope)));
+                scope.put(let.name(), stampedIfStoreFree(stampStoreFree, let, reduce(let.value(), scope), fragments));
             }
             // graph-tree args are NOT β-reduced (source spelling is the
             // serialize key) — the resolver reads consumed lets through this
@@ -282,7 +357,7 @@ public final class UserCallInliner {
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
             java.util.function.Supplier<TypedSpec> reduction = () -> stampedIfStoreFree(stampStoreFree, last,
-                    last instanceof TypedLet let ? reduce(let.value(), scope) : reduce(last, scope));
+                    last instanceof TypedLet let ? reduce(let.value(), scope) : reduce(last, scope), fragments);
             // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
             TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);
             readOnce(scope.terms, result);

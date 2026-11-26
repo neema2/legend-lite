@@ -189,12 +189,17 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     }
 
     /** The edition's table for this environment's statements: made for the database they run on, as the runtime's
-     *  connections declare it ({@code Compiler.executesOn}), where the edition's rows depend on it. The lowering is
-     *  configured after the resolver has decided the runtime, so the database is read no earlier than that. */
+     *  connections declare it ({@code Compiler.executesOn}), where the edition's rows depend on it. A runtime that
+     *  binds model data alone declares none (it runs on the platform's own engine, register S27, which is no database
+     *  of the audience's), so its table is made for no database. The lowering is configured after the resolver has
+     *  decided the runtime, so the database is read no earlier than that. */
     private com.legend.lowering.EditionTable editionTable() {
         Edition edition = edition();
-        return edition.table(edition.rowsByDatabase() && runtimeFqn != null
-                ? com.legend.Compiler.executesOn(ctx, runtimeFqn).type() : null);
+        if (!edition.rowsByDatabase() || runtimeFqn == null) {
+            return edition.table(null);
+        }
+        return edition.table(com.legend.Compiler.executesOn(ctx, runtimeFqn) instanceof com.legend.database.Target.Declared d
+                ? d.type() : null);
     }
 
     /** A Lowerer configured by this environment: its frame's time zone, its style's text facets ({@link #styled}: the

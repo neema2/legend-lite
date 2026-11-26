@@ -159,7 +159,7 @@ public final class EnginePlans {
         // the same resolver the frame runs with: the caller's lets (a
         // let-bound milestoning date) and the registered rows ride the
         // render too
-        body = BodyPlanner.resolver(specs, env, false)
+        body = BodyPlanner.resolver(specs, env, com.legend.resolver.OutsideStore.NONE)
                 .resolve(body, env.runtimeFqn(), mappingFqn, chainMappings);
         // the query's feature flags: a LOWERING concern (Lowerer.withFeatures); the statement lite's own, in the plan
         // environment's style (A2 of the compatibility program, 2026-11-19: legend-engine's statement shape and its
@@ -360,7 +360,7 @@ public final class EnginePlans {
                 String rc0 = PlanText.rootGetAllClass(lam.body());
                 if (!qChain.isEmpty() && rc0 != null) {
                     var srcs = new com.legend.resolver.ClassSources(
-                            env.ctx(), specs, false);
+                            env.ctx(), specs, com.legend.resolver.OutsideStore.NONE);
                     java.util.List<String> binders = qChain.stream()
                             .distinct()
                             .filter(m2 -> srcs.binds(m2, rc0)).toList();

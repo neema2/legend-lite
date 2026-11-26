@@ -64,15 +64,14 @@ public final class BodyPlanner {
     }
 
     /** THE statement resolver: the query lets and the registered handle
-     * rows ride every resolution (one construction, every site). With
-     * {@code transformsOutsideStore}, a model-to-model mapping's transforms
-     * are stamped as outside any store query as they are composed (the
-     * edition program's step 2: the door's edition decides it per statement,
-     * {@code Edition.transformsOutsideStore}; a road that plans for no door's
-     * edition passes false). */
+     * rows ride every resolution (one construction, every site).
+     * {@code outside}: the model's and the mappings' code the resolver
+     * stamps as outside any store query (the edition program's step 2: the
+     * door's edition decides it per statement; a road that plans for no
+     * door's edition passes {@code OutsideStore.NONE}). */
     public static StoreResolver resolver(
-            SpecCompiler specs, PlanEnv env, boolean transformsOutsideStore) {
-        return new StoreResolver(env.ctx(), specs, transformsOutsideStore)
+            SpecCompiler specs, PlanEnv env, com.legend.resolver.OutsideStore outside) {
+        return new StoreResolver(env.ctx(), specs, outside)
                 // a graph fetch's key arguments in the plan's style (D1.2, register S312)
                 .withGraphKeyText(new com.legend.resolver.GraphKeyText(env.style()::graphKeyDate,
                         env.style()::graphKeyString))
@@ -215,7 +214,7 @@ public final class BodyPlanner {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch
                 .stage(b, stageEnv, PlanTextRoutines.of(specs, env)));
-        return resolvedToExecute(resolver(specs, env, false), body, env);
+        return resolvedToExecute(resolver(specs, env, com.legend.resolver.OutsideStore.NONE), body, env);
     }
 
     /** Phase H for a body that EXECUTES on the env's session: resolved, then every store it touches checked

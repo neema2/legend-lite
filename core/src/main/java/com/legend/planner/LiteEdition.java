@@ -27,13 +27,18 @@ public final class LiteEdition implements Edition {
     }
 
     @Override
+    public boolean constraintsOutsideStore() {
+        return false;
+    }
+
+    @Override
     public boolean transformsOutsideStore(boolean fetchesAGraph, boolean chained) {
         return false;
     }
 
     @Override
-    public boolean readsWrittenFlags() {
-        return false;
+    public java.util.Set<com.legend.platform.Feature> writtenFlagsRead() {
+        return java.util.Set.of();
     }
 
     @Override

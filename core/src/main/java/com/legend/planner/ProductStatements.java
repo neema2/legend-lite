@@ -121,12 +121,13 @@ public final class ProductStatements {
         // the query's own planning options (TypedQuery.withOptions), its lowering's
         PlanEnv made = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows, style).withOptions(query.options())
                 : env(ctx, runtime, features, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
-        // the door's edition (the edition program's step 2): what it stamps, and whether it reads the flags the
-        // statements themselves carry (withFeatureFlags, legend-engine's second carrier). legend-engine's door reads
-        // them; lite's own never did, and do not. Read here as written, because the resolver reads through the call
-        // and the lowering never sees it on the prepared body
+        // the door's edition (the edition program's step 2): what it stamps, and which of the flags the statements
+        // themselves carry it reads (withFeatureFlags, legend-engine's second carrier). legend-engine's door reads the
+        // one its table has a row for; lite's own never read any, and do not. Read here as written, because the
+        // resolver reads through the call and the lowering never sees it on the prepared body
         Edition edition = made.edition();
-        PlanEnv env = edition.readsWrittenFlags() ? made.withFeatures(withWrittenFlags(features, statements)) : made;
+        PlanEnv env = edition.writtenFlagsRead().isEmpty() ? made
+                : made.withFeatures(withWrittenFlags(features, statements, edition.writtenFlagsRead()));
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
         // the stamp: asked for by a door whose table's two columns differ, never the product
         Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered,
@@ -155,12 +156,15 @@ public final class ProductStatements {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
                 PlanTextRoutines.of(specs, env)));
-        // the stamp on a model-to-model mapping's transforms: the door's edition says where its audience runs them
-        boolean transformsOutside = edition.stampsOutsideStore() && edition.transformsOutsideStore(
-                reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedGraphFetch),
-                reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom f
-                        && !f.context().chainMappings().isEmpty()));
-        body = BodyPlanner.resolver(specs, env, transformsOutside).resolve(body, runtime);   // Phase H
+        // the stamp on the model's and the mappings' code: the door's edition says which its audience's own Java runs
+        com.legend.resolver.OutsideStore outside = !edition.stampsOutsideStore()
+                ? com.legend.resolver.OutsideStore.NONE
+                : new com.legend.resolver.OutsideStore(edition.constraintsOutsideStore(),
+                        edition.transformsOutsideStore(
+                                reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedGraphFetch),
+                                reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom f
+                                        && !f.context().chainMappings().isEmpty())));
+        body = BodyPlanner.resolver(specs, env, outside).resolve(body, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by name),
         // then every store the statement touches must be bound to it (C3b)
         Compiler.executesOn(ctx, runtime);
@@ -186,16 +190,17 @@ public final class ProductStatements {
         return false;
     }
 
-    /** {@code features} with the flags {@code statements} carry as written ({@code withFeatureFlags} calls). */
-    private static Set<Feature> withWrittenFlags(Set<Feature> features, List<TypedSpec> statements) {
-        Set<Feature> written = com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(statements);
+    /** {@code features} with those of {@code read} that {@code statements} carry as written ({@code withFeatureFlags}
+     *  calls). */
+    private static Set<Feature> withWrittenFlags(Set<Feature> features, List<TypedSpec> statements, Set<Feature> read) {
+        Set<Feature> written = java.util.EnumSet.noneOf(Feature.class);
+        written.addAll(com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(statements));
+        written.retainAll(read);
         if (features.containsAll(written)) {
             return features;
         }
-        Set<Feature> all = java.util.EnumSet.noneOf(Feature.class);
-        all.addAll(features);
-        all.addAll(written);
-        return Collections.unmodifiableSet(all);
+        written.addAll(features);
+        return Collections.unmodifiableSet(written);
     }
 
     /** The planning environment of a statement on this road over {@code planRows}: the model, the runtime, the

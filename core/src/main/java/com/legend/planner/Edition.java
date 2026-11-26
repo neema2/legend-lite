@@ -27,16 +27,20 @@ public interface Edition {
      *  calls of a query-level {@code let}'s value, and of a last statement, that read no store. */
     boolean stampsOutsideStore();
 
+    /** Whether, for this audience, a class's constraints run outside any store query where a checked graph fetch
+     *  evaluates them. Asked only of an edition that stamps. */
+    boolean constraintsOutsideStore();
+
     /** Whether, for this audience, a model-to-model mapping's transforms run outside any store query in a statement
      *  that fetches a graph or not ({@code fetchesAGraph}) and whose mappings are chained over a store or not
      *  ({@code chained}): where they do, the resolver stamps them as it composes them. Asked only of an edition that
      *  stamps. */
     boolean transformsOutsideStore(boolean fetchesAGraph, boolean chained);
 
-    /** Whether, at this door, a statement runs under the legend-engine feature flags it carries itself
-     *  ({@code withFeatureFlags} calls written in the query): legend-engine's door reads them, as legend-engine does;
-     *  lite's own doors do not (register S130: the meaning is chosen by the door, never by a setting in the query). */
-    boolean readsWrittenFlags();
+    /** The legend-engine feature flags a statement runs under when it carries them itself ({@code withFeatureFlags}
+     *  calls written in the query), at this door: the ones this edition's table reads. Lite's own doors read none
+     *  (register S130: the meaning is chosen by the door, never by a setting in the query). */
+    java.util.Set<com.legend.platform.Feature> writtenFlagsRead();
 
     /** Whether this edition's rows depend on the database a statement runs on. Where they do not, the planner makes
      *  the table without deciding the runtime's database. */

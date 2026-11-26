@@ -148,6 +148,12 @@ final class EngineTable implements EditionTable, Edition {
         return true;
     }
 
+    /** legend-engine checks a class's constraints in its own Java, with Pure's meaning. */
+    @Override
+    public boolean constraintsOutsideStore() {
+        return true;
+    }
+
     /** legend-engine runs a model-to-model mapping's transforms in its own Java (Pure's meaning) under a graph fetch
      *  ({@code storeContract.pure:89-91}) and over a model connection with no chain to a store; in a TDS query over a
      *  chain whose source is a store it pushes them into the source query ({@code chain.pure:111-116}), the
@@ -158,10 +164,11 @@ final class EngineTable implements EditionTable, Edition {
     }
 
     /** legend-engine's plan generation finds a query's {@code withFeatureFlags} calls and adds their flags to its
-     *  context ({@code executionPlan_generation.pure}). */
+     *  context ({@code executionPlan_generation.pure}). The one a row reads is the corrected substring's; the door
+     *  reads no other, as before the table (legend-engine's other flags written in a query are not honoured here). */
     @Override
-    public boolean readsWrittenFlags() {
-        return true;
+    public Set<Feature> writtenFlagsRead() {
+        return Set.of(Feature.CORRECT_SQL_SUBSTRING_INDEXING);
     }
 
     /** Each row's answer is the database's own function's, checked per database. */

@@ -77,7 +77,7 @@ class TextPlanSourceTest {
             assertEquals(200, generated.status(), generated.json());
             assertTrue(SINGLE_EXECUTION_PLAN.containsAll(com.legend.json.Json.parseObject(generated.json()).fields()
                     .keySet()), db + ": legend-engine's plan alone: " + generated.json());
-            var arrow = com.legend.edge.HostAnswers.arrowPlan(request, java.util.List.of(model), com.legend.edge.PureText.UPSTREAM);
+            var arrow = com.legend.edge.HostAnswers.arrowPlan(request, java.util.List.of(model), com.legend.edge.PureText.PURE_V1);
             assertTrue(arrow.json().contains("the system metamodel store"), db + ": " + arrow.json());
         }
     }
@@ -125,7 +125,7 @@ class TextPlanSourceTest {
         String requestText = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda + ",\"model\":"
                 + com.legend.json.Json.toCompact(java.util.Map.of("_type", "text", "code", model))
                 + ",\"runtime\":{\"runtime\":\"x::RT\"},\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        var arrow = com.legend.edge.HostAnswers.arrowPlan(requestText, java.util.List.of(model), com.legend.edge.PureText.UPSTREAM);
+        var arrow = com.legend.edge.HostAnswers.arrowPlan(requestText, java.util.List.of(model), com.legend.edge.PureText.PURE_V1);
         assertEquals(200, arrow.status(), arrow.json());
         var arrowed = com.legend.json.Json.parseObject(arrow.json());
         assertTrue(arrowed.getString("sql").contains("?") && !arrowed.getString("sql").contains("data:"), arrow.json());
@@ -133,7 +133,7 @@ class TextPlanSourceTest {
         assertTrue(com.legend.json.Json.toCompact(root.getArr("slots")).contains("\"payload\""), arrow.json());
         assertFalse(root.getObj("content").fields().isEmpty(), "the payload, the statement's content: " + arrow.json());
         // the JSON execute's plan half: its `run` the statement, the plan beside it to bind from
-        var json = com.legend.edge.HostAnswers.jsonPlan(requestText, java.util.List.of(model), com.legend.edge.PureText.UPSTREAM);
+        var json = com.legend.edge.HostAnswers.jsonPlan(requestText, java.util.List.of(model), com.legend.edge.PureText.PURE_V1);
         assertEquals(200, json.status(), json.json());
         var planned = com.legend.json.Json.parseObject(json.json());
         assertEquals(planned.getString("sql"), planned.getString("run"));

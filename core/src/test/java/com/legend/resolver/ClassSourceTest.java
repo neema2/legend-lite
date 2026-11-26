@@ -40,7 +40,7 @@ class ClassSourceTest {
         // the FRONT DOOR: the boot layer carries Any and the metaclasses (batch 163)
         PureModelContext ctx = (PureModelContext) com.legend.Compiler.buildModel(
                 com.legend.testing.Own.model(source));
-        return new Ctx(ctx, new ClassSources(ctx, new SpecCompiler(ctx), false));
+        return new Ctx(ctx, new ClassSources(ctx, new SpecCompiler(ctx), OutsideStore.NONE));
     }
 
     private static List<MappingDefinition> mappingsOf(NormalizedModel m) {
@@ -60,7 +60,7 @@ class ClassSourceTest {
             // the fixture's OWN normalization, only to list its mappings
             NormalizedModel normalized = com.legend.testing.Phases.normalize(
                     NameResolver.resolve(com.legend.testing.Own.model(fx.getValue())));
-            ClassSources sources = new ClassSources(ctx, new SpecCompiler(ctx), false);
+            ClassSources sources = new ClassSources(ctx, new SpecCompiler(ctx), OutsideStore.NONE);
             for (MappingDefinition md : mappingsOf(normalized)) {
                 for (MappingDefinition.ClassBinding cb : md.classBindings()) {
                     ClassSource cs;

@@ -634,7 +634,7 @@ final class GraphEmission {
             ClassSource cs, Map<String, String> slotPrefixes,
             Set<String> stripped, String rowVar, Type.RelationType rowType,
             StoreResolver.Context context, java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow) {
-        var cf = sources.compileSynthFn(bodyFqn);
+        var cf = sources.compileConstraintFn(bodyFqn);
         String thisVar = cf.signature().parameters().get(0).name();
         TypedSpec body = inlineThis(cf.body().get(cf.body().size() - 1),
                 thisVar, java.util.Map.of(), cs.bindings(), cs.classFqn(),

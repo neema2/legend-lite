@@ -240,6 +240,16 @@ public final class PureText {
         }
     };
 
+    /** Refuses a style that is not pure/v1's ({@link #PURE_V1}): legend-engine's door's own plannings answer
+     *  legend-engine's meaning, which is that style's edition's, so a caller that hands another would be answered
+     *  lite's meaning in silence. */
+    static void requirePureV1(PlanStyle style) {
+        if (style != PURE_V1) {
+            throw new IllegalArgumentException("legend-engine's door plans in pure/v1's style (PureText.PURE_V1): its"
+                    + " meaning is that style's edition's");
+        }
+    }
+
     // (recording, a fresh recorder of legend-pure's words of one planning call's raise sites (K10b): deleted
     // 2026-11-20 with stage B's B1 -- legend-pure's words are worded after the run from a site's record,
     // PureMessages#worded)
