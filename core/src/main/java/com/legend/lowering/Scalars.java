@@ -4019,6 +4019,16 @@ final class Scalars {
         throw new IllegalStateException("no extreme's rule for " + id + ": an edition's row named one");
     }
 
+    /** Whether upstream writes {@code n}'s {@code min} as a FOLD over the list (the Number and the date overloads:
+     *  {@code fold({n, m | min($n, $m)}, at(0))}, which keeps the LATER element of a tie) and not as the generic
+     *  {@code sort()->first()} (the FIRST written, the sort being stable): read in the pinned sources and run on all
+     *  three upstream runtimes, 2026-11-26 ({@code [3, 3.0]->min()} is the Float, {@code [3, 3.0]->least()} and
+     *  {@code [3, 3.0, 'a']->min()} the Integer; docs/records/edition-homework/upstream-step6/answers.md, group E).
+     *  Their {@code max} keeps the last written either way. */
+    private static boolean aFold(TypedNativeCall n) {
+        return !Pure.AT_COLLECTION_MIN.contains(n.callee().id());
+    }
+
     /** The product's own rule for {@code n}, which a named rule falls back to for the calls it does not rewrite. */
     private static Rule ownRule(TypedNativeCall n) {
         Rule rule = RULES.get(n.callee().id());
@@ -4035,14 +4045,16 @@ final class Scalars {
         if (mx != null) {
             refuseRealTies(n.args().get(0), "least element");
             return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()),
-                    upstreamTies ? MixedEncoding.TiePick.LAST_WRITTEN : MixedEncoding.TiePick.LEAST_TYPE);
+                    !upstreamTies ? MixedEncoding.TiePick.LEAST_TYPE
+                            : aFold(n) ? MixedEncoding.TiePick.LAST_WRITTEN : MixedEncoding.TiePick.FIRST_WRITTEN);
         }
         // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
         SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
         if (mixedList != null && !isToOne(n.args().get(0))) {
             refuseRealTies(n.args().get(0), "least element");
             return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx",
-                    upstreamTies ? TaggedLists.Ties.LAST_WRITTEN_FIRST : TaggedLists.Ties.BY_TYPE));
+                    !upstreamTies ? TaggedLists.Ties.BY_TYPE
+                            : aFold(n) ? TaggedLists.Ties.LAST_WRITTEN_FIRST : TaggedLists.Ties.AS_WRITTEN));
         }
         if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
             // a TO-ONE collection is its own extreme — but a
@@ -4143,14 +4155,14 @@ final class Scalars {
         if (mx != null) {
             refuseRealTies(n.args().get(0), "least element");
             return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()),
-                    upstreamTies ? MixedEncoding.TiePick.LAST_WRITTEN : MixedEncoding.TiePick.LEAST_TYPE);
+                    upstreamTies ? MixedEncoding.TiePick.FIRST_WRITTEN : MixedEncoding.TiePick.LEAST_TYPE);
         }
         // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
         SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
         if (mixedList != null && !isToOne(n.args().get(0))) {
             refuseRealTies(n.args().get(0), "least element");
             return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx",
-                    upstreamTies ? TaggedLists.Ties.LAST_WRITTEN_FIRST : TaggedLists.Ties.BY_TYPE));
+                    upstreamTies ? TaggedLists.Ties.AS_WRITTEN : TaggedLists.Ties.BY_TYPE));
         }
         return isToOne(n.args().get(0))
                 ? args.get(0)

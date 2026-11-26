@@ -933,12 +933,16 @@ final class TaggedLists {
         }
         // the rows in the list's own order (an unnest promises none: round 18's BigQuery and MySQL): by position, or by
         // comparable with the position after it (a stable sort's ties), either way
-        boolean desc = tl.order().descending();
+        SqlExpr.TaggedList.Order by = tl.order();
+        boolean desc = by == SqlExpr.TaggedList.Order.POSITION_DESC || by == SqlExpr.TaggedList.Order.COMPARABLE_DESC
+                || by == SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE_DESC;
+        boolean thenByType = by == SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE
+                || by == SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE_DESC;
         List<SqlSelect.SortKey> order = new ArrayList<>();
-        if (tl.order().byComparable()) {
+        if (by != SqlExpr.TaggedList.Order.POSITION && by != SqlExpr.TaggedList.Order.POSITION_DESC) {
             order.add(new SqlSelect.SortKey(tl.comparableAt(p), !desc, null, null));
             // equal numbers of two types, where the sort placed them by type: the type before the position
-            SqlExpr typeOrder = tl.order().thenByType() ? numberTypeOrderAt(tl, p) : null;
+            SqlExpr typeOrder = thenByType ? numberTypeOrderAt(tl, p) : null;
             if (typeOrder != null) {
                 order.add(new SqlSelect.SortKey(typeOrder, !desc, null, null));
             }

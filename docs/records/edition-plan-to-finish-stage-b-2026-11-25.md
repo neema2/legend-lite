@@ -160,11 +160,26 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 | 3 | all | **yes, 2026-11-26** | nothing |
 | 4 | all | **yes, 2026-11-26** | nothing (its recorded gap, bodies typed into their call, is step 6's: section 5b) |
 | 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | **yes, 2026-11-26** | nothing in it. Its leftover rows are deferred by the user's word (section 5b); the Float, date and `TDSNull` text rows are step 8's. One recorded difference at its finish line (PCT's legend-engine run on DuckDB: `testBigFloatAbs`, register S120) |
-| 6 | the first slice (`assertSize`: **landed 2026-11-26**, `4d44bf54`); slice 6.1 built, measured and audited on `claude/batch-6-1`, the fold rule ruled by the user ("Whole numbers fine") | no | 6.1 lands (its full run, then the pull request's CI); then slices 6.2 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
+| 6 | the first slice (`assertSize`: **landed 2026-11-26**, `4d44bf54`); slice 6.1 (**landed 2026-11-26, 22:34 UTC**, `9adb84bf`: one value within one type, a written list with no list in the SQL, the fold rule); slice 6.2 about two thirds built and tested on `claude/step-6-2` | no | 6.2 finished (the user's answers on the run-time rule's decisions, the host judge's tie-break, the full run, lanes, audit); then 6.3 to 6.6 in order, each landed before the next; SQLite's date-time text before 6.5; the product SQL changes brought to the user per slice |
 | 8 | slices 1 and 2 (**landed 2026-11-26**, `4d44bf54`; slice 2's own independent audit found no blocker and seven should-fix items, which its session is repairing on its branch); the Float deletion slice and the date-time slices built, the user's rulings given | no | slice 2's repairs and each later slice audited from outside, then landed; the `TDSNull` row; two register rows put to the user (`trim`; `length` and `indexOf` over characters past U+FFFF) |
 | 9 | slice 1 (**landed 2026-11-26**, `4d44bf54`); slice 2 built | no | slice 2 audited from outside, then landed; the later slices after steps 6 and 8 |
 | 10 | nothing | no | after 6, 8 and 9. Its first item: no line of the edge names a database (section 5b) |
 | 11 | nothing | no | the user's word |
+
+**How slice 6.1 landed (2026-11-26, 22:34 UTC).** `9adb84bf`; the program branch fast-forwarded to it. Verified
+before: the fixed pre-push set on the pushed commit (149 of 151 and one skipped; the one failure, the parser ledger's
+history line written by hand instead of through its generator, fixed in the last commit and re-run), six database
+lanes on the final code (nothing moved), an outside audit and an outside re-check of its fixes (no blocker left). CI
+on the pull request at that commit: **every job green, 56 of 56** (the macOS DataCube test that failed on the batch
+before passed). The landing page: `edition-homework/landing-step-6-1-2026-11-26.md`.
+
+**Focus (the user, 2026-11-26, about 22:20 UTC: "Let's just focus on step 6 right now ... I would stop everything
+else for right now so we can fully focus our attention on getting 6 done").** Steps 8 and 9 are PAUSED at clean
+checkpoints, each with a state note on its branch: step 8 at `26b10c300` on `claude/edition-step8`
+(`docs/records/edition-homework/step8/STATE-when-paused-2026-11-26.md`; its fixes for both audits build and pass its
+fast set, not measured), step 9 at `99dd3da5f` on `claude/edition-step9-slice2-clean`
+(`docs/records/edition-homework/step9/slice2-state-2026-11-26.md`; slice 2 finished and verified, its eight audit
+items done). Nothing of theirs merges until resumed. Kept, as step 6's own: SQLite's date-time text and the lanes.
 
 **How the next batch landed (2026-11-26, 20:22 UTC).** `4d44bf54`: step 6's first slice (`assertSize` as the
 product's own count, `assertNotSize` with it), step 8's slices 1 and 2, step 9's slice 1, and the fixes the lanes and
@@ -867,6 +882,41 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   user: record it as SQLite's own answer, or pay that SQL in the product.
   **Not in this slice:** an instance's Decimal or date-time key (section 5b, slice 6.4).
 
+**2026-11-26, evening: slice 6.1 verified and on the pull request (`17482a28`, pushed 21:25 UTC).** After the next
+batch landed (20:22): the batch's full run (148 of 151, one skipped; the two failures two guards, fixed: the writers
+of `IN`, and a class comparison written as a switch); an outside re-check of the first audit's fixes (no blocker; three
+new items fixed the same hour: a bare `=` where a value may be NULL, a whole number against Float literals folded
+where the previous batch left it to the database, an error lost where an answer was given by the types alone); the
+final code re-recorded (no size row moved by those fixes) and run (guards, PCT on DuckDB and H2, both corpora: 27 of
+27); six database lanes a second time on the final code (nothing moved). The landing page:
+`edition-homework/landing-step-6-1-2026-11-26.md`. CI and the fixed pre-push set are running on the pushed commit.
+
+**Written ahead for slice 6.2, on `claude/step-6-2` (not built, not run):** numbers of different types in a mixed
+list answer false (the refusal deleted; register S127 amended, put to the user); a value typed only at run time
+compares by the type its upcast or its column gives it; BigQuery orders a mixed list's rank field by field (it
+orders no STRUCT). **Found while writing it:** the count of a table's cells in `assertSize` cannot be fixed where the
+map said (the assert's size builder): the typed form of a table's cells is the table's rows themselves
+(`Typer.tdsValuesRead`, the 2026-08-24 carrier decision), so nothing after the typer can tell them apart. To probe.
+
+**The outside audit of step 9's slice 2** (`audits/audit-step9-slice2-2026-11-26.md`): no blocker, four should-fix
+(who may mint an edge style; who may subclass the edge's two opened dialects; the harness's owner entry too wide, the
+orchestrator's own ruling corrected; a guard's walk loosened more than needed) and four smaller ones, all sent back
+with a ruling each. One removal found: the shipped server's hidden `-Dlegend.exec.engineScanOrder=true` no longer
+adds the corpus's scan order to pure/v1 queries on DuckDB (told to the user).
+
+**SQLite's one date-time text form: the design changed by measurement.** The session built the nine-digit form (all
+lanes green) and found 22 size rows up for the form itself (every whole-second literal ten characters longer). It
+builds instead ONE CANONICAL text per instant: `YYYY-MM-DD HH:MM:SS`, then a point and digits only where the fraction
+is not zero, no trailing zero: the text DuckDB's cast prints. Text order and equality are the instant's. Approved by
+the orchestrator. Left out of the slice, for the user: a user's OWN stored column (SQLite has no date type) is still
+compared as held; normalizing it on every read costs SQL on tables lite loaded itself, and the lean fix (the plan
+knows which tables it loads) is outside the dialect.
+
+**Put to the user this evening, not yet answered:** (a) crossing numbers in a mixed list answer false at
+legend-pure's door too (S127 amended); (b) `max`/`min` follow the ruled order of types, not Pure's first-of-tie; (c)
+`<` between values typed only at run time is by value, then by type; (d) the host judge's comparison file's size pin
+for the tie-break; (e) a user's own SQLite date-time column: as held and recorded, or normalized at each read.
+
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
 1. **A number literal against a number column** (step 4's design question, and the equality rule's cost to a user
@@ -1094,6 +1144,32 @@ the compiler compares two written values only of a kind whose written token is t
 enumeration's value, a whole number. A Float, a Decimal and a date go to the database. Measured with it: 14
 constants a database become statements (39 with every number out), and the product's SQL is smaller than today on
 ten of eleven databases (ClickHouse 1,232 characters more, 0.07%).
+
+**The rulings of 2026-11-26, about 23:10 UTC, on the run-time rule (step 6, slices 6.2 and 6.3).** The decisions
+D1 to D5 of `edition-homework/open-decisions-2026-11-26.md` were put to the user twice: first with the
+orchestrator's reading of upstream, then, after the user's "please explain what engine would also do for these and
+the implications ramifications of the decision", with upstream's answers RUN on interpreted and compiled legend-pure
+and on legend-engine (`edition-homework/upstream-step6/answers.md`). The orchestrator then recommended matching
+upstream at lite's own door too (ordering by value, sort ties in the written order, `max`/`min` the last of a tie),
+saying the compatibility doors could not answer differently. The user: **"So we can't do the right thing in our mode
+and the crazy stuff in other modes"**. They can: the mode is read by the typer, which picks another rule of the
+product's for the whole operation (the mechanism of legend-engine's table). The framing put back to the user: lite's
+own rule in lite's mode, upstream's behaviour in the other two, each as a row. The user: **"I agree with the
+framing"**, and on legend-pure's mode following interpreted legend-pure where compiled differs (`3 == 3D` inside a
+mixed list): **"I'm a bit nervous on the pure one bc I think most things run in compiled but it's fine to start this
+way"**.
+
+| # | Settled |
+|---|---|
+| D1 | in a mixed list, numbers of different types are never equal, at every door. legend-pure's mode follows interpreted legend-pure (the same answer); compiled legend-pure's "same printed digits" (`[3, 'a']->contains(3D)` true) is a recorded difference, held as ONE rule so it can be switched, and checked against PCT in the slice's full run |
+| D2 | `max` and `min` on a tie: lite's mode by the order of types (Integer, Float, Decimal); the other modes upstream's (the last of the tied elements of a list). Lite's present "first" is wrong for every mode and goes |
+| D3 | `<`, `<=`, `>`, `>=` between values typed only at run time: lite's mode by value, then by type; the other modes by value alone |
+| D3b | sort: the ruling of 2026-11-25 stands for lite's mode (equal numbers Integer, Float, Decimal); the other modes keep the written order on a tie, as all three upstream runtimes do |
+| D4 | the host judge's comparison file's size pin may rise by about four lines for the tie-break |
+| D5 | a number literal written against a `Number` reads as the value's own number type in lite's mode (by value); legend-pure's mode strict, legend-engine's the database's comparison |
+
+Also asked by the user that hour, and done: **"Let's just focus on step 6 right now ... I would stop everything else
+for right now"** (steps 8 and 9 paused, section 5a).
 
 ## 8. Decisions still to come
 

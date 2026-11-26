@@ -1,0 +1,94 @@
+
+[E1] query=|[3, 3.0]->least()
+[E1] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[E1] constant=3 javaClass=java.lang.Long
+
+[E2] query=|[3.0, 3]->least()
+[E2] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[E2] constant=3.0 javaClass=java.lang.Double
+
+[E3] query=|[3, 3.0]->greatest()
+[E3] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[E3] constant=3.0 javaClass=java.lang.Double
+
+[E4] query=|[3.0, 3]->greatest()
+[E4] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[E4] constant=3 javaClass=java.lang.Long
+
+[E5] query=|[3, 3.0, 'a']->min()
+[E5] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"meta::pure::metamodel::type::Any"}
+[E5] constant=3 javaClass=java.lang.Long
+
+[E6] query=|[3.0, 3, 'a']->min()
+[E6] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"meta::pure::metamodel::type::Any"}
+[E6] constant=3.0 javaClass=java.lang.Double
+
+[E7] query=|[3, 3.0, 'a']->max()
+[E7] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"meta::pure::metamodel::type::Any"}
+[E7] constant=a javaClass=java.lang.String
+
+[E8] query=|[3.0, 3, 'a']->max()
+[E8] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"meta::pure::metamodel::type::Any"}
+[E8] constant=a javaClass=java.lang.String
+
+[E9] query=|[3, 3.0]->min()
+[E9] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[E9] constant=3.0 javaClass=java.lang.Double
+
+[E10] query=|[3.0, 3]->max()
+[E10] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[E10] constant=3 javaClass=java.lang.Long
+
+[E11a] query=|[%2014-01-01, %2014-01-01T00:00:00]->max()
+[E11a] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11a] constant=2014-01-01T00:00:00 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11b] query=|[%2014-01-01T00:00:00, %2014-01-01]->max()
+[E11b] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11b] constant=2014-01-01T00:00:00 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11c] query=|[%2014-01-01, %2014-01-01T00:00:00]->min()
+[E11c] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11c] constant=2014-01-01 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11d] query=|[%2014-01-01T00:00:00, %2014-01-01]->min()
+[E11d] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11d] constant=2014-01-01 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11e] query=|max(%2014-01-01, %2014-01-01T00:00:00)
+[E11e] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11e] constant=2014-01-01T00:00:00 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11f] query=|max(%2014-01-01T00:00:00, %2014-01-01)
+[E11f] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11f] constant=2014-01-01T00:00:00 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11g] query=|min(%2014-01-01, %2014-01-01T00:00:00)
+[E11g] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11g] constant=2014-01-01 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11h] query=|[%2014-01-01T00:00:00, %2014-01-01]->sort()
+[E11h] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11h] constant=[2014-01-01, 2014-01-01T00:00:00] javaClass=java.util.ArrayList
+[E11h]   [0] 2014-01-01 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+[E11h]   [1] 2014-01-01T00:00:00 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11i] query=|compare(%2014-01-01, %2014-01-01T00:00:00)
+[E11i] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Integer"}
+[E11i] constant=-1 javaClass=java.lang.Long
+
+[E11j] query=|%2014-01-01 < %2014-01-01T00:00:00
+[E11j] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[E11j] constant=true javaClass=java.lang.Boolean
+
+[E11k] query=|%2014-01-01T00:00:00 < %2014-01-01
+[E11k] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[E11k] constant=false javaClass=java.lang.Boolean
+
+[E11l] query=|[%2014-01-01, %2014-01-01T00:00:00]->least()
+[E11l] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11l] constant=2014-01-01 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate
+
+[E11m] query=|[%2014-01-01T00:00:00, %2014-01-01]->greatest()
+[E11m] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Date"}
+[E11m] constant=2014-01-01T00:00:00 javaClass=org.finos.legend.engine.plan.dependencies.domain.date.PureDate

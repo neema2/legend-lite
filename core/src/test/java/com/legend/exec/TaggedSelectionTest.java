@@ -77,7 +77,10 @@ class TaggedSelectionTest {
         assertEquals(1, plan.columns().size(), plan.sql());
         ExecutionPlan.Column value = plan.columns().get(0);
         assertEquals("Number", value.type());
-        assertEquals("TAGGED<Integer BIGINT, Float DOUBLE, Decimal DECIMAL(2,1)>", value.slot());
+        // the slots in the order the elements are searched for the winner: a greatest's the higher number type first,
+        // so a tie of equal numbers keeps the Decimal, then the Float (slice 6.2: MixedEncoding.TiePick; the written
+        // order until then)
+        assertEquals("TAGGED<Decimal DECIMAL(2,1), Float DOUBLE, Integer BIGINT>", value.slot());
         String sql = plan.sql();
         for (String column : List.of("value__0", "value__1", "value__2")) {
             assertTrue(sql.contains(column), sql);
@@ -92,8 +95,8 @@ class TaggedSelectionTest {
     void theWinnerIsReadInItsOwnKind() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(new BigDecimal("3.0"), value(c, "|[1, 2.5, 3.0D]->max()"));
-            // the tag names the winner's slot (the third: Decimal DECIMAL(2,1)), read with the carrier
-            assertEquals(new com.legend.result.TaggedCell(2, new BigDecimal("3.0")), tagged(c, "|[1, 2.5, 3.0D]->max()"));
+            // the tag names the winner's slot (the first of a greatest's: Decimal DECIMAL(2,1)), read with the carrier
+            assertEquals(new com.legend.result.TaggedCell(0, new BigDecimal("3.0")), tagged(c, "|[1, 2.5, 3.0D]->max()"));
             assertEquals(2.5d, value(c, "|[1, 2.5]->max()"));
             assertEquals(3L, value(c, "|[1, 2.5, 3]->max()"));
             assertEquals(1L, value(c, "|[1, 2.5]->min()"));
