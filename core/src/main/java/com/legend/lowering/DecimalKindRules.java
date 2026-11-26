@@ -35,7 +35,7 @@ final class DecimalKindRules {
     /** {@code round} by the database's own ROUND ({@link NamedRule#ROUND_AS_GIVEN}): the product's round in every
      *  other way -- an Integer of one argument, the operand's type at a scale. */
     static SqlExpr roundAsGiven(TypedNativeCall n, List<SqlExpr> args) {
-        return rounded(SqlFn.ROUND_AS_GIVEN, n, args);
+        return rounded(SqlFn.ROUND_RAW, n, args);
     }
 
     private static SqlExpr rounded(SqlFn rounding, TypedNativeCall n, List<SqlExpr> args) {

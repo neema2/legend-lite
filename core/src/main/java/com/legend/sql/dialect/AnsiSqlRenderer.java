@@ -932,7 +932,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             return false;
         }
         return switch (c.fn()) {
-            case ROUND, ROUND_HALF_UP, ROUND_AS_GIVEN -> c.args().size() == 1
+            case ROUND, ROUND_HALF_UP, ROUND_RAW -> c.args().size() == 1
                     || (c.args().size() == 2 && c.args().get(1) instanceof SqlExpr.IntLit i && i.value() == 0);
             case FLOOR, CEILING, FLOOR_RAW -> c.args().size() == 1;
             default -> false;

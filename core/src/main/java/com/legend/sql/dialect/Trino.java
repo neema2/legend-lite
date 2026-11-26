@@ -1067,7 +1067,7 @@ public class Trino extends AnsiSqlRenderer {
             case SPLIT_PART -> writer.append("coalesce(split_part(").list(a).append("), '')");
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
-            case ROUND_AS_GIVEN -> writer.function("round", c.args());
+            case ROUND_RAW -> writer.function("round", c.args());
 
             // ---- strings
             case MATCHES -> writer.append("regexp_like(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
