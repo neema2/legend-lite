@@ -91,6 +91,7 @@ meta::pure::lineage::scanColumns::test::testAssociationMapping	0	meta::pure::fun
 meta::pure::lineage::scanColumns::test::testEmbeddedMapping	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanColumns::test::testQualifier	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanColumns::test::testSubType	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::pure::lineage::scanColumns::test::testView	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanRelations::test::testConstant	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanRelations::test::testConstant	1	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanRelations::test::testFunctionWithGraphFetch	0	meta::pure::functions::asserts::assertEquals	PASS
@@ -1095,6 +1096,7 @@ meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteral
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes	1	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::relational::tests::functions::sqlstring::testToSQLStringToNumericCasts	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock	0	meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible	PASS
 meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_H2	0	meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter	FAIL	AssertFailed: SQL not as expected for H2 | expected: select cast(cast(date_trunc('quarter', "root".tradeDate) as timestamp) as date) as "date" from tradeTable as "root" | actual:   SELECT CAST(date_trunc('quarter', "t0".tradeDate) AS DATE) AS "date" | FROM tradeTable AS "t0"
 meta::relational::tests::functions::sqlstring::testToSqlGenerationMonth	0	meta::pure::functions::boolean::equal	PASS

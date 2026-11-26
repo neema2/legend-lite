@@ -81,6 +81,7 @@ meta::pure::lineage::scanColumns::test::testAssociationMapping	0	meta::pure::fun
 meta::pure::lineage::scanColumns::test::testEmbeddedMapping	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanColumns::test::testQualifier	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanColumns::test::testSubType	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::pure::lineage::scanColumns::test::testView	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanRelations::test::testConstant	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanRelations::test::testConstant	1	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::lineage::scanRelations::test::testFunctionWithGraphFetch	0	meta::pure::functions::asserts::assertEquals	PASS
