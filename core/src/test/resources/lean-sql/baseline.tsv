@@ -28,7 +28,7 @@ channel_a	BigQuery	TypedSlice	7	3739	19302	19	1409	0
 channel_a	BigQuery	TypedSort	17	18529	124416	74	5655	0
 channel_a	BigQuery	TypedWrite	1	354	5451	3	0	0
 channel_a	BigQuery	let	240	287527	2517175	707	46387	4
-channel_a	BigQuery	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	BigQuery	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	BigQuery	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3161	46438	0	0	0
 channel_a	BigQuery	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1975	53886	0	0	0
 channel_a	BigQuery	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	604	18632	0	0	0
@@ -51,7 +51,7 @@ channel_a	BigQuery	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Bool
 channel_a	BigQuery	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	10	2710	42305	3	163	4
 channel_a	BigQuery	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4152	0	0	0
 channel_a	BigQuery	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	127	10400	0	0	6
-channel_a	BigQuery	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6541	0	0	1
+channel_a	BigQuery	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6809	0	0	0
 channel_a	BigQuery	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	492	11330	0	0	0
 channel_a	BigQuery	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	2650	7738	12	1256	0
 channel_a	BigQuery	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	700	2630	4	281	0
@@ -156,8 +156,8 @@ channel_a	BigQuery	meta::pure::functions::hash::hash_String_1__HashType_1__Strin
 channel_a	BigQuery	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	79	2632	0	0	0
 channel_a	BigQuery	meta::pure::functions::math::abs_Float_1__Float_1_	2	140	3002	0	0	0
 channel_a	BigQuery	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	67	2534	0	0	0
-channel_a	BigQuery	meta::pure::functions::math::acos_Number_1__Float_1_	4	131	5054	0	0	0
-channel_a	BigQuery	meta::pure::functions::math::asin_Number_1__Float_1_	4	131	5054	0	0	0
+channel_a	BigQuery	meta::pure::functions::math::acos_Number_1__Float_1_	4	538	11256	0	0	0
+channel_a	BigQuery	meta::pure::functions::math::asin_Number_1__Float_1_	4	538	11256	0	0	0
 channel_a	BigQuery	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	117	4167	0	0	0
 channel_a	BigQuery	meta::pure::functions::math::atan_Number_1__Float_1_	3	92	3778	0	0	0
 channel_a	BigQuery	meta::pure::functions::math::average_Float_MANY__Float_1_	2	256	3467	1	0	0
@@ -336,7 +336,7 @@ channel_a	ClickHouse	TypedSlice	7	3607	19223	0	0	0
 channel_a	ClickHouse	TypedSort	17	18036	124696	3	558	0
 channel_a	ClickHouse	TypedWrite	1	683	5809	2	0	0
 channel_a	ClickHouse	let	240	417263	2661163	300	97454	4
-channel_a	ClickHouse	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	ClickHouse	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	13	6737	33529	0	600	8
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	11518	63559	0	283	0
 channel_a	ClickHouse	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	3556	21629	0	0	0
@@ -359,7 +359,7 @@ channel_a	ClickHouse	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Bo
 channel_a	ClickHouse	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	11	6861	49204	3	229	3
 channel_a	ClickHouse	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	1065	5151	0	0	0
 channel_a	ClickHouse	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	1825	12123	0	0	6
-channel_a	ClickHouse	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	416	6872	0	0	1
+channel_a	ClickHouse	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	416	7140	0	0	0
 channel_a	ClickHouse	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	3116	13994	0	0	0
 channel_a	ClickHouse	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	860	5959	0	0	0
 channel_a	ClickHouse	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	400	2337	0	0	0
@@ -464,8 +464,8 @@ channel_a	ClickHouse	meta::pure::functions::hash::hash_String_1__HashType_1__Str
 channel_a	ClickHouse	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	777	3340	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::abs_Float_1__Float_1_	2	774	3646	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	739	3216	0	0	0
-channel_a	ClickHouse	meta::pure::functions::math::acos_Number_1__Float_1_	4	1389	6332	0	0	0
-channel_a	ClickHouse	meta::pure::functions::math::asin_Number_1__Float_1_	4	1389	6332	0	0	0
+channel_a	ClickHouse	meta::pure::functions::math::acos_Number_1__Float_1_	4	2330	13088	0	0	0
+channel_a	ClickHouse	meta::pure::functions::math::asin_Number_1__Float_1_	4	2330	13088	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	1089	5154	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::atan_Number_1__Float_1_	3	1034	4735	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::average_Float_MANY__Float_1_	2	902	4123	0	0	0
@@ -644,7 +644,7 @@ channel_a	Databricks	TypedSlice	7	962	16831	0	0	0
 channel_a	Databricks	TypedSort	17	9377	116081	21	691	0
 channel_a	Databricks	TypedWrite	1	277	5420	2	0	0
 channel_a	Databricks	let	240	207883	2448326	374	25409	4
-channel_a	Databricks	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	Databricks	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	Databricks	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	47456	0	0	0
 channel_a	Databricks	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1827	54729	0	0	0
 channel_a	Databricks	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	604	19046	0	0	0
@@ -667,7 +667,7 @@ channel_a	Databricks	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Bo
 channel_a	Databricks	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	10	1788	41771	3	0	4
 channel_a	Databricks	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4290	0	0	0
 channel_a	Databricks	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	133	10636	0	0	6
-channel_a	Databricks	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	6585	0	0	1
+channel_a	Databricks	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	6853	0	0	0
 channel_a	Databricks	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	492	11698	0	0	0
 channel_a	Databricks	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	454	5589	0	17	0
 channel_a	Databricks	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	76	2050	0	0	0
@@ -772,8 +772,8 @@ channel_a	Databricks	meta::pure::functions::hash::hash_String_1__HashType_1__Str
 channel_a	Databricks	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	99	2744	0	0	0
 channel_a	Databricks	meta::pure::functions::math::abs_Float_1__Float_1_	2	76	2646	0	0	0
 channel_a	Databricks	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	69	2628	0	0	0
-channel_a	Databricks	meta::pure::functions::math::acos_Number_1__Float_1_	4	111	5200	0	0	0
-channel_a	Databricks	meta::pure::functions::math::asin_Number_1__Float_1_	4	111	5200	0	0	0
+channel_a	Databricks	meta::pure::functions::math::acos_Number_1__Float_1_	4	574	11438	0	0	0
+channel_a	Databricks	meta::pure::functions::math::asin_Number_1__Float_1_	4	574	11438	0	0	0
 channel_a	Databricks	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	99	4269	0	0	0
 channel_a	Databricks	meta::pure::functions::math::atan_Number_1__Float_1_	3	83	3898	0	0	0
 channel_a	Databricks	meta::pure::functions::math::average_Float_MANY__Float_1_	2	163	3403	1	0	0
@@ -952,7 +952,7 @@ channel_a	DuckDB	TypedSlice	7	753	16664	0	0	0
 channel_a	DuckDB	TypedSort	17	18064	124877	12	6200	0
 channel_a	DuckDB	TypedWrite	1	210	5359	2	0	0
 channel_a	DuckDB	let	240	172513	2413139	161	20170	4
-channel_a	DuckDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	DuckDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	DuckDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3327	47696	0	0	0
 channel_a	DuckDB	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1692	54750	0	0	0
 channel_a	DuckDB	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	586	19082	0	0	0
@@ -975,7 +975,7 @@ channel_a	DuckDB	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolea
 channel_a	DuckDB	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	11	1786	44508	3	0	3
 channel_a	DuckDB	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	75	4302	0	0	0
 channel_a	DuckDB	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	117	10650	0	0	6
-channel_a	DuckDB	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	6591	0	0	1
+channel_a	DuckDB	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	6859	0	0	0
 channel_a	DuckDB	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	476	11730	0	0	0
 channel_a	DuckDB	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	247	5388	0	0	0
 channel_a	DuckDB	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	85	2065	0	0	0
@@ -1080,8 +1080,8 @@ channel_a	DuckDB	meta::pure::functions::hash::hash_String_1__HashType_1__String_
 channel_a	DuckDB	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	49	2706	0	0	0
 channel_a	DuckDB	meta::pure::functions::math::abs_Float_1__Float_1_	2	72	2654	0	0	0
 channel_a	DuckDB	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	63	2634	0	0	0
-channel_a	DuckDB	meta::pure::functions::math::acos_Number_1__Float_1_	4	354	5467	0	0	0
-channel_a	DuckDB	meta::pure::functions::math::asin_Number_1__Float_1_	4	354	5467	0	0	0
+channel_a	DuckDB	meta::pure::functions::math::acos_Number_1__Float_1_	4	438	11326	0	0	0
+channel_a	DuckDB	meta::pure::functions::math::asin_Number_1__Float_1_	4	438	11326	0	0	0
 channel_a	DuckDB	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	89	4277	0	0	0
 channel_a	DuckDB	meta::pure::functions::math::atan_Number_1__Float_1_	3	75	3908	0	0	0
 channel_a	DuckDB	meta::pure::functions::math::average_Float_MANY__Float_1_	2	82	3334	0	0	0
@@ -1259,8 +1259,8 @@ channel_a	H2	TypedSelect	8	2552	52773	1	257	0
 channel_a	H2	TypedSlice	5	488	12121	0	0	2
 channel_a	H2	TypedSort	13	4664	75949	3	111	4
 channel_a	H2	TypedWrite	1	274	5985	2	0	0
-channel_a	H2	let	200	126612	1577493	154	20074	44
-channel_a	H2	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	H2	let	200	126502	1577378	154	20074	44
+channel_a	H2	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	H2	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	58910	0	0	0
 channel_a	H2	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	2248	69138	0	195	0
 channel_a	H2	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	604	23888	0	0	0
@@ -1283,7 +1283,7 @@ channel_a	H2	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_
 channel_a	H2	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	11	2737	51407	3	104	3
 channel_a	H2	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	5904	0	0	0
 channel_a	H2	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	127	13320	0	0	6
-channel_a	H2	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7163	0	0	1
+channel_a	H2	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7431	0	0	0
 channel_a	H2	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	492	16002	0	0	0
 channel_a	H2	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	0	0	0	0	0	1
 channel_a	H2	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	0	0	0	0	0	1
@@ -1388,8 +1388,8 @@ channel_a	H2	meta::pure::functions::hash::hash_String_1__HashType_1__String_1_	3
 channel_a	H2	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	53	3774	0	0	0
 channel_a	H2	meta::pure::functions::math::abs_Float_1__Float_1_	2	126	3772	0	0	0
 channel_a	H2	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	67	3702	0	0	0
-channel_a	H2	meta::pure::functions::math::acos_Number_1__Float_1_	4	767	8008	0	62	0
-channel_a	H2	meta::pure::functions::math::asin_Number_1__Float_1_	4	767	8008	0	63	0
+channel_a	H2	meta::pure::functions::math::acos_Number_1__Float_1_	4	706	13722	0	50	0
+channel_a	H2	meta::pure::functions::math::asin_Number_1__Float_1_	4	706	13722	0	51	0
 channel_a	H2	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	143	5927	0	0	0
 channel_a	H2	meta::pure::functions::math::atan_Number_1__Float_1_	3	105	5534	0	0	0
 channel_a	H2	meta::pure::functions::math::average_Float_MANY__Float_1_	1	47	1911	0	0	1
@@ -1568,7 +1568,7 @@ channel_a	MariaDB	TypedSlice	7	6921	26165	21	2984	0
 channel_a	MariaDB	TypedSort	17	109265	231296	52	60083	0
 channel_a	MariaDB	TypedWrite	1	334	5948	3	0	0
 channel_a	MariaDB	let	240	347582	2705237	670	99610	4
-channel_a	MariaDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	MariaDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	MariaDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	57289	0	1035	0
 channel_a	MariaDB	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1744	66112	0	0	0
 channel_a	MariaDB	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	604	23015	0	0	0
@@ -1591,7 +1591,7 @@ channel_a	MariaDB	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boole
 channel_a	MariaDB	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	10	4642	49141	8	290	4
 channel_a	MariaDB	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	5613	0	0	0
 channel_a	MariaDB	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	127	12835	0	0	6
-channel_a	MariaDB	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7066	0	0	1
+channel_a	MariaDB	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7334	0	0	0
 channel_a	MariaDB	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	492	15226	0	0	0
 channel_a	MariaDB	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	14374	20351	30	7096	0
 channel_a	MariaDB	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	998	3455	2	408	0
@@ -1696,8 +1696,8 @@ channel_a	MariaDB	meta::pure::functions::hash::hash_String_1__HashType_1__String
 channel_a	MariaDB	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	53	3580	0	0	0
 channel_a	MariaDB	meta::pure::functions::math::abs_Float_1__Float_1_	2	76	3528	0	0	0
 channel_a	MariaDB	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	67	3508	0	0	0
-channel_a	MariaDB	meta::pure::functions::math::acos_Number_1__Float_1_	4	1074	8327	4	72	0
-channel_a	MariaDB	meta::pure::functions::math::asin_Number_1__Float_1_	4	1074	8327	4	72	0
+channel_a	MariaDB	meta::pure::functions::math::acos_Number_1__Float_1_	4	1070	13706	4	72	0
+channel_a	MariaDB	meta::pure::functions::math::asin_Number_1__Float_1_	4	1070	13706	4	72	0
 channel_a	MariaDB	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	95	5588	0	0	0
 channel_a	MariaDB	meta::pure::functions::math::atan_Number_1__Float_1_	3	81	5219	0	0	0
 channel_a	MariaDB	meta::pure::functions::math::average_Float_MANY__Float_1_	2	229	4359	1	0	0
@@ -1876,7 +1876,7 @@ channel_a	MySQL	TypedSlice	7	8631	27644	35	3668	0
 channel_a	MySQL	TypedSort	17	144700	268640	85	81150	0
 channel_a	MySQL	TypedWrite	1	334	5899	3	0	0
 channel_a	MySQL	let	240	427098	2774350	847	137520	4
-channel_a	MySQL	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	MySQL	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	MySQL	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	56260	0	1035	0
 channel_a	MySQL	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1744	64838	0	0	0
 channel_a	MySQL	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	604	22574	0	0	0
@@ -1899,7 +1899,7 @@ channel_a	MySQL	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean
 channel_a	MySQL	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	10	6303	50352	13	713	4
 channel_a	MySQL	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	5466	0	0	0
 channel_a	MySQL	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	127	12590	0	0	6
-channel_a	MySQL	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7017	0	0	1
+channel_a	MySQL	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7285	0	0	0
 channel_a	MySQL	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	492	14834	0	0	0
 channel_a	MySQL	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	18229	24373	57	8938	0
 channel_a	MySQL	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	1501	3941	5	574	0
@@ -2004,8 +2004,8 @@ channel_a	MySQL	meta::pure::functions::hash::hash_String_1__HashType_1__String_1
 channel_a	MySQL	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	53	3482	0	0	0
 channel_a	MySQL	meta::pure::functions::math::abs_Float_1__Float_1_	2	76	3430	0	0	0
 channel_a	MySQL	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	67	3410	0	0	0
-channel_a	MySQL	meta::pure::functions::math::acos_Number_1__Float_1_	4	826	7875	4	72	0
-channel_a	MySQL	meta::pure::functions::math::asin_Number_1__Float_1_	4	826	7875	4	72	0
+channel_a	MySQL	meta::pure::functions::math::acos_Number_1__Float_1_	4	822	13254	4	72	0
+channel_a	MySQL	meta::pure::functions::math::asin_Number_1__Float_1_	4	822	13254	4	72	0
 channel_a	MySQL	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	95	5441	0	0	0
 channel_a	MySQL	meta::pure::functions::math::atan_Number_1__Float_1_	3	81	5072	0	0	0
 channel_a	MySQL	meta::pure::functions::math::average_Float_MANY__Float_1_	2	297	4337	2	0	0
@@ -2184,7 +2184,7 @@ channel_a	Postgres	TypedSlice	7	1656	17421	6	319	0
 channel_a	Postgres	TypedSort	17	23979	131558	116	7767	0
 channel_a	Postgres	TypedWrite	1	274	5423	2	0	0
 channel_a	Postgres	let	237	270011	2475338	461	68712	7
-channel_a	Postgres	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	Postgres	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	46952	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1870	54148	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	604	18830	0	0	0
@@ -2207,7 +2207,7 @@ channel_a	Postgres	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Bool
 channel_a	Postgres	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	10	1761	41570	3	0	4
 channel_a	Postgres	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4218	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	127	10510	0	0	6
-channel_a	Postgres	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6563	0	0	1
+channel_a	Postgres	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6831	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	492	11506	0	0	0
 channel_a	Postgres	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	743	5865	3	245	0
 channel_a	Postgres	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	289	2245	3	41	0
@@ -2312,8 +2312,8 @@ channel_a	Postgres	meta::pure::functions::hash::hash_String_1__HashType_1__Strin
 channel_a	Postgres	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	99	2696	0	0	0
 channel_a	Postgres	meta::pure::functions::math::abs_Float_1__Float_1_	2	90	2612	0	0	0
 channel_a	Postgres	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	67	2578	0	0	0
-channel_a	Postgres	meta::pure::functions::math::acos_Number_1__Float_1_	4	458	5451	0	0	0
-channel_a	Postgres	meta::pure::functions::math::asin_Number_1__Float_1_	4	458	5451	0	0	0
+channel_a	Postgres	meta::pure::functions::math::acos_Number_1__Float_1_	4	770	11538	0	0	0
+channel_a	Postgres	meta::pure::functions::math::asin_Number_1__Float_1_	4	770	11538	0	0	0
 channel_a	Postgres	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	107	4205	0	0	0
 channel_a	Postgres	meta::pure::functions::math::atan_Number_1__Float_1_	3	87	3830	0	0	0
 channel_a	Postgres	meta::pure::functions::math::average_Float_MANY__Float_1_	2	253	3449	2	0	0
@@ -2492,7 +2492,7 @@ channel_a	SQLite	TypedSlice	7	3886	19288	41	1375	0
 channel_a	SQLite	TypedSort	17	38488	144562	87	11194	0
 channel_a	SQLite	TypedWrite	1	288	5360	3	0	0
 channel_a	SQLite	let	239	223561	2442723	909	32423	5
-channel_a	SQLite	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	SQLite	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	2647	45399	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1650	52706	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	586	18389	0	0	0
@@ -2515,7 +2515,7 @@ channel_a	SQLite	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolea
 channel_a	SQLite	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	11	5399	47274	23	256	3
 channel_a	SQLite	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	75	4071	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	110	10258	0	0	6
-channel_a	SQLite	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	126	6552	0	0	1
+channel_a	SQLite	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	126	6820	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	368	11006	0	0	0
 channel_a	SQLite	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	3371	8444	36	1512	0
 channel_a	SQLite	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	689	2596	8	288	0
@@ -2620,8 +2620,8 @@ channel_a	SQLite	meta::pure::functions::hash::hash_String_1__HashType_1__String_
 channel_a	SQLite	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	174	2677	0	0	0
 channel_a	SQLite	meta::pure::functions::math::abs_Float_1__Float_1_	2	98	2526	0	0	0
 channel_a	SQLite	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	63	2480	0	0	0
-channel_a	SQLite	meta::pure::functions::math::acos_Number_1__Float_1_	4	674	5871	0	0	0
-channel_a	SQLite	meta::pure::functions::math::asin_Number_1__Float_1_	4	674	5871	0	0	0
+channel_a	SQLite	meta::pure::functions::math::acos_Number_1__Float_1_	4	662	11242	0	0	0
+channel_a	SQLite	meta::pure::functions::math::asin_Number_1__Float_1_	4	662	11242	0	0	0
 channel_a	SQLite	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	127	4084	0	0	0
 channel_a	SQLite	meta::pure::functions::math::atan_Number_1__Float_1_	3	115	3717	0	0	0
 channel_a	SQLite	meta::pure::functions::math::average_Float_MANY__Float_1_	2	195	3293	2	0	0
@@ -2800,7 +2800,7 @@ channel_a	Snowflake	TypedSlice	7	1914	19164	0	368	0
 channel_a	Snowflake	TypedSort	17	10453	121135	8	1116	0
 channel_a	Snowflake	TypedWrite	1	274	5634	2	0	0
 channel_a	Snowflake	let	240	214314	2506490	161	38440	4
-channel_a	Snowflake	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	Snowflake	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	Snowflake	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	51539	0	0	0
 channel_a	Snowflake	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	59671	0	0	0
 channel_a	Snowflake	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	604	20729	0	0	0
@@ -2823,7 +2823,7 @@ channel_a	Snowflake	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boo
 channel_a	Snowflake	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	11	1846	46697	3	0	3
 channel_a	Snowflake	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4851	0	0	0
 channel_a	Snowflake	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	127	11565	0	0	6
-channel_a	Snowflake	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	6772	0	0	1
+channel_a	Snowflake	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	7040	0	0	0
 channel_a	Snowflake	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	492	13194	0	0	0
 channel_a	Snowflake	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	1054	6388	0	447	0
 channel_a	Snowflake	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	252	2420	0	46	0
@@ -2928,8 +2928,8 @@ channel_a	Snowflake	meta::pure::functions::hash::hash_String_1__HashType_1__Stri
 channel_a	Snowflake	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	145	3164	0	0	0
 channel_a	Snowflake	meta::pure::functions::math::abs_Float_1__Float_1_	2	106	3434	0	0	0
 channel_a	Snowflake	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	67	3000	0	0	0
-channel_a	Snowflake	meta::pure::functions::math::acos_Number_1__Float_1_	4	428	6283	0	26	0
-channel_a	Snowflake	meta::pure::functions::math::asin_Number_1__Float_1_	4	428	6283	0	26	0
+channel_a	Snowflake	meta::pure::functions::math::acos_Number_1__Float_1_	4	548	12214	0	20	0
+channel_a	Snowflake	meta::pure::functions::math::asin_Number_1__Float_1_	4	548	12214	0	20	0
 channel_a	Snowflake	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	91	4840	0	0	0
 channel_a	Snowflake	meta::pure::functions::math::atan_Number_1__Float_1_	3	79	4464	0	0	0
 channel_a	Snowflake	meta::pure::functions::math::average_Float_MANY__Float_1_	2	683	4368	0	162	0
@@ -3108,7 +3108,7 @@ channel_a	Trino	TypedSlice	7	1597	17374	0	0	0
 channel_a	Trino	TypedSort	17	10616	117641	7	935	0
 channel_a	Trino	TypedWrite	1	319	5466	2	0	0
 channel_a	Trino	let	240	229263	2476440	174	47237	4
-channel_a	Trino	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5106	0	0	1
+channel_a	Trino	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5375	0	0	0
 channel_a	Trino	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	47066	0	0	0
 channel_a	Trino	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	2491	54717	0	0	0
 channel_a	Trino	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	9	604	18812	0	0	0
@@ -3131,7 +3131,7 @@ channel_a	Trino	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean
 channel_a	Trino	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	11	2658	45094	3	38	3
 channel_a	Trino	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4212	0	0	0
 channel_a	Trino	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	5	181	10554	0	0	6
-channel_a	Trino	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6561	0	0	1
+channel_a	Trino	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6829	0	0	0
 channel_a	Trino	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	8	492	11490	0	0	0
 channel_a	Trino	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	581	5703	0	17	0
 channel_a	Trino	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	160	2121	0	0	0
@@ -3236,8 +3236,8 @@ channel_a	Trino	meta::pure::functions::hash::hash_String_1__HashType_1__String_1
 channel_a	Trino	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	99	2692	0	0	0
 channel_a	Trino	meta::pure::functions::math::abs_Float_1__Float_1_	2	76	2594	0	0	0
 channel_a	Trino	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	85	2592	0	0	0
-channel_a	Trino	meta::pure::functions::math::acos_Number_1__Float_1_	4	127	5112	0	0	0
-channel_a	Trino	meta::pure::functions::math::asin_Number_1__Float_1_	4	127	5112	0	0	0
+channel_a	Trino	meta::pure::functions::math::acos_Number_1__Float_1_	4	610	11370	0	0	0
+channel_a	Trino	meta::pure::functions::math::asin_Number_1__Float_1_	4	610	11370	0	0	0
 channel_a	Trino	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	3	131	4223	0	0	0
 channel_a	Trino	meta::pure::functions::math::atan_Number_1__Float_1_	3	99	3836	0	0	0
 channel_a	Trino	meta::pure::functions::math::average_Float_MANY__Float_1_	2	162	3356	1	0	0
@@ -3420,14 +3420,14 @@ core	DuckDB	TypedDistinct	11	1023	30734	0	0	0
 core	DuckDB	TypedDrop	6	622	13682	0	0	0
 core	DuckDB	TypedEnumValue	1	19	2229	0	0	0
 core	DuckDB	TypedEval	1	26	1279	0	0	0
-core	DuckDB	TypedExtend	174	24889	521338	10	82	0
+core	DuckDB	TypedExtend	174	24947	524428	10	82	0
 core	DuckDB	TypedExtendAgg	25	6129	124307	1	230	0
 core	DuckDB	TypedExtendWindow	124	38915	778954	2	1272	0
-core	DuckDB	TypedFilter	47	11686	220263	25	302	0
+core	DuckDB	TypedFilter	48	12314	231361	26	393	0
 core	DuckDB	TypedFold	26	3947	84053	0	215	0
 core	DuckDB	TypedFrom	68	13453	322511	30	418	0
 core	DuckDB	TypedGetAll	1	80	2041	0	0	0
-core	DuckDB	TypedGroupBy	124	21709	526456	6	402	0
+core	DuckDB	TypedGroupBy	124	21797	526604	6	449	0
 core	DuckDB	TypedIf	5	459	11484	0	0	0
 core	DuckDB	TypedJoin	27	11757	361385	8	1138	0
 core	DuckDB	TypedLimit	41	6351	141430	10	169	0
@@ -3437,11 +3437,11 @@ core	DuckDB	TypedMerge	15	3678	30059	13	55	0
 core	DuckDB	TypedNewInstance	5	1086	25079	0	0	0
 core	DuckDB	TypedPackageableRef	1	23	52094	0	0	0
 core	DuckDB	TypedPivot	53	25064	392350	46	2814	0
-core	DuckDB	TypedProject	638	92287	6628154	138	2690	0
+core	DuckDB	TypedProject	638	92485	6628487	138	2690	0
 core	DuckDB	TypedPropertyAccess	7	5893	79144	6	174	0
 core	DuckDB	TypedRename	4	473	15468	0	0	0
 core	DuckDB	TypedSelect	143	24410	619606	22	1710	0
-core	DuckDB	TypedSerialize	68	29529	456561	70	1515	0
+core	DuckDB	TypedSerialize	68	29573	455218	70	1515	0
 core	DuckDB	TypedSlice	12	1831	38619	3	0	0
 core	DuckDB	TypedSort	231	70846	1417034	105	7691	0
 core	DuckDB	TypedSortBy	1	149	3197	1	0	0
@@ -3521,7 +3521,7 @@ core	DuckDB	meta::pure::functions::hash::hashCode_Any_MANY__Integer_1_	3	372	414
 core	DuckDB	meta::pure::functions::hash::hash_String_1__HashType_1__String_1_	2	75	2618	0	0	0
 core	DuckDB	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	50	2654	0	0	0
 core	DuckDB	meta::pure::functions::math::abs_Float_1__Float_1_	2	86	2624	0	0	0
-core	DuckDB	meta::pure::functions::math::acos_Number_1__Float_1_	2	184	3884	0	0	0
+core	DuckDB	meta::pure::functions::math::acos_Number_1__Float_1_	2	210	6810	0	0	0
 core	DuckDB	meta::pure::functions::math::average_Float_MANY__Float_1_	2	61	2920	0	0	0
 core	DuckDB	meta::pure::functions::math::average_Integer_MANY__Float_1_	1	34	1334	0	0	0
 core	DuckDB	meta::pure::functions::math::average_Number_MANY__Float_1_	1	49	1924	0	0	0
@@ -3664,7 +3664,7 @@ core	H2	meta::legend::lite::unlink_Relation_1__Class_1__ColSpec_1__ColSpec_1__In
 core	H2	meta::legend::lite::writeInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	7	681	9994	0	0	0
 core	H2	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	77	384105	1	0	0
 core	H2	meta::pure::functions::collection::sort_T_m__T_m_	1	130	5914	1	0	0
-core	H2	meta::pure::functions::math::acos_Number_1__Float_1_	1	233	3741	0	31	0
+core	H2	meta::pure::functions::math::acos_Number_1__Float_1_	1	191	5149	0	25	0
 core	H2	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	1	23	3643	0	0	0
 core	H2	meta::pure::functions::math::times_Decimal_MANY__Decimal_1_	1	29	3607	0	0	0
 core	H2	meta::pure::functions::math::times_Number_MANY__Number_1_	3	128	10713	0	0	0
@@ -3744,4 +3744,4 @@ core	constant	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_1_	
 core	constant	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	537	0	0	0
 core	constant	meta::pure::functions::multiplicity::toOne_T_MANY__T_1_	0	0	267	0	0	0
 core	constant	user	0	0	284	0	0	0
-core	refused	refused	0	0	0	0	0	28
+core	refused	refused	0	0	0	0	0	27

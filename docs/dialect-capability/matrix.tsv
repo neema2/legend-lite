@@ -24,6 +24,8 @@ H2	H2	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 H2	H2	call	IN	emulated	inList		6
 H2	H2	call	COALESCE	spelled	coalesce		552
 H2	H2	call	PARSE_INT	emulated	parseInteger		11
+H2	H2	call	CAST_INT	emulated	rawCast		0
+H2	H2	call	CAST_FLOAT	emulated	rawCast		0
 H2	H2	call	CONCAT	emulated	concatFlat		756
 H2	H2	call	LENGTH	spelled	length		73
 H2	H2	call	UPPER	spelled	upper		2
@@ -54,13 +56,15 @@ H2	H2	call	PI	spelled	pi		1
 H2	H2	call	SIN	spelled	sin		3
 H2	H2	call	COS	spelled	cos		3
 H2	H2	call	TAN	spelled	tan		2
-H2	H2	call	ASIN	emulated	domainGuarded: asin		4
-H2	H2	call	ACOS	emulated	domainGuarded: acos		4
+H2	H2	call	ASIN	emulated	inverseTrig		4
+H2	H2	call	ACOS	emulated	inverseTrig		4
 H2	H2	call	ATAN	spelled	atan		3
 H2	H2	call	ATAN2	spelled	atan2		3
 H2	H2	call	SINH	spelled	sinh		22
 H2	H2	call	COSH	spelled	cosh		24
 H2	H2	call	TANH	spelled	tanh		29
+H2	H2	call	ACOS_IN_DOMAIN	emulated	inverseTrig		0
+H2	H2	call	ASIN_IN_DOMAIN	emulated	inverseTrig		0
 H2	H2	call	CEILING	emulated	bigintOf: ceil		12
 H2	H2	call	FLOOR	emulated	bigintOf: floor		18
 H2	H2	call	ROUND	emulated	roundHalfEven		22
@@ -179,7 +183,8 @@ H2	H2	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 H2	H2	call	LIST_REVERSE	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	4
 H2	H2	call	TYPEOF	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
 H2	H2	call	ROUND_HALF_UP	spelled	ROUND		1
-H2	H2	call	ROUND_RAW	spelled	ROUND		0
+H2	H2	call	ROUND_RAW	emulated	asGiven: ROUND, DECIMAL		0
+H2	H2	call	DECIMAL_RAW	emulated	asGiven: ROUND, DECIMAL		0
 H2	H2	call	ERROR	emulated	errorArm		70
 H2	H2	call	FLOOR_RAW	spelled	floor		55
 H2	H2	call	TO_VARIANT	emulated	variantConstruct		8
@@ -257,7 +262,9 @@ Postgres	Postgres	call	IS_NULL	spelled	an operator (isNullTest)		522
 Postgres	Postgres	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Postgres	Postgres	call	IN	emulated	inList		6
 Postgres	Postgres	call	COALESCE	emulated	coalesceArm		552
-Postgres	Postgres	call	PARSE_INT	emulated	parseInt		11
+Postgres	Postgres	call	PARSE_INT	emulated	parses		11
+Postgres	Postgres	call	CAST_INT	emulated	parses		0
+Postgres	Postgres	call	CAST_FLOAT	emulated	parses		0
 Postgres	Postgres	call	CONCAT	emulated	concatFlat		756
 Postgres	Postgres	call	LENGTH	emulated	by its operands: length(…) / length(CAST(… AS VARCHAR))		73
 Postgres	Postgres	call	UPPER	spelled	upper		2
@@ -295,6 +302,8 @@ Postgres	Postgres	call	ATAN2	spelled	atan2		3
 Postgres	Postgres	call	SINH	spelled	sinh		22
 Postgres	Postgres	call	COSH	spelled	cosh		24
 Postgres	Postgres	call	TANH	spelled	tanh		29
+Postgres	Postgres	call	ACOS_IN_DOMAIN	emulated	acos		0
+Postgres	Postgres	call	ASIN_IN_DOMAIN	emulated	acos		0
 Postgres	Postgres	call	CEILING	emulated	bigintOf: ceil		12
 Postgres	Postgres	call	FLOOR	emulated	bigintOf: floor		18
 Postgres	Postgres	call	ROUND	emulated	roundHalfEven		22
@@ -414,6 +423,7 @@ Postgres	Postgres	call	LIST_REVERSE	emulated	overElements, held: …__o__o DESC	
 Postgres	Postgres	call	TYPEOF	refused	collections over the jsonb carrier are leg P4 reached Postgres:		0
 Postgres	Postgres	call	ROUND_HALF_UP	emulated	rounds		1
 Postgres	Postgres	call	ROUND_RAW	emulated	rounds		0
+Postgres	Postgres	call	DECIMAL_RAW	emulated	rounds		0
 Postgres	Postgres	call	ERROR	emulated	raise		70
 Postgres	Postgres	call	FLOOR_RAW	spelled	floor		55
 Postgres	Postgres	call	TO_VARIANT	emulated	variantConstruct		8
@@ -492,6 +502,8 @@ Snowflake	Snowflake	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Snowflake	Snowflake	call	IN	emulated	inArm		6
 Snowflake	Snowflake	call	COALESCE	emulated	by its operands: coalesce(, PARSE_JSON(…)TO_VARIANT(…)…) / …coalesce		552
 Snowflake	Snowflake	call	PARSE_INT	emulated	guardedParseInt: REGEXP_LIKE(, , , ^[+-]?[0-9]+$, ), CAST(,  AS BIGINT)		11
+Snowflake	Snowflake	call	CAST_INT	emulated	rawCast		0
+Snowflake	Snowflake	call	CAST_FLOAT	emulated	rawCast		0
 Snowflake	Snowflake	call	CONCAT	emulated	concat, flattenConcat		755
 Snowflake	Snowflake	call	LENGTH	spelled	length		73
 Snowflake	Snowflake	call	UPPER	spelled	upper		2
@@ -529,6 +541,8 @@ Snowflake	Snowflake	call	ATAN2	spelled	atan2		3
 Snowflake	Snowflake	call	SINH	spelled	sinh		22
 Snowflake	Snowflake	call	COSH	spelled	cosh		24
 Snowflake	Snowflake	call	TANH	spelled	tanh		29
+Snowflake	Snowflake	call	ACOS_IN_DOMAIN	spelled	ACOS		0
+Snowflake	Snowflake	call	ASIN_IN_DOMAIN	spelled	ASIN		0
 Snowflake	Snowflake	call	CEILING	emulated	bigintOf: ceil		12
 Snowflake	Snowflake	call	FLOOR	emulated	bigintOf: floor		18
 Snowflake	Snowflake	call	ROUND	emulated	roundHalfEven		22
@@ -647,7 +661,8 @@ Snowflake	Snowflake	call	PARSE_DATE	emulated	CAST(CONVERT_TIMEZONE('UTC', TO_TIM
 Snowflake	Snowflake	call	LIST_REVERSE	spelled	array_reverse		4
 Snowflake	Snowflake	call	TYPEOF	emulated	TYPEOF(TO_VARIANT(…))	via Snowflake.list	0
 Snowflake	Snowflake	call	ROUND_HALF_UP	emulated	roundHalfUp		1
-Snowflake	Snowflake	call	ROUND_RAW	spelled	ROUND		0
+Snowflake	Snowflake	call	ROUND_RAW	emulated	asGiven: ROUND		0
+Snowflake	Snowflake	call	DECIMAL_RAW	emulated	asGiven: ROUND		0
 Snowflake	Snowflake	call	ERROR	emulated	raise		70
 Snowflake	Snowflake	call	FLOOR_RAW	spelled	floor		55
 Snowflake	Snowflake	call	TO_VARIANT	emulated	variantConstruct		8
@@ -726,6 +741,8 @@ Trino	Trino	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Trino	Trino	call	IN	emulated	inList		6
 Trino	Trino	call	COALESCE	emulated	by its operands: coalesce(, json_parse(…)…) / …coalesce		552
 Trino	Trino	call	PARSE_INT	emulated	guardedParseInt: regexp_like(, , '^[+-]?[0-9]+$'), BIGINT		11
+Trino	Trino	call	CAST_INT	emulated	rawCast		0
+Trino	Trino	call	CAST_FLOAT	emulated	rawCast		0
 Trino	Trino	call	CONCAT	emulated	flattenConcat: concat_ws('', , )		755
 Trino	Trino	call	LENGTH	spelled	length		73
 Trino	Trino	call	UPPER	spelled	upper		2
@@ -763,6 +780,8 @@ Trino	Trino	call	ATAN2	spelled	atan2		3
 Trino	Trino	call	SINH	spelled	sinh		22
 Trino	Trino	call	COSH	spelled	cosh		24
 Trino	Trino	call	TANH	spelled	tanh		29
+Trino	Trino	call	ACOS_IN_DOMAIN	spelled	acos		0
+Trino	Trino	call	ASIN_IN_DOMAIN	spelled	asin		0
 Trino	Trino	call	CEILING	emulated	bigintOf: ceil		12
 Trino	Trino	call	FLOOR	emulated	bigintOf: floor		18
 Trino	Trino	call	ROUND	emulated	roundHalfEven		22
@@ -881,7 +900,8 @@ Trino	Trino	call	PARSE_DATE	emulated	CAST(… AS TIMESTAMP(9))		4
 Trino	Trino	call	LIST_REVERSE	spelled	reverse		4
 Trino	Trino	call	TYPEOF	spelled	typeof	via Trino.listCall	0
 Trino	Trino	call	ROUND_HALF_UP	emulated	roundHalfUp		1
-Trino	Trino	call	ROUND_RAW	spelled	round		0
+Trino	Trino	call	ROUND_RAW	emulated	asGiven: round		0
+Trino	Trino	call	DECIMAL_RAW	emulated	asGiven: round		0
 Trino	Trino	call	ERROR	emulated	error		70
 Trino	Trino	call	FLOOR_RAW	spelled	floor		55
 Trino	Trino	call	TO_VARIANT	emulated	variantConstruct		8
@@ -959,7 +979,9 @@ BigQuery	BigQuery	call	IS_NULL	spelled	an operator (isNullTest)		522
 BigQuery	BigQuery	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 BigQuery	BigQuery	call	IN	emulated	in		6
 BigQuery	BigQuery	call	COALESCE	emulated	coalesceArm		552
-BigQuery	BigQuery	call	PARSE_INT	emulated	parseInt		11
+BigQuery	BigQuery	call	PARSE_INT	emulated	parses		11
+BigQuery	BigQuery	call	CAST_INT	emulated	parses		0
+BigQuery	BigQuery	call	CAST_FLOAT	emulated	parses		0
 BigQuery	BigQuery	call	CONCAT	emulated	flattenConcat, asText: CONCAT(, IFNULL(…, ''))		756
 BigQuery	BigQuery	call	LENGTH	emulated	asText: LENGTH(…)		73
 BigQuery	BigQuery	call	UPPER	spelled	UPPER		2
@@ -997,6 +1019,8 @@ BigQuery	BigQuery	call	ATAN2	spelled	ATAN2		3
 BigQuery	BigQuery	call	SINH	spelled	SINH		22
 BigQuery	BigQuery	call	COSH	spelled	COSH		24
 BigQuery	BigQuery	call	TANH	spelled	TANH		29
+BigQuery	BigQuery	call	ACOS_IN_DOMAIN	spelled	ACOS		0
+BigQuery	BigQuery	call	ASIN_IN_DOMAIN	spelled	ASIN		0
 BigQuery	BigQuery	call	CEILING	emulated	CAST(CEIL(…) AS INT64)		12
 BigQuery	BigQuery	call	FLOOR	emulated	CAST(FLOOR(…) AS INT64)		18
 BigQuery	BigQuery	call	ROUND	emulated	roundHalfEven		22
@@ -1116,6 +1140,7 @@ BigQuery	BigQuery	call	LIST_REVERSE	spelled	ARRAY_REVERSE		4
 BigQuery	BigQuery	call	TYPEOF	refused	its type names are BigQuery's reached BigQuery:		0
 BigQuery	BigQuery	call	ROUND_HALF_UP	emulated	rounds		1
 BigQuery	BigQuery	call	ROUND_RAW	emulated	rounds		0
+BigQuery	BigQuery	call	DECIMAL_RAW	emulated	rounds		0
 BigQuery	BigQuery	call	ERROR	emulated	raiseEnvelope: ERROR		70
 BigQuery	BigQuery	call	FLOOR_RAW	spelled	FLOOR		55
 BigQuery	BigQuery	call	TO_VARIANT	emulated	variantConstruct		8
@@ -1194,6 +1219,8 @@ Databricks	Databricks	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Databricks	Databricks	call	IN	emulated	inList		6
 Databricks	Databricks	call	COALESCE	spelled	coalesce		552
 Databricks	Databricks	call	PARSE_INT	emulated	guardedParseInt:  RLIKE '^[+-]?[0-9]+$', BIGINT		11
+Databricks	Databricks	call	CAST_INT	emulated	rawCast		0
+Databricks	Databricks	call	CAST_FLOAT	emulated	rawCast		0
 Databricks	Databricks	call	CONCAT	emulated	flattenConcat: concat_ws('', , )		755
 Databricks	Databricks	call	LENGTH	spelled	length		73
 Databricks	Databricks	call	UPPER	spelled	upper		2
@@ -1231,6 +1258,8 @@ Databricks	Databricks	call	ATAN2	spelled	atan2		3
 Databricks	Databricks	call	SINH	spelled	sinh		22
 Databricks	Databricks	call	COSH	spelled	cosh		24
 Databricks	Databricks	call	TANH	spelled	tanh		29
+Databricks	Databricks	call	ACOS_IN_DOMAIN	spelled	acos		0
+Databricks	Databricks	call	ASIN_IN_DOMAIN	spelled	asin		0
 Databricks	Databricks	call	CEILING	emulated	bigintOf: ceil		12
 Databricks	Databricks	call	FLOOR	emulated	bigintOf: floor		18
 Databricks	Databricks	call	ROUND	emulated	roundHalfEven		22
@@ -1349,7 +1378,8 @@ Databricks	Databricks	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 Databricks	Databricks	call	LIST_REVERSE	spelled	reverse		4
 Databricks	Databricks	call	TYPEOF	spelled	typeof	via Databricks.listCall	0
 Databricks	Databricks	call	ROUND_HALF_UP	spelled	ROUND		1
-Databricks	Databricks	call	ROUND_RAW	spelled	ROUND		0
+Databricks	Databricks	call	ROUND_RAW	emulated	asGiven: ROUND		0
+Databricks	Databricks	call	DECIMAL_RAW	emulated	asGiven: ROUND		0
 Databricks	Databricks	call	ERROR	emulated	raiseEnvelope: raise_error		70
 Databricks	Databricks	call	FLOOR_RAW	emulated	(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)		55
 Databricks	Databricks	call	TO_VARIANT	emulated	variantConstruct		8
@@ -1428,6 +1458,8 @@ DuckDb	DuckDB	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 DuckDb	DuckDB	call	IN	emulated	inList		6
 DuckDb	DuckDB	call	COALESCE	spelled	coalesce		561
 DuckDb	DuckDB	call	PARSE_INT	emulated	guardedParseInt: regexp_full_match(, , '[+-]?[0-9]+'), BIGINT		11
+DuckDb	DuckDB	call	CAST_INT	emulated	rawCast		0
+DuckDb	DuckDB	call	CAST_FLOAT	emulated	rawCast		0
 DuckDb	DuckDB	call	CONCAT	emulated	concatFlat		755
 DuckDb	DuckDB	call	LENGTH	emulated	lengthArm		73
 DuckDb	DuckDB	call	UPPER	spelled	upper		2
@@ -1465,6 +1497,8 @@ DuckDb	DuckDB	call	ATAN2	spelled	atan2		3
 DuckDb	DuckDB	call	SINH	spelled	sinh		22
 DuckDb	DuckDB	call	COSH	spelled	cosh		24
 DuckDb	DuckDB	call	TANH	spelled	tanh		29
+DuckDb	DuckDB	call	ACOS_IN_DOMAIN	spelled	acos		0
+DuckDb	DuckDB	call	ASIN_IN_DOMAIN	spelled	asin		0
 DuckDb	DuckDB	call	CEILING	emulated	bigintOf: ceil		14
 DuckDb	DuckDB	call	FLOOR	emulated	bigintOf: floor		19
 DuckDb	DuckDB	call	ROUND	emulated	roundHalfEven		22
@@ -1583,7 +1617,8 @@ DuckDb	DuckDB	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 DuckDb	DuckDB	call	LIST_REVERSE	spelled	list_reverse	via DuckDb.listCall	4
 DuckDb	DuckDB	call	TYPEOF	spelled	typeof	via DuckDb.listCall	0
 DuckDb	DuckDB	call	ROUND_HALF_UP	spelled	ROUND		1
-DuckDb	DuckDB	call	ROUND_RAW	spelled	ROUND		0
+DuckDb	DuckDB	call	ROUND_RAW	emulated	asGiven: ROUND, DECIMAL		0
+DuckDb	DuckDB	call	DECIMAL_RAW	emulated	asGiven: ROUND, DECIMAL		0
 DuckDb	DuckDB	call	ERROR	emulated	raiseEnvelope: error		70
 DuckDb	DuckDB	call	FLOOR_RAW	spelled	floor		55
 DuckDb	DuckDB	call	TO_VARIANT	emulated	variantConstruct		8
@@ -1662,6 +1697,8 @@ ClickHouse	ClickHouse	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 ClickHouse	ClickHouse	call	IN	emulated	inList		6
 ClickHouse	ClickHouse	call	COALESCE	spelled	coalesce		552
 ClickHouse	ClickHouse	call	PARSE_INT	emulated	parseInteger		11
+ClickHouse	ClickHouse	call	CAST_INT	emulated	rawCast		0
+ClickHouse	ClickHouse	call	CAST_FLOAT	emulated	rawCast		0
 ClickHouse	ClickHouse	call	CONCAT	emulated	flattenConcat: concat(, )		755
 ClickHouse	ClickHouse	call	LENGTH	emulated	toInt64(lengthUTF8(…))		73
 ClickHouse	ClickHouse	call	UPPER	spelled	upperUTF8		2
@@ -1699,6 +1736,8 @@ ClickHouse	ClickHouse	call	ATAN2	spelled	atan2		3
 ClickHouse	ClickHouse	call	SINH	spelled	sinh		22
 ClickHouse	ClickHouse	call	COSH	spelled	cosh		24
 ClickHouse	ClickHouse	call	TANH	emulated	(1 - 2 / (pow(e(), 2 * toFloat64(…)) + 1))		29
+ClickHouse	ClickHouse	call	ACOS_IN_DOMAIN	spelled	acos		0
+ClickHouse	ClickHouse	call	ASIN_IN_DOMAIN	spelled	asin		0
 ClickHouse	ClickHouse	call	CEILING	emulated	bigintOf: ceil		12
 ClickHouse	ClickHouse	call	FLOOR	emulated	bigintOf: floor		18
 ClickHouse	ClickHouse	call	ROUND	emulated	roundHalfEven		22
@@ -1817,7 +1856,8 @@ ClickHouse	ClickHouse	call	PARSE_DATE	emulated	parseDateTime64BestEffort(…, 6,
 ClickHouse	ClickHouse	call	LIST_REVERSE	spelled	arrayReverse		4
 ClickHouse	ClickHouse	call	TYPEOF	emulated	replaceRegexpOne(toTypeName(…), '^Nullable\((.*)\)$', '\1')	via ClickHouse.listCall	0
 ClickHouse	ClickHouse	call	ROUND_HALF_UP	emulated	roundHalfUp		1
-ClickHouse	ClickHouse	call	ROUND_RAW	spelled	round		0
+ClickHouse	ClickHouse	call	ROUND_RAW	emulated	asGiven: round		0
+ClickHouse	ClickHouse	call	DECIMAL_RAW	emulated	asGiven: round		0
 ClickHouse	ClickHouse	call	ERROR	emulated	error		70
 ClickHouse	ClickHouse	call	FLOOR_RAW	spelled	floor		55
 ClickHouse	ClickHouse	call	TO_VARIANT	emulated	variantConstruct		8
@@ -1896,6 +1936,8 @@ SQLite	SQLite	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 SQLite	SQLite	call	IN	emulated	in		6
 SQLite	SQLite	call	COALESCE	emulated	by its operands: composed / …coalesce		552
 SQLite	SQLite	call	PARSE_INT	emulated	parseInt		11
+SQLite	SQLite	call	CAST_INT	emulated	rawCast		0
+SQLite	SQLite	call	CAST_FLOAT	emulated	rawCast		0
 SQLite	SQLite	call	CONCAT	emulated	concatParts, flattenConcat		756
 SQLite	SQLite	call	LENGTH	emulated	asText: length(…)		73
 SQLite	SQLite	call	UPPER	spelled	upper		2
@@ -1933,6 +1975,8 @@ SQLite	SQLite	call	ATAN2	spelled	atan2		3
 SQLite	SQLite	call	SINH	spelled	sinh		22
 SQLite	SQLite	call	COSH	spelled	cosh		24
 SQLite	SQLite	call	TANH	spelled	tanh		29
+SQLite	SQLite	call	ACOS_IN_DOMAIN	spelled	acos		0
+SQLite	SQLite	call	ASIN_IN_DOMAIN	spelled	asin		0
 SQLite	SQLite	call	CEILING	emulated	bigintOf: ceil		12
 SQLite	SQLite	call	FLOOR	emulated	bigintOf: floor		18
 SQLite	SQLite	call	ROUND	emulated	roundHalfEven		22
@@ -2051,7 +2095,8 @@ SQLite	SQLite	call	PARSE_DATE	emulated	parsedDate		4
 SQLite	SQLite	call	LIST_REVERSE	emulated	unlessNull, jsonOf, listElement, elements: …(SELECT json_group_array(… ORDER BY DESC) FROM …__e__o)	via SQLite.lists	4
 SQLite	SQLite	call	TYPEOF	refused	its type names are SQLite's storage classes reached SQLite:	via SQLite.lists	0
 SQLite	SQLite	call	ROUND_HALF_UP	emulated	roundHalfUp		1
-SQLite	SQLite	call	ROUND_RAW	spelled	round		0
+SQLite	SQLite	call	ROUND_RAW	emulated	asGiven: round		0
+SQLite	SQLite	call	DECIMAL_RAW	emulated	asGiven: round		0
 SQLite	SQLite	call	ERROR	emulated	raise		70
 SQLite	SQLite	call	FLOOR_RAW	spelled	floor		55
 SQLite	SQLite	call	TO_VARIANT	emulated	variantConstruct		8
@@ -2130,6 +2175,8 @@ MariaDb	MariaDB	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 MariaDb	MariaDB	call	IN	emulated	in		6
 MariaDb	MariaDB	call	COALESCE	emulated	by its operands: composed / …coalesce		552
 MariaDb	MariaDB	call	PARSE_INT	emulated	parseInt		11
+MariaDb	MariaDB	call	CAST_INT	emulated	rawCast		0
+MariaDb	MariaDB	call	CAST_FLOAT	emulated	rawCast		0
 MariaDb	MariaDB	call	CONCAT	emulated	flattenConcat, asText: CONCAT_WS('', , …)		741
 MariaDb	MariaDB	call	LENGTH	emulated	asText: CHAR_LENGTH(…)		53
 MariaDb	MariaDB	call	UPPER	spelled	upper		2
@@ -2167,6 +2214,8 @@ MariaDb	MariaDB	call	ATAN2	spelled	atan2		3
 MariaDb	MariaDB	call	SINH	emulated	((EXP(…) - EXP(-(…))) / 2)		22
 MariaDb	MariaDB	call	COSH	emulated	((EXP(…) + EXP(-(…))) / 2)		24
 MariaDb	MariaDB	call	TANH	emulated	((EXP(2 * (…)) - 1) / (EXP(2 * (…)) + 1))		29
+MariaDb	MariaDB	call	ACOS_IN_DOMAIN	spelled	ACOS		0
+MariaDb	MariaDB	call	ASIN_IN_DOMAIN	spelled	ASIN		0
 MariaDb	MariaDB	call	CEILING	emulated	CAST(CEIL(…) AS SIGNED)		12
 MariaDb	MariaDB	call	FLOOR	emulated	CAST(FLOOR(…) AS SIGNED)		18
 MariaDb	MariaDB	call	ROUND	emulated	roundHalfEven		22
@@ -2285,7 +2334,8 @@ MariaDb	MariaDB	call	PARSE_DATE	emulated	parsedDate		4
 MariaDb	MariaDB	call	LIST_REVERSE	emulated	unlessNull, arrayAgg, jsonOf, listElement, elements: …coalesce((SELECT … DESC FROM …__e__o), JSON_ARRAY())	via MariaDb.lists	4
 MariaDb	MariaDB	call	TYPEOF	refused	its type names are DuckDB's reached :	via MariaDb.lists	0
 MariaDb	MariaDB	call	ROUND_HALF_UP	emulated	roundHalfUp		1
-MariaDb	MariaDB	call	ROUND_RAW	spelled	ROUND		0
+MariaDb	MariaDB	call	ROUND_RAW	emulated	asGiven: ROUND		0
+MariaDb	MariaDB	call	DECIMAL_RAW	emulated	asGiven: ROUND		0
 MariaDb	MariaDB	call	ERROR	emulated	raise, typeOf		70
 MariaDb	MariaDB	call	FLOOR_RAW	spelled	floor		55
 MariaDb	MariaDB	call	TO_VARIANT	emulated	variantConstruct		8
@@ -2364,6 +2414,8 @@ MySql	MySQL	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)	as MariaDb	89
 MySql	MySQL	call	IN	emulated	in	as MariaDb	6
 MySql	MySQL	call	COALESCE	emulated	by its operands: composed / …coalesce	as MariaDb	552
 MySql	MySQL	call	PARSE_INT	emulated	parseInt	as MariaDb	11
+MySql	MySQL	call	CAST_INT	emulated	rawCast	as MariaDb	0
+MySql	MySQL	call	CAST_FLOAT	emulated	rawCast	as MariaDb	0
 MySql	MySQL	call	CONCAT	emulated	flattenConcat, asText: CONCAT_WS('', , …)	as MariaDb	741
 MySql	MySQL	call	LENGTH	emulated	asText: CHAR_LENGTH(…)	as MariaDb	53
 MySql	MySQL	call	UPPER	spelled	upper	as MariaDb	2
@@ -2401,6 +2453,8 @@ MySql	MySQL	call	ATAN2	spelled	atan2	as MariaDb	3
 MySql	MySQL	call	SINH	emulated	((EXP(…) - EXP(-(…))) / 2)	as MariaDb	22
 MySql	MySQL	call	COSH	emulated	((EXP(…) + EXP(-(…))) / 2)	as MariaDb	24
 MySql	MySQL	call	TANH	emulated	((EXP(2 * (…)) - 1) / (EXP(2 * (…)) + 1))	as MariaDb	29
+MySql	MySQL	call	ACOS_IN_DOMAIN	spelled	ACOS	as MariaDb	0
+MySql	MySQL	call	ASIN_IN_DOMAIN	spelled	ASIN	as MariaDb	0
 MySql	MySQL	call	CEILING	emulated	CAST(CEIL(…) AS SIGNED)	as MariaDb	12
 MySql	MySQL	call	FLOOR	emulated	CAST(FLOOR(…) AS SIGNED)	as MariaDb	18
 MySql	MySQL	call	ROUND	emulated	roundHalfEven	as MariaDb	22
@@ -2519,7 +2573,8 @@ MySql	MySQL	call	PARSE_DATE	emulated	parsedDate	as MariaDb	4
 MySql	MySQL	call	LIST_REVERSE	emulated	unlessNull, arrayAgg, jsonOf, listElement, elements: …coalesce((SELECT … DESC FROM …__e__o), JSON_ARRAY())	as MariaDb, via MariaDb.lists	4
 MySql	MySQL	call	TYPEOF	refused	its type names are DuckDB's reached :	as MariaDb, via MariaDb.lists	0
 MySql	MySQL	call	ROUND_HALF_UP	emulated	roundHalfUp	as MariaDb	1
-MySql	MySQL	call	ROUND_RAW	spelled	ROUND	as MariaDb	0
+MySql	MySQL	call	ROUND_RAW	emulated	asGiven: ROUND	as MariaDb	0
+MySql	MySQL	call	DECIMAL_RAW	emulated	asGiven: ROUND	as MariaDb	0
 MySql	MySQL	call	ERROR	emulated	raise, typeOf	as MariaDb	70
 MySql	MySQL	call	FLOOR_RAW	spelled	floor	as MariaDb	55
 MySql	MySQL	call	TO_VARIANT	emulated	variantConstruct	as MariaDb	8
@@ -2598,6 +2653,8 @@ MongoDb	MongoDB	call	IS_NOT_NULL	emulated	nullTest		0
 MongoDb	MongoDB	call	IN	emulated	inList		0
 MongoDb	MongoDB	call	COALESCE	emulated	coalesce		0
 MongoDb	MongoDB	call	PARSE_INT	emulated	guardedParse: ^[+-]?[0-9]+$, {"$toLong": , }		0
+MongoDb	MongoDB	call	CAST_INT	emulated	rawCast		0
+MongoDb	MongoDB	call	CAST_FLOAT	emulated	rawCast		0
 MongoDb	MongoDB	call	CONCAT	emulated	concatSkippingNull		0
 MongoDb	MongoDB	call	LENGTH	emulated	length		0
 MongoDb	MongoDB	call	UPPER	emulated	guardedOp: $toUpper		0
@@ -2635,6 +2692,8 @@ MongoDb	MongoDB	call	ATAN2	emulated	$atan2		0
 MongoDb	MongoDB	call	SINH	emulated	op1: $sinh		0
 MongoDb	MongoDB	call	COSH	emulated	op1: $cosh		0
 MongoDb	MongoDB	call	TANH	emulated	op1: $tanh		0
+MongoDb	MongoDB	call	ACOS_IN_DOMAIN	emulated	op1: $acos		0
+MongoDb	MongoDB	call	ASIN_IN_DOMAIN	emulated	op1: $asin		0
 MongoDb	MongoDB	call	CEILING	emulated	longOf: $ceil		0
 MongoDb	MongoDB	call	FLOOR	emulated	longOf: $floor		0
 MongoDb	MongoDB	call	ROUND	emulated	roundHalfEven		0
@@ -2753,7 +2812,8 @@ MongoDb	MongoDB	call	PARSE_DATE	emulated	{"$dateFromString": {"dateString": …}
 MongoDb	MongoDB	call	LIST_REVERSE	emulated	op1: $reverseArray	via MongoDb.listCall	0
 MongoDb	MongoDB	call	TYPEOF	emulated	op1: $type	via MongoDb.listCall	0
 MongoDb	MongoDB	call	ROUND_HALF_UP	emulated	roundHalfUp		0
-MongoDb	MongoDB	call	ROUND_RAW	refused	the database's own ROUND over the arguments as given (ROUND_RAW): MongoDB has no SQL ROUND of its own to answer as		0
+MongoDb	MongoDB	call	ROUND_RAW	refused	the database's own function as given (): MongoDB has no SQL function of its own to answer as		0
+MongoDb	MongoDB	call	DECIMAL_RAW	refused	the database's own function as given (): MongoDB has no SQL function of its own to answer as		0
 MongoDb	MongoDB	call	ERROR	emulated	raise		0
 MongoDb	MongoDB	call	FLOOR_RAW	emulated	op1: $floor		0
 MongoDb	MongoDB	call	TO_VARIANT	emulated	variantConstruct		0
