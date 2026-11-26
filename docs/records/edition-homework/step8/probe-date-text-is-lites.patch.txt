@@ -1,0 +1,33 @@
+PROBE, NEVER COMMITTED AS CODE (the edition program's step 8, 2026-11-26): every DateTime text at the compatibility
+edge is lite's own (the product's DATETIME_TO_TEXT), to measure which recorded answers the date's row and lift must
+hold. Applied to the scratch checkpoint 5a3c87e3d in the working tree alone; every answer file re-recorded and read,
+then the tree restored. Its source:
+
+diff --git a/core/src/main/java/com/legend/edge/EdgeDateTimeTexts.java b/core/src/main/java/com/legend/edge/EdgeDateTimeTexts.java
+index d186d8b40..e921bea90 100644
+--- a/core/src/main/java/com/legend/edge/EdgeDateTimeTexts.java
++++ b/core/src/main/java/com/legend/edge/EdgeDateTimeTexts.java
+@@ -22,7 +22,6 @@ final class EdgeDateTimeTexts implements com.legend.lowering.DateTimeTexts {
+ 
+     @Override
+     public SqlExpr dateTimeText(SqlExpr x, @com.legend.base.Nullable String written) {
+-        return written != null ? new SqlExpr.StringLit(written + "+0000")
+-                : SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x);
++        return com.legend.lowering.Styled.LITE_DATE_TIMES.dateTimeText(x, written);
+     }
+ }
+diff --git a/core/src/main/java/com/legend/edge/PurePrintForms.java b/core/src/main/java/com/legend/edge/PurePrintForms.java
+index 612a1b45b..0b7b1763a 100644
+--- a/core/src/main/java/com/legend/edge/PurePrintForms.java
++++ b/core/src/main/java/com/legend/edge/PurePrintForms.java
+@@ -92,10 +92,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
+         if (joined(e) instanceof SqlExpr j) {
+             return j;
+         }
+-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_TO_TEXT) {
+-            // legend-pure's print form, composed here (census B12, 2026-11-17: the DATETIME_PRINT node gone)
+-            return PureDateTimePrint.of(expr(c.args().get(0)));
+-        }
+         return super.expr(e);
+     }
+ }
