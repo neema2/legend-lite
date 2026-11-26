@@ -106,7 +106,13 @@ class DialectBoundaryTest {
             // owner's question on these three moves): legend-engine's substring at a literal start of 0, measured equal
             // to legend-pure's answer per database and arity (ZERO_START_AS_PURE), the edge's per-database fact held in
             // the edge's registry so the detector names no database (DialectLeakRatchetTest's ban)
-            "PureText.java", 2);
+            // PureText.java 2 -> 4 (2026-11-26, the edition program's step 5; the user's ruling that day, "agree for
+            // h2", on legend-engine's isNumeric per database): legend-engine writes isNumeric its own way on each
+            // database, so each row of its door's table carries the databases it answers on, and those sets are the
+            // edge's registry's (ENGINE_IS_NUMERIC_BY_PATTERN, ENGINE_IS_NUMERIC_BY_CASE: one line each) -- data a
+            // row looks up, never a comparison, so the table itself (EngineTable) names no database. Reported to the
+            // user with the step
+            "PureText.java", 4);
 
     /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
      *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a
