@@ -93,19 +93,18 @@ class ExactIntegerFoldTest {
     }
 
     @Test
-    void theInlinerFoldLeavesTheEqualityOfTwoNumbersToTheDatabase() {
-        // THE FOLD RULE (the user, 2026-11-26: "I thought we were taking it all out except string and boolean const"):
-        // the inliner's fold (LiteralUnroll.fold, what every inliner rewrite runs) answers an equality of constant
-        // Strings, Booleans and enumeration values, and no other -- two numbers are compared by the database, which
-        // is exact past 64 bits by its own arithmetic. Until then this fold compared the spelled integers itself
-        // (exactly, since the audit of 2026-10-14; by longValue() before it)
+    void theInlinerFoldOfEqualityIsExactToo() {
+        // LiteralUnroll.fold is what every inliner rewrite runs (UserCallInliner.rewrite); its equality fold compares
+        // the spelled values, which carried longValue() until the audit of 2026-10-14
         PureModelContext c = ctx();
         for (NativeFunctionDefinition f : List.of(EQ, EQUAL)) {
-            for (TypedSpec compared : List.of(call(c, f, spelled(BEYOND), spelled(BEYOND_PLUS_2_64)),
-                    call(c, f, spelled(BEYOND), spelled(BEYOND)), call(c, f, spelled(5L), spelled(5L)))) {
-                assertInstanceOf(TypedNativeCall.class, LiteralUnroll.fold(compared, c),
-                        f.qualifiedName() + ": two numbers are the database's to compare");
-            }
+            assertEquals(false, folded(LiteralUnroll.fold(
+                    call(c, f, spelled(BEYOND), spelled(BEYOND_PLUS_2_64)), c)),
+                    f.qualifiedName() + ": " + BEYOND + " == " + BEYOND_PLUS_2_64);
+            assertEquals(true, folded(LiteralUnroll.fold(call(c, f, spelled(BEYOND), spelled(BEYOND)), c)),
+                    f.qualifiedName() + ": a literal beyond long equals itself");
+            assertEquals(true, folded(LiteralUnroll.fold(call(c, f, spelled(5L), spelled(5L)), c)),
+                    f.qualifiedName() + ": within long, as before");
         }
     }
 }

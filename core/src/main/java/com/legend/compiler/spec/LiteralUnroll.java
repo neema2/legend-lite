@@ -428,33 +428,40 @@ final class LiteralUnroll {
     }
 
     /**
-     * Whether the compiler may compare {@code spelled}'s VALUE with another's: a String, a Boolean, an enumeration's
-     * value. THE FOLD RULE (the rules of record, row 1; docs/records/edition-design-v3-2026-11-25.md section 4: "the
-     * only computation before the database is folding constant String and Boolean expressions ... Everything else
-     * goes to the database: numbers, number and date text, list operations over values, indexOf, contains over
-     * values, dates"; the user, 2026-11-26: "Why are we adding any logic to constant folding? I thought we were
-     * taking it all out except string and boolean const"). A number, a Decimal, a date and a time are compared by the
-     * database alone, which knows what each denotes: two date-times by their instant whatever precision they were
-     * written at (S399), two Decimals by their number whatever their scale (S139) -- the folds had compared two
-     * spelled date-times by their written text and answered false where the database answers true. The comparison
-     * part of the folds' cut-back (the edition program's step 10), taken with the one equality (step 6).
+     * Whether the compiler may compare {@code spelled}'s VALUE with another's of its own kind: a String, a Boolean, an
+     * enumeration's value, an Integer -- the kinds whose written token IS the value, one spelling a value. THE FOLD
+     * RULE (the rules of record, row 1; docs/records/edition-design-v3-2026-11-25.md section 4: "the only computation
+     * before the database is folding constant String and Boolean expressions ... Everything else goes to the
+     * database: numbers, number and date text, list operations over values, indexOf, contains over values, dates";
+     * the user, 2026-11-26: "Why are we adding any logic to constant folding? I thought we were taking it all out
+     * except string and boolean const"). A Float, a Decimal, a date and a time are compared by the database alone,
+     * which knows what each denotes: two date-times by their instant whatever precision they were written at (S399),
+     * two Decimals by their number whatever their scale (S139) -- the folds had compared two spelled date-times by
+     * their written text and answered false where the database answers true. AN INTEGER STAYS, put to the user
+     * 2026-11-26 after the audit of this slice: the unroll of a function that recurses over a written list ends at
+     * its guard, {@code $l->size() == 0}, an equality of two whole numbers it must answer to stop (docs/WORLD_MAP.md:
+     * the unroll compares spelled tokens); a whole number has one spelling, so there is no second answer to give.
+     * The comparison part of the folds' cut-back (the edition program's step 10), taken with the one equality.
      */
     private static boolean comparedHere(TypedSpec spelled) {
-        return spelled instanceof TypedCString || spelled instanceof TypedCBoolean || spelled instanceof TypedEnumValue;
+        return spelled instanceof TypedCString || spelled instanceof TypedCBoolean || spelled instanceof TypedEnumValue
+                || spelled instanceof TypedCInteger;
     }
 
     /** {@code value->in(list)} over a list of spelled scalars: folded where the value is of a kind the compiler may
-     *  compare ({@link #comparedHere}: a String, a Boolean, an enumeration's value) -- against a list of mixed kinds
-     *  too, whose other kinds are never equal to it. A number, a Decimal or a date goes to the database: by the fold
-     *  rule, and because the answer is the database's (a whole number written against a Float reads as that Float,
-     *  NumberLiterals; the audit of the edition program's steps 4 and 5 found {@code 1.0->in([0, 1])}, a call
-     *  inlined, folded to false here). */
+     *  compare ({@link #comparedHere}) -- against a list of mixed kinds too, whose other kinds are never equal to it:
+     *  an element is a match only where it is spelled as the value's own kind (the audit of this slice, 2026-11-26:
+     *  a date is keyed by its text, so {@code '2014-02-01'->in([%2014-02-01, 1])} had folded to true). A Float, a
+     *  Decimal or a date goes to the database: by the fold rule, and because the answer is the database's (a whole
+     *  number written against a Float reads as that Float, NumberLiterals; the audit of the edition program's steps
+     *  4 and 5 found {@code 1.0->in([0, 1])}, a call inlined, folded to false here). */
     private static TypedSpec inFold(TypedNativeCall c, TypedSpec value, TypedCollection list) {
         if (!comparedHere(value)) {
             return c;
         }
         return scalar(value).<TypedSpec>map(needle -> bool(list.elements().stream()
-                .anyMatch(e -> !neverEqual(value, e) && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
+                .anyMatch(e -> e.getClass() == value.getClass() && !neverEqual(value, e)
+                        && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
     }
 
     /** Whether two spelled scalars are of two kinds one of which is an enumeration: never equal (the user, 2026-10-30,

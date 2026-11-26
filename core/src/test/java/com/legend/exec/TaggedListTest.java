@@ -137,22 +137,34 @@ class TaggedListTest {
 
     /** A list WRITTEN IN THE QUERY needs no list in the SQL (the user, 2026-11-26, on the fold rule's measured SQL):
      *  the compiler knows each element's type and only an element of the value's type can equal it, so membership
-     *  is the plain IN over those elements, on every database. The elements are chosen by type; the database
-     *  compares every value. */
+     *  is the plain IN over those elements, on every database -- an equality where there is one. The elements are
+     *  chosen by type; the database compares every value. (A whole number, a String and a Boolean against a list of
+     *  written values are answered by the compiler, the fold rule: no statement at all.) */
     @Test
     void membershipInAWrittenListIsAPlainInOverTheElementsOfTheValuesType() throws Exception {
-        String col = "[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']";
-        String sql = query("|1->in(" + col + ")").plan("s::RT").sql();
-        assertTrue(sql.contains("1 IN (1, 2, 5, 2)"), sql);
+        String col = "[1, 2, 5, 2, 'a', true, %2014-02-01, %2014-03-01, 2.5, 'c']";
+        String sql = query("|%2014-02-01->in(" + col + ")").plan("s::RT").sql();
+        assertTrue(sql.contains("DATE '2014-02-01' IN (DATE '2014-02-01', DATE '2014-03-01')"), sql);
         assertFalse(sql.contains("'a'"), sql);
-        assertFalse(sql.contains("2014"), sql);
         assertFalse(sql.contains("list_"), sql);
+        // one element of the value's type: an equality, never IN over one value
+        String one = query("|2.5->in(" + col + ")").plan("s::RT").sql();
+        assertTrue(one.contains("2.5 = 2.5") && !one.contains(" IN ("), one);
+        // a lone parameter of the value's type is compared, not read as a list parameter (the audit of 2026-11-26)
+        String parameter = query("{s:String[1] | 'a'->in([$s, 1])}").plan("s::RT").sql();
+        assertTrue(parameter.contains("'a' = ") && !parameter.contains(" IN ("), parameter);
         try (Connection c = TestBackends.platform().open()) {
-            assertEquals(true, value(c, "|1->in(" + col + ")"));
-            assertEquals(false, value(c, "|7->in(" + col + ")"));
             assertEquals(true, value(c, "|%2014-02-01->in(" + col + ")"));
             assertEquals(false, value(c, "|%2014-02-02->in(" + col + ")"));
+            assertEquals(true, value(c, "|2.5->in(" + col + ")"));
             assertEquals(false, value(c, "|1.0->in(" + col + ")"));
+            // answered by the compiler, and by the value's own kind alone: a String is never a date's text, a
+            // whole number never a Float (the audit: a date keyed by its text had matched the String)
+            assertEquals(true, value(c, "|1->in(" + col + ")"));
+            assertEquals(false, value(c, "|7->in(" + col + ")"));
+            assertEquals(false, value(c, "|'2014-02-01'->in(" + col + ")"));
+            assertEquals(false, value(c, "|'2014-02-01'->in([%2014-02-01, 1])"));
+            assertEquals(false, value(c, "|2->in([2.0, 'a'])"));
             // Decimals of two scales are one type, equal by their number (S139): every Decimal of the list is read
             assertEquals(true, value(c, "|1.5D->in([2.00D, 1.5D, 'a'])"));
             assertEquals(true, value(c, "|1.50D->in([2.00D, 1.5D, 'a'])"));
@@ -227,6 +239,10 @@ class TaggedListTest {
             assertEquals(3L, value(c, "|[1.0D, 1.01D, 'a']->removeDuplicates()->size()"));
             // two lists not written out side by side (a reversed one): element by element, the same rule
             assertEquals(true, value(c, "|['a', 1.50D]->reverse() == [1.5D, 'a']"));
+            // a written list holding a computed element compares that position null-safe: always a Boolean
+            assertEquals(true, value(c, "|['a', 1.5D] == [['a', 'b']->at(0), 1.50D]"));
+            assertEquals(false, value(c, "|['a', 1.5D] == [['a', 'b']->at(1), 1.50D]"));
+            assertEquals(true, value(c, "|!(['a', 1.5D] == [['a', 'b']->at(1), 1.50D])"));
             // a mixed selection's winner is a member by element (finding 4: never a static false)
             assertEquals(true, value(c, "|[1, 2.5]->contains([1, 2.5]->max())"));
             assertEquals(true, value(c, "|[1, 2.5, 'a']->contains([1, 2.5]->max())"));

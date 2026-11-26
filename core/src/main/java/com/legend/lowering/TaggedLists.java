@@ -100,7 +100,12 @@ final class TaggedLists {
                 differ = true;
                 continue;
             }
-            same.add(SqlExpr.Call.of(SqlFn.EQUAL, x.value(), y.value()));
+            // a value that cannot be NULL (a literal) compares plainly; any other null-safe, as the array compare
+            // this replaces did, so the answer is always a Boolean (the audit of this slice: a bare = answered NULL
+            // for an element empty at run, and a NOT over it dropped the row)
+            same.add(neverNull(x.value()) && neverNull(y.value())
+                    ? SqlExpr.Call.of(SqlFn.EQUAL, x.value(), y.value())
+                    : SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.IS_DISTINCT_FROM, x.value(), y.value())));
         }
         if (differ || same.isEmpty()) {
             return new SqlExpr.BoolLit(false);
@@ -110,6 +115,11 @@ final class TaggedLists {
             all = SqlExpr.Call.of(SqlFn.AND, all, same.get(i));
         }
         return all;
+    }
+
+    /** Whether the SQL type of {@code e} says it is never NULL (a literal's). */
+    private static boolean neverNull(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && !t.nullable();
     }
 
     /**
@@ -591,7 +601,11 @@ final class TaggedLists {
                     flat.add(c.value());
                 }
             }
-            return SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Call(SqlFn.IN, flat), new SqlExpr.BoolLit(false));
+            // one element of the type: an equality (IN over one value that is a parameter is read as a LIST
+            // parameter by every dialect and refused; the audit of this slice, 2026-11-26)
+            SqlExpr found = flat.size() == 2 ? SqlExpr.Call.of(SqlFn.EQUAL, flat.get(0), flat.get(1))
+                    : new SqlExpr.Call(SqlFn.IN, flat);
+            return SqlExpr.Call.of(SqlFn.COALESCE, found, new SqlExpr.BoolLit(false));
         }
         String p = "_tlp";
         List<SqlExpr> inChannel = new ArrayList<>(own.size());
