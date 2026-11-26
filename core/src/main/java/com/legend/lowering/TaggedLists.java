@@ -267,7 +267,25 @@ final class TaggedLists {
 
     /** The list reversed. */
     static SqlExpr.TaggedList reverse(SqlExpr.TaggedList tl) {
-        return tl.withPositions(SqlExpr.Call.of(SqlFn.LIST_REVERSE, tl.positions())).withOrder(tl.order().reversed());
+        return tl.withPositions(reversed(tl.positions())).withOrder(tl.order().reversed());
+    }
+
+    /** The positions listed in the order of {@code key}: the sort's one ordered aggregate. */
+    private static SqlExpr positionsBy(SqlExpr position, SqlExpr key) {
+        return new SqlExpr.OrderedListAgg(position, key);
+    }
+
+    /** {@code positions} the other way round: the one construction of a reversed list's positions ({@link #members}
+     *  reads it back by building it again). */
+    private static SqlExpr reversed(SqlExpr positions) {
+        return SqlExpr.Call.of(SqlFn.LIST_REVERSE, positions);
+    }
+
+    /** The rows a sort reads its positions from, {@code SELECT UNNEST(positions) AS p}: the one construction of
+     *  them ({@link #members} reads it back by building it again). */
+    private static SqlSelect positionRows(SqlExpr positions) {
+        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.UNNEST, positions), "p", null)),
+                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
     }
 
     /**
@@ -280,9 +298,7 @@ final class TaggedLists {
         if (tl.rows() != null) {
             return sortRows(tl, alias);
         }
-        SqlExpr unnested = SqlExpr.Call.of(SqlFn.UNNEST, tl.positions());
-        SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(unnested, "p", null)),
-                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
+        SqlSelect inner = positionRows(tl.positions());
         SqlExpr p = SqlExpr.Column.of(alias, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
         SqlExpr typeOrder = numberTypeOrderAt(tl, p);
         if (typeOrder != null) {
@@ -298,7 +314,7 @@ final class TaggedLists {
                                     new SqlSelect.SortKey(p, true, null, null)), null), "r", null)),
                     false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
                     null, null, List.of());
-            SqlSelect listed = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(
+            SqlSelect listed = new SqlSelect(List.of(new SqlSelect.Projection(positionsBy(
                     SqlExpr.Column.of(placed, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED),
                     SqlExpr.Column.of(placed, "r", SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED)),
                     "s", null)),
@@ -308,7 +324,7 @@ final class TaggedLists {
                     .withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
         }
         SqlSelect outer = new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlExpr.OrderedListAgg(p, tl.comparableAt(p)), "s", null)),
+                positionsBy(p, tl.comparableAt(p)), "s", null)),
                 false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
                 null, null, List.of());
         return tl.withPositions(new SqlExpr.ScalarSubquery(outer)).withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
@@ -323,7 +339,7 @@ final class TaggedLists {
      * {@link #reverse}), each checked in full; any other positions are returned as they are.
      */
     private static SqlExpr members(SqlExpr positions) {
-        if (positions instanceof SqlExpr.Call c && c.fn() == SqlFn.LIST_REVERSE && c.args().size() == 1) {
+        if (positions instanceof SqlExpr.Call c && c.args().size() == 1 && c.equals(reversed(c.args().get(0)))) {
             return members(c.args().get(0));
         }
         if (!(positions instanceof SqlExpr.ScalarSubquery q) || !(q.subquery() instanceof SqlSelect listed)
@@ -337,10 +353,9 @@ final class TaggedLists {
         for (int depth = 0; depth < 2 && from instanceof SqlSource.Subselect sub
                 && sub.inner() instanceof SqlSelect inner && inner.where() == null; depth++) {
             if (inner.from() instanceof SqlSource.Dual && inner.projections().size() == 1
-                    && "p".equals(inner.projections().get(0).alias())
-                    && inner.projections().get(0).expr() instanceof SqlExpr.Call unnest
-                    && unnest.fn() == SqlFn.UNNEST && unnest.args().size() == 1) {
-                return members(unnest.args().get(0));
+                    && inner.projections().get(0).expr() instanceof SqlExpr.Call read && read.args().size() == 1
+                    && inner.equals(positionRows(read.args().get(0)))) {
+                return members(read.args().get(0));
             }
             from = inner.from();
         }
