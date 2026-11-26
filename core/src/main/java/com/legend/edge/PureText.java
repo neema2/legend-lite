@@ -111,7 +111,7 @@ public final class PureText {
                 return kind.cast(EngineDatabaseSettings.INSTANCE);
             }
             if (kind == com.legend.lowering.LoweringForms.class) {
-                // the lowering's two-form choices (the audit's K5, 2026-11-17): legend-pure's guarded words
+                // the lowering's two-form choices (the audit's K5, 2026-11-17), every edge style's alike
                 return kind.cast(EdgeLoweringForms.INSTANCE);
             }
             if (kind == com.legend.lowering.DateTimeTexts.class) {

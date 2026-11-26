@@ -180,7 +180,9 @@ final class Typer {
 
     /** The setting's answers for the comparisons across types written in the query, by identity: an argument that
      *  holds one keeps the query's typing when a function's body is typed into its call
-     *  ({@link #holdsAQueryAnswer}). */
+     *  ({@link #holdsAQueryAnswer}). By identity, so an answer must still be the node the setting returned when the
+     *  argument is read: nothing between the mint and the call's expansion rebuilds a typed argument's nodes (the
+     *  independent audit of 2026-11-26, finding 7; CrossTypeComparisonsTest and CrossTypeRuleTest pin the case). */
     private final java.util.Set<TypedSpec> queryAnswers =
             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
@@ -212,7 +214,7 @@ final class Typer {
      *  setting's answer for it. */
     TypedSpec compared(TypedSpec call, com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
-        if (compared == Compared.UNREAD) {
+        if (compared == Compared.UNREAD || compared == Compared.BODY && !crossTypes.readsBodies()) {
             return call;
         }
         java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);

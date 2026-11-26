@@ -50,6 +50,8 @@ public class Test_LegendLite_Postgres_StandardFunctions_PCT extends PCTReportCon
             // docs/records/edition-homework/lanes/round1-postgres-trino.md). The list is sent as doubles since the
             // edition program's step 1 (the edge's DECIMAL Float literal deleted, register S20); until then Postgres
             // computed it in NUMERIC. Recorded as the database's native answer, never rewritten as a formula
+            // (the message in this channel's own spelling, a newline between the two values, since the same day: the
+            // Postgres lane's round 3 found the first spelling was channel B's)
             one("meta::pure::functions::math::tests::stdDev::testFloatStdDev_Function_1__Boolean_1_", "\"\nexpected: 3.14\nactual:   3.1399999999999997\"")
     );
 

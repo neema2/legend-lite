@@ -30,6 +30,13 @@ public interface CrossTypeRule {
     /** A comparison across types written in the query or test body the door receives. */
     TypedSpec inQuery(TypedCrossTypeComparison crossing);
 
-    /** One written in a body the query reaches: a function's, a derived property's, a constraint's, a mapping's. */
+    /** Whether this setting answers a body's comparisons with anything but the call. Where it does not (every door's
+     *  today), the type-checker never looks for a comparison across types in a body: nothing is read of the model
+     *  there that was not read before the setting (the independent audit of 2026-11-26, finding 2: finding one asks
+     *  the model whether two classes are related, which a broken superclass refuses). */
+    boolean readsBodies();
+
+    /** One written in a body the query reaches: a function's, a derived property's, a constraint's, a mapping's.
+     *  Asked only where {@link #readsBodies}. */
     TypedSpec inBody(TypedCrossTypeComparison crossing);
 }

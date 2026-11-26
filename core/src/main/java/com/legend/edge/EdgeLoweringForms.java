@@ -9,11 +9,9 @@ import com.legend.sql.SqlSelect;
 
 /**
  * THE EDGE'S FORMS OF THE LOWERING'S TWO-FORM CHOICES ({@link com.legend.lowering.LoweringForms}, the audit's K5,
- * 2026-11-17): legend-engine's choices, held here so the product branches on none of them.
- *
- * @param plain         the raises written as the plain operation, the database's own error passing through: none for
- *                      PCT and the corpus (legend-pure's guarded words), legend-engine's census class A for the pure/v1
- *                      route (B7, the user's ruling of 2026-11-17: "pure/v1 matches legend-engine")
+ * 2026-11-17): legend-engine's choices, held here so the product branches on none of them. (The raises a door writes
+ * as the plain operation, B7, were a set held here until the edition program's step 3, 2026-11-26: the door's
+ * edition's table says which checks are written, {@code EngineTable.checks}.)
  *
  * <p>legend-engine's statement shape for its SQL text ({@code EngineShape}, J40) went with that text (A2 of the
  * compatibility program, 2026-11-19, CP-4): the edge's SQL text is lite's own statement.

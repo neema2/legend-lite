@@ -38,6 +38,11 @@ public final class EngineComparisons implements CrossTypeRule {
     }
 
     @Override
+    public boolean readsBodies() {
+        return false;
+    }
+
+    @Override
     public TypedSpec inBody(TypedCrossTypeComparison crossing) {
         return crossing.comparison();
     }

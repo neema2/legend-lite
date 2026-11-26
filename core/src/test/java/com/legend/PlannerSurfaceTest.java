@@ -1073,9 +1073,11 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#withBody(List<TypedSpec>)", List.of(LAMBDA)),
             // merged main 3a217086a (#81), 2026-11-14: lite's own planning options, a closed set of words
             Map.entry("TypedQuery#withOptions(Set<PlanOption>)", List.of(OPTION)),
-            // 2026-11-26 (the edition program's step 2b): a door's comparison setting for the query it admits, one of
-            // the settings the doors hold (lite's, legend-engine's, legend-pure's) -- no text, no name, nothing planned
-            Map.entry("TypedQuery#comparing(CrossTypeRule)", List.of(OPTION)),
+            // 2026-11-26 (the edition program's step 2b): a door's comparison setting for the query it admits -- the
+            // door's own object, which the type-checker calls back with a comparison across types it typed (typed code
+            // in, typed code out: no text, no name, never a statement). A callback, not an option: the interface is
+            // open (the independent audit of that day, finding 3)
+            Map.entry("TypedQuery#comparing(CrossTypeRule)", List.of(CALLBACK)),
             Map.entry("TypedQuery#options()", List.of()),
             Map.entry("TypedQuery#context()", List.of()),
             Map.entry("TypedQuery#specs()", List.of()),
