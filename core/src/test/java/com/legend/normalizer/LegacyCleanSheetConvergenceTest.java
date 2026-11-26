@@ -73,9 +73,18 @@ class LegacyCleanSheetConvergenceTest {
         for (String fqn : liftedFqns) {
             assertEquals(liftedFn(lm, fqn).body(), liftedFn(cm, fqn).body(),
                     "lifted body must converge for " + fqn);
-            assertEquals(liftedFn(lm, fqn).synthesizedFrom(), liftedFn(cm, fqn).synthesizedFrom(),
+            // the provenance converges in everything but the LANGUAGE the body was written in: the legacy form is the
+            // relational mapping language's translation, whose comparisons are SQL's (Synthesized.relationalLanguage;
+            // the edition program's step 4, 2026-11-26); the clean-sheet form is Pure its author wrote
+            assertEquals(asPure(liftedFn(lm, fqn).synthesizedFrom()), asPure(liftedFn(cm, fqn).synthesizedFrom()),
                     "provenance must converge for " + fqn);
         }
+    }
+
+    private static com.legend.model.FunctionDefinition.@com.legend.base.Nullable Synthesized asPure(
+            com.legend.model.FunctionDefinition.@com.legend.base.Nullable Synthesized s) {
+        return s == null ? null : new com.legend.model.FunctionDefinition.Synthesized(s.hat(), s.ownerFqn(),
+                s.memberName(), s.forwardProperty(), false);
     }
 
     /** Binding-table-only convergence: the two surfaces yield identical binding
