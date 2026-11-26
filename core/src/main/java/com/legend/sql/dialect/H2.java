@@ -742,6 +742,10 @@ public class H2 extends AnsiSqlRenderer {
             // guarded, the engine's answer (the DuckDB dialect's own guard)
             case ASIN -> domainGuarded(writer, "asin", c.args());
             case ACOS -> domainGuarded(writer, "acos", c.args());
+            // within the domain by the statement's own guard: the function over its argument clamped, because H2 folds
+            // a constant inside a CASE's untaken branch too and raises on acos(2.0) there (domainGuarded's note)
+            case ASIN_IN_DOMAIN -> writer.append("asin(LEAST(GREATEST(").expr(c.args().get(0), 0).append(", -1), 1))");
+            case ACOS_IN_DOMAIN -> writer.append("acos(LEAST(GREATEST(").expr(c.args().get(0), 0).append(", -1), 1))");
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case SINH -> writer.function("sinh", c.args());
