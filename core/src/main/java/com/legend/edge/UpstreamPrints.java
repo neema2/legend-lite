@@ -380,15 +380,11 @@ public final class UpstreamPrints {
     }
 
     /** Whether every name {@code relation} reads is bound by one of {@code lets}: a lambda's parameter is not. */
-    /** The natives whose every call answers anew: the clock's and the draws. */
-    private static final Set<com.legend.model.FunctionId> ANSWERS_ANEW;
-
-    static {
-        Set<com.legend.model.FunctionId> anew = new java.util.HashSet<>(com.legend.builtin.Pure.AT_DATE_NOW);
-        anew.addAll(com.legend.builtin.Pure.AT_DATE_TODAY);
-        anew.addAll(com.legend.builtin.Pure.AT_MATH_RANDOM);
-        anew.addAll(com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID);
-        ANSWERS_ANEW = Set.copyOf(anew);
+    /** Whether {@code id} is a native whose every call answers anew: the clock's and the draws. */
+    private static boolean answersAnew(com.legend.model.FunctionId id) {
+        return com.legend.builtin.Pure.AT_DATE_NOW.contains(id) || com.legend.builtin.Pure.AT_DATE_TODAY.contains(id)
+                || com.legend.builtin.Pure.AT_MATH_RANDOM.contains(id)
+                || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(id);
     }
 
     /** Whether a second reading of the value {@code e}, through the lets it reads, may answer another value than
@@ -406,7 +402,7 @@ public final class UpstreamPrints {
             if (!seen.add(n)) {
                 continue;
             }
-            if (n instanceof TypedNativeCall c && ANSWERS_ANEW.contains(c.callee().id())) {
+            if (n instanceof TypedNativeCall c && answersAnew(c.callee().id())) {
                 return true;
             }
             if (com.legend.compiler.spec.OrderView.of(n, lets) == com.legend.compiler.spec.OrderView.INCIDENTAL) {

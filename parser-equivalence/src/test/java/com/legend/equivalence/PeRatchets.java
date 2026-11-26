@@ -209,7 +209,13 @@ public final class PeRatchets {
                     + " models match the reference grammar -- the last seven are steps 4 and 5's, NumberLiteralsTest's,"
                     + " CrossTypeRuleTest's and EngineTablePlacementTest's, then the four functions of"
                     + " LiteralRuleAnswersTest, a test the batch's audit asked for; a floor rising, the user's standing"
-                    + " word of 2026-11-24 (\"parser bumps are always okay\"); UP)");
+                    + " word of 2026-11-24 (\"parser bumps are always okay\"); UP)",
+            "own_corpus.matched 3359 -> 3368 (2026-11-26, the edition program's step 8 on claude/edition-step8,"
+                    + " measured by //parser-equivalence:update_ratchets on its tree: nine more of the step's new"
+                    + " tests' model literals match the reference grammar (EngineFloatTextRowTest's and"
+                    + " EngineDateTimeTextRowTest's stores, classes, mappings and runtimes among them; the nine not"
+                    + " traced one by one); a floor rising, the user's standing word of 2026-11-24 (\"parser bumps are"
+                    + " always okay\"); UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
