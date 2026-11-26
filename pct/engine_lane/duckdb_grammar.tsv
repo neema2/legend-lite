@@ -75,7 +75,7 @@ meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany
 meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne	DEFECT	PLANNER_FAULT	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne	DEFECT	PLANNER_FAULT	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::range::testRange	PASS		PASS		SAME
-meta::pure::functions::collection::tests::range::testRangeStepError	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::collection::tests::range::testRangeStepError	DEFECT	ERROR_MISMATCH	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::range::testRangeWithStartStopEqual	PASS		PASS		SAME
 meta::pure::functions::collection::tests::range::testRangeWithStep	PASS		PASS		SAME
 meta::pure::functions::collection::tests::range::testRangeWithVariables	PASS		PASS		SAME

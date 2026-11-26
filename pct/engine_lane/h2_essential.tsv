@@ -222,7 +222,7 @@ meta::pure::functions::math::tests::pow::testComplexPow	PASS		PASS		SAME
 meta::pure::functions::math::tests::pow::testNumberPow	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::pow::testSimplePow	PASS		PASS		SAME
 meta::pure::functions::math::tests::rem::testRem	PASS		PASS		SAME
-meta::pure::functions::math::tests::rem::testRemError	DEFECT	PLANNER_FAULT	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::math::tests::rem::testRemError	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::math::tests::rem::testRemWithDecimals	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::rem::testRemWithFloats	PASS		PASS		SAME
 meta::pure::functions::math::tests::rem::testRemWithMixedIntegersAndFloats	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
@@ -245,7 +245,7 @@ meta::pure::functions::math::tests::round::testPositiveIntegerRound	PASS		PASS		
 meta::pure::functions::math::tests::sign::testSign	PASS		PASS		SAME
 meta::pure::functions::math::tests::testCubeRoot	PASS		FAIL	DATABASE_ERROR	LITE_BEHIND
 meta::pure::functions::math::tests::testSquareRoot	PASS		PASS		SAME
-meta::pure::functions::math::tests::testSquareRootError	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::math::tests::testSquareRootError	DEFECT	ERROR_MISMATCH	PASS		LITE_FIXES
 meta::pure::functions::math::tests::toDecimal::testDecimalToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::toDecimal::testDoubleToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::toDecimal::testIntToDecimal	PASS		PASS		SAME

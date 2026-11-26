@@ -245,10 +245,10 @@ meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Sor
 meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	PASS		PASS		SAME
 meta::pure::functions::relation::tests::lag::testOLAPWithPartitionAndOrderWindowUsingLag	PASS		PASS		SAME
 meta::pure::functions::relation::tests::last::testOLAPWithPartitionAndOrderLastWindow	PASS		PASS		SAME
-meta::pure::functions::relation::tests::lateral::testLateralJoin	DEFECT	PLANNER_FAULT	FAIL	DATABASE_ERROR	BOTH_FAIL
-meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins	DEFECT	PLANNER_FAULT	FAIL	DATABASE_ERROR	BOTH_FAIL
-meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	DEFECT	PLANNER_FAULT	FAIL	DATABASE_ERROR	BOTH_FAIL
-meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner	DEFECT	PLANNER_FAULT	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::relation::tests::lateral::testLateralJoin	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::relation::tests::lead::testOLAPWithPartitionAndOrderWindow	PASS		PASS		SAME
 meta::pure::functions::relation::tests::lessThanAll::testLessThanAll	PASS		PASS		SAME
 meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_EmptyRelation	PASS		PASS		SAME
