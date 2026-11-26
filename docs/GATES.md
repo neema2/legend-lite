@@ -22829,3 +22829,14 @@ tests pass); the edge golden `edge/channel_b_sqlite_relation_outcomes.tsv` is re
 ERROR to PASS (`bazel run //pct:update_edge_contract`), no other golden row. Checked: the guards and census, core's
 sql and lowering suites and edge tests, `//core:lean_sql_baseline_test` (no pin moved), PCT's Relation suite on
 DuckDB and SQLite on both channels, the ledger test and every edge golden.
+
+**Added the same day: the lanes' ledger rows, and H2's lateral join.** Round 4 of the server and cloud lanes found
+the ten `chunk` tests pass on BigQuery, MariaDB and MySQL too: channel B's `ledger.tsv` loses those thirty rows, and
+28 older rows the MariaDB/MySQL/ClickHouse lane saw pass in each of its five rounds (MySQL 21, ClickHouse 5, MariaDB
+2). H2's dialect writes a lateral that only filters its source as a join on that filter (`CorrelatedFiltersAsJoins`;
+the user's ruling of 2026-11-25 on the Pure-mode gaps). Ledgers moved: `Test_LegendLite_H2_RelationFunctions_PCT`
+loses its four lateral expected failures; `ledger.tsv` loses the four H2 lateral rows; the edge goldens
+`edge/channel_b_h2_relation_outcomes.tsv` and `edge/h2_relation_answers.tsv` are re-recorded, those four tests from
+ERROR to PASS and to their RELATION answers (`bazel run //pct:update_edge_contract`), no other golden line;
+`SqlFnSortedTest`'s pinned writers of `AND` gain the pass (it joins again, by `AND`, the conjuncts it split a
+lateral's filter into: a shape rearranged, nothing computed).
