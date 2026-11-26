@@ -93,13 +93,13 @@ class Show(Shown):
         again = ll.show(trades(2), name='frame', browser=False)
         self.assertIs(again, first)
         self.assertEqual(self.version(first), (200, 1))
-        self.assertEqual(datacube._session.frames['frame'].execute("->filter(x|$x.qty > 0)").num_rows, 2)
+        self.assertEqual(datacube._session.frames['frame'].execute("->filter(x|$x.qty > 0.0)").num_rows, 2)
 
     def test_update_shows_another_frame_its_page_told(self):
         cube = ll.show(trades(), browser=False)
         cube.update(trades(4))
         self.assertEqual(self.version(cube), (200, 1))
-        self.assertEqual(datacube._session.frames['frame'].execute("->filter(x|$x.qty > 0)").num_rows, 4)
+        self.assertEqual(datacube._session.frames['frame'].execute("->filter(x|$x.qty > 0.0)").num_rows, 4)
         # new columns: a new model, which the page opens the cube again over
         cube.update(trades().assign(book=['a', 'b', 'c']))
         self.assertIn('book', self.ask('/cube.json?table=frame')[1]['model'])
