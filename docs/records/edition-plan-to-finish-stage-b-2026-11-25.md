@@ -112,6 +112,16 @@ Each chose one place for everything, and no one place has everything.
 
 Work on the next step continues meanwhile; what the checks find is fixed in the next commit.
 
+**Before a push to the pull request's branch (learned 2026-11-26, from two CI readings that found what targeted
+local runs had missed):** the targets a change touches are not enough. The fixed set, run here first: `//core:guardrails`,
+`//core:guardrails_edge`, `//core:census`, `//docs:all`, `//core:core_edge_tests`, `//core:core_tests_integration`
+(with its `_sqlite` and `_h2` lanes when a dialect moved), `//core:lean_sql_baseline_test`, `//spec:spec_tests`,
+`//spec:corpus_duckdb`, `//spec:corpus_h2`, the two `//spec:lean_sql_corpus_*`, `//pct:engine_lane_duckdb_test` and
+`_h2_test`, `//pct:update_edge_contract_tests`, `//core:update_edge_pure_v1_tests`, `//core:update_generated_tests`;
+then `--lockfile_mode=error //gates:local` (about 35 minutes; 14 Postgres-backed targets fail only because the
+container runs as root). Every push restarts CI on every operating system, so a push is made when this is green, not
+before.
+
 **Parallel sessions** start at steps 8 and 9, one session each. Before that the work is one line.
 
 **What still comes to the user:** every test whose answer moves, and every new difference from legend-engine, with its register row. They are gathered and brought at the end of each big step, not one at a time.
@@ -539,6 +549,18 @@ passed, 14 root-only). The database lanes were not asked for a round: the produc
    keyed count*, *the null-unsafe flag*: as the sheet lists them.
 `rem` needs no row (lite already writes the database's `MOD`; only the zero-divisor check differs, which is the
 table's `checks`).
+
+**The second CI reading (2026-11-26, on `810dbfe7`) and the heavy gate on `b4c9bf0a`.** CI: three new failures on
+every operating system, each from a target outside the local set, fixed the same day: `//core:guardrails_edge` (the
+named rules listed as the edge's entries into the lowering, `ArchitectureTest.PLANNER_ENTRIES`; `ROUND_RAW` sorted
+PRODUCT in `SqlFnSortedTest`, by the user's standing rule of 2026-11-23 for a function only product code writes),
+`//docs:update_dialect_capability_test` (the generated table, regenerated), and
+`WindowReadThroughAListSQLiteTest` (it pinned SQLite's refusal of a `chunk(1)` shape; the shape answers since
+`chunk`'s literal pattern). The macOS Postgres and DataCube failures of the first reading passed. The macOS corpus
+lane failed again on the five trigonometry tests (not this branch's; 6b item 8). The heavy gate
+(`//gates:heavy`, one pass in the measuring session, no baseline): 83 of 150 passed; 36 failures need cloud
+credentials, the rest are being attributed against the merge-base before anything is concluded -- among them
+`//spec:corpus_warehouse_verdict` (41 tests failing that its roster does not list).
 
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
