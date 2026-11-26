@@ -30,7 +30,28 @@ public class Test_LegendLite_H2_GrammarFunctions_PCT extends PCTReportConfigurat
     private static final String platform = "interpreted";
 
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
+    // First measured 2026-11-26 (H2 2.5.252; 137 tests, 18 pinned), from what H2 answered: nothing burned down.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
+            // H2 HAS NO LIST TYPE: the list functions, unnest, fold and the list predicates have no encoding on this dialect, refused by name (as on the relation suite)
+            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "LIST_TRANSFORM reached a dialect without a list encoding"),
+            one("meta::pure::functions::boolean::tests::equality::equal::testEqualVarIdentity_Function_1__Boolean_1_", "LIST_TRANSFORM reached a dialect without a list encoding"),
+            one("meta::pure::functions::collection::tests::map::testMapInstance_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::collection::tests::range::testRangeStepError_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::collection::tests::range::testRangeWithStartStopEqual_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::collection::tests::range::testRangeWithStep_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::collection::tests::range::testRangeWithVariables_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::collection::tests::range::testRange_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::collection::tests::range::testReverseRangeWithPositiveStep_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::collection::tests::range::testReverseRangeWithStep_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::collection::tests::range::testReverseRange_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::string::tests::plus::testPlusInCollect_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::string::tests::plus::testPlusInIterate_Function_1__Boolean_1_", "fold reached a dialect without a fold encoding"),
+            // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): error positions, lowering, instance identity, a Float past 2^53
+            one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
+            one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
     );
 
     public static Test suite() {
