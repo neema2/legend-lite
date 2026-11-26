@@ -612,8 +612,10 @@ public final class MinimalCorpus {
                     return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
                             // legend-engine's texts, spelled by the edge (phase D's D1.0); legend-engine's own
                             // tests' style since the edition program's step 3 (2026-11-26): the queries a test's
-                            // execute()s run get legend-engine's meaning, the test's own code Pure's
-                            .withStyle(com.legend.edge.PureText.ENGINE_TESTS);
+                            // execute()s run get legend-engine's meaning, the test's own code Pure's; in the tests'
+                            // harness's dialects since the edition program's step 9, slice 2 (2026-11-26): the lane's
+                            // H2 text translated and its scan order are the harness's, no longer the edge's
+                            .withStyle(com.legend.edge.HarnessText.ENGINE_TESTS);
                 }
 
                 @Override

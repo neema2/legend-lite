@@ -2008,11 +2008,10 @@ class JavaEvalLedgerTest {
                             // legend-engine's plan-template parameters, the edge's own table (the audit's J31, 2026-11-18):
                             // names, kinds and template functions as data -- no session, no statement, no value computed
                             "EngineParams.java",
-                            // legend-engine's H2 text translated for DuckDB and Postgres, moved from sql.dialect with
-                            // its two dialect arms (Phase 6's B4 (ii), 2026-11-17, the orchestrator's ruling (a)): the
-                            // product runs a raw statement as written, as legend-engine does; the edge's dialects (PureText's)
-                            // translate -- a text rewrite at the edge, decides nothing
-                            "RawSqlBoundary.java",
+                            // (RawSqlBoundary.java, legend-engine's H2 text translated for DuckDB and Postgres, moved
+                            // from sql.dialect with its two dialect arms by Phase 6's B4 (ii), 2026-11-17: left for the
+                            // harness with those arms, 2026-11-26, the edition program's step 9, slice 2 -- the edge's
+                            // dialects run a raw statement as written, as the product's do)
                             // (RefereeLoad.java, the referee's load of a fixture's rows, and legend-engine's service
                             // tests of D1.4, 2026-11-15 -- ServiceTestRunner.java and TdsObjectsWriter.java: left for
                             // the harness, 2026-11-26, the edition program's step 9, slice 1)
@@ -2049,10 +2048,10 @@ class JavaEvalLedgerTest {
                             // exception were ruled by the user, 2026-11-26 ~13:57: "yes should add guard"; pinned by
                             // edge.PrintTailTest
                             "PrintTail.java",
-                            // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
-                            // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds
-                            // an ORDER BY the engine's insertion order implies -- a node for a node, no value met
-                            "StableScanOrder.java",
+                            // (StableScanOrder.java, legend-engine's scan order for the corpus lanes, moved from
+                            // com.legend.sql.dialect by W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16: left for the
+                            // harness, 2026-11-26, the edition program's step 9, slice 2 -- only the corpus lanes
+                            // switch it on)
                             // legend-engine's answers moved from com.legend.result and com.legend.server (W8 of
                             // docs/records/d-plan-2026-11-16.md, 2026-11-16): its pure/v1 writer (spells, decides
                             // nothing), its receivers through the run's Output.Rows, and the host's plan and answer

@@ -526,7 +526,10 @@ legend_java_library(
     resources = glob(["src/edge_harness/resources/META-INF/**"]),
     resource_strip_prefix = "core/src/edge_harness/resources",
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
-    deps = ["//base", "//json", ":diagnostics", ":edge", ":error", ":exec", ":execution_plan", ":test_plan", ":testexec"],
+    # (2026-11-26, the edition program's step 9, slice 2: :database, :model, :sql and :sql_dialect, for the tests'
+    # render target HarnessText -- the edge's styles with the harness's DuckDB and Postgres -- and the corpus's two
+    # dialect hooks it installs, RawSqlBoundary and StableScanOrder, moved here from the edge's product sources)
+    deps = ["//base", "//json", ":database", ":diagnostics", ":edge", ":error", ":exec", ":execution_plan", ":model", ":sql", ":sql_dialect", ":test_plan", ":testexec"],
 )
 
 # THE SHIPPED SERVER'S ROOT (phase D's D1.0b, 2026-11-12): lite's own server with legend-engine's API mounted beside
@@ -2663,7 +2666,7 @@ junit_test(
         "edge_tests.bzl",
         "//gates:BUILD.bazel",
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
-        "src/main/java/com/legend/edge/PureText.java",
+        "src/edge_harness/java/com/legend/edge/HarnessText.java",
         ":guardrails_sources",
         ":product_jars",
     ],
@@ -2673,7 +2676,9 @@ junit_test(
         "-Dcore.edge_tests_bzl=$(rlocationpath edge_tests.bzl)",
         "-Dcore.gates_build_file=$(rlocationpath //gates:BUILD.bazel)",
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
-        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/edge/PureText.java)",
+        # (2026-11-26, the edition program's step 9, slice 2: the scan-order pass is installed by the tests' harness's
+        # DuckDB, HarnessText.DuckDb, no longer by the edge's in PureText)
+        "-Dcore.duckdb_dialect=$(rlocationpath src/edge_harness/java/com/legend/edge/HarnessText.java)",
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
     ],
@@ -2700,7 +2705,7 @@ junit_test(
     # single files, and the jar lists
     data = [
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
-        "src/main/java/com/legend/edge/PureText.java",
+        "src/edge_harness/java/com/legend/edge/HarnessText.java",
         ":authored_door_jars",
         ":build_time_jars",
         ":core_test_jar",
@@ -2719,7 +2724,9 @@ junit_test(
     # read, as one declared list (SourceFiles, P3-27): no guard walks a directory
     jvm_flags = [
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
-        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/edge/PureText.java)",
+        # (2026-11-26, the edition program's step 9, slice 2: the scan-order pass is installed by the tests' harness's
+        # DuckDB, HarnessText.DuckDb, no longer by the edge's in PureText)
+        "-Dcore.duckdb_dialect=$(rlocationpath src/edge_harness/java/com/legend/edge/HarnessText.java)",
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",

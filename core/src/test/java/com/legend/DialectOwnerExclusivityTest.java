@@ -307,7 +307,8 @@ class DialectOwnerExclusivityTest {
         assertEquals(Set.of(), DatabaseOwners.of(dialect + "Stars.java",
                 "/** like class Stars extends Postgres */ final class Stars { static class In extends DuckDb {} }")
                 .databases());
-        assertEquals(Set.of("H2"), DatabaseOwners.of("core/src/main/java/com/legend/edge/RawSqlBoundary.java", "")
+        // (the file's path since 2026-11-26, the edition program's step 9, slice 2: the edge's test harness)
+        assertEquals(Set.of("H2"), DatabaseOwners.of("core/src/edge_harness/java/com/legend/edge/RawSqlBoundary.java", "")
                 .databases());
         assertEquals(DatabaseOwners.Kind.VOCABULARY,
                 DatabaseOwners.of("core/src/main/java/com/legend/parser/section/ConnectionSectionGrammar.java", "")

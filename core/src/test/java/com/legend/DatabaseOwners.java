@@ -106,13 +106,18 @@ final class DatabaseOwners {
 
     private static final String MAIN = "core/src/main/java/com/legend/";
 
+    /** The edge's test harness's sources (2026-11-26, the edition program's step 9, slice 2: legend-engine's H2 text's
+     *  translation is test machinery, moved there from the edge's product sources). */
+    private static final String HARNESS = "core/src/edge_harness/java/com/legend/";
+
     private static final String TEST = "core/src/test/java/com/legend/";
 
     /** The dialect package's shared files that own a database their name does not say: the engine text's reader owns
      *  the language it reads, legend-engine's H2 (D2). */
     private static final Map<String, Set<String>> NAMED_BY_ROLE = Map.of(
-            // moved to the edge with the translation (Phase 6's B4 (ii), 2026-11-17)
-            MAIN + "edge/RawSqlBoundary.java", Set.of("H2"));
+            // moved to the edge with the translation (Phase 6's B4 (ii), 2026-11-17), and to the edge's test harness
+            // with it (2026-11-26, the edition program's step 9, slice 2)
+            HARNESS + "edge/RawSqlBoundary.java", Set.of("H2"));
 
     /** The input languages (D11): each file and the database whose SQL it reads. 2026-10-18, the dialect program's
      *  D11: Postgres's rules that were the translator's (SqlToPure's) are its own files' (operators, casts, functions,
@@ -259,8 +264,9 @@ final class DatabaseOwners {
         if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")
                 || rel.startsWith("core/src/main/mongodb/") || rel.startsWith("core/src/main/postgres/")
                 // 2026-11-17 (Phase 6's B4 (ii)): legend-engine's H2 text translation, moved from sql/dialect to the edge,
-                // owning the language it reads as it did there
-                || rel.matches(MAIN + "edge/(EngineStyle\\w+|RawSqlBoundary)\\.java")) {
+                // owning the language it reads as it did there; 2026-11-26 (the edition program's step 9, slice 2):
+                // moved to the edge's test harness, the same owner
+                || rel.matches(MAIN + "edge/EngineStyle\\w+\\.java") || rel.equals(HARNESS + "edge/RawSqlBoundary.java")) {
             Set<String> own = ownAndParent(rel, source);
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);

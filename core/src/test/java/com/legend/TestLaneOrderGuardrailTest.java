@@ -64,8 +64,9 @@ class TestLaneOrderGuardrailTest {
                 "com/legend/executionplan/MirJson.java",
                 "com/legend/sql/ScanOrder.java",
                 "com/legend/sql/dialect/LateralExplodeToUnion.java",
-                // moved to the compatibility edge 2026-11-16 (W6 of docs/records/d-plan-2026-11-16.md)
-                "com/legend/edge/StableScanOrder.java",
+                // (com/legend/edge/StableScanOrder.java, moved to the compatibility edge 2026-11-16, W6 of
+                // docs/records/d-plan-2026-11-16.md: left these sources for the edge's test harness, 2026-11-26, the
+                // edition program's step 9, slice 2 -- no product source mints the lane's order)
                 "com/legend/sql/dialect/UnqualifyPivotArgs.java")),
                 filesMatching(ROW_ORDER_MINT),
                 "SqlExpr.RowOrder is minted outside its owners: a product path is adding a"
@@ -77,12 +78,15 @@ class TestLaneOrderGuardrailTest {
     void emulationIsInstalledOnlyBehindTheSwitch() throws IOException {
         // the edge's DuckDB installs it since 2026-11-16 (W6 of docs/records/d-plan-2026-11-16.md: legend-engine's scan
         // order is compatibility; the product's DuckDb asks the edge for its scan-order passes and has none)
-        assertEquals(new TreeSet<>(List.of("com/legend/edge/PureText.java")),
-                filesMatching(PASS_INSTALL), "StableScanOrder is installed outside the edge's DuckDB");
-        assertEquals(new TreeSet<>(List.of("com/legend/edge/PureText.java")),
+        // 2026-11-26 (the edition program's step 9, slice 2): the tests' harness's DuckDB installs it (HarnessText.DuckDb,
+        // core/src/edge_harness, the file read below), so no product source installs the pass or names the switch --
+        // until then the edge's DuckDB did, in PureText.java
+        assertEquals(new TreeSet<>(List.<String>of()),
+                filesMatching(PASS_INSTALL), "StableScanOrder is installed in the product's sources");
+        assertEquals(new TreeSet<>(List.<String>of()),
                 filesMatching(SWITCH_LITERAL),
-                "legend.exec.engineScanOrder is named outside the edge's DuckDB: only the corpus lanes'"
-                + " build flags (spec/corpus.bzl) set it, only the edge's DuckDB reads it");
+                "legend.exec.engineScanOrder is named in the product's sources: only the corpus lanes'"
+                + " build flags (spec/corpus.bzl) set it, only the tests' harness's DuckDB reads it");
         String duck = Files.readString(Runfile.property("core.duckdb_dialect"));
         assertEquals(1, count(SWITCH_READ, duck), "the switch is read exactly once");
         assertEquals(1, count(PASS_INSTALL, duck), "the pass is installed exactly once");
@@ -101,8 +105,9 @@ class TestLaneOrderGuardrailTest {
                 // the assert's own wrap over a plan -- a judge's path, no product render
                 // (the driver's until slice 5, 2026-11-09: the test's planner's since)
                 "com/legend/testplan/JudgePlans.java",
-                "com/legend/lowering/CanonicalRenderSql.java",
-                "com/legend/edge/StableScanOrder.java")),
+                // (com/legend/edge/StableScanOrder.java: left these sources for the edge's test harness, 2026-11-26,
+                // the edition program's step 9, slice 2)
+                "com/legend/lowering/CanonicalRenderSql.java")),
                 filesMatching(STABILIZE),
                 "ScanOrder.stabilize is applied from a new site: the assert canon wrap and the"
                 + " test-lane pass are the only two — a product render path must not order");

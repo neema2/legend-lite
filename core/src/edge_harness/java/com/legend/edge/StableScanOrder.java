@@ -8,9 +8,10 @@ import com.legend.sql.SqlRewriter;
 import com.legend.sql.ScanOrder;
 
 /**
- * ENGINE-CORPUS-COMPAT root pass (flag-gated in the edge's DuckDB dialect, {@link PureText.DuckDb}; moved from
+ * ENGINE-CORPUS-COMPAT root pass (flag-gated in the tests' harness's DuckDB dialect, {@link HarnessText.DuckDb}; moved from
  * {@code sql.dialect} to the compatibility edge 2026-11-16, W6 of docs/records/d-plan-2026-11-16.md: legend-engine's
- * H2 scan order is compatibility, never the product's): the
+ * H2 scan order is compatibility, never the product's; and from the edge's product sources to its test harness
+ * 2026-11-26, the edition program's step 9, slice 2: only the corpus lanes switch it on): the
  * HOST-channel statements of the corpus replay get the deterministic
  * scan-order key — the engine's tests assert positionally while
  * relying on H2's implicit scan order. The key itself (and the
