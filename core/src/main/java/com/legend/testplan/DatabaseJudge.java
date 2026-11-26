@@ -409,7 +409,7 @@ public final class DatabaseJudge {
                 && AssertVerdicts.envelopeValuesRead(args.get(0), letPrefix);
         var cw = java.util.Objects.requireNonNull(coll.side());
         com.legend.lowering.CanonRider nr = n.rider();
-        if (cw.shape() != com.legend.plan.ResultShape.GRAPH && !envelope && nr != null && !nr.literalOnly()
+        if (!envelope && nr != null && !nr.literalOnly()
                 && oneKind(nr) == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 && n.side() != null) {
             // THE CONDITION THE ASSERT MEANS, size(c) == n (the equality program's first slice, 2026-11-26): the
