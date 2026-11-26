@@ -1781,6 +1781,8 @@ public class SQLite extends AnsiSqlRenderer {
             // DuckDB's // truncates toward zero, NULL for a zero divisor: SQLite's integer division
             case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a, c);
+            // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+            case ROUND_AS_GIVEN -> writer.function("round", c.args());
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -pow(-(").expr(a.get(0), 0)
                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
             case BIT_NOT -> writer.append("(~ ").expr(a.get(0), 7).append(")");

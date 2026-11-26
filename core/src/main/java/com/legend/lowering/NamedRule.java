@@ -39,9 +39,10 @@ public enum NamedRule {
      *  {@code meta::legend::lite::trustOne}). */
     TRUST_ONE,
 
-    /** {@code round}, a half going away from zero: {@code round(x)} is the nearest whole number as an Integer,
-     *  {@code round(x, n)} the nearest at {@code n} places, and a value exactly halfway goes away from zero (16.5 to
-     *  17, -16.5 to -17: {@code SqlFn.ROUND_HALF_UP}). Not the product's {@code round}, which sends a half to the even
-     *  neighbour as Pure does (16.5 to 16). */
-    ROUND_HALF_AWAY_FROM_ZERO
+    /** The target database's own ROUND over the arguments as given ({@code SqlFn.ROUND_AS_GIVEN}, which every dialect
+     *  writes as its plain ROUND): {@code round(x)} as an Integer, {@code round(x, n)} at {@code n} places, a value
+     *  exactly halfway going where that database sends it (away from zero on DuckDB and H2: 16.5 to 17). Not the
+     *  product's {@code round}, which sends a half to the even neighbour on every database, as Pure does (16.5 to
+     *  16). */
+    ROUND_AS_GIVEN
 }

@@ -598,7 +598,7 @@ public final class SqlTyping {
             // ARITHMETIC family — probed rules split to arithType
             // (method-size guard; receipts on each arm there)
             case PLUS, MINUS, TIMES, REM, MOD, NEGATE, ABS,
-                    INT_DIVIDE, ROUND, ROUND_HALF_UP, CEILING, FLOOR, SIGN ->
+                    INT_DIVIDE, ROUND, ROUND_AS_GIVEN, CEILING, FLOOR, SIGN ->
                     arithType(fn, a);
             // error() RAISES — it yields no value and conforms to every
             // slot (§4bZ-U leg 3: the fourth TypeFact variant, replacing
@@ -898,13 +898,9 @@ public final class SqlTyping {
                 // operand stays UNKNOWN (unprobed corners)
                 yield UNKNOWN;
             }
-            // ROUND_HALF_UP of a DOUBLE is a DOUBLE (2026-11-26, the edition program's step 5): every dialect writes
-            // it so -- the database's own round where that sends a half away from zero, a composition over the double
-            // elsewhere, a cast back where the composition runs in a decimal (Postgres, ClickHouse). Untyped until
-            // then, a Float round(x, n) by it was cast to DOUBLE a second time (the corpus's round family, 14
-            // characters a plan). Of any other operand it is the database's own kind, which differs by dialect
-            // (Postgres's is NUMERIC of an integer): no fact
-            case ROUND_HALF_UP -> {
+            // the database's own ROUND of a DOUBLE is a DOUBLE (probed where a table names it: DuckDB and H2); of any
+            // other operand it is that database's own kind: no fact
+            case ROUND_AS_GIVEN -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }

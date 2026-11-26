@@ -146,7 +146,14 @@ public enum SqlFn {
     /** {@link #SAME_IN_ORDER} in any order: the two sides as multisets. */
     SAME_IN_ANY_ORDER,
     STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-    ROUND_HALF_UP, ERROR, FLOOR_RAW,
+    ROUND_HALF_UP,
+    /** ROUND_AS_GIVEN(x[, places]): the database's OWN ROUND over the arguments as given (the edition program's step
+     *  5, 2026-11-26): every relational dialect writes it as its plain ROUND, whatever that database's ROUND does with
+     *  a value exactly halfway (away from zero on DuckDB and H2). It is not {@link #ROUND}, Pure's half to even on
+     *  every database, nor {@link #ROUND_HALF_UP}, half away from zero on every database. Written by one of the
+     *  lowering's named rules ({@code NamedRule.ROUND_AS_GIVEN}), which an edition's table alone names. */
+    ROUND_AS_GIVEN,
+    ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
     /** {@code (x)}: a Decimal's or a Number's text, its plain digits (the tenets audit's M-6, A6, 2026-11-10): a semantic

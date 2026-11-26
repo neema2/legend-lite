@@ -908,6 +908,8 @@ public class Postgres extends AnsiSqlRenderer {
             // half-EVEN and numeric half away from zero (POSTGRES_BACKEND.md §4.3),
             // and has no round(double, int) at all
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+            case ROUND_AS_GIVEN -> writer.function("round", c.args());
             // the engine's out-of-domain answer is NaN; Postgres raises
             case ACOS, ASIN -> acos(writer, c);
 

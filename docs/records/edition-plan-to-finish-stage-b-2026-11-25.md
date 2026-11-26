@@ -471,7 +471,7 @@ unconfirmed, watched on the next run.
   of the Pure language (`substringAsGiven`, `substrAsGiven`), a leftover of the old rewrite, which had to write a
   real function into the typed query. The table is read where the SQL is produced, so a row needs only a rule to
   name: `lowering/NamedRule`, a closed list (`SUBSTRING_AS_GIVEN`, `SUBSTR_AS_GIVEN`, `SQL_POSITION`, `TRUST_ONE`,
-  and now `ROUND_HALF_AWAY_FROM_ZERO`), each rule written in the lowering (`NamedRules`, one arm a name, no default).
+  and now `ROUND_AS_GIVEN`), each rule written in the lowering (`NamedRules`, one arm a name, no default).
   The two natives left the language: four overloads off the catalogue, the pins down (`INTERNAL_DESUGAR` 42 to 40,
   `NOT_UPSTREAM_MAX` 80 to 76, implementation kinds 742 to 738), and nothing for the name resolver to refuse.
   Step 5's rows therefore add no function to the language. **Two pins the user ruled were replaced, not dropped**
@@ -505,9 +505,11 @@ on the delegations lite's answer is legend-engine's own manifest's, to the chara
 generated claims ledger (regenerated); the rest fixed the same day: the guard reads the hosts' doors too and names
 its limit (a class literal is not an access); every row's rule is tested on every overload it maps, in the place of
 the deleted test that compared a row's native's signature with its call's; `round` at a scale is run on H2; and
-`SqlTyping` types `ROUND_HALF_UP` of a DOUBLE as a DOUBLE (untyped, a Float `round(x, 2)` was cast to DOUBLE a
-second time: the corpus's SQL size check caught the 14 characters; ClickHouse's form casts a double's result back so
-the fact holds on every dialect).
+the row's rule writes a SQL function of its own, `ROUND_AS_GIVEN`, the database's own ROUND, in the place of
+`ROUND_HALF_UP` (the audit's finding 4, and the corpus's SQL size check, which caught 14 characters a plan: untyped,
+a Float `round(x, 2)` was cast to DOUBLE a second time. Typing `ROUND_HALF_UP` itself was tried and backed out: it
+made twelve of the product's plans for a decimal `divide` larger. The database's own ROUND is also what
+legend-engine writes, so a database checked later needs no new rule).
 
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).

@@ -25,7 +25,7 @@ final class NamedRules {
             case SUBSTR_AS_GIVEN -> substrAsGiven(args);
             case SQL_POSITION -> new SqlExpr.Call(SqlFn.STRPOS, args);
             case TRUST_ONE -> args.get(0);
-            case ROUND_HALF_AWAY_FROM_ZERO -> DecimalKindRules.roundHalfAwayFromZero(call, args);
+            case ROUND_AS_GIVEN -> DecimalKindRules.roundAsGiven(call, args);
         };
     }
 
