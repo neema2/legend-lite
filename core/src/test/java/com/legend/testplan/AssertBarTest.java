@@ -1116,6 +1116,11 @@ class AssertBarTest {
         want.put("{|assertSize(" + grid + ", 4)}", relation);
         want.put("{|assertSize(" + grid + ", 2)}", relation);
         want.put("{|assertNotSize(" + grid + ", 2)}", relation.replace("assertSize", "assertNotSize"));
+        // the whole table's cells, <table>.rows.values (two rows of two columns: four values in Pure; a written
+        // ->size() of it is right, the typer's rewrite to rows times columns). A RECORDED DEFECT, older than the size
+        // slice (measured the same at its base, 2026-11-26): the typer keeps the bare read as the table's ROWS, so every
+        // judge on every database counts 2. One count everywhere; owned with the row's cells below
+        want.put("{|assertSize(" + grid + ".rows.values, 4)}", "AssertFailed: expected size: 4, actual size: 2");
         // ONE ROW's cells (an Integer and a String here: two values in Pure). A RECORDED DEFECT, measured 2026-11-26
         // and owned by the equality program's later slices (the plan record's carried-forward table): the typer keeps
         // a row's bare .values as the row itself, one value, so the host judge counts 1; the database judge asks the

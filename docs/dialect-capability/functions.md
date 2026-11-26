@@ -2329,8 +2329,8 @@ Database types planned with it: MongoDB.
 | `SINH` | emulated | `op1: $sinh` |  | 0 |
 | `COSH` | emulated | `op1: $cosh` |  | 0 |
 | `TANH` | emulated | `op1: $tanh` |  | 0 |
-| `ACOS_IN_DOMAIN` | emulated | `op1: $acos` |  | 0 |
-| `ASIN_IN_DOMAIN` | emulated | `op1: $asin` |  | 0 |
+| `ACOS_IN_DOMAIN` | emulated | `unfolded: {"$acos": …}` |  | 0 |
+| `ASIN_IN_DOMAIN` | emulated | `unfolded: {"$asin": …}` |  | 0 |
 | `CEILING` | emulated | `longOf: $ceil` |  | 0 |
 | `FLOOR` | emulated | `longOf: $floor` |  | 0 |
 | `ROUND` | emulated | `roundHalfEven` |  | 0 |
