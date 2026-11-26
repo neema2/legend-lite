@@ -19,7 +19,8 @@ say only which target wrote them) can be read against it. A guard file moves onl
 
 - The fixed pre-push set in the build tree on the batch's last code commit and its regenerated files.
 - Six database lanes (Postgres and Trino; MariaDB, MySQL and ClickHouse; SQLite and MongoDB; Databricks; Snowflake;
-  BigQuery) on the batch's stricter first version: no PCT test moved on any of them. Probes on ClickHouse, MySQL
+  BigQuery), twice: on the batch's stricter first version and again on its final code (`d7acb98a`): no PCT test
+  moved on any of them either time (MariaDB's run-to-run list-order shuffle aside, a recorded defect of its own). Probes on ClickHouse, MySQL
   and MariaDB of a Decimal's `IN` and `=` at different scales: correct.
 - An independent audit (`docs/records/edition-homework/audits/`), its three blockers fixed (below).
 
@@ -68,7 +69,10 @@ own literals write up by 8 on every database (the 14 new statements' Decimal and
 `pct/.../channelb/ratchets.tsv` (test bodies under both judges): essential 1,991 characters down; **grammar 1,178 up
 and standard 198 up**, the same constant comparisons inside test bodies. The same ruling.
 
-The relational corpus's size baselines and its two rosters: unchanged.
+The relational corpus's size baselines and its two rosters: unchanged. The re-check's fixes (below) moved no size
+row: the baseline, the census and the ratchets were re-recorded on the final code and came back the same.
+
+`parser-equivalence/.../ratchets.tsv`: `own_corpus.matched` up, 3355 to 3361: the new tests' models (`OneValueWithinOneTypeTest`, `TaggedListTest`'s and `LiteralRuleAnswersTest`'s new functions) match the reference parser.
 
 ## Tests whose answer moves
 
