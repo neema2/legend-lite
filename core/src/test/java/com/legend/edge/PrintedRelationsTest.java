@@ -62,30 +62,48 @@ class PrintedRelationsTest {
         assertNull(PrintedRelations.lift(typed("|" + REL + "->filter(r|$r.a == 1)")));
         // a print followed by a call outside the tail's closed set (PrintTail), or by one of the set whose argument is
         // no literal
-        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->toUpper()")));
-        assertNull(PrintedRelations.lift(typed("|let s = 'q'; " + REL + "->toString()->contains($s);")));
+        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->toUpper()"), true));
+        assertNull(PrintedRelations.lift(typed("|let s = 'q'; " + REL + "->toString()->contains($s);"), true));
         // a step of the set above one that answers no String: only a String is read further
-        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->length()->toString()")));
+        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->length()->toString()"), true));
     }
 
-    /** The tail (the edition program's step 8, 2026-11-26): the calls of the closed set after a print are lifted with
-     *  it, in the program's order, and the answer's type is the last step's. */
+    /** The tail (the edition program's step 8, 2026-11-26): at legend-pure's door the calls of the closed set after a
+     *  print are lifted with it, in the program's order, and the answer's type is the last step's. */
     @Test
-    void theTailAfterAPrintIsLiftedWithIt() {
+    void theTailAfterAPrintIsLiftedWithItAtLegendPuresDoor() {
         PrintedRelations.Lifted length = PrintedRelations.lift(typed("|" + REL
-                + "->toString()->replace('\\n', ',')->trim()->length()"));
+                + "->toString()->replace('\\n', ',')->trim()->length()"), true);
         assertNotNull(length);
         assertEquals(List.of(new PureRelationText.Replace("\n", ","), new PrintTail.Trim(), new PrintTail.Length()),
                 length.tail());
         assertEquals("Integer", length.answers());
-        PrintedRelations.Lifted contains = PrintedRelations.lift(typed("|" + REL + CSV + "()->contains('x')"));
+        PrintedRelations.Lifted contains = PrintedRelations.lift(typed("|" + REL + CSV + "()->contains('x')"), true);
         assertNotNull(contains);
         assertEquals(List.of(new PrintTail.Contains("x")), contains.tail());
         assertEquals("Boolean", contains.answers());
-        PrintedRelations.Lifted index = PrintedRelations.lift(typed("|" + REL + "->toString()->indexOf('a', 2)"));
+        PrintedRelations.Lifted index = PrintedRelations.lift(typed("|" + REL + "->toString()->indexOf('a', 2)"),
+                true);
         assertNotNull(index);
         assertEquals(List.of(new PrintTail.IndexOf("a", 2L)), index.tail());
         assertEquals("String", PrintedRelations.lift(typed("|" + REL + "->toString()")).answers());
+        // the door applies the tail to the text the writer hands it
+        assertEquals(2L, index.answer("xyaza"));
+        assertEquals(true, contains.answer("axb"));
+    }
+
+    /** LEGEND-ENGINE'S DOOR LIFTS A RELATION'S PRINT WITH ITS REPLACES ALONE (the independent audit of slice 2,
+     *  2026-11-26): a print followed by another call of the set is left to the run there, as before the set grew --
+     *  the door's own rule answers {@code indexOf} (the database's position, register S134) -- since what
+     *  legend-engine itself answers for such a call after a relation's print has not been asked of it. */
+    @Test
+    void legendEnginesDoorLiftsThePrintWithItsReplacesAlone() {
+        assertNotNull(PrintedRelations.lift(typed("|" + REL + "->toString()->replace('x', 'y')")));
+        for (String tail : List.of("->indexOf('a')", "->length()", "->trim()", "->startsWith('#')", "->endsWith('#')",
+                "->contains('a')", "->replace('x', 'y')->length()")) {
+            assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()" + tail)), tail);
+            assertNotNull(PrintedRelations.lift(typed("|" + REL + "->toString()" + tail), true), tail);
+        }
     }
 
     /** A value's print (the edition program's step 8, 2026-11-26): at legend-pure's doors ({@code values}) a Float's
@@ -98,7 +116,17 @@ class PrintedRelationsTest {
         assertEquals(PureRelationTextWriter.Form.VALUE, lifted.form());
         assertEquals(List.of(new PrintTail.Length()), lifted.tail());
         assertEquals(typed("|1.5 * 2.0").resultType(), lifted.relation().resultType());
-        assertNotNull(PrintedRelations.lift(typed("|1.3421e-8->toString()"), true));
+        // a computed value is the run's to answer: nothing is written at the door
+        assertNull(lifted.written());
+        // a LITERAL's print is written at the door from the typed literal, where it stands or through its let: no
+        // database parses the literal and hands a double back for it (the independent audit of slice 2, 2026-11-26)
+        assertEquals("0.000000013421", PrintedRelations.lift(typed("|1.3421e-8->toString()"), true).written());
+        assertEquals("134210000.0", PrintedRelations.lift(typed("|1.3421e8->toString()"), true).written());
+        PrintedRelations.Lifted bound = PrintedRelations.lift(typed("{|let x = 1.3421e-8; $x->toString()->length();}"),
+                true);
+        assertEquals("0.000000013421", bound.written());
+        assertEquals(14L, bound.answer(bound.written()));
+        assertNull(PrintedRelations.lift(typed("{|let x = 1.3421e-8 * 1.0; $x->toString();}"), true).written());
         assertNull(PrintedRelations.lift(typed("|(1.5 * 2.0)->toString()")));
         assertNull(PrintedRelations.lift(typed("|1->toString()"), true));
         assertNull(PrintedRelations.lift(typed("|'a'->toString()->length()"), true));

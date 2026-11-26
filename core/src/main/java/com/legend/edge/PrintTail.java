@@ -38,7 +38,15 @@ import java.util.List;
  * Java's {@code trim} strips, as legend-pure's does, and lite's SQL keeps.
  *
  * <p>A step answers a String, an Integer or a Boolean. Only a String can be read further, so a step that answers
- * another type is a tail's last (the typer already holds a program to that).
+ * another type is a tail's last: {@link #beneath} takes such a step at the root alone, which is what {@link #applied}'s
+ * cast relies on.
+ *
+ * <p>Applied at the DOOR that lifted the print ({@code PrintedRelations.Side.answer}, {@code Lifted.answer}), from
+ * the text the writer handed it; never by a result writer, which writes and computes nothing (the independent audit
+ * of slice 2, 2026-11-26; {@code WriterCarriageGuardTest.noWriterAppliesAPrintsTail}). At legend-pure's doors alone
+ * for every member but {@code replace}: legend-engine's door lifts a relation's print with its replaces, as before
+ * the set grew, since what legend-engine itself answers for another member after a relation's print has not been
+ * asked of it ({@code PrintedRelations.lift}).
  */
 public sealed interface PrintTail permits PureRelationText.Replace, PrintTail.Length, PrintTail.Trim,
         PrintTail.StartsWith, PrintTail.EndsWith, PrintTail.Contains, PrintTail.IndexOf {
@@ -116,8 +124,8 @@ public sealed interface PrintTail permits PureRelationText.Replace, PrintTail.Le
     static Object applied(String text, List<PrintTail> steps) {
         Object out = text;
         for (PrintTail step : steps) {
-            // only a String is read further: the typer holds a program to that, and the reader below takes no step
-            // above one that answers another type
+            // only a String is read further: the reader below (beneath) takes no step above one that answers another
+            // type
             out = step.applied((String) out);
         }
         return out;

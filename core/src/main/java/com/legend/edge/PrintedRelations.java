@@ -47,15 +47,21 @@ public final class PrintedRelations {
     /** The lifted program: {@code relation} computes the rows (its last statement the printed relation, or under
      *  {@link PureRelationTextWriter.Form#VALUE} the printed value), and {@code form} and {@code tail} are the print the
      *  receiver performs on them and the steps it applies to the text. */
-    public record Lifted(com.legend.TypedQuery relation, PureRelationTextWriter.Form form, List<PrintTail> tail) {
+    public record Lifted(com.legend.TypedQuery relation, PureRelationTextWriter.Form form, List<PrintTail> tail,
+            @com.legend.base.Nullable String written) {
         public Lifted {
             tail = List.copyOf(tail);
         }
 
-        /** The receiver that prints this program's rows, applies the tail and hands the answer to {@code receiver}: a
-         *  String, or what the tail's last step answers ({@link #answers}). */
-        public PureRelationTextWriter writer(java.util.function.Consumer<Object> receiver) {
-            return new PureRelationTextWriter(form, tail, receiver);
+        /** The receiver that prints this program's rows and hands the text to {@code receiver}. */
+        public PureRelationTextWriter writer(java.util.function.Consumer<String> receiver) {
+            return new PureRelationTextWriter(form, receiver);
+        }
+
+        /** The door's answer from the printed {@code text}: the tail applied, here at the door ({@link PrintTail}) --
+         *  a String, or what the tail's last step answers ({@link #answers}). */
+        public Object answer(String text) {
+            return PrintTail.applied(text, tail);
         }
 
         /** The Pure type of the answer: {@code String}, or {@code Integer} or {@code Boolean} by the tail's last step. */
@@ -66,9 +72,20 @@ public final class PrintedRelations {
 
     /** One expression read as a print: the relation (or the value), the print, and the tail after it, in the program's
      *  order. */
-    public record Side(TypedSpec relation, PureRelationTextWriter.Form form, List<PrintTail> tail) {
+    public record Side(TypedSpec relation, PureRelationTextWriter.Form form, List<PrintTail> tail,
+            @com.legend.base.Nullable String written) {
         public Side {
             tail = List.copyOf(tail);
+        }
+
+        /** A side with nothing written at the door: its print is of what the run answers. */
+        public Side(TypedSpec relation, PureRelationTextWriter.Form form, List<PrintTail> tail) {
+            this(relation, form, tail, null);
+        }
+
+        /** The door's answer from the printed {@code text}: the tail applied, here at the door. */
+        public Object answer(String text) {
+            return PrintTail.applied(text, tail);
         }
     }
 
@@ -92,7 +109,7 @@ public final class PrintedRelations {
     public static @com.legend.base.Nullable Side side(TypedSpec e, boolean values, List<TypedSpec> lets) {
         List<PrintTail> tail = new ArrayList<>();
         Printed printed = printed(PrintTail.beneath(e, tail), values, lets);
-        return printed == null ? null : new Side(printed.relation(), printed.form(), tail);
+        return printed == null ? null : new Side(printed.relation(), printed.form(), tail, printed.written());
     }
 
     /** {@code query} lifted, or null where its last statement is no print of a relation this door lifts ({@link #side}). */
@@ -101,7 +118,13 @@ public final class PrintedRelations {
     }
 
     /** {@code query} lifted, or null where its last statement is no print this door lifts
-     *  ({@link #side(TypedSpec, boolean)}). */
+     *  ({@link #side(TypedSpec, boolean)}). {@code values}: legend-pure's door, which lifts a value's print and the
+     *  whole tail. legend-engine's door ({@code values} false) lifts a relation's print with its {@code replace}s
+     *  alone (the user's ruling of 2026-11-24, "also do the replace in java too"): a print followed by another call
+     *  of the set is left to the run there, as before the tail, where {@code indexOf} is the door's own rule (the
+     *  database's position, register S134) -- what legend-engine itself answers for such a call after a relation's
+     *  print has not been asked of it, so the door's answer does not move (the independent audit of step 8's slice
+     *  2, 2026-11-26). */
     public static @com.legend.base.Nullable Lifted lift(com.legend.TypedQuery query, boolean values) {
         List<TypedSpec> body = query.body();
         if (body.isEmpty()) {
@@ -111,16 +134,24 @@ public final class PrintedRelations {
         if (side == null) {
             return null;
         }
+        if (!values && !side.tail().stream().allMatch(step -> step instanceof PureRelationText.Replace)) {
+            return null;
+        }
         List<TypedSpec> lifted = new ArrayList<>(body.subList(0, body.size() - 1));
         lifted.add(side.relation());
         // withBody keeps the query's model, options and parameters: only the body changes
-        return new Lifted(query.withBody(lifted), side.form(), side.tail());
+        return new Lifted(query.withBody(lifted), side.form(), side.tail(), side.written());
     }
 
     /** legend-engine's relation functions' {@code toString} (toString.pure), the name the lowering matches too. */
     private static final String RELATION_TO_STRING = "meta::pure::functions::relation::toString";
 
-    private record Printed(TypedSpec relation, PureRelationTextWriter.Form form) {
+    /** {@code written}: the print itself where the door writes it from the program's own text (a literal's), null
+     *  where it is of what the run answers. */
+    private record Printed(TypedSpec relation, PureRelationTextWriter.Form form, @com.legend.base.Nullable String written) {
+        Printed(TypedSpec relation, PureRelationTextWriter.Form form) {
+            this(relation, form, null);
+        }
     }
 
     /** {@code e} as a print the printer writes, or null: a relation's, or with {@code values} the {@code toString}
@@ -135,7 +166,14 @@ public final class PrintedRelations {
                 TypedSpec operand = c.args().get(0);
                 com.legend.compiler.element.type.Type type = operand.info().type();
                 if (type == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-                    return new Printed(operand, PureRelationTextWriter.Form.VALUE);
+                    // a LITERAL's print is a fact of the program: written here from the typed literal, where it
+                    // stands or through the let it is bound to, so no database parses the literal and hands a double
+                    // back for it (the independent audit of slice 2, 2026-11-26: a lane's one-digit-off parse of a
+                    // literal reached the text; a computed value is the database's to compute)
+                    return new Printed(operand, PureRelationTextWriter.Form.VALUE,
+                            com.legend.compiler.spec.typed.Lets.bound(operand, lets)
+                                    instanceof com.legend.compiler.spec.typed.TypedCFloat literal
+                                    ? PureValueText.pureFloat(literal.value()) : null);
                 }
                 // a DateTime's too, from the instant the database computed -- where the lowering can never read the
                 // operand as a LITERAL. legend-pure prints a literal at its WRITTEN precision

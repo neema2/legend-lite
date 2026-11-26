@@ -200,6 +200,81 @@ class UpstreamPrintsTest {
         }
     }
 
+    /** A VALUE WHOSE SOURCE MAY ANSWER ANOTHER VALUE ON A SECOND READING IS NOT LIFTED (the independent audit of step
+     *  8's slice 2, 2026-11-26, its S2): a printed side is read as a query of its own before the body runs, so a draw
+     *  ({@code random()}), the clock, or a row taken from rows whose order the program does not define (here past a
+     *  grouping: the order guard a printed relation is held to) would be read twice, the print's reading and the
+     *  body's. Such a Float's print is left as written, the database's, and nothing is read. */
+    @Test
+    void aValueFromAnUnrepeatableSourceIsLeftToTheDatabase() {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        UpstreamPrints.Reads never = (query, answer) -> {
+            throw new AssertionError("nothing is read: " + query.body());
+        };
+        String grouped = "let g = " + REL + "->groupBy(~name, ~n: x | $x.id : y | $y->sum());";
+        for (String body : List.of(
+                "|let x = random(); assertEquals($x->toString(), $x->toString());",
+                "|assertEquals('0.5', (random() * 1.0)->toString());",
+                "|" + grouped + " assertEquals('1.5', ($g->map(r|$r.n->toOne() * 1.5)->at(0))->toString());")) {
+            com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
+            org.junit.jupiter.api.Assertions.assertSame(typed, UpstreamPrints.read(typed, false, never), body);
+        }
+    }
+
+    /** A FLOAT LITERAL'S PRINT IS WRITTEN AT THE DOOR, NOTHING READ (the audit's S6): the text is a fact of the
+     *  program, legend-pure's print of the literal's double, where the literal stands or through the let it is bound
+     *  to, with its tail applied at the door; no database parses the literal. A computed value is read. */
+    @Test
+    void aFloatLiteralsPrintIsWrittenAtTheDoorWithoutARead() throws Exception {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        UpstreamPrints.Reads never = (query, answer) -> {
+            throw new AssertionError("nothing is read: " + query.body());
+        };
+        java.util.Map<String, Object> bodies = new java.util.LinkedHashMap<>();
+        bodies.put("|assertEquals('0.000000013421', 1.3421e-8->toString());", "0.000000013421");
+        bodies.put("|let x = 1.3421e8; assertEquals('134210000.0', $x->toString());", "134210000.0");
+        bodies.put("|assertEquals(14, 1.3421e-8->toString()->length());", 14L);
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            for (var e : bodies.entrySet()) {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, e.getKey());
+                com.legend.TypedQuery read = UpstreamPrints.read(typed, false, never);
+                assertTrue(read != typed, e.getKey());
+                assertEquals(0, toStrings(read), e.getKey());
+                com.legend.TestExecution.runProgram(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                        com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            }
+        }
+    }
+
+    /** ONE VALUE, PRINTED AT A LAST STEP AND ONE CALL FURTHER, IN ONE BODY (the audit's S1): the side that is the
+     *  assert's own argument is legend-pure's text, Java's; the same print under another call is lite's own text, the
+     *  database's -- the design the user ruled on 2026-11-26 ("yes that's right but remember we have a list of
+     *  chained functions that are okay after that you came up with"). The two agree wherever lite's six decimals hold
+     *  the value ({@code 0.00001}: 7 and 7; until the deletion of the edge's Float pass the second was the
+     *  database's cast, {@code 1e-05}, 5), and part beyond them, as the register row says ({@code 1.0E-7}: Java's
+     *  {@code 0.0000001}, 9, and lite's {@code 0.0}, 3). */
+    @Test
+    void aPrintAtALastStepAndTheSamePrintUsedFurtherInOneBody() throws Exception {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            UpstreamPrints.Reads reads = (query, answer) -> com.legend.TestExecution.runProgram(query,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                    com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE, answer);
+            for (String body : List.of(
+                    "|let x = 1.0E-5 * 1.0; assertEquals($x->toString()->length(), $x->toString()->length() + 0);",
+                    "|let x = 12345678.5 * 1.0; assertEquals('v=12345678.5', 'v=' + $x->toString());",
+                    "|let x = 1.0E-7 * 1.0; assertEquals(9, $x->toString()->length());"
+                            + " assertEquals(3, $x->toString()->length() + 0);")) {
+                com.legend.TestExecution.runProgram(UpstreamPrints.read(com.legend.Compiler.query(ctx, body), false,
+                        reads), com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                        com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            }
+        }
+    }
+
     /** The {@code toString} calls left anywhere in {@code q}'s body. */
     private static int toStrings(com.legend.TypedQuery q) {
         int n = 0;

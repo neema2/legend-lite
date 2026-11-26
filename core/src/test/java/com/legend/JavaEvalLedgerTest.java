@@ -2024,8 +2024,9 @@ class JavaEvalLedgerTest {
                             // value (the database computed every cell); the one string operation it ran is the
                             // program's literal replace calls on the printed text, the user's ruling of 2026-11-24
                             // ~13:53 ("also do the replace in java too"). Since 2026-11-26 (the edition program's step
-                            // 8) the receiver applies the print's whole tail, PrintTail.java below, and prints one
-                            // value under its VALUE form
+                            // 8) the receiver prints one value under its VALUE form; a print's tail, PrintTail.java
+                            // below, is applied by the door that lifted the print, never by the receiver (the
+                            // independent audit of slice 2, that day)
                             "PureRelationText.java", "PureRelationTextWriter.java",
                             // the edge's value printer (B2b S6a's legend-pure door, 2026-11-25, the orchestrator's
                             // agreement, G1): the cell rules moved, unchanged, from PureRelationText (a move); S6a's

@@ -209,44 +209,88 @@ class PureRelationTextTest {
 
     @Test
     void theWriterPrintsTheRowsAtTheEnd() throws Exception {
-        List<Object> got = new ArrayList<>();
-        PureRelationTextWriter w = new PureRelationTextWriter(PureRelationTextWriter.Form.TO_CSV,
-                List.of(new PureRelationText.Replace("\n", ",")), got::add);
+        List<String> got = new ArrayList<>();
+        PureRelationTextWriter w = new PureRelationTextWriter(PureRelationTextWriter.Form.TO_CSV, got::add);
         w.answers(ExecutionPlan.TdsResult.Shape.RELATION);
         w.columns(List.of(col("a", "Integer")));
         w.end();
-        assertEquals(List.of("a,,"), got);
+        // the text, and the text alone: a print's tail is the door's to apply (below)
+        assertEquals(List.of("a\n\n"), got);
         assertThrows(IllegalStateException.class, w::end);
         assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(PureRelationTextWriter.Form.TO_CSV,
-                List.of(), got::add).end());
+                got::add).end());
         assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(
-                PureRelationTextWriter.Form.TO_STRING, List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.VALUE));
+                PureRelationTextWriter.Form.TO_STRING, got::add).answers(ExecutionPlan.TdsResult.Shape.VALUE));
     }
 
-    /** A value's print and a tail (the edition program's step 8, 2026-11-26): the answer's one cell printed by
-     *  legend-pure's rule, the tail applied, and the receiver handed what the tail's last step answers. */
+    /** A value's print (the edition program's step 8, 2026-11-26): the answer's one cell printed by legend-pure's
+     *  rule, and handed to the receiver as the text it is. A print's tail is the DOOR's to apply to that text
+     *  ({@link PrintedRelations.Side#answer}, {@link PrintedRelations.Lifted#answer}), never the writer's: a writer
+     *  writes (the independent audit of slice 2, 2026-11-26; until then the writer applied it and handed back an
+     *  Integer or a Boolean). */
     @Test
-    void theWriterPrintsAValueAndAppliesTheTail() throws Exception {
-        List<Object> got = new ArrayList<>();
+    void theWriterPrintsAValue_andTheDoorAppliesTheTail() throws Exception {
+        List<String> got = new ArrayList<>();
         ExecutionPlan.Column f = new ExecutionPlan.Column("value", "Float", new ExecutionPlan.Multiplicity(1, 1),
                 "DOUBLE", null, null);
-        for (List<PrintTail> tail : List.of(List.<PrintTail>of(), List.<PrintTail>of(new PrintTail.Length()))) {
-            PureRelationTextWriter w = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, tail, got::add);
-            w.answers(ExecutionPlan.TdsResult.Shape.VALUE);
-            w.columns(List.of(f));
-            w.batch(one(f, 1.3421e-8));
-            w.end();
-        }
-        assertEquals(List.<Object>of("0.000000013421", 14L), got);
+        PureRelationTextWriter w = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, got::add);
+        w.answers(ExecutionPlan.TdsResult.Shape.VALUE);
+        w.columns(List.of(f));
+        w.batch(one(f, 1.3421e-8));
+        w.end();
+        assertEquals(List.of("0.000000013421"), got);
+        com.legend.compiler.element.ModelContext none = com.legend.Compiler.compileModel("");
+        assertEquals(14L, PrintedRelations.lift(com.legend.Compiler.query(none, "|(1.5 * 2.0)->toString()->length()"),
+                true).answer(got.get(0)));
+        assertEquals("0.000000013421", PrintedRelations.lift(com.legend.Compiler.query(none,
+                "|(1.5 * 2.0)->toString()"), true).answer(got.get(0)));
         // a relation's rows do not answer a value's print, and no other type's value is printed
         assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(
-                PureRelationTextWriter.Form.VALUE, List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.RELATION));
+                PureRelationTextWriter.Form.VALUE, got::add).answers(ExecutionPlan.TdsResult.Shape.RELATION));
         ExecutionPlan.Column i = new ExecutionPlan.Column("value", "Integer", new ExecutionPlan.Multiplicity(1, 1),
                 "BIGINT", null, null);
-        PureRelationTextWriter integer = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, List.of(), got::add);
+        PureRelationTextWriter integer = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, got::add);
         integer.columns(List.of(i));
         integer.batch(one(i, 1L));
         assertThrows(com.legend.error.NotImplementedException.class, integer::end);
+    }
+
+    /** A FLOAT'S LAST-STEP PRINT, VALUE BY VALUE (the independent audit of slice 2, 2026-11-26, its list): legend-pure's
+     *  print ({@code CompiledSupport}'s {@code DecimalFormat("0.0")}, English, 340 fraction digits) of the double a
+     *  database computed, whatever carrier it arrived in -- a point always, never an exponent at any magnitude, either
+     *  zero {@code 0.0}, the value the double IS where a literal named one it cannot hold. Each text was run on the
+     *  JDK the build pins (remotejdk_25: 25.0.4), which is what this print is held to: legend-pure's own print is the
+     *  same code on whichever JDK it runs on (its build accepts 11, 17, 21 and 25), and a DecimalFormat's digits for
+     *  some doubles are the JDK's ({@code 2.0E23} below). */
+    @Test
+    void aFloatsValuePrintIsLegendPuresOnTheBuildsJdk() {
+        ExecutionPlan.Column f = new ExecutionPlan.Column("value", "Float", new ExecutionPlan.Multiplicity(1, 1),
+                "DOUBLE", null, null);
+        java.util.Map<Object, String> texts = new java.util.LinkedHashMap<>();
+        texts.put(-0.0d, "0.0");
+        texts.put(1.0E7d, "10000000.0");
+        texts.put(1.0E-4d, "0.0001");
+        texts.put(1.0E15d, "1000000000000000.0");
+        texts.put(1.0E16d, "10000000000000000.0");
+        texts.put(9007199254740993.0d, "9007199254740992.0");
+        texts.put(1.7976931348623157E308d, "17976931348623157" + "0".repeat(292) + ".0");
+        texts.put(4.9E-324d, "0." + "0".repeat(323) + "49");
+        texts.put(1.0E23d, "99999999999999990000000.0");
+        texts.put(2.0E23d, "199999999999999980000000.0");
+        texts.put(0.1d + 0.2d, "0.30000000000000004");
+        texts.put(Double.NaN, "NaN");
+        texts.put(Double.POSITIVE_INFINITY, "\u221e");
+        texts.put(Double.NEGATIVE_INFINITY, "-\u221e");
+        // a Float a database hands back in another carrier: an integer (a store's INT column under a Float), a decimal
+        texts.put(1000000L, "1000000.0");
+        texts.put(7, "7.0");
+        texts.put(java.math.BigInteger.valueOf(12), "12.0");
+        texts.put(new BigDecimal("81.180"), "81.18");
+        texts.put(new BigDecimal("0.3"), "0.3");
+        for (var e : texts.entrySet()) {
+            assertEquals(e.getValue(), PureValueText.value(e.getKey(), f), String.valueOf(e.getKey()));
+        }
+        assertThrows(com.legend.error.NotImplementedException.class, () -> PureValueText.value("1.5", f));
     }
 
     /** A DateTime the database computed, printed at a last step (the edition program's step 8, 2026-11-26): its

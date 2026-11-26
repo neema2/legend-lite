@@ -179,12 +179,13 @@ class WriterCarriageGuardTest {
             Map.entry("PureValueText.java", Map.ofEntries(
                     Map.entry("atLeast", 1),
                     Map.entry("doubleValue", 5))),
-            // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words that day, "maybe
-            // small set up string/count functions chained should all be in java", and on the set and its guard
-            // exception, ~13:57, "yes should add guard"): indexOf's start read as an int, as
-            // legend-pure's own Java reads it (CompiledSupport.indexOf: from.intValue()) -- the program's literal, not
-            // a value the database computed
-            Map.entry("PrintTail.java", Map.of("intValue", 1)),
+            // (PrintTail.java, the tail of a lifted print: its row is GONE, 2026-11-26, the independent audit of step
+            // 8's slice 2. It was scanned here "with the printers it follows" while a writer applied it; a writer
+            // writes, so the tail is applied at the door now (PrintedRelations.Side.answer, Lifted.answer) and is no
+            // writer's part. This scan never saw what the tail computes anyway (a length, a trim, a replace are not in
+            // its vocabulary; its one hit was indexOf's intValue). What holds the tail: its closed set is pinned
+            // (edge.PrintTailTest), it is the edge's one registered class that computes a value (JavaEvalLedgerTest,
+            // the user's "yes should add guard"), and no writer may name it: noWriterAppliesAPrintsTail, below.)
             Map.entry("RaiseWords.java", Map.ofEntries(
                     Map.entry("intValue", 1),
                     Map.entry("doubleValue", 1),
@@ -313,6 +314,31 @@ class WriterCarriageGuardTest {
             Map.entry("WireTypes.java", Map.of("Math.", 1, "startsWith(\"\")", 1, "contains(\"\")", 1,
                     "endsWith(\"\")", 2)));
 
+    /** NO WRITER APPLIES A PRINT'S TAIL (the independent audit of step 8's slice 2, 2026-11-26): the calls a program
+     *  makes over a printed text ({@code edge.PrintTail}: a length, an index, a true or false) are computed at the
+     *  door that lifted the print, from the text the writer handed it. A result writer that named the tail would be
+     *  computing an answer the plan never typed. Held over every file of the result library and exec, and the edge's
+     *  writers and printers the scan below names. */
+    @Test
+    void noWriterAppliesAPrintsTail() throws IOException {
+        List<Path> files = new java.util.ArrayList<>(
+                SourceFiles.under(RESULT, EXEC.toArray(String[]::new)).stream()
+                        .filter(p -> p.toString().endsWith(".java")).toList());
+        for (String edges : List.of("PureV1Writer", "EngineAnswers", "Presenter", "PureRelationText",
+                "PureRelationTextWriter", "PureValueText")) {
+            files.add(SourceFiles.file("core/src/main/java/com/legend/edge/" + edges + ".java"));
+        }
+        StringBuilder named = new StringBuilder();
+        for (Path f : files) {
+            // PureRelationText declares the tail's first member, the record Replace: the one mention it may hold
+            String code = stripped(Files.readString(f)).replace("implements PrintTail", "");
+            if (code.contains("PrintTail")) {
+                named.append("\n  ").append(f.getFileName());
+            }
+        }
+        assertTrue(named.isEmpty(), "a writer names the print's tail (the door applies it, never a writer):" + named);
+    }
+
     @Test
     void theWritersCarryAndDecideNothing() throws IOException {
         List<Path> files = new java.util.ArrayList<>(
@@ -337,8 +363,7 @@ class WriterCarriageGuardTest {
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
         // the edge's value printer, the cell rules moved out of PureRelationText (B2b S6a, 2026-11-25)
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureValueText.java"));
-        // the tail of a lifted print (the edition program's step 8, 2026-11-26): scanned with the printers it follows
-        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PrintTail.java"));
+        // (PrintTail.java left this scan 2026-11-26: the note at its old row, above)
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();

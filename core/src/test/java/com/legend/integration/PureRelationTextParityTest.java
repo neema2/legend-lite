@@ -161,7 +161,7 @@ class PureRelationTextParityTest {
         com.legend.edge.PrintedRelations.Lifted lifted = com.legend.edge.PrintedRelations.lift(
                 com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query), true);
         org.junit.jupiter.api.Assertions.assertNotNull(lifted, query);
-        List<Object> text = new ArrayList<>();
+        List<String> text = new ArrayList<>();
         com.legend.Execution.run(lifted.relation().withOptions(Lean.TEST_OPTIONS), StorelessRuntime.RUNTIME,
                 com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
                 com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
@@ -170,7 +170,7 @@ class PureRelationTextParityTest {
         if (text.size() != 1) {
             throw new IllegalStateException("the printer answered " + text.size() + " texts");
         }
-        return (String) text.get(0);
+        return (String) lifted.answer(text.get(0));
     }
 
     /** {@code rel}'s rows, run on {@code c} in the edge's style, printed by the Java printer. */
@@ -181,17 +181,17 @@ class PureRelationTextParityTest {
     /** {@code rel}'s rows, run on {@code c} in the edge's style, printed by the Java printer in {@code form}. */
     private static String printed(String model, String rel, Connection c, PureRelationTextWriter.Form form)
             throws Exception {
-        List<Object> text = new ArrayList<>();
+        List<String> text = new ArrayList<>();
         com.legend.Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)),
                                 "|" + rel).withOptions(Lean.TEST_OPTIONS), StorelessRuntime.RUNTIME,
                 com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
                 com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
                 com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(), PureText.UPSTREAM,
-                new com.legend.result.Output.Rows(new PureRelationTextWriter(form, List.of(), text::add)),
+                new com.legend.result.Output.Rows(new PureRelationTextWriter(form, text::add)),
                 com.legend.result.Batcher.DEFAULT_CAPACITY);
         if (text.size() != 1) {
             throw new IllegalStateException("the printer answered " + text.size() + " texts");
         }
-        return (String) text.get(0);
+        return text.get(0);
     }
 }

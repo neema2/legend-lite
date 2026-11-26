@@ -80,7 +80,7 @@ class EdgeCasesGoldenTest {
             com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query);
             com.legend.edge.PrintedRelations.Lifted lifted = com.legend.edge.PrintedRelations.lift(typed);
             if (lifted != null) {
-                List<Object> text = new java.util.ArrayList<>();
+                List<String> text = new java.util.ArrayList<>();
                 try (java.sql.Connection c = backend.open(style)) {
                     com.legend.Execution.run(lifted.relation(), StorelessRuntime.RUNTIME,
                             com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
@@ -91,7 +91,7 @@ class EdgeCasesGoldenTest {
                 } catch (java.sql.SQLException | IOException e) {
                     throw new IllegalStateException(e);
                 }
-                return "VALUE\t" + lifted.answers() + ":" + text.get(0) + ";";
+                return "VALUE\t" + lifted.answers() + ":" + lifted.answer(text.get(0)) + ";";
             }
             Lean.Result r = Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, backend, style);
             StringBuilder cells = new StringBuilder(r.shape().name()).append('\t');

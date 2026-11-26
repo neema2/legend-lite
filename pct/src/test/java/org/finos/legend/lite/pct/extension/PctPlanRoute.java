@@ -161,24 +161,34 @@ final class PctPlanRoute {
         // printed in Java from the relation's typed rows (edge.PrintedRelations, edge.PureRelationText) -- lite's own
         // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5). Since the edition
         // program's step 8 (2026-11-26; tenet 1 as amended 2026-11-25) legend-pure's audience has a last step's print of
-        // a value lifted too -- a Float's toString, or a computed DateTime's, printed in Java (edge.PureValueText) -- and either
-        // audience the print's tail, the calls of one closed set after it (edge.PrintTail), whose answer may be an
-        // Integer or a Boolean. legend-engine's audience keeps a value's print in the query: its database's cast is
-        // legend-engine's own answer
+        // a value lifted too -- a Float's toString, or a computed DateTime's, printed in Java (edge.PureValueText) --
+        // and the print's tail, the calls of one closed set after it (edge.PrintTail), whose answer may be an Integer
+        // or a Boolean. legend-engine's audience keeps a value's print in the query (its database's cast is
+        // legend-engine's own answer) and, after a relation's print, lifts the replaces alone, as before the tail
         com.legend.edge.PrintedRelations.Lifted lifted = audience == Audience.LITE ? null
                 : com.legend.edge.PrintedRelations.lift(query, audience == Audience.LEGEND_PURE);
         if (lifted != null) {
-            java.util.List<Object> text = new java.util.ArrayList<>(1);
-            com.legend.Execution.run(lifted.relation(), com.legend.testbackend.StorelessRuntime.RUNTIME,
-                    PctBackend.executionSource(), PctBackend.planSessions(),
-                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features, audience.style(),
-                    new com.legend.result.Output.Rows(lifted.writer(text::add)), com.legend.result.Batcher.DEFAULT_CAPACITY);
+            java.util.List<String> text = new java.util.ArrayList<>(1);
+            if (lifted.written() != null) {
+                // a literal's print, written at the door from the typed literal (edge.PrintedRelations): nothing is
+                // run for it, so no database's parse of the literal reaches the text (the independent audit of step
+                // 8's slice 2, 2026-11-26)
+                text.add(lifted.written());
+            } else {
+                com.legend.Execution.run(lifted.relation(), com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        PctBackend.executionSource(), PctBackend.planSessions(),
+                        com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features, audience.style(),
+                        new com.legend.result.Output.Rows(lifted.writer(text::add)),
+                        com.legend.result.Batcher.DEFAULT_CAPACITY);
+            }
             // the plans compared are the ones the case ran: the relation's (the review of 54d922e92: the print's own
             // query, which the product refuses at lowering, reported every lifted case as PRODUCT_REFUSES)
             PctCaseRecorder.onePlan(() -> onePlan(lifted.relation(), features));
             if (text.size() != 1) {
                 throw new IllegalStateException("a lifted print answers one value; got " + text.size());
             }
+            // the tail is applied here, at the door: the writer wrote the text and nothing else
+            Object answered = lifted.answer(text.get(0));
             String slot = switch (lifted.answers()) {
                 case "String" -> "VARCHAR";
                 case "Integer" -> "BIGINT";
@@ -189,7 +199,7 @@ final class PctPlanRoute {
             ExecutionPlan.Column value = new ExecutionPlan.Column("value", lifted.answers(),
                     new ExecutionPlan.Multiplicity(1, 1), slot, null, null);
             return new Answer(ExecutionPlan.TdsResult.Shape.VALUE, new PlanRunner.Rows(java.util.List.of(value),
-                    java.util.List.of(java.util.List.<Object>of(text.get(0)))), query.resultType(), null, null);
+                    java.util.List.of(java.util.List.<Object>of(answered))), query.resultType(), null, null);
         }
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first

@@ -16,9 +16,9 @@ import java.util.function.Consumer;
  * plan's run streams -- the relation a program's last {@code toString()}/{@code toCSV()} printed, that call removed by
  * the door, or since the edition program's step 8 (2026-11-26) the one value a last {@code toString()} printed
  * ({@link Form#VALUE}, {@link PureValueText}) -- collected in their order and, at the end, written by
- * {@link PureRelationText} in one of its forms, the print's tail applied ({@link PrintTail}: the program's literal
- * {@code replace} calls and the other calls of its closed set), and handed to {@code receiver} as one answer, a String
- * or what the tail's last step answers. The text exists only
+ * {@link PureRelationText} in one of its forms and handed to {@code receiver} as one text. What the program computes
+ * over that text afterwards (a print's tail) is not this writer's: the door that lifted the print applies it
+ * ({@code PrintedRelations.Lifted.answer}; the independent audit of step 8's slice 2, 2026-11-26). The text exists only
  * once the result is whole (a header names columns before any row, and a CSV's last newline follows the last row), so
  * the rows are held, as legend-engine's own TDS holds them. A writer: it spells, decides nothing, and holds no state
  * between runs (one instance per run).
@@ -41,17 +41,16 @@ public final class PureRelationTextWriter implements ResultSink {
     }
 
     private final Form form;
-    private final List<PrintTail> tail;
-    private final Consumer<Object> receiver;
+    private final Consumer<String> receiver;
     private @com.legend.base.Nullable List<ExecutionPlan.Column> columns;
     private final List<List<Object>> rows = new ArrayList<>();
     private boolean ended;
 
-    /** {@code receiver} is handed the text with {@code tail} applied: a String, or the Integer (a Long) or Boolean the
-     *  tail's last step answers ({@link PrintTail#answers}). */
-    public PureRelationTextWriter(Form form, List<? extends PrintTail> tail, Consumer<Object> receiver) {
+    /** {@code receiver} is handed the text, and the text alone: what a program computes over it after the print (a
+     *  print's tail, {@link PrintTail}) is the door's to apply, never this writer's ({@link PrintedRelations.Lifted#answer},
+     *  {@link PrintedRelations.Side#answer}; the independent audit of step 8's slice 2, 2026-11-26: a writer writes). */
+    public PureRelationTextWriter(Form form, Consumer<String> receiver) {
         this.form = java.util.Objects.requireNonNull(form, "form");
-        this.tail = List.copyOf(tail);
         this.receiver = java.util.Objects.requireNonNull(receiver, "receiver");
     }
 
@@ -102,7 +101,7 @@ public final class PureRelationTextWriter implements ResultSink {
             case TDS_CSV -> PureRelationText.tdsCsvProperty(cols, rows);
             case VALUE -> one(cols);
         };
-        receiver.accept(PrintTail.applied(text, tail));
+        receiver.accept(text);
     }
 
     /** The one value a {@link Form#VALUE} answer carries, printed: a {@code toString}'s operand is one value, so any

@@ -69,10 +69,14 @@ public final class UpstreamPrints {
      *  S1, {@link PureRelationTextWriter}: one writer per read, the database's typed cells in; out, legend-pure's text
      *  or what the tail's last step answers). */
     static final Printer PRINTER = (side, read, reads) -> {
-        Object[] text = new Object[1];
-        reads.read(read, new com.legend.result.Output.Rows(
-                new PureRelationTextWriter(side.form(), side.tail(), t -> text[0] = t)));
-        return java.util.Objects.requireNonNull(text[0], "the printer wrote no text");
+        if (side.written() != null) {
+            // a literal's print, written at the door: nothing is read
+            return side.answer(side.written());
+        }
+        String[] text = new String[1];
+        reads.read(read, new com.legend.result.Output.Rows(new PureRelationTextWriter(side.form(), t -> text[0] = t)));
+        // the tail is applied here, at the door: the writer wrote the text and nothing else
+        return side.answer(java.util.Objects.requireNonNull(text[0], "the printer wrote no text"));
     };
 
     /** {@code e} read as a printed side: a relation's print or, where {@code lastStep} (the side is an assert's own
@@ -165,7 +169,8 @@ public final class UpstreamPrints {
             if (!readable(p.relation(), lets) || incidental(p, lets)) {
                 return n;
             }
-            if (p.form() == PureRelationTextWriter.Form.VALUE && readsTheClock(p.relation(), lets)) {
+            if (p.form() == PureRelationTextWriter.Form.VALUE && p.written() == null
+                    && unrepeatable(p.relation(), lets)) {
                 return n;
             }
             Object answer = print(p, typed, lets, reads, printer);
@@ -265,7 +270,7 @@ public final class UpstreamPrints {
     }
 
     private static boolean incidental(PrintedRelations.Side side, List<TypedSpec> lets) {
-        // a value's print has no row order
+        // a value's print has no row order of its own (what it reads is held by unrepeatable)
         return side.form() != PureRelationTextWriter.Form.VALUE
                 && com.legend.compiler.spec.OrderView.of(side.relation(), lets)
                         == com.legend.compiler.spec.OrderView.INCIDENTAL;
@@ -375,10 +380,25 @@ public final class UpstreamPrints {
     }
 
     /** Whether every name {@code relation} reads is bound by one of {@code lets}: a lambda's parameter is not. */
-    /** Whether {@code e}, through the lets it reads, calls {@code now()}. A side read as a query of its own draws its
-     *  own instant, where the assert's statement draws one for all it reads: such a value's print is left as written
-     *  (the independent review of step 8's date slice, 2026-11-26). */
-    private static boolean readsTheClock(TypedSpec e, List<TypedSpec> lets) {
+    /** The natives whose every call answers anew: the clock's and the draws. */
+    private static final Set<com.legend.model.FunctionId> ANSWERS_ANEW;
+
+    static {
+        Set<com.legend.model.FunctionId> anew = new java.util.HashSet<>(com.legend.builtin.Pure.AT_DATE_NOW);
+        anew.addAll(com.legend.builtin.Pure.AT_DATE_TODAY);
+        anew.addAll(com.legend.builtin.Pure.AT_MATH_RANDOM);
+        anew.addAll(com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID);
+        ANSWERS_ANEW = Set.copyOf(anew);
+    }
+
+    /** Whether a second reading of the value {@code e}, through the lets it reads, may answer another value than
+     *  the body's own run: it calls a native that answers anew each time ({@code now()}, {@code today()},
+     *  {@code random()}, {@code generateGuid()}), or it reads rows whose order the program does not define (an
+     *  {@code at(0)} of a store's or a frame's rows with no sort: {@link com.legend.compiler.spec.OrderView}'s
+     *  INCIDENTAL, the guard a printed relation is held to). A side is read as a query of its own, before the body
+     *  runs; the assert's statement reads once for all it compares. So such a value's print is left as written, the
+     *  database's (the independent review of the date slice and the independent audit of slice 2, 2026-11-26). */
+    private static boolean unrepeatable(TypedSpec e, List<TypedSpec> lets) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(List.of(e));
         Set<TypedSpec> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         while (!work.isEmpty()) {
@@ -386,7 +406,10 @@ public final class UpstreamPrints {
             if (!seen.add(n)) {
                 continue;
             }
-            if (n instanceof TypedNativeCall c && com.legend.builtin.Pure.AT_DATE_NOW.contains(c.callee().id())) {
+            if (n instanceof TypedNativeCall c && ANSWERS_ANEW.contains(c.callee().id())) {
+                return true;
+            }
+            if (com.legend.compiler.spec.OrderView.of(n, lets) == com.legend.compiler.spec.OrderView.INCIDENTAL) {
                 return true;
             }
             work.addAll(n.children());

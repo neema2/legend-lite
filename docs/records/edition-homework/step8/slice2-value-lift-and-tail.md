@@ -46,10 +46,18 @@ and the user's word on the register row.
 
 ## What was measured
 
-- **No recorded answer moved.** The whole edge net passes unchanged (`//pct:edge_contract_test`: PCT's answers and
-  outcomes on DuckDB, SQLite and H2, channel B's outcomes, the corpus's on both lanes, pure/v1's answers, the edge
-  cases), and so do both corpus rosters, PCT's legend-engine lane on DuckDB and H2, and the SQL size pins of the
-  product and of the corpus.
+- **No recorded answer FILE moved; two pinned PCT failures on H2 did, and this record missed them** (corrected
+  2026-11-26 after the independent audit of the slice, its N1). The whole edge net passes unchanged
+  (`//pct:edge_contract_test`: PCT's answers and outcomes on DuckDB, SQLite and H2, channel B's outcomes, the corpus's
+  on both lanes, pure/v1's answers, the edge cases), and so do both corpus rosters, PCT's legend-engine lane on DuckDB
+  and H2, and the SQL size pins of the product and of the corpus. **What moved:** on H2, at legend-pure's door,
+  `testFloatToStringWithNegativeExponent` and `testFloatToStringWithPositiveExponent` were pinned as expected failures
+  (`Test_LegendLite_H2_EssentialFunctions_PCT`): the edge's SQL wrote legend-engine's H2 form of a Float literal there
+  (`1.3421E8`), the test expects legend-pure's (`134210000.0`), and the lift's Java print now writes legend-pure's,
+  so both pass. That is the answer tenet 1 asks for, but it is a moved answer. **Why the measurement missed it:** the
+  H2 essential suite at legend-pure's door was not a target on this slice's base (`//gates:pct_h2`'s five suites
+  joined the gate with the next batch), so no run here held those pins. The orchestrator found it in the next
+  batch's audit and removed the two pins there (`fd63bd84`). `//gates:pct_h2` is in this slice's checks since.
 - **The lift does hold the last-step Float prints.** With the edge's SQL cast switched off on top of this slice (the
   probe of `moves-if-float-text-used-further-is-lites.md`), PCT's essential suite on DuckDB and SQLite, `pct_h2`,
   channel B's essential suite and all 33 PCT answer files are unchanged. Run twice: on the first draft and again
@@ -103,4 +111,10 @@ printed side already; a Float's print is read only at an assert's own argument, 
   int, as legend-pure's Java reads it).
 - `core/edge_tests.bzl`: the two new tests listed with the edge's.
 - `native-claims.tsv`: regenerated.
-- No pin, ceiling or size went up, and no recorded answer file was re-recorded.
+- No pin, ceiling or size went up, and no recorded answer file was re-recorded. (Two H2 PCT pins of expected
+  failures began to pass and were removed in the next batch: "What was measured", above.)
+
+## The independent audit and its repair (2026-11-26)
+
+An audit of this slice by a reviewer outside the session (`../audits/step8-slice2-independent-2026-11-26.md`, on
+`claude/edit-ahead`) found no blocker and seven should-fix. The repair is `slice2-repair-2026-11-26.md`.

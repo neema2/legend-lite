@@ -55,6 +55,30 @@ class PrintTailTest {
         assertEquals(-1L, new PrintTail.IndexOf("b", 99L).applied("abcb"));
     }
 
+    /** WHERE JAVA AND A DATABASE PART, Java's answer is legend-pure's own (the independent audit of slice 2,
+     *  2026-11-26, its list; each read against legend-pure 5.99.0's Java and run on the build's JDK): a character
+     *  above U+FFFF, an empty needle, a control character at an end, a start outside the text. A database counts the
+     *  first as one character, and lite's SQL strips spaces alone and answers -1 for a start past the end
+     *  ({@code PrintTailParityTest} holds what each lane's database answers beside these). */
+    @Test
+    void whereADatabaseAnswersOtherwiseJavasIsLegendPures() {
+        String astral = "a\uD83D\uDE00b";
+        assertEquals(4L, new PrintTail.Length().applied(astral));
+        assertEquals(3L, new PrintTail.IndexOf("b", null).applied(astral));
+        assertEquals(0L, new PrintTail.IndexOf("", null).applied("abc"));
+        assertEquals(3L, new PrintTail.IndexOf("", 5L).applied("abc"));
+        assertEquals(true, new PrintTail.StartsWith("").applied("abc"));
+        assertEquals(true, new PrintTail.EndsWith("").applied("abc"));
+        assertEquals(true, new PrintTail.Contains("").applied("abc"));
+        assertEquals("xaxbxcx", new PureRelationText.Replace("", "x").applied("abc"));
+        assertEquals("a", new PrintTail.Trim().applied("\u0000a\u001f"));
+        // a no-break space is above U+0020: not stripped
+        assertEquals("\u00a0a", new PrintTail.Trim().applied("\u00a0a"));
+        // a start past an int wraps as legend-pure's intValue() does, to a negative, which Java clamps to the start
+        assertEquals(1L, new PrintTail.IndexOf("b", 2147483648L).applied("abcb"));
+        assertEquals(-1L, new PrintTail.IndexOf("b", 2147483647L).applied("abcb"));
+    }
+
     /** A tail is applied in the program's order, and answers its last step's type. */
     @Test
     void aTailIsAppliedInOrderAndAnswersItsLastStepsType() {
