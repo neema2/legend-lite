@@ -14,8 +14,11 @@ import java.util.function.Consumer;
 /**
  * A RELATION'S ROWS PRINTED AS LEGEND-PURE'S TEXT, A RUN'S RECEIVER (stage B's B2, B2b S1, 2026-11-24): the typed rows a
  * plan's run streams -- the relation a program's last {@code toString()}/{@code toCSV()} printed, that call removed by
- * the door -- collected in their order and, at the end, written by {@link PureRelationText} in one of its forms, the
- * program's literal {@code replace} calls applied, and handed to {@code receiver} as one String. The text exists only
+ * the door, or since the edition program's step 8 (2026-11-26) the one value a last {@code toString()} printed
+ * ({@link Form#VALUE}, {@link PureValueText}) -- collected in their order and, at the end, written by
+ * {@link PureRelationText} in one of its forms, the print's tail applied ({@link PrintTail}: the program's literal
+ * {@code replace} calls and the other calls of its closed set), and handed to {@code receiver} as one answer, a String
+ * or what the tail's last step answers. The text exists only
  * once the result is whole (a header names columns before any row, and a CSV's last newline follows the last row), so
  * the rows are held, as legend-engine's own TDS holds them. A writer: it spells, decides nothing, and holds no state
  * between runs (one instance per run).

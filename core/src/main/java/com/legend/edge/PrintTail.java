@@ -30,6 +30,11 @@ import java.util.List;
  *
  * <p>{@code replace} is {@link PureRelationText.Replace}, the set's first member.
  *
+ * <p>Java's answer is legend-pure's, which is not always lite's own SQL's for the same call: {@code length} counts
+ * UTF-16 units where a database counts characters, and {@code trim} strips a line break at either end where lite's SQL
+ * strips spaces alone (measured 2026-11-26, {@code PrintTailParityTest}). On the plain texts a printed table holds the
+ * two agree, {@code trim} of a text that begins or ends with a line break aside.
+ *
  * <p>A step answers a String, an Integer or a Boolean. Only a String can be read further, so a step that answers
  * another type is a tail's last (the typer already holds a program to that).
  */
