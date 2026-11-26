@@ -1936,7 +1936,6 @@ public class MariaDb extends AnsiSqlRenderer {
             case REPLACE -> writer.function("replace", c.args());
             case TRANSLATE -> throw wall(c.fn(), product() + " has no translate function");
             case REVERSE_STRING -> writer.function("reverse", c.args());
-            case FLOOR_RAW -> writer.function("floor", c.args());
             case STRPOS -> writer.function("INSTR", c.args());
             case LIST_LENGTH, JSON_ARRAY_LENGTH -> writer.function("JSON_LENGTH", c.args());
             case IN -> in(writer, c, parentPrec);
@@ -1994,7 +1993,6 @@ public class MariaDb extends AnsiSqlRenderer {
             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads
             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
             // mixed list, measured 2026-10-11)
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: the database's own CAST AS CHAR (its shortest digits), never laid out
             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "CHAR");

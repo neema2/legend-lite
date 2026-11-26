@@ -98,6 +98,21 @@ final class EngineTable implements EditionTable, Edition {
     private static final FunctionId TO_ONE = FunctionId.of(Pure.TO_ONE__T_MANY);
     private static final List<Row> TO_ONE_OF_EMPTY = List.of(new Row(NamedRule.TRUST_ONE, "toOne(empty)"));
 
+    /** {@code toString} of a Float: the database's own cast to text ({@code cast(%s as varchar)}, legend-engine's
+     *  {@code toString} dynaFunction on every database it has: each lane's reading,
+     *  docs/records/edition-homework/lanes/engine-templates-2026-11-26.md), a Float literal as its literal processor
+     *  writes it -- read as a double first where its processor casts it ({@link PureText#ENGINE_FLOAT_LITERAL_AS_DOUBLE}),
+     *  bare everywhere else. The user's ruling of 2026-11-26, "agreed on float/date text for engine": a row of this
+     *  table, not presentation. On a database legend-engine does not have there is no row and the call keeps its own
+     *  rule, lite's text. Until that day a pass of the edge's dialects wrote this cast for every Float text of every
+     *  compatibility plan ({@code PurePrintForms}); the two tests it holds are PCT's
+     *  {@code testFloatToStringWithNegativeExponent} (DuckDB) and the corpus's validation showcase
+     *  ({@code Quantity not in range: 1000000}), measured (docs/records/edition-homework/step8/). */
+    private static final FunctionId TO_STRING = FunctionId.of(Pure.TO_STRING__ANY_1);
+    private static final List<Row> FLOAT_TO_STRING = List.of(
+            new Row(NamedRule.FLOAT_TEXT_BY_CAST_OF_A_DOUBLE, "toString(Float)", PureText.ENGINE_FLOAT_LITERAL_AS_DOUBLE),
+            new Row(NamedRule.FLOAT_TEXT_BY_CAST, "toString(Float)", PureText.ENGINE_DATABASES));
+
     /** Each call to its rows, in order: the first that answers on the statement's database lowers the call. One row
      *  for most; one per form where legend-engine writes the function its own way on each database. */
     private static final Map<FunctionId, List<Row>> AS_GIVEN;
@@ -236,6 +251,11 @@ final class EngineTable implements EditionTable, Edition {
         FunctionId key = call.callee().id();
         if (TO_ONE.equals(key)) {
             return alwaysEmpty(call.args().get(0)) ? TO_ONE_OF_EMPTY : null;
+        }
+        if (TO_STRING.equals(key)) {
+            // a Float's alone, and only where legend-engine has the database: no row is the call's own rule
+            return call.args().get(0).info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                    && PureText.ENGINE_DATABASES.contains(database) ? FLOAT_TO_STRING : null;
         }
         Row written = WHERE_WRITTEN.get(key);
         if (written != null) {

@@ -79,5 +79,18 @@ public enum NamedRule {
      *  ({@code SqlFn.SPLIT_PART}): an empty part is a part, the separator is a whole text, an index past the parts is
      *  the empty text. Not the product's {@code splitPart}, Pure's (empty parts dropped, an index past them an
      *  error). */
-    SPLIT_PART_AS_GIVEN
+    SPLIT_PART_AS_GIVEN,
+
+    /** A Float's text as the target database's own cast of the value to text writes it ({@code CAST(x AS VARCHAR)}):
+     *  that database's digits and its own exponent form, which differ by database ({@code 1e-05} on one,
+     *  {@code 1.0E-5} on another, a whole value {@code 1} or {@code 1.0}), and a column a store holds as an integer
+     *  under a Float its digits. A Float literal operand is written as the exact numeric of its shortest digits, laid
+     *  out plain with a point, so the database prints the digits as written ({@code 0.000000013421}). Not the
+     *  product's text of a Float, six decimals on every database. */
+    FLOAT_TEXT_BY_CAST,
+
+    /** {@link #FLOAT_TEXT_BY_CAST} with a Float literal operand read as the database's double first
+     *  ({@code CAST(CAST(0.000000013421 AS DOUBLE) AS VARCHAR)}), so the database prints the literal as it prints any
+     *  double ({@code 1.3421E-8}). */
+    FLOAT_TEXT_BY_CAST_OF_A_DOUBLE
 }

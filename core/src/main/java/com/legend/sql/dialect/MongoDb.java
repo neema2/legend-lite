@@ -1095,7 +1095,6 @@ public class MongoDb extends AnsiSqlRenderer {
             case DEGREES -> MongoJson.op1(writer, "$radiansToDegrees", a.get(0));
             case CEILING -> longOf(writer, "$ceil", a);
             case FLOOR -> longOf(writer, "$floor", a);
-            case FLOOR_RAW -> MongoJson.op1(writer, "$floor", a.get(0));
             case ROUND -> roundHalfEven(writer, a);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
             case ROUND_RAW, DECIMAL_RAW -> throw new DialectCapability("the database's own function as given ("
@@ -1262,7 +1261,6 @@ public class MongoDb extends AnsiSqlRenderer {
                     + " no JSON text operator");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
             // a Float's full-precision text: the pipeline's own $toString (1e+20, 2: numberText's javadoc), never
             // laid out

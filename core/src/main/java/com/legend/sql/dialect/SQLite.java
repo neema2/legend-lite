@@ -257,7 +257,7 @@ public class SQLite extends AnsiSqlRenderer {
             SqlFn.LIST_MIN, SqlFn.LIST_MAX, SqlFn.LIST_AVG, SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_SORT,
             SqlFn.LIST_SORT_DESC, SqlFn.LIST_TAIL, SqlFn.LIST_INIT, SqlFn.RANGE_FN, SqlFn.LIST_PRODUCT,
             SqlFn.LIST_SLICE, SqlFn.REPEAT_VALUE, SqlFn.LIST_BOOL_AND, SqlFn.LIST_BOOL_OR, SqlFn.ALL_DISTINCT,
-            SqlFn.PARSE_DATE, SqlFn.LIST_REVERSE, SqlFn.DECIMAL_TO_TEXT, SqlFn.FLOAT_SHORTEST_TEXT,
+            SqlFn.PARSE_DATE, SqlFn.LIST_REVERSE, SqlFn.DECIMAL_TO_TEXT,
             // a lambda's operations and a map of entries, over json_each (the census builds no lambda, no entry list)
             SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM, SqlFn.LIST_EXISTS, SqlFn.LIST_FOR_ALL, SqlFn.LIST_REDUCE,
             SqlFn.MAP_FROM_ENTRIES));
@@ -1709,7 +1709,6 @@ public class SQLite extends AnsiSqlRenderer {
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
             case PI -> writer.append("pi()");
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: SQLite's own printf at seventeen significant digits (its cast writes
             // fifteen), the NULL kept
@@ -1756,7 +1755,6 @@ public class SQLite extends AnsiSqlRenderer {
             case TRANSLATE -> throw wall(c.fn(), "SQLite has no translate function");
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case CHR -> writer.function("char", c.args());
-            case FLOOR_RAW -> writer.function("floor", c.args());
             case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case STRPOS -> writer.function("instr", c.args());
             case LIST_LENGTH, JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());

@@ -624,7 +624,6 @@ public class DuckDb extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: DuckDB's own cast (its shortest digits, which read back)
             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
@@ -728,7 +727,6 @@ public class DuckDb extends AnsiSqlRenderer {
             case LIST_LENGTH -> writer.function("len", c.args());
             case STRFTIME -> strftime(writer, c.args());
             case STRPTIME -> writer.function("strptime", c.args());
-            case FLOOR_RAW -> writer.function("floor", c.args());
             case JSON_TYPE -> writer.function("json_type", c.args());
             case JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
             case JSON_PRETTY -> writer.function("json_pretty", c.args());

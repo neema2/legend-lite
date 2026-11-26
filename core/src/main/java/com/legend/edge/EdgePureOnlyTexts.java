@@ -90,12 +90,10 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
             return com.legend.lowering.ReprParts.cat(com.legend.lowering.ReprParts.pureToString(styled,
                     com.legend.compiler.element.type.Type.Primitive.DECIMAL, x), new SqlExpr.StringLit("D"));
         }
-        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-            // legend-pure's print form, the judges' %r of a Float; a value the store holds as an integer its digits
-            return heldAsInteger(x)
-                    ? new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                    : SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, x);
-        }
+        // a Float (the edition program's step 8, 2026-11-26): the toString spelling, lite's own text of a Float, as
+        // every text the program goes on computing with is (tenet 1 as the user amended it on 2026-11-25; the user's
+        // ruling on the register row, 2026-11-26). Until then legend-pure's print composed in SQL (the node
+        // FLOAT_SHORTEST_TEXT, deleted), and an integer-held Float column its digits
         // numbers, booleans, and the Any carrier: the toString spelling IS the representation
         return com.legend.lowering.ReprParts.pureToString(styled, t, x);
     }
@@ -132,19 +130,5 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
                     typed instanceof com.legend.compiler.spec.typed.TypedCDate cd ? cd.value().canonicalText() : null);
         }
         return com.legend.lowering.ReprParts.dateLiteralText(typed);
-    }
-
-    /** Whether {@code x} is a Float the STORE holds as an integer: a physical column the store declares integral
-     *  (legend-engine's test {@code tradeTable.quantity} INT under the validation showcase's Float), read off the scan's
-     *  own column (origin PHYSICAL), never inferred. legend-pure's print of it is the integer the database holds, as
-     *  legend-engine's cast of the column writes it. Moved here 2026-11-24 from the lowering ({@code ReprParts},
-     *  {@code LiteralSpelling}): since B2a the product prints every Float by one rule, so this is the edge's question
-     *  alone (B2a's end design audit, 2026-11-24). */
-    private static boolean heldAsInteger(SqlExpr x) {
-        return x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
-                && (c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
-                        || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
-                && (t.type() == com.legend.sql.SqlType.Scalar.INTEGER || t.type() == com.legend.sql.SqlType.Scalar.BIGINT
-                        || t.type() == com.legend.sql.SqlType.Scalar.HUGEINT);
     }
 }

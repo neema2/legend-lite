@@ -79,6 +79,13 @@ public final class PureText {
      *  ({@code legend_h2_extension_split_part}), which lite's H2 does not hold. */
     static final java.util.Set<DatabaseType> ENGINE_SPLIT_PART_READ = ON_DUCKDB;
 
+    /** Where legend-engine's {@code toString} of a Float literal prints it as the database prints a double: H2, whose
+     *  literal processor writes a Float literal {@code CAST(%s AS FLOAT)} ({@code h2Extension2_1_214.pure}'s
+     *  {@code getLiteralProcessorsForH2}); every other database legend-engine has keeps the default processor, the
+     *  literal bare ({@code extensionDefaults.pure}'s {@code getDefaultLiteralProcessors}). Read in legend-engine
+     *  4.145.0; until 2026-11-26 the edge's SQL pass chose between the two ({@code PurePrintForms.FloatLiteral}). */
+    static final java.util.Set<DatabaseType> ENGINE_FLOAT_LITERAL_AS_DOUBLE = ON_H2;
+
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS},
      *  {@link #ENGINE_PCT}): a plan in legend-pure's words,
@@ -427,18 +434,13 @@ public final class PureText {
                     : java.util.List.of();
         }
 
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** H2, spelled as upstream spells it. */
@@ -450,18 +452,13 @@ public final class PureText {
         }
 
 
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return PurePrintForms.passes(PurePrintForms.FloatLiteral.PRINT_AS_FLOAT);
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x, PurePrintForms.FloatLiteral.PRINT_AS_FLOAT), 0);
-        }
     }
 
     /** Postgres, spelled as upstream spells it. */
@@ -481,67 +478,47 @@ public final class PureText {
                     : statement;
         }
 
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** Databricks, spelled as upstream spells it. */
     public static final class Databricks extends com.legend.sql.dialect.Databricks {
 
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** Snowflake, spelled as upstream spells it. */
     public static final class Snowflake extends com.legend.sql.dialect.Snowflake {
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** BigQuery, spelled as upstream spells it. */
     public static final class BigQuery extends com.legend.sql.dialect.BigQuery {
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** SQLite, spelled as upstream spells it. */
@@ -554,83 +531,58 @@ public final class PureText {
             return false;
         }
 
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** MariaDB, spelled as upstream spells it. */
     public static final class MariaDb extends com.legend.sql.dialect.MariaDb {
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** MySQL, spelled as upstream spells it. */
     public static final class MySql extends com.legend.sql.dialect.MySql {
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** Trino, spelled as upstream spells it. */
     public static final class Trino extends com.legend.sql.dialect.Trino {
 
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** ClickHouse, spelled as upstream spells it. */
     public static final class ClickHouse extends com.legend.sql.dialect.ClickHouse {
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 
     /** MongoDB, spelled as upstream spells it. */
@@ -641,17 +593,12 @@ public final class PureText {
             return "%Y-%m-%dT%H:%M:%S.%L+0000";
         }
 
-        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
+         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
-        @Override
-        protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
-                com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
-        }
     }
 }

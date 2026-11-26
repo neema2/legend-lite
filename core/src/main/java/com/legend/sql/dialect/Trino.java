@@ -955,7 +955,6 @@ public class Trino extends AnsiSqlRenderer {
             case TODAY -> writer.append("current_date");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: Trino's own cast, never re-spelled (always its exponent form, 1.5E0)
             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
@@ -1047,7 +1046,6 @@ public class Trino extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS VARCHAR)");
             case BIT_NOT -> writer.append("bitwise_not(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
             // floor without the BIGINT conversion
-            case FLOOR_RAW -> writer.append("floor(").expr(a.get(0), 0).append(")");
             // the first character's code point (codepoint takes a VARCHAR(1), and refuses the empty one: Pure's is 0)
             case ASCII_CODE -> writer.append("(CASE WHEN length(").expr(a.get(0), 0).append(") = 0 THEN 0 ELSE")
                     .append(" codepoint(CAST(substr(").expr(a.get(0), 0).append(", 1, 1) AS VARCHAR(1))) END)");

@@ -7,35 +7,31 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 
 /**
- * LEGEND-PURE'S PRINT FORMS AT THE EDGE (phase D's D1.2, 2026-11-15): each product text node written as legend-pure's
- * form of it, which each product dialect spells for the judges already -- a Float's ({@link SqlFn#FLOAT_TO_TEXT}, lite's
- * six decimals) as legend-engine writes it in a query ({@link #floatOf}: the database's cast, a literal legend-pure's
- * print; Phase 5, 2026-11-16, until then {@link SqlFn#FLOAT_SHORTEST_TEXT}), a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
- * legend-pure's print form ({@link PureDateTimePrint}; a literal's written text kept), a joined element's
- * ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
- * legend-pure writes (D1.3: the product refuses them by name), {@code format}'s padded {@code %0<w>d}
- * (at lowering since B8 (i), 2026-11-17: {@code EdgePureOnlyTexts}) and an instance's {@code @_} id ({@link SqlFn#INSTANCE_TEXT}), as it writes them. The
- * edge's first pass, so every
- * later pass sees the tree the lowering wrote until D1.2: the edge's SQL is byte-identical to before.
+ * LEGEND-PURE'S PRINT FORMS AT THE EDGE (phase D's D1.2, 2026-11-15): a product text node written as legend-pure's form
+ * of it -- a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as legend-pure's print form
+ * ({@link PureDateTimePrint}; a literal's written text kept), and a joined element's ({@link SqlFn#CELL_TEXT}, D1.3: the
+ * product skips an empty one) as its text or {@code TDSNull}. (A Float's text, legend-engine's in-query cast, was this
+ * pass's until 2026-11-26: the note below. The texts only legend-pure writes are composed at lowering since B8 (i),
+ * 2026-11-17: {@code EdgePureOnlyTexts}.) The edge's first pass, so every later pass sees the tree the lowering wrote.
  */
 final class PurePrintForms extends com.legend.sql.SqlRewriter {
 
-    private final FloatLiteral floatLiteral;
-
-    private PurePrintForms(FloatLiteral floatLiteral) {
-        this.floatLiteral = floatLiteral;
+    private PurePrintForms() {
     }
 
-    /** The edge's first pass, as a list a dialect returns, under the default Float literal processor. */
+    /** The edge's first pass, as a list a dialect returns. */
     static java.util.List<com.legend.sql.SqlRewriter> passes() {
-        return passes(FloatLiteral.PRINT_BARE);
+        return java.util.List.of(new PurePrintForms(), new TdsNullCells());
     }
 
-    /** The edge's first pass, as a list a dialect returns, a Float literal under {@code toString} written by
-     *  {@code floatLiteral}. */
-    static java.util.List<com.legend.sql.SqlRewriter> passes(FloatLiteral floatLiteral) {
-        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
-    }
+    // (The Float text: gone 2026-11-26, the edition program's step 8. Until then this pass wrote legend-engine's
+    // in-query cast for every Float text of every compatibility plan, a Float literal by legend-engine's literal
+    // processor of the database (FloatLiteral: bare, or on H2 cast to FLOAT), and each edge dialect overrode
+    // floatToText for a node no pass reached. Now: inside a store query at legend-engine's door that cast is a row of
+    // legend-engine's table (EngineTable; lowering.NamedRule FLOAT_TEXT_BY_CAST and FLOAT_TEXT_BY_CAST_OF_A_DOUBLE; the
+    // user's ruling of 2026-11-26, "agreed on float/date text for engine"); at legend-pure's doors a Float's print at a
+    // last step is Java's (PrintedRelations, PureValueText) and one used further is lite's own text, written by the
+    // product's dialect (tenet 1 as the user amended it on 2026-11-25; the register row of this step).)
 
     // (F31's pass, the unguarded parses: a parse written as upstream's plain cast in every edge plan. Gone 2026-11-26,
     // the edition program's step 5: the plain cast is a row of legend-engine's table, EngineTable -- inside a store
@@ -49,54 +45,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         protected SqlExpr expr(SqlExpr e) {
             return isJoined(e) ? tdsNullOf(e) : e;
         }
-    }
-
-    /** How a Float LITERAL reaches the database in legend-engine's SQL: its literal processor for a Float, per
-     *  database (legend-engine 4.145.0, read). Lite writes a Float literal as a double (the edge too, since 2026-11-25:
-     *  register S20), except at an extreme magnitude
-     *  ({@link com.legend.sql.SqlTyping#floatDecimal}); under a {@code toString} the edge writes it as upstream does, so
-     *  the database's cast prints what legend-engine's prints (Phase 5, row 8 of the edge program, 2026-11-16). */
-    enum FloatLiteral {
-        /** The default processor ({@code extensionDefaults.pure}'s {@code getDefaultLiteralProcessors}: format
-         *  {@code %s}, legend-pure's {@code toString}), which DuckDB, Postgres, Snowflake, Databricks, BigQuery, Trino and
-         *  ClickHouse keep: legend-pure's print, bare ({@link com.legend.result.CellText#carriedFloat}), an exact numeric
-         *  the database prints as written ({@code 0.000000013421}, where a DOUBLE prints {@code 1.3421e-08}). The
-         *  closest form where legend-engine has no extension (SQLite, MariaDB, MySQL, MongoDB). */
-        PRINT_BARE,
-        /** H2's processor ({@code h2Extension2_1_214.pure}'s {@code getLiteralProcessorsForH2}: format
-         *  {@code CAST(%s AS FLOAT)}): legend-pure's print cast to H2's FLOAT, a double, which H2's cast prints
-         *  {@code 1.3421E-8} (legend-engine's H2 manifest expects that failure of
-         *  {@code testFloatToStringWithNegativeExponent}). */
-        PRINT_AS_FLOAT;
-
-        SqlExpr of(SqlExpr.FloatLit f) {
-            if (!Double.isFinite(f.value())) {
-                return f;
-            }
-            return switch (this) {
-                case PRINT_BARE -> print(f);
-                case PRINT_AS_FLOAT -> new SqlExpr.Cast(print(f), com.legend.sql.SqlType.Scalar.DOUBLE,
-                        SqlExpr.Reason.DECLARED);
-            };
-        }
-
-        private static SqlExpr print(SqlExpr.FloatLit f) {
-            return new SqlExpr.DecimalLit(new java.math.BigDecimal(com.legend.result.CellText.carriedFloat(f.value())));
-        }
-    }
-
-    /** A Float's {@code toString} in a query as legend-engine writes it, its {@code toString} dynaFunction: the
-     *  database's cast ({@code cast(%s as varchar)}, legend-engine 4.145.0's {@code duckdbExtension.pure} and
-     *  {@code h2Extension2_1_214.pure}), a literal operand written by {@code literal}. The pass's rule, and a node no
-     *  pass reached. */
-    static SqlExpr floatOf(SqlExpr x, FloatLiteral literal) {
-        SqlExpr operand = x instanceof SqlExpr.FloatLit f ? literal.of(f) : x;
-        return new SqlExpr.Cast(operand, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
-    }
-
-    /** {@link #floatOf(SqlExpr, FloatLiteral)} under the default literal processor. */
-    static SqlExpr floatOf(SqlExpr x) {
-        return floatOf(x, FloatLiteral.PRINT_BARE);
     }
 
     /** A join's element texts as legend-engine writes them (phase D's D1.3: the product skips an empty one), at the
@@ -143,9 +91,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
     protected SqlExpr expr(SqlExpr e) {
         if (joined(e) instanceof SqlExpr j) {
             return j;
-        }
-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_TO_TEXT) {
-            return floatOf(expr(c.args().get(0)), floatLiteral);
         }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_TO_TEXT) {
             // legend-pure's print form, composed here (census B12, 2026-11-17: the DATETIME_PRINT node gone)

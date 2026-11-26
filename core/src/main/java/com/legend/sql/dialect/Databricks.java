@@ -1108,7 +1108,6 @@ public class Databricks extends AnsiSqlRenderer {
             case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", null);
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: Spark's own cast, never re-spelled (its exponent written E)
             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "STRING");
@@ -1191,9 +1190,6 @@ public class Databricks extends AnsiSqlRenderer {
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
-            // floor without the BIGINT conversion (Spark's floor of a double is a BIGINT: past 2^63 it overflows)
-            case FLOOR_RAW -> writer.append("(CASE WHEN abs(").expr(a.get(0), 0).append(") >= 4503599627370496 THEN ")
-                    .expr(a.get(0), 0).append(" ELSE CAST(floor(").expr(a.get(0), 0).append(") AS DOUBLE) END)");
 
             // ---- strings
             case MATCHES -> writer.append("regexp_like(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
