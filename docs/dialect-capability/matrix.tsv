@@ -2692,8 +2692,8 @@ MongoDb	MongoDB	call	ATAN2	emulated	$atan2		0
 MongoDb	MongoDB	call	SINH	emulated	op1: $sinh		0
 MongoDb	MongoDB	call	COSH	emulated	op1: $cosh		0
 MongoDb	MongoDB	call	TANH	emulated	op1: $tanh		0
-MongoDb	MongoDB	call	ACOS_IN_DOMAIN	emulated	op1: $acos		0
-MongoDb	MongoDB	call	ASIN_IN_DOMAIN	emulated	op1: $asin		0
+MongoDb	MongoDB	call	ACOS_IN_DOMAIN	emulated	unfolded: {"$acos": …}		0
+MongoDb	MongoDB	call	ASIN_IN_DOMAIN	emulated	unfolded: {"$asin": …}		0
 MongoDb	MongoDB	call	CEILING	emulated	longOf: $ceil		0
 MongoDb	MongoDB	call	FLOOR	emulated	longOf: $floor		0
 MongoDb	MongoDB	call	ROUND	emulated	roundHalfEven		0
