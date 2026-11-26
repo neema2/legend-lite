@@ -624,6 +624,9 @@ legend_java_library(
             # docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17)
             "src/test/java/com/legend/planner/LiteApiConformanceTest.java",
             "src/test/java/com/legend/server/PostgresArmTest.java",
+            # the equality measurement is :equality_measure's alone (tools/equality-measure, step 6.0 of the edition
+            # program): a main class run by hand, never a test
+            "src/test/java/com/legend/equalitymeasure/*.java",
             # isNumeric's one rule run on four databases, Postgres among them: :is_numeric_probe_test's alone (J20)
             "src/test/java/com/legend/planner/IsNumericProbeTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
@@ -3818,4 +3821,21 @@ write_source_files(
 product_tests_closure(
     name = "product_test_targets_closure",
     extra = ["//core:core_tests_lib", "//core:test_cases"],
+)
+
+# THE EQUALITY MEASUREMENT (step 6.0 of the edition program, tools/equality-measure/README.md): every collected assert
+# body as written and as its plain comparison, under the host and database judges on DuckDB, H2 and SQLite. Manual:
+# bazel run //core:equality_measure -- <bodies.tsv> <out dir> [<id regex>]
+legend_java_binary(
+    name = "equality_measure",
+    testonly = True,
+    srcs = glob(["src/test/java/com/legend/equalitymeasure/*.java"]),
+    jvm_flags = ["-Xmx3g"],
+    main_class = "com.legend.equalitymeasure.EqualityMeasure",
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+    ],
 )
