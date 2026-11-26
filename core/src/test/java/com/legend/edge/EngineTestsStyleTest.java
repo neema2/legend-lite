@@ -22,7 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * LEGEND-ENGINE'S OWN TESTS' STYLE ({@link PureText#ENGINE_TESTS}; the edition program's step 3, 2026-11-26): a test
  * of legend-engine's is Pure code around the queries it hands to {@code execute()}. The queries get legend-engine's
  * meaning (its table's rows); the test's own code is stamped and keeps Pure's, also where it works on a frame's rows.
- * Each case is read against the same body planned under {@link PureText#UPSTREAM}, which hands lite's edition: the
+ * Each case is read against the same body planned under {@link PureText#UPSTREAM}, legend-pure's door, whose edition
+ * is lite's but for where equal numbers of different types land ({@link PureTable}; no case here has such a list): the
  * two plans are the same text exactly where no call of a query's is one the table answers.
  */
 class EngineTestsStyleTest {

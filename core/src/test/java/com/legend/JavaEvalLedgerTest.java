@@ -1950,6 +1950,12 @@ class JavaEvalLedgerTest {
                             // flags, its operand's static multiplicity and the statement's database -- data, no SQL,
                             // no value computed
                             "EngineTable.java",
+                            // 2026-11-26 (the edition program's step 6, slice 6.2, the user's rulings of 2026-11-26
+                            // ~23:10): where equal numbers of different types land at the two compatibility doors --
+                            // UpstreamTies, a map from a function to the name of a rule the lowering holds, and
+                            // PureTable, legend-pure's door's edition and table, whose only rows are that map. Data:
+                            // no SQL, no value computed, nothing read from a row
+                            "PureTable.java", "UpstreamTies.java",
                             // a pure/v1 request's model, text or PureModelContextData (2026-10-21, leg 8 step 3) -- read
                             // and compiled only; no connection, no JDBC, no value. Moved here from com.legend.server
                             // 2026-11-18 (J40.ModelInput: legend-engine's routes alone read it)

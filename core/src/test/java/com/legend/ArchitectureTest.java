@@ -1429,6 +1429,12 @@ final class ArchitectureTest {
             "lowering.NamedRule#TEXT_HAS_NO_CASED_LETTER", "com.legend.edge.EngineTable",
             "lowering.NamedRule#TEXT_IS_PLAIN_DECIMAL", "com.legend.edge.EngineTable",
             "lowering.NamedRule#TRUST_ONE", "com.legend.edge.EngineTable",
+            // 2026-11-26 (the edition program's step 6, slice 6.2, the user's rulings of 2026-11-26 ~23:10: lite's rule
+            // in lite's mode, upstream's in the other two): the two rules that place equal numbers of different types
+            // as legend-pure and legend-engine do, named in ONE class of the edge that both compatibility doors' tables
+            // read (edge.UpstreamTies; EngineTable and the new PureTable ask it and name no rule of these themselves)
+            "lowering.NamedRule#EXTREME_KEEPS_THE_FOLDS_TIE", "com.legend.edge.UpstreamTies",
+            "lowering.NamedRule#SORT_TIES_AS_WRITTEN", "com.legend.edge.UpstreamTies",
             // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
             "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
