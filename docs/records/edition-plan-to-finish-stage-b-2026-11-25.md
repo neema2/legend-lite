@@ -448,6 +448,11 @@ old detector did not count it either).
    for a query using one about doubles (the raise's record travels in it). It shrinks on H2, SQLite and Snowflake
    (their own domain guards leave). 41 pins grow, 10 shrink. The same question as `substring`'s range check, which the
    user answered "Okay let's raise the lean sql" (2026-11-20): may these pins be raised for this ruled check?
+   Run on `92e828cb` (60 of 68 targets pass: PCT on DuckDB, H2 and SQLite, the H2 corpus). Left to do on the branch
+   once ruled: the size pins; the edge answer files re-recorded (four suites, the two tests' rows); two dialect
+   methods one to three lines over the 250-line limit (H2's and Postgres's `call`); the two new SQL functions sorted
+   in `SqlFnSortedTest`; channel B's product-style essential lane; each database lane's confirmation that its two
+   rows leave.
 
 ## 7. The user's words on this plan (2026-11-25, late night)
 
