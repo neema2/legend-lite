@@ -246,9 +246,9 @@ meta::pure::functions::math::tests::sign::testSign	PASS		PASS		SAME
 meta::pure::functions::math::tests::testCubeRoot	PASS		PASS		SAME
 meta::pure::functions::math::tests::testSquareRoot	PASS		PASS		SAME
 meta::pure::functions::math::tests::testSquareRootError	DEFECT	PLANNER_FAULT	FAIL	ERROR_MISMATCH	BOTH_FAIL
-meta::pure::functions::math::tests::toDecimal::testDecimalToDecimal	PASS		FAIL	REFUSED	LITE_BEHIND
-meta::pure::functions::math::tests::toDecimal::testDoubleToDecimal	PASS		FAIL	REFUSED	LITE_BEHIND
-meta::pure::functions::math::tests::toDecimal::testIntToDecimal	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::toDecimal::testDecimalToDecimal	PASS		PASS		SAME
+meta::pure::functions::math::tests::toDecimal::testDoubleToDecimal	PASS		PASS		SAME
+meta::pure::functions::math::tests::toDecimal::testIntToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::toFloat::testDecimalToFloat	PASS		PASS		SAME
 meta::pure::functions::math::tests::toFloat::testDoubleToFloat	PASS		PASS		SAME
 meta::pure::functions::math::tests::toFloat::testIntToFloat	PASS		PASS		SAME
