@@ -171,6 +171,16 @@ class CrossTypeRuleTest {
     }
 
     @Test
+    @DisplayName("a model's compile check is its door's: lite's refuses a comparison across types in a body; a door"
+            + " whose audience sends it as written does not")
+    void theCompileCheckIsTheDoors() {
+        assertTrue(Compiler.compileErrors(MODEL).stream().anyMatch(m -> m.contains("> compares Integer with Float")),
+                Compiler.compileErrors(MODEL).toString());
+        assertEquals(List.of(), Compiler.compileErrors(MODEL, e -> String.valueOf(e.getMessage()),
+                CrossTypeRule.AS_WRITTEN));
+    }
+
+    @Test
     @DisplayName("a query whose body was rewritten is not typed again under another setting")
     void aRewrittenBodyIsNotTypedAgain() {
         TypedQuery q = Compiler.query(Compiler.compileModel(MODEL), "|1 == 2");

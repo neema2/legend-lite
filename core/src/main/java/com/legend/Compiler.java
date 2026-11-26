@@ -912,7 +912,8 @@ public final class Compiler {
         // the platform's facts about the program ({@link ProgramFacts}), in one typing pass; programFacts, the public
         // door that answered them all, went 2026-11-15 (C5-J's last round, A3): the PCT runner reads them off its test
         // plan, and no caller was left
-        SpecCompiler specs = new SpecCompiler(ctx);
+        // a reading of the program's facts, no compile check: the door that admitted the program checks its code
+        SpecCompiler specs = new SpecCompiler(ctx, com.legend.compiler.spec.CrossTypeRule.AS_WRITTEN);
         return ProgramFacts.of(specs.typeQueryBody(resolved), specs).effects();
     }
 
@@ -943,7 +944,9 @@ public final class Compiler {
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             String runtimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn) {
-        SpecCompiler specs = new SpecCompiler(ctx);
+        // the SQL of an already resolved query, for a caller that reads it (a nested query's lineage inside a plan,
+        // a test's SQL text): no compile check, so no comparison setting of its own
+        SpecCompiler specs = new SpecCompiler(ctx, com.legend.compiler.spec.CrossTypeRule.AS_WRITTEN);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         // a statement's own SQL text (an executeInDb's read) refused by name first, as every product door and the
         // seed's one entry refuse it: this lowers on its own (the follow-up audit's G1, 2026-11-14)
@@ -985,14 +988,17 @@ public final class Compiler {
      * signature-broken walls under the plain FQN.
      */
     public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
-        return compileAllBodies(ctx, e -> String.valueOf(e.getMessage()));
+        return compileAllBodies(ctx, e -> String.valueOf(e.getMessage()),
+                com.legend.compiler.spec.LiteCrossTypeRule.INSTANCE);
     }
 
     /** {@link #compileAllBodies(ModelContext)}, each wall worded by {@code words} (a compile error's kind in the
      *  product's sentence, or the edge's: D1.6, W7 of docs/records/d-plan-2026-11-16.md). */
     private static java.util.Map<String, String> compileAllBodies(ModelContext ctx,
-            java.util.function.Function<Throwable, String> words) {
-        SpecCompiler specs = new SpecCompiler(ctx);
+            java.util.function.Function<Throwable, String> words, com.legend.compiler.spec.CrossTypeRule comparisons) {
+        // a compile check is the door's: each body typed under the door's comparison setting (lite's refuses a
+        // comparison across types in a body; a compatibility door's audience accepts it)
+        SpecCompiler specs = new SpecCompiler(ctx, comparisons);
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
         // the MODULE's own bodies: the boot layer's (the system metamodel's
         // functions, the prelude's lifted derived properties and constraints)
@@ -1039,37 +1045,48 @@ public final class Compiler {
      * listed as one of its errors.
      */
     public static java.util.List<String> compileErrors(String model) {
-        return compileErrorsOf(() -> compileModel(model), e -> String.valueOf(e.getMessage()));
+        return compileErrorsOf(() -> compileModel(model), e -> String.valueOf(e.getMessage()),
+                com.legend.compiler.spec.LiteCrossTypeRule.INSTANCE);
     }
 
     /** {@link #compileErrors(String)}, each error worded by {@code words}: the compatibility edge's route words a compile
      *  error's kind as legend-engine does ({@code edge.PureMessages.compile}; D1.6, W7). */
     public static java.util.List<String> compileErrors(String model, java.util.function.Function<Throwable, String> words) {
-        return compileErrorsOf(() -> compileModel(model), words);
+        return compileErrorsOf(() -> compileModel(model), words, com.legend.compiler.spec.LiteCrossTypeRule.INSTANCE);
+    }
+
+    /** {@link #compileErrors(String, java.util.function.Function)} under a door's comparison setting: a compatibility
+     *  door's compile route checks a model as its audience does, so a comparison across types in a function's body
+     *  is no error there (the edition program's step 4, 2026-11-26). */
+    public static java.util.List<String> compileErrors(String model, java.util.function.Function<Throwable, String> words,
+            com.legend.compiler.spec.CrossTypeRule comparisons) {
+        return compileErrorsOf(() -> compileModel(model), words, comparisons);
     }
 
     /** {@link #compileErrors(String)} for a model given as protocol records ({@link
      *  #compileModel(com.legend.protocol.Protocol.PureModelContextData)}, leg 8 step 3: a client's
      *  {@code PureModelContextData}). */
     public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model) {
-        return compileErrorsOf(() -> compileModel(model), e -> String.valueOf(e.getMessage()));
+        return compileErrorsOf(() -> compileModel(model), e -> String.valueOf(e.getMessage()),
+                com.legend.compiler.spec.LiteCrossTypeRule.INSTANCE);
     }
 
-    /** {@link #compileErrors(com.legend.protocol.Protocol.PureModelContextData)}, each error worded by {@code words}. */
+    /** {@link #compileErrors(com.legend.protocol.Protocol.PureModelContextData)}, each error worded by {@code words},
+     *  under a door's comparison setting (legend-engine's compile route its one caller). */
     public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model,
-            java.util.function.Function<Throwable, String> words) {
-        return compileErrorsOf(() -> compileModel(model), words);
+            java.util.function.Function<Throwable, String> words, com.legend.compiler.spec.CrossTypeRule comparisons) {
+        return compileErrorsOf(() -> compileModel(model), words, comparisons);
     }
 
     private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model,
-            java.util.function.Function<Throwable, String> words) {
+            java.util.function.Function<Throwable, String> words, com.legend.compiler.spec.CrossTypeRule comparisons) {
         ModelContext ctx;
         try {
             ctx = model.get();
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
             return java.util.List.of(words.apply(e));
         }
-        return java.util.List.copyOf(compileAllBodies(ctx, words).values());
+        return java.util.List.copyOf(compileAllBodies(ctx, words, comparisons).values());
     }
 
 }

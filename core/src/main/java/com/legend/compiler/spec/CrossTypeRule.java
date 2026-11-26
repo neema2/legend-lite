@@ -27,6 +27,31 @@ import com.legend.compiler.spec.typed.TypedSpec;
  */
 public interface CrossTypeRule {
 
+    /** THE SETTING THAT CHECKS NOTHING: a comparison across types is the call as written, in the query and in every
+     *  body. For a reading that is no compile check -- the planner's own account of a program (its facts, a nested
+     *  query's lineage), where the code was or will be checked by the door that admitted it -- and for an audience
+     *  that sends every comparison to the database as written. A compile check takes the door's own setting
+     *  ({@code Compiler.compileErrors}'s), never this by default (the edition program's step 4, 2026-11-26: until
+     *  that day a type-checker made for such a reading carried lite's setting, which read no body; once lite's
+     *  setting reads bodies, it would have refused a compatibility door's code from inside the planner). */
+    CrossTypeRule AS_WRITTEN = new CrossTypeRule() {
+        @Override
+        public TypedSpec inQuery(TypedCrossTypeComparison crossing) {
+            return crossing.comparison();
+        }
+
+        @Override
+        public boolean readsBodies() {
+            return false;
+        }
+
+        @Override
+        public TypedSpec inBody(TypedCrossTypeComparison crossing) {
+            return crossing.comparison();
+        }
+    };
+
+
     /** A comparison across types written in the query or test body the door receives. */
     TypedSpec inQuery(TypedCrossTypeComparison crossing);
 
