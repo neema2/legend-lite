@@ -70,3 +70,17 @@ fields (`//core:guardrails` and `//core:guardrails_edge` pass).
    `Census.java:132`, `Lowerer.java:1991`, `Ddl.java:19`, `ScanOrder.java:18`, `DuckDb.java:767` and `:778`,
    `SqlDialect.java:366`, `PureText.java`'s two class javadocs).
 3. Nothing else is owed by this slice.
+
+## After the pause
+
+The run that was already going ended by itself (about 23:00 UTC); nothing else was started.
+
+- **PCT at the base `4d44bf54`:** every suite passes on both databases, 0 failed, with the same counts as the
+  head: Essential 345, Grammar 137, Relation 469, Standard 205, Unclassified 93, on DuckDB and on Postgres
+  (Postgres through `tools/postgres/as_unprivileged.sh`). So the slice moves no PCT answer on either database,
+  which is what the uncommitted probe had shown.
+- **`//datacube:timeseries_queries_test`,** rerun alone on the head: passes. Its failure in the local gate was
+  the container's memory limit.
+
+So the local gate's 15 failures on the head are all accounted for (14 root-only, 1 memory kill), and step 1 of
+"Exact next action" is done: what remains on resume is the final report to the orchestrator.
