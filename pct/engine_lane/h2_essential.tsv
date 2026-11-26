@@ -133,7 +133,7 @@ meta::pure::functions::date::tests::testDateDiffMilliseconds	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffMinutes	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffMonths	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffSeconds	PASS		PASS		SAME
-meta::pure::functions::date::tests::testDateDiffWeeks	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDateDiffWeeks	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffYears	REFUSES	REFUSES_OTHER: ensure the target system understands	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testDateFromDay	REFUSES	REFUSES_OTHER: does not support	FAIL	DATABASE_ERROR	BOTH_FAIL
@@ -246,8 +246,8 @@ meta::pure::functions::math::tests::sign::testSign	PASS		PASS		SAME
 meta::pure::functions::math::tests::testCubeRoot	PASS		FAIL	DATABASE_ERROR	LITE_BEHIND
 meta::pure::functions::math::tests::testSquareRoot	PASS		PASS		SAME
 meta::pure::functions::math::tests::testSquareRootError	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
-meta::pure::functions::math::tests::toDecimal::testDecimalToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
-meta::pure::functions::math::tests::toDecimal::testDoubleToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::toDecimal::testDecimalToDecimal	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::math::tests::toDecimal::testDoubleToDecimal	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::math::tests::toDecimal::testIntToDecimal	PASS		PASS		SAME
 meta::pure::functions::math::tests::toFloat::testDecimalToFloat	PASS		PASS		SAME
 meta::pure::functions::math::tests::toFloat::testDoubleToFloat	PASS		PASS		SAME
