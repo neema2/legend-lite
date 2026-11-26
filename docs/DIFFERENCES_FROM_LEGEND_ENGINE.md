@@ -464,6 +464,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
       relation's columns, or taking a table with no declared columns). A comparison of two known different types
       written inside it is not refused today. A gap, not a design.
     - lite's own SDLC uses the same check, so a tree holding such a comparison in a function does not land there.
+      A way for a project to be taken with legend-engine's meaning instead is planned, not built.
   - **A number literal is not a mistake:** written against a number of another type it reads as that type when it
     is exact there. `$x.qty > 0` over a Float is `> 0.0`; `$x.salary < 50000` over a Decimal is `< 50000D`. Only a
     literal that cannot be that type (`1.5` against an Integer), two literals (`1 == 1.0`) and a Decimal literal
