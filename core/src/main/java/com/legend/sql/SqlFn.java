@@ -59,10 +59,6 @@ public enum SqlFn {
     // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
     SQRT, CBRT, EXP, LN, LOG10, POW, PI,
     SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
-    /** acos and asin of a value the statement's own guard holds within [-1, 1] (the lowering's rule raises outside it,
-     *  as legend-pure does: register S119): the database's function alone, with none of the dialect's own handling of
-     *  a value outside the domain, which {@link #ACOS} and {@link #ASIN} keep for a style that writes the raise plain. */
-    ACOS_IN_DOMAIN, ASIN_IN_DOMAIN,
     CEILING, FLOOR, ROUND, SIGN, XOR,
     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
     REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH,
@@ -238,7 +234,7 @@ public enum SqlFn {
      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
      *  SubselectPrune). */
     public static final java.util.Set<SqlFn> RAISING = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(ERROR,
-            PARSE_INT, PARSE_DATE, ACOS, ASIN, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
+            PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
             MAKE_TIMESTAMP));
 
     /** The functions that may leave an argument unevaluated on SOME dialect: AND, OR and COALESCE (SQL promises no

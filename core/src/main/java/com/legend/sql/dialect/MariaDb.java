@@ -1966,9 +1966,6 @@ public class MariaDb extends AnsiSqlRenderer {
             // outside [-1, 1] MariaDB answers NULL (measured), DuckDB raises
             case ACOS -> domainGuarded(writer, c, "ACOS");
             case ASIN -> domainGuarded(writer, c, "ASIN");
-            // within the domain by the statement's own guard: the function alone
-            case ACOS_IN_DOMAIN -> writer.function("ACOS", a);
-            case ASIN_IN_DOMAIN -> writer.function("ASIN", a);
             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");

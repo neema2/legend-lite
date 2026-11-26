@@ -1768,9 +1768,6 @@ public class SQLite extends AnsiSqlRenderer {
             // outside [-1, 1] SQLite answers NULL (measured), DuckDB raises
             case ACOS -> domainGuarded(writer, c, "acos");
             case ASIN -> domainGuarded(writer, c, "asin");
-            // within the domain by the statement's own guard: the function alone
-            case ACOS_IN_DOMAIN -> writer.function("acos", a);
-            case ASIN_IN_DOMAIN -> writer.function("asin", a);
             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");

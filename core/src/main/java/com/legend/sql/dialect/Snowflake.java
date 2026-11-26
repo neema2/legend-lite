@@ -1515,9 +1515,6 @@ public class Snowflake extends AnsiSqlRenderer {
                     .append("), ").expr(a.get(0), 0).append(")");
             // the engine's out-of-domain answer is NaN; Snowflake raises (measured: acos(2))
             case ACOS, ASIN -> acosArm(writer, c);
-            // within the domain by the statement's own guard: the function alone
-            case ACOS_IN_DOMAIN -> writer.function("ACOS", c.args());
-            case ASIN_IN_DOMAIN -> writer.function("ASIN", c.args());
             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");
             // Pure's divide-with-scale is HALF_UP: ROUND over a NUMBER (half away from zero, measured); over a FLOAT
             // in binary, as DuckDB's round (Snowflake's ROUND(FLOAT) rounds the decimal text: 2.675 is 2.68)

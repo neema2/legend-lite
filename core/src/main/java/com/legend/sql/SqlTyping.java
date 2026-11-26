@@ -418,7 +418,7 @@ public final class SqlTyping {
                     // describe what WE deliver, not the raw builtin.
                     HASH -> T_BIGINT;
             case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, RANDOM,
-                    ACOS, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
+                    ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
                     DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
             case TODAY, MAKE_DATE -> T_DATE;
             case NOW, MAKE_TIMESTAMP, STRPTIME, PARSE_DATE, FROM_EPOCH_SECONDS,

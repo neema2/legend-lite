@@ -541,9 +541,6 @@ public class DuckDb extends AnsiSqlRenderer {
             // the engine's answer — not propagating DuckDB's exception.
             case ACOS -> domainGuarded(writer, "acos", a);
             case ASIN -> domainGuarded(writer, "asin", a);
-            // within the domain by the statement's own guard: the function alone
-            case ACOS_IN_DOMAIN -> writer.function("acos", a);
-            case ASIN_IN_DOMAIN -> writer.function("asin", a);
             // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
             // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
             // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
