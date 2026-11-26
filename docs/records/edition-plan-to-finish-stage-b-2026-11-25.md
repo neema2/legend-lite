@@ -604,6 +604,60 @@ answer was wrong on inputs they do not hold.
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
+**2026-11-26, after the user's rulings (section 7a): the approved pieces stacked, step 4 started, three sessions
+measuring.**
+
+- **The lanes read legend-engine's own SQL on every database it has** (the user: "Run all the round/substring stuff
+  on all the warm lanes"). Five reports, each template read at the pin and run beside lite's rule:
+  `edition-homework/lanes/engine-templates-2026-11-26.md`, with the table of which row answers where. In short:
+  `substring`, `substr` and the String `indexOf` give legend-engine's answers on Snowflake, Postgres, Trino,
+  Databricks and BigQuery as on DuckDB and H2 (ClickHouse differs on multi-byte text); `round` on Snowflake, Trino,
+  Databricks and BigQuery's one-argument form (Postgres rounds a Float half to even without legend-engine's cast);
+  `toDecimal`, `isNumeric`, `dateDiff` and `splitPart` are written differently on almost every database, and several
+  have no legend-engine SQL at all. MariaDB and MySQL are not legend-engine databases. **Not yet in the table's code:**
+  the rows still answer on DuckDB and H2 alone; widening them needs its tests reworked (they use Postgres as the
+  database that refuses) and a lane round, its own batch.
+- **One batch, built together** (the edit tree, then a detached copy; not on the session branch until verified):
+  - `toDecimal`'s row with its review's fixes (the register and the differences page say whose value each is; the
+    refusal names no audience);
+  - the plain parses as rows, the edge's unguarded-parses pass deleted, `InterimEdgeSitesTest`'s ceiling 4 to 5 by
+    the user's word; register **S424**, new: the cast is to Pure's width (64 bits, a double) where legend-engine's
+    SQL names a 32-bit `integer` on four databases and a single-precision `float` on DuckDB and ClickHouse (measured:
+    DuckDB's `cast('3.14' as float)` is `3.140000104904175` as a double). Not new behaviour, recorded for the first
+    time: **posted to the user**;
+  - `isNumeric` as legend-engine's own form on each database; every row of the table now carries the databases it
+    answers on, sets `edge/PureText` holds, so the table names no database;
+  - `acos` and `asin` raising.
+  - Guard moves in it, each dated in its file: `DialectBoundaryTest`'s count of database names in `PureText` 2 to 4
+    (the two `isNumeric` sets); `SqlFnSortedTest` (four new functions sorted PRODUCT; `LOWER`, `UPPER` and
+    `PARSE_INT` are the product's alone again, a shrink; `EQUAL` gains `lowering.NamedRules`).
+  - Fast checks on it: the guards, the census, 1,036 edge tests, the lowering's and SQL's tests pass. Then one
+    regeneration of every recorded file, the fixed pre-push set, and an independent review (running).
+- **Two more rows written, not yet built:** `dateDiff` as the database's own function for every unit ("Yes all
+  units"; no new SQL function: the plain `DATE_DIFF` was already there; register S425), and `splitPart` on DuckDB as
+  its own `split_part` ("Yes match split fully"; S426), a row only where legend-engine writes the database's
+  function: on H2 legend-engine calls its own Java (`StringUtils.split`, which drops empty parts as Pure does), so
+  H2 keeps Pure's rule.
+- **Step 4 started.** The literal rule (`compiler/spec/NumberLiterals`) and strict bodies (lite's comparison setting
+  reads bodies; a body's marker is refused when the body is typed whole) are written with their tests,
+  compile-checked, and **pushed to the session branch as `c64292af`, marked not yet verified**, so that a measuring
+  session and CI run it in parallel (this container's one Bazel was regenerating). The earlier promise that the
+  session branch never carries an unverified commit is broken for this one commit, on purpose, and said here.
+  Recorded: AGENTS.md's equality rule (two bullets), register S127, the differences page's new section on typing.
+- **Step 6.0's measurement is in** (`edition-homework/r3/measured-step6-equality.md`): 1,697 assert bodies, as
+  written and as plain comparisons, both judges, three databases. No body passes under one judge and fails under
+  the other; 206 bodies differ between their two forms, each grouped; the product still disagrees with itself where
+  a side is typed only at run time (`[1,2]->cast(@Any) == [1.0,2.0]->cast(@Any)` is true on DuckDB and false on H2
+  and SQLite). A second run on the literal rule's commit is asked for.
+- **Step 8's session reported three times.** Its first slice (the legend-pure Float text moved out of the product)
+  is built and measured, and parked by the orchestrator: it leaves one SQL function the product renders and only
+  the edge writes, which no guard category allows, and makes Snowflake's and BigQuery's edge SQL several times
+  longer. The direction is the user's amended tenet 1: a last-step print is Java's, a print used further is lite's
+  own text; the session is measuring which answers that moves. Its print-tail proposal: a closed set (`replace`,
+  `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf`, `+` with literal Strings), built together with
+  the scalar value lift, because alone the tail reaches no test today's rule misses (measured: all 41 corpus cases
+  are `toCSV->replace`, already lifted).
+
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
 1. **A number literal against a number column** (step 4's design question, and the equality rule's cost to a user
