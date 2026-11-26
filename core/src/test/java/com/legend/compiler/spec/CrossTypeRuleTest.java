@@ -33,6 +33,8 @@ class CrossTypeRuleTest {
             function x::loose(a: Integer[1]): Boolean[1] { $a == 1.0 }
             function x::keep<T>(r: Relation<T>[1], b: Boolean[1]): Relation<T>[1] { $r->filter(x | $b) }
             function x::ones<T>(r: Relation<T>[1]): Relation<T>[1] { $r->filter(x | $x.n == 1.0) }
+            function x::same<T,P,Q>(r: Relation<T>[1], a: ColSpec<P⊆T>[1], b: ColSpec<Q⊆T>[1]): Relation<T>[1]
+            { $r->filter(x | $x->read($a)->toOne() == $x->read($b)->toOne()) }
             """;
 
     /** A setting that lists what it is asked and answers the call. */
@@ -151,6 +153,21 @@ class CrossTypeRuleTest {
         // the model's compile check says the same of the same body
         assertTrue(Compiler.compileAllBodies(ctx).values().stream()
                 .anyMatch(m -> m.contains("> compares Integer with Float")), Compiler.compileAllBodies(ctx).toString());
+    }
+
+    @Test
+    @DisplayName("lite's setting in a body typed into its call: two generic positions compare when the query runs, no"
+            + " mistake of the function as written; a literal there still reads as the call's column type")
+    void litesSettingInABodyTypedIntoItsCall() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        // an Integer column against a Float column, through a function generic over both: no marker
+        assertEquals(List.of(), CrossTypeComparisons.in(
+                Compiler.query(ctx, "|#TDS\nn, f\n1, 1.5\n#->x::same(~n, ~f)").body()));
+        // the same two columns compared in the query itself: a mistake
+        assertEquals(1, CrossTypeComparisons.in(
+                Compiler.query(ctx, "|#TDS\nn, f\n1, 1.5\n#->filter(x | $x.n == $x.f)").body()).size());
+        // a literal in a generic body reads as this call's column type: $x.n == 1.0 over an Integer column
+        assertEquals(List.of(), CrossTypeComparisons.in(Compiler.query(ctx, "|#TDS\nn\n1\n#->x::ones()").body()));
     }
 
     @Test

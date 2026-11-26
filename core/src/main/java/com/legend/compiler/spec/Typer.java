@@ -178,8 +178,11 @@ final class Typer {
         UNREAD,
         /** The query or test body a door receives ({@code SpecCompiler.typeQueryBodyMarked}). */
         QUERY,
-        /** A body the query reaches: a function's, typed on demand or into its call. */
-        BODY
+        /** A body the query reaches: a function's, typed on demand. */
+        BODY,
+        /** A body typed into its call, over the caller's own columns (a function generic over relations): its column
+         *  positions are generic ones ({@link CrossTypeRule#inGenericBody}). */
+        GENERIC_BODY
     }
 
     /** The door's comparison setting for everything this typer types. */
@@ -224,7 +227,7 @@ final class Typer {
      *  setting's answer for it. */
     TypedSpec compared(TypedSpec call, com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
-        if (compared == Compared.UNREAD || compared == Compared.BODY && !crossTypes.readsBodies()) {
+        if (compared == Compared.UNREAD || compared != Compared.QUERY && !crossTypes.readsBodies()) {
             return call;
         }
         java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);
@@ -237,6 +240,9 @@ final class Typer {
                         c.right(), pos);
         if (compared == Compared.BODY) {
             return crossTypes.inBody(written);
+        }
+        if (compared == Compared.GENERIC_BODY) {
+            return crossTypes.inGenericBody(written);
         }
         TypedSpec answer = crossTypes.inQuery(written);
         queryAnswers.add(answer);
