@@ -46,6 +46,9 @@ import java.util.Set;
  *       own conversion error ({@code TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}; legend-engine's SQL casts,
  *       ruled plain inside a store query: the edition design's S-2). Until 2026-11-26 a pass of the edge's dialect
  *       unguarded them in every compatibility style, PCT's legend-pure run and a host-side {@code let} included.</li>
+ *   <li>the relational {@code isNumeric}: legend-engine's own form on each database, a row for each form (a plain
+ *       decimal's text where its dialect translation writes a regular expression, no cased letter where it writes
+ *       {@code lower = upper}), where the product's is one numeric check on every database (register S370).</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
@@ -72,33 +75,50 @@ final class EngineTable implements EditionTable, Edition {
      *  ({@link #stampsOutsideStore}). */
     static final EngineTable PCT = new EngineTable(false, null, false, false);
 
-    /** A row: the rule that lowers the call, what a refusal calls the call, and whether the row answers on every
-     *  database (a rule that is legend-engine's on each by what it writes: the database's own cast) or only where
-     *  legend-engine's answer is checked ({@link PureText#engineAnswers}: a rule whose answer is the database's own
-     *  function's). */
-    private record Row(NamedRule as, String named, boolean onEveryDatabase) {
+    /** A row: the rule that lowers the call, what a refusal calls the call, and the databases the row answers on --
+     *  those where the rule gives legend-engine's own answer, read from its SQL and run on the database (a set of the
+     *  edge's database owner, {@link PureText}: this table names no database); null for a rule that is
+     *  legend-engine's on every database by what it writes (the database's own cast). */
+    private record Row(NamedRule as, String named, @Nullable Set<DatabaseType> on) {
         Row(NamedRule as, String named) {
-            this(as, named, false);
+            this(as, named, PureText.ENGINE_FUNCTIONS_READ);
+        }
+
+        boolean answersOn(@Nullable DatabaseType database) {
+            return on == null || database != null && on.contains(database);
         }
     }
 
     private static final FunctionId TO_ONE = FunctionId.of(Pure.TO_ONE__T_MANY);
-    private static final Row TO_ONE_OF_EMPTY = new Row(NamedRule.TRUST_ONE, "toOne(empty)");
+    private static final List<Row> TO_ONE_OF_EMPTY = List.of(new Row(NamedRule.TRUST_ONE, "toOne(empty)"));
 
-    private static final Map<FunctionId, Row> AS_GIVEN;
-    private static final Map<FunctionId, Row> CORRECTED;
+    /** Each call to its rows, in order: the first that answers on the statement's database lowers the call. One row
+     *  for most; one per form where legend-engine writes the function its own way on each database. */
+    private static final Map<FunctionId, List<Row>> AS_GIVEN;
+    private static final Map<FunctionId, List<Row>> CORRECTED;
 
     static {
-        Map<FunctionId, Row> given = new java.util.LinkedHashMap<>();
+        Map<FunctionId, List<Row>> given = new java.util.LinkedHashMap<>();
         each(given, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTRING_AS_GIVEN, "substring/2", "substring/3");
         each(given, Pure.AT_STRING_SUBSTR, NamedRule.SUBSTR_AS_GIVEN, "substr/2", "substr/3");
-        given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), new Row(NamedRule.SQL_POSITION, "indexOf/2"));
+        given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1),
+                List.of(new Row(NamedRule.SQL_POSITION, "indexOf/2")));
         each(given, Pure.AT_MATH_ROUND, NamedRule.ROUND_AS_GIVEN, "round/2", "round/2", "round/1");
         each(given, Pure.AT_MATH_TO_DECIMAL, NamedRule.CAST_TO_BARE_DECIMAL, "toDecimal/1");
         // the plain parses answer on every database, as the edge's pass they replace did (2026-11-26)
-        given.put(Pure.AT_STRING_PARSE_INTEGER.get(0), new Row(NamedRule.TEXT_CAST_TO_INTEGER, "parseInteger/1", true));
-        given.put(Pure.AT_STRING_PARSE_FLOAT.get(0), new Row(NamedRule.TEXT_CAST_TO_FLOAT, "parseFloat/1", true));
-        Map<FunctionId, Row> flagged = new java.util.LinkedHashMap<>();
+        given.put(Pure.AT_STRING_PARSE_INTEGER.get(0),
+                List.of(new Row(NamedRule.TEXT_CAST_TO_INTEGER, "parseInteger/1", null)));
+        given.put(Pure.AT_STRING_PARSE_FLOAT.get(0),
+                List.of(new Row(NamedRule.TEXT_CAST_TO_FLOAT, "parseFloat/1", null)));
+        // isNumeric: the regular expression legend-engine's dialect translation writes (toPostgresModel.pure:367,
+        // through sqlDialectDefaults.pure:894-897, 966-970: a plain decimal's text), or its lower(s) = upper(s)
+        // (duckdbExtension.pure:238); read and run 2026-11-26 (docs/records/edition-homework/r3/
+        // measured-step5-facts.md, C9). Until that day the edge's forms wrote lower = upper on every database
+        // (register S370, corrected). On any other database legend-engine has no SQL for it: refused by name
+        given.put(Pure.AT_LEGEND_LITE_IS_NUMERIC.get(0), List.of(
+                new Row(NamedRule.TEXT_IS_PLAIN_DECIMAL, "isNumeric/1", PureText.ENGINE_IS_NUMERIC_BY_PATTERN),
+                new Row(NamedRule.TEXT_HAS_NO_CASED_LETTER, "isNumeric/1", PureText.ENGINE_IS_NUMERIC_BY_CASE)));
+        Map<FunctionId, List<Row>> flagged = new java.util.LinkedHashMap<>();
         each(flagged, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTR_AS_GIVEN, "substring(corrected)/2",
                 "substring(corrected)/3");
         // lookup tables, never iterated; unmodifiable in declaration order all the same (NoSaltedIterationOrderTest)
@@ -127,13 +147,14 @@ final class EngineTable implements EditionTable, Edition {
 
     /** Each overload of {@code from} lowered by {@code rule}, named in a refusal by the name at its place: the
      *  overloads are listed in their declared order (builtin.Pure). */
-    private static void each(Map<FunctionId, Row> rows, List<FunctionId> from, NamedRule rule, String... names) {
+    private static void each(Map<FunctionId, List<Row>> rows, List<FunctionId> from, NamedRule rule,
+            String... names) {
         if (from.size() != names.length) {
             throw new IllegalStateException("the engine table names each overload of a row: " + from + " and "
                     + List.of(names));
         }
         for (int i = 0; i < from.size(); i++) {
-            rows.put(from.get(i), new Row(rule, names[i]));
+            rows.put(from.get(i), List.of(new Row(rule, names[i])));
         }
     }
 
@@ -148,18 +169,20 @@ final class EngineTable implements EditionTable, Edition {
         if (call.outsideStore()) {
             return null;
         }
-        Row row = row(call, features);
-        if (row == null) {
+        List<Row> rows = rows(call, features);
+        if (rows == null) {
             return null;
         }
-        if (!row.onEveryDatabase() && !PureText.engineAnswers(database)) {
-            // never guessed: legend-engine's answer on another database is checked first (the database lanes)
-            throw new NotImplementedException("legend-engine's answer for " + row.named()
-                    + (call.pos() == null ? "" : " at " + call.pos().startLine() + ":" + call.pos().startColumn())
-                    + " is not yet checked on " + (database == null ? "a runtime with no single database"
-                            : database.name()) + ", so this query is refused");
+        for (Row row : rows) {
+            if (row.answersOn(database)) {
+                return row.as();
+            }
         }
-        return row.as();
+        // never guessed: legend-engine's answer on another database is checked first (the database lanes)
+        throw new NotImplementedException("legend-engine's answer for " + rows.get(0).named()
+                + (call.pos() == null ? "" : " at " + call.pos().startLine() + ":" + call.pos().startColumn())
+                + " is not yet checked on " + (database == null ? "a runtime with no single database"
+                        : database.name()) + ", so this query is refused");
     }
 
     /** legend-engine's SQL writes no check for the kinds of its census class A ({@link PureText#ENGINE_UNCHECKED}):
@@ -182,13 +205,13 @@ final class EngineTable implements EditionTable, Edition {
         return call.outsideStore() || !PureText.ENGINE_UNCHECKED.contains(kind);
     }
 
-    private static @Nullable Row row(TypedNativeCall call, Set<Feature> features) {
+    private static @Nullable List<Row> rows(TypedNativeCall call, Set<Feature> features) {
         FunctionId key = call.callee().id();
         if (TO_ONE.equals(key)) {
             return alwaysEmpty(call.args().get(0)) ? TO_ONE_OF_EMPTY : null;
         }
         if (features.contains(Feature.CORRECT_SQL_SUBSTRING_INDEXING)) {
-            Row flagged = CORRECTED.get(key);
+            List<Row> flagged = CORRECTED.get(key);
             if (flagged != null) {
                 return flagged;
             }

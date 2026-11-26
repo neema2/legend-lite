@@ -44,6 +44,23 @@ public final class PureText {
         return target != null && CHECKED.contains(target);
     }
 
+    // ---- where each row of legend-engine's door's table answers (EngineTable's rows read these; the table names no
+    //      database) -- a set grows only when a lane has read legend-engine's SQL for the function on the database and
+    //      run it beside lite's rule (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md)
+
+    /** The databases whose own {@code substring}, position, {@code round} and bare DECIMAL are read as legend-engine's
+     *  answer for the row that writes them: {@link #CHECKED}. */
+    static final java.util.Set<DatabaseType> ENGINE_FUNCTIONS_READ = CHECKED;
+
+    /** Where legend-engine's {@code isNumeric} is a regular expression, a plain decimal's text: H2, by its dialect
+     *  translation ({@code toPostgresModel.pure:367}). */
+    static final java.util.Set<DatabaseType> ENGINE_IS_NUMERIC_BY_PATTERN = java.util.Set.of(DatabaseType.H2);
+
+    /** Where legend-engine's {@code isNumeric} is {@code lower(s) = upper(s)}: DuckDB
+     *  ({@code duckdbExtension.pure:238}). On every other database it has no SQL for the function (read on Postgres,
+     *  Trino, Snowflake and ClickHouse by their lanes, 2026-11-26). */
+    static final java.util.Set<DatabaseType> ENGINE_IS_NUMERIC_BY_CASE = java.util.Set.of(DatabaseType.DuckDB);
+
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS},
      *  {@link #ENGINE_PCT}): a plan in legend-pure's words,

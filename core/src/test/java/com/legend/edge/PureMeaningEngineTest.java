@@ -355,6 +355,21 @@ class PureMeaningEngineTest {
                 "{\"values\": [2]},{\"values\": [3]},{\"values\": [4]},{\"values\": [5]}");
     }
 
+    // ---- the relational isNumeric: legend-engine's own check on each database (register S370) -----------------------
+
+    /** On H2 legend-engine's isNumeric is its dialect translation's regular expression, a plain decimal's text: no
+     *  plus sign ({@code '+1'} is not numeric, where {@code lower = upper}, DuckDB's form, says it is). */
+    @Test
+    void isNumericIsAPlainDecimalsTextOnThisDatabase_legendEnginesAnswer() {
+        legendEngines("|" + EngineTablePlacementTest.TABLE
+                + "->extend(~a: r|meta::legend::lite::isNumeric($r.ID->toOne()->toString()))->select(~[a])->from(t::RT)",
+                "{\"values\": [true]},{\"values\": [true]},{\"values\": [true]},{\"values\": [true]}");
+        legendEngines("|" + EngineTablePlacementTest.TABLE
+                + "->extend(~a: r|meta::legend::lite::isNumeric('+' + $r.ID->toOne()->toString()))->select(~[a])"
+                + "->from(t::RT)",
+                "{\"values\": [false]},{\"values\": [false]},{\"values\": [false]},{\"values\": [false]}");
+    }
+
     // ---- toOne of an operand that is always empty (register S384) ---------------------------------------------------
 
     private static final String TO_ONE_OF_EMPTY = "|" + EngineTablePlacementTest.TABLE + "->sort(~ID->ascending())->limit(1)"

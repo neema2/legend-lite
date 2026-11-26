@@ -96,16 +96,6 @@ final class EdgeLoweringForms implements com.legend.lowering.LoweringForms {
         return com.legend.sql.ExistsJoins.rewrite(filtered, sites.alias(), sites.keysWhere(), ex -> true);
     }
 
-    /** legend-engine's H2 isNumeric ({@code lower(s) = upper(s)}: a text with no cased letter), every edge style's
-     *  (census J20, 2026-11-18: the product's is a real numeric check). */
-    @Override
-    public SqlExpr isNumeric(SqlExpr s) {
-        return SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, SqlExpr.Call.of(com.legend.sql.SqlFn.LOWER, s),
-                SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER, s));
-    }
-
-
-
     /** legend-engine's conjunct zones, on every edge style (L10): its exists form reads them ({@code existsJoin}, J19 --
      *  user conditions, then correlation, then temporal). */
     @Override

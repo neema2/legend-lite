@@ -58,5 +58,14 @@ public enum NamedRule {
 
     /** A text read as a Float by the target database's own cast ({@code SqlFn.CAST_FLOAT}), its refusal the
      *  database's own conversion error. Not the product's {@code parseFloat}, which checks the text first. */
-    TEXT_CAST_TO_FLOAT
+    TEXT_CAST_TO_FLOAT,
+
+    /** Whether a text has no cased letter: {@code LOWER(s) = UPPER(s)}, true of digits, signs, blanks and the empty
+     *  text alike; NULL of NULL. */
+    TEXT_HAS_NO_CASED_LETTER,
+
+    /** Whether a text is a plain decimal number: an optional minus sign, digits, and optionally a point and digits,
+     *  the whole text (a full match of {@code [-]?[0-9]+(\.[0-9]+)?}). No plus sign, no exponent, no blank; NULL of
+     *  NULL. */
+    TEXT_IS_PLAIN_DECIMAL
 }

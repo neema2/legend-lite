@@ -29,9 +29,9 @@ import com.legend.sql.SqlSelect;
  * filter's correlated {@code EXISTS} over a to-many join -- legend-engine's SQL writes its "second exists emission", a
  * join to the distinct keys ({@code ExistsJoinForm}), the edge's forms; the product's form the EXISTS as lowered, the
  * leanest SQL, a dialect that cannot correlate one decomposing it at render (ClickHouse, {@code sql.ExistsJoins}).</li>
- * <li>{@link #isNumeric}: the relational isNumeric -- the product's a real numeric check, the same on every database
- * ({@code SqlFn.IS_NUMERIC}; the user's ruling of 2026-11-17 23:05, census J20); legend-engine's H2 compares
- * {@code lower(s) = upper(s)}, the edge's.</li>
+ * <li>(the relational isNumeric was a form here until 2026-11-26: legend-engine's own check on each database is a
+ * row of its door's table now, {@code edge.EngineTable}, and the product's one numeric check is the function's own
+ * rule.)</li>
  * </ul>
  */
 public interface LoweringForms {
@@ -41,9 +41,6 @@ public interface LoweringForms {
      *  writes its JsonBuilder cardinality rule over them, in the edge's own code (the orchestrator's ruling of 2026-11-18,
      *  L-A.LoweringForms: the product hands the form its own answer and nothing it never uses). */
     SqlSelect executeValues(SqlSelect own);
-
-    /** The relational isNumeric of {@code s}. */
-    SqlExpr isNumeric(SqlExpr s);
 
     /** An object reference's connection segment (the audit's J12, 2026-11-17): the product's names no connection, the
      *  empty text; legend-engine's its H2 test-connection JSON, whatever the database. */

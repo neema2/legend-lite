@@ -257,7 +257,10 @@ class SqlFnSortedTest {
             // printer); the product's writers keep theirs)
             // EQUAL: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
+            // + lowering.NamedRules (2026-11-26, the edition program's step 5): the rule a door's table names for a text
+            // with no cased letter, lower(s) = upper(s), moved from the edge's forms into the lowering's named rules
             Map.entry("EQUAL", Set.of(
+                    "com.legend.lowering.NamedRules",
                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5b: the CSV's empty String (S420)
                     "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CalendarAgg",
@@ -352,11 +355,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.CheckedDefectsToLists",
                     "com.legend.sql.dialect.CommonSubexpressions", "com.legend.sql.dialect.FoldToListReduce")),
-            // LOWER and UPPER join 2026-11-18 on d-int11 18208beaa6 (J20, 222d136808, train 11): legend-engine's H2
-            // isNumeric, lower(x) = upper(x), is the edge's (EdgeLoweringForms); the product's writers keep theirs
-            Map.entry("LOWER", Set.of(
-                    "com.legend.lowering.Scalars",
-                    "com.legend.sql.dialect.FloatShortestText", "com.legend.testdatagen.TestDataPlanner")),
+            // (LOWER and UPPER: both sides' no more, 2026-11-26, a shrink -- the edition program's step 5: legend-engine's
+            // isNumeric, lower(x) = upper(x), is a rule the lowering holds, lowering.NamedRules, which the door's table
+            // names; the edge's forms, which wrote the two since J20, 2026-11-18, write neither)
             Map.entry("LPAD", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
                     "com.legend.lowering.SnapshotEnvelope", "com.legend.sql.dialect.StringCountsAsInt")),
@@ -405,7 +406,7 @@ class SqlFnSortedTest {
             Map.entry("STRFTIME", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.Fold",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
-                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText")),
+                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText"))
             // (STRPOS: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
             // went with stage B's B2b S5c (a TDS's csv refused by name in the product until the user's ruling of 2026-11-25, S405, a last step's printed by the doors' Java
             // printer); the product's writers keep theirs)
@@ -416,8 +417,8 @@ class SqlFnSortedTest {
             // in A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the user's
             // ruling of 2026-11-19 ~20:45 ("Approved to move guards down"): the host judge is the only judge in
             // compatibility, so the edge writes none of them; the product's writers keep their own)
-            // (J20, as LOWER's note)
-            Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")));
+            // (UPPER: as LOWER's note above, gone 2026-11-26)
+            );
 
     /** The functions both sides write, as {@code writers} has them, each with its product writers' top classes. */
     static Map<String, Set<String>> bothProduct(Map<String, Set<String>> writers, Collection<String> names) {

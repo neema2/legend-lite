@@ -18,6 +18,9 @@ final class NamedRules {
     private NamedRules() {
     }
 
+    /** A plain decimal number's text, the pattern {@link NamedRule#TEXT_IS_PLAIN_DECIMAL} matches in full. */
+    private static final String PLAIN_DECIMAL = "[-]?[0-9]+(\\.[0-9]+)?";
+
     /** {@code call} written by {@code rule} over its lowered arguments. */
     static SqlExpr lower(NamedRule rule, TypedNativeCall call, List<SqlExpr> args) {
         return switch (rule) {
@@ -29,6 +32,10 @@ final class NamedRules {
             case CAST_TO_BARE_DECIMAL -> new SqlExpr.Call(SqlFn.DECIMAL_RAW, args);
             case TEXT_CAST_TO_INTEGER -> new SqlExpr.Call(SqlFn.CAST_INT, args);
             case TEXT_CAST_TO_FLOAT -> new SqlExpr.Call(SqlFn.CAST_FLOAT, args);
+            case TEXT_HAS_NO_CASED_LETTER -> SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),
+                    SqlExpr.Call.of(SqlFn.UPPER, args.get(0)));
+            case TEXT_IS_PLAIN_DECIMAL -> SqlExpr.Call.of(SqlFn.REGEXP_FULL_MATCH, args.get(0),
+                    new SqlExpr.StringLit(PLAIN_DECIMAL));
         };
     }
 

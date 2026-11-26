@@ -56,12 +56,6 @@ public final class ProductLoweringForms implements LoweringForms {
         return filtered;
     }
 
-    /** The product's isNumeric: a real numeric check, the same on every database (census J20). */
-    @Override
-    public SqlExpr isNumeric(SqlExpr s) {
-        return SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NUMERIC, s);
-    }
-
     /** THE PRODUCT'S REFUSAL of legend-engine's result envelope (Phase 6's B5, 2026-11-17, the orchestrator's ruling):
      *  by name, pointing to the product's result writers -- at lowering for a relation or class root, at planning for
      *  a serialized root (train 17 item 2, 2026-11-18: the planner's ExecutedValues kind, the product's form). */
