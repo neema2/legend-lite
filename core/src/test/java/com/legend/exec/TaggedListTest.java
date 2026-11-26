@@ -334,20 +334,24 @@ class TaggedListTest {
     }
 
     @Test
-    void numbersOfDifferentKindsAreRefusedWherePureEquatesTheirTexts() throws Exception {
-        // the L2 audit's finding 4: compiled legend-pure's eq(Number, Number) compares the texts, so 3 == 3D and
-        // 1.5 == 1.5D are true there; lite refuses those pairs by name until it lowers the rule (a static false
-        // stood); the pairs whose texts never agree keep their false
+    void numbersOfDifferentTypesAreNeverEqualInAMixedList() throws Exception {
+        // the equality rule (the user, 2026-11-24): two values are equal only when they have the same type and the
+        // same value, so an Integer, a Float and a Decimal in a mixed list never equal one another, whatever their
+        // digits. (Compiled legend-pure compares two numbers of different kinds by their texts, so 3 == 3D and
+        // 1.5 == 1.5D are true there: lite refused those pairs by name until slice 6.2; they answer false now, a
+        // recorded difference.)
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(false, value(c, "|[1, 'a']->contains(1.0)"));
             assertEquals(false, value(c, "|[1, 'a']->contains(1.5D)"));
             assertEquals(false, value(c, "|[1, 'a'] == [1.0, 'a']"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[3, 'a']->contains(3D)")).getMessage().contains("Integer"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[3, 'a'] == [3D, 'a']")).getMessage().contains("Decimal"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[1.5, 'a']->contains(1.5D)")).getMessage().contains("Float"));
+            assertEquals(false, value(c, "|[3, 'a']->contains(3D)"));
+            assertEquals(false, value(c, "|[3, 'a'] == [3D, 'a']"));
+            assertEquals(false, value(c, "|[1.5, 'a']->contains(1.5D)"));
+            // the shape no longer decides (the audit of slice 6.1, S5: one was refused, the other false)
+            assertEquals(false, value(c, "|2->in([2D, 'a'])"));
+            assertEquals(false, value(c, "|2->in([1, 2D, 'a'])"));
+            // and the same type still compares by its value
+            assertEquals(true, value(c, "|[3D, 'a']->contains(3.0D)"));
         }
     }
 

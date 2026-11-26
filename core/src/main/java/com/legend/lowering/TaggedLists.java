@@ -78,8 +78,8 @@ final class TaggedLists {
      * each position holds, on both sides, values of one family that are equal: no list in the SQL, one comparison
      * per position, by the database's own comparison of the type -- a Decimal by its number (S139), a date-time by
      * its instant (S399). A position whose two kinds are of different families makes the lists different by the
-     * types alone (the number kinds Pure's text equality can cross are refused by name first,
-     * {@link #refuseCrossingNumbers}). Null where a list is not written out (a computed list, a reordered one).
+     * types alone: two values of different types are never equal (the equality rule; {@code 3} is not {@code 3D}).
+     * Null where a list is not written out (a computed list, a reordered one).
      */
     static @com.legend.base.Nullable SqlExpr sameWrittenLists(SqlExpr.TaggedList a, SqlExpr.TaggedList b) {
         List<SqlExpr.Tagged.Candidate> ea = a.literalElements();
@@ -100,7 +100,6 @@ final class TaggedLists {
             SqlExpr.Tagged.Candidate x = ea.get(i);
             SqlExpr.Tagged.Candidate y = eb.get(i);
             if (!MixedEncoding.sameFamily(x.kind(), y.kind())) {
-                refuseCrossingNumbers(x.kind(), x.slot(), y.kind(), y.slot(), "two mixed lists' equality");
                 differ = true;
                 continue;
             }
@@ -164,13 +163,6 @@ final class TaggedLists {
         java.util.LinkedHashSet<SqlType.Tagged.Slot> slots = new java.util.LinkedHashSet<>();
         slots.addAll(a.slots());
         slots.addAll(b.slots());
-        for (SqlType.Tagged.Slot sa : a.slots()) {
-            for (SqlType.Tagged.Slot sb : b.slots()) {
-                if (!sa.equals(sb)) {
-                    refuseCrossingNumbers(sa.kind(), sa.type(), sb.kind(), sb.type(), "two mixed lists' equality");
-                }
-            }
-        }
         for (SqlType.Tagged.Slot slot : slots) {
             SqlExpr.TaggedList.Channel ca = channelOfSlot(a, slot);
             SqlExpr.TaggedList.Channel cb = channelOfSlot(b, slot);
@@ -183,36 +175,6 @@ final class TaggedLists {
             all = SqlExpr.Call.of(SqlFn.AND, all, conditions.get(i));
         }
         return all;
-    }
-
-    /**
-     * Pure's equality of two NUMBERS of different kinds is by their TEXTS (compiled legend-pure's
-     * {@code CompiledSupport.eq(Number, Number)}: {@code equals}, then {@code toString}): an Integer and a Decimal
-     * of scale zero are equal when their digits are ({@code 3 == 3D}), an Integer and a Float never are (a double's
-     * text always carries a point or an exponent), a Float and a Decimal are when the shortest digits agree
-     * ({@code 1.5 == 1.5D}, not {@code 1.50D}); the L2 audit, 2026-10-29. The kinds that can cross are NOT compared
-     * yet: refused by name (a static false stood here), the homework README's findings; the pairs that never cross
-     * keep their false.
-     */
-    private static void refuseCrossingNumbers(String kindA, @com.legend.base.Nullable SqlType slotA, String kindB,
-            @com.legend.base.Nullable SqlType slotB, String operation) {
-        if (kindA.equals(kindB)) {
-            return;
-        }
-        boolean crosses = (kindA.equals("Integer") && kindB.equals("Decimal") && scaleZero(slotB))
-                || (kindB.equals("Integer") && kindA.equals("Decimal") && scaleZero(slotA))
-                || (kindA.equals("Float") && kindB.equals("Decimal"))
-                || (kindB.equals("Float") && kindA.equals("Decimal"));
-        if (crosses) {
-            throw new com.legend.error.NotImplementedException(operation + " across the kinds " + kindA + " ("
-                    + slotA + ") and " + kindB + " (" + slotB + "): Pure equates two numbers of different kinds by"
-                    + " their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)");
-        }
-    }
-
-    private static boolean scaleZero(@com.legend.base.Nullable SqlType slot) {
-        // a Decimal slot of unknown scale may hold a scale-zero value: it can cross too
-        return !(slot instanceof SqlType.Decimal d) || d.scale() == 0;
     }
 
     private static SqlExpr.TaggedList.@com.legend.base.Nullable Channel channelOfSlot(SqlExpr.TaggedList tl,
@@ -577,7 +539,6 @@ final class TaggedLists {
                 SqlExpr.Tagged.Candidate a = x.candidates().get(i);
                 SqlExpr.Tagged.Candidate b = y.candidates().get(j);
                 if (!MixedEncoding.sameFamily(a.kind(), b.kind())) {
-                    refuseCrossingNumbers(a.kind(), a.slot(), b.kind(), b.slot(), "two mixed values' equality");
                     continue;
                 }
                 arms.add(SqlExpr.Call.of(SqlFn.AND,
@@ -595,8 +556,8 @@ final class TaggedLists {
      * needle's kind's family ({@link MixedEncoding#family}: a Decimal at any scale, a date-time at any written
      * precision) and whose value there equals the needle, by the database's own comparison of the type (a Decimal
      * by its number, a date-time by its instant); a family the list has no channel for is a member of nothing
-     * ({@code '1'} is not {@code 1}; {@code 1} is not {@code 1.0}), but for the number kinds Pure's text equality
-     * can cross ({@link #refuseCrossingNumbers}).
+     * ({@code '1'} is not {@code 1}; {@code 1} is not {@code 1.0}; {@code 3} is not {@code 3D}: two values of
+     * different types are never equal, the equality rule).
      */
     static SqlExpr contains(SqlExpr.TaggedList tl, @com.legend.base.Nullable String kind, SqlExpr needle,
             Type needleType) {
@@ -606,10 +567,6 @@ final class TaggedLists {
         }
         List<Integer> own = MixedEncoding.channelsOf(tl, kind);
         if (own.isEmpty()) {
-            SqlType needleSlot = needle.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
-            for (SqlExpr.TaggedList.Channel ch : tl.channels()) {
-                refuseCrossingNumbers(kind, needleSlot, ch.kind(), ch.slot(), "a mixed list's membership");
-            }
             return new SqlExpr.BoolLit(false);
         }
         List<SqlExpr.Tagged.Candidate> written = tl.literalElements();
