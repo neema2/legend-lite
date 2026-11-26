@@ -22797,10 +22797,28 @@ planner's stamp on a test body; the plan record's section 6a has the design, the
   544 (the driver's own copy of a side's inlining left for the planner's).
 - `EdgeOnlyMembersTest`: `CrossTypeComparisons#in(List)`, read by legend-pure's door (the audit of step 2b).
 - `PlannerSurfaceTest`: `TypedQuery#comparing(CrossTypeRule)` is filed as a callback (the same audit).
-- New tests: `EngineTestsStyleTest` (the query is legend-engine's, the test's own code Pure's, a test's `let` read
-  inside a query Pure's); `PureComparisonsTest` and `CrossTypeRuleTest` gain the audit's cases;
-  `EngineTablePlacementTest` gains the stamped checks.
+- **The corpus's product-SQL size pins, DOWN** (`rcorpus/lean-sql-baseline.tsv`, re-pinned with
+  `bazel run //spec:update_lean_sql_corpus_<lane>`): the corpus plans under its own style, so the queries it hands
+  legend-engine write no check where legend-engine's SQL writes none. Every pin that moved shrank, none grew:
+  on DuckDB the `sqrt` and `rem` families and their parent (`query::function` 8088 to 7761 characters,
+  `mapping::sqlFunction::sqrt` 395 to 122); on H2 nine pins.
+- **The parser-equivalence ledgers** (the lane was red on the branch since B3 step 5a's review, whose
+  `CrossTypeComparisonsTest` holds a function generic over relations and was never declared; found by the full round
+  on `d9c16617`): three hosts declared in `OwnDialectCensusTest` (`CrossTypeComparisonsTest`, `CrossTypeRuleTest`,
+  `PureComparisonsTest`, one model each), `PURE-DIALECT-generics` 12 to 15 in `OwnCorpusConformanceTest` (register
+  S112: only lite's dialect admits a user function's type parameters), and the matched-elements ratchet 3347 to 3352
+  (`bazel run //parser-equivalence:update_ratchets`): `EngineTestsStyleTest`'s model joined and matched, five
+  elements (a class, a database, a mapping, a connection, a runtime).
+- New tests: `EngineTestsStyleTest` (the query is legend-engine's, written in place or bound by a `let`; the test's
+  own code Pure's; a test's `let` read inside a query Pure's; a query's own store-free `let` Pure's);
+  `PureComparisonsTest` and `CrossTypeRuleTest` gain the audit's cases; `EngineTablePlacementTest` gains the stamped
+  checks.
+- **The independent audit of the step** (`docs/records/edition-homework/r3/audit-step3-tests-door.md`) found three
+  faults at the tests' door before anything was pushed, each fixed with a test; the plan record's section 6a lists
+  them and the limits that remain.
 
 Checked on the commit that holds it: the guards (`//core:guardrails`, `//core:guardrails_edge`, `//core:census`,
 `//core:census_edge`), `//core:core_edge_tests`, core's compiler, lowering, planner, root and testplan suites,
-`//spec:spec_tests`, the generated-file tests, and both corpus lanes (`//spec:corpus_duckdb`, `//spec:corpus_h2`).
+`//spec:spec_tests`, the generated-file tests, `//parser-equivalence:parser_parity`, the corpus's SQL size pins
+(`//spec:lean_sql_corpus_duckdb`, `//spec:lean_sql_corpus_h2`) and both corpus lanes (`//spec:corpus_duckdb`,
+`//spec:corpus_h2`); PCT on DuckDB, both channels, on the step before it (`d585e5b8`, 25 targets).
