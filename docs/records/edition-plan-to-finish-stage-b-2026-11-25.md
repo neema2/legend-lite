@@ -704,9 +704,11 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   signature change is built against EVERY test library before it is called done, and a builder session does that
   while the working tree goes on.
 - **PCT on H2 is all five suites** (branch `claude/pct-h2-full`, session `session_0195rQEizYjy8rVS8hbgqhKy`): 1,249
-  tests, 1,020 pass, 229 pinned by message (212 new). 61 of the new pins are H2's limits or the platform's own
-  (no such function 38, no map type 3, DATEADD's INT count 6, the same failures as DuckDB's lane 13, a spelling
-  1). **128 are list operations lite's H2 dialect does not write**, refused by name. The worker's report called
+  tests, 1,020 pass, 229 pinned by message (212 new). 13 of the new pins fail the same way on DuckDB's lane and
+  one is a spelling; 47 the worker's report filed as H2's limits (no such function 38, no map type 3, DATEADD's INT
+  count 6), a label that is being checked claim by claim on the jar: the bit operations among them H2 does have
+  (`BITAND`, `BITOR`, `BITXOR`, `BITNOT`, `LSHIFT`, `RSHIFT` answer), base64 it does not.
+  **128 are list operations lite's H2 dialect does not write**, refused by name. The worker's report called
   these "H2 has no list type", and the orchestrator repeated it to the user unchecked; the user caught it ("H2 has
   array type I thought?") and lite's own jar confirms: H2 2.5.252 has `ARRAY[...]`, `CARDINALITY`, `ARRAY_GET`,
   `ARRAY_CONTAINS`, `ARRAY_SLICE`, `||`, and `ARRAY_AGG ... ORDER BY` and the aggregates over
