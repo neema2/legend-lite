@@ -272,8 +272,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         ps.add(new CellTexts.Rest());
         // (TextForms.Product and PureOnlyText.Refusal: gone 2026-11-17 with B8 -- a list's text is the style's two-form
         // kind, and every text only legend-pure writes is refused at lowering)
-        // (FloatShortestText.Expansion: gone 2026-11-26, the edition program's step 8 -- legend-pure's print of a Float
-        // is the edge's alone, composed at lowering, edge.EdgePureOnlyTexts)
+        // lite's canonical text of a Float (a message's; the edge's text of a Float too), expanded before every other
+        // pass unless this dialect spells it itself
+        if (!spellsFloatShortestText()) {
+            ps.add(new FloatShortestText.Expansion(readsLongTextOnce()));
+        }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
         return java.util.List.copyOf(ps);
@@ -284,8 +287,21 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return v.toPlainString();
     }
 
-    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-engine's in-query
-     *  cast of a Float, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_SHORTEST_TEXT} itself; else it is expanded before every
+     *  other pass ({@link FloatShortestText.Expansion}) to the portable spelling over the double's text. */
+    protected boolean spellsFloatShortestText() {
+        return false;
+    }
+
+    /** Whether a composition that reads a value's text more than once reads the value and its text from a one-row
+     *  derived table, each written once (a dialect whose text of a value is a long expression and whose derived tables
+     *  read the row around them; renamed from bindsFloatPrint 2026-11-17, census B9: a generic size capability). */
+    protected boolean readsLongTextOnce() {
+        return false;
+    }
+
+    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-pure's print form
+     *  of a Float, {@code FLOAT_SHORTEST_TEXT}, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
      *  The product's dialects run none: they write each node lite's own way. */
     /** {@inheritDoc} A raw statement AS WRITTEN (Phase 6's B4 (ii), 2026-11-17): a SPELLING arm -- the statement's
      *  text, no decision -- so the compatibility edge's DuckDB and Postgres translate legend-engine's H2 text here. */
@@ -1522,6 +1538,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         throw new IllegalStateException("a date call's first argument is its part, not " + e
                 + ": the lowering's bug");
+    }
+
+    /** Lite's canonical text of a Float ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_SHORTEST_TEXT} call): the portable decomposition
+     *  over the double's text (a dialect whose double text is long spells it once, its own way). */
+    protected final SqlWriter floatShortestTextByCast(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return writer.expr(FloatShortestText.of(c.args().get(0)), parentPrec);
     }
 
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},

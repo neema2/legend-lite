@@ -161,14 +161,23 @@ public enum SqlFn {
      *  as the VARCHAR cast they wrote until then; H2 with its number printer for every such operand (its DECFLOAT's
      *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
     DECIMAL_TO_TEXT,
-    // (FLOAT_SHORTEST_TEXT, a Float's shortest round-trip text made plain inside its windows: gone 2026-11-26, the
-    // edition program's step 8, slice 1 -- since B2b's S5a-S5c only the compatibility edge wrote it, for
-    // legend-pure's %r of a Float, which the edge composes at lowering from the product's nodes, edge.EdgePureOnlyTexts)
+    /** LITE'S CANONICAL TEXT OF A FLOAT, its shortest round-trip digits (renamed from FLOAT_PRINT 2026-11-17, census B9,
+     *  the orchestrator's ruling: measured equal to lite's writers' text, result.CellText.carriedFloat, inside its
+     *  windows): plain within the database's plain range and fixed point past it where exact (whole values below 1e38,
+     *  fractional ones from 1e-17 below 2^53), at least one fraction digit, NaN and the infinities by name. One call per
+     *  value, which each dialect spells (dialect/FloatShortestText the portable decomposition; a dialect whose text of a
+     *  double is long reads it once). A message's text of a Float (the judges', both judges alike, G2); legend-pure's
+     *  print form is the same text (the compatibility edge wrote this node for a relation text's Float cell until B2b's
+     *  S5a-S5c deleted its relation texts; legend-engine's in-query cast for {@link #FLOAT_TO_TEXT} elsewhere). Outside the
+     *  windows the database's own exponent notation stays, which differs per database: logged for after separation
+     *  ("one canonical Float text outside the windows"). */
+    FLOAT_SHORTEST_TEXT,
     /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
      *  zeros trimmed, a whole value keeping one ({@code 2.0}), NaN and the infinities by name (the user's ruling of
      *  2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15; S311 amended by the user's ruling of 2026-11-23, "I think
      *  we do it as 2.0") -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
-     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms). */
+     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms; its
+     *  relation texts' {@link #FLOAT_SHORTEST_TEXT} cells, PR #118's fix round, went with B2b S5a-S5c). */
     FLOAT_TO_TEXT,
     /** A Float's FULL-PRECISION TEXT AS THE DATABASE ITSELF WRITES IT ({@code (x)}, one operand, a double; NULL stays
      *  NULL): toCSV's Float cell (the user's ruling of 2026-11-25, "okay make exact": each database's own full-precision
@@ -179,8 +188,8 @@ public enum SqlFn {
      *  MySQL, {@code toString} on ClickHouse, {@code printf('%!.17g')} on SQLite (its cast writes fifteen digits),
      *  {@code $toString} on MongoDB, and on Snowflake its DECFLOAT cast, NaN and the infinities by its plain cast (its
      *  format models cap a FLOAT at sixteen digits, measured 2026-10-24; B3 agreed the same day). The text differs by database
-     *  ({@code 1e-07} on DuckDB, {@code 1.0E-7} on H2). It is never one spelling across databases: it is each
-     *  database's own. */
+     *  ({@code 1e-07} on DuckDB, {@code 1.0E-7} on H2). Unlike {@link #FLOAT_SHORTEST_TEXT} it is never one spelling
+     *  across databases: it is each database's own. */
     FLOAT_FULL_TEXT,
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
@@ -255,7 +264,7 @@ public enum SqlFn {
                     // A6, 2026-11-16, made conservative: a strict function read as may-skip costs a missed binding, the
                     // reverse a wrong raise; E-SQL may take one out with a per-dialect proof that it never skips)
                     ACOS, ASIN, CONCAT, CONCAT_JOIN, DAYNAME, DECIMAL_TO_TEXT, DECODE_BASE64, ENCODE_BASE64,
-                    EPOCH_MS, EPOCH_SECONDS, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
+                    EPOCH_MS, EPOCH_SECONDS, FLOAT_SHORTEST_TEXT, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
                     LIST_APPEND, LIST_AVG, LIST_FLATTEN, LIST_INIT, LIST_MEDIAN, LIST_MODE, LIST_REVERSE, LIST_SLICE,
                     LIST_SORT, LIST_SORT_DESC, LIST_TAIL, MD5, MONTHNAME, PARSE_DATE, PURE_SPLIT_PART, RANGE_FN,
                     REGEXP_EXTRACT_ALL, ROUND, ROUND_HALF_UP, SHA1, SHA256, TO_VARIANT, UNNEST, VARIANT_ELEMENTS,

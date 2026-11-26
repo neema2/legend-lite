@@ -88,14 +88,33 @@ class SnowflakeDialectTest {
     }
 
     /**
-     * The product's text of a Float is six decimals trimmed, with no shortest-digits machinery. (Until 2026-11-26 this
-     * test also held Snowflake's own spelling of FLOAT_SHORTEST_TEXT, legend-pure's print of a Float from its digits
-     * read once: the node and that spelling are deleted, the edition program's step 8, slice 1 -- the text is the
-     * compatibility edge's alone, composed at lowering from the product's nodes, edge.EdgePureOnlyTexts.)
+     * A Float's print forms are spelled here, from its digits read once (2026-10-22): Pure's {@code toString} plain where
+     * the exponent is from -4 to 15, legend-engine's text plain from -3 to 6 and with an {@code E} past it. The portable
+     * spellings read the double's text nine times and over a thousand, each read this dialect's long text of it:
+     * the PCT statement for {@code 1.5 + 2.25} was 48 KB and the served one 6 MB. A literal is no double here and
+     * prints through the database's own text of it, as before.
      */
     @Test
-    void aFloatsTextIsSixDecimalsTrimmed_noShortestDigits() {
+    void aFloatsPrintFormsAreSpelledHere_theValueReadOnce() {
         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+        for (SqlFn fn : List.of(SqlFn.FLOAT_SHORTEST_TEXT)) {
+            String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+                    SqlExpr.Call.of(fn, x), "p", null)), false, new SqlSource.Table("t", "t",
+                    List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
+                    com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
+            assertTrue(sql.split("\"t\"\\.\"x\"", -1).length - 1 == 1, fn + ": " + sql);
+            assertTrue(sql.split("AS NUMBER\\(38, 28\\)", -1).length - 1 == 1, fn + ": " + sql);
+            assertTrue(sql.length() < 8_000, fn + ": " + sql.length() + " characters: " + sql);
+            assertFalse(sql.contains("(SELECT"), fn + ": " + sql);
+            assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
+            assertTrue(sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"), sql);
+            assertTrue(sql.contains("AS NUMBER(38, 18)) AS VARCHAR), '0')"), sql);
+            assertTrue(sql.contains("THEN 'NaN' WHEN "), sql);
+        }
+        String literal = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+                SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, new SqlExpr.FloatLit(1.5)), "p", null)), false,
+                new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
+        assertFalse(literal.contains("NUMBER(38, 28)"), literal);
         // the product's text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): six decimals trimmed, NaN and the
         // infinities by name, no shortest-digits machinery
         String product = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(

@@ -1,7 +1,29 @@
-# Step 8, slice 1: the shortest-Float-text node leaves the product (2026-11-26)
+# Step 8, slice 1: the shortest-Float-text node leaves the product (2026-11-26) -- PARKED
 
 *Written by the step 8 session (`claude/edition-step8`), started from `claude/modest-galileo-h6swr4` at `9c751659`.
 The step's specification is `../r3/research-step8-presentation.md`; this is its section F, slice 8.1.*
+
+**Status: built, measured, and parked the same day by the orchestrator's ruling. It is not on the branch's line.**
+The change is kept whole as `slice1-parked-2026-11-26.patch.txt` (it applies to `9c751659`); the commit `317c377`
+held it and its revert follows it on the branch.
+
+**Why it is parked.** The deleted product class was also the only writer of a second node, `FLOOR_RAW` (the
+composition asks whether a double is whole by `x = floor(x)`, and Pure's `FLOOR` casts to a 64-bit integer). With
+the composition in the edge, `FLOOR_RAW` is a node the product's 12 dialects write and the edge alone asks for, and
+`SqlFnSortedTest.theSortIsMeasured` has no such kind ("FLOOR_RAW: sorted PRODUCT, measured EDGE_ONLY"). No
+replacement built from nodes the product writes keeps both the SQL and the answers: `ROUND_RAW` is refused on
+MongoDB and written specially on Postgres and BigQuery, and a round trip through a wide integer changes SQLite's
+answers. The orchestrator ruled: no new guard exception for a state that is to be deleted, and no longer SQL on
+Snowflake and BigQuery for it.
+
+**What takes its place.** Tenet 1 as the user amended it on 2026-11-25: at a compatibility door a print at a last
+step is Java's, written with upstream's text from the typed value, and a print used further is lite's own text,
+written by the database. Then the composition is not moved but deleted, with `FLOAT_SHORTEST_TEXT`, `FLOOR_RAW` and
+their arms, and Snowflake's and BigQuery's SQL gets shorter. That moves answers where a Float's `%r` is used
+further, so the answers that move are measured first and brought to the user
+(`moves-if-float-text-used-further-is-lites.md`, when it is written).
+
+The rest of this record is the slice as it was built.
 
 ## What it was
 
@@ -29,7 +51,8 @@ refuses both calls by name.
   place in `AnsiSqlRenderer.renderPasses`, `floatShortestTextByCast`, Snowflake's spelling and BigQuery's override,
   and the constant's entries in `SqlTyping`, `SqlFn`'s may-skip set, `MySql`'s pass-through list and SQLite's
   operand set.
-- Lines, main sources (`git diff --stat`): see "The numbers" below.
+- Lines, main sources: 361 out and 126 in across 27 files before the generated table (the product about 290 fewer,
+  the edge 75 more).
 
 ## What was measured
 
@@ -70,6 +93,20 @@ A temporary probe (never committed) ran on the base and on the change:
   each lane's as measured.
 - The plan record at `9c751659` has no section 7a.
 
-## The guards that moved, each with its dated note
+## What the checks said before it was parked
 
-See the commit; the list is in the session's report.
+- Pass: `//core:guardrails`, `//core:census`, `//docs:all` (the generated dialect table regenerated: one row gone),
+  `//core:core_edge_tests` and its H2 and SQLite lanes, `//core:core_tests_sql`, `_root` and `_lowering`.
+- Fail: `//core:guardrails_edge`, on `FLOOR_RAW` alone (above). The test stops at its first assertion, so its second
+  (the functions both sides write) was never reached.
+- The long set (the corpus, PCT, the size pins, the recorded answers) and the independent review were stopped when
+  the slice was parked: neither finished.
+- Not checked: Snowflake's and BigQuery's answers under the longer SQL.
+
+## The guards it moved, each with a dated note (in the patch)
+
+`SqlFnSortedTest` (the constant out of PRODUCT; the deleted class out of eleven writer lists), `SnowflakeDialectTest`
+and `BigQueryDialectTest` (their read-once tests of the node), `MongoDbPlanTest` (two cases of the node),
+`RaiseTextTest` (one expected value that named the node and was read only as "not a literal"), comments in
+`EdgeSpellingHookTest` and `EdgeOnlyNodesCensusTest`, the generated dialect capability table, and a new test,
+`PureOnlyTextTest.theEdgeWritesPuresRepresentationOfAFloat`, which pins the edge's answers.

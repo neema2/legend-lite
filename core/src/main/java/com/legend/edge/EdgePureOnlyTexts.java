@@ -94,7 +94,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
             // legend-pure's print form, the judges' %r of a Float; a value the store holds as an integer its digits
             return heldAsInteger(x)
                     ? new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                    : floatPrint(x);
+                    : SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, x);
         }
         // numbers, booleans, and the Any carrier: the toString spelling IS the representation
         return com.legend.lowering.ReprParts.pureToString(styled, t, x);
@@ -132,80 +132,6 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
                     typed instanceof com.legend.compiler.spec.typed.TypedCDate cd ? cd.value().canonicalText() : null);
         }
         return com.legend.lowering.ReprParts.dateLiteralText(typed);
-    }
-
-    // ---- legend-pure's print of a Float, composed here from the product's own nodes (the edition program's step 8,
-    // ---- slice 1, 2026-11-26: moved unchanged from the product's sql.dialect.FloatShortestText, whose node
-    // ---- FLOAT_SHORTEST_TEXT only this class wrote; the node, its expansion pass and each dialect's arm are deleted)
-
-    /**
-     * legend-pure's print of the Float {@code x}, as SQL over the database's text of it ({@code CAST(x AS VARCHAR)}):
-     * the database's shortest round-trip text ('1.5', '2.0') except where it chooses exponent notation -- those
-     * re-render plain, a whole value below 1e38 through HUGEINT with {@code .0}, a fractional one from 1e-17 below
-     * 2^53 through a DECIMAL(38,18) cast with its trailing zeros trimmed. Outside those windows the database's own
-     * exponent form stays. NaN and the infinities by Java's names. Each database's own casts and functions, the
-     * product's nodes as its dialects write them: a database whose text of a double is long writes it once per read
-     * here (Snowflake and BigQuery read it once while the product's dialects spelled the node).
-     */
-    private static SqlExpr floatPrint(SqlExpr x) {
-        SqlExpr s = new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
-        // the exponent marker in either case: DuckDB and Postgres write 2.5e-07, H2 1.5E15
-        SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
-                SqlExpr.Call.of(SqlFn.STRPOS, SqlExpr.Call.of(SqlFn.LOWER, s), new SqlExpr.StringLit("e")),
-                new SqlExpr.IntLit(0));
-        // fraction-free values render through HUGEINT, exact plain digits for the whole [1e16, 1e38) band where the
-        // DECIMAL(38,18) cast is not exact; every double from 2^53 is fraction-free
-        SqlExpr fractionFree = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.EQUAL, x, SqlExpr.Call.of(SqlFn.FLOOR_RAW, x)),
-                SqlExpr.Call.of(SqlFn.LESS,
-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e38)));
-        // the DECIMAL path only where the scale-18 cast is exact for short-decimal values: [1e-17, 2^53)
-        SqlExpr inRange = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-17)),
-                SqlExpr.Call.of(SqlFn.LESS,
-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(9.007199254740992e15)));
-        // each cast reads the value only where its branch is taken (NULL elsewhere): a database that computes every
-        // branch of a CASE (ClickHouse) otherwise failed the cast of a value the branch never takes
-        SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(fractionFree, x), com.legend.sql.SqlType.Scalar.HUGEINT,
-                        SqlExpr.Reason.PRINT), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
-                new SqlExpr.StringLit(".0"));
-        SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
-                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(inRange, x), new com.legend.sql.SqlType.Decimal(38, 18),
-                        SqlExpr.Reason.PRINT), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
-                new SqlExpr.StringLit("0"));
-        SqlExpr fixed = new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
-                SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
-                plain, SqlExpr.Reason.PRINT);
-        // a whole value the database writes without a fraction (Postgres's double 3, an integer slot a Float declares)
-        // takes .0: a Float's text always has a fraction
-        SqlExpr bare = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, hasExp),
-                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit(".")),
-                        new SqlExpr.IntLit(0)));
-        // a double that is no number by Java's names, from the database's own (DuckDB writes nan, inf and -inf, H2 and
-        // Postgres Java's): the spelled tokens compared, nothing computed
-        SqlExpr lower = SqlExpr.Call.of(SqlFn.LOWER, s);
-        java.util.List<SqlExpr.Case.When> whens = new java.util.ArrayList<>();
-        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("nan"), text("-nan")), text("NaN")));
-        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("inf"), text("+inf"), text("infinity")),
-                text("Infinity")));
-        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("-inf"), text("-infinity")),
-                text("-Infinity")));
-        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain));
-        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed));
-        whens.add(new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0"))));
-        return new SqlExpr.Case(whens, s, SqlExpr.Reason.PRINT);
-    }
-
-    /** {@code x} where {@code guard} holds, else NULL. */
-    private static SqlExpr onlyWhere(SqlExpr guard, SqlExpr x) {
-        return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(guard, x)), null, SqlExpr.Reason.PRINT);
-    }
-
-    private static SqlExpr text(String s) {
-        return new SqlExpr.StringLit(s);
     }
 
     /** Whether {@code x} is a Float the STORE holds as an integer: a physical column the store declares integral

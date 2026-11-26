@@ -157,9 +157,8 @@ class EdgeSpellingHookTest {
      *  S3: since B1 a raise is the product's site on every door, and its last use, a checked graph's defect cell, wrote
      *  the one catalog's sentence byte for byte; no edge dialect overrides it.) */
 
-    /** D1.2's arms (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-engine's in-query cast of a Float
-     *  (edge.PurePrintForms; until Phase 5, 2026-11-16, legend-pure's print form) where the product writes its six
-     *  decimals. */
+    /** D1.2's arms (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of a Float
+     *  ({@code FLOAT_SHORTEST_TEXT}, edge.PurePrintForms) where the product writes its six decimals. */
     private static final Set<String> D1_2 = Set.of("spellingPasses", "floatToText");
 
     /** D1.2's arms and MongoDB's {@code dateTimeFormat} (2026-11-15): legend-pure's {@code +0000} text of a date-time

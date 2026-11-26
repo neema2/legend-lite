@@ -502,7 +502,7 @@ public final class LiteralSpelling {
      * A Float's text ({@code toString}, {@code format}'s {@code %f}): one call, {@link SqlFn#FLOAT_TO_TEXT}, which each
      * dialect writes -- the product six decimals trimmed, a whole value keeping one (the user's rulings of 2026-11-10
      * and 2026-11-23), the compatibility edge legend-engine's in-query cast (edge/PurePrintForms; phase D's D1.2,
-     * 2026-11-15; until then this was Pure's form everywhere, a node deleted 2026-11-26).
+     * 2026-11-15; until then this was Pure's form, FLOAT_SHORTEST_TEXT, everywhere).
      */
     public static SqlExpr floatPrint(SqlExpr x) {
         // ONE text for every Float, a value the store holds as an integer too (a physical column the store declares

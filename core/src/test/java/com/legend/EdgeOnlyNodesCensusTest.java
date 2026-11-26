@@ -38,8 +38,7 @@ class EdgeOnlyNodesCensusTest {
 
     private static final Path MAIN = Path.of("core/src/main/java/com/legend");
 
-    /** The edge-only members (FLOAT_PRINT was renamed FLOAT_SHORTEST_TEXT, a product node, 2026-11-17, census B9; that
-     *  node deleted 2026-11-26, the edition program's step 8: the edge composes its text at lowering). */
+    /** The edge-only members (FLOAT_PRINT was renamed FLOAT_SHORTEST_TEXT, a product node, 2026-11-17, census B9). */
     static final List<SqlFn> EDGE_ONLY = List.of();   // DATETIME_PRINT gone 2026-11-17 (census B12: the edge composes it)
 
     /** Each member's emitting sites, "file (under core/src/main/java/com/legend)" -> occurrences in code, measured on

@@ -195,6 +195,13 @@ public class Snowflake extends AnsiSqlRenderer {
                 + " MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, STRICT_JSON_OUTPUT = TRUE");
     }
 
+    /** {@inheritDoc} Spelled here ({@link #floatShortestText}): the portable spelling reads this dialect's long double text
+     *  some nine times (Pure's print form). */
+    @Override
+    protected boolean spellsFloatShortestText() {
+        return true;
+    }
+
     /** A dynamic pivot is discovered first: the static form is emulated (PivotAsGroupBy). */
     // the probe plan's facts (2026-10-20): Snowflake: READ COMMITTED only, each statement its own snapshot; no result column limit documented
     @Override
@@ -1411,6 +1418,10 @@ public class Snowflake extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
+            // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
+            // it, which is exact, as the portable spelling read it
+            case FLOAT_SHORTEST_TEXT -> isDouble(a.get(0)) ? floatShortestText(writer, a.get(0))
+                    : floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
             // a Float's full-precision text: Snowflake's own casts, never laid out (floatFullText)
             case FLOAT_FULL_TEXT -> floatFullText(writer, a.get(0));
@@ -1879,6 +1890,34 @@ public class Snowflake extends AnsiSqlRenderer {
                 + ") END"));
     }
 
+    /**
+     * Pure's print form of a Float ({@link SqlFn#FLOAT_SHORTEST_TEXT}), spelled here from {@link #floatText}'s digits, the value
+     * read once: what the portable spelling (dialect/FloatShortestText) makes of {@link #floatText}'s text, which it read
+     * nine times (Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB, 46 KB of it the text nine times, measured
+     * 2026-10-22). The text where it is plain (an exponent from -4 to 15); past it, a whole value's exact digits under
+     * 10^38 with {@code .0}; a value from 10^-17 below 10^-4 at eighteen places with its trailing zeros trimmed; else
+     * the text with its exponent. NaN and the infinities are Pure's names, which are Java's.
+     */
+    private SqlWriter floatShortestText(SqlWriter writer, SqlExpr v) {
+        return writer.piece(shortestDigits(v, d -> {
+            String x = d.value();
+            String fractionFree = x + " = FLOOR(" + x + ") AND ABS(" + x + ") < 1e38";
+            String inRange = "ABS(" + x + ") >= 1e-17 AND ABS(" + x + ") < 9.007199254740992e15";
+            String fixed = "RTRIM(CAST(CAST(IFF(" + inRange + ", " + x + ", NULL) AS NUMBER(38, 18)) AS VARCHAR), '0')";
+            return "CASE WHEN " + nonFinite(x) + " THEN " + javaNonFinite(x) + " WHEN " + x + " = 0 THEN '0.0' WHEN "
+                    + d.exponent() + " BETWEEN -4 AND 15 THEN " + d.sign() + " || " + d.unfolded() + " WHEN "
+                    + fractionFree + " THEN CAST(CAST(IFF(" + fractionFree + ", " + x + ", NULL) AS NUMBER(38, 0)) AS"
+                    + " VARCHAR) || '.0' WHEN " + inRange + " THEN IFF(ENDSWITH(" + fixed + ", '.'), " + fixed + " || '0', "
+                    + fixed + ") ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH(" + d.digits()
+                    + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent() + ") END";
+        }));
+    }
+
+    /** Java's name of the non-finite double {@code x}: Snowflake's NaN equals itself and exceeds every number. */
+    private static String javaNonFinite(String x) {
+        return "CASE WHEN " + x + " = 'NaN'::FLOAT THEN 'NaN' WHEN " + x + " > 0 THEN 'Infinity' ELSE '-Infinity' END";
+    }
+
     /** A Float's shortest digits as {@link #shortestDigits} reads them: the value (for NaN and the infinities), its
      *  sign ({@code '-'} or empty), its significant digits (no sign, no point, no trailing zero; empty for a zero) and
      *  the exponent of the first. */
@@ -1975,7 +2014,7 @@ public class Snowflake extends AnsiSqlRenderer {
      * {@code 1.0000000000000001E-01}), double-rounding the seventeenth digit of 80 of the 1,946 (pre-rounded to
      * eighteen at run time) though each still reads back; that cast raises on NaN and the infinities, which take the
      * plain cast. The DECFLOAT cast reads a non-finite value as NULL ({@code IFF}), since a CASE's branches may all be
-     * evaluated here (the review of the slice, 2026-11-25). NULL stays NULL.
+     * evaluated here ({@link #floatShortestText}'s rule; the review of the slice, 2026-11-25). NULL stays NULL.
      * Unmeasured as this node until the Snowflake lane runs (B3's (B), agreed 2026-11-25).
      */
     private SqlWriter floatFullText(SqlWriter writer, SqlExpr x) {

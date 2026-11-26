@@ -641,7 +641,7 @@ final class Fold {
      * kept projection among them, and at least the first -- costs its nodes less the read it replaces, against the
      * same {@link Budget#BLOAT}. Over it, the name of the projection whose copies cost most, and the pass is
      * unfoldable: its base isolated, the reads are reads of the subselect's column, as for every unfoldable read.
-     * What a dialect writes more than once from one node is counted once: a message's text of a Float is one
+     * What a dialect writes more than once from one node is counted once: the message's {@code FLOAT_SHORTEST_TEXT} is one
      * call here and some 23 copies in DuckDB's text, a spelling the lowering may not know (invariant 3), so a sqrt
      * costs three copies of its argument here, not 27. */
     static @com.legend.base.Nullable String overCopied(SqlSelect base, List<SqlSelect.Projection> written) {
