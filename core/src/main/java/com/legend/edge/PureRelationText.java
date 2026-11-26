@@ -33,11 +33,17 @@ public final class PureRelationText {
     private PureRelationText() {
     }
 
-    /** A literal {@code replace(target, replacement)} applied to the printed text, in the program's order. */
-    public record Replace(String target, String replacement) {
+    /** A literal {@code replace(target, replacement)} applied to the printed text, in the program's order: the first
+     *  member of a print's tail ({@link PrintTail}; the edition program's step 8, 2026-11-26). */
+    public record Replace(String target, String replacement) implements PrintTail {
         public Replace {
             java.util.Objects.requireNonNull(target, "target");
             java.util.Objects.requireNonNull(replacement, "replacement");
+        }
+
+        @Override
+        public Object applied(String text) {
+            return text.replace(target, replacement);
         }
     }
 

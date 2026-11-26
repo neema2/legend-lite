@@ -159,11 +159,16 @@ final class PctPlanRoute {
         // legend-engine's doors the edge removes a final toString()/toCSV() and hands the run a table printer as its
         // receiver): a compatibility audience's case whose last step prints a relation answers legend-pure's text,
         // printed in Java from the relation's typed rows (edge.PrintedRelations, edge.PureRelationText) -- lite's own
-        // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5)
+        // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5). Since the edition
+        // program's step 8 (2026-11-26; tenet 1 as amended 2026-11-25) legend-pure's audience has a last step's print of
+        // a value lifted too -- a Float's toString, legend-pure's print in Java (edge.PureValueText) -- and either
+        // audience the print's tail, the calls of one closed set after it (edge.PrintTail), whose answer may be an
+        // Integer or a Boolean. legend-engine's audience keeps a value's print in the query: its database's cast is
+        // legend-engine's own answer
         com.legend.edge.PrintedRelations.Lifted lifted = audience == Audience.LITE ? null
-                : com.legend.edge.PrintedRelations.lift(query);
+                : com.legend.edge.PrintedRelations.lift(query, audience == Audience.LEGEND_PURE);
         if (lifted != null) {
-            java.util.List<String> text = new java.util.ArrayList<>(1);
+            java.util.List<Object> text = new java.util.ArrayList<>(1);
             com.legend.Execution.run(lifted.relation(), com.legend.testbackend.StorelessRuntime.RUNTIME,
                     PctBackend.executionSource(), PctBackend.planSessions(),
                     com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features, audience.style(),
@@ -172,10 +177,17 @@ final class PctPlanRoute {
             // query, which the product refuses at lowering, reported every lifted case as PRODUCT_REFUSES)
             PctCaseRecorder.onePlan(() -> onePlan(lifted.relation(), features));
             if (text.size() != 1) {
-                throw new IllegalStateException("a printed relation answers one text; got " + text.size());
+                throw new IllegalStateException("a lifted print answers one value; got " + text.size());
             }
-            ExecutionPlan.Column value = new ExecutionPlan.Column("value", "String",
-                    new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null);
+            String slot = switch (lifted.answers()) {
+                case "String" -> "VARCHAR";
+                case "Integer" -> "BIGINT";
+                case "Boolean" -> "BOOLEAN";
+                default -> throw new IllegalStateException("a lifted print answers a String, an Integer or a Boolean,"
+                        + " not " + lifted.answers());
+            };
+            ExecutionPlan.Column value = new ExecutionPlan.Column("value", lifted.answers(),
+                    new ExecutionPlan.Multiplicity(1, 1), slot, null, null);
             return new Answer(ExecutionPlan.TdsResult.Shape.VALUE, new PlanRunner.Rows(java.util.List.of(value),
                     java.util.List.of(java.util.List.<Object>of(text.get(0)))), query.resultType(), null, null);
         }

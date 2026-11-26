@@ -82,6 +82,10 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/PureRelationTextTest.java",
     # a program's final toString/toCSV of a relation lifted at the doors (stage B's B2b S2, 2026-11-24)
     "src/test/java/com/legend/edge/PrintedRelationsTest.java",
+    # the tail of a lifted print, its closed set pinned (the edition program's step 8, 2026-11-26)
+    "src/test/java/com/legend/edge/PrintTailTest.java",
+    # each member of the tail against lite's own SQL for the same call, on every lane
+    "src/test/java/com/legend/integration/PrintTailParityTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     # legend-engine's template parameters, the edge's own table (the audit's J31, 2026-11-18)

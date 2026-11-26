@@ -51,7 +51,7 @@ public final class UpstreamPrints {
      *  read by {@code read} through {@code reads}, printed; null where it prints no such side (left as written). */
     @FunctionalInterface
     public interface Printer {
-        @com.legend.base.Nullable String print(PrintedRelations.Side side, com.legend.TypedQuery read, Reads reads);
+        @com.legend.base.Nullable Object print(PrintedRelations.Side side, com.legend.TypedQuery read, Reads reads);
 
         /** No printer: no side is substituted. */
         Printer NONE = (side, read, reads) -> null;
@@ -60,11 +60,29 @@ public final class UpstreamPrints {
     /** The edge's printer: legend-pure's text of the rows the read answers, the replaces applied (B2b's S1,
      *  {@link PureRelationTextWriter}: one writer per read, the database's typed cells in, legend-pure's text out). */
     static final Printer PRINTER = (side, read, reads) -> {
-        String[] text = new String[1];
+        Object[] text = new Object[1];
         reads.read(read, new com.legend.result.Output.Rows(
-                new PureRelationTextWriter(side.form(), side.replaces(), t -> text[0] = t)));
+                new PureRelationTextWriter(side.form(), side.tail(), t -> text[0] = t)));
         return java.util.Objects.requireNonNull(text[0], "the printer wrote no text");
     };
+
+    /** {@code e} read as a printed side: a relation's print or, the harnesses being legend-pure's own runs of the test's
+     *  code, a value's ({@link PrintedRelations#side(TypedSpec, boolean)}). */
+    private static PrintedRelations.@com.legend.base.Nullable Side side(TypedSpec e) {
+        return PrintedRelations.side(e, true);
+    }
+
+    /** The answer a printed side's read gave, as the literal put in its place: the text, or the Integer or Boolean its
+     *  tail's last step answers ({@link PrintTail#answers}). */
+    private static TypedSpec literal(Object answer, com.legend.compiler.element.type.ExprType info) {
+        return switch (answer) {
+            case String s -> new TypedCString(s, info);
+            case Long l -> new com.legend.compiler.spec.typed.TypedCInteger(l, info);
+            case Boolean b -> new com.legend.compiler.spec.typed.TypedCBoolean(b, info);
+            default -> throw new IllegalStateException("a printed side answers a String, an Integer or a Boolean, not "
+                    + answer.getClass().getSimpleName());
+        };
+    }
 
     /** {@code typed} with each printed side read, printed and substituted (above); the query itself where nothing is,
      *  or where the body {@code writes} (its facts' effects, the caller's: the test door states them). */
@@ -98,7 +116,7 @@ public final class UpstreamPrints {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
             TypedSpec n = work.pop();
-            if (PrintedRelations.side(n) != null) {
+            if (side(n) != null) {
                 return true;
             }
             work.addAll(n.children());
@@ -120,7 +138,7 @@ public final class UpstreamPrints {
         if (u != null) {
             return u;
         }
-        PrintedRelations.Side p = PrintedRelations.side(n);
+        PrintedRelations.Side p = side(n);
         if (p != null) {
             // a relation whose order the program does not define arrives in the database's order: its text is compared
             // line by line in any order where an assertEquals compares it with a golden (above), and left as written
@@ -128,8 +146,8 @@ public final class UpstreamPrints {
             if (!readable(p.relation(), lets) || incidental(p, lets)) {
                 return n;
             }
-            String text = print(p, typed, lets, reads, printer);
-            return text == null ? n : new TypedCString(text, n.info());
+            Object answer = print(p, typed, lets, reads, printer);
+            return answer == null ? n : literal(answer, n.info());
         }
         List<TypedSpec> kids = n.children();
         List<TypedSpec> rebuilt = new ArrayList<>(kids.size());
@@ -144,7 +162,7 @@ public final class UpstreamPrints {
 
     /** {@code side}'s text: its relation read (the lets and the relation) and printed; null where the printer prints
      *  none. */
-    private static @com.legend.base.Nullable String print(PrintedRelations.Side side, com.legend.TypedQuery typed,
+    private static @com.legend.base.Nullable Object print(PrintedRelations.Side side, com.legend.TypedQuery typed,
             List<TypedSpec> lets,
             Reads reads, Printer printer) {
         return printer.print(side, typed.withBody(readBody(side.relation(), lets)), reads);
@@ -224,8 +242,10 @@ public final class UpstreamPrints {
     }
 
     private static boolean incidental(PrintedRelations.Side side, List<TypedSpec> lets) {
-        return com.legend.compiler.spec.OrderView.of(side.relation(), lets)
-                == com.legend.compiler.spec.OrderView.INCIDENTAL;
+        // a value's print has no row order
+        return side.form() != PureRelationTextWriter.Form.VALUE
+                && com.legend.compiler.spec.OrderView.of(side.relation(), lets)
+                        == com.legend.compiler.spec.OrderView.INCIDENTAL;
     }
 
     /** {@code n} as an explicit order-free assert, or null (B3 step 4's printed tables, the design review of
@@ -245,16 +265,20 @@ public final class UpstreamPrints {
         }
         for (int side = 0; side < 2; side++) {
             // each side where it stands or through the let it is bound to (the review of step 2b, item 2)
-            PrintedRelations.Side p = PrintedRelations.side(
+            PrintedRelations.Side p = side(
                     com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets));
             String golden = UpstreamTestBodies.literalText(
                     com.legend.compiler.spec.typed.Lets.bound(call.args().get(1 - side), lets));
             if (p == null || golden == null || !readable(p.relation(), lets) || !incidental(p, lets)) {
                 continue;
             }
+            // lines are cut from a text: a tail that holds a step other than a replace is left as written
+            if (!p.tail().stream().allMatch(t -> t instanceof PureRelationText.Replace)) {
+                continue;
+            }
             List<String> goldenLines;
             List<String> printedLines;
-            List<PureRelationText.Replace> rs = p.replaces();
+            List<PureRelationText.Replace> rs = p.tail().stream().map(t -> (PureRelationText.Replace) t).toList();
             int joining = -1;
             for (int i = 0; i < rs.size(); i++) {
                 if (rs.get(i).target().equals("\n")) {
@@ -262,7 +286,7 @@ public final class UpstreamPrints {
                 }
             }
             if (joining < 0) {
-                String text = print(p, typed, lets, reads, printer);
+                String text = (String) print(p, typed, lets, reads, printer);
                 if (text == null) {
                     return null;
                 }
@@ -277,8 +301,8 @@ public final class UpstreamPrints {
                 if (joining != rs.size() - 1 || sep.isEmpty()) {
                     return null;
                 }
-                String text = print(new PrintedRelations.Side(p.relation(), p.form(), rs.subList(0, joining)), typed,
-                        lets, reads, printer);
+                String text = (String) print(new PrintedRelations.Side(p.relation(), p.form(),
+                        List.<PrintTail>copyOf(rs.subList(0, joining))), typed, lets, reads, printer);
                 if (text == null) {
                     return null;
                 }

@@ -2029,6 +2029,13 @@ class JavaEvalLedgerTest {
                             // yes"): reads the typed query, removes the final toString/toCSV and its literal replace
                             // calls by TypedQuery.withBody -- whole calls removed, nothing planned, no value computed
                             "PrintedRelations.java",
+                            // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words
+                            // that day, "maybe small set up string/count functions chained should all be in java", and
+                            // of 2026-11-24, "also do the replace in java too"): one closed set of functions of a text
+                            // (replace, length, trim, startsWith, endsWith, contains, indexOf), each legend-pure's own
+                            // Java for it, applied to the text the edge's printer wrote -- upstream's text, which no
+                            // database holds; pinned by edge.PrintTailTest
+                            "PrintTail.java",
                             // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
                             // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds
                             // an ORDER BY the engine's insertion order implies -- a node for a node, no value met

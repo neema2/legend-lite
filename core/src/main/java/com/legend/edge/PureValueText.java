@@ -70,6 +70,21 @@ final class PureValueText {
         };
     }
 
+    /**
+     * legend-pure's {@code toString()} of a value a program prints at a last step, lifted at legend-pure's doors
+     * ({@link PrintedRelations}; the edition program's step 8, 2026-11-26, tenet 1 as the user amended it on
+     * 2026-11-25: a print at a last step is Java's, with upstream's text, from the typed value the database computed):
+     * a Float as the double it is declared, by legend-pure's print ({@link #pureFloat}) -- {@code 0.000000013421},
+     * where the edge's SQL pass wrote legend-engine's in-query cast of it. Any other type is refused by name: the door
+     * lifts this one alone.
+     */
+    static String value(Object v, ExecutionPlan.Column c) {
+        if (c.type().equals("Float")) {
+            return asFloat(v, c);
+        }
+        throw refused("value toString", v, c);
+    }
+
     /** {@code v} under a Float type, as the double it is declared (an integer or a decimal the database held it in). */
     private static String asFloat(Object v, ExecutionPlan.Column c) {
         return switch (v) {

@@ -57,7 +57,7 @@ class UpstreamPrintsTest {
         assertNotNull(p);
         assertEquals(PureRelationTextWriter.Form.TO_STRING, p.form());
         assertEquals(List.of(new PureRelationText.Replace("\n", ","), new PureRelationText.Replace("A", "a")),
-                p.replaces());
+                p.tail());
         // a String's toString, and a replace whose argument is not a literal, are not printed sides
         assertNull(first(com.legend.Compiler.query(ctx, "|assertEquals('x', 'x'->toString());")));
         assertNull(first(com.legend.Compiler.query(ctx,
@@ -107,6 +107,49 @@ class UpstreamPrintsTest {
             com.legend.TestExecution.runProgram(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
                     com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
                     com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+        }
+    }
+
+    @Test
+    @DisplayName("a Float's print and a print's tail (the edition program's step 8, 2026-11-26): a value side is read and"
+            + " printed by legend-pure's rule in Java, and the calls of the tail's closed set after a print are applied"
+            + " in Java too, the side substituted by a literal of the tail's type")
+    void aFloatsPrintAndAPrintsTailAreJavas() throws Exception {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            UpstreamPrints.Reads reads = (query, answer) -> com.legend.TestExecution.runProgram(query,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                    com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE, answer);
+            // the read runs in the product's style here: the product's own text of this Float is 0.0, so the texts
+            // below are the Java printer's
+            java.util.Map<String, Object> bodies = new java.util.LinkedHashMap<>();
+            bodies.put("|assertEquals('0.000000013421', (1.3421e-8 * 1.0)->toString());", "0.000000013421");
+            bodies.put("|assertEquals(14, (1.3421e-8 * 1.0)->toString()->length());", 14L);
+            bodies.put("|let r = " + REL + "; assertEquals(31, $r->toString()->length());", 31L);
+            bodies.put("|let r = " + REL + "; assert($r->toString()->replace('\n', ';')->contains(';   1,A;'));",
+                    true);
+            bodies.put("|let r = " + REL + "; assertEquals(0, $r->toString()->trim()->indexOf('#TDS'));", 0L);
+            for (var e : bodies.entrySet()) {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, e.getKey());
+                com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);
+                java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(read.body());
+                boolean substituted = false;
+                while (!work.isEmpty()) {
+                    TypedSpec n = work.pop();
+                    substituted |= n instanceof TypedCString s && s.value().equals(e.getValue())
+                            || n instanceof com.legend.compiler.spec.typed.TypedCInteger i && e.getValue() instanceof Long l
+                                    && i.value().longValue() == l
+                            || n instanceof com.legend.compiler.spec.typed.TypedCBoolean b
+                                    && Boolean.valueOf(b.value()).equals(e.getValue());
+                    work.addAll(n.children());
+                }
+                assertTrue(substituted && read != typed, e.getKey() + ": " + read.body());
+                assertNull(first(read), "no printed side is left: " + e.getKey());
+                com.legend.TestExecution.runProgram(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                        com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            }
         }
     }
 

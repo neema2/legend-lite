@@ -209,7 +209,7 @@ class PureRelationTextTest {
 
     @Test
     void theWriterPrintsTheRowsAtTheEnd() throws Exception {
-        List<String> got = new ArrayList<>();
+        List<Object> got = new ArrayList<>();
         PureRelationTextWriter w = new PureRelationTextWriter(PureRelationTextWriter.Form.TO_CSV,
                 List.of(new PureRelationText.Replace("\n", ",")), got::add);
         w.answers(ExecutionPlan.TdsResult.Shape.RELATION);
@@ -221,5 +221,38 @@ class PureRelationTextTest {
                 List.of(), got::add).end());
         assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(
                 PureRelationTextWriter.Form.TO_STRING, List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.VALUE));
+    }
+
+    /** A value's print and a tail (the edition program's step 8, 2026-11-26): the answer's one cell printed by
+     *  legend-pure's rule, the tail applied, and the receiver handed what the tail's last step answers. */
+    @Test
+    void theWriterPrintsAValueAndAppliesTheTail() throws Exception {
+        List<Object> got = new ArrayList<>();
+        ExecutionPlan.Column f = new ExecutionPlan.Column("value", "Float", new ExecutionPlan.Multiplicity(1, 1),
+                "DOUBLE", null, null);
+        for (List<PrintTail> tail : List.of(List.<PrintTail>of(), List.<PrintTail>of(new PrintTail.Length()))) {
+            PureRelationTextWriter w = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, tail, got::add);
+            w.answers(ExecutionPlan.TdsResult.Shape.VALUE);
+            w.columns(List.of(f));
+            w.batch(one(f, 1.3421e-8));
+            w.end();
+        }
+        assertEquals(List.<Object>of("0.000000013421", 14L), got);
+        // a relation's rows do not answer a value's print, and no other type's value is printed
+        assertThrows(IllegalStateException.class, () -> new PureRelationTextWriter(
+                PureRelationTextWriter.Form.VALUE, List.of(), got::add).answers(ExecutionPlan.TdsResult.Shape.RELATION));
+        ExecutionPlan.Column i = new ExecutionPlan.Column("value", "Integer", new ExecutionPlan.Multiplicity(1, 1),
+                "BIGINT", null, null);
+        PureRelationTextWriter integer = new PureRelationTextWriter(PureRelationTextWriter.Form.VALUE, List.of(), got::add);
+        integer.columns(List.of(i));
+        integer.batch(one(i, 1L));
+        assertThrows(com.legend.error.NotImplementedException.class, integer::end);
+    }
+
+    /** A batch of one row of one cell. */
+    private static com.legend.result.Batch one(ExecutionPlan.Column column, Object cell) {
+        com.legend.result.Batch.Builder b = com.legend.result.Batch.builder(List.of(column), 1);
+        b.add(List.of(cell));
+        return b.build();
     }
 }

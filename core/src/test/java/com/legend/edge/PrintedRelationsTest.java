@@ -37,7 +37,7 @@ class PrintedRelationsTest {
         PrintedRelations.Lifted lifted = PrintedRelations.lift(typed("|" + REL + "->toString()"));
         assertNotNull(lifted);
         assertEquals(PureRelationTextWriter.Form.TO_STRING, lifted.form());
-        assertEquals(List.of(), lifted.replaces());
+        assertEquals(List.of(), lifted.tail());
         // the program that remains computes the relation: its result is the relation's, no longer a String
         assertEquals(typed("|" + REL).resultType(), lifted.relation().resultType());
     }
@@ -48,7 +48,7 @@ class PrintedRelationsTest {
                 + "->toString()->replace('\\n', ',')->replace('x', 'y')"));
         assertNotNull(lifted);
         assertEquals(List.of(new PureRelationText.Replace("\n", ","), new PureRelationText.Replace("x", "y")),
-                lifted.replaces());
+                lifted.tail());
     }
 
     @Test
@@ -60,8 +60,48 @@ class PrintedRelationsTest {
         assertNull(PrintedRelations.lift(typed("|" + REL + "->toString(true)")));
         // no print at the root
         assertNull(PrintedRelations.lift(typed("|" + REL + "->filter(r|$r.a == 1)")));
-        // a print that is not the last step
-        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->length()")));
+        // a print followed by a call outside the tail's closed set (PrintTail), or by one of the set whose argument is
+        // no literal
+        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->toUpper()")));
+        assertNull(PrintedRelations.lift(typed("|let s = 'q'; " + REL + "->toString()->contains($s);")));
+        // a step of the set above one that answers no String: only a String is read further
+        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString()->length()->toString()")));
+    }
+
+    /** The tail (the edition program's step 8, 2026-11-26): the calls of the closed set after a print are lifted with
+     *  it, in the program's order, and the answer's type is the last step's. */
+    @Test
+    void theTailAfterAPrintIsLiftedWithIt() {
+        PrintedRelations.Lifted length = PrintedRelations.lift(typed("|" + REL
+                + "->toString()->replace('\\n', ',')->trim()->length()"));
+        assertNotNull(length);
+        assertEquals(List.of(new PureRelationText.Replace("\n", ","), new PrintTail.Trim(), new PrintTail.Length()),
+                length.tail());
+        assertEquals("Integer", length.answers());
+        PrintedRelations.Lifted contains = PrintedRelations.lift(typed("|" + REL + CSV + "()->contains('x')"));
+        assertNotNull(contains);
+        assertEquals(List.of(new PrintTail.Contains("x")), contains.tail());
+        assertEquals("Boolean", contains.answers());
+        PrintedRelations.Lifted index = PrintedRelations.lift(typed("|" + REL + "->toString()->indexOf('a', 2)"));
+        assertNotNull(index);
+        assertEquals(List.of(new PrintTail.IndexOf("a", 2L)), index.tail());
+        assertEquals("String", PrintedRelations.lift(typed("|" + REL + "->toString()")).answers());
+    }
+
+    /** A value's print (the edition program's step 8, 2026-11-26): at legend-pure's doors ({@code values}) a Float's
+     *  toString is lifted, with its tail, and the program that remains computes the Float; legend-engine's door's rule
+     *  lifts no value, and no other type's print is lifted. */
+    @Test
+    void aFloatsToStringIsLiftedAtLegendPuresDoorsAlone() {
+        PrintedRelations.Lifted lifted = PrintedRelations.lift(typed("|(1.5 * 2.0)->toString()->length()"), true);
+        assertNotNull(lifted);
+        assertEquals(PureRelationTextWriter.Form.VALUE, lifted.form());
+        assertEquals(List.of(new PrintTail.Length()), lifted.tail());
+        assertEquals(typed("|1.5 * 2.0").resultType(), lifted.relation().resultType());
+        assertNotNull(PrintedRelations.lift(typed("|1.3421e-8->toString()"), true));
+        assertNull(PrintedRelations.lift(typed("|(1.5 * 2.0)->toString()")));
+        assertNull(PrintedRelations.lift(typed("|1->toString()"), true));
+        assertNull(PrintedRelations.lift(typed("|'a'->toString()->length()"), true));
     }
 
     /** A relation's column named csv is that column's cells, never the TDS's csv (the review of d6e94cdfe, 2026-11-25:
@@ -81,7 +121,7 @@ class PrintedRelationsTest {
         PrintedRelations.Side side = PrintedRelations.side(printed);
         assertNotNull(side);
         assertEquals(PureRelationTextWriter.Form.TO_STRING, side.form());
-        assertEquals(List.of(new PureRelationText.Replace("x", "y")), side.replaces());
+        assertEquals(List.of(new PureRelationText.Replace("x", "y")), side.tail());
         assertEquals(((com.legend.compiler.spec.typed.TypedNativeCall) ((com.legend.compiler.spec.typed.TypedNativeCall)
                 printed).args().get(0)).args().get(0), side.relation());
         assertNull(PrintedRelations.side(typed("|" + REL + "->filter(r|$r.a == 1)").body().get(0)));
