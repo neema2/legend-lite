@@ -595,7 +595,7 @@ testPairToString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower
 testPairToString	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:<a, 1>;
 testParseDate	001	VALUE	type=ExprType[type=DATE_TIME, multiplicity=Bounded[lower=1, upper=1]] values=DateWithSubsecond:2014-02-27T10:01:35.231+0000;
 testParseDate	002	VALUE	type=ExprType[type=DATE, multiplicity=Bounded[lower=1, upper=1]] values=DateWithSubsecond:2014-02-27T10:01:35.231+0000;
-testParseDateTypes	001	VALUE	type=ExprType[type=DATE_TIME, multiplicity=Bounded[lower=1, upper=1]] values=DateWithSubsecond:2014-02-27T00:00:00.000000+0000;
+testParseDateTypes	001	VALUE	type=ExprType[type=DATE_TIME, multiplicity=Bounded[lower=1, upper=1]] values=DateWithSecond:2014-02-27T00:00:00+0000;
 testParseDateTypes	002	VALUE	type=ExprType[type=STRICT_DATE, multiplicity=Bounded[lower=1, upper=1]] values=StrictDate:2014-02-27;
 testParseDateWithTimezone	001	VALUE	type=ExprType[type=DATE_TIME, multiplicity=Bounded[lower=1, upper=1]] values=DateWithSubsecond:2014-02-27T15:01:35.231+0000;
 testParseDateWithTimezone	002	VALUE	type=ExprType[type=DATE_TIME, multiplicity=Bounded[lower=1, upper=1]] values=DateWithSubsecond:2014-02-27T15:01:35.231+0000;
