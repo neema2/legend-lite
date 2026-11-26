@@ -1876,7 +1876,9 @@ class JavaEvalLedgerTest {
                     "core/src/main/java/com/legend", ROOT_CLASSES,
                     // THE COMPATIBILITY EDGE (phase D; registered 2026-11-15, the D part 1 audit's S6: it had escaped
                     // the registers since D1.0b): upstream's spellings, routes and texts over the product -- parse,
-                    // plan and print; no connection, no JDBC, no value computed (the JDBC funnel rules hold its jar)
+                    // plan and print; no connection, no JDBC, no value computed (the JDBC funnel rules hold its jar).
+                    // One named exception since 2026-11-26, PrintTail.java below: it computes over a text the edge
+                    // itself printed, by the user's words of that day
                     "core/src/main/java/com/legend/edge", java.util.Set.of(
                             // the test road's compatibility rules handed to exec (the edge's typed extension point)
                             "CompatEdge.java", "EdgeCodec.java",
@@ -2019,20 +2021,35 @@ class JavaEvalLedgerTest {
                             // receiver that prints it (stage B's B2, B2b S1, 2026-11-24: the plan of record's B2, the
                             // user's ~18:12 ruling of 2026-11-19, "Yes record it"; rule 3 and G6, small Java formatting
                             // at the edge): spells each typed cell as legend-pure prints it, decides nothing, computes no
-                            // value (the database computed every cell); the one string operation it runs is the
+                            // value (the database computed every cell); the one string operation it ran is the
                             // program's literal replace calls on the printed text, the user's ruling of 2026-11-24
-                            // ~13:53 ("also do the replace in java too")
+                            // ~13:53 ("also do the replace in java too"). Since 2026-11-26 (the edition program's step
+                            // 8) the receiver applies the print's whole tail, PrintTail.java below, and prints one
+                            // value under its VALUE form
                             "PureRelationText.java", "PureRelationTextWriter.java",
                             // the edge's value printer (B2b S6a's legend-pure door, 2026-11-25, the orchestrator's
                             // agreement, G1): the cell rules moved, unchanged, from PureRelationText (a move); S6a's
-                            // last-step Float print held with the edge's value passes (the design audit, 2026-11-25) --
-                            // spells a typed value, decides nothing
+                            // last-step Float print, held on 2026-11-25, is back since 2026-11-26 (the edition
+                            // program's step 8: tenet 1 as the user amended it on 2026-11-25) -- spells a typed value,
+                            // decides nothing
                             "PureValueText.java",
                             // a program whose last step prints a relation, lifted at legend-pure's and legend-engine's
                             // doors (stage B's B2, B2b S2, 2026-11-24: the plan of record's B2; E0 = A, 2026-11-20, "E0 -
                             // yes"): reads the typed query, removes the final toString/toCSV and its literal replace
-                            // calls by TypedQuery.withBody -- whole calls removed, nothing planned, no value computed
+                            // calls by TypedQuery.withBody -- whole calls removed, nothing planned, no value computed.
+                            // Since 2026-11-26 (the edition program's step 8) it removes the print's whole tail
+                            // (PrintTail.java below) and, at legend-pure's doors, a Float's last toString
                             "PrintedRelations.java",
+                            // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words
+                            // that day, "maybe small set up string/count functions chained should all be in java", and
+                            // of 2026-11-24, "also do the replace in java too"): one closed set of functions of a text
+                            // (replace, length, trim, startsWith, endsWith, contains, indexOf), each legend-pure's own
+                            // Java for it, applied to the text the edge's printer wrote -- upstream's text, which no
+                            // database holds. It COMPUTES values in Java (a length, an index, a Boolean), the one
+                            // class of the edge that does, and only over that text. The set's members and this
+                            // exception were ruled by the user, 2026-11-26 ~13:57: "yes should add guard"; pinned by
+                            // edge.PrintTailTest
+                            "PrintTail.java",
                             // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
                             // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds
                             // an ORDER BY the engine's insertion order implies -- a node for a node, no value met

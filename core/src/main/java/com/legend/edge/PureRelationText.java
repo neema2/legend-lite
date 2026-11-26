@@ -33,23 +33,18 @@ public final class PureRelationText {
     private PureRelationText() {
     }
 
-    /** A literal {@code replace(target, replacement)} applied to the printed text, in the program's order. */
-    public record Replace(String target, String replacement) {
+    /** A literal {@code replace(target, replacement)} applied to the printed text, in the program's order: the first
+     *  member of a print's tail ({@link PrintTail}; the edition program's step 8, 2026-11-26). */
+    public record Replace(String target, String replacement) implements PrintTail {
         public Replace {
             java.util.Objects.requireNonNull(target, "target");
             java.util.Objects.requireNonNull(replacement, "replacement");
         }
-    }
 
-    /** {@code text} with each of {@code replaces} applied in order, as Pure's {@code replace} does: Java's
-     *  {@code String.replace}, which legend-pure's native calls in both its runtimes ({@code CompiledSupport.replace},
-     *  the interpreter's {@code Replace}) -- every occurrence, left to right, non-overlapping. */
-    public static String replaced(String text, List<Replace> replaces) {
-        String out = text;
-        for (Replace r : replaces) {
-            out = out.replace(r.target(), r.replacement());
+        @Override
+        public Object applied(String text) {
+            return text.replace(target, replacement);
         }
-        return out;
     }
 
     /** The columns refused before a run's rows are read: a mixed column (its cells tagged by kind, which a typed

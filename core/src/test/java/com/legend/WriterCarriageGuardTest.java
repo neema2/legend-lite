@@ -179,6 +179,12 @@ class WriterCarriageGuardTest {
             Map.entry("PureValueText.java", Map.ofEntries(
                     Map.entry("atLeast", 1),
                     Map.entry("doubleValue", 5))),
+            // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words that day, "maybe
+            // small set up string/count functions chained should all be in java", and on the set and its guard
+            // exception, ~13:57, "yes should add guard"): indexOf's start read as an int, as
+            // legend-pure's own Java reads it (CompiledSupport.indexOf: from.intValue()) -- the program's literal, not
+            // a value the database computed
+            Map.entry("PrintTail.java", Map.of("intValue", 1)),
             Map.entry("RaiseWords.java", Map.ofEntries(
                     Map.entry("intValue", 1),
                     Map.entry("doubleValue", 1),
@@ -329,6 +335,8 @@ class WriterCarriageGuardTest {
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
         // the edge's value printer, the cell rules moved out of PureRelationText (B2b S6a, 2026-11-25)
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureValueText.java"));
+        // the tail of a lifted print (the edition program's step 8, 2026-11-26): scanned with the printers it follows
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PrintTail.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();
