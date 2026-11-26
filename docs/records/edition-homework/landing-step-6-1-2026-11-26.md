@@ -98,6 +98,21 @@ No other pin, ceiling or allowlist moves.
 | ClickHouse might truncate a Decimal in `IN` | not reproduced: probed on the lane at three scales, correct |
 | a build break the quick type check missed (a nullable local passed to a lambda; the full compiler's null check refused it) | rewritten without nullable locals |
 
+## What the re-check of those fixes found (`audits/batch-6-1-recheck-2026-11-26.md`), and what was done
+
+No blocker; the three blockers above confirmed fixed. Three new items, each fixed before the batch went to CI:
+
+| Finding | Done |
+|---|---|
+| a position of two written lists compared with a bare `=` where a value could still be NULL: the check trusted the SQL type's "never NULL" label, which only repeats the Pure multiplicity (a `[1]` property on a nullable column) | plain `=` only where both values are literals, read off the node; otherwise the null-safe equality itself |
+| with whole numbers back in the compiler's comparison, a whole number inlined against Float literals (`1->in([0.0, 1.0])` through a `Number` parameter) folded to false, where the previous batch left it to the database (true) and its mirror still answers true | left to the database again, as the previous batch left it; `LiteralRuleAnswersTest` holds both directions. What such a comparison SHOULD answer under the run-time rule is slice 6.2's question |
+| an answer given by the types alone (two lengths, two kinds at a position, an element of another type left out of `IN`) wrote no element, so an element that raises lost its error | such an answer is taken only where no element can raise; otherwise the lists compare as before, every element evaluated |
+
+Also from it: the fold's switch on a literal's kind throws on a kind it does not compare (it returned false).
+Recorded, not changed here: `[2D, 'a']->contains(2)` is refused while `2->in([2D, 'a'])` answers false (the refusal
+goes in slice 6.2, both false); a map's `get` and `groupBy` still compare Decimals and dates in the compiler (step 10's
+cut-back of the folds).
+
 ## Carried forward (the plan record's section 5b)
 
 A list holding a parameter or a column still goes through the list's carrier; a mixed list's sort on BigQuery orders
