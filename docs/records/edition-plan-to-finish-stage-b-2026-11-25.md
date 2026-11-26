@@ -524,7 +524,8 @@ passed, 14 root-only). The database lanes were not asked for a round: the produc
 1. *The plain parses* (`parseInteger`, `parseFloat`): today a pass of the edge's dialect unguards them for every
    compatibility style, PCT's legend-pure run included (`edge/PurePrintForms.UnguardedParses`). As rows they are
    legend-engine's inside a store query alone; PCT's legend-pure run and a host-side `let` get lite's checked parse.
-   Ruled (v3 section 5.3, S-2). Moves PCT's legend-pure answers on every database: needs a lane round.
+   Ruled (v3 section 5.3, S-2). **Built and parked the same day** (6b, item 12): it raises one ceiling that moves
+   up only with the user's word.
 2. *`isNumeric`, the one-argument `parseDecimal`, `parseJSON`*: today in the forms object the edge hands every
    compatibility style (`edge/EdgeLoweringForms`). Each needs a point settled first: H2's `isNumeric` in
    legend-engine 4.145.0 is a regular expression, so the `lower = upper` form and register S370 are stale;
@@ -594,6 +595,19 @@ old detector did not count it either).
    from zero on DuckDB and H2 (legend-engine's), and **refused by name on every other database** until its answer
    is checked there (it was answered Pure's way before); (b) PCT's legend-engine scoreboard: 24 rows to "both
    fail", listed in 6a.
+12. **The plain parses as rows: built, parked on `claude/parked-parse-rows` (`d56c9d6b`), waiting on one ceiling.**
+   `parseInteger` and `parseFloat` inside a store query at legend-engine's door become the database's own cast by
+   two rows (two new SQL functions, `CAST_INT` and `CAST_FLOAT`, an arm in every dialect), and the edge's pass that
+   unguarded every parse in every compatibility style is deleted. So PCT's legend-pure run and a host-side `let`
+   get lite's checked parse back, as ruled (v3 section 5.3, S-2). Run on that commit: 75 of 78 targets pass (the
+   guards, the census, the lowering's and SQL's tests, the product's SQL size baseline, both corpus lanes, the
+   legend-engine lane's pins, PCT on DuckDB, H2 and SQLite, every recorded answer file). The three that do not:
+   two corpus size pins that go DOWN and want re-pinning (`stringToFloat`, 123 characters a plan on each lane), and
+   **`InterimEdgeSitesTest`'s ceiling, 4 to 5**: the count of raise sites in a legend-pure-style plan whose sentence
+   prints a value only the database holds (`<computed>`, register S389). The fifth is the checked `parseInteger` of
+   a column ("Could not convert string '<computed>' to INT64"), which the deleted pass used to hide. The ceiling
+   moves up only with the user's word. Not yet run: the server and cloud lanes (PCT's legend-pure run could move on
+   each).
 11. **Step 5's rows that carry a decision** (from `r3/research-engine-rows.md`): `dateDiff` (legend-engine writes
    the database's own for every unit; only weeks were ruled); `splitPart` on DuckDB differs from Pure beyond the
    empty token; H2's `isNumeric` in legend-engine 4.145.0 is a regular expression, so register S370 is stale;
