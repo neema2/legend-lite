@@ -355,6 +355,19 @@ class PureMeaningEngineTest {
                 "{\"values\": [2]},{\"values\": [3]},{\"values\": [4]},{\"values\": [5]}");
     }
 
+    // ---- dateDiff: the database's own date difference for every unit (register S425) -------------------------------
+
+    /** {@code dateDiff} inside a query sent to the database is the database's own function: from 10:59:59 to 11:00:01
+     *  this database counts one hour boundary crossed (legend-engine's answer), where Pure counts no whole hour
+     *  elapsed. */
+    @Test
+    void dateDiffIsTheDatabasesOwnCount_legendEnginesAnswer() {
+        legendEngines("|" + EngineTablePlacementTest.TABLE + "->extend(~a: r|dateDiff(%2015-07-04T10:59:59,"
+                + " %2015-07-04T11:00:01, meta::pure::functions::date::DurationUnit.HOURS) + $r.ID->toOne() - $r.ID->toOne())"
+                + "->select(~[a])->from(t::RT)",
+                "{\"values\": [1]},{\"values\": [1]},{\"values\": [1]},{\"values\": [1]}");
+    }
+
     // ---- the relational isNumeric: legend-engine's own check on each database (register S370) -----------------------
 
     /** On H2 legend-engine's isNumeric is its dialect translation's regular expression, a plain decimal's text: no

@@ -46,6 +46,11 @@ import java.util.Set;
  *       own conversion error ({@code TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}; legend-engine's SQL casts,
  *       ruled plain inside a store query: the edition design's S-2). Until 2026-11-26 a pass of the edge's dialect
  *       unguarded them in every compatibility style, PCT's legend-pure run and a host-side {@code let} included.</li>
+ *   <li>{@code dateDiff}: the database's own date difference for every unit ({@code DATE_DIFF_AS_GIVEN}), where
+ *       Pure counts weeks by Sunday boundaries and hours, minutes and seconds as elapsed whole units (register
+ *       S425);</li>
+ *   <li>{@code splitPart}: the database's own {@code split_part} over the index plus one
+ *       ({@code SPLIT_PART_AS_GIVEN}), on the databases where legend-engine writes that function (register S426);</li>
  *   <li>the relational {@code isNumeric}: legend-engine's own form on each database, a row for each form (a plain
  *       decimal's text where its dialect translation writes a regular expression, no cased letter where it writes
  *       {@code lower = upper}), where the product's is one numeric check on every database (register S370).</li>
@@ -97,6 +102,13 @@ final class EngineTable implements EditionTable, Edition {
     private static final Map<FunctionId, List<Row>> AS_GIVEN;
     private static final Map<FunctionId, List<Row>> CORRECTED;
 
+    /** Rows that answer only where legend-engine's SQL is the database's own function, and are no row on any other
+     *  database: the call keeps its own rule there, as before the row, and is never refused. For a call legend-engine
+     *  answers elsewhere by a function of its own Java, whose meaning is Pure's or near it ({@code splitPart} on H2:
+     *  {@code legend_h2_extension_split_part}, Apache's {@code StringUtils.split}, which drops empty parts as Pure
+     *  does). */
+    private static final Map<FunctionId, Row> WHERE_WRITTEN;
+
     static {
         Map<FunctionId, List<Row>> given = new java.util.LinkedHashMap<>();
         each(given, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTRING_AS_GIVEN, "substring/2", "substring/3");
@@ -118,12 +130,19 @@ final class EngineTable implements EditionTable, Edition {
         given.put(Pure.AT_LEGEND_LITE_IS_NUMERIC.get(0), List.of(
                 new Row(NamedRule.TEXT_IS_PLAIN_DECIMAL, "isNumeric/1", PureText.ENGINE_IS_NUMERIC_BY_PATTERN),
                 new Row(NamedRule.TEXT_HAS_NO_CASED_LETTER, "isNumeric/1", PureText.ENGINE_IS_NUMERIC_BY_CASE)));
+        // dateDiff: the database's own function for every unit (legend-engine's datediff(unit, a, b) on both:
+        // duckdbExtension.pure:213, toPostgresModel.pure:397; ruled 2026-11-26, "Yes all units"; register S425)
+        each(given, Pure.AT_DATE_DATE_DIFF, NamedRule.DATE_DIFF_AS_GIVEN, "dateDiff/3", "dateDiff/3");
         Map<FunctionId, List<Row>> flagged = new java.util.LinkedHashMap<>();
         each(flagged, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTR_AS_GIVEN, "substring(corrected)/2",
                 "substring(corrected)/3");
         // lookup tables, never iterated; unmodifiable in declaration order all the same (NoSaltedIterationOrderTest)
         AS_GIVEN = java.util.Collections.unmodifiableMap(given);
         CORRECTED = java.util.Collections.unmodifiableMap(flagged);
+        // splitPart: the database's own split_part over the index plus one (pureToSQLQuery.pure:3197-3204,
+        // duckdbExtension.pure:276; ruled 2026-11-26, "Yes match split fully"; register S426)
+        WHERE_WRITTEN = Map.of(Pure.AT_STRING_SPLIT_PART.get(0),
+                new Row(NamedRule.SPLIT_PART_AS_GIVEN, "splitPart/3", PureText.ENGINE_SPLIT_PART_READ));
     }
 
     /** Whether this is a statement's table (made by {@link #table}); the door's edition is not. */
@@ -205,10 +224,14 @@ final class EngineTable implements EditionTable, Edition {
         return call.outsideStore() || !PureText.ENGINE_UNCHECKED.contains(kind);
     }
 
-    private static @Nullable List<Row> rows(TypedNativeCall call, Set<Feature> features) {
+    private @Nullable List<Row> rows(TypedNativeCall call, Set<Feature> features) {
         FunctionId key = call.callee().id();
         if (TO_ONE.equals(key)) {
             return alwaysEmpty(call.args().get(0)) ? TO_ONE_OF_EMPTY : null;
+        }
+        Row written = WHERE_WRITTEN.get(key);
+        if (written != null) {
+            return written.answersOn(database) ? List.of(written) : null;
         }
         if (features.contains(Feature.CORRECT_SQL_SUBSTRING_INDEXING)) {
             List<Row> flagged = CORRECTED.get(key);

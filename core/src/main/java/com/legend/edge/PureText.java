@@ -61,6 +61,11 @@ public final class PureText {
      *  Trino, Snowflake and ClickHouse by their lanes, 2026-11-26). */
     static final java.util.Set<DatabaseType> ENGINE_IS_NUMERIC_BY_CASE = java.util.Set.of(DatabaseType.DuckDB);
 
+    /** Where legend-engine's {@code splitPart} is the database's own {@code split_part}: DuckDB
+     *  ({@code duckdbExtension.pure:276}). On H2 it is a function of legend-engine's own Java
+     *  ({@code legend_h2_extension_split_part}), which lite's H2 does not hold. */
+    static final java.util.Set<DatabaseType> ENGINE_SPLIT_PART_READ = java.util.Set.of(DatabaseType.DuckDB);
+
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS},
      *  {@link #ENGINE_PCT}): a plan in legend-pure's words,

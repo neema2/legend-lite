@@ -67,5 +67,17 @@ public enum NamedRule {
     /** Whether a text is a plain decimal number: an optional minus sign, digits, and optionally a point and digits,
      *  the whole text (a full match of {@code [-]?[0-9]+(\.[0-9]+)?}). No plus sign, no exponent, no blank; NULL of
      *  NULL. */
-    TEXT_IS_PLAIN_DECIMAL
+    TEXT_IS_PLAIN_DECIMAL,
+
+    /** {@code dateDiff} as the target database's own date difference counts the unit ({@code SqlFn.DATE_DIFF}, the
+     *  plain function): weeks, hours, minutes and seconds as that database counts them -- boundaries crossed on one,
+     *  elapsed whole units on another. Not the product's {@code dateDiff}, which writes Pure's count for those four
+     *  units on every database (weeks by Sunday boundaries; hours, minutes and seconds elapsed, truncated). */
+    DATE_DIFF_AS_GIVEN,
+
+    /** {@code splitPart} as the target database's own {@code split_part}, its index made 1-based and nothing else
+     *  ({@code SqlFn.SPLIT_PART}): an empty part is a part, the separator is a whole text, an index past the parts is
+     *  the empty text. Not the product's {@code splitPart}, Pure's (empty parts dropped, an index past them an
+     *  error). */
+    SPLIT_PART_AS_GIVEN
 }

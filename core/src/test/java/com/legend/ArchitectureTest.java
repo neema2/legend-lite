@@ -1391,7 +1391,9 @@ final class ArchitectureTest {
             // door's table reads each constant it maps a call to -- data, a name of a rule the lowering holds
             // (lowering.NamedRules); anEditionsTableAloneNamesARule keeps every other namer out
             "lowering.NamedRule#CAST_TO_BARE_DECIMAL", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#DATE_DIFF_AS_GIVEN", "com.legend.edge.EngineTable",
             "lowering.NamedRule#ROUND_AS_GIVEN", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#SPLIT_PART_AS_GIVEN", "com.legend.edge.EngineTable",
             "lowering.NamedRule#SQL_POSITION", "com.legend.edge.EngineTable",
             "lowering.NamedRule#SUBSTRING_AS_GIVEN", "com.legend.edge.EngineTable",
             "lowering.NamedRule#SUBSTR_AS_GIVEN", "com.legend.edge.EngineTable",

@@ -112,7 +112,9 @@ class DialectBoundaryTest {
             // edge's registry's (ENGINE_IS_NUMERIC_BY_PATTERN, ENGINE_IS_NUMERIC_BY_CASE: one line each) -- data a
             // row looks up, never a comparison, so the table itself (EngineTable) names no database. Reported to the
             // user with the step
-            "PureText.java", 4);
+            // 4 -> 5 (2026-11-26, the same step; the user's ruling "Yes match split fully"): ENGINE_SPLIT_PART_READ,
+            // the one database where legend-engine's splitPart is the database's own split_part
+            "PureText.java", 5);
 
     /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
      *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a

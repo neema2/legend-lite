@@ -420,7 +420,23 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   legend-engine's choice of SQL type, not Pure's meaning.
 - **Register:** S424.
 
-### 21. Comparing two different types is a compile error on lite's own route (the equality rule, 2026-11-24 and 2026-11-26)
+### 21. `dateDiff` counts as Pure does; `splitPart` splits as Pure does (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write**, in a query sent to the database: `dateDiff($t.start, $t.end, DurationUnit.WEEKS)`, or
+  `$t.text->splitPart(',', 2)`.
+- **legend-engine** sends the database's own function, and the databases disagree:
+  - a week from Saturday to Sunday is `0` on DuckDB (seven elapsed days) and `1` on H2 (a week boundary crossed);
+  - from 10:59:59 to 11:00:01 is `1` hour on both (a boundary crossed);
+  - DuckDB's `split_part('a,b,,c', ',', 3)` is `''`: it keeps the empty part.
+- **At legend-engine's door, lite answers legend-engine's**, with no setting: `dateDiff` on DuckDB and H2, `splitPart`
+  on DuckDB. In a host-side `let` both keep Pure's meaning.
+- **On lite's own route**, on every database: a week is a Sunday boundary crossed (Saturday to Sunday is `1`); hours,
+  minutes and seconds are whole units elapsed (10:59:59 to 11:00:01 is `0` hours); `splitPart` drops empty parts
+  (`'a,b,,c'` part 2 is `'c'`) and an index past the parts is an error.
+- **Why:** Pure defines both; one query should answer the same on every database.
+- **Register:** S425, S426.
+
+### 22. Comparing two different types is a compile error on lite's own route (the equality rule, 2026-11-24 and 2026-11-26)
 - **Which meaning you get depends on the door,** as in item 1: at legend-engine's door a comparison is sent to the
   database as written, legend-engine's answer, with no setting.
 - **You write**, on lite's own route: `$x.kind == 'CITY'` where `kind` is an enumeration, `$x.day == $x.stamp` (a day

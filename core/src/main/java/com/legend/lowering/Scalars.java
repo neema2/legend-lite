@@ -3412,6 +3412,18 @@ final class Scalars {
         }
     }
 
+    /** {@code dateDiff} as the database's own function counts it (an edition's table's rule,
+     *  {@link NamedRule#DATE_DIFF_AS_GIVEN}): the plain {@code DATE_DIFF} for every unit, with none of
+     *  {@link #dateDiffExpr}'s forms for weeks, hours, minutes and seconds. Nanoseconds, which no database's function
+     *  counts, keep the product's rule. */
+    static SqlExpr dateDiffAsGiven(TypedNativeCall n, List<SqlExpr> args) {
+        DatePart part = diffPart(n.args().get(2));
+        SqlExpr d1 = dateArg(n.args().get(0), args.get(0));
+        SqlExpr d2 = dateArg(n.args().get(1), args.get(1));
+        return part == DatePart.NANOSECOND ? dateDiffExpr(part, d1, d2)
+                : new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(new SqlExpr.DatePartLit(part), d1, d2));
+    }
+
     /** Truncated elapsed time in {@code unitMs} chunks (Java toHours-style). */
     private static SqlExpr elapsed(SqlExpr d1, SqlExpr d2, long unitMs) {
         return SqlExpr.Call.of(SqlFn.INT_DIVIDE,

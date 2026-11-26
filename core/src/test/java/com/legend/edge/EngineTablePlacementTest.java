@@ -347,10 +347,30 @@ class EngineTablePlacementTest {
                 "($r.ID->toOne() / 3)->round()", "($r.ID->toOne() / 3)->round(1)",
                 "$r.ID->toOne()->toDecimal()->round(1)", "($r.ID->toOne() / 3)->toDecimal()",
                 "$r.NAME->toOne()->parseInteger()", "$r.NAME->toOne()->parseFloat()",
+                "dateDiff(%2015-07-04T10:59:59, %2015-07-04T11:00:01, meta::pure::functions::date::DurationUnit.HOURS)"
+                        + " + $r.ID->toOne()",
+                "dateDiff(%2015-07-04, %2015-07-05, meta::pure::functions::date::DurationUnit.WEEKS) + $r.ID->toOne()",
                 "[]->cast(@Integer)->toOne()")) {
             String store = "|" + TABLE + "->extend(~a: r|" + call + ")->from(t::RT)";
             assertNotEquals(asWritten(store), engines(store), store);
         }
+    }
+
+    /** {@code splitPart} is a row only where legend-engine's SQL is the database's own {@code split_part} (register
+     *  S426): on this model's database, where legend-engine calls a function of its own Java, it is no row -- the
+     *  call's own rule, never refused -- and likewise on a database not yet read. */
+    @Test
+    void splitPartIsARowOnlyWhereLegendEngineWritesTheDatabasesOwn() {
+        String query = "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->splitPart(',', 1))->from(t::RT)";
+        assertEquals(asWritten(query), engines(query), query);
+        ModelContext unchecked = Compiler.compileModel(UNCHECKED);
+        assertEquals(asWritten(unchecked, query, "t::RT"), engines(unchecked, query, "t::RT"), query);
+        // where legend-engine writes the database's own function, the row: split_part over the index plus one
+        ModelContext written = Compiler.compileModel(MODEL.replace(
+                "type: H2; specification: LocalH2 { }; auth: DefaultH2;", "type: DuckDB; specification: DuckDB { }; auth: Test;"));
+        String own = engines(written, query, "t::RT").toLowerCase(java.util.Locale.ROOT);
+        assertNotEquals(asWritten(written, query, "t::RT").toLowerCase(java.util.Locale.ROOT), own, query);
+        assertTrue(own.contains("split_part(") && !own.contains("case"), own);
     }
 
     /** The relational {@code isNumeric} is a row that differs by database (register S370): its own form where
