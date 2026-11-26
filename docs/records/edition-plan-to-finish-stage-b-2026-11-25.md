@@ -1145,6 +1145,32 @@ enumeration's value, a whole number. A Float, a Decimal and a date go to the dat
 constants a database become statements (39 with every number out), and the product's SQL is smaller than today on
 ten of eleven databases (ClickHouse 1,232 characters more, 0.07%).
 
+**The rulings of 2026-11-26, about 23:10 UTC, on the run-time rule (step 6, slices 6.2 and 6.3).** The decisions
+D1 to D5 of `edition-homework/open-decisions-2026-11-26.md` were put to the user twice: first with the
+orchestrator's reading of upstream, then, after the user's "please explain what engine would also do for these and
+the implications ramifications of the decision", with upstream's answers RUN on interpreted and compiled legend-pure
+and on legend-engine (`edition-homework/upstream-step6/answers.md`). The orchestrator then recommended matching
+upstream at lite's own door too (ordering by value, sort ties in the written order, `max`/`min` the last of a tie),
+saying the compatibility doors could not answer differently. The user: **"So we can't do the right thing in our mode
+and the crazy stuff in other modes"**. They can: the mode is read by the typer, which picks another rule of the
+product's for the whole operation (the mechanism of legend-engine's table). The framing put back to the user: lite's
+own rule in lite's mode, upstream's behaviour in the other two, each as a row. The user: **"I agree with the
+framing"**, and on legend-pure's mode following interpreted legend-pure where compiled differs (`3 == 3D` inside a
+mixed list): **"I'm a bit nervous on the pure one bc I think most things run in compiled but it's fine to start this
+way"**.
+
+| # | Settled |
+|---|---|
+| D1 | in a mixed list, numbers of different types are never equal, at every door. legend-pure's mode follows interpreted legend-pure (the same answer); compiled legend-pure's "same printed digits" (`[3, 'a']->contains(3D)` true) is a recorded difference, held as ONE rule so it can be switched, and checked against PCT in the slice's full run |
+| D2 | `max` and `min` on a tie: lite's mode by the order of types (Integer, Float, Decimal); the other modes upstream's (the last of the tied elements of a list). Lite's present "first" is wrong for every mode and goes |
+| D3 | `<`, `<=`, `>`, `>=` between values typed only at run time: lite's mode by value, then by type; the other modes by value alone |
+| D3b | sort: the ruling of 2026-11-25 stands for lite's mode (equal numbers Integer, Float, Decimal); the other modes keep the written order on a tie, as all three upstream runtimes do |
+| D4 | the host judge's comparison file's size pin may rise by about four lines for the tie-break |
+| D5 | a number literal written against a `Number` reads as the value's own number type in lite's mode (by value); legend-pure's mode strict, legend-engine's the database's comparison |
+
+Also asked by the user that hour, and done: **"Let's just focus on step 6 right now ... I would stop everything else
+for right now"** (steps 8 and 9 paused, section 5a).
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
