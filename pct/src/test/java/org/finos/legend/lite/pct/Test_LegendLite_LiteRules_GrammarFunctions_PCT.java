@@ -31,8 +31,9 @@ public class Test_LegendLite_LiteRules_GrammarFunctions_PCT extends PCTReportCon
     private static final MutableList<ExclusionSpecification> expectedFailures = LiteRulesLedger.under(COMPAT.expectedFailures(),
             // B3 step 5 (the one equality; the user's ruling of 2026-11-24): a comparison of two values whose types are
             // known and differ is a compile error under lite's own rules -- legend-pure's PCT answers it at its door
-            one("meta::pure::functions::boolean::tests::conjunctions::and::testShortCircuitSimple_Function_1__Boolean_1_", "\"> compares Float with Integer: two values are equal only when they have the same type and the same value, so this comparison is a mistake -- write both sides in one type (1.0 for 1, toFloat(), toString(), an enumeration's own value)\""),
-            one("meta::pure::functions::boolean::tests::conjunctions::or::testShortCircuitSimple_Function_1__Boolean_1_", "\"> compares Float with Integer: two values are equal only when they have the same type and the same value, so this comparison is a mistake -- write both sides in one type (1.0 for 1, toFloat(), toString(), an enumeration's own value)\""),
+            // (and's and or's testShortCircuitSimple gone 2026-11-26, the edition program's step 4, the literal rule the
+            // user ruled that day: `(12/0) > 0` writes a whole-number literal against a Float, which reads as 0.0, so
+            // both pass; a down move)
             one("meta::pure::functions::boolean::tests::equality::eq::testEqEnum_Function_1__Boolean_1_", "\"eq compares meta::pure::functions::boolean::tests::equalitymodel::TestEnum1 with meta::pure::functions::boolean::tests::equalitymodel::TestEnum2: two values are equal only when they have the same type and the same value, so this comparison is a mistake -- write both sides in one type (1.0 for 1, toFloat(), toString(), an enumeration's own value)\""),
             // eq's and equal's NonPrimitive (step 5a's review M4, measured 2026-11-25): LeftClass and RightClass share a
             // subclass in legend-pure's model (BottomClass extends both), so one value can be of both and they are no

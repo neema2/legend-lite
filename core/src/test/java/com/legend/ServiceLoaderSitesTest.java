@@ -61,8 +61,10 @@ class ServiceLoaderSitesTest {
     static final Map<String, Set<String>> PROVIDERS = Map.ofEntries(
             Map.entry("libduckdb_cells.jar!/META-INF/services/com.legend.exec.DriverCells",
                     Set.of("com.legend.exec.DuckDbCells")),
-            // the edge's one provider, in the edge's jar: the plan's extension codec (census C2's seam)
-            Map.entry("libedge.jar!/META-INF/services/com.legend.testexecutionplan.ExtensionCodec",
+            // the edge's one provider: the plan's extension codec (census C2's seam). In the edge's test harness's jar
+            // since 2026-11-26, the edition program's step 9, slice 1 (EdgeCodec and its services file moved out of the shipped
+            // libedge.jar to the testonly //core:edge_harness; the entry moves with the file)
+            Map.entry("libedge_harness.jar!/META-INF/services/com.legend.testexecutionplan.ExtensionCodec",
                     Set.of("com.legend.edge.EdgeCodec")),
             // the edge server's one provider, in the opt-in module's jar: legend-engine's mount (K2's server half,
             // E-P5's 0c78ae0e00, train 17, 2026-11-18)

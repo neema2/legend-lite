@@ -737,6 +737,33 @@ final class ArchitectureTest {
         PREPARE_IS_THE_PLANNERS.check(CORE_PROD_CLASSES);
     }
 
+    /** The rule of {@link #legendEnginesDoorTypesAQueryThroughItsSetting}. */
+    static final com.tngtech.archunit.lang.ArchRule ENGINE_DOOR_TYPES_THROUGH_ITS_SETTING = noClasses()
+            .that().resideInAPackage("com.legend.edge")
+            .and().doNotHaveFullyQualifiedName("com.legend.edge.EngineComparisons")
+            // legend-engine's service tests' runner: test machinery (leaving the product with the edition program's
+            // step 9), which runs a test's body through the test door, never a request through a route
+            .and().doNotHaveFullyQualifiedName("com.legend.edge.ServiceTestRunner")
+            .should().accessTargetWhere(invokesWhere("Compiler.query or Compiler.queryResolved",
+                    a -> a.getTargetOwner().isEquivalentTo(com.legend.Compiler.class)
+                            && (a.getName().equals("query") || a.getName().equals("queryResolved"))))
+            .as("the edition program's step 4 (2026-11-26): legend-engine's door types a query through its one"
+                    + " admission, EngineComparisons.query, which hands over the door's comparison setting");
+
+    /**
+     * <strong>LEGEND-ENGINE'S DOOR TYPES A QUERY THROUGH ITS SETTING (2026-11-26, the audit of the edition program's
+     * steps 4 and 5).</strong> A query typed by {@code Compiler.query} alone is typed under lite's comparison setting,
+     * the default; a compatibility door hands its own ({@code TypedQuery.comparing}) before anything reads the query's
+     * body or a body it reaches. That was a thing each route had to remember, and two did not: the test-data routes
+     * typed their query for the door's raw-SQL check, which types the bodies the query reaches, so once lite read
+     * bodies (step 4) they refused a legend-engine model whose function compares across types. Now the door has one
+     * admission ({@code EngineComparisons.query}) and no other class of the edge may type a query at all.
+     */
+    @Test
+    void legendEnginesDoorTypesAQueryThroughItsSetting() {
+        ENGINE_DOOR_TYPES_THROUGH_ITS_SETTING.check(CORE_AND_EDGE_CLASSES);
+    }
+
     /** {@link #aProductStatementIsPreparedByThePlannersAlone} over the hosts' doors as well (the follow-up audit's G1,
      *  2026-11-14): the boundary ({@code //wasm:boundary}, its package {@code planner}, outside the planners'), the
      *  tab's adapter ({@code //wasm:tab}), the engine module's entry ({@code //wasm:edge_tab}, the user's K2 ruling,

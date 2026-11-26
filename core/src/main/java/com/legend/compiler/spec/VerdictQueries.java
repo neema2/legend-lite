@@ -496,49 +496,45 @@ public final class VerdictQueries {
     /** The name an assert's ACTUAL side stands under. */
     public static final String ACTUAL = "a";
 
-    /** {@code collection->size()}: {@code assertSize}'s count as the PRODUCT counts it, typed by the typer over the
-     *  side as it is typed (the equality program's first slice, 2026-11-26: an assert is the Pure condition it means,
-     *  planned by the product's own road; until then the database judge counted the side's rows itself). */
+    /** {@code collection->size()}: {@code assertSize}'s count as the PRODUCT counts it, the platform's own
+     *  {@code size} applied to the side as it is typed (the equality program's first slice, 2026-11-26: an assert is
+     *  the Pure condition it means, planned by the product's own road; until then the database judge counted the
+     *  side's rows itself). The call is built BY DECLARATION over the side the typer already typed as the assert's
+     *  argument, as the typer's own desugars build one ({@code TdsDesugars}): the exact declared function, never an
+     *  overload picked by its arity. A rewrite the typer makes of a WRITTEN {@code size} call (a grid's cells,
+     *  rows times columns) is not made here; the judge refuses such a side before it asks (a grid's envelope read). */
     public static TypedSpec sizeOf(TypedSpec collection, SpecCompiler specs) {
-        TypedSpec over = specs.typeExpression(call(com.legend.builtin.Pure.SIZE__ANY_MANY.qualifiedName(),
-                new com.legend.protocol.spec.Variable(ACTUAL)), java.util.Map.of(ACTUAL, collection.info()));
-        return substituted(over, ACTUAL, collection);
+        return declared(specs, com.legend.builtin.Pure.SIZE__ANY_MANY, List.of(collection), Type.Primitive.INTEGER);
     }
 
     /** {@code $a == $e} ({@code want}) or {@code !($a == $e)}: the condition an assert of two values means, over its
-     *  sides as the named values {@link #EXPECTED} and {@link #ACTUAL} of the types given, typed by the typer under
-     *  the door's comparison setting ({@link SpecCompiler#typeExpressionMarked}): two sides of different types are
-     *  lite's comparison across types, which its planner refuses by name. */
+     *  sides as the named values {@link #EXPECTED} and {@link #ACTUAL} of the types given, the comparison answered by
+     *  the door's comparison setting as one written in a query is ({@link SpecCompiler#comparedAsInAQuery}): two
+     *  sides of different types are lite's comparison across types, which its planner refuses by name. */
     public static TypedSpec sameValue(ExprType expected, ExprType actual, boolean want, SpecCompiler specs) {
-        com.legend.protocol.spec.ValueSpecification same = call(
-                com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName(),
-                new com.legend.protocol.spec.Variable(ACTUAL), new com.legend.protocol.spec.Variable(EXPECTED));
-        return specs.typeExpressionMarked(
-                want ? same : call(com.legend.builtin.Pure.NOT__BOOLEAN_1.qualifiedName(), same),
-                java.util.Map.of(EXPECTED, expected, ACTUAL, actual));
+        TypedSpec same = specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY,
+                List.of(new com.legend.compiler.spec.typed.TypedVariable(ACTUAL, actual),
+                        new com.legend.compiler.spec.typed.TypedVariable(EXPECTED, expected)),
+                Type.Primitive.BOOLEAN));
+        return want ? same : declared(specs, com.legend.builtin.Pure.NOT__BOOLEAN_1, List.of(same),
+                Type.Primitive.BOOLEAN);
     }
 
-    private static com.legend.protocol.spec.AppliedFunction call(String function,
-            com.legend.protocol.spec.ValueSpecification... arguments) {
-        return new com.legend.protocol.spec.AppliedFunction(function, List.of(arguments), List.of(), null, false,
-                false, false);
+    /** A call of exactly {@code declaration}, a function the platform declares, by its identity: never absent, never
+     *  another overload of its name (NO FALLBACKS, invariant 4; the audit of 2026-11-26, S1). */
+    private static TypedNativeCall declared(SpecCompiler specs, com.legend.model.Function declaration,
+            List<TypedSpec> args, Type out) {
+        com.legend.model.FunctionId id = com.legend.model.FunctionId.of(declaration);
+        var function = specs.ctx().findFunction(declaration.qualifiedName()).stream()
+                .filter(f -> f.id().equals(id)).findFirst().orElseThrow(() -> new IllegalStateException(
+                        "the platform declares no " + id + ": an assert's condition needs it"));
+        return built(function, args, out);
     }
 
-    /** {@code in} with each read of the variable {@code name} replaced by {@code value} (a condition typed over a
-     *  named side, the side put where its name stands; the conditions built here bind no name of their own). */
-    private static TypedSpec substituted(TypedSpec in, String name, TypedSpec value) {
-        if (in instanceof com.legend.compiler.spec.typed.TypedVariable v && v.name().equals(name)) {
-            return value;
-        }
-        List<TypedSpec> kids = in.children();
-        List<TypedSpec> out = new java.util.ArrayList<>(kids.size());
-        boolean changed = false;
-        for (TypedSpec k : kids) {
-            TypedSpec r = substituted(k, name, value);
-            changed |= r != k;
-            out.add(r);
-        }
-        return changed ? in.withChildren(out) : in;
+    /** The one place this class builds a call of a declared function over typed arguments, answering {@code out}. */
+    private static TypedNativeCall built(com.legend.compiler.element.TypedFunction function, List<TypedSpec> args,
+            Type out) {
+        return new TypedNativeCall(function, args, scalar(out));
     }
 
     private static @com.legend.base.Nullable TypedSpec minus(com.legend.compiler.element.ModelContext ctx,
@@ -557,13 +553,13 @@ public final class VerdictQueries {
     private static @com.legend.base.Nullable TypedSpec native1(com.legend.compiler.element.ModelContext ctx,
             String fqn, TypedSpec x, Type out) {
         return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 1).findFirst()
-                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x), scalar(out))).orElse(null);
+                .map(f -> (TypedSpec) built(f, List.of(x), out)).orElse(null);
     }
 
     private static @com.legend.base.Nullable TypedSpec native2(com.legend.compiler.element.ModelContext ctx,
             String fqn, TypedSpec x, TypedSpec y, Type out) {
         return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 2).findFirst()
-                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x, y), scalar(out))).orElse(null);
+                .map(f -> (TypedSpec) built(f, List.of(x, y), out)).orElse(null);
     }
 
     /** The literal {@code 0} — assertTdsEquivalent's absent time delta. */

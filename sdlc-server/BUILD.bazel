@@ -123,6 +123,21 @@ junit_test(
     ],
 )
 
+# The SDLC's compile check answers as lite's own compile route does: a comparison of two different types inside a
+# function's body keeps a tree from landing (the edition program's step 4, 2026-11-26; held here since that day's
+# independent audit found the answer had moved with no test).
+junit_test(
+    name = "core_grammar_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["src/test/java/com/legend/sdlc/server/CoreGrammarTest.java"],
+    select = ["--select-class=com.legend.sdlc.server.CoreGrammarTest"],
+    deps = [
+        "//sdlc-server/grammar",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 # The page's module as ONE directory (classes.wasm beside its runtime), so a test names it with one
 # $(rlocationpath) (Bazel workplan P1-24; as //wasm:planner_dir).
 copy_to_directory(

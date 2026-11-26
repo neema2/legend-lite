@@ -351,8 +351,6 @@ duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqE
 duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension	ModelException: eq compares meta::pure::functions::boolean::tests::equalitymodel::SideClass with Integer
 duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::equal::testEqualEnum	ModelException: == compares meta::pure::functions::boolean::tests::equalitymodel::TestEnum1 with meta::pure::functions::boolean::tests::equalitymodel::TestEnum2
 duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension	ModelException: == compares meta::pure::functions::boolean::tests::equalitymodel::SideClass with Integer
-duckdb-lite	Grammar	meta::pure::functions::boolean::tests::conjunctions::and::testShortCircuitSimple	ModelException: > compares Float with Integer
-duckdb-lite	Grammar	meta::pure::functions::boolean::tests::conjunctions::or::testShortCircuitSimple	ModelException: > compares Float with Integer
 duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testNumberCompare	ModelException: compare compares Integer with Float
 duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	ModelException: compare compares StrictDate with DateTime
 duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testCompareMixedTypes	ModelException: compare compares Integer with String

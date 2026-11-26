@@ -134,7 +134,7 @@ public final class TestRunner {
 
     /** The run's session for a target: the graph's system database for a target naming it, the body's own session for
      *  every other -- as the run's sessions source maps them ({@link PlanSessions#of}), unviewed: the held appeals'
-     *  decision after the run is handed it (the referee's replay; {@link Appeals#decide}). */
+     *  decision after the run is handed it (the referee's replay; {@code Appeals.decide}, the edge harness's). */
     private static java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessionsByTarget(
             Sessions.Session session,
             SystemDatabase.Leases systemSessions) {

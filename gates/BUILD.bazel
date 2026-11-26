@@ -263,13 +263,15 @@ test_suite(
     ],
 )
 
-# PCT on H2 (gate 7). With it, per push (CP-9, as above; H7): the ENGINE lane on H2, its essential, relation and
+# PCT on H2 (gate 7): the five suites since 2026-11-26 (the relation suite alone until then). With it, per push (CP-9, as above; H7): the ENGINE lane on H2, its essential, relation and
 # standard suites (the essential and standard added by the compatibility program's owner, 2026-11-19), here beside H2's
 # own PCT rather than in pct_duckdb, whose job they would lengthen
 test_suite(
     name = "pct_h2",
     tests = [
         "//pct:engine_lane_h2_test",
+        # the five suites (2026-11-26, the user's question "Should we run full h2 pct like duck?" and the
+        # orchestrator's decision: Essential, Grammar, Standard and Unclassified joined Relation)
         "//pct:pct_h2",
     ],
 )
@@ -424,6 +426,8 @@ test_suite(
     name = "sdlc",
     tests = [
         "//sdlc-server:git_repository_test",
+        # the SDLC's compile check is lite's own (2026-11-26)
+        "//sdlc-server:core_grammar_test",
         "//sdlc-client:tests",
         "//depot-client:tests",
         # a class, an association or a data space made in a project: the library replayed against its cases (B4)

@@ -135,11 +135,11 @@ before.
 | 3 | **The table, a row at a time.** First the rows that exist today in other forms (plain raises, the parses, `isNumeric`, `parseDecimal`, `parseJSON`). Then the stamp's two columns: pure/v1's `substring`, `indexOf` and `toOne` move to the table and the old rewrite is deleted; the corpus gets legend-pure's meaning in the test's own code and legend-engine's inside `execute()` | answers unchanged for the first rows; then each move listed |
 | 4 | **Lite is strict inside functions and mapping code.** A comparison across types there is a compile error, as in the query. The door's comparison rewrites are deleted. Lite's own tests that compare across types are fixed (four M2M tests known) | the list of what breaks is ruled; the compile check and the run agree |
 | 5 | **legend-engine's meanings, a row at a time:** unchecked operations, `round`, `dateDiff` in weeks, `splitPart`, `toDecimal`, `rem`, the casts' text, `parseDecimal` per database, an enumeration by name, counts over a key. PCT's Pure run stops inheriting legend-engine's meanings | PCT's legend-engine run on DuckDB: nothing legend-engine passes fails |
-| 6 | **The rest of the one equality.** A value whose type is known only at run time carries its type; asserts are planned as plain comparisons; the judges' separate comparison code is deleted | both judges agree; about 2,500 lines gone |
+| 6 | **The rest of the one equality.** A value whose type is known only at run time carries its type; asserts are planned as plain comparisons; the judges' separate comparison code is deleted. *Carried in (section 5b): bodies typed into their call held to the strict rule; the literal rule's edges* | both judges agree; about 2,500 lines gone |
 | 7 | *(reserved: anything steps 2 to 5 show is needed before the parallel lanes start)* | |
 | 8 | **Presentation at the edge** (its own session). Upstream's text written in Java from typed values; the SQL that builds it deleted | PCT's printed-table tests and legend-engine's result answers unchanged; about 2,000 lines gone |
 | 9 | **Test machinery out of the product** (its own session). The SQL-text check as test tooling (`edition-homework/b3-step6-design.md`); about 60 classes moved | the corpus's results unchanged; about 3,400 lines out of the core |
-| 10 | **Clean up and lock.** The folds cut back to the rule (measured first, the list ruled); the old switch machinery deleted (`PlanStyle`, the feature flags in the lowering, `LoweringForms`, the edge's dialect subclasses); the guards on; legend-engine's meaning refused by name on databases where it was not checked; DataCube's legend-engine workarounds; `EngineWhereZones` | the build fails if audience knowledge returns to the product |
+| 10 | **Clean up and lock.** The folds cut back to the rule (measured first, the list ruled); the old switch machinery deleted (`PlanStyle`, the feature flags in the lowering, `LoweringForms`, the edge's dialect subclasses); the guards on; legend-engine's meaning refused by name on databases where it was not checked; DataCube's legend-engine workarounds; `EngineWhereZones`. *Carried in (section 5b): `parseDecimal` and `parseJSON` as rows, an enumeration by name, the keyed-count row, the SDLC's way to take a project with legend-engine's meaning; PCT on compiled legend-pure (deferred from step 1)* | the build fails if audience knowledge returns to the product |
 | 11 | **Land.** Full rounds on every gate, an independent audit, one pull request to `main` | the user's word |
 
 ### 5a. The closing table (added 2026-11-26, after the user's "Why are we not closing out our work?")
@@ -159,12 +159,29 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 | 2 | all, a full round passed | no | the program branch moves |
 | 3 | all, a full round passed | no | the program branch moves |
 | 4 | all, in the batch | no | the batch lands (CI green), the program branch moves |
-| 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | no | the batch lands; then `parseDecimal` per database, `parseJSON`, an enumeration by name, counts over a key, `rem`: each built, or deferred by the user's word; the Float, date and `TDSNull` text rows are step 8's |
+| 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | no | the batch lands. Its leftover rows are deferred by the user's word of 2026-11-26 (section 5b); its finish line is met but for one recorded difference (PCT's legend-engine run on DuckDB: `testBigFloatAbs`, register S120); the Float, date and `TDSNull` text rows are step 8's |
 | 6 | the research, the measurement, the first slice (`assertSize`, on a scratch branch) | no | slices 6.1 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
 | 8 | slices 1 and 2 on its branch | no | its deletion slice; its landing |
 | 9 | nothing (its first session never started; restarted 2026-11-26 15:01) | no | slice 1, then the later slices after steps 6 and 8 |
 | 10 | nothing | no | after 6, 8 and 9 |
 | 11 | nothing | no | the user's word |
+
+### 5b. Carried forward (so nothing deferred is forgotten; each line names the step that owns it)
+
+| Item | Owner | From |
+|---|---|---|
+| A function typed into each call (generic over a relation's columns, a table with no declared columns, one marked for the normalizer) is held to the strict rule: a comparison of two known different types in it is its compile error; its generic positions compare by the run-time rule | **step 6** (with the run-time types, slices 6.2 and 6.3) | the audit of batch A, S1; the user, 2026-11-26: "let's fix it in the step not forget" |
+| `parseDecimal`, one argument, as a row of legend-engine's table per database (H2 `decimal(5,2)`, DuckDB its bare DECIMAL), out of the old forms object | **step 10** (with the forms object's deletion) | step 5's leftover; the user: "defer okay but make sure they on later steps" |
+| `parseJSON`'s tolerance as a row on the stamped side, out of the old forms object | **step 10** | the same |
+| An enumeration compared with another enumeration's value by name at legend-engine's door (the fold stops answering it) | **step 10** (with the folds cut back to the rule) | the same |
+| Counts over a declared key: legend-engine trusts no key, lite folds over a declared one | recorded as a difference (a register row), **not built**; the row is written in step 10's records pass | the same |
+| A way for a project in lite's SDLC to be taken with legend-engine's meaning (today the SDLC's compile check is lite's own, strict) | **step 10** as a design note, built when projects declare their edition (the edition design's "per project") | the user, 2026-11-26: "keep sdlc but we need a way later to accept engine - put that on followup so we don't lose it" |
+| The compile route at legend-engine's door refuses a model whose function calls a plan-text function (today it accepts the model and refuses the call) | **step 9**, with the plan-text classes' move | register S427's remaining difference |
+| The literal rule's edges the audit noted: a Float literal too large for a Decimal (`1e40`) and an Integer literal past 38 digits against a Decimal become a database's error, not a compile error; `max($x.i, 1.0)` keeps the Number overload | **step 6** (slice 6.1, one value within one type) | the audit of batch A, notes |
+| A Float's `toString` reached through a Number or an Any (a mixed selection's candidate) inside a store query at legend-engine's door: lite's text today, legend-engine's is the database's cast (the Float row reads the operand's declared type, Float alone) | **step 6** (slice 6.2, where the mixed path is reworked: the table asked inside it) | step 8's deletion slice, its review, 2026-11-26 |
+| One row's cells counted: `assertSize(<table>.rows->at(0).values, n)`. The typer keeps a row's bare `.values` as the row itself (one value), so the host judge counts 1 where Pure counts the cells; the database judge asks the product's `size`, whose value is the cells as a mixed list under a to-one stamp, and the lowering refuses it by name. **A move of the first slice** (measured at its base, `ae275024`, on DuckDB, H2 and SQLite): until it the database judge counted the side's rows itself and agreed with the host on 1, so all three judges gave one wrong verdict; since it the database judge and both-judges runs stop on the refusal. No test of PCT, the corpus or core holds the shape. A written `.values->size()` is right (the typer rewrites it to the column count). Held as it is by `AssertBarTest` | **step 6** (slice 6.2, where a list of values whose types are known at run time is typed as one; then both judges count the cells) | the audit of the next batch, S1, and the probes it asked for, 2026-11-26 |
+| A graph fetch inside a test body's `execute` is not planned ("class query under TypedGraphFetch is not resolvable"), under every judge | recorded, **not in Stage B** (the test body's planning, the product track) | the same probes |
+| H2's dialect: 135 PCT tests it does not write or writes wrongly | a task for the user (the product track), not a step of this plan | PCT on H2, 2026-11-26 |
 
 **Parked until step 5 is closed (not lost, not in flight):** the refusal of legend-engine's plan-text functions at its
 door (built on `claude/edit-ahead`, `973eaca4`; one existing test, `PureV1SqlTextTest`'s DDL case, pins the old
@@ -754,10 +771,24 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   first). The lesson: a worker's label for WHY a database refuses is a claim about that database; it is probed on the
   database before it is repeated.
 - **Step 6 starts with the size assert alone.** `assertSize(c, n)` is planned as the Pure condition it means,
-  `size(c) == n`: typed by the typer over the sides as named values, lowered by the product over the columns that hold
-  them, each side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`,
-  `SidePlanner.over`, `Lowerer.over`). That is the whole new road on the one family where no rule of types is in
-  play. Two families the design had put beside it wait, each for a reason found on reading the code:
+  `size(c) == n`, over the sides as named values, lowered by the product over the columns that hold them, each
+  side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`, `SidePlanner.over`,
+  `Lowerer.over`). That is the whole new road on the one family where no rule of types is in play.
+  *How the condition is typed (corrected after the audit of the next batch, 2026-11-26, S1):* the two calls are built
+  by declaration over the sides the typer already typed as the assert's arguments, each the exact declared function
+  (`VerdictQueries.declared`), as the typer's own desugars build a call; only the `==` then passes through the door's
+  comparison setting (`SpecCompiler.comparedAsInAQuery`). They are not parsed and typed afresh: a node of the parsed
+  form is built by the parser and the normalizer alone (an architecture rule). So a rewrite the typer makes of a
+  WRITTEN `size` call is not made here; the one such rewrite, a table's cells (rows times columns), concerns a side
+  the judge refuses before it asks (a grid's envelope), held by `AssertBarTest`'s three new probes.
+  *One departure from the research (the same audit, S2):* the research kept a graph's size as a member of the judge's
+  own; the slice plans the product's `size` for a graph side too and deletes that member, because the product's count
+  of a graph is its root objects, which is what the host judge counts. `aGraphsSizeIsItsRootObjectsUnderEveryJudge`
+  holds it on a root with three children beside a root with none.
+  *Noted, not changed (N1):* the old member compared null-safely; the product's `==` does not, so a size that is NULL
+  (which Pure's `size` never is) fails `assertNotSize` under the database judge where the host passes it: the two
+  judges disagree there, which is what running both is for.
+  Two families the design had put beside it wait, each for a reason found on reading the code:
   - *emptiness* needs the side as a LIST bound once, and the product's `isEmpty` of a list is not written on every
     database the judge's `NOT EXISTS` runs on today (H2 holds a list as JSON): it goes with the slice that makes the
     product's list operations whole on every database (6.4), or two reads of the side, which would grow the SQL;
@@ -952,6 +983,19 @@ Should we run full h2 pct like duck?"
   arm outside the relation suite is seen today only through the legend-engine door's lane and the corpus. A session
   (`claude/pct-h2-full`) adds the four missing suites with H2's own expected failures and reports them grouped by
   cause; whether they join a gate is decided on its report (each is one more JVM of about 4 GB in the H2 lane).
+
+**The user, ~16:08, on five questions the orchestrator put before the batch of steps 4 and 5 closes (the words are
+the user's):** "1 pins okay / 2 isnumeric okay / 3 defer okay but make sure they on later steps not forgotten / 4 keep
+sdlc but we need a way later to accept engine - put that on followup so we don't lose it / 5 yes but let's fix it in
+the step not forget".
+
+| # | On | What it settles |
+|---|---|---|
+| 1 | three size pins that go up because three queries that were refused are planned (core's filter family one statement of 624 characters; the `and` and `or` families' plans about 269 characters on each database; channel B's grammar ratchet two statements and 520 characters) | the pins move; no existing query's SQL grew for the equality work |
+| 2 | H2's `isNumeric` in the corpus, 47 characters over where 41 were ruled | the pin moves by its 47 |
+| 3 | step 5's leftover rows | deferred, each to a named step (section 5b): `parseDecimal` per database, `parseJSON` and an enumeration compared by name to step 10; counts over a declared key recorded, not built; `rem` needs nothing. Step 5 closes with the batch |
+| 4 | lite's SDLC refusing a tree whose function compares across types | kept: the SDLC's check is lite's own. A way for a project to be taken with legend-engine's meaning is a follow-up (section 5b), not to be lost |
+| 5 | bodies typed into their call not yet held to the strict rule | the batch lands with the gap recorded; it is fixed inside step 6, not left |
 
 ## 8. Decisions still to come
 

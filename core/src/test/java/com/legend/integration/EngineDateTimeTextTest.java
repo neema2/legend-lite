@@ -39,7 +39,6 @@ class EngineDateTimeTextTest {
         for (var e : TEXTS.entrySet()) {
             String text = atEnginesDoor(model, backend, "|#TDS\n  at:DateTime\n  " + e.getKey()
                     + "\n#->extend(~t: r|$r.at->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
-            assertTrue(e.getValue().contains(text), backend.name() + " " + e.getKey() + ": " + text);
             // the cast's text exactly where the row answers on the lane's database, the door's text where it does
             // not (the independent review of 2026-11-26: the row must be seen to answer)
             assertEquals(e.getValue().get(com.legend.edge.PureText.dateTimeCastRead(backend.type()) ? 0 : 1), text,

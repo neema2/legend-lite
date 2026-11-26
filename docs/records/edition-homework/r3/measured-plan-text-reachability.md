@@ -60,6 +60,23 @@ the edge's `EnginePlans`, as PCT's and the corpus's styles do (`PureText.java:80
 `PlanSupportFunctions` (every generatePlan answer, `PureV1Routes.java:442`) and `EnginePlans.testDataTimestampText`
 (the three test-data routes, `TestDataRoutes.java:110-117, 295`).
 
+## 4. The DDL text generators (asked and read 2026-11-26, a second pass)
+
+The first pass did not ask about them, and lite's refusal covers them, so they were asked the same way (the engine
+runner's plan generation and execute over the same H2 model; the baseline class query answers 200 on both).
+
+| Request | legend-engine's answer |
+|---|---|
+| `createTableStatement(DB, 'TRADES_SCHEMA', 'TRADES')` and its two-argument form | 500, COMPILATION: "Function does not exist 'meta::relational::functions::toDDL::createTableStatement(Database[1],String[1],String[1])'" (and `(Database[1],String[1])`) |
+| `dropTableStatement`, both forms | the same |
+| `createSchemaStatement('TRADES_SCHEMA')`, `dropSchemaStatement('TRADES_SCHEMA')` | the same |
+| one inside a store query's filter, one bound by a `let` before the query | the same |
+
+Read: the functions are plain Pure functions, all `<<doc.deprecated>>` (`core_relational/relational/helperFunctions/
+toDDL.pure:136-178`); no Java file in the pinned legend-engine names any of them, so the compiler registers no handler.
+A user cannot reach a DDL text generator at legend-engine's API: lite's refusal covering them matches it. One test of
+lite's had pinned the old answer (`PureV1SqlTextTest`'s DDL request, lite's own DDL since A2): it holds the refusal now.
+
 ## What follows
 
 - To match legend-engine, its door in lite refuses these functions in a user's query or model by name, as lite's own

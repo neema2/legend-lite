@@ -444,7 +444,7 @@ meta::pure::functions::date::monthNumber	(d:meta::pure::metamodel::type::Date[0.
 meta::pure::functions::date::monthNumber	(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1]	MONTH_NUMBER__DATE_1	SCALAR_RULE	Scalars.RULES	Scalars
 meta::pure::functions::date::mostRecentDayOfWeek	(date:meta::pure::metamodel::type::Date[1], day:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Date[1]	MOST_RECENT_DAY_OF_WEEK__DATE_1__DAY_1	SCALAR_RULE	Scalars.RULES	Scalars
 meta::pure::functions::date::mostRecentDayOfWeek	(day:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Date[1]	MOST_RECENT_DAY_OF_WEEK__DAY_1	SCALAR_RULE	Scalars.RULES	Scalars
-meta::pure::functions::date::now	():meta::pure::metamodel::type::DateTime[1]	NOW	SCALAR_RULE	Scalars.RULES	Scalars
+meta::pure::functions::date::now	():meta::pure::metamodel::type::DateTime[1]	NOW	SCALAR_RULE	Scalars.RULES	Scalars;UpstreamPrints
 meta::pure::functions::date::previousDayOfWeek	(date:meta::pure::metamodel::type::Date[1], day:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Date[1]	PREVIOUS_DAY_OF_WEEK__DATE_1__DAY_1	SCALAR_RULE	Scalars.RULES	Scalars
 meta::pure::functions::date::previousDayOfWeek	(day:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Date[1]	PREVIOUS_DAY_OF_WEEK__DAY_1	SCALAR_RULE	Scalars.RULES	Scalars
 meta::pure::functions::date::quarter	(d:meta::pure::metamodel::type::Date[1]):meta::pure::functions::date::Quarter[1]	QUARTER__DATE_1	SCALAR_RULE	Scalars.RULES	Scalars

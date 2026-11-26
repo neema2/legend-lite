@@ -1061,8 +1061,8 @@ public final class VerdictSql {
      * ({@code planner.SidePlanner.over}), so no comparison written here is the judge's own; each value rides the
      * failure under its side's column, so the values compared are the values recorded. {@code assertSize}'s member
      * since that day ({@code size(c) == n}: the product's count and the product's {@code ==}; until then
-     * {@code typedSize}, the judge's own count of the side's rows and its own IS NOT DISTINCT FROM). Null where a
-     * side has no typed value column.
+     * {@code typedSize} and {@code typedSizeOfGraph}, the judge's own count of a side's rows or of a graph's root
+     * objects and its own IS NOT DISTINCT FROM). Null where a side has no typed value column.
      */
     public static @com.legend.base.Nullable TypedRow typedOverValues(List<ValueSide> sides,
             java.util.function.Function<java.util.Map<String, SqlExpr>, SqlExpr> holds) {
@@ -1088,27 +1088,6 @@ public final class VerdictSql {
             throw new IllegalArgumentException("a condition over no side");
         }
         return typedRow(ctes, from, holds.apply(java.util.Collections.unmodifiableMap(bound)), values);
-    }
-
-    /** {@code assertSize} / {@code assertNotSize} over a graph side, TYPED (item 3's S4, the last families): the
-     *  graph's count of root objects against the size side's one Integer, both riding the failure. The judge's own
-     *  count and comparison still: a graph's size as the product's condition ({@link #typedOverValues}) waits for the
-     *  product to count a graph's root objects itself. Null where the size side has no typed value column. */
-    public static @com.legend.base.Nullable TypedRow typedSizeOfGraph(SqlQuery graphPlan, SqlQuery nWrapped,
-            boolean wantSize) {
-        SqlQuery nRows = valueRows(nWrapped);
-        if (nRows == null) {
-            return null;
-        }
-        SqlQuery size = single("__n", nRows);
-        SqlExpr wanted = new SqlExpr.Cast(SqlExpr.Column.of("n", size.outputs(), SINGLE), SqlType.Scalar.BIGINT,
-                SqlExpr.Reason.JUDGE);
-        SqlExpr count = graphCount(graphPlan);
-        SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, wanted);
-        return typedRow(List.of(new SqlWith.Cte("__n", nRows)), new SqlSource.Subselect(size, "n", null),
-                wantSize ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
-                        new Valued(TYPED_EXPECTED, wanted, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false),
-                        new Valued(TYPED_ACTUAL, count, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false)));
     }
 
     /** {@code assertEmpty} over a graph side, TYPED (item 3's S4, the last families): its count of root objects zero;

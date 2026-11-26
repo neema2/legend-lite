@@ -32,6 +32,23 @@ public final class EngineComparisons implements CrossTypeRule {
         return query.comparing(RULE);
     }
 
+    /** A QUERY AS LEGEND-ENGINE'S DOOR ADMITS IT: typed, with the door's comparison setting handed over before
+     *  anything reads its body or a body it reaches. The door's ONE way to type a query
+     *  ({@code ArchitectureTest.legendEnginesDoorTypesAQueryThroughItsSetting}; the audit of the edition program's
+     *  steps 4 and 5, 2026-11-26): a route that typed one on its own ({@code Compiler.query}) was handed lite's
+     *  setting in silence, and once lite read bodies (step 4) the test-data routes refused a legend-engine model whose
+     *  function compares across types -- through the door's own raw-SQL check, which types the bodies a query
+     *  reaches. */
+    static TypedQuery query(com.legend.compiler.element.ModelContext ctx, String query) {
+        return com.legend.Compiler.query(ctx, query).comparing(RULE);
+    }
+
+    /** {@link #query(com.legend.compiler.element.ModelContext, String)} for a query given as a value. */
+    static TypedQuery query(com.legend.compiler.element.ModelContext ctx,
+            com.legend.protocol.spec.ValueSpecification query) {
+        return com.legend.Compiler.query(ctx, query).comparing(RULE);
+    }
+
     @Override
     public TypedSpec inQuery(TypedCrossTypeComparison crossing) {
         return crossing.comparison();

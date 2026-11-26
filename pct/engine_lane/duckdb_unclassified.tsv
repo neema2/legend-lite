@@ -80,7 +80,7 @@ meta::pure::functions::string::tests::rpad::testRpadMultiChar	PASS		PASS		SAME
 meta::pure::functions::string::tests::rpad::testRpadStringLongerThanLength	PASS		PASS		SAME
 meta::pure::functions::string::tests::splitPart::testSplitPart	PASS		PASS		SAME
 meta::pure::functions::string::tests::splitPart::testSplitPartEmptyString	PASS		PASS		SAME
-meta::pure::functions::string::tests::splitPart::testSplitPartEmptyToken	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::splitPart::testSplitPartEmptyToken	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::splitPart::testSplitPartTypicalToken	PASS		PASS		SAME
 meta::pure::functions::string::tests::splitPart::testSplitPartWithNoSplit	PASS		PASS		SAME
 meta::pure::functions::string::tests::tolowerfirstcharacter::TestToLowerFirstCharacter	PASS		PASS		SAME

@@ -323,14 +323,14 @@ public final class SpecCompiler {
         return typer.typeBody(expr, env, Expected.infer());
     }
 
-    /** {@link #typeExpression(ValueSpecification, java.util.Map)} for a condition a judge plans as the product's own
-     *  (an assert as the comparison it means, over its sides as named values; the equality program's first slice,
-     *  2026-11-26): each comparison across types in it is the comparison setting's answer for a query
-     *  ({@link CrossTypeRule#inQuery}) -- lite's the marker its planner refuses -- as in the body a door receives
-     *  ({@link #typeQueryBodyMarked}). */
-    public TypedSpec typeExpressionMarked(ValueSpecification expr,
-            java.util.Map<String, com.legend.compiler.element.type.ExprType> bindings) {
-        return typer.comparing(Typer.Compared.QUERY, () -> typeExpression(expr, bindings));
+    /** {@code call}, a comparison a planner built over typed sides (an assert as the condition it means, over its
+     *  sides as named values; the equality program's first slice, 2026-11-26), answered by the door's comparison
+     *  setting as a comparison written in a query is ({@link CrossTypeRule#inQuery}): itself where its sides are of
+     *  one type, else the setting's answer -- lite's the marker its planner refuses. The one way a call built after
+     *  the typer meets the setting; {@link #typeQueryBodyMarked} is the body's. */
+    public TypedSpec comparedAsInAQuery(com.legend.compiler.spec.typed.TypedNativeCall call) {
+        com.legend.base.RunScope.planning("type a spec");
+        return typer.comparing(Typer.Compared.QUERY, () -> typer.compared(call, call.callee(), call.args(), call.pos()));
     }
 
     /** A lambda parameter's declared type and multiplicity, as {@link #typeQueryBody} puts it in scope. */
