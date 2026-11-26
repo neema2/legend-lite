@@ -101,8 +101,20 @@ class TaggedSelectionTest {
             assertEquals(1L, value(c, "|least([1, 2.5])"));
             // mode keeps the last of the winning run, as Pure's does
             assertEquals(2.5d, value(c, "|[1, 2, 2.5, 2.5]->mode()"));
-            // ties keep the first element: Pure's max of [3.0, 3] is the Float
+            // a tie of two numbers of different types, lite's own rule: by the order of types (Integer, Float,
+            // Decimal), wherever they are written -- the greatest is the Float, the least the Integer (slice 6.2 of
+            // the edition program's step 6; until it lite kept the FIRST written, under a note that called it Pure's
+            // rule: legend-pure and legend-engine keep the LAST of a list's tie, run 2026-11-26, and answer so at
+            // their own doors, NamedRule.EXTREME_KEEPS_THE_FOLDS_TIE)
             assertEquals(3.0d, value(c, "|[3.0, 3]->max()"));
+            assertEquals(3.0d, value(c, "|[3, 3.0]->max()"));
+            assertEquals(3L, value(c, "|[3.0, 3]->min()"));
+            assertEquals(3L, value(c, "|[3, 3.0]->min()"));
+            assertEquals(3.0d, value(c, "|[3, 3.0, 1]->greatest()"));
+            assertEquals(3L, value(c, "|[3.0, 3, 5]->least()"));
+            // no SQL is added for it: the elements are searched in the order the types fix
+            assertEquals(query("|[3.0, 3]->max()").plan("s::RT").sql().length(),
+                    query("|[3, 3.0]->max()").plan("s::RT").sql().length());
         }
     }
 

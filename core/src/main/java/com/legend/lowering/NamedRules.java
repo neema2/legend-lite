@@ -39,6 +39,8 @@ final class NamedRules {
             case DATE_DIFF_AS_GIVEN -> Scalars.dateDiffAsGiven(call, args);
             case SPLIT_PART_AS_GIVEN -> SqlExpr.Call.of(SqlFn.SPLIT_PART, args.get(0), args.get(1),
                     SqlExpr.Call.of(SqlFn.PLUS, args.get(2), new SqlExpr.IntLit(1)));
+            case SORT_TIES_AS_WRITTEN -> Scalars.sortTiesAsWritten(call, args);
+            case EXTREME_KEEPS_THE_FOLDS_TIE -> Scalars.extremeKeepingTheFoldsTie(call, args);
         };
     }
 
