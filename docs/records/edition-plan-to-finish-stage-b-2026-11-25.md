@@ -769,10 +769,24 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   first). The lesson: a worker's label for WHY a database refuses is a claim about that database; it is probed on the
   database before it is repeated.
 - **Step 6 starts with the size assert alone.** `assertSize(c, n)` is planned as the Pure condition it means,
-  `size(c) == n`: typed by the typer over the sides as named values, lowered by the product over the columns that hold
-  them, each side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`,
-  `SidePlanner.over`, `Lowerer.over`). That is the whole new road on the one family where no rule of types is in
-  play. Two families the design had put beside it wait, each for a reason found on reading the code:
+  `size(c) == n`, over the sides as named values, lowered by the product over the columns that hold them, each
+  side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`, `SidePlanner.over`,
+  `Lowerer.over`). That is the whole new road on the one family where no rule of types is in play.
+  *How the condition is typed (corrected after the audit of the next batch, 2026-11-26, S1):* the two calls are built
+  by declaration over the sides the typer already typed as the assert's arguments, each the exact declared function
+  (`VerdictQueries.declared`), as the typer's own desugars build a call; only the `==` then passes through the door's
+  comparison setting (`SpecCompiler.comparedAsInAQuery`). They are not parsed and typed afresh: a node of the parsed
+  form is built by the parser and the normalizer alone (an architecture rule). So a rewrite the typer makes of a
+  WRITTEN `size` call is not made here; the one such rewrite, a table's cells (rows times columns), concerns a side
+  the judge refuses before it asks (a grid's envelope), held by `AssertBarTest`'s three new probes.
+  *One departure from the research (the same audit, S2):* the research kept a graph's size as a member of the judge's
+  own; the slice plans the product's `size` for a graph side too and deletes that member, because the product's count
+  of a graph is its root objects, which is what the host judge counts. `aGraphsSizeIsItsRootObjectsUnderEveryJudge`
+  holds it on a root with three children beside a root with none.
+  *Noted, not changed (N1):* the old member compared null-safely; the product's `==` does not, so a size that is NULL
+  (which Pure's `size` never is) fails `assertNotSize` under the database judge where the host passes it: the two
+  judges disagree there, which is what running both is for.
+  Two families the design had put beside it wait, each for a reason found on reading the code:
   - *emptiness* needs the side as a LIST bound once, and the product's `isEmpty` of a list is not written on every
     database the judge's `NOT EXISTS` runs on today (H2 holds a list as JSON): it goes with the slice that makes the
     product's list operations whole on every database (6.4), or two reads of the side, which would grow the SQL;

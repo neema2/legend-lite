@@ -309,9 +309,10 @@ public final class PureText {
     private static void refusePlanText(Class<?> kind) {
         if (kind == com.legend.planner.UpstreamPlans.class) {
             throw new com.legend.error.NotImplementedException("legend-engine's plan-text functions (toSQLString,"
-                    + " toSQLStringPretty, planToString, executionPlan and the DDL text generators) are not a user's to"
-                    + " call: legend-engine refuses a query or a model that calls one when it compiles it (\"Function"
-                    + " does not exist\"), and so does this door");
+                    + " toSQLStringPretty, toNonExecutableSQLString, planToString, planToStringWithoutFormatting,"
+                    + " executionPlan and the DDL text generators) are not a user's to call: legend-engine refuses a"
+                    + " query or a model that calls one when it compiles it (\"Function does not exist\"), and so does"
+                    + " this door");
         }
     }
 
