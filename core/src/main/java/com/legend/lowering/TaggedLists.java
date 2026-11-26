@@ -91,7 +91,7 @@ final class TaggedLists {
             return new SqlExpr.BoolLit(false);
         }
         boolean differ = false;
-        SqlExpr all = null;
+        List<SqlExpr> same = new ArrayList<>(ea.size());
         for (int i = 0; i < ea.size(); i++) {
             SqlExpr.Tagged.Candidate x = ea.get(i);
             SqlExpr.Tagged.Candidate y = eb.get(i);
@@ -100,10 +100,16 @@ final class TaggedLists {
                 differ = true;
                 continue;
             }
-            SqlExpr same = SqlExpr.Call.of(SqlFn.EQUAL, x.value(), y.value());
-            all = all == null ? same : SqlExpr.Call.of(SqlFn.AND, all, same);
+            same.add(SqlExpr.Call.of(SqlFn.EQUAL, x.value(), y.value()));
         }
-        return differ || all == null ? new SqlExpr.BoolLit(false) : all;
+        if (differ || same.isEmpty()) {
+            return new SqlExpr.BoolLit(false);
+        }
+        SqlExpr all = same.get(0);
+        for (int i = 1; i < same.size(); i++) {
+            all = SqlExpr.Call.of(SqlFn.AND, all, same.get(i));
+        }
+        return all;
     }
 
     /**
@@ -588,12 +594,15 @@ final class TaggedLists {
             return SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Call(SqlFn.IN, flat), new SqlExpr.BoolLit(false));
         }
         String p = "_tlp";
-        SqlExpr hit = null;
+        List<SqlExpr> inChannel = new ArrayList<>(own.size());
         for (int k : own) {
-            SqlExpr inChannel = SqlExpr.Call.of(SqlFn.AND,
+            inChannel.add(SqlExpr.Call.of(SqlFn.AND,
                     SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(SqlExpr.Column.derived(null, p)), new SqlExpr.IntLit(k + 1)),
-                    SqlExpr.Call.of(SqlFn.EQUAL, tl.channelAt(k, SqlExpr.Column.derived(null, p)), needle));
-            hit = hit == null ? inChannel : SqlExpr.Call.of(SqlFn.OR, hit, inChannel);
+                    SqlExpr.Call.of(SqlFn.EQUAL, tl.channelAt(k, SqlExpr.Column.derived(null, p)), needle)));
+        }
+        SqlExpr hit = inChannel.get(0);
+        for (int i = 1; i < inChannel.size(); i++) {
+            hit = SqlExpr.Call.of(SqlFn.OR, hit, inChannel.get(i));
         }
         return SqlExpr.Call.of(SqlFn.COALESCE,
                 SqlExpr.Call.of(SqlFn.GREATER,
