@@ -528,6 +528,12 @@ public final class VerdictQueries {
         var function = specs.ctx().findFunction(declaration.qualifiedName()).stream()
                 .filter(f -> f.id().equals(id)).findFirst().orElseThrow(() -> new IllegalStateException(
                         "the platform declares no " + id + ": an assert's condition needs it"));
+        return built(function, args, out);
+    }
+
+    /** The one place this class builds a call of a declared function over typed arguments, answering {@code out}. */
+    private static TypedNativeCall built(com.legend.compiler.element.TypedFunction function, List<TypedSpec> args,
+            Type out) {
         return new TypedNativeCall(function, args, scalar(out));
     }
 
@@ -547,13 +553,13 @@ public final class VerdictQueries {
     private static @com.legend.base.Nullable TypedSpec native1(com.legend.compiler.element.ModelContext ctx,
             String fqn, TypedSpec x, Type out) {
         return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 1).findFirst()
-                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x), scalar(out))).orElse(null);
+                .map(f -> (TypedSpec) built(f, List.of(x), out)).orElse(null);
     }
 
     private static @com.legend.base.Nullable TypedSpec native2(com.legend.compiler.element.ModelContext ctx,
             String fqn, TypedSpec x, TypedSpec y, Type out) {
         return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 2).findFirst()
-                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x, y), scalar(out))).orElse(null);
+                .map(f -> (TypedSpec) built(f, List.of(x, y), out)).orElse(null);
     }
 
     /** The literal {@code 0} — assertTdsEquivalent's absent time delta. */
