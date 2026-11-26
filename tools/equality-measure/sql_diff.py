@@ -29,7 +29,7 @@ def unesc(s):
     return re.sub(r"\\(.)", lambda m: {"n": "\n", "t": "\t"}.get(m.group(1), m.group(1)), s)
 
 
-ACOS = re.compile(r"\b(acos|asin)\b", re.I)
+ACOS = re.compile(r"\b(acos|asin)(?![a-z])", re.I)
 
 
 def text_cause(q, a, b):
