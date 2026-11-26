@@ -1,0 +1,74 @@
+[setup] mode=interpreted repositories=[core_functions_json, core_functions_relation, core_functions_standard, core_functions_unclassified, core_functions_variant, platform, platform_dsl_tds, platform_precise_primitives]
+[setup] loaded in 54444 ms
+[setup] model compiled
+
+[E1] expr=[3, 3.0]->least()
+[E1] interpreted result (size 1) = [3 <Integer java=Integer:3>]
+
+[E2] expr=[3.0, 3]->least()
+[E2] interpreted result (size 1) = [3.0 <Float java=BigDecimal:3.0>]
+
+[E3] expr=[3, 3.0]->greatest()
+[E3] interpreted result (size 1) = [3.0 <Float java=BigDecimal:3.0>]
+
+[E4] expr=[3.0, 3]->greatest()
+[E4] interpreted result (size 1) = [3 <Integer java=Integer:3>]
+
+[E5] expr=[3, 3.0, 'a']->min()
+[E5] interpreted result (size 1) = [3 <Integer java=Integer:3>]
+
+[E6] expr=[3.0, 3, 'a']->min()
+[E6] interpreted result (size 1) = [3.0 <Float java=BigDecimal:3.0>]
+
+[E7] expr=[3, 3.0, 'a']->max()
+[E7] interpreted result (size 1) = [a <String java=String:a>]
+
+[E8] expr=[3.0, 3, 'a']->max()
+[E8] interpreted result (size 1) = [a <String java=String:a>]
+
+[E9] expr=[3, 3.0]->min()
+[E9] interpreted result (size 1) = [3.0 <Float java=BigDecimal:3.0>]
+
+[E10] expr=[3.0, 3]->max()
+[E10] interpreted result (size 1) = [3 <Integer java=Integer:3>]
+
+[E11a] expr=[%2014-01-01, %2014-01-01T00:00:00]->max()
+[E11a] interpreted result (size 1) = [2014-01-01T00:00:00+0000 <DateTime java=DateWithSecond:2014-01-01T00:00:00+0000>]
+
+[E11b] expr=[%2014-01-01T00:00:00, %2014-01-01]->max()
+[E11b] interpreted result (size 1) = [2014-01-01T00:00:00+0000 <DateTime java=DateWithSecond:2014-01-01T00:00:00+0000>]
+
+[E11c] expr=[%2014-01-01, %2014-01-01T00:00:00]->min()
+[E11c] interpreted result (size 1) = [2014-01-01 <StrictDate java=StrictDate:2014-01-01>]
+
+[E11d] expr=[%2014-01-01T00:00:00, %2014-01-01]->min()
+[E11d] interpreted result (size 1) = [2014-01-01 <StrictDate java=StrictDate:2014-01-01>]
+
+[E11e] expr=max(%2014-01-01, %2014-01-01T00:00:00)
+[E11e] interpreted result (size 1) = [2014-01-01T00:00:00+0000 <DateTime java=DateWithSecond:2014-01-01T00:00:00+0000>]
+
+[E11f] expr=max(%2014-01-01T00:00:00, %2014-01-01)
+[E11f] interpreted result (size 1) = [2014-01-01T00:00:00+0000 <DateTime java=DateWithSecond:2014-01-01T00:00:00+0000>]
+
+[E11g] expr=min(%2014-01-01, %2014-01-01T00:00:00)
+[E11g] interpreted result (size 1) = [2014-01-01 <StrictDate java=StrictDate:2014-01-01>]
+
+[E11h] expr=[%2014-01-01T00:00:00, %2014-01-01]->sort()
+[E11h] interpreted result (size 2) = [2014-01-01 <StrictDate java=StrictDate:2014-01-01>, 2014-01-01T00:00:00+0000 <DateTime java=DateWithSecond:2014-01-01T00:00:00+0000>]
+
+[E11i] expr=compare(%2014-01-01, %2014-01-01T00:00:00)
+[E11i] interpreted result (size 1) = [-1 <Integer java=Integer:-1>]
+
+[E11j] expr=%2014-01-01 < %2014-01-01T00:00:00
+[E11j] interpreted result (size 1) = [true <Boolean java=Boolean:true>]
+
+[E11k] expr=%2014-01-01T00:00:00 < %2014-01-01
+[E11k] interpreted result (size 1) = [false <Boolean java=Boolean:false>]
+
+[E11l] expr=[%2014-01-01, %2014-01-01T00:00:00]->least()
+[E11l] interpreted result (size 1) = [2014-01-01 <StrictDate java=StrictDate:2014-01-01>]
+
+[E11m] expr=[%2014-01-01T00:00:00, %2014-01-01]->greatest()
+[E11m] interpreted result (size 1) = [2014-01-01T00:00:00+0000 <DateTime java=DateWithSecond:2014-01-01T00:00:00+0000>]
+
+[setup] done in 54720 ms
