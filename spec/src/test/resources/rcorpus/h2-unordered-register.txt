@@ -134,6 +134,8 @@ unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringFo
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringJoinStrings
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSplitPart
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes
+unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex
+unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringToNumericCasts
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock
 unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek
@@ -1097,9 +1099,12 @@ unordered-chain meta::relational::tests::query::function::testFilterUsingIfFunct
 unordered-chain meta::relational::tests::query::function::testFilterUsingIsEmptyFunction
 unordered-chain meta::relational::tests::query::function::testFilterUsingLengthFunction
 unordered-chain meta::relational::tests::query::function::testFilterUsingMatchesFunction
+unordered-chain meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+unordered-chain meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
 unordered-chain meta::relational::tests::query::function::testFilterUsingPlusFunction
 unordered-chain meta::relational::tests::query::function::testFilterUsingQuarterNumberFunction
 unordered-chain meta::relational::tests::query::function::testFilterUsingStartsWithFunction
+unordered-chain meta::relational::tests::query::function::testFilterUsingSubstringFunction
 unordered-chain meta::relational::tests::query::function::testFilterUsingToLowerFunction
 unordered-chain meta::relational::tests::query::function::testFilterUsingToUpperFunction
 unordered-chain meta::relational::tests::query::function::toString::testFilterUsingToStringFunction
