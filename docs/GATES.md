@@ -22747,3 +22747,22 @@ Checked: `//core:core_edge_tests`, `//core:guardrails`, `//core:guardrails_edge`
 `//core:census_edge`, `//spec:spec_tests`, `//core:lean_sql_baseline_test`, the eight `//core:core_tests_*` suites,
 the generated-file tests and the parser ratchet; PCT on the six database lanes, both channels, test by test against
 each lane's baseline, no answer moved (docs/records/edition-homework/lanes/baselines-c06ebbab.md, round 2).
+
+**Added the same day, two more pieces of the program (the plan record's section 6a has each in full):**
+
+- **Step 3, which checks a door's audience writes is its edition's table's.** `LoweringForms.raise` (a two-form
+  method) and the edge's set of plain raise kinds leave; the lowering asks `EditionTable.checks(kind, call)`, so the
+  planner's stamp decides it: at legend-engine's door a host-side `let` writes the check legend-engine's own Java
+  makes, and a store query writes the plain operation, as before. `HookRulingTest`'s reading of the plain kinds asks
+  the table; `EdgeLoweringForms` is one instance (its two per-door instances leave). `CastNoReWrapTest` hands the
+  product's table. Postgres's `testFloatStdDev` row (register S421) is written in channel A's own spelling.
+  Checked on `f87a8751`: the guards, the census, core's edge, compiler, lowering, planner, resolver, root and sql
+  suites, `//spec:spec_tests` and `//core:lean_sql_baseline_test` (13 targets).
+- **Step 2b, the comparison setting in the type-checker.** A door hands the query its setting
+  (`TypedQuery.comparing`, `compiler/spec/CrossTypeRule`); the typer asks it where it types a comparison across types,
+  in the query and in every body the query reaches. The doors' rewrites of the typed query after typing leave
+  (`edge/EngineComparisons` and `edge/PureComparisons` are the settings). No answer changes. Guard rows moved, each
+  dated: `PlannerSurfaceTest` (the root doors: `TypedQuery#comparing(CrossTypeRule)`, an option, plans nothing),
+  `EdgeOnlyMembersTest` (the same member, read by the compatibility doors alone), `CodeShapeGuardrailTest` (the
+  typer's one mutable field renamed, `Typer.marking` to `Typer.compared`), `JavaEvalLedgerTest` (the two edge files'
+  reason reworded, no row added). A new test, `CrossTypeRuleTest`.

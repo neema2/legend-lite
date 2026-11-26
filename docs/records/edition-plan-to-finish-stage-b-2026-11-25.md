@@ -289,6 +289,27 @@ in-domain functions per dialect, so the product's check is the one check in the 
 legend-engine's own tests (`testFilterUsingArcCosFunction`, `...ArcSin...`) expect the database's answer inside the
 query, so the raise must be plain there, which needs the corpus's edition and its stamping (below).
 
+**Step 2b, the comparison setting in the type-checker (2026-11-26).** A door now hands the query its comparison
+setting when it types it (`TypedQuery.comparing`; `compiler/spec/CrossTypeRule`), and the type-checker asks the
+setting at the one place it types a comparison across types, for the query (`inQuery`) and for every body the query
+reaches (`inBody`: a function's body, a derived property, a body typed into its call). The two doors' rewrites of the
+typed query after typing are gone; `edge/EngineComparisons` and `edge/PureComparisons` are the two settings. Nothing is
+answered differently: lite's setting leaves the marker in the query (its planner refuses it by name) and answers a
+body's comparison with the call; legend-engine's answers the call everywhere; legend-pure's answers Pure's way in the
+query and the call in a body, all as before. A test (`CrossTypeRuleTest`) lists what a recording setting is asked.
+- **What step 4 changes from here:** lite's answer in a body becomes the compile error (the list of what breaks,
+  measured, is `edition-homework/step4-exposure-2026-11-26.md`, for the user's ruling); legend-pure's answer in a body
+  is a later row, each test it moves read first.
+- **Not yet told apart, and it must be before a body's answer differs from the call:** the relational mapping
+  language's own `=` (the normalizer writes it as Pure's `equal`, in a relational class mapping, a join and a view,
+  and in the enumeration decode inside a `~func` mapping). It reaches the setting as a body's comparison today. The
+  fix is the plan's: a flag on the three wholly relational kinds of function and a lite-only function for the decode.
+- **Seen on the way:** inside a body typed into its call, two literals compared across types (`1 == 1.0`) are folded
+  by `StaticFold` before the setting is asked. Which answer the fold gives is not checked here; step 4 reads it.
+- **A side effect to know:** the query a door admits is a new typed query (its own type-checker), so a test harness
+  that remembers a query by identity from `Compiler.query(text)` no longer finds the admitted one (the lean-SQL
+  capture, for product queries only; `JudgeJsonTest` compares the bodies now).
+
 **Still open from the work list:** the corpus door's edition and its stamping, which needs the frame-aware walk; a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
