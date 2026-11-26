@@ -32,6 +32,10 @@ public class Test_LegendLite_Postgres_StandardFunctions_PCT extends PCTReportCon
     private static final Adapter adapter = LegendLitePCTReportProvider.LegendLiteAdapter;
     private static final String platform = "interpreted";
 
+    /** Whether the embedded Postgres is built for arm64 (it is the machine's own build): one row below is the
+     *  x86-64 build's alone. */
+    private static final boolean POSTGRES_ON_ARM64 = "aarch64".equals(System.getProperty("os.arch"));
+
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
@@ -43,7 +47,7 @@ public class Test_LegendLite_Postgres_StandardFunctions_PCT extends PCTReportCon
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
-            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)")
             // 2026-11-26, the user's ruling ("Postgres record it"; register S421): Postgres's own stddev_samp over
             // doubles answers one unit in the last place below the double Pure expects (3.1399999999999997 for 3.14;
             // measured in psql on PostgreSQL 16.15, outside the driver and Java:
@@ -52,7 +56,13 @@ public class Test_LegendLite_Postgres_StandardFunctions_PCT extends PCTReportCon
             // computed it in NUMERIC. Recorded as the database's native answer, never rewritten as a formula
             // (the message in this channel's own spelling, a newline between the two values, since the same day: the
             // Postgres lane's round 3 found the first spelling was channel B's)
-            one("meta::pure::functions::math::tests::stdDev::testFloatStdDev_Function_1__Boolean_1_", "\"\nexpected: 3.14\nactual:   3.1399999999999997\"")
+            // 2026-11-26, later the same day (the pull request's macOS lane, gates run 45739076472): the answer is the
+            // arithmetic of the processor Postgres is built for. Built for arm64 (the macOS lane) its stddev_samp
+            // answers 3.14, Pure's own; built for x86-64 (the Linux and Windows lanes, the lane sessions) it answers
+            // 3.1399999999999997. So the row is this list's on x86-64 alone; arm64 Linux is unmeasured and takes
+            // arm64's reading
+            ).withAll(POSTGRES_ON_ARM64 ? Lists.mutable.<ExclusionSpecification>empty() : Lists.mutable.with(
+            one("meta::pure::functions::math::tests::stdDev::testFloatStdDev_Function_1__Boolean_1_", "\"\nexpected: 3.14\nactual:   3.1399999999999997\""))
     );
 
     public static Test suite() {

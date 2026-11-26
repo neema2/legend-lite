@@ -418,6 +418,28 @@ Their ten rows left channel B's ledger and the edge outcomes file was re-recorde
 other row of any file). The SQL is shorter on every database; no size pin moved. Checked: 49 of 50 targets on the
 change (the fiftieth was the outcomes file), then the goldens again.
 
+**The same change on the server and cloud lanes (2026-11-26, round 4).** The lanes found the same ten tests pass
+now on BigQuery, MariaDB and MySQL as well (forty tests gained across four databases); nothing differs on Postgres,
+Trino, ClickHouse, Databricks, Snowflake or MongoDB. Their thirty rows left channel B's ledger. The MariaDB, MySQL
+and ClickHouse lane also listed 28 older rows that pass on every one of its five rounds (MySQL 21, ClickHouse 5,
+MariaDB 2): gains of the program's earlier steps that no server lane had run. They left the ledger too, with a dated
+note.
+
+**Step 1's leftover, H2's lateral join (2026-11-26; the user's ruling of 2026-11-25 on the Pure-mode gaps: "H2's
+lateral as an inner join (4 tests)").** H2 has no `LATERAL`. Where a lateral subquery only filters its source by the
+row before it (`... , LATERAL (SELECT * FROM t WHERE t.k = left.k AND t.v > 1)`), H2's dialect now writes the same
+thing as an ordinary join on that filter (`JOIN (SELECT * FROM t WHERE t.v > 1) ON t.k = left.k`): a new pass of
+H2's dialect, `sql/dialect/CorrelatedFiltersAsJoins`, from the design in `r3/design-h2-lateral.md`. It moves only
+what is safe to move: the subquery has no DISTINCT, GROUP BY, HAVING, QUALIFY, ORDER BY, LIMIT or OFFSET, its columns
+are plain columns of its source or stars, and no name of the row before is redefined inside. Any other lateral is
+returned as it was and H2 still refuses it by name. Only H2's dialect has the pass, so no other database's SQL
+changes. Four PCT tests pass on H2 on both channels (`testLateralJoin`, `testLateralJoinAreInnerJoins`,
+`testLateralJoin_Chained`, `testLateralJoin_CorrelatedColumnNameAlsoOnInner`): their four expected failures left
+`Test_LegendLite_H2_RelationFunctions_PCT`, their four rows left channel B's ledger, and the edge's two H2 answer
+files were re-recorded (those four tests from H2's error to their answers, no other line). The pass has its own unit
+tests (`CorrelatedFiltersAsJoinsTest`: the join it makes, a filter of the subquery's own kept inside, an inner column
+read by the name it is projected under, every other shape returned untouched, the pass's place among H2's).
+
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
