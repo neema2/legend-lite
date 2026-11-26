@@ -16,6 +16,42 @@ _SCAN_ORDER = "-Dlegend.exec.engineScanOrder=true"
 # spec/src/test/resources/rcorpus/ copies by the lane's diff tests; never edited by hand
 _HOST_MEASURED = ["fail-roster", "skipped-roster", "unordered-register", "engine-order-register"]
 
+# THE CORPUS's PLATFORM OVERLAYS (2026-11-26; the user approved an overlay for the macOS corpus lanes that day, "yes
+# Macos"): the goldens are Linux's; on macOS DuckDB's acos, asin, atan2 and tan differ from Linux in the last place, so
+# a test comparing with its Linux literal FAILS there. Each overlay row names one such test (the test, the lanes, the
+# function, the Linux value, that OS's value). Before the diff tests, tools/edgenet's CorpusOverlay puts the golden's
+# lines for a row's test back on the row's own OS, only once the recording shows exactly that flip (one failing assert
+# naming both values; the test in the fail roster; no unordered-chain line), and on every other OS checks the test
+# still passes in the recording -- so a stale row, or any other difference, still fails. New pinned files, for the
+# user's word. Kept out of the passes' inputs (spec/BUILD.bazel's _PLATFORM_OVERLAYS): an overlay edit reruns no pass.
+CORPUS_OVERLAYS = ["src/test/resources/rcorpus/overlay_macos.tsv"]
+
+# the measured files an overlay row's flip moves (CorpusOverlay.Kind); the other two rosters are diffed as measured
+_OVERLAID = ["fail-roster", "unordered-register"]
+
+def corpus_overlay(name, lane, recorded, golden, tags = []):
+    """`name`: `recorded` with the corpus's platform overlays applied (CorpusOverlay), for the diff against `golden`.
+
+    Args:
+      name: the normalized file, `<dir>/<golden's file name>`: the target's one output.
+      lane: the corpus lane (its database), which picks the overlay rows.
+      recorded: the measured file, a label.
+      golden: the committed golden, a source path (the kind is read from its file name).
+      tags: the target's tags.
+    """
+    java_run(
+        name = name.replace("/", "_").removesuffix(".txt").removesuffix(".tsv"),
+        testonly = True,
+        srcs = [recorded, golden] + CORPUS_OVERLAYS,
+        outs = [name],
+        arguments = [lane, "$(execpath %s)" % recorded, "$(execpath %s)" % golden, "{OUT}"] +
+                    ["$(execpath %s)" % o for o in CORPUS_OVERLAYS],
+        main_class = "com.legend.tools.edgenet.CorpusOverlay",
+        mnemonic = "CorpusOverlay",
+        deps = ["//tools/edgenet"],
+        tags = tags,
+    )
+
 def _pass_flags(golden):
     return program_jvm_flags("spec") + [
         # the replay referee's H2, legend-engine's own (2.1.214), by path and never on the classpath (the user,
@@ -107,12 +143,22 @@ def corpus_lane(
     )
     suite = [":" + name + "_verdict"]
     if golden:
+        for m in _OVERLAID:
+            corpus_overlay(
+                name = "corpus_overlay_%s/%s-%s.txt" % (lane, rosters, m),
+                lane = lane,
+                recorded = ":%s/%s-%s.txt" % (host, rosters, m),
+                golden = "src/test/resources/rcorpus/%s-%s.txt" % (rosters, m),
+                tags = tags,
+            )
         write_source_files(
             name = "update_rcorpus_" + lane,
             testonly = True,
             diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA measured corpus roster moved -- bazel run //spec:update_rcorpus_" + lane + ", and give the reason in the commit (a test that newly fails is a regression to fix or a policy row to add, never a roster line to accept silently)",
             files = {
-                "src/test/resources/rcorpus/" + f.split("/")[-1]: ":" + f
+                "src/test/resources/rcorpus/" + f.split("/")[-1]: (
+                    ":corpus_overlay_%s/%s" % (lane, f.split("/")[-1]) if [m for m in _OVERLAID if f.endswith("-%s.txt" % m)] else ":" + f
+                )
                 for f in host_measured
             },
             tags = tags,

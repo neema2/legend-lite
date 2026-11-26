@@ -228,7 +228,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   results:
   - **Windows:** `sinh`, `cosh` and `tanh` (the same values on DuckDB and SQLite), `cbrt` and `pow`;
   - **macOS:** `acos`, `asin` and `cot` (DuckDB and SQLite), `cbrt` (DuckDB), `sinh` and `cosh` (DuckDB and SQLite),
-    each exactly one unit in the last place.
+    and in the relational corpus `atan2` and `tan` (DuckDB), each exactly one unit in the last place.
 - **H2** matched on both: it computes in Java.
 - **Why:** this is the database's own platform, not lite's choice. Lite does not recompute the database's answer.
 - **To avoid it:** compare such results with a tolerance.
@@ -236,6 +236,15 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:** the edge golden net on each operating system. On Windows, 30 lines (17 named facts,
   `pct/src/test/resources/edge/overlay_windows.tsv`); on macOS, 31 lines (16 named facts, `overlay_macos.tsv`). No
   order, locale, path or line ending moved on either. Evidence: PR #123's runs on both, its overlays.
+- **In the relational corpus** (measured 2026-11-26 on PR #141's macOS run 45788970603): on macOS, five DuckDB tests
+  that compare an answer with a value written in the test fail, because that value is Linux's. They are
+  `sqlFunction::acos::testProject`, `asin::testProject`, `atan2::testProject`, `tan::testFilter` and
+  `tan::testProject`. H2's corpus and Windows' corpus did not move. The corpus lanes name each such test in their own
+  overlay, `spec/src/test/resources/rcorpus/overlay_macos.tsv`: the test, the lanes, the function, the Linux value and
+  the macOS value.
+  - On macOS a row is applied only when the test fails exactly that way: its first assert, naming both values once.
+  - On every other OS the row's test must pass.
+  - So a stale row fails, and so does any other difference. The user approved the overlay on 2026-11-26.
 - **Register:** S382 (provisional).
 
 ### 12. `joinStrings` with a separator joins with it, as Pure does

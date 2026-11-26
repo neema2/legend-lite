@@ -47,3 +47,24 @@ The overlay files are pinned like the goldens: a row moves only by a ruled re-re
 | Windows | `overlay_windows.tsv` | 17 facts, 30 lines: `sinh`, `cosh`, `tanh` (13, on both databases), `cbrt` (3), `pow` (1) |
 | macOS | `overlay_macos.tsv` | 16 facts, 31 lines: `sinh`, `cosh` (12, on both databases), `acos`, `asin`, `cot` (3, on both), `cbrt` (1, DuckDB) |
 | Linux arm | unmeasured: no `edge_net` lane runs on arm | - |
+
+## The corpus's platform overlay
+
+The relational corpus's goldens are Linux's too (measured 2026-11-26 on PR #141's macOS run 45788970603, approved by
+the user the same day). On macOS, DuckDB's `acos`, `asin`, `atan2` and `tan` differ in the last place. A corpus test
+compares the answer with a value written in the test, which is Linux's, so on macOS the test FAILS. No value moves; three
+files do: the host ledger, the fail roster and the unordered register. `CorpusOverlay` reads
+`spec/src/test/resources/rcorpus/overlay_<os>.tsv`, one row per test: test, databases (corpus lanes), function, the
+Linux value and that OS's value.
+- On its own OS, a row requires exactly the flip: one ledger line with the first assert failing and naming both values
+  once, the test in the fail roster, and no unordered-chain line. Then it puts the Linux golden's lines for the test
+  back in their place. Anything else fails the run.
+- On every other OS, a row requires the test to pass in the recording. On Linux that is the golden, so a row cannot
+  outlive its fact.
+- It sits between the host pass and the diff tests (`spec/corpus.bzl`'s `corpus_overlay`), and is no input of the pass:
+  an overlay edit reruns no corpus. Its planted-change proofs are in `//tools/guards:edge_normalize_test`.
+
+| OS | overlay | rows |
+|---|---|---|
+| macOS | `overlay_macos.tsv` | 5 tests, DuckDB: `acos`, `asin`, `atan2` (1 each), `tan` (2) |
+| Windows | none: the corpus did not move | - |
