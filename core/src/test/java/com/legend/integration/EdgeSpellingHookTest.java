@@ -157,20 +157,20 @@ class EdgeSpellingHookTest {
      *  S3: since B1 a raise is the product's site on every door, and its last use, a checked graph's defect cell, wrote
      *  the one catalog's sentence byte for byte; no edge dialect overrides it.) */
 
-    /** D1.2's arms (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-engine's in-query cast of a Float
-     *  (edge.PurePrintForms; until Phase 5, 2026-11-16, legend-pure's print form) where the product writes its six
-     *  decimals. */
-    private static final Set<String> D1_2 = Set.of("spellingPasses", "floatToText");
+    /** D1.2's arm (2026-11-15): {@code spellingPasses}, legend-pure's print form of a DateTime and legend-engine's
+     *  {@code TDSNull} (edge.PurePrintForms). ({@code floatToText}, legend-engine's in-query cast of a Float where the
+     *  product writes its six decimals, went from all twelve dialects on 2026-11-26, the edition program's step 8: that
+     *  cast is a row of legend-engine's table inside a store query, edge.EngineTable, and lite's own text everywhere
+     *  else. A shrink of this pin.) */
+    private static final Set<String> D1_2 = Set.of("spellingPasses");
 
     /** D1.2's arms and MongoDB's {@code dateTimeFormat} (2026-11-15): legend-pure's {@code +0000} text of a date-time
      *  in its {@code $dateToString}s, where the product writes ISO with {@code Z}. */
-    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses", "floatToText",
-            "dateTimeFormat");
+    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses", "dateTimeFormat");
 
     /** D1.2's arms and DuckDB's {@code scanOrderPasses} (W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
      *  legend-engine's scan order ({@code edge.StableScanOrder}) for the corpus replay, where the product adds none. */
-    private static final Set<String> D1_2_SCAN_ORDER = Set.of("spellingPasses", "floatToText",
-            "scanOrderPasses");
+    private static final Set<String> D1_2_SCAN_ORDER = Set.of("spellingPasses", "scanOrderPasses");
 
     // THE EDGE'S IN-QUERY VARIANTS: the decisions an edge dialect takes because legend-engine computes inside the query
     // differently (the edge program's §2.3, kind B), each a listed row of its §6.
@@ -195,9 +195,8 @@ class EdgeSpellingHookTest {
 
     /** DuckDB's and Postgres's raw arm too (Phase 6's B4 (ii), 2026-11-17): legend-engine's H2 text translated, where the
      *  product runs a raw statement as written. */
-    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("spellingPasses", "floatToText",
-            "scanOrderPasses", "raw");
-    private static final Set<String> D1_2_RAW = Set.of("spellingPasses", "floatToText", "raw");
+    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("spellingPasses", "scanOrderPasses", "raw");
+    private static final Set<String> D1_2_RAW = Set.of("spellingPasses", "raw");
 
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
             Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", D1_2),

@@ -84,7 +84,7 @@ class EngineTablePlacementTest {
 
     /** The door's style with the product's edition in legend-engine's place: the door's own plan of a query as written,
      *  every call by its own rule. What a row's effect is read against. */
-    private static final PlanStyle AS_WRITTEN = new PlanStyle() {
+    static final PlanStyle AS_WRITTEN = new PlanStyle() {
         @Override
         public SqlDialect dialect(DatabaseType type) {
             return PureText.PURE_V1.dialect(type);

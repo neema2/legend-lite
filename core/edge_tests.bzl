@@ -84,6 +84,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/PrintedRelationsTest.java",
     # the tail of a lifted print, its closed set pinned (the edition program's step 8, 2026-11-26)
     "src/test/java/com/legend/edge/PrintTailTest.java",
+    # a Float's text inside a store query at legend-engine's door, a row of its table (step 8, 2026-11-26)
+    "src/test/java/com/legend/edge/EngineFloatTextRowTest.java",
     # each member of the tail against lite's own SQL for the same call, on every lane
     "src/test/java/com/legend/integration/PrintTailParityTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)

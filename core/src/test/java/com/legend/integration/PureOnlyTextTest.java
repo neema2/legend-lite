@@ -50,6 +50,37 @@ class PureOnlyTextTest {
         }
     }
 
+    /** legend-pure's {@code %r} and {@code toRepresentation} of a Float used further at the edge are lite's own text of
+     *  a Float (the edition program's step 8, 2026-11-26; tenet 1 as the user amended it on 2026-11-25, and the user's
+     *  word on the register row, 2026-11-26: "yes that's right but remember we have a list of chained functions that
+     *  are okay after that"): six decimals, trailing zeros trimmed, a whole value keeping one, the same on every lane.
+     *  Until this step the edge composed legend-pure's print in SQL (the node FLOAT_SHORTEST_TEXT, deleted), which
+     *  answered {@code 0.3333333333333333}, {@code 0.30000000000000004} and, for a whole value past 64 bits on the lane
+     *  whose integer does not hold one, a wrong {@code 9223372036854775807.0}. The product refuses both calls by name. */
+    @Test
+    void aFloatsRepresentationUsedFurtherAtTheEdgeIsLitesOwnText() throws Exception {
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("Class s::P { name: String[1]; }\n");
+        try (Connection c = backend.open()) {
+            Exception refused = assertThrows(Exception.class,
+                    () -> Lean.run(model, "|toRepresentation(1.5 * 2.0)", StorelessRuntime.RUNTIME, c));
+            assertTrue(String.valueOf(refused.getMessage()).contains("compatibility edge's"), refused.toString());
+        }
+        java.util.Map<String, String> expected = new java.util.LinkedHashMap<>();
+        expected.put("|format('%r', [1.5])", "1.5");
+        expected.put("|format('%r', [(1.5 * 2.0)])", "3.0");
+        expected.put("|format('a %r b %r', [(1.0/3.0), 2])", "a 0.333333 b 2");
+        expected.put("|toRepresentation(0.1 + 0.2)", "0.3");
+        expected.put("|toRepresentation(1.5e-8 * 1.0)", "0.0");
+        expected.put("|toRepresentation(-2.5e15 * 10.0)", "-25000000000000000.0");
+        expected.put("|toRepresentation(1.0e20)", "100000000000000000000.0");
+        expected.put("|toRepresentation(1.0e20 * 1.0)", "100000000000000000000.0");
+        for (var e : expected.entrySet()) {
+            assertEquals(e.getValue(), scalar(Lean.runInStyle(model, e.getKey(), StorelessRuntime.RUNTIME, backend,
+                    com.legend.edge.PureText.UPSTREAM)), backend.name() + ": " + e.getKey());
+        }
+    }
+
     /** An assert in a lambda body with no message of its caller's (item 3's S6, 2026-11-23; the user's Q-C = C1, Q-S6
      *  and Q15 = A): it raises its assert kind, worded by the one catalog on every route -- the product's and the
      *  compatibility edge's the same sentence (until then the edge wrote legend-pure's "Assert failed", the user's R1 of

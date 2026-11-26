@@ -194,10 +194,9 @@ class SqlFnSortedTest {
     // of COALESCE, GREATER, IS_NULL, OR, REPLACE and STRPOS (and of the aggregate STRING_AGG, BOTH_AGG) -- a relation's
     // toString is lite's own text, computed by the database, the user's rulings of 2026-11-19 ~18:05 and ~18:36 and the
     // orchestrator's go of 2026-11-24: the direct, measured cost of the ruled change, done and reported)
-    // (2026-11-26, the edition program's step 8, slice 1, a shrink: sql.dialect.FloatShortestText deleted with the node
-    // FLOAT_SHORTEST_TEXT, which only the edge wrote -- out of ABS, AND, CONCAT, EQUAL, GREATER, GREATER_EQUAL, IN, LESS,
-    // LOWER, NOT and RTRIM's product writers; the edge composes legend-pure's print of a Float from these at lowering,
-    // edge.EdgePureOnlyTexts)
+    // (2026-11-26, the edition program's step 8, a shrink: sql.dialect.FloatShortestText deleted with the nodes
+    // FLOAT_SHORTEST_TEXT, which only the edge wrote, and FLOOR_RAW, which only that class wrote -- out of the product
+    // writers of each function it composed the text from, where it was listed)
     static final Map<String, Set<String>> BOTH_WRITERS = Map.ofEntries(
             // the product's lowering and the edge's compositions (upstream's texts, its plans, its renderings) each
             // build calls of these, each with its product writers' top classes (the review of f788dd3230: names alone
@@ -289,7 +288,9 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.LateralExplodeToUnion",
                     "com.legend.sql.dialect.OuterJoinResidualsAsMatches", "com.legend.sql.dialect.PivotAsGroupBy",
                     "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("FLOAT_TO_TEXT", Set.of("com.legend.lowering.LiteralSpelling")),
+            // (FLOAT_TO_TEXT: both sides' no more, 2026-11-26, a shrink -- the edition program's step 8: the edge's
+            // pass that read the product's node to write legend-engine's cast in its place, edge.PurePrintForms, is
+            // deleted; the product's lowering.LiteralSpelling writes it alone)
             Map.entry("GREATER", Set.of(
                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",

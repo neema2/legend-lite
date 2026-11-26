@@ -191,12 +191,13 @@ class AuditRound3Test {
     @Test
     @DisplayName("audit: floatRepr — fraction-free magnitudes render exact plain digits via HUGEINT")
     void floatReprLargeBand() throws Exception {
-        // legend-pure's print form, the compatibility edge's since D1.2 (2026-11-15)
+        // a query planned in the compatibility edge's style writes lite's own text of a Float since the edition
+        // program's step 8 (2026-11-26); until then legend-engine's in-query cast, by the edge's SQL pass, deleted
+        // (legend-pure's print of a last step is the doors' Java printer's, edge.PrintedRelations)
         assertEquals("1000000000000000000.0",
                 scalarAtTheEdge("|1000000000000000000.0->toString()").toString());
         assertEquals("1.5", scalarAtTheEdge("|1.5->toString()").toString());
-        assertEquals("0.000000013421",
-                scalarAtTheEdge("|0.000000013421->toString()").toString());
+        assertEquals("0.0", scalarAtTheEdge("|0.000000013421->toString()").toString());
         // the product's text (register S311, the user's ruling of 2026-11-10): six decimals, trimmed, a whole value
         // keeping one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it as 2.0"; B2a,
         // 2026-11-24)
