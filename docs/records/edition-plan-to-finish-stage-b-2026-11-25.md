@@ -864,6 +864,25 @@ from them, and the pull request's branch takes verified batches only.
 | 5 | when to widen legend-engine's table to the other databases | "whenever you think is right time is fine" | the orchestrator's call: after steps 4 to 6 land, with a proof run through lite on each database |
 | 6 | the print tail's members (`replace`, `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf`), which need a guard exception because Java computes a length, an index or a true/false over text the edge printed | "yes should add guard" | the set is ruled as proposed, pinned by its guard (`PrintTailTest`, the dated ledger entry) |
 
+**The user, ~14:31, on the two points the orchestrator had open:** "I'm good with refusing those engine functions in
+the user/product path
+
+Should we run full h2 pct like duck?"
+
+- **The plan-text functions are refused to a user at legend-engine's door** (register S427). `toSQLString`,
+  `toSQLStringPretty`, `planToString`, `executionPlan` and the DDL text generators answer in legend-engine's own tests
+  alone (the corpus's and PCT's styles); a user's query that calls one, directly, through a `let` or through a model's
+  function, is refused by name in legend-engine's compile-error envelope, as legend-engine itself refuses it
+  (`r3/measured-plan-text-reachability.md`). The classes behind them (about 25 classes, 5,300 lines) are then test
+  machinery, and leave the product library with step 9's later slices; the two pieces the routes' own Java calls
+  (a generated plan's support functions, the test-data routes' timestamp text) stay.
+- **PCT on H2, all five suites.** Today lite's own door runs only the relation suite on H2 (`//pct:pct_h2`); the
+  legend-engine door's lane runs three (essential, relation, standard). The orchestrator's answer: yes. H2 is
+  legend-engine's own first test database and one of the two databases its table answers on, and a change to an H2
+  arm outside the relation suite is seen today only through the legend-engine door's lane and the corpus. A session
+  (`claude/pct-h2-full`) adds the four missing suites with H2's own expected failures and reports them grouped by
+  cause; whether they join a gate is decided on its report (each is one more JVM of about 4 GB in the H2 lane).
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:

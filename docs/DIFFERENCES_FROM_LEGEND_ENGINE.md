@@ -486,6 +486,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - lite's tests pin `en_US` (`tools/junit/defs.bzl:52-54`). The product server (`//core:server`) pins no locale, so
     it answers by its machine's.
   - A defect, for the product track. Measured: `first-day-of-week-probe.md` (item 13).
+- **A model whose function calls a plan-text function compiles.** legend-engine's `toSQLString`, `planToString`,
+  `executionPlan` and their neighbours are not a user's to call: legend-engine refuses a query or a model that calls
+  one when it compiles it ("Function does not exist"). lite's legend-engine route refuses a QUERY that calls one, in
+  the same error envelope with lite's own sentence, but its compile route still accepts a MODEL whose function calls
+  one; the function is refused when a query calls it.
+  - Register S427. Measured: `docs/records/edition-homework/r3/measured-plan-text-reachability.md`.
 - **Not supported yet:**
   - legend-engine's mapping test suites and service tests;
   - cross-store queries;

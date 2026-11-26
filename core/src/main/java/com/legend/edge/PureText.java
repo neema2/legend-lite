@@ -216,7 +216,8 @@ public final class PureText {
                     com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, com.legend.sql.RaiseKind.TEXT_NOT_DATE));
 
     /** THE PURE/V1 ROUTE'S STYLE (B7, the user's ruling of 2026-11-17: pure/v1 matches legend-engine): {@link #UPSTREAM}
-     *  in every dialect and facet, but a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain
+     *  in every dialect and facet but one (a user's call of a plan-text function is refused by name,
+     *  {@link #refusePlanText}), and a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain
      *  operation, the database's own error passing through, and the planner is handed legend-engine's edition
      *  ({@link EngineTable#DOOR}; the edition program's step 2, 2026-11-25: its table and the planner's stamp took the
      *  place of the door's rewrite of the typed query). Handed by the pure/v1 routes alone ({@link PureV1Routes},
@@ -254,11 +255,13 @@ public final class PureText {
 
         @Override
         public <F> F facet(Class<F> kind) {
+            refusePlanText(kind);
             return UPSTREAM.facet(kind);
         }
 
         @Override
         public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            refusePlanText(kind);
             return UPSTREAM.facet(kind, refusal);
         }
 
@@ -285,15 +288,42 @@ public final class PureText {
     public static final PlanStyle ENGINE_TESTS = withEdition(UPSTREAM, EngineTable.TESTS);
 
     /** PCT'S LEGEND-ENGINE RUN'S STYLE (the edition program's step 3's remainder, 2026-11-26): {@link #PURE_V1} in
-     *  every dialect, facet and form, and the planner is handed PCT's legend-engine run's edition
+     *  every dialect and form, {@link #UPSTREAM}'s facets (a test's: the plan-text functions answer there, which
+     *  {@link #PURE_V1} refuses a user), and the planner is handed PCT's legend-engine run's edition
      *  ({@link EngineTable#PCT}). A PCT case reaches lite as the one expression legend-engine's own PCT adapter sends
      *  to the database, so all of it is a store query's code: nothing is stamped, and every row of legend-engine's
      *  table answers. At legend-engine's API ({@link #PURE_V1}) a statement that reads no store is its own Java's. */
-    public static final PlanStyle ENGINE_PCT = withEdition(PURE_V1, EngineTable.PCT);
+    public static final PlanStyle ENGINE_PCT = withEdition(PURE_V1, UPSTREAM, EngineTable.PCT);
+
+    /** A USER'S CALL OF A PLAN-TEXT FUNCTION AT LEGEND-ENGINE'S DOOR IS REFUSED BY NAME (the user's ruling of
+     *  2026-11-26: "I'm good with refusing those engine functions in the user/product path"; the register's S427).
+     *  {@code toSQLString}, {@code toSQLStringPretty}, {@code planToString}, {@code executionPlan} and the DDL text
+     *  generators are legend-engine's own tests' and its own Java's: asked of legend-engine 4.145.0 itself, a query or
+     *  a model that calls one fails when it is compiled ("Function does not exist"), whoever sends it
+     *  (docs/records/edition-homework/r3/measured-plan-text-reachability.md). Until this ruling lite's door answered
+     *  some of them. The planner asks a style's {@code UpstreamPlans} facet only where the code it plans calls one, so
+     *  the door's style refuses the facet; the routes' own Java (a generated plan's support functions, the test-data
+     *  routes' timestamp text) calls the edge's classes directly and is not this. The tests' styles
+     *  ({@link #UPSTREAM}, {@link #ENGINE_TESTS}, {@link #ENGINE_PCT}) answer as before: there legend-pure's runtime
+     *  runs them. */
+    private static void refusePlanText(Class<?> kind) {
+        if (kind == com.legend.planner.UpstreamPlans.class) {
+            throw new com.legend.error.NotImplementedException("legend-engine's plan-text functions (toSQLString,"
+                    + " toSQLStringPretty, planToString, executionPlan and the DDL text generators) are not a user's to"
+                    + " call: legend-engine refuses a query or a model that calls one when it compiles it (\"Function"
+                    + " does not exist\"), and so does this door");
+        }
+    }
 
     /** {@code base} in every dialect, facet and form, with the planner handed {@code edition} in the place of the
      *  base's own. */
     private static PlanStyle withEdition(PlanStyle base, EngineTable edition) {
+        return withEdition(base, base, edition);
+    }
+
+    /** {@code base} in every dialect and form, its facets {@code facets}' own, with the planner handed
+     *  {@code edition} in the place of the base's own. */
+    private static PlanStyle withEdition(PlanStyle base, PlanStyle facets, EngineTable edition) {
         return new PlanStyle() {
             @Override
             public SqlDialect dialect(DatabaseType type) {
@@ -322,12 +352,12 @@ public final class PureText {
 
             @Override
             public <F> F facet(Class<F> kind) {
-                return base.facet(kind);
+                return facets.facet(kind);
             }
 
             @Override
             public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
-                return base.facet(kind, refusal);
+                return facets.facet(kind, refusal);
             }
 
             @Override
