@@ -88,10 +88,17 @@ final class LiteralUnroll {
             case TypedCFloat f -> Optional.of(new Scalar(Type.Primitive.FLOAT.qualifiedName(), f.value()));
             case TypedEnumValue ev -> Optional.of(new Scalar(ev.enumFqn(), ev.enumFqn() + "." + ev.value()));
             case com.legend.compiler.spec.typed.TypedCDate d when d.info().type() instanceof Type.Primitive p ->
-                    // the literal body, a key the folds compare (W8, 2026-11-16: no print form's zone)
-                    Optional.of(new Scalar(p.qualifiedName(), d.value().canonicalText()));
+                    // a key the folds compare (W8, 2026-11-16: no print form's zone). A DATE-TIME is its INSTANT,
+                    // whatever precision it was written at (the equality rule: "a date-time by its instant"; the
+                    // user's ruling S399; the edition program's step 6, slice 6.1, 2026-11-26): until then the
+                    // literal's body, so .000 against none, .5 against .500 and an hour against its :00:00 folded to
+                    // false, where the database, comparing two TIMESTAMPs, answers true. A day, a year and a
+                    // year-month keep their body: each is a value of its own type
+                    Optional.of(new Scalar(p.qualifiedName(), p == Type.Primitive.DATE_TIME
+                            ? d.value().toInstantFloor().toString() : d.value().canonicalText()));
             case com.legend.compiler.spec.typed.TypedCDecimal d when d.info().type() instanceof Type.Primitive p ->
-                    Optional.of(new Scalar(p.qualifiedName(), d.value()));
+                    // a Decimal is its NUMBER, not its written scale (S139): BigDecimal's own equals reads the scale
+                    Optional.of(new Scalar(p.qualifiedName(), d.value().stripTrailingZeros()));
             case com.legend.compiler.spec.typed.TypedCTime d when d.info().type() instanceof Type.Primitive p ->
                     Optional.of(new Scalar(p.qualifiedName(), String.valueOf(d.value())));
             case com.legend.compiler.spec.typed.TypedCLatestDate d when d.info().type() instanceof Type.Primitive p ->
