@@ -917,7 +917,10 @@ public class ClickHouse extends AnsiSqlRenderer {
             return v > 0 ? "inf" : "-inf";
         }
         java.math.BigDecimal plain = com.legend.sql.SqlTyping.floatDecimal(v);
-        return plain != null ? decimal(plain) : "toFloat64('" + v + "')";
+        // an extreme magnitude is the NUMBER in exponent form, never its text parsed: ClickHouse's parse of a text is
+        // its fast one, a last digit off for some values (measured 2026-11-26 on 26.3 with clickhouse local, the lane
+        // on the next batch: toFloat64('1.3421E-8') is 1.3421000000000002e-8, the literal 1.3421e-8 exact)
+        return plain != null ? decimal(plain) : "toFloat64(" + Double.toString(v).replace('E', 'e') + ")";
     }
 
     /** {@code CAST('d' AS Decimal(p, s))} for its own precision and scale (at most 76 digits). */
