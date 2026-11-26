@@ -360,7 +360,7 @@ public final class EnginePlans {
                 String rc0 = PlanText.rootGetAllClass(lam.body());
                 if (!qChain.isEmpty() && rc0 != null) {
                     var srcs = new com.legend.resolver.ClassSources(
-                            env.ctx(), specs);
+                            env.ctx(), specs, false);
                     java.util.List<String> binders = qChain.stream()
                             .distinct()
                             .filter(m2 -> srcs.binds(m2, rc0)).toList();
