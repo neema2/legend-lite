@@ -1,0 +1,4 @@
+function p::amongWholes(x: Number[1]): Boolean[1] { $x->in([0, 1]) }
+function p::amongFloats(x: Number[1]): Boolean[1] { $x->in([0.0, 1.0]) }
+function p::same(x: Number[1], y: Number[1]): Boolean[1] { $x == $y }
+function p::less(x: Number[1], y: Number[1]): Boolean[1] { $x < $y }

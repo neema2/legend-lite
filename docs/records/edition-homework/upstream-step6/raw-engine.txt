@@ -1,0 +1,340 @@
+
+[A1] query=|[3, 'a']->contains(3D)
+[A1] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[A1] constant=false javaClass=java.lang.Boolean
+
+[A2] query=|[1.5, 'a']->contains(1.5D)
+[A2] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[A2] constant=false javaClass=java.lang.Boolean
+
+[A3] query=|[1, 'a']->contains(1.0)
+[A3] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[A3] constant=false javaClass=java.lang.Boolean
+
+[A4] query=|3->in([3D, 'a'])
+[A4] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[A4] constant=false javaClass=java.lang.Boolean
+
+[A5] query=|[3, 'a'] == [3D, 'a']
+[A5] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[A5] constant=true javaClass=java.lang.Boolean
+
+[A6] query=|[1, 'a'] == [1.0, 'a']
+[A6] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[A6] constant=false javaClass=java.lang.Boolean
+
+[A7] query=|[3, 3D]->removeDuplicates()->size()
+[A7] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Integer"}
+[A7] constant=2 javaClass=java.lang.Long
+
+[A8] query=|[1, 1.0]->removeDuplicates()->size()
+[A8] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Integer"}
+[A8] constant=2 javaClass=java.lang.Long
+
+[A7x] query=|[3, 3D]->removeDuplicates()
+[A7x] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[A7x] constant=[3, 3] javaClass=java.util.ArrayList
+[A7x]   [0] 3 javaClass=java.lang.Long
+[A7x]   [1] 3 javaClass=java.math.BigDecimal
+
+[A8x] query=|[1, 1.0]->removeDuplicates()
+[A8x] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[A8x] constant=[1, 1.0] javaClass=java.util.ArrayList
+[A8x]   [0] 1 javaClass=java.lang.Long
+[A8x]   [1] 1.0 javaClass=java.lang.Double
+
+[B1] query=|[3, 3.0]->max()
+[B1] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B1] constant=3.0 javaClass=java.lang.Double
+
+[B2] query=|[3.0, 3]->max()
+[B2] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B2] constant=3 javaClass=java.lang.Long
+
+[B3] query=|[3, 3.0]->min()
+[B3] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B3] constant=3.0 javaClass=java.lang.Double
+
+[B4] query=|[3.0, 3]->min()
+[B4] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B4] constant=3 javaClass=java.lang.Long
+
+[B5] query=|[3.0, 3, 1]->sort()
+[B5] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B5] constant=[1, 3.0, 3] javaClass=java.util.ArrayList
+[B5]   [0] 1 javaClass=java.lang.Long
+[B5]   [1] 3.0 javaClass=java.lang.Double
+[B5]   [2] 3 javaClass=java.lang.Long
+
+[B6] query=|[3, 3.0, 1]->sort()
+[B6] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B6] constant=[1, 3, 3.0] javaClass=java.util.ArrayList
+[B6]   [0] 1 javaClass=java.lang.Long
+[B6]   [1] 3 javaClass=java.lang.Long
+[B6]   [2] 3.0 javaClass=java.lang.Double
+
+[B7] query=|[3D, 3.0, 3]->sort()
+[B7] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B7] constant=[3, 3.0, 3] javaClass=java.util.ArrayList
+[B7]   [0] 3 javaClass=java.math.BigDecimal
+[B7]   [1] 3.0 javaClass=java.lang.Double
+[B7]   [2] 3 javaClass=java.lang.Long
+
+[B8a] query=|max(3, 3.0)
+[B8a] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B8a] constant=3 javaClass=java.lang.Long
+
+[B8b] query=|max(3.0, 3)
+[B8b] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Number"}
+[B8b] constant=3.0 javaClass=java.lang.Double
+
+[B9] query=|[3.0, 'a', 3]->sort()
+[B9] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"meta::pure::metamodel::type::Any"}
+[B9] constant=[3.0, 3, a] javaClass=java.util.ArrayList
+[B9]   [0] 3.0 javaClass=java.lang.Double
+[B9]   [1] 3 javaClass=java.lang.Long
+[B9]   [2] a javaClass=java.lang.String
+
+[B9x] query=|['a', 3, 3.0]->sort()
+[B9x] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"meta::pure::metamodel::type::Any"}
+[B9x] constant=[3, 3.0, a] javaClass=java.util.ArrayList
+[B9x]   [0] 3 javaClass=java.lang.Long
+[B9x]   [1] 3.0 javaClass=java.lang.Double
+[B9x]   [2] a javaClass=java.lang.String
+
+[C1] query=|1 < 1.0
+[C1] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C1] constant=false javaClass=java.lang.Boolean
+
+[C2] query=|1 <= 1.0
+[C2] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C2] constant=true javaClass=java.lang.Boolean
+
+[C3] query=|1 > 1.0
+[C3] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C3] constant=false javaClass=java.lang.Boolean
+
+[C4] query=|1 >= 1.0
+[C4] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C4] constant=true javaClass=java.lang.Boolean
+
+[C5] query=|1.0 < 1
+[C5] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C5] constant=false javaClass=java.lang.Boolean
+
+[C6] query=|1 < 1D
+[C6] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C6] constant=false javaClass=java.lang.Boolean
+
+[C7a] query=|1.5 < 1.5D
+[C7a] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C7a] constant=false javaClass=java.lang.Boolean
+
+[C7b] query=|1.5 <= 1.5D
+[C7b] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C7b] constant=true javaClass=java.lang.Boolean
+
+[C8] query=|1 == 1.0
+[C8] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C8] constant=true javaClass=java.lang.Boolean
+
+[C9] query=|compare(1, 1.0)
+[C9] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Integer"}
+[C9] constant=0 javaClass=java.lang.Long
+
+[C9x] query=|compare(3, 3D)
+[C9x] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Integer"}
+[C9x] constant=0 javaClass=java.lang.Long
+
+[C9y] query=|compare(1.5, 1.5D)
+[C9y] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Integer"}
+[C9y] constant=0 javaClass=java.lang.Long
+
+[C10a] query=|1->cast(@Number) < 1.0->cast(@Number)
+[C10a] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C10a] constant=false javaClass=java.lang.Boolean
+
+[C10b] query=|1->cast(@Number) == 1.0->cast(@Number)
+[C10b] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[C10b] constant=false javaClass=java.lang.Boolean
+
+[D1] query=|p::amongWholes(1.0)
+[D1] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[D1] constant=false javaClass=java.lang.Boolean
+
+[D2] query=|p::amongWholes(1)
+[D2] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[D2] constant=true javaClass=java.lang.Boolean
+
+[D3] query=|p::amongFloats(1)
+[D3] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[D3] constant=false javaClass=java.lang.Boolean
+
+[D4] query=|p::amongFloats(1.0)
+[D4] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[D4] constant=true javaClass=java.lang.Boolean
+
+[D5] query=|p::same(1, 1.0)
+[D5] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[D5] constant=true javaClass=java.lang.Boolean
+
+[D6] query=|p::less(1, 1.0)
+[D6] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[D6] constant=false javaClass=java.lang.Boolean
+
+[D7] query=|1.0->in([0, 1])
+[D7] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[D7] constant=false javaClass=java.lang.Boolean
+
+[D8] query=|1->in([0.0, 1.0])
+[D8] root node=PureExpressionPlatformExecutionNode (_type platform) resultType={"_type":"dataType","dataType":"Boolean"}
+[D8] constant=false javaClass=java.lang.Boolean
+
+[S1] query=|#>{p::DB.T}#->filter(r|$r.I->in([0.0, 1.0]))->select(~[ID])->from(p::H2RT)
+[S1] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S1] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I in (cast(0.0 as float), cast(1.0 as float))
+[S1] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [2]},{"values": [5]}]}}
+
+[S2] query=|#>{p::DB.T}#->filter(r|$r.F->in([0, 1]))->select(~[ID])->from(p::H2RT)
+[S2] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S2] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".F in (0, 1)
+[S2] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [2]}]}}
+
+[S3] query=|#>{p::DB.T}#->filter(r|$r.I == $r.F)->select(~[ID])->from(p::H2RT)
+[S3] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S3] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I is not distinct from "t_0".F
+[S3] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [2]},{"values": [4]}]}}
+
+[S4] query=|#>{p::DB.T}#->filter(r|$r.I < $r.F)->select(~[ID])->from(p::H2RT)
+[S4] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S4] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I is not null and "t_0".F is not null and "t_0".I < "t_0".F
+[S4] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [3]},{"values": [5]}]}}
+
+[S5] query=|#>{p::DB.T}#->filter(r|$r.I == 1.0)->select(~[ID])->from(p::H2RT)
+[S5] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S5] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I = cast(1.0 as float)
+[S5] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [5]}]}}
+
+[S6] query=|#>{p::DB.T}#->filter(r|$r.D == $r.I)->select(~[ID])->from(p::H2RT)
+[S6] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S6] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".D is not distinct from "t_0".I
+[S6] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [2]},{"values": [4]}]}}
+
+[S7] query=|#>{p::DB.T}#->filter(r|$r.D == $r.F)->select(~[ID])->from(p::H2RT)
+[S7] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S7] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".D is not distinct from "t_0".F
+[S7] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [2]},{"values": [3]},{"values": [4]},{"values": [5]}]}}
+
+[S8] query=|#>{p::DB.T}#->filter(r|$r.I->in([3D, 'a']))->select(~[ID])->from(p::H2RT)
+[S8] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S8] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I in (3, 'a')
+[S8] refused: java.lang.RuntimeException: org.h2.jdbc.JdbcSQLDataException: Data conversion error converting "a"; SQL statement:
+select "t_0".ID as "ID" from T as "t_0" where "t_0".I in (3, 'a') [22018-214]
+	at org.h2.message.DbException.getJdbcSQLException(DbException.java:506)
+	at org.h2.message.DbException.getJdbcSQLException(DbException.java:477)
+	at org.h2.message.DbException.get(DbException.java:212)
+	at org.h2.value.ValueStringBase.getInt(ValueStringBase.java:133)
+	at org.h2.value.Value.convertToInt(Value.java:1575)
+	at org.h2.value.Value.convertTo(Value.java:1135)
+	at org.h2.value.Value.convertTo(Value.java:1018)
+	at org.h2.expression.condition.ConditionInConstantSet.add(ConditionInConstantSet.java:71)
+	at org.h2.expression.condition.ConditionInConstantSet.<init>(ConditionInConstantSet.java:66)
+	at org.h2.expression.condition.ConditionIn.optimize2(ConditionIn.java:140)
+	at org.h2.expression.condition.ConditionIn.optimize(ConditionIn.java:120)
+	at org.h2.expression.Expression.optimizeCondition(Expression.java:148)
+	at org.h2.command.query.Select.prepareExpressions(Select.java:1177)
+	at org.h2.command.query.Query.prepare(Query.java:218)
+	at org.h2.command.Parser.prepareCommand(Parser.java:575)
+	at org.h2.engine.SessionLocal.prepareLocal(SessionLocal.java:631)
+	at org.h2.server.TcpServerThread.process(TcpServerThread.java:288)
+	at org.h2.server.TcpServerThread.run(TcpServerThread.java:191)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.NumberFormatException:...
+[S8]   cause: org.h2.jdbc.JdbcSQLDataException: Data conversion error converting "a"; SQL statement:
+select "t_0".ID as "ID" from T as "t_0" where "t_0".I in (3, 'a') [22018-214]
+	at org.h2.message.DbException.getJdbcSQLException(DbException.java:506)
+	at org.h2.message.DbException.getJdbcSQLException(DbException.java:477)
+	at org.h2.message.DbException.get(DbException.java:212)
+	at org.h2.value.ValueStringBase.getInt(ValueStringBase.java:133)
+	at org.h2.value.Value.convertToInt(Value.java:1575)
+	at org.h2.value.Value.convertTo(Value.java:1135)
+	at org.h2.value.Value.convertTo(Value.java:1018)
+	at org.h2.expression.condition.ConditionInConstantSet.add(ConditionInConstantSet.java:71)
+	at org.h2.expression.condition.ConditionInConstantSet.<init>(ConditionInConstantSet.java:66)
+	at org.h2.expression.condit...
+
+[S9] query=|#>{p::DB.T}#->extend(~[eqIF:r|$r.I == $r.F, ltIF:r|$r.I < $r.F, leIF:r|$r.I <= $r.F, eqDI:r|$r.D == $r.I, mxIF:r|max($r.I, $r.F), mnIF:r|min($r.I, $r.F)])->select(~[ID, eqIF, ltIF, leIF, eqDI, mxIF, mnIF])->from(p::H2RT)
+[S9] refused: org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find a match for function 'max(Int[0..1],Float4[0..1])'.
+Functions that can match if parameter types or multiplicities are changed:
+		max(Integer[1],Integer[1]):Integer[1]
+		max(Float[1],Float[1]):Float[1]
+		max(Number[1],Number[1]):Number[1]
+		max(DateTime[1],DateTime[1]):DateTime[1]
+		max(StrictDate[1],StrictDate[1]):StrictDate[1]
+		max(Date[1],Date[1]):Date[1]
+		max(T[1..*],Function<{T[1], T[1]->Integer[1]}>[1]):T[1]
+Functions that can match if number of parameters are changed:
+		max(Integer[1..*]):Integer[1]
+		max(Integer[*]):Integer[0..1]
+		max(Float[1..*]):Float[1]
+		max(Float[*]):Float[0..1]
+		max(Number[1..*]):Number[1]
+		max(Number[*]):Number[0..1]
+		max(DateTime[*]):DateTime[0..1]
+		max(StrictDate[*]):StrictDate[0..1]
+		max(Date[*]):Date[0..1]
+		max(X[1..*]):X[1]
+		max(X[*]):X[0..1]
+
+
+[S10] query=|#>{p::DB.T}#->filter(r|$r.I < 1D)->select(~[ID])->from(p::H2RT)
+[S10] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S10] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I is not null and "t_0".I < cast(1 as Decimal(32,16))
+[S10] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [2]}]}}
+
+[S11] query=|#>{p::DB.T}#->filter(r|p::amongFloats($r.I))->select(~[ID])->from(p::H2RT)
+[S11] refused: org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find a match for function 'p::amongFloats(Int[0..1])'.
+Functions that can match if parameter types or multiplicities are changed:
+		p::amongFloats(Number[1]):Boolean[1]
+
+
+[S12] query=|#>{p::DB.T}#->filter(r|p::same($r.I, $r.F))->select(~[ID])->from(p::H2RT)
+[S12] refused: org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find a match for function 'p::same(Int[0..1],Float4[0..1])'.
+Functions that can match if parameter types or multiplicities are changed:
+		p::same(Number[1],Number[1]):Boolean[1]
+
+
+[S13] query=|#>{p::DB.T}#->filter(r|p::less($r.I, $r.F))->select(~[ID])->from(p::H2RT)
+[S13] refused: org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find a match for function 'p::less(Int[0..1],Float4[0..1])'.
+Functions that can match if parameter types or multiplicities are changed:
+		p::less(Number[1],Number[1]):Boolean[1]
+
+
+[S14] query=|#>{p::DB.T}#->extend(~cmp:r|compare($r.I, $r.F))->select(~[ID, cmp])->from(p::H2RT)
+[S14] refused: org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find a match for function 'compare(Int[0..1],Float4[0..1])'.
+Functions that can match if parameter types or multiplicities are changed:
+		compare(T[1],T[1]):Integer[1]
+
+
+[S15] query=|#>{p::DB.T}#->groupBy(~[], ~[mx:r|$r.F:y|$y->max()])->from(p::H2RT)
+[S15] refused: java.lang.NullPointerException: Cannot invoke "Object.getClass()" because "resO" is null
+
+[K1] query=|p::Row.all()->filter(r|$r.i->in([0.0, 1.0]))->project([r|$r.id], ['id'])->from(p::M, p::H2RT)
+[K1] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"id","relationalType":"INTEGER","type":"Integer"}]}
+[K1] sql=select "root".ID as "id" from T as "root" where "root".I in (cast(0.0 as float), cast(1.0 as float))
+[K1] execute DEFAULT result="result" : {"columns" : ["id"], "rows" : [{"values": [1]},{"values": [2]},{"values": [5]}]}}
+
+[K2] query=|p::Row.all()->filter(r|$r.i == $r.f)->project([r|$r.id], ['id'])->from(p::M, p::H2RT)
+[K2] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"id","relationalType":"INTEGER","type":"Integer"}]}
+[K2] sql=select "root".ID as "id" from T as "root" where "root".I is not distinct from "root".F
+[K2] execute DEFAULT result="result" : {"columns" : ["id"], "rows" : [{"values": [1]},{"values": [2]},{"values": [4]}]}}
+
+[K3] query=|p::Row.all()->filter(r|$r.d == $r.i)->project([r|$r.id], ['id'])->from(p::M, p::H2RT)
+[K3] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"id","relationalType":"INTEGER","type":"Integer"}]}
+[K3] sql=select "root".ID as "id" from T as "root" where "root".D is not distinct from "root".I
+[K3] execute DEFAULT result="result" : {"columns" : ["id"], "rows" : [{"values": [1]},{"values": [2]},{"values": [4]}]}}
+
+[K4] query=|p::Row.all()->filter(r|$r.f->in([0, 1]))->project([r|$r.id], ['id'])->from(p::M, p::H2RT)
+[K4] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"id","relationalType":"INTEGER","type":"Integer"}]}
+[K4] sql=select "root".ID as "id" from T as "root" where "root".F in (0, 1)
+[K4] execute DEFAULT result="result" : {"columns" : ["id"], "rows" : [{"values": [1]},{"values": [2]}]}}
