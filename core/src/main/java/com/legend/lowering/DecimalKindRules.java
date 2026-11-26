@@ -32,10 +32,10 @@ final class DecimalKindRules {
         return rounded(SqlFn.ROUND, n, args);
     }
 
-    /** {@code round} with a half going away from zero ({@link NamedRule#ROUND_HALF_AWAY_FROM_ZERO}): the product's
-     *  round in every other way -- an Integer of one argument, the operand's type at a scale. */
-    static SqlExpr roundHalfAwayFromZero(TypedNativeCall n, List<SqlExpr> args) {
-        return rounded(SqlFn.ROUND_HALF_UP, n, args);
+    /** {@code round} by the database's own ROUND ({@link NamedRule#ROUND_AS_GIVEN}): the product's round in every
+     *  other way -- an Integer of one argument, the operand's type at a scale. */
+    static SqlExpr roundAsGiven(TypedNativeCall n, List<SqlExpr> args) {
+        return rounded(SqlFn.ROUND_AS_GIVEN, n, args);
     }
 
     private static SqlExpr rounded(SqlFn rounding, TypedNativeCall n, List<SqlExpr> args) {

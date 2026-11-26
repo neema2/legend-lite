@@ -924,7 +924,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** Whether {@code c} is a parseFloat: a user's cast of text to a Float. */
     /** Whether {@code v} is already a whole number though of a double's type: a rounding to no places (ROUND or
-     *  ROUND_HALF_UP of one operand, or of a literal 0 places), a floor or a ceiling. A cast of it to an integer needs no
+     *  ROUND_HALF_UP or the database's own ROUND of one operand, or of a literal 0 places), a floor or a ceiling. A cast of it to an integer needs no
      *  rounding of its own (S20's waste look, 2026-11-17: a Float rounded to an Integer was rounded twice once the
      *  Float literal became a double). */
     protected static boolean alreadyWhole(SqlExpr v) {
@@ -932,7 +932,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             return false;
         }
         return switch (c.fn()) {
-            case ROUND, ROUND_HALF_UP -> c.args().size() == 1
+            case ROUND, ROUND_HALF_UP, ROUND_AS_GIVEN -> c.args().size() == 1
                     || (c.args().size() == 2 && c.args().get(1) instanceof SqlExpr.IntLit i && i.value() == 0);
             case FLOOR, CEILING, FLOOR_RAW -> c.args().size() == 1;
             default -> false;
