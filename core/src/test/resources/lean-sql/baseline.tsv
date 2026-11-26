@@ -462,7 +462,7 @@ channel_a	ClickHouse	meta::pure::functions::flow::coalesce_T_$0_1$__T_1__T_1_	2	
 channel_a	ClickHouse	meta::pure::functions::hash::hashCode_Any_MANY__Integer_1_	4	2021	11561	0	46	0
 channel_a	ClickHouse	meta::pure::functions::hash::hash_String_1__HashType_1__String_1_	3	1066	4820	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	2	777	3340	0	0	0
-channel_a	ClickHouse	meta::pure::functions::math::abs_Float_1__Float_1_	2	774	3646	0	0	0
+channel_a	ClickHouse	meta::pure::functions::math::abs_Float_1__Float_1_	2	772	3644	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::abs_Integer_1__Integer_1_	2	739	3216	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::acos_Number_1__Float_1_	4	2268	12340	0	0	0
 channel_a	ClickHouse	meta::pure::functions::math::asin_Number_1__Float_1_	4	2268	12340	0	0	0
@@ -611,7 +611,7 @@ channel_a	ClickHouse	meta::pure::functions::string::substring_String_1__Integer_
 channel_a	ClickHouse	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	5	3838	17912	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	5	1972	8203	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::toLower_String_1__String_1_	2	678	3164	0	0	0
-channel_a	ClickHouse	meta::pure::functions::string::toString_Any_1__String_1_	25	10411	41663	0	0	1
+channel_a	ClickHouse	meta::pure::functions::string::toString_Any_1__String_1_	25	10409	41661	0	0	1
 channel_a	ClickHouse	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	5	1972	8203	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::toUpper_String_1__String_1_	2	678	3164	0	0	0
 channel_a	ClickHouse	meta::pure::functions::string::trim_String_1__String_1_	2	736	3260	0	0	0
