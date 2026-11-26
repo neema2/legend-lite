@@ -118,10 +118,13 @@ public final class ProductStatements {
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         ProgramFrames.StatementRows rows = frames.statementRows();
-        // the flags the statements themselves carry (withFeatureFlags, legend-engine's second carrier), read here as
-        // written: the resolver reads through the call, so the lowering would never see them on the prepared body
-        // (the edition program's step 2, 2026-11-25: until then a product query's own flags never reached its lowering)
-        Set<Feature> flagged = withWrittenFlags(features, statements);
+        // the flags the statements themselves carry (withFeatureFlags, legend-engine's second carrier), where the door
+        // reads them (legend-engine's does; lite's own never did, and do not): read here as written, because the
+        // resolver reads through the call and the lowering never sees it on the prepared body (the edition program's
+        // step 2, 2026-11-25)
+        Set<Feature> flagged = style.twoForm(com.legend.lowering.EditionTable.class,
+                com.legend.lowering.LiteEditionTable.INSTANCE).readsWrittenFlags()
+                        ? withWrittenFlags(features, statements) : features;
         // the query's own planning options (TypedQuery.withOptions), its lowering's
         PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, flagged, rows, style).withOptions(query.options())
                 : env(ctx, runtime, flagged, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());

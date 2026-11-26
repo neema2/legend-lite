@@ -47,6 +47,11 @@ public interface EditionTable {
      *  stamps. */
     boolean transformsOutsideStore(boolean fetchesAGraph, boolean chained);
 
+    /** Whether, at this door, a statement runs under the legend-engine feature flags it carries itself
+     *  ({@code withFeatureFlags} calls written in the query): legend-engine's door reads them, as legend-engine does;
+     *  lite's own doors do not (register S130: the meaning is chosen by the door, never by a setting in the query). */
+    boolean readsWrittenFlags();
+
     /** This table for the statements of one planning, which run on {@code database} (asked only when a row is
      *  chosen, after the planner has decided the runtime; null where the planning names no single database). The
      *  lowering imports no dialect and names no database: the planner binds the table before handing it over. */

@@ -152,6 +152,13 @@ final class EngineTable implements EditionTable {
         return fetchesAGraph || !chained;
     }
 
+    /** legend-engine's plan generation finds a query's {@code withFeatureFlags} calls and adds their flags to its
+     *  context ({@code executionPlan_generation.pure}). */
+    @Override
+    public boolean readsWrittenFlags() {
+        return true;
+    }
+
     @Override
     public EditionTable on(Supplier<@com.legend.base.Nullable DatabaseType> onDatabase) {
         return new EngineTable(onDatabase);

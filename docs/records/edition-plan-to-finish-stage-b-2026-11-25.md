@@ -215,10 +215,13 @@ that inspected the rewritten tree, or expected a refusal before planning; three 
   database. `EngineTable` has four rows (`substring`, `substr`, the two-argument `indexOf`, and `toOne` of an operand
   that is always empty) and refuses by name, while the statement is planned, a call a row answers on a database where
   legend-engine's answer is not yet checked.
-- **A statement's own feature flags reach its lowering.** A `withFeatureFlags` call in a product query was read
-  through by the resolver before the lowering saw it, so its flags never arrived. `ProductStatements.prepare` now
-  reads them from the statements as written. (This is also a product fix: a flag written in a query is honoured, and
-  one nothing consumes is refused by name as the lowering always meant to.)
+- **At legend-engine's door a statement's own feature flags reach its lowering.** A `withFeatureFlags` call written
+  in a query is read through by the resolver before the lowering sees it, so on the product's road its flags never
+  arrived (the old rewrite read them itself, at the door). `ProductStatements.prepare` now reads them from the
+  statements as written, where the door's table says the door reads them (`EditionTable.readsWrittenFlags`:
+  legend-engine's does, lite's own doors do not, as before). Two consequences at legend-engine's door, both in
+  legend-engine's direction and both to confirm with the user: `LEGACY_SQL_NULL_UNSAFE_EQUALS` written in a query is
+  honoured (it was ignored), and a flag nothing in lite consumes is refused by name (it was ignored).
 - **The seed is planned in the door's style** (`ProductStatements.lowerTestDataSeed(query, runtime, style)`).
 - **A model-to-model mapping's transforms are stamped where the resolver composes them.** legend-engine runs them in
   its own Java under a graph fetch and over a model connection, and pushes them into the SQL in a TDS query over a

@@ -42,4 +42,9 @@ public final class LiteEditionTable implements EditionTable {
     public boolean transformsOutsideStore(boolean fetchesAGraph, boolean chained) {
         return false;
     }
+
+    @Override
+    public boolean readsWrittenFlags() {
+        return false;
+    }
 }
