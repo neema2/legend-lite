@@ -22700,3 +22700,50 @@ was ruled: docs/records/edition-homework/m1-float-literal.md (M1). Every roster,
   Pure (M1's two); within the test's tolerance, so no outcome moves.
 - **`EqualityCompatEdgeTest`:** `0.1 + 0.2` at the edge's DuckDB door is `0.30000000000000004` (legend-engine's
   DuckDB answers `0.3`, a DECIMAL): the recorded difference, S20.
+
+## 2026-11-26 — The edition program's steps 2 and 3: the table and the stamp in the old rewrite's place at pure/v1
+
+legend-engine's door no longer rewrites the typed query for `substring`, `substr`, the two-argument `indexOf` and
+`toOne` of an always-empty operand (A3: `edge/PureMeaningRewrite`, `edge/PureMeaningCheck`, most of
+`edge/EngineSubstitutes`, deleted). The lowering asks the door's table for each call (`lowering/EditionTable`;
+legend-engine's `edge/EngineTable`), by the planner's stamp of the code that is outside any store query
+(`TypedNativeCall.outsideStore`), and the planner makes the table for the statement's database (`planner/Edition`).
+The design and what changed for a caller: docs/records/edition-plan-to-finish-stage-b-2026-11-25.md sections 2 and 6a.
+The independent audit and its fixes: docs/records/edition-homework/r3/audit-step2-3.md. Every guard, pin and generated
+file that moved:
+
+- **`JavaEvalLedgerTest`'s edge register, a shrink:** `PureMeaningCheck.java` and `PureMeaningRewrite.java` leave;
+  `EngineSubstitutes.java`'s reason is reworded (it builds one call for the test-body door now). The planner's register
+  gains `Edition.java` and `LiteEdition.java`, dated.
+- **`native-claims.tsv`, regenerated (12 rows):** `EngineTable` names `substringAsGiven`, `substrAsGiven`, `sqlPosition`
+  and `trustOne` where `EngineSubstitutes` did, and `PureMeaningCheck` leaves the rows of `substring`, `substr`,
+  `indexOf` and `toOne`. `ClaimRegistryTest`'s two pins on the as-given natives name `EngineTable`: one edge claimer
+  before and after, no product claimer joins.
+- **`ArchitectureTest.PLANNER_ENTRIES`, two entries re-keyed, none added:** the seed's entry takes the door's plan
+  style as a third parameter and is reached from `edge.PureV1Routes` (until then `edge.TestDataRoutes`, in the
+  product's style); the statement resolver's factory takes the code it stamps (`resolver.StampedCode`). The
+  `SubselectPrune` row left with the dead two-form choices (step 3a).
+- **The two-form kinds (`testplan/PlanStyleFacets.TWO_FORMS`, `HookRulingTest`, `HookLambdasTest`), one kind added:**
+  `planner.Edition`, the door's edition. Its product form is `planner.LiteEdition`; `PlanEnv#edition()` is its one
+  caller. `PlanEnv#styled()` reaches three kinds, as before the step.
+- **`EdgeOnlyMembersTest`, one pin down:** `PlanEnv#withFeatures(Set)` is used by the product's statement road again.
+- **`EdgeSpellingHookTest`, `PureOnlyTextsRefusalTest`, `PlanStyleSurfaceTest`:** unmoved by these steps.
+- **A new guard, `NativeCallStampGuardTest`:** every construction of a `TypedNativeCall` in core's main sources carries
+  a stamp or is a pinned new call (93 across 35 files, measured that day).
+- **The dead two-form choices deleted (step 3a):** six `LoweringForms` methods whose two forms were the same, their
+  call sites inlined; `HookLambdasTest`'s and `HookRulingTest`'s rows for them leave.
+- **The tests:** `PureMeaningCheckTest` and `PureMeaningRewriteTest` are deleted with what they tested;
+  `EngineTablePlacementTest` pins where the table lands (each case read against the same query planned with the
+  product's edition); `PureMeaningEngineTest` keeps every route's answers; `EngineSubstitutesTest` keeps the natives'
+  dialect, answer and internal-name tests. The parser-equivalence count (`own_corpus.matched` 3347) does not move.
+- **Three tests of the hosts' plan halves** (`PureV1ApiTest`, `UpstreamProtocolFieldsTest`, `TextPlanSourceTest`) hand
+  pure/v1's style, as production does; one of them read a division by zero's raise, which pure/v1 has written plain
+  since B7, and reads a date's absent part now.
+- **No golden regenerated:** pure/v1's answers and plan text (`edge/pure_v1_answers.tsv`, `pure_v1_plan_text.tsv`,
+  `pure_v1_sql_text.tsv`), the corpus goldens and the product's SQL size pins (`//core:lean_sql_baseline_test`) are
+  unmoved.
+
+Checked: `//core:core_edge_tests`, `//core:guardrails`, `//core:guardrails_edge`, `//core:census`,
+`//core:census_edge`, `//spec:spec_tests`, `//core:lean_sql_baseline_test`, the eight `//core:core_tests_*` suites,
+the generated-file tests and the parser ratchet; PCT on the six database lanes, both channels, test by test against
+each lane's baseline, no answer moved (docs/records/edition-homework/lanes/baselines-c06ebbab.md, round 2).
