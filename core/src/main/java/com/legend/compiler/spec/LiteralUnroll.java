@@ -425,6 +425,16 @@ final class LiteralUnroll {
                 .orElse(c);
     }
 
+    /** {@code t} as the number type it is (a Decimal of a declared precision is a Decimal), or null where it is no
+     *  one number type (Number, Any, anything else). */
+    private static Type.@com.legend.base.Nullable Primitive numberKind(Type t) {
+        if (t instanceof Type.PrecisionDecimal) {
+            return Type.Primitive.DECIMAL;
+        }
+        return t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT || t == Type.Primitive.DECIMAL
+                ? (Type.Primitive) t : null;
+    }
+
     /** Whether two spelled scalars are of two kinds one of which is an enumeration: never equal (the user, 2026-10-30,
      *  S169). legend-pure's {@code equal} compares values of one classifier only (EqualityUtilities.equal,
      *  CompiledSupport.equal), so {@code Stat.mean == 'mean'} and {@code E1.a == E2.a} are false; the database, given
@@ -595,20 +605,19 @@ final class LiteralUnroll {
         }
         if (is(c, Pure.AT_COLLECTION_IN, Pure.AT_RELATION_IN) && a.size() == 2 && a.get(1) instanceof TypedCollection coll
                 && coll.elements().stream().allMatch(e -> scalar(e).isPresent())) {
-            Optional<Literal> needle = literal(a.get(0)).filter(l -> l instanceof Scalar);
-            // folded only where every element is of the value's own kind (or an enumeration's value against another
-            // kind's, never equal): a fold never answers a comparison across types, as contains' and =='s do not
-            // (2026-11-26, the audit of the edition program's steps 4 and 5: the literal rule reads a whole number
-            // written against a Float as that Float and leaves it as written, so 1.0->in([0, 1]) reached this fold as
-            // a Float beside Integers, which compared them as two Java objects and answered false; the database
-            // answers true)
-            if (needle.isPresent() && coll.elements().stream().allMatch(e -> neverEqual(a.get(0), e)
-                    || literal(e).filter(l -> l.cls().equals(needle.get().cls())).isPresent())) {
-                Object value = ((Scalar) needle.get()).value();
-                return bool(coll.elements().stream()
-                        .anyMatch(e -> !neverEqual(a.get(0), e) && scalar(e).filter(value::equals).isPresent()));
+            // a value of one number type against a list of another's literals is a comparison only by the literal rule
+            // (NumberLiterals: a whole number written against a Float reads as that Float, and is left as written),
+            // so its answer is by VALUE and the database's -- never this fold's, which compares two spelled values as
+            // two kinds (2026-11-26, the audit of the edition program's steps 4 and 5: 1.0->in([0, 1]), a call inlined,
+            // was folded to false). A list of mixed kinds is another matter: its values carry their types, two kinds
+            // are never equal, and the fold answers as before
+            Type.Primitive needleKind = numberKind(a.get(0).info().type());
+            Type.Primitive listKind = numberKind(coll.info().type());
+            if (needleKind != null && listKind != null && needleKind != listKind) {
+                return c;
             }
-            return c;
+            return scalar(a.get(0)).<TypedSpec>map(needle -> bool(coll.elements().stream()
+                    .anyMatch(e -> !neverEqual(a.get(0), e) && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
         }
         if ((is(c, Pure.AT_COLLECTION_IS_EMPTY) || is(c, Pure.AT_COLLECTION_IS_NOT_EMPTY)) && a.size() == 1
                 && spelledList(a.get(0))) {
