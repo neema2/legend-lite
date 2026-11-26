@@ -203,14 +203,6 @@ public class BigQuery extends AnsiSqlRenderer {
         return false;
     }
 
-    /** A Float's print forms over the value and its text bound once: the portable spellings read the text nine times
-     *  (Pure's) and over a thousand (legend-engine's), each read this dialect's text of a double, its own subquery (the
-     *  served statement for {@code 1.5 + 2.25} was 321 KB, measured 2026-10-22). */
-    @Override
-    protected boolean readsLongTextOnce() {
-        return true;
-    }
-
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new FoldsAsRecursiveCtes(),
@@ -1587,7 +1579,6 @@ public class BigQuery extends AnsiSqlRenderer {
                     + " code points) reached BigQuery, whose binary collation is not measured");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "STRING");   // its own cast: SqlFn's javadoc
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->

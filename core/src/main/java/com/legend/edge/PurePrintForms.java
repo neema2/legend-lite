@@ -10,7 +10,7 @@ import com.legend.sql.SqlFn;
  * LEGEND-PURE'S PRINT FORMS AT THE EDGE (phase D's D1.2, 2026-11-15): each product text node written as legend-pure's
  * form of it, which each product dialect spells for the judges already -- a Float's ({@link SqlFn#FLOAT_TO_TEXT}, lite's
  * six decimals) as legend-engine writes it in a query ({@link #floatOf}: the database's cast, a literal legend-pure's
- * print; Phase 5, 2026-11-16, until then {@link SqlFn#FLOAT_SHORTEST_TEXT}), a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
+ * print; Phase 5, 2026-11-16), a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
  * legend-pure's print form ({@link PureDateTimePrint}; a literal's written text kept), a joined element's
  * ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
  * legend-pure writes (D1.3: the product refuses them by name), {@code format}'s padded {@code %0<w>d}

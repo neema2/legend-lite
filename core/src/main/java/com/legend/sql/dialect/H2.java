@@ -701,7 +701,6 @@ public class H2 extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
             case ROUND_RAW -> writer.function("ROUND", c.args());
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: H2's own cast (Java's shortest digits, which read back)
             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");

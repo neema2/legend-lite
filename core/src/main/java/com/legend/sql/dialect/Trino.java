@@ -954,7 +954,6 @@ public class Trino extends AnsiSqlRenderer {
             case TODAY -> writer.append("current_date");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: Trino's own cast, never re-spelled (always its exponent form, 1.5E0)
             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");

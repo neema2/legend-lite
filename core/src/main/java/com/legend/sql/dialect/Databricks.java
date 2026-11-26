@@ -1107,7 +1107,6 @@ public class Databricks extends AnsiSqlRenderer {
             case ROUND_RAW -> writer.function("ROUND", c.args());
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: Spark's own cast, never re-spelled (its exponent written E)
             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "STRING");

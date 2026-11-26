@@ -409,17 +409,16 @@ class MongoDbPlanTest {
             spelled.put("text of hugeint(1e20) + '.0'", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
                     text(new com.legend.sql.SqlExpr.Cast(big, com.legend.sql.SqlType.Scalar.HUGEINT, com.legend.sql.SqlExpr.Reason.USER)),
                     new com.legend.sql.SqlExpr.StringLit(".0")));
-            // the product's text of a Float (FLOAT_TO_TEXT: six decimals trimmed, S311; phase D's D1.2, 2026-11-15) and
-            // legend-pure's print form (FLOAT_SHORTEST_TEXT, the judges' and the edge's)
+            // the product's text of a Float (FLOAT_TO_TEXT: six decimals trimmed, S311; phase D's D1.2, 2026-11-15).
+            // (legend-pure's print form, the node FLOAT_SHORTEST_TEXT, was measured here until 2026-11-26: the node is
+            // deleted, the edition program's step 8, slice 1 -- that text is the compatibility edge's alone, composed
+            // from the product's nodes, edge.EdgePureOnlyTexts; the casts it reads are spelled above)
             spelled.put("the product's text of 1e20", com.legend.lowering.LiteralSpelling.floatPrint(big));
-            spelled.put("Pure's print of 1e20", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT, big));
             spelled.put("text of 2.0", text(new com.legend.sql.SqlExpr.FloatLit(2.0)));
             spelled.put("text of 1.5e-8", text(new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
             spelled.put("text of decimal(38,18) of 1.5e-8", text(new com.legend.sql.SqlExpr.Cast(
                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8), new com.legend.sql.SqlType.Decimal(38, 18), com.legend.sql.SqlExpr.Reason.USER)));
             spelled.put("the product's text of 1.5e-8", com.legend.lowering.LiteralSpelling.floatPrint(
-                    new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
-            spelled.put("Pure's print of 1.5e-8", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT,
                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
             // toCSV's Float cell (SqlFn.FLOAT_FULL_TEXT, 2026-11-25; the slice's review): the pipeline's own $toString,
             // which must read back as the very double
@@ -452,8 +451,6 @@ class MongoDbPlanTest {
             // as 2.0"; B2a, 2026-11-24)
             assertEquals("100000000000000000000.0", got.get("the product's text of 1e20"));
             assertEquals("0.0", got.get("the product's text of 1.5e-8"));
-            assertEquals("100000000000000000000.0", got.get("Pure's print of 1e20"));
-            assertEquals("0.000000015", got.get("Pure's print of 1.5e-8"));
         }
     }
 
