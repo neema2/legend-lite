@@ -268,8 +268,8 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: lite's query plan's own plan and root type (QueryPlan's ruling, train 19)"),
             Map.entry("com.legend.plan.QueryPlan#shape()",
                     "2026-11-18: lite's query plan's own columns and shape"),
-            Map.entry("com.legend.planner.PlanEnv#withFeatures(java.util.Set)",
-                    "2026-11-18: lite's planning environment's own features and lets"),
+            // (PlanEnv#withFeatures(Set): unpinned 2026-11-26, the edition program's step 2 -- the product's statement
+            // road uses it again, for the flags a statement carries at a door that reads them; a pin moving down)
             Map.entry("com.legend.planner.PlanEnv#withOwnQueryLets()",
                     "2026-11-18: lite's planning environment's own features and lets"),
             Map.entry("com.legend.planner.PlanEnv#withQueryLets(java.util.Map)",

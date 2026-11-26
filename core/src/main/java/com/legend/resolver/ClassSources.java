@@ -181,13 +181,9 @@ public final class ClassSources {
      * binding's source from its arms. */
     private final StackBuilder stacks;
 
-    public ClassSources(ModelContext ctx, SpecCompiler specs) {
-        this(ctx, specs, false);
-    }
-
-    /** {@link #ClassSources(ModelContext, SpecCompiler)}, stamping a model-to-model mapping's transforms as outside any
-     *  store query where {@code transformsOutsideStore} (its resolver's, the planner's decision). */
-    ClassSources(ModelContext ctx, SpecCompiler specs, boolean transformsOutsideStore) {
+    /** {@code transformsOutsideStore}: a model-to-model mapping's transforms are stamped as outside any store query
+     *  as they are composed (its resolver's, the planner's decision; false for every road but a compatibility door's). */
+    public ClassSources(ModelContext ctx, SpecCompiler specs, boolean transformsOutsideStore) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.specs = Objects.requireNonNull(specs, "specs");
         this.transformsOutsideStore = transformsOutsideStore;

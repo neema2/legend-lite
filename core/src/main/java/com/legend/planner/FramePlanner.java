@@ -259,7 +259,7 @@ public final class FramePlanner {
         if (fc.chain() instanceof TypedFrom fr
                 && ResultEnvelopeSplice.plainExtentRoot(fr.source())
                         instanceof TypedGetAll root
-                && BodyPlanner.resolver(specs, env).plainClassPipeline(fr, root)) {
+                && BodyPlanner.resolver(specs, env, false).plainClassPipeline(fr, root)) {
             // rung 12: a PLAIN class-rooted let (Class.all() under filters, the
             // class bound by filters over ONE table) planned ONCE — the fold's
             // root rows (its from / where over the root table's physical

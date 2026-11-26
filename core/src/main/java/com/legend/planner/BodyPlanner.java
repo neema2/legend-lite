@@ -64,15 +64,12 @@ public final class BodyPlanner {
     }
 
     /** THE statement resolver: the query lets and the registered handle
-     * rows ride every resolution (one construction, every site). */
-    public static StoreResolver resolver(
-            SpecCompiler specs, PlanEnv env) {
-        return resolver(specs, env, false);
-    }
-
-    /** {@link #resolver(SpecCompiler, PlanEnv)}; with {@code transformsOutsideStore}, a model-to-model mapping's
-     *  transforms are stamped as outside any store query as they are composed (the edition program's step 2: the
-     *  door's edition decides it per statement, {@code Edition.transformsOutsideStore}). */
+     * rows ride every resolution (one construction, every site). With
+     * {@code transformsOutsideStore}, a model-to-model mapping's transforms
+     * are stamped as outside any store query as they are composed (the
+     * edition program's step 2: the door's edition decides it per statement,
+     * {@code Edition.transformsOutsideStore}; a road that plans for no door's
+     * edition passes false). */
     public static StoreResolver resolver(
             SpecCompiler specs, PlanEnv env, boolean transformsOutsideStore) {
         return new StoreResolver(env.ctx(), specs, transformsOutsideStore)
@@ -218,7 +215,7 @@ public final class BodyPlanner {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch
                 .stage(b, stageEnv, PlanTextRoutines.of(specs, env)));
-        return resolvedToExecute(resolver(specs, env), body, env);
+        return resolvedToExecute(resolver(specs, env, false), body, env);
     }
 
     /** Phase H for a body that EXECUTES on the env's session: resolved, then every store it touches checked
