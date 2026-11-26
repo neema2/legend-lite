@@ -565,16 +565,8 @@ final class Scalars {
                 Map.entry(Pure.AT_MATH_LOG10, SqlFn.LOG10), Map.entry(Pure.AT_MATH_POW, SqlFn.POW),
                 Map.entry(Pure.AT_MATH_PI, SqlFn.PI),
                 Map.entry(Pure.AT_MATH_SIN, SqlFn.SIN), Map.entry(Pure.AT_MATH_COS, SqlFn.COS),
-                Map.entry(Pure.AT_MATH_TAN, SqlFn.TAN), Map.entry(Pure.AT_MATH_ASIN, SqlFn.ASIN),
-                // acos/asin: the engine's spec cell is the BARE function
-                // (extensionDefaults.pure 'acos(%s)'); out of domain H2
-                // yields NaN and the row drops. A backend that raises
-                // instead reaches the same answer through ITS dialect's
-                // domain guard (DuckDb.call), never a semantic rule; Pure's
-                // "Unable to compute acos" error is the interpreter's, and
-                // every engine relational PCT adapter ledgers
-                // testArcCosineError as an expected failure (batch 61).
-                Map.entry(Pure.AT_MATH_ACOS, SqlFn.ACOS),
+                Map.entry(Pure.AT_MATH_TAN, SqlFn.TAN),
+                // (acos and asin: their domain guard's rule, with sqrt's below)
                 Map.entry(Pure.AT_MATH_ATAN, SqlFn.ATAN),
                 Map.entry(Pure.AT_MATH_ATAN2, SqlFn.ATAN2), Map.entry(Pure.AT_MATH_SINH, SqlFn.SINH),
                 Map.entry(Pure.AT_MATH_COSH, SqlFn.COSH), Map.entry(Pure.AT_MATH_TANH, SqlFn.TANH),
@@ -1969,6 +1961,31 @@ final class Scalars {
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(args.get(0))),
                         SqlExpr.Call.of(SqlFn.SQRT, args.get(0)), styled);
             });
+        }
+        // acos and asin outside [-1, 1] RAISE, as legend-pure does ("Unable to compute acos of 2.0"; the user's ruling
+        // of 2026-11-25, register S119 reopened for these two: until then the database's NaN, or its own refusal where
+        // it holds none). The condition is the database's, over the row's value. A door whose table does not write
+        // the check (legend-engine's, inside a store query: its SQL is the bare function, extensionDefaults.pure
+        // 'acos(%s)') keeps the function alone, whose dialect arm answers NaN as legend-engine's H2 does, or refuses
+        // where the database holds none (register S138); outside a store query its own Java raises as Pure does, and
+        // the check is written (the planner's stamp).
+        for (var trig : List.of(Map.entry(Pure.AT_MATH_ACOS, SqlFn.ACOS), Map.entry(Pure.AT_MATH_ASIN, SqlFn.ASIN))) {
+            SqlFn fn = trig.getValue();
+            SqlFn inDomain = fn == SqlFn.ACOS ? SqlFn.ACOS_IN_DOMAIN : SqlFn.ASIN_IN_DOMAIN;
+            String label = fn == SqlFn.ACOS ? "acos" : "asin";
+            for (com.legend.model.FunctionId f : trig.getKey()) {
+                RULES.put(f, (StyledRule) (n, args, styled) -> {
+                    SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
+                    SqlExpr.RaiseText words = new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
+                            List.of(new SqlExpr.StringLit(label), args.get(0)));
+                    // checked, the function alone (its argument is within the domain); plain, the function with its
+                    // dialect's own answer outside the domain
+                    return styled.edition().checks(words.kind(), n)
+                            ? guarded(SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, x),
+                                    new SqlExpr.IntLit(1)), words, SqlExpr.Call.of(inDomain, args.get(0)))
+                            : SqlExpr.Call.of(fn, args.get(0));
+                });
+            }
         }
         family(SqlFn.BIT_NOT, Pure.AT_MATH_BIT_NOT);
         // formatDate(date, Strict/DateTimeFormat): the two real ISO forms.

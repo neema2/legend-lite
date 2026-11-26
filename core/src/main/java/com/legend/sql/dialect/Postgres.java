@@ -909,7 +909,7 @@ public class Postgres extends AnsiSqlRenderer {
             // and has no round(double, int) at all
             case ROUND_HALF_UP, ROUND_RAW, DECIMAL_RAW -> rounds(writer, c);
             // the engine's out-of-domain answer is NaN; Postgres raises
-            case ACOS, ASIN -> acos(writer, c);
+            case ACOS, ASIN, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN -> acos(writer, c);
 
             // ---- strings
             // the engine coerces a non-text argument (DuckDb's arm)
@@ -1818,10 +1818,14 @@ public class Postgres extends AnsiSqlRenderer {
         return false;
     }
 
-    /** The {@code ACOS}, {@code ASIN} arm of {@link #call}. */
+    /** The {@code ACOS}, {@code ASIN} arm of {@link #call}, and their {@code _IN_DOMAIN} forms': the function alone
+     *  where the statement's own guard holds the value within the domain. */
     private SqlWriter acos(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        String f = c.fn() == SqlFn.ACOS ? "acos" : "asin";
+        String f = c.fn() == SqlFn.ACOS || c.fn() == SqlFn.ACOS_IN_DOMAIN ? "acos" : "asin";
+        if (c.fn() == SqlFn.ACOS_IN_DOMAIN || c.fn() == SqlFn.ASIN_IN_DOMAIN) {
+            return writer.function(f, a);
+        }
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(f)
                 .append("(").expr(a.get(0), 0).append(") ELSE CAST('NaN' AS DOUBLE PRECISION) END)");
     }

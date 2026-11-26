@@ -1607,8 +1607,8 @@ public class BigQuery extends AnsiSqlRenderer {
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
             // this database's plain spellings: name(args)
             case ABS -> writer.function("ABS", c.args());
-            case ACOS -> writer.function("ACOS", c.args());
-            case ASIN -> writer.function("ASIN", c.args());
+            case ACOS, ACOS_IN_DOMAIN -> writer.function("ACOS", c.args());
+            case ASIN, ASIN_IN_DOMAIN -> writer.function("ASIN", c.args());
             case ATAN -> writer.function("ATAN", c.args());
             case ATAN2 -> writer.function("ATAN2", c.args());
             case CBRT -> writer.function("CBRT", c.args());

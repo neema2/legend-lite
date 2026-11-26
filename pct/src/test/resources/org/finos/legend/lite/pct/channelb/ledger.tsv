@@ -28,8 +28,6 @@ duckdb	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	
 duckdb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	out of range
 duckdb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	out of range
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-duckdb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
-duckdb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
 
 # postgres: measured by its lane session at fb8ee3da (2026-11-03, round 14)
 # a fold whose accumulator is a struct list: Postgres's list accumulator is the jsonb carrier of scalars (channel A fails it too)
@@ -43,8 +41,6 @@ postgres	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber
 postgres	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: ERROR: timestamp out of range: "1410404-07-12T00:00:00"
 postgres	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: ERROR: time zone displacement out of range: "-21457-01-08T20:48:00"
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-postgres	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
-postgres	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
 # a variable-identity or non-primitive eq or equal: a list transform of no result type on Postgres -- channel A passes, the engine's Postgres manifest fails it too (a WIRE-BUG pinned since 2026-10-20)
 postgres	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqVarIdentity	DialectCapability: a list transform of unknown result type reached Postgres
 postgres	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive	DialectCapability: a list transform of unknown result type reached Postgres
@@ -70,8 +66,6 @@ sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumbe
 # SQLite has no time zones but UTC
 sqlite	Essential	meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	AssertFailed: expected: [0], actual: []
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute acos of 2.0"
-sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute asin of 2.0"
 # SQLite has no time zones but UTC
 sqlite	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached SQLite: SQLite has no time zones but UTC
 # an integer past 64 bits: SQLite has none
@@ -92,8 +86,6 @@ trino	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	'
 trino	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	'33803336-12-17' is not a valid DATE literal
 trino	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	'1410404-07-12 00:00:00' is not a valid TIMESTAMP literal
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
-trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
 # (getAll::testBasic left 2026-11-11, B4: the system metamodel store is the process's in-process catalog on every
 # database, so Trino no longer makes its tables a session's own -- the lane round at 0b9bae2 measured it passing)
 
@@ -140,8 +132,6 @@ mariadb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	
 mariadb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MariaDB value
 mariadb	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MariaDB value
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute acos of 2.0"
-mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute asin of 2.0"
 # MariaDB knows no named time zone but UTC without its zone tables
 mariadb	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached MariaDB: MariaDB knows no named time zone but UTC without its zone tables
 # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
@@ -164,8 +154,6 @@ mysql	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	In
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MySQL value
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MySQL value
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute acos of 2.0"
-mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute asin of 2.0"
 # MySQL knows no named time zone but UTC without its zone tables
 mysql	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached MySQL: MySQL knows no named time zone but UTC without its zone tables
 # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
@@ -188,8 +176,6 @@ clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNum
 clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DialectCapability: the date 25489-04-20 03:12:00 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
 clickhouse	Essential	meta::pure::functions::date::tests::testAdjustBySecondsBigNumber	DialectCapability: the date 2407-05-19 19:15:12 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-clickhouse	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
-clickhouse	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
 # ClickHouse keeps a JSON value's text as written, its spaces among it (the engine's frontier too)
 # a nested lateral flatten of a variant answers other rows than the engine's (pinned since 2026-10-12 among the lane's wire bugs; the cause not yet read)
 # ClickHouse keeps a JSON value's text as written, its spaces among it (the engine's frontier too)
@@ -212,8 +198,6 @@ snowflake	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumbe
 snowflake	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: Numeric value '12345678912' is out of range
 snowflake	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: Timestamp '-21457-01-08T20:48:00' is not recognized
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-snowflake	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
-snowflake	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
 
 # bigquery: measured by its lane session at fb8ee3da (2026-11-03, round 14)
 # a list of lists: BigQuery's arrays hold no array (measured: "nested arrays are not supported")
@@ -231,8 +215,6 @@ bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNum
 # a decimal literal past BigQuery's BIGNUMERIC (38 digits each side of the point)
 # 2026-11-17 (Phase 5b, register S20 built; round 76): bigquery testComplexPow PASSES and leaves -- its literal is the double, so the judge no longer writes a 47-digit decimal
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "BigQueryException during runQuery
-bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "BigQueryException during runQuery
 # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
 # a fold that reads its row: BigQuery has no lambdas and no correlated recursion
 bigquery	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_fold	DialectCapability: a fold that reads its row reached BigQuery, which has no lambdas and no correlated recursion (WITH RECURSIVE is top-level only, measured; a c
@@ -254,8 +236,6 @@ databricks	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNum
 # a decimal literal past Databricks' DECIMAL (38 digits of precision)
 # 2026-11-17 (Phase 5b, register S20 built; round 76): databricks testComplexPow PASSES and leaves -- its literal is the double, so the judge no longer writes a 47-digit decimal
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
-databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
-databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
 # a DISTINCT relation's sort key Spark cannot resolve after the DISTINCT (an unresolved column, sqlState 42703) -- channel A and the engine's Databricks manifest both pass it (true wire bugs pinned since 2026-10-12)
 # 2026-11-24, B3 step 2b (the lift): 8 databricks Relation rows' texts re-recorded, the verdicts unmoved -- the failing statement is now the printed side's read before the body, whose table alias is `_tds0` where the body's own statement named it `_tds2`/`_tds3` (the same UNRESOLVED_COLUMN: Databricks cannot ORDER BY the FROM alias after DISTINCT; measured by its warm lane on 9b1e194f)
 databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`val` cannot be resolved.
@@ -410,8 +390,6 @@ duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testPerson
 # testSimpleSortWithFunctionVariables; a guard moving down only: approved by the user 2026-11-19 ~20:45
 # ("Approved to move guards down"))
 # acos/asin out of domain raise nothing: the database answers NaN (lite's IEEE Float, S119), where legend-pure raises 'Unable to compute acos of 2.0' (2026-11-19; 2 rows)
-duckdb-lite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
-duckdb-lite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
 # a date past DuckDB's range (its DATE holds years to 5881580, its TIMESTAMP to 294247): every value is the database's,
 # so it refuses the expected literal, under both judges and on every run (a DuckDB test plan's session runs
 # single-threaded, each verdict row reading its expected side first; the compatibility owner's options (a) and 2,

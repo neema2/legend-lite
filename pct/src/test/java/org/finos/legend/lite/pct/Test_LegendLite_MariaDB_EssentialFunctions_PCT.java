@@ -62,8 +62,8 @@ public class Test_LegendLite_MariaDB_EssentialFunctions_PCT extends PCTReportCon
             // column was a double -- and is removed
             // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"acos of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"asin of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
+            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
+            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),

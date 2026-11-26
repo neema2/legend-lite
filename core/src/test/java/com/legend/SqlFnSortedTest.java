@@ -67,7 +67,12 @@ class SqlFnSortedTest {
      *  refusing it by name) -- its entry gone the same day: register S401 ruled by the user 2026-11-23 ("Okay"), two whole
      *  Variants refused by name at planning, so no plan compares two JSON documents. */
     static final Set<String> PRODUCT = Set.of(
-            "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
+            "ABS", "ACOS",
+            // ACOS_IN_DOMAIN, ASIN_IN_DOMAIN (2026-11-26; the user's ruling of 2026-11-25 that acos and asin raise outside
+            // [-1, 1] as legend-pure does, register S119): the database's function alone, under the statement's own
+            // guard, written by lowering.Scalars -- product code alone writes them: PRODUCT, by the standing rule
+            "ACOS_IN_DOMAIN",
+            "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN", "ASIN_IN_DOMAIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
             "BIT_XOR", "BOOL_TO_TEXT",
             // CAST_INT, CAST_FLOAT (2026-11-26, the edition program's step 5): the database's own cast of a text, written

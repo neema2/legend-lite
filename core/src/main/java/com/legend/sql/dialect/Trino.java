@@ -980,8 +980,8 @@ public class Trino extends AnsiSqlRenderer {
             case VARIANT_GET -> variantGet(writer, c.args());
             // this database's plain spellings: name(args)
             case ABS -> writer.function("abs", c.args());
-            case ACOS -> writer.function("acos", c.args());
-            case ASIN -> writer.function("asin", c.args());
+            case ACOS, ACOS_IN_DOMAIN -> writer.function("acos", c.args());
+            case ASIN, ASIN_IN_DOMAIN -> writer.function("asin", c.args());
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
