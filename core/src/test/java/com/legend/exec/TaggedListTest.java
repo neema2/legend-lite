@@ -369,6 +369,19 @@ class TaggedListTest {
             assertEquals(false, value(c, "|[%2014-01-01T00:00:00, 'a']->contains(%2014-01-01->cast(@Date))"));
             assertEquals(true, value(c, "|['a', 1]->contains('a'->cast(@Any))"));
             assertEquals(false, value(c, "|['1', 2]->contains(1->cast(@Any))"));
+            // over a row: the upcast of a column is the column's value, compared by the database (no list in the SQL)
+            String upcast = "|#TDS\n a\n 1\n 2\n#->extend(~hit: x | [1, 'a']->contains($x.a->cast(@Number)))->select(~hit)";
+            assertEquals(List.of(true, false), values(c, upcast));
+            assertEquals("SELECT coalesce(_tds0.a = 1, FALSE) AS hit", query(upcast).plan("s::RT").sql().split("\\s+FROM\\s+")[0]);
+            // a value whose SQL type is a PROMOTION of what it may hold is still refused by name, never guessed: a
+            // CASE of an Integer and a Float is a DOUBLE; a relation re-typed to a Number column reads it as a DOUBLE
+            for (String promoted : List.of(
+                    "|#TDS\n a\n 1\n 2\n#->extend(~hit: x | [1, 'a']->contains(if($x.a > 1, |1, |1.5)))->select(~hit)",
+                    "|#TDS\n a\n 1\n 2\n#->cast(@meta::pure::metamodel::relation::Relation<(a:Number)>)"
+                            + "->extend(~hit: x | $x.a->toOne()->in([1, 'a']))->select(~hit)")) {
+                assertTrue(assertThrows(com.legend.error.NotImplementedException.class, () -> values(c, promoted))
+                        .getMessage().contains("whose kind only its runtime value names"), promoted);
+            }
         }
     }
 
