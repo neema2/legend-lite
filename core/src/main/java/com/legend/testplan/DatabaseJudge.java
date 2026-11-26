@@ -393,12 +393,6 @@ public final class DatabaseJudge {
                 name + ": UNJUDGED in database mode — " + why + detail);
     }
 
-    static TypedSide databaseSize(String name, List<TypedSpec> args,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return databaseSize(name, args, letPrefix, specs, env, hook, false);
-    }
-
     /** {@code negated}: {@code assertNotSize} (#28): the size row with the polarity flipped, its negated sentence. */
     static TypedSide databaseSize(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
@@ -418,12 +412,23 @@ public final class DatabaseJudge {
         if (cw.shape() != com.legend.plan.ResultShape.GRAPH && !envelope && nr != null && !nr.literalOnly()
                 && oneKind(nr) == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 && n.side() != null) {
-            // TYPED (item 3's S4): the collection's count against the size's one Integer, both riding the failure
-            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedSize(coll.countRows(),
-                    n.side().plan(), !negated);
+            // THE CONDITION THE ASSERT MEANS, size(c) == n (the equality program's first slice, 2026-11-26): the
+            // product's own count and the product's own ==, each side's value read once and riding the failure
+            TypedSpec size = com.legend.compiler.spec.VerdictQueries.sizeOf(args.get(0), specs);
+            SideRows count = planSide(size, false, letPrefix, specs, env, hook);
+            BodyDriver.WrappedSide counted = count.side();
+            if (count.why() != null || counted == null) {
+                return unjudged(name, "the collection's size: " + count.why());
+            }
+            TypedSpec same = com.legend.compiler.spec.VerdictQueries.sameValue(args.get(1).info(), size.info(),
+                    !negated, specs);
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedOverValues(
+                    com.legend.lowering.VerdictSql.ValueSide.pair(n.side().plan(), counted.plan(), size.info().type()),
+                    bound -> com.legend.planner.SidePlanner.over(same, bound, env.plan()));
             if (typed != null) {
                 return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
-                        com.legend.testexecutionplan.RootLoop.Family.SIZE, !negated, null, null, null, -1), coll.on(env));
+                        com.legend.testexecutionplan.RootLoop.Family.SIZE, !negated, null, null, null, -1),
+                        count.on(env));
             }
         }
         if (cw.shape() == com.legend.plan.ResultShape.GRAPH && nr != null && !nr.literalOnly()
@@ -747,13 +752,6 @@ public final class DatabaseJudge {
             return com.legend.lowering.VerdictSql.sideRows(w.plan(), r.tdsWrapped(),
                     "__canon" + idx, r.many() || r.tdsWrapped());
         }
-        /** The side's rows for counting: the canon may have declined. */
-        com.legend.sql.SqlQuery countRows() {
-            var r = java.util.Objects.requireNonNull(rider);
-            var w = java.util.Objects.requireNonNull(side);
-            return r.tdsWrapped() ? com.legend.lowering.VerdictSql.gridCountRows(w.plan())
-                    : com.legend.lowering.VerdictSql.countRows(w.plan());
-        }
         /** The environment a statement over this side runs in: the side's own
          * session when it reads a store, the body's otherwise. */
         BodyDriver.ExecEnv on(BodyDriver.ExecEnv env) {
@@ -992,7 +990,7 @@ public final class DatabaseJudge {
         }
         @Override public TypedSide size(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return databaseSize(name, args, letPrefix, specs, env, hook);
+            return databaseSize(name, args, letPrefix, specs, env, hook, false);
         }
         @Override public TypedSide contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

@@ -198,6 +198,16 @@
 >   three types; a day and a date-time; an enumeration and a String; two unrelated
 >   classes. `==`, `!=`, `in`, `contains`, `indexOf`, the deduplications, joins and
 >   ordering (`<`, `max`, `min`, `sort`) all hold to it.
+> - **A number literal reads as the type of the value it is written against** (the
+>   user, 2026-11-26: "okay for float/decimal literal compare"): `$x.qty > 0` over a
+>   Float is `> 0.0`, `$x.salary < 50000` over a Decimal is `< 50000D`, when the
+>   literal is exact in that type. Still a compile error: two literals (`1 == 1.0`),
+>   two values, a literal that is not exact there (`1.5` against an Integer), a
+>   Decimal literal (`1.5D`: its suffix states its type). The literal is read by its
+>   written digits; nothing is computed from a row (`compiler.spec.NumberLiterals`).
+> - **Inside functions and mapping code too** (the edition program's step 4,
+>   2026-11-26): a function's, a derived property's, a constraint's and a mapping's
+>   Pure hold to the same rule, the error raised when the body is compiled.
 > - **Types known only at run time** (`Any`, `Number`, the abstract `Date`, a generic
 >   position) carry their type beside the value; equal means the same type and the
 >   same value, and a mixed list orders by value, then by type.
@@ -651,6 +661,12 @@ step, with its register row.
   building must not be edited; it is merged into the build tree when Bazel is free;
 - research for the steps ahead goes to subagents: an inventory of the guards a draft will trip, a sheet of the rows to
   add with upstream's own text beside lite's, the list of tests that will judge a change.
+
+**Scratch branches** (the user, 2026-11-26: "Def can push to scratch branches or make any number of branches you
+need without my permission"): a session may create and push any number of scratch branches (`claude/...`) without
+asking: work in progress for a worker session to build or measure, a backup of an edit tree, a worker's own results.
+So the pull request's branch carries verified work only, and a push to it is a deliberate CI run. Never `main`, and
+never a merge of a pull request, without the user's word (below).
 
 **Starting a session** (`create_session`): the environment **Legend Dev** (it sets `DB_AWS_ACCESS_KEY_ID` and
 `DB_AWS_SECRET_ACCESS_KEY`, which the cloud lanes need), `model` Opus, `effort` medium, `source_url` this repository,

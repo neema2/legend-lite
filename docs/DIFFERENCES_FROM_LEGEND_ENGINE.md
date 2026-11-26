@@ -95,11 +95,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 | `1->bitShiftRight(63)` (DuckDB) | `0` | Pure's error | `if($n > 62, \|0, \|$x->bitShiftRight($n))`; `-1` for a negative `$x` |
 | `sqrt(-2.0)` (H2, through the legend-engine server) | `null` | Pure's error | `if($x < 0, \|[], \|sqrt($x))` |
 | `x / 0` (DuckDB, through the legend-engine server) | `null` | Pure's error | `if($d == 0, \|[], \|$x / $d)` |
+| `acos(2.0)`, `asin(2.0)` (any value outside -1 to 1; H2) | `null` (the database's NaN) | Pure's error, `Unable to compute acos of 2.0` | `if(abs($x) > 1, \|[], \|acos($x))` |
 
 - **The rewrites are per database.** On H2, `x / 0` already raises under legend-engine, so the guard would be wrong
   there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
 - **Why:** Pure defines these operations to raise. PCT, legend-pure's own suite, expects the error for the first five
-  rows.
+  rows and the last.
 - **For `x / 0`** PCT has no test, and legend-pure 5.99.0 raises for every zero divisor. Compiled legend-pure, the
   mode legend-engine runs Pure in and the one compatibility follows (S127), raises "Cannot divide 0 by zero"
   (`CompiledSupport.java:1481-1486`). The interpreter has no check of its own and fails on Java's arithmetic instead:
@@ -156,8 +157,11 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Register:** S384 (provisional).
 
 ### 6. `isNumeric`, `parseDecimal`, `parseJson` on unusual input
-- **legend-engine on H2:**
-  - `isNumeric` is "has no cased letter", so `' 1 '`, `''` and `'-'` count as numeric;
+- **legend-engine:**
+  - `isNumeric` on DuckDB is "has no cased letter", so `' 1 '`, `''` and `'+3'` count as numeric; on H2 it is a
+    plain decimal's text (an optional minus, digits, an optional point and digits), so `'+3'`, `'1e5'` and `''` do
+    not. At legend-engine's door lite answers each database's own (corrected 2026-11-26: until then lite's door
+    answered DuckDB's form on H2 too);
   - `parseDecimal` cuts to `DECIMAL(5,2)`, so `'123.450021'` becomes `123.45`;
   - `parseJson` patches concatenated objects.
 - **lite** answers each Pure's way: numeric text by its full form, an exact decimal, a JSON parse.
@@ -228,7 +232,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   results:
   - **Windows:** `sinh`, `cosh` and `tanh` (the same values on DuckDB and SQLite), `cbrt` and `pow`;
   - **macOS:** `acos`, `asin` and `cot` (DuckDB and SQLite), `cbrt` (DuckDB), `sinh` and `cosh` (DuckDB and SQLite),
-    each exactly one unit in the last place.
+    and in the relational corpus `atan2` and `tan` (DuckDB), each exactly one unit in the last place.
 - **H2** matched on both: it computes in Java.
 - **Why:** this is the database's own platform, not lite's choice. Lite does not recompute the database's answer.
 - **To avoid it:** compare such results with a tolerance.
@@ -236,6 +240,15 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:** the edge golden net on each operating system. On Windows, 30 lines (17 named facts,
   `pct/src/test/resources/edge/overlay_windows.tsv`); on macOS, 31 lines (16 named facts, `overlay_macos.tsv`). No
   order, locale, path or line ending moved on either. Evidence: PR #123's runs on both, its overlays.
+- **In the relational corpus** (measured 2026-11-26 on PR #141's macOS run 45788970603): on macOS, five DuckDB tests
+  that compare an answer with a value written in the test fail, because that value is Linux's. They are
+  `sqlFunction::acos::testProject`, `asin::testProject`, `atan2::testProject`, `tan::testFilter` and
+  `tan::testProject`. H2's corpus and Windows' corpus did not move. The corpus lanes name each such test in their own
+  overlay, `spec/src/test/resources/rcorpus/overlay_macos.tsv`: the test, the lanes, the function, the Linux value and
+  the macOS value.
+  - On macOS a row is applied only when the test fails exactly that way: its first assert, naming both values once.
+  - On every other OS the row's test must pass.
+  - So a stale row fails, and so does any other difference. The user approved the overlay on 2026-11-26.
 - **Register:** S382 (provisional).
 
 ### 12. `joinStrings` with a separator joins with it, as Pure does
@@ -386,6 +399,77 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   and `testNegativeFloatRoundHalfEvenUp`).
 - **Register:** S422.
 
+### 19. `toDecimal` keeps the value's digits, as Pure does (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write**, in a query sent to the database: `$t.price->toDecimal()` over the value `3.8`.
+- **legend-engine** casts to the database's DECIMAL with no precision written, and each database gives that its own
+  size: three fraction digits on DuckDB (the database holds `3.800`), none on H2 (`4`; legend-engine's own H2 test
+  record says "expected: 3.8D, actual: 4D").
+  - On DuckDB that type holds 15 digits before the point, so a value of 10^15 or more raises there.
+- **At legend-engine's door, lite answers legend-engine's on H2**, with no setting. In a host-side `let` it keeps
+  Pure's meaning.
+  - **On DuckDB lite keeps Pure's `3.8` for now:** legend-engine's value there is the same number printed two ways
+    (`3.8D` by legend-engine, `3.800D` by lite), and it rounds past the third fraction digit where lite does not.
+    Not yet matched.
+  - On any other database such a request is refused by name (legend-engine writes another form on each: Postgres
+    keeps `3.8`, Snowflake and ClickHouse name a precision, Trino and BigQuery have none).
+- **On lite's own route**, lite answers `3.8` on every database.
+- **Why:** Pure's `toDecimal` changes the type and keeps the number. Dropping or padding digits by the database's
+  default is legend-engine's SQL, not Pure's meaning.
+- **Register:** S423.
+
+### 20. A text parsed to a number keeps Pure's width (the edition program, 2026-11-26)
+- **You write**, in a query sent to the database: `$t.text->parseInteger()` or `$t.text->parseFloat()`.
+- **legend-engine** casts the text to the type its SQL names for each database:
+  - a 32-bit `integer` on H2, Postgres, Trino and ClickHouse, so `'3000000000'` raises there;
+  - a single-precision `float` on DuckDB and ClickHouse, so `'3.14'` becomes `3.140000104904175` once it meets a
+    double, and `'16777217'` becomes `16777216`.
+- **lite** casts to Pure's Integer and Float on every database: 64 bits and a double. `'3000000000'` parses, and
+  `'3.14'` is the double `3.14`.
+- **The same in both:** inside a store query at legend-engine's door there is no grammar check, and a text that is no
+  number is refused by the database's own conversion error. In a host-side `let`, on lite's own route, and on a
+  database legend-engine does not have (SQLite, MariaDB, MySQL, MongoDB), lite checks the text first and raises its
+  own error.
+- **Why:** Pure's `parseInteger` and `parseFloat` have no 32-bit or single-precision limit. The narrower types are
+  legend-engine's choice of SQL type, not Pure's meaning.
+- **Register:** S424.
+
+### 21. `dateDiff` counts as Pure does; `splitPart` splits as Pure does (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write**, in a query sent to the database: `dateDiff($t.start, $t.end, DurationUnit.WEEKS)`, or
+  `$t.text->splitPart(',', 2)`.
+- **legend-engine** sends the database's own function, and the databases disagree:
+  - a week from Saturday to Sunday is `0` on DuckDB (seven elapsed days) and `1` on H2 (a week boundary crossed);
+  - from 10:59:59 to 11:00:01 is `1` hour on both (a boundary crossed);
+  - DuckDB's `split_part('a,b,,c', ',', 3)` is `''`: it keeps the empty part.
+- **At legend-engine's door, lite answers legend-engine's**, with no setting: `dateDiff` on DuckDB and H2, `splitPart`
+  on DuckDB. In a host-side `let` both keep Pure's meaning.
+- **On lite's own route**, on every database: a week is a Sunday boundary crossed (Saturday to Sunday is `1`); hours,
+  minutes and seconds are whole units elapsed (10:59:59 to 11:00:01 is `0` hours); `splitPart` drops empty parts
+  (`'a,b,,c'` part 2 is `'c'`) and an index past the parts is an error.
+- **Why:** Pure defines both; one query should answer the same on every database.
+- **Register:** S425, S426.
+
+### 22. Comparing two different types is a compile error on lite's own route (the equality rule, 2026-11-24 and 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1: at legend-engine's door a comparison is sent to the
+  database as written, legend-engine's answer, with no setting.
+- **You write**, on lite's own route: `$x.kind == 'CITY'` where `kind` is an enumeration, `$x.day == $x.stamp` (a day
+  against a date-time), `$x.count == $x.ratio` (an Integer against a Float).
+- **legend-engine** sends the comparison to the database, which converts one side by its own rules.
+- **lite** refuses to compile it and names the two types and the fix: write both sides in one type (an enumeration's
+  own value, `toFloat()`, `toString()`). Two values are equal only when they have the same type and the same value.
+  - The rule holds everywhere Pure is written: the query, a function, a derived property, a constraint, a mapping.
+  - **A number literal is not a mistake:** written against a number of another type it reads as that type when it
+    is exact there. `$x.qty > 0` over a Float is `> 0.0`; `$x.salary < 50000` over a Decimal is `< 50000D`. Only a
+    literal that cannot be that type (`1.5` against an Integer), two literals (`1 == 1.0`) and a Decimal literal
+    (`1.5D`) are refused.
+  - A value whose type is known only when the query runs (`Any`, `Number`) is compared when it runs: equal means the
+    same type and the same value.
+- **Why:** a comparison across types usually hides a mistake, and each database converts differently, so the same
+  query would answer differently on two databases. Refusing it when the code is compiled is the one answer that is
+  the same everywhere.
+- **Register:** S127 (as amended 2026-11-25 and 2026-11-26).
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,
@@ -402,6 +486,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - lite's tests pin `en_US` (`tools/junit/defs.bzl:52-54`). The product server (`//core:server`) pins no locale, so
     it answers by its machine's.
   - A defect, for the product track. Measured: `first-day-of-week-probe.md` (item 13).
+- **A model whose function calls a plan-text function compiles.** legend-engine's `toSQLString`, `planToString`,
+  `executionPlan` and their neighbours are not a user's to call: legend-engine refuses a query or a model that calls
+  one when it compiles it ("Function does not exist"). lite's legend-engine route refuses a QUERY that calls one, in
+  the same error envelope with lite's own sentence, but its compile route still accepts a MODEL whose function calls
+  one; the function is refused when a query calls it.
+  - Register S427. Measured: `docs/records/edition-homework/r3/measured-plan-text-reachability.md`.
 - **Not supported yet:**
   - legend-engine's mapping test suites and service tests;
   - cross-store queries;

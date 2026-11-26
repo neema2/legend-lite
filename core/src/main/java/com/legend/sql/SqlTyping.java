@@ -409,7 +409,7 @@ public final class SqlTyping {
                     JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR, BINARY_COLLATE -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
-                    EPOCH_MS, EPOCH_NS, PARSE_INT,
+                    EPOCH_MS, EPOCH_NS, PARSE_INT, CAST_INT,
                     // HASH types as OUR EMISSION: the DuckDB renderer
                     // reinterprets hash()'s UBIGINT into signed BIGINT
                     // (DuckDb.hashSigned — exact two's-complement, the
@@ -418,8 +418,8 @@ public final class SqlTyping {
                     // describe what WE deliver, not the raw builtin.
                     HASH -> T_BIGINT;
             case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, RANDOM,
-                    ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
-                    DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
+                    ACOS, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
+                    DEGREES, DIVIDE, JARO_WINKLER, CAST_FLOAT -> T_DOUBLE;
             case TODAY, MAKE_DATE -> T_DATE;
             case NOW, MAKE_TIMESTAMP, STRPTIME, PARSE_DATE, FROM_EPOCH_SECONDS,
                     FROM_EPOCH_MS, FROM_EPOCH_NS, TIMEZONE, DATE_AT_TIME -> T_TIMESTAMP;

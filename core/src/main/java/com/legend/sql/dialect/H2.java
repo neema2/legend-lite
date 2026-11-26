@@ -663,6 +663,7 @@ public class H2 extends AnsiSqlRenderer {
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> parseInteger(writer, c.args().get(0));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
@@ -700,7 +701,7 @@ public class H2 extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
-            case ROUND_RAW -> writer.function("ROUND", c.args());
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", "DECIMAL");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // a Float's full-precision text: H2's own cast (Java's shortest digits, which read back)
@@ -744,8 +745,7 @@ public class H2 extends AnsiSqlRenderer {
             case TAN -> writer.function("tan", c.args());
             // outside [-1, 1] the engine's H2 (2.1.214) answers NaN and H2 2.5 raises, as DuckDB does: the domain
             // guarded, the engine's answer (the DuckDB dialect's own guard)
-            case ASIN -> domainGuarded(writer, "asin", c.args());
-            case ACOS -> domainGuarded(writer, "acos", c.args());
+            case ASIN, ACOS, ASIN_IN_DOMAIN, ACOS_IN_DOMAIN -> inverseTrig(writer, c);
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case SINH -> writer.function("sinh", c.args());
@@ -1443,6 +1443,17 @@ public class H2 extends AnsiSqlRenderer {
      *  argument alone and a NULL falls through the CASE to NULL (2026-11-06: an ELSE NaN answered {@code true} for
      *  {@code $x.rateOpt->map(v|$v->sin()->acos()->greaterThan(1.3))} over an absent value, the stress corpus's
      *  VN_Acos and VN_Asin on the H2 lane; SQLite's and MariaDB's guards test for NULL first, for the same reason). */
+    private SqlWriter inverseTrig(SqlWriter writer, SqlExpr.Call c) {
+        String fn = c.fn() == SqlFn.ASIN || c.fn() == SqlFn.ASIN_IN_DOMAIN ? "asin" : "acos";
+        if (c.fn() == SqlFn.ASIN || c.fn() == SqlFn.ACOS) {
+            return domainGuarded(writer, fn, c.args());
+        }
+        // within the domain by the statement's own guard: the function over its argument clamped all the same,
+        // because H2 folds a constant inside a CASE's untaken branch too and raises on acos(2.0) there
+        return writer.append(fn).append("(LEAST(GREATEST(").expr(c.args().get(0), 0).append(", -1), 1))");
+    }
+
+    /** The guarded form of {@link #inverseTrig}: {@code ASIN} and {@code ACOS} themselves. */
     private SqlWriter domainGuarded(SqlWriter writer, String fn, List<SqlExpr> a) {
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn)
                 .append("(LEAST(GREATEST(").expr(a.get(0), 0).append(", -1), 1)) WHEN (").expr(a.get(0), 0)

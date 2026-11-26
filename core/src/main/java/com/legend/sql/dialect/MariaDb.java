@@ -1966,6 +1966,9 @@ public class MariaDb extends AnsiSqlRenderer {
             // outside [-1, 1] MariaDB answers NULL (measured), DuckDB raises
             case ACOS -> domainGuarded(writer, c, "ACOS");
             case ASIN -> domainGuarded(writer, c, "ASIN");
+            // within the domain by the statement's own guard: the function alone
+            case ACOS_IN_DOMAIN -> writer.function("ACOS", a);
+            case ASIN_IN_DOMAIN -> writer.function("ASIN", a);
             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
@@ -1980,11 +1983,12 @@ public class MariaDb extends AnsiSqlRenderer {
             case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
-            case ROUND_RAW -> writer.function("ROUND", c.args());
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", null);
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -POW(-(").expr(a.get(0), 0)
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
             case BIT_NOT -> writer.append("CAST(~ ").expr(a.get(0), 7).append(" AS SIGNED)");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads

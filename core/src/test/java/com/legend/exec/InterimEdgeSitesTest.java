@@ -97,8 +97,13 @@ class InterimEdgeSitesTest {
 
     /** The sites over {@link #QUERIES} whose words print {@code <computed>} (D1, register S389), as measured 2026-11-20
      *  (stage B's B1): rem's dividend twice (a column), a relation's row count under toOne, at's offset (a column) --
-     *  each a value only the database holds. A ceiling: it moves only down, or up with the user's word. */
-    private static final int WITHHELD = 4;
+     *  each a value only the database holds. A ceiling: it moves only down, or up with the user's word.
+     *  <p>4 to 5 on 2026-11-26, by the user's word that day ("yes for parse functions", the rulings of the edition
+     *  program's step 5, plan record section 7a): the fifth is the checked {@code parseInteger} of a column ("Could
+     *  not convert string '<computed>' to INT64"). The edge's pass that unguarded every parse in every compatibility
+     *  style used to hide it; the pass is deleted (the plain parses are rows of legend-engine's door's table now), so
+     *  legend-pure's style gets lite's checked parse back, and its sentence prints a value only the database holds. */
+    private static final int WITHHELD = 5;
 
     private static List<SqlExpr.RaiseText> raises(com.legend.sql.SqlQuery q) {
         List<SqlExpr.RaiseText> out = new ArrayList<>();

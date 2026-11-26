@@ -44,5 +44,40 @@ public enum NamedRule {
      *  exactly halfway going where that database sends it (away from zero on DuckDB and H2: 16.5 to 17). Not the
      *  product's {@code round}, which sends a half to the even neighbour on every database, as Pure does (16.5 to
      *  16). */
-    ROUND_AS_GIVEN
+    ROUND_AS_GIVEN,
+
+    /** A value read as the target database's DECIMAL with no precision written ({@code SqlFn.DECIMAL_RAW}): the
+     *  database's own default precision and scale -- three places on DuckDB, none on H2, where 3.8 is 4. Not the
+     *  product's {@code toDecimal}, which keeps the value's own digits. */
+    CAST_TO_BARE_DECIMAL,
+
+    /** A text read as an Integer by the target database's own cast ({@code SqlFn.CAST_INT}), its refusal the
+     *  database's own conversion error. Not the product's {@code parseInteger}, which checks the text against Pure's
+     *  grammar first and raises lite's own error. */
+    TEXT_CAST_TO_INTEGER,
+
+    /** A text read as a Float by the target database's own cast ({@code SqlFn.CAST_FLOAT}), its refusal the
+     *  database's own conversion error. Not the product's {@code parseFloat}, which checks the text first. */
+    TEXT_CAST_TO_FLOAT,
+
+    /** Whether a text has no cased letter: {@code LOWER(s) = UPPER(s)}, true of digits, signs, blanks and the empty
+     *  text alike; NULL of NULL. */
+    TEXT_HAS_NO_CASED_LETTER,
+
+    /** Whether a text is a plain decimal number: an optional minus sign, digits, and optionally a point and digits,
+     *  the whole text (a full match of {@code [-]?[0-9]+(\.[0-9]+)?}). No plus sign, no exponent, no blank; NULL of
+     *  NULL. */
+    TEXT_IS_PLAIN_DECIMAL,
+
+    /** {@code dateDiff} as the target database's own date difference counts the unit ({@code SqlFn.DATE_DIFF}, the
+     *  plain function): weeks, hours, minutes and seconds as that database counts them -- boundaries crossed on one,
+     *  elapsed whole units on another. Not the product's {@code dateDiff}, which writes Pure's count for those four
+     *  units on every database (weeks by Sunday boundaries; hours, minutes and seconds elapsed, truncated). */
+    DATE_DIFF_AS_GIVEN,
+
+    /** {@code splitPart} as the target database's own {@code split_part}, its index made 1-based and nothing else
+     *  ({@code SqlFn.SPLIT_PART}): an empty part is a part, the separator is a whole text, an index past the parts is
+     *  the empty text. Not the product's {@code splitPart}, Pure's (empty parts dropped, an index past them an
+     *  error). */
+    SPLIT_PART_AS_GIVEN
 }

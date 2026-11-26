@@ -156,8 +156,18 @@ final class Typer {
         rigid.addAll(fn.multiplicityParameters());
         // a function's body is a body the query reaches: its comparisons across types are the door's setting's for a
         // body (the edition program's step 2b, 2026-11-26; until then never read, B3 step 5)
-        return comparing(Compared.BODY, () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
+        return comparing(bodyOf(fn), () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
                 body)));
+    }
+
+    /** Whose code {@code fn}'s body is, for the comparison setting: a body the query reaches, unless it is the
+     *  relational mapping language's translation (a relational class mapping's columns, filters and joins, a view,
+     *  an association mapped through a join: {@code FunctionDefinition.Synthesized.relationalLanguage}), which is
+     *  code written in another language and compares by SQL's rule -- never asked, as an island's translation is not
+     *  (the edition program's step 4, 2026-11-26: a filter {@code T.FLAG = 0} over a BIT column). */
+    Compared bodyOf(com.legend.compiler.element.TypedFunction fn) {
+        return fn.definition() instanceof com.legend.model.FunctionDefinition fd && fd.synthesizedFrom() != null
+                && fd.synthesizedFrom().relationalLanguage() ? Compared.UNREAD : Compared.BODY;
     }
 
     /** Whose code is being typed, as the comparison setting reads it ({@link CrossTypeRule}). */
@@ -168,8 +178,11 @@ final class Typer {
         UNREAD,
         /** The query or test body a door receives ({@code SpecCompiler.typeQueryBodyMarked}). */
         QUERY,
-        /** A body the query reaches: a function's, typed on demand or into its call. */
-        BODY
+        /** A body the query reaches: a function's, typed on demand. */
+        BODY,
+        /** A body typed into its call, over the caller's own columns (a function generic over relations): its column
+         *  positions are generic ones ({@link CrossTypeRule#inGenericBody}). */
+        GENERIC_BODY
     }
 
     /** The door's comparison setting for everything this typer types. */
@@ -214,7 +227,7 @@ final class Typer {
      *  setting's answer for it. */
     TypedSpec compared(TypedSpec call, com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
-        if (compared == Compared.UNREAD || compared == Compared.BODY && !crossTypes.readsBodies()) {
+        if (compared == Compared.UNREAD || compared != Compared.QUERY && !crossTypes.readsBodies()) {
             return call;
         }
         java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);
@@ -227,6 +240,9 @@ final class Typer {
                         c.right(), pos);
         if (compared == Compared.BODY) {
             return crossTypes.inBody(written);
+        }
+        if (compared == Compared.GENERIC_BODY) {
+            return crossTypes.inGenericBody(written);
         }
         TypedSpec answer = crossTypes.inQuery(written);
         queryAnswers.add(answer);

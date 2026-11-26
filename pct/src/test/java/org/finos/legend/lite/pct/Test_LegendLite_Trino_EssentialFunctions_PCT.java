@@ -66,8 +66,8 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             // 2026-10-27, the result boundary program (the PCT reads typed rows, measured on this lane by its own
             // session): the database's NaN reaches the bridge as a double, refused by name (Pure's Float is a decimal),
             // no longer parsed from its text
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
+            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
+            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
             // step 9, 2026-10-19, the plan route: the same refusal, its position in the plan's longer statement
             // (line 9:39 where the legacy route's was 1:33), pinned without the position
             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the

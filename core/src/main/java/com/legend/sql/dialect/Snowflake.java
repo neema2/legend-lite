@@ -1515,12 +1515,15 @@ public class Snowflake extends AnsiSqlRenderer {
                     .append("), ").expr(a.get(0), 0).append(")");
             // the engine's out-of-domain answer is NaN; Snowflake raises (measured: acos(2))
             case ACOS, ASIN -> acosArm(writer, c);
+            // within the domain by the statement's own guard: the function alone
+            case ACOS_IN_DOMAIN -> writer.function("ACOS", c.args());
+            case ASIN_IN_DOMAIN -> writer.function("ASIN", c.args());
             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");
             // Pure's divide-with-scale is HALF_UP: ROUND over a NUMBER (half away from zero, measured); over a FLOAT
             // in binary, as DuckDB's round (Snowflake's ROUND(FLOAT) rounds the decimal text: 2.675 is 2.68)
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
-            case ROUND_RAW -> writer.function("ROUND", c.args());
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", null);
             // DuckDB's // truncates toward zero; x // 0 is NULL (DIV0NULL answers 0, measured)
             case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");
@@ -1530,6 +1533,7 @@ public class Snowflake extends AnsiSqlRenderer {
                     w -> w.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ").append(stringLit("^[+-]?[0-9]+$"))
                             .append(")"),
                     w -> w.append("CAST(").expr(a.get(0), 0).append(" AS BIGINT)"));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // an ISO text with an offset is its UTC instant (a TIMESTAMP_NTZ cast drops the offset, measured)
             case PARSE_DATE -> writer.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(").expr(a.get(0), 0)
                     .append(")) AS TIMESTAMP_NTZ)");
@@ -1644,7 +1648,8 @@ public class Snowflake extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         String f = c.fn() == SqlFn.ACOS ? "ACOS" : "ASIN";
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN " + f + "(")
-                .expr(a.get(0), 0).append(") ELSE CAST('NaN' AS DOUBLE) END)");
+                .expr(a.get(0), 0).append(") WHEN (").expr(a.get(0), 0)
+                .append(") IS NOT NULL THEN CAST('NaN' AS DOUBLE) END)");
     }
 
     /** The {@code ROUND_HALF_UP} arm of {@link #call}. */

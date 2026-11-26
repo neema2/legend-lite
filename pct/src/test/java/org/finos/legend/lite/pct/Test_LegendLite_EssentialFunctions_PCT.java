@@ -135,7 +135,7 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // eagerly, so the un-lowerable reflection carrier walls
             // loudly at the Lowerer (correct: deactivate is compile-time
             // and must never reach MIR)
-            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"),
+            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"));
             // RELATIONAL DOMAIN SEMANTICS (batch 61, 2026-09-04): the Pure
             // interpreter raises "Unable to compute acos of 2.0"; the
             // engine's relational spec cell is the bare acos(%s), whose
@@ -149,8 +149,8 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // BigDecimal said "Infinite or NaN").
             // 2026-10-27, phase 4 (typed rows): the database's NaN reaches the bridge as a double, refused by name
             // (Pure's Float is a decimal), no longer parsed from its text
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
+            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
+            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
 
     public static Test suite() {
         // M4 §3.4: the census gate (its SqlTypeCensus pins deleted 2026-11-09: the census had no feeder)

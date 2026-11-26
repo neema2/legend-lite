@@ -541,6 +541,9 @@ public class DuckDb extends AnsiSqlRenderer {
             // the engine's answer — not propagating DuckDB's exception.
             case ACOS -> domainGuarded(writer, "acos", a);
             case ASIN -> domainGuarded(writer, "asin", a);
+            // within the domain by the statement's own guard: the function alone
+            case ACOS_IN_DOMAIN -> writer.function("acos", a);
+            case ASIN_IN_DOMAIN -> writer.function("asin", a);
             // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
             // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
             // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
@@ -582,6 +585,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
                     w -> w.append("regexp_full_match(").expr(c.args().get(0), 0).append(", '[+-]?[0-9]+')"),
                     w -> castAs(w, c.args().get(0), "BIGINT"));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
@@ -616,7 +620,7 @@ public class DuckDb extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
-            case ROUND_RAW -> writer.function("ROUND", c.args());
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", "DECIMAL");
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
@@ -734,7 +738,7 @@ public class DuckDb extends AnsiSqlRenderer {
     /** The {@code ACOS} and {@code ASIN} arms of {@link #call}: NaN outside the domain, as the engine's H2. */
     private SqlWriter domainGuarded(SqlWriter writer, String fn, List<SqlExpr> a) {
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn).append("(")
-                .expr(a.get(0), 0).append(") ELSE 'NaN'::DOUBLE END)");
+                .expr(a.get(0), 0).append(") WHEN (").expr(a.get(0), 0).append(") IS NOT NULL THEN 'NaN'::DOUBLE END)");
     }
 
     /** len(DOUBLE): the corpus spells length() over numeric-typed expressions (engine H2 coerces); DuckDB has no

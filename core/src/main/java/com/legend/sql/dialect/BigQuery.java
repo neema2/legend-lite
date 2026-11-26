@@ -1607,8 +1607,8 @@ public class BigQuery extends AnsiSqlRenderer {
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
             // this database's plain spellings: name(args)
             case ABS -> writer.function("ABS", c.args());
-            case ACOS -> writer.function("ACOS", c.args());
-            case ASIN -> writer.function("ASIN", c.args());
+            case ACOS, ACOS_IN_DOMAIN -> writer.function("ACOS", c.args());
+            case ASIN, ASIN_IN_DOMAIN -> writer.function("ASIN", c.args());
             case ATAN -> writer.function("ATAN", c.args());
             case ATAN2 -> writer.function("ATAN2", c.args());
             case CBRT -> writer.function("CBRT", c.args());
@@ -1659,7 +1659,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case SIGN -> writer.append("CAST(SIGN(").expr(a.get(0), 0).append(") AS INT64)");
             // Pure's divide-with-scale is HALF_UP: ROUND rounds half away from zero, a Float through BIGNUMERIC (its
             // shortest decimal, as DuckDB rounds 2.675 to 2.68, measured)
-            case ROUND_HALF_UP, ROUND_RAW -> rounds(writer, c);
+            case ROUND_HALF_UP, ROUND_RAW, DECIMAL_RAW -> rounds(writer, c);
             // a Float, as DuckDB's answers: each has a NUMERIC overload here that a BIGNUMERIC literal would pick
             case SQRT -> writer.append("SQRT(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
             case EXP -> writer.append("EXP(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
@@ -1673,7 +1673,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
-            case PARSE_INT -> parseInt(writer, a.get(0));
+            case PARSE_INT, CAST_INT, CAST_FLOAT -> parses(writer, c, parentPrec);
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
@@ -2012,10 +2012,16 @@ public class BigQuery extends AnsiSqlRenderer {
 
     // ---- call arms too long to stay inline (CodeShapeGuardrailTest: call under 250 lines)
 
-    /** The {@code ROUND_HALF_UP} and {@code ROUND_RAW} arm of {@link #call}: Pure's HALF_UP rounding, or the
-     *  database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN). */
+    /** The {@code PARSE_INT}, {@code CAST_INT} and {@code CAST_FLOAT} arm of {@link #call}: the checked parse, or the
+     *  database's own cast of a text as given. */
+    private SqlWriter parses(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return c.fn() == SqlFn.PARSE_INT ? parseInt(writer, c.args().get(0)) : rawCast(writer, c, parentPrec);
+    }
+
+    /** The {@code ROUND_HALF_UP}, {@code ROUND_RAW} and {@code DECIMAL_RAW} arm of {@link #call}: Pure's HALF_UP
+     *  rounding, or the database's own function as given (an edition's table's rules; the base's {@code asGiven}). */
     private SqlWriter rounds(SqlWriter writer, SqlExpr.Call c) {
-        return c.fn() == SqlFn.ROUND_RAW ? writer.function("ROUND", c.args()) : roundHalfUp(writer, c.args());
+        return c.fn() == SqlFn.ROUND_HALF_UP ? roundHalfUp(writer, c.args()) : asGiven(writer, c, "ROUND", null);
     }
 
     /** DuckDB's round: a decimal half away from zero; a double by DuckDB's own algorithm, {@code round(x * 10^n) /

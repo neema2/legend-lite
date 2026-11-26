@@ -38,11 +38,46 @@ public final class PureText {
      *  call is refused by name until it is checked (the database lanes); the table's rows name no database. */
     private static final java.util.Set<DatabaseType> CHECKED = java.util.Set.of(DatabaseType.H2, DatabaseType.DuckDB);
 
-    /** Whether legend-engine's answer for the door's rewritten calls is checked on {@code target} ({@link #CHECKED});
-     *  false for any other target, or none. */
-    static boolean engineAnswers(@com.legend.base.Nullable DatabaseType target) {
-        return target != null && CHECKED.contains(target);
-    }
+    // ---- where each row of legend-engine's door's table answers (EngineTable's rows read these; the table names no
+    //      database) -- a set grows only when a lane has read legend-engine's SQL for the function on the database and
+    //      run it beside lite's rule (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md)
+
+    /** The databases whose own {@code substring}, position, {@code round} and date difference are read as
+     *  legend-engine's answer for the row that writes them: {@link #CHECKED}. */
+    static final java.util.Set<DatabaseType> ENGINE_FUNCTIONS_READ = CHECKED;
+
+    /** The databases legend-engine 4.145.0 has that lite has too, each lane's reading of its extension
+     *  (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md): where a row that is legend-engine's by
+     *  what it writes (the plain parses' cast) answers. Not SQLite, MariaDB, MySQL or MongoDB: legend-engine has no
+     *  such database. */
+    static final java.util.Set<DatabaseType> ENGINE_DATABASES = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(DatabaseType.H2, DatabaseType.DuckDB, DatabaseType.Postgres, DatabaseType.Trino,
+                    DatabaseType.Snowflake, DatabaseType.ClickHouse, DatabaseType.Databricks, DatabaseType.BigQuery));
+
+    private static final java.util.Set<DatabaseType> ON_H2 = java.util.Set.of(DatabaseType.H2);
+    private static final java.util.Set<DatabaseType> ON_DUCKDB = java.util.Set.of(DatabaseType.DuckDB);
+
+    /** Where legend-engine's {@code toDecimal}, the database's DECIMAL with no precision written, is answered by the
+     *  row: H2 (scale 0: {@code toDecimal(3.8)} is 4, as its own test record says). Not DuckDB yet, though
+     *  legend-engine writes the same cast there ({@code DECIMAL(18,3)}): its adapter reads that value through a double
+     *  and prints {@code 3.8D} where lite prints the value's own {@code 3.800D}, so PCT's two tests legend-engine
+     *  passes would fail (measured 2026-11-26, pct/engine_lane); the row answers there once the door spells a Decimal
+     *  as legend-engine's does (the edition program's step 8). */
+    static final java.util.Set<DatabaseType> ENGINE_BARE_DECIMAL_READ = ON_H2;
+
+    /** Where legend-engine's {@code isNumeric} is a regular expression, a plain decimal's text: H2, by its dialect
+     *  translation ({@code toPostgresModel.pure:367}). */
+    static final java.util.Set<DatabaseType> ENGINE_IS_NUMERIC_BY_PATTERN = ON_H2;
+
+    /** Where legend-engine's {@code isNumeric} is {@code lower(s) = upper(s)}: DuckDB
+     *  ({@code duckdbExtension.pure:238}). On Postgres, Trino, Snowflake, ClickHouse and BigQuery it has no SQL for
+     *  the function (read by their lanes, 2026-11-26). */
+    static final java.util.Set<DatabaseType> ENGINE_IS_NUMERIC_BY_CASE = ON_DUCKDB;
+
+    /** Where legend-engine's {@code splitPart} is the database's own {@code split_part}: DuckDB
+     *  ({@code duckdbExtension.pure:276}). On H2 it is a function of legend-engine's own Java
+     *  ({@code legend_h2_extension_split_part}), which lite's H2 does not hold. */
+    static final java.util.Set<DatabaseType> ENGINE_SPLIT_PART_READ = ON_DUCKDB;
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS},
@@ -170,17 +205,19 @@ public final class PureText {
 
     /** CENSUS CLASS A (docs/records/pure-v1-engine-census-2026-11-17.md): the kinds legend-engine 4.145.0's pure/v1
      *  route writes no check for in its SQL -- the database decides (rem's and divide's {@code mod} and {@code /},
-     *  {@code sqrt}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice}, {@code range}, {@code processCast},
-     *  the parses' plain casts). */
+     *  {@code sqrt}, {@code acos} and {@code asin}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice},
+     *  {@code range}, {@code processCast}, the parses' plain casts). */
     static final java.util.Set<com.legend.sql.RaiseKind> ENGINE_UNCHECKED = java.util.Collections.unmodifiableSet(
             java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
+                    com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
                     com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
                     com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, com.legend.sql.RaiseKind.RANGE_STEP_ZERO,
                     com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,
                     com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, com.legend.sql.RaiseKind.TEXT_NOT_DATE));
 
     /** THE PURE/V1 ROUTE'S STYLE (B7, the user's ruling of 2026-11-17: pure/v1 matches legend-engine): {@link #UPSTREAM}
-     *  in every dialect and facet, but a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain
+     *  in every dialect and facet but one (a user's call of a plan-text function is refused by name,
+     *  {@link #refusePlanText}), and a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain
      *  operation, the database's own error passing through, and the planner is handed legend-engine's edition
      *  ({@link EngineTable#DOOR}; the edition program's step 2, 2026-11-25: its table and the planner's stamp took the
      *  place of the door's rewrite of the typed query). Handed by the pure/v1 routes alone ({@link PureV1Routes},
@@ -218,11 +255,13 @@ public final class PureText {
 
         @Override
         public <F> F facet(Class<F> kind) {
+            refusePlanText(kind);
             return UPSTREAM.facet(kind);
         }
 
         @Override
         public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            refusePlanText(kind);
             return UPSTREAM.facet(kind, refusal);
         }
 
@@ -249,15 +288,42 @@ public final class PureText {
     public static final PlanStyle ENGINE_TESTS = withEdition(UPSTREAM, EngineTable.TESTS);
 
     /** PCT'S LEGEND-ENGINE RUN'S STYLE (the edition program's step 3's remainder, 2026-11-26): {@link #PURE_V1} in
-     *  every dialect, facet and form, and the planner is handed PCT's legend-engine run's edition
+     *  every dialect and form, {@link #UPSTREAM}'s facets (a test's: the plan-text functions answer there, which
+     *  {@link #PURE_V1} refuses a user), and the planner is handed PCT's legend-engine run's edition
      *  ({@link EngineTable#PCT}). A PCT case reaches lite as the one expression legend-engine's own PCT adapter sends
      *  to the database, so all of it is a store query's code: nothing is stamped, and every row of legend-engine's
      *  table answers. At legend-engine's API ({@link #PURE_V1}) a statement that reads no store is its own Java's. */
-    public static final PlanStyle ENGINE_PCT = withEdition(PURE_V1, EngineTable.PCT);
+    public static final PlanStyle ENGINE_PCT = withEdition(PURE_V1, UPSTREAM, EngineTable.PCT);
+
+    /** A USER'S CALL OF A PLAN-TEXT FUNCTION AT LEGEND-ENGINE'S DOOR IS REFUSED BY NAME (the user's ruling of
+     *  2026-11-26: "I'm good with refusing those engine functions in the user/product path"; the register's S427).
+     *  {@code toSQLString}, {@code toSQLStringPretty}, {@code planToString}, {@code executionPlan} and the DDL text
+     *  generators are legend-engine's own tests' and its own Java's: asked of legend-engine 4.145.0 itself, a query or
+     *  a model that calls one fails when it is compiled ("Function does not exist"), whoever sends it
+     *  (docs/records/edition-homework/r3/measured-plan-text-reachability.md). Until this ruling lite's door answered
+     *  some of them. The planner asks a style's {@code UpstreamPlans} facet only where the code it plans calls one, so
+     *  the door's style refuses the facet; the routes' own Java (a generated plan's support functions, the test-data
+     *  routes' timestamp text) calls the edge's classes directly and is not this. The tests' styles
+     *  ({@link #UPSTREAM}, {@link #ENGINE_TESTS}, {@link #ENGINE_PCT}) answer as before: there legend-pure's runtime
+     *  runs them. */
+    private static void refusePlanText(Class<?> kind) {
+        if (kind == com.legend.planner.UpstreamPlans.class) {
+            throw new com.legend.error.NotImplementedException("legend-engine's plan-text functions (toSQLString,"
+                    + " toSQLStringPretty, planToString, executionPlan and the DDL text generators) are not a user's to"
+                    + " call: legend-engine refuses a query or a model that calls one when it compiles it (\"Function"
+                    + " does not exist\"), and so does this door");
+        }
+    }
 
     /** {@code base} in every dialect, facet and form, with the planner handed {@code edition} in the place of the
      *  base's own. */
     private static PlanStyle withEdition(PlanStyle base, EngineTable edition) {
+        return withEdition(base, base, edition);
+    }
+
+    /** {@code base} in every dialect and form, its facets {@code facets}' own, with the planner handed
+     *  {@code edition} in the place of the base's own. */
+    private static PlanStyle withEdition(PlanStyle base, PlanStyle facets, EngineTable edition) {
         return new PlanStyle() {
             @Override
             public SqlDialect dialect(DatabaseType type) {
@@ -286,12 +352,12 @@ public final class PureText {
 
             @Override
             public <F> F facet(Class<F> kind) {
-                return base.facet(kind);
+                return facets.facet(kind);
             }
 
             @Override
             public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
-                return base.facet(kind, refusal);
+                return facets.facet(kind, refusal);
             }
 
             @Override

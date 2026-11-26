@@ -1082,6 +1082,7 @@ public class Databricks extends AnsiSqlRenderer {
             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
                     w -> w.expr(c.args().get(0), 6).append(" RLIKE '^[+-]?[0-9]+$'"),
                     w -> castAs(w, c.args().get(0), "BIGINT"));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -1104,7 +1105,7 @@ public class Databricks extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
-            case ROUND_RAW -> writer.function("ROUND", c.args());
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", null);
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
@@ -1132,9 +1133,9 @@ public class Databricks extends AnsiSqlRenderer {
             case VARIANT_GET -> variantGet(writer, c.args());
             // this database's plain spellings: name(args)
             case ABS -> writer.function("abs", c.args());
-            case ACOS -> writer.function("acos", c.args());
+            case ACOS, ACOS_IN_DOMAIN -> writer.function("acos", c.args());
             case ASCII_CODE -> writer.function("ascii", c.args());
-            case ASIN -> writer.function("asin", c.args());
+            case ASIN, ASIN_IN_DOMAIN -> writer.function("asin", c.args());
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());

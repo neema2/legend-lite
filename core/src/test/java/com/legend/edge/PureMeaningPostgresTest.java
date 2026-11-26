@@ -51,7 +51,8 @@ class PureMeaningPostgresTest {
     @Test
     void withSeedAnswersTheSameCsvWithAFlaggedCallAsWithout_onADatabaseNotYetChecked() throws Exception {
         TestBackend postgres = TestBackends.of(DatabaseType.Postgres);
-        assertFalse(PureText.engineAnswers(DatabaseType.Postgres), "Postgres is not yet checked: the case this covers");
+        assertFalse(PureText.ENGINE_FUNCTIONS_READ.contains(DatabaseType.Postgres),
+                "Postgres is not yet checked: the case this covers");
         try (Connection c = postgres.openWorkspace()) {
             LiteV1Api.Runner onPostgres = (query, runtime, output) -> com.legend.Execution.run(query, runtime,
                             com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),

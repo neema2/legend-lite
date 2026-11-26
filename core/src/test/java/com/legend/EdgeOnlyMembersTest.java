@@ -112,10 +112,8 @@ class EdgeOnlyMembersTest {
                     "2026-11-25: the marker's kind, read by legend-pure's door to answer it (B3 step 5)"),
             Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#operator()",
                     "2026-11-25: the marker's operator, as legend-pure's door names it in a refusal (B3 step 5)"),
-            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#left()",
-                    "2026-11-25: the marker's first type, as legend-pure's door names it in a refusal (B3 step 5)"),
-            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#right()",
-                    "2026-11-25: the marker's second type, as legend-pure's door names it in a refusal (B3 step 5)"),
+            // (TypedCrossTypeComparison#left() and #right(): the product reads them too since 2026-11-26, the literal
+            // rule, compiler.spec.NumberLiterals -- no longer the edge's alone, so their pins are deleted: a shrink)
             // 2026-11-26 (the edition program's step 2b: the comparison setting in the type-checker): the door hands
             // the type-checker its setting for the query here; lite's own road never asks (lite's setting is the spec
             // compiler's own), so only the compatibility doors call it
@@ -251,8 +249,13 @@ class EdgeOnlyMembersTest {
             // the orchestrator's ruling of 2026-11-18 (train 20, the TS host's J40.ModelInput move found it; it hid behind
             // ModelInput.Data while that was a product class): lite's compiler door over its own protocol records, the
             // caller only wording each error -- legend-engine's compile route its one caller; J40.Compiler closes
-            Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function)",
-                    "2026-11-18: lite's compiler door over its own protocol records, the caller wording each error (the orchestrator's ruling)"),
+            // (2026-11-26, the edition program's step 4: the two-argument form went; the route passes its door's
+            // comparison setting too, so that lite's strictness inside bodies does not reach legend-engine's compile
+            // route -- the same door, the same ruling, one more argument; the text form's twin joins it)
+            Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function, com.legend.compiler.spec.CrossTypeRule)",
+                    "2026-11-18, 2026-11-26: lite's compiler door over its own protocol records, the caller wording each error and naming its comparison setting (the orchestrator's ruling)"),
+            Map.entry("com.legend.Compiler#compileErrors(java.lang.String, java.util.function.Function, com.legend.compiler.spec.CrossTypeRule)",
+                    "2026-11-26: the same door over a model's text, for legend-engine's compile route (the edition program's step 4)"),
             // stage B's B1 (2026-11-20, errors as records; D2, the user's pre-approval of B1's guard moves, ~17:00): a raised
             // error's site record, read by type (the edge's WebAssembly planner holds no exec class) -- the edge words
             // legend-pure's sentence from it after the run

@@ -142,6 +142,35 @@ before.
 | 10 | **Clean up and lock.** The folds cut back to the rule (measured first, the list ruled); the old switch machinery deleted (`PlanStyle`, the feature flags in the lowering, `LoweringForms`, the edge's dialect subclasses); the guards on; legend-engine's meaning refused by name on databases where it was not checked; DataCube's legend-engine workarounds; `EngineWhereZones` | the build fails if audience knowledge returns to the product |
 | 11 | **Land.** Full rounds on every gate, an independent audit, one pull request to `main` | the user's word |
 
+### 5a. The closing table (added 2026-11-26, after the user's "Why are we not closing out our work?")
+
+**Closed means:** the step's "done when" is met; its code is on the program branch `claude/compat-b3-nufdlk`; CI is
+green on it; and every test whose answer moved and every new difference from legend-engine has been brought to the
+user. "Built" is not closed. The orchestrator reports from this table and keeps it current.
+
+**The rule that goes with it (the user, 2026-11-26: "I really want us to focus on getting B completely done"):** one
+batch is verified and landed before the next is started; nothing is added to a batch under verification; no side
+work (a new lane, a new suite, a finding outside the step) starts while a step is open, it is written down as a task
+for later. The parallel sessions the plan names (steps 8 and 9) go on, and land the same way.
+
+| Step | Built | Closed | What remains to close it |
+|---|---|---|---|
+| 1 | all (PCT on compiled legend-pure deferred to step 10 by the user) | no | `acos`/`asin` lands with the batch of steps 4 and 5; the program branch moves |
+| 2 | all, a full round passed | no | the program branch moves |
+| 3 | all, a full round passed | no | the program branch moves |
+| 4 | all, in the batch | no | the batch lands (CI green), the program branch moves |
+| 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | no | the batch lands; then `parseDecimal` per database, `parseJSON`, an enumeration by name, counts over a key, `rem`: each built, or deferred by the user's word; the Float, date and `TDSNull` text rows are step 8's |
+| 6 | the research, the measurement, the first slice (`assertSize`, on a scratch branch) | no | slices 6.1 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
+| 8 | slices 1 and 2 on its branch | no | its deletion slice; its landing |
+| 9 | nothing (its first session never started; restarted 2026-11-26 15:01) | no | slice 1, then the later slices after steps 6 and 8 |
+| 10 | nothing | no | after 6, 8 and 9 |
+| 11 | nothing | no | the user's word |
+
+**Parked until step 5 is closed (not lost, not in flight):** the refusal of legend-engine's plan-text functions at its
+door (built on `claude/edit-ahead`, `973eaca4`; one existing test, `PureV1SqlTextTest`'s DDL case, pins the old
+answer and moves with it); PCT's four more suites on H2 (`claude/pct-h2-full`, green on its own); the H2 dialect's
+135 gaps (a task for the user).
+
 **Size, an estimate from the pieces, not measured:** about six weeks one after another; about three and a half with steps 8 and 9 in their own sessions.
 
 **If step 2 fails:** (a) the stamp does not hold: today's `substring` rewrite stays on pure/v1, as the user ruled before (amendment 24), and the corpus keeps one table per test body; (b) the comparison setting moves tests: each is read before anything else is built on it.
@@ -604,6 +633,138 @@ answer was wrong on inputs they do not hold.
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
+**2026-11-26, after the user's rulings (section 7a): the approved pieces stacked, step 4 started, three sessions
+measuring.**
+
+- **The lanes read legend-engine's own SQL on every database it has** (the user: "Run all the round/substring stuff
+  on all the warm lanes"). Five reports, each template read at the pin and run beside lite's rule:
+  `edition-homework/lanes/engine-templates-2026-11-26.md`, with the table of which row answers where. In short:
+  `substring`, `substr` and the String `indexOf` give legend-engine's answers on Snowflake, Postgres, Trino,
+  Databricks and BigQuery as on DuckDB and H2 (ClickHouse differs on multi-byte text); `round` on Snowflake, Trino,
+  Databricks and BigQuery's one-argument form (Postgres rounds a Float half to even without legend-engine's cast);
+  `toDecimal`, `isNumeric`, `dateDiff` and `splitPart` are written differently on almost every database, and several
+  have no legend-engine SQL at all. MariaDB and MySQL are not legend-engine databases. **Not yet in the table's code:**
+  the rows still answer on DuckDB and H2 alone; widening them needs its tests reworked (they use Postgres as the
+  database that refuses) and a lane round, its own batch.
+- **One batch, built together** (the edit tree, then a detached copy; not on the session branch until verified):
+  - `toDecimal`'s row with its review's fixes (the register and the differences page say whose value each is; the
+    refusal names no audience);
+  - the plain parses as rows, the edge's unguarded-parses pass deleted, `InterimEdgeSitesTest`'s ceiling 4 to 5 by
+    the user's word; register **S424**, new: the cast is to Pure's width (64 bits, a double) where legend-engine's
+    SQL names a 32-bit `integer` on four databases and a single-precision `float` on DuckDB and ClickHouse (measured:
+    DuckDB's `cast('3.14' as float)` is `3.140000104904175` as a double). Not new behaviour, recorded for the first
+    time: **posted to the user**;
+  - `isNumeric` as legend-engine's own form on each database; every row of the table now carries the databases it
+    answers on, sets `edge/PureText` holds, so the table names no database;
+  - `acos` and `asin` raising.
+  - Guard moves in it, each dated in its file: `DialectBoundaryTest`'s count of database names in `PureText` 2 to 4
+    (the two `isNumeric` sets); `SqlFnSortedTest` (four new functions sorted PRODUCT; `LOWER`, `UPPER` and
+    `PARSE_INT` are the product's alone again, a shrink; `EQUAL` gains `lowering.NamedRules`).
+  - Fast checks on it: the guards, the census, 1,036 edge tests, the lowering's and SQL's tests pass. Then one
+    regeneration of every recorded file, the fixed pre-push set, and an independent review (running).
+- **Two more rows written, not yet built:** `dateDiff` as the database's own function for every unit ("Yes all
+  units"; no new SQL function: the plain `DATE_DIFF` was already there; register S425), and `splitPart` on DuckDB as
+  its own `split_part` ("Yes match split fully"; S426), a row only where legend-engine writes the database's
+  function: on H2 legend-engine calls its own Java (`StringUtils.split`, which drops empty parts as Pure does), so
+  H2 keeps Pure's rule.
+- **Step 4 started.** The literal rule (`compiler/spec/NumberLiterals`) and strict bodies (lite's comparison setting
+  reads bodies; a body's marker is refused when the body is typed whole) are written with their tests,
+  compile-checked, and **pushed to the session branch as `c64292af`, marked not yet verified**, so that a measuring
+  session and CI run it in parallel (this container's one Bazel was regenerating). The earlier promise that the
+  session branch never carries an unverified commit is broken for this one commit, on purpose, and said here.
+  Recorded: AGENTS.md's equality rule (two bullets), register S127, the differences page's new section on typing.
+- **Step 6.0's measurement is in** (`edition-homework/r3/measured-step6-equality.md`): 1,697 assert bodies, as
+  written and as plain comparisons, both judges, three databases. No body passes under one judge and fails under
+  the other; 206 bodies differ between their two forms, each grouped; the product still disagrees with itself where
+  a side is typed only at run time (`[1,2]->cast(@Any) == [1.0,2.0]->cast(@Any)` is true on DuckDB and false on H2
+  and SQLite). A second run on the literal rule's commit is asked for.
+- **Step 8's session reported three times.** Its first slice (the legend-pure Float text moved out of the product)
+  is built and measured, and parked by the orchestrator: it leaves one SQL function the product renders and only
+  the edge writes, which no guard category allows, and makes Snowflake's and BigQuery's edge SQL several times
+  longer. The direction is the user's amended tenet 1: a last-step print is Java's, a print used further is lite's
+  own text; the session is measuring which answers that moves. Its print-tail proposal: a closed set (`replace`,
+  `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf`, `+` with literal Strings), built together with
+  the scalar value lift, because alone the tail reaches no test today's rule misses (measured: all 41 corpus cases
+  are `toCSV->replace`, already lifted).
+
+**2026-11-26 ~12:15: what the checks found in the hour after the push, each fixed in the next commit.**
+
+- **Step 4's core did not build** (two measuring sessions, at once): the build's null-safety check refused
+  `NumberLiterals` (a collection's element type could be null to its eyes). The orchestrator's own compile check had
+  run plain `javac`, which does not run that check. Fixed; **a lesson:** a compile check outside Bazel says nothing
+  about the build's own checks.
+- **The literal rule read two literals when one was a Decimal literal** (the step 6 measurement's second run):
+  `1D == 1` answered true, because a Decimal literal was not counted as a literal. Fixed: two literals of different
+  number types are a compile error whatever their types; tests added. That second run otherwise: 15 bodies newly
+  answered, none newly refused, no crash; the judges' disagreements unchanged.
+- **The independent review of the batch** (`edition-homework/r3/audit-step5-batch.md`): two blockers, both fixed --
+  a product test still expected `acos(2.0)` to be NaN; and the two new cast functions were not in the set of
+  functions that can raise, so a failing parse in an unread column could have been pruned away and rows returned
+  where the database should have refused. Also fixed from it: the parse rows answer only on the eight databases
+  legend-engine has (on SQLite, MariaDB, MySQL and MongoDB a cast answers a value for a text that is no number, so
+  those keep the checked parse); a NULL argument of `acos`/`asin` at legend-engine's door stays NULL on DuckDB,
+  Postgres and Snowflake (it answered NaN); three records said more than was measured.
+- **`toDecimal` on DuckDB pulled back** (PCT's legend-engine lane, regenerated): see the ruling row above.
+
+**2026-11-26 ~12:40: who is doing what (the sessions the orchestrator started today; each reports by message).**
+
+| Work | Session | Branch | State |
+|---|---|---|---|
+| Design, code, the narrow loop; the batch's regeneration and pre-push set | the orchestrator | `claude/edit-ahead` (edit tree, scratch), `claude/build-tree` (regenerated files, scratch), `claude/modest-galileo-h6swr4` (the pull request's, #141) | steps 4 and 5 in verification |
+| Step 4's measurement: lite's own code under strict bodies (core, stress, timeseries, DataCube, wasm, python) | `session_0195rQEkqKvFbL1ncs3DMFdw` | measure only | its own tests pass (14 of 14); the wide lanes running |
+| Step 6.0: the equality measurement and the product SQL change list (`tools/equality-measure/`; one command per pair of commits) | `session_0195rQEmtbQHaPU6nxVzr6b1` | `claude/step6-equality-measure` (merged into the edit tree) | four runs delivered; now the fastest builder for narrow checks |
+| Step 8: presentation at the edge | `session_0195rQEm7Fs6u58NaDY4RToB` | `claude/edition-step8` | first slice parked; measuring which answers move when a print used further is lite's own text |
+| Step 9, slice 1: 15 harness classes out of the product (`edition-homework/r3/research-step9-inventory.md`) | `session_0195rQEkrmV5QVzoXb9upZBB` | its own, from `9c751659` | started |
+| The corpus lane on macOS: a per-platform overlay | `session_0195rQEnbpNHDwoxFUbVt29b` | its own, from `9c751659` | facts confirmed (five DuckDB trigonometry tests, one unit in the last digit); building |
+| The database lanes (measure only) | Postgres and Trino `session_0195rQEnn8FAUPKYnpH5gmBg`; MariaDB, MySQL, ClickHouse `session_0195rQEjDbpHcLjorPDXJjG6`; Databricks `session_0195rQEijYc25F3cgFg1TxX2`; BigQuery `session_0195rQEo31vtHdx1NMEUJvJr`; Snowflake (its id is in the lanes' records) | none | idle, warm; next: a round once the batch is on the pull request's branch |
+
+**The product's SQL under step 4** (the user's deliverable, first instalment; `edition-homework/step6/sql-changes-9c751659-19ad03b4.md`):
+of 2,451 expression queries (on DuckDB, H2 and SQLite) and 3,527 model queries, no existing query's SQL changes for
+equality; three that were refused are planned (two fold to a constant); none that was planned is refused; 13 change
+for `acos`/`asin`, which is not equality. The first build of the rule had made ten queries 22 characters longer each
+(`CAST(100 AS DECIMAL(3,0))` for `100`); the rule now leaves a whole-number literal as written.
+
+**2026-11-26, afternoon.**
+
+- **The batch of steps 4 and 5 is verified piece by piece and lands as one push.** Every moved pin, roster, golden and
+  ledger has its dated reason on one page: `edition-homework/landing-steps-4-5-2026-11-26.md`. One build break came
+  from changing the compile check's entries without building the edge's tests (`ReferenceIntegrityTest`,
+  `PlannerSurfaceTest`): found by a measuring session in ten minutes, fixed in two test files. The lesson stands: a
+  signature change is built against EVERY test library before it is called done, and a builder session does that
+  while the working tree goes on.
+- **PCT on H2 is all five suites** (branch `claude/pct-h2-full`, session `session_0195rQEizYjy8rVS8hbgqhKy`; the
+  record is `docs/records/h2-pct-full-2026-11-26.md`): 1,249 tests, 1,020 pass, 229 pinned by message (212 new). The
+  five suites are in the H2 gate (about 3 minutes of tests). The worker's first report filed most of the new pins as
+  "H2's limits" ("H2 has no list type"), and the orchestrator repeated it to the user unchecked; the user caught it
+  ("H2 has array type I thought?"). Every "H2 lacks" claim was then probed on lite's own jar (2.5.252), and the 212
+  are:
+  - **5 H2 truly cannot** (base64);
+  - **135 lite's H2 dialect does not write, or writes wrongly, though H2 can:** 76 list operations over a constant
+    list (H2 has `ARRAY[...]`, `CARDINALITY`, `ARRAY_GET`, `ARRAY_CONTAINS`, `ARRAY_SLICE`, and `ARRAY_AGG ... ORDER
+    BY` and every aggregate over `FROM UNNEST(ARRAY[...])`: 16 of 16 probes gave Pure's value; lite's dialect carries
+    a list as JSON and refuses these), 36 other forms (the bit operations 14, time buckets 11, a date-time from parts
+    2, `'%.Nf'` 3, date arithmetic past 32 bits 6), and 23 defects (14 write a function H2 does not have and are not
+    refused by name; 9 wrong answers or SQL H2 cannot read);
+  - **58 beyond one expression, or not settled:** 20 need a lambda or a comparator H2 cannot run (`fold`, a sort with
+    a comparator), 38 are open (lists of instances or of mixed types, an empty map, a signed 64-bit hash, two regular
+    expression functions, one date token);
+  - **14 the platform's own** (13 fail the same way on DuckDB's lane; one differs in a spelling).
+  What H2 truly lacks: `LATERAL`, a correlated `UNNEST`, lambdas over an array, a map type. The 135 are put to the
+  user as one task of the product track, in three parts (the defects, the forms, the constant lists with a design
+  first). The lesson: a worker's label for WHY a database refuses is a claim about that database; it is probed on the
+  database before it is repeated.
+- **Step 6 starts with the size assert alone.** `assertSize(c, n)` is planned as the Pure condition it means,
+  `size(c) == n`: typed by the typer over the sides as named values, lowered by the product over the columns that hold
+  them, each side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`,
+  `SidePlanner.over`, `Lowerer.over`). That is the whole new road on the one family where no rule of types is in
+  play. Two families the design had put beside it wait, each for a reason found on reading the code:
+  - *emptiness* needs the side as a LIST bound once, and the product's `isEmpty` of a list is not written on every
+    database the judge's `NOT EXISTS` runs on today (H2 holds a list as JSON): it goes with the slice that makes the
+    product's list operations whole on every database (6.4), or two reads of the side, which would grow the SQL;
+  - *tolerance* compares numbers of different types by the assert's own meaning (its parameters are `Number`), so
+    its condition is typed over values whose type is known at run time: slice 6.2's work, not a plain comparison of
+    two typed sides, which lite's rule would refuse.
+
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
 1. **A number literal against a number column** (step 4's design question, and the equality rule's cost to a user
@@ -711,6 +872,86 @@ old detector did not count it either).
 7. On what happens next: "also lets write this all down so we dont lose it, and then after we go through this one more time i want you to just blast through the whole thing and keep going until done".
 
 **Not yet ruled:** this plan as a whole (the user reads it once more first); that comparisons are decided at the type-checker and SQL differences at the lowering, where an earlier ruling said one place for compiler rules; what "keep going until done" does with a test whose answer moves (§4 proposes: gathered and brought at the end of each big step).
+
+## 7a. The user's rulings of 2026-11-26 (on the decisions gathered in 6b; the words are the user's)
+
+The orchestrator put each open decision to the user with its options (the message of 2026-11-26 ~11:10). The
+answers, in the user's order:
+
+| # | On | The user's words | What it settles |
+|---|---|---|---|
+| 1 | `acos`/`asin` raising costs SQL size (6b item 7) | "sql for acos/asin as long as it's only for these functions that sql gets bigger that's fine" | the size pins of these two functions' families may grow; the parked piece lands |
+| 2 | the plain parses as rows (item 12) | "yes for parse functions, which counter goes up though" | the ceiling of `InterimEdgeSitesTest` moves 4 to 5; the parked piece lands (the counter explained to the user) |
+| 3 | `isNumeric` on H2 (item 14) | "agree for h2" | the corpus size pin for H2's `isNumeric` family may grow by its 41 characters; the parked piece lands |
+| 4 | a whole number against a Float or Decimal (item 1) | "okay for float/decimal literal compare - don't understand the follow-ups though" | option (b): a number literal written against a value of another number type reads as that type when it is exact there. Step 4 is unblocked. The two follow-ups (item 2) explained again |
+| 5 | step 8 | "start 8 - I think we should also look at toString/toCSV in the middle - for example we saw toCSV->replace() and we should do that as one call at the end to replace newline in csv, so maybe small set up string/count functions chained should all be in java" | step 8 starts in its own session. New scope for it: at a compatibility door, a small closed set of string and count functions chained after a final `toString`/`toCSV` is computed in Java at the edge with the print, so the text is upstream's through the tail. The set is proposed by step 8's session and brought back |
+| 6 | `TDSNull`'s text | "tdsnull what are downsides if treat as table row? Seems like no brainer ?" | a row of legend-engine's table (the downside explained: its SQL stays; nothing moves) |
+| 7 | a Float's or a date's text inside a legend-engine store query | "agreed on float/date text for engine" | rows of legend-engine's table, not presentation |
+| 8 | step 6's "about 2,500 lines gone" | "fine to restate target, the real target is unified equals , deleting code is byproduct" | step 6's "done when": one equality, both judges agreeing; the lines are reported, not targeted |
+| 9 | a value typed only at run time whose column fixes its type | "runtime compare is fine" | compared at run time by the column's type |
+| 10 | step 6's order against step 4 | "is decision 2 made here now? Or still need gate" | answered: ruling 4 makes it; step 4 goes first, no gate |
+| 11 | size limits in step 6 | "size limits - what exactly will grow? Thought we decided on exactly everything that will print but teach me first" | not ruled: explained to the user; measured numbers come before any pin moves |
+| 12 | legend-engine's answers on the other databases | "Run all the round/substring stuff on all the warm lanes on parallel so we get answers for everything?" | every warm lane reads legend-engine's own SQL for each row on its database and runs it, so a row answers there instead of refusing |
+| 13 | `dateDiff` | "Yes all units" | the database's own `datediff` for every unit at legend-engine's door |
+| 14 | `splitPart` on DuckDB | "Yes match split fully" | the database's own `split_part`, in full |
+| 15 | `parseJSON` | "Parsejson okay" | its tolerance is legend-engine's own Java's: a row on the stamped side |
+| 16 | the corpus lane on macOS | "What does macos overlay mean" | not ruled: explained |
+| 17 | the two claim pins replaced | "Okay for substr functions" | confirmed |
+| 18 | landing on the program branch | "Landing whatever you think is right is fine" | the orchestrator moves `claude/compat-b3-nufdlk` at verified milestones; never `main` |
+| 19 | PCT on compiled legend-pure | "Defer pct compiled that's fine" | deferred to step 10 |
+
+**The user, later the same day (2026-11-26 ~12:13), on the orchestrator's status and its open points:** "Okay I'm
+good with all your answers - bring back all the product SQL changes for equal when you have them".
+
+| On | What it settles |
+|---|---|
+| the plain parses' width (register S424) | Pure's width stays: 64 bits and a double, where legend-engine's SQL names a narrower type |
+| `toDecimal` on DuckDB | the row answers on H2 alone until the door spells a Decimal as legend-engine's does (step 8) |
+| step 8's decisions (the first slice parked; a last-step print Java's, a print used further lite's own text; the print tail built with the scalar value lift) | stand |
+| the guard moves reported | stand |
+| **a new deliverable** | every change the one equality makes to the PRODUCT's SQL (step 4's literal rule and strict bodies, then step 6's run-time types) is gathered, the SQL before and after for each changed query with its size, and brought to the user before any size pin moves for it |
+
+Not covered by it: the corpus lane on macOS (no answer of the orchestrator's stood open there; still the user's).
+
+**The user, ~12:19:** "Yes 64 bit and yes Macos". The plain parses keep 64 bits and a double (register S424, ruled).
+The corpus lane on macOS gets a per-platform overlay of its recorded answers, as PCT's lanes have (the option the
+orchestrator recommended): started the same minute as its own session, on its own branch, merged into the pull
+request's branch when it reports, CI's macOS job the proof.
+
+**The user, ~12:25, to the orchestrator's one request on pace:** "Def can push to scratch branches or make any
+number of branches you need without my permission". Recorded in AGENTS.md ("The fast setup"). From here unverified
+work goes to scratch branches (the edit tree is pushed as `claude/edit-ahead`), worker sessions build and measure
+from them, and the pull request's branch takes verified batches only.
+
+**The user, ~13:57, on six questions the orchestrator put (the words are the user's):**
+
+| # | The question | The user's words | What it settles |
+|---|---|---|---|
+| 1 | an assert that compares two different types on lite's own door (`assertEquals(1D, 1)`): a compile error, as any comparison across types? | "yes compile error" | step 6's D4: lite refuses; the 21 deliberate probes in lite's own tests are rewritten to expect the error; the compatibility doors are unaffected |
+| 2 | the host judge's ledger pin growing by about 3 lines for the tie-break Integer before Float before Decimal | "yes growth okay" | step 6's D9 |
+| 3 | at legend-pure's door, a Float's text used further in a query is lite's own text (six decimals), with no recorded test moving | "yes that's right but remember we have a list of chained functions that are okay after that you came up with" | the register row may land with step 8's deletion slice; a print followed by the tail's functions stays Java's, with upstream's text |
+| 4 | does legend-engine's door promise `toSQLString` and `planToString` inside a program? | "I think those are platform functions - useful if we need for backwards compatibility - but I don't immediately see a product use for it - I don't think users can use it - can we check somehow?" | not ruled: to be CHECKED (asked of legend-engine itself through the engine runner, and read in lite's routes), then brought back |
+| 5 | when to widen legend-engine's table to the other databases | "whenever you think is right time is fine" | the orchestrator's call: after steps 4 to 6 land, with a proof run through lite on each database |
+| 6 | the print tail's members (`replace`, `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf`), which need a guard exception because Java computes a length, an index or a true/false over text the edge printed | "yes should add guard" | the set is ruled as proposed, pinned by its guard (`PrintTailTest`, the dated ledger entry) |
+
+**The user, ~14:31, on the two points the orchestrator had open:** "I'm good with refusing those engine functions in
+the user/product path
+
+Should we run full h2 pct like duck?"
+
+- **The plan-text functions are refused to a user at legend-engine's door** (register S427). `toSQLString`,
+  `toSQLStringPretty`, `planToString`, `executionPlan` and the DDL text generators answer in legend-engine's own tests
+  alone (the corpus's and PCT's styles); a user's query that calls one, directly, through a `let` or through a model's
+  function, is refused by name in legend-engine's compile-error envelope, as legend-engine itself refuses it
+  (`r3/measured-plan-text-reachability.md`). The classes behind them (about 25 classes, 5,300 lines) are then test
+  machinery, and leave the product library with step 9's later slices; the two pieces the routes' own Java calls
+  (a generated plan's support functions, the test-data routes' timestamp text) stay.
+- **PCT on H2, all five suites.** Today lite's own door runs only the relation suite on H2 (`//pct:pct_h2`); the
+  legend-engine door's lane runs three (essential, relation, standard). The orchestrator's answer: yes. H2 is
+  legend-engine's own first test database and one of the two databases its table answers on, and a change to an H2
+  arm outside the relation suite is seen today only through the legend-engine door's lane and the corpus. A session
+  (`claude/pct-h2-full`) adds the four missing suites with H2's own expected failures and reports them grouped by
+  cause; whether they join a gate is decided on its report (each is one more JVM of about 4 GB in the H2 lane).
 
 ## 8. Decisions still to come
 

@@ -1067,6 +1067,7 @@ public class MongoDb extends AnsiSqlRenderer {
             // ---- numbers
             case PARSE_INT -> guardedParse(writer, a.get(0), "^[+-]?[0-9]+$", "{\"$toLong\": " + G0 + "}",
                     com.legend.sql.RaiseKind.TEXT_NOT_INTEGER);
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case SQRT -> writer.append("{\"$sqrt\": ").piece(unfolded(a.get(0))).append("}");
             case CBRT -> cubeRoot(writer, a);
             case EXP -> MongoJson.op1(writer, "$exp", a.get(0));
@@ -1081,6 +1082,9 @@ public class MongoDb extends AnsiSqlRenderer {
             case TAN -> MongoJson.op1(writer, "$tan", a.get(0));
             case ASIN -> domainGuarded(writer, "$asin", a);
             case ACOS -> domainGuarded(writer, "$acos", a);
+            // within the domain by the statement's own guard: the operator alone
+            case ASIN_IN_DOMAIN -> MongoJson.op1(writer, "$asin", a.get(0));
+            case ACOS_IN_DOMAIN -> MongoJson.op1(writer, "$acos", a.get(0));
             case ATAN -> MongoJson.op1(writer, "$atan", a.get(0));
             case ATAN2 -> MongoJson.op(writer, "$atan2", a);
             case SINH -> MongoJson.op1(writer, "$sinh", a.get(0));
@@ -1094,8 +1098,8 @@ public class MongoDb extends AnsiSqlRenderer {
             case FLOOR_RAW -> MongoJson.op1(writer, "$floor", a.get(0));
             case ROUND -> roundHalfEven(writer, a);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
-            case ROUND_RAW -> throw new DialectCapability("the database's own ROUND over the arguments as given"
-                    + " (ROUND_RAW): MongoDB has no SQL ROUND of its own to answer as");
+            case ROUND_RAW, DECIMAL_RAW -> throw new DialectCapability("the database's own function as given ("
+                    + c.fn() + "): MongoDB has no SQL function of its own to answer as");
             case SIGN -> sign(writer, a);
             case GREATEST -> MongoJson.op(writer, "$max", a);
             case LEAST -> MongoJson.op(writer, "$min", a);

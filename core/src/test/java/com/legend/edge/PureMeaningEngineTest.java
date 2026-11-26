@@ -343,6 +343,46 @@ class PureMeaningEngineTest {
                 "{\"values\": [0.13]},{\"values\": [0.25]},{\"values\": [0.38]},{\"values\": [0.5]}");
     }
 
+    // ---- toDecimal: the database's own DECIMAL with no precision written (register S423) ---------------------------
+
+    /** {@code toDecimal} inside a query sent to the database is the database's bare DECIMAL, which holds no fraction
+     *  digit on this database: 1.8, 2.8, 3.8 and 4.8 are 2, 3, 4 and 5 (legend-engine's manifest for it records
+     *  {@code toDecimal(3.8)} as 4), where Pure's answer keeps the digits. */
+    @Test
+    void toDecimalIsTheDatabasesBareDecimal_legendEnginesAnswer() {
+        legendEngines("|" + EngineTablePlacementTest.TABLE + "->extend(~a: r|($r.ID->toOne() + 0.8)->toDecimal())"
+                + "->select(~[a])->from(t::RT)",
+                "{\"values\": [2]},{\"values\": [3]},{\"values\": [4]},{\"values\": [5]}");
+    }
+
+    // ---- dateDiff: the database's own date difference for every unit (register S425) -------------------------------
+
+    /** {@code dateDiff} inside a query sent to the database is the database's own function: from 10:59:59 to 11:00:01
+     *  this database counts one hour boundary crossed (legend-engine's answer), where Pure counts no whole hour
+     *  elapsed. */
+    @Test
+    void dateDiffIsTheDatabasesOwnCount_legendEnginesAnswer() {
+        legendEngines("|" + EngineTablePlacementTest.TABLE + "->extend(~a: r|dateDiff(%2015-07-04T10:59:59,"
+                + " %2015-07-04T11:00:01, meta::pure::functions::date::DurationUnit.HOURS) + $r.ID->toOne() - $r.ID->toOne())"
+                + "->select(~[a])->from(t::RT)",
+                "{\"values\": [1]},{\"values\": [1]},{\"values\": [1]},{\"values\": [1]}");
+    }
+
+    // ---- the relational isNumeric: legend-engine's own check on each database (register S370) -----------------------
+
+    /** On H2 legend-engine's isNumeric is its dialect translation's regular expression, a plain decimal's text: no
+     *  plus sign ({@code '+1'} is not numeric, where {@code lower = upper}, DuckDB's form, says it is). */
+    @Test
+    void isNumericIsAPlainDecimalsTextOnThisDatabase_legendEnginesAnswer() {
+        legendEngines("|" + EngineTablePlacementTest.TABLE
+                + "->extend(~a: r|meta::legend::lite::isNumeric($r.ID->toOne()->toString()))->select(~[a])->from(t::RT)",
+                "{\"values\": [true]},{\"values\": [true]},{\"values\": [true]},{\"values\": [true]}");
+        legendEngines("|" + EngineTablePlacementTest.TABLE
+                + "->extend(~a: r|meta::legend::lite::isNumeric('+' + $r.ID->toOne()->toString()))->select(~[a])"
+                + "->from(t::RT)",
+                "{\"values\": [false]},{\"values\": [false]},{\"values\": [false]},{\"values\": [false]}");
+    }
+
     // ---- toOne of an operand that is always empty (register S384) ---------------------------------------------------
 
     private static final String TO_ONE_OF_EMPTY = "|" + EngineTablePlacementTest.TABLE + "->sort(~ID->ascending())->limit(1)"
@@ -401,6 +441,34 @@ class PureMeaningEngineTest {
         assertTrue(message.contains("legend-engine's answer for substring/3 at 1:")
                 && message.contains("is not yet checked on Postgres"), message);
         assertFalse(message.contains("NAME"), message);
+    }
+
+    /** A user's call of one of legend-engine's plan-text functions is refused by name at legend-engine's door, in its
+     *  compile error's envelope, as legend-engine refuses it when it compiles the request (the user's ruling of
+     *  2026-11-26; S427): in a store query's filter, bound by a let before the query, and through a model's own
+     *  function. Nothing is run. */
+    @Test
+    void aUsersPlanTextCallIsRefusedByName_asLegendEngineRefusesIt() {
+        String sql = "meta::relational::functions::sqlstring::toSQLString(|t::Person.all()->project([p|$p.name], ['n']),"
+                + " t::M, meta::relational::runtime::DatabaseType.H2, [])";
+        String wrapped = MODEL.replace("function t::position(", "function t::sqlText(): String[1] { " + sql + " }\n"
+                + "function t::position(");
+        Map<String, String> requests = new java.util.LinkedHashMap<>();
+        requests.put("in a filter", body("|t::Person.all()->filter(p|$p.name == " + sql
+                + ")->project([p|$p.name], ['n'])->from(t::M, t::RT)"));
+        requests.put("bound by a let", body("|let s = " + sql + "; t::Person.all()->filter(p|$p.name == $s)"
+                + "->project([p|$p.name], ['n'])->from(t::M, t::RT);"));
+        requests.put("through a model's function", body(wrapped, "|t::Person.all()->filter(p|$p.name == t::sqlText())"
+                + "->project([p|$p.name], ['n'])->from(t::M, t::RT)"));
+        requests.forEach((where, request) -> {
+            LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, request,
+                    PLANS_AND_NEVER_RUNS, LiteV1Api.Models.COMPILED);
+            assertEquals(500, a.status(), where + ": " + a.json());
+            Json.Obj o = Json.parseObject(a.json());
+            assertEquals("COMPILATION", o.getString("errorType"), where);
+            assertTrue(o.getString("message").contains("legend-engine's plan-text functions")
+                    && o.getString("message").contains("are not a user's to call"), where + ": " + a.json());
+        });
     }
 
     /** A refused request sends nothing to the database, on every route whose answer a call a row answers chooses: the

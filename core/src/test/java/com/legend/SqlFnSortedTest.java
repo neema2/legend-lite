@@ -67,9 +67,19 @@ class SqlFnSortedTest {
      *  refusing it by name) -- its entry gone the same day: register S401 ruled by the user 2026-11-23 ("Okay"), two whole
      *  Variants refused by name at planning, so no plan compares two JSON documents. */
     static final Set<String> PRODUCT = Set.of(
-            "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
+            "ABS", "ACOS",
+            // ACOS_IN_DOMAIN, ASIN_IN_DOMAIN (2026-11-26; the user's ruling of 2026-11-25 that acos and asin raise outside
+            // [-1, 1] as legend-pure does, register S119): the database's function alone, under the statement's own
+            // guard, written by lowering.Scalars -- product code alone writes them: PRODUCT, by the standing rule
+            "ACOS_IN_DOMAIN",
+            "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN", "ASIN_IN_DOMAIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
-            "BIT_XOR", "BOOL_TO_TEXT", "CBRT", "CEILING", "CELL_TEXT", "CHR", "COALESCE", "CONCAT", "CONCAT_JOIN",
+            "BIT_XOR", "BOOL_TO_TEXT",
+            // CAST_INT, CAST_FLOAT (2026-11-26, the edition program's step 5): the database's own cast of a text, written
+            // by the lowering's named rules for the plain parses (NamedRules, which a door's table names) -- product
+            // code alone writes them: PRODUCT, by the user's standing rule of 2026-11-23 (dated here and reported)
+            "CAST_FLOAT", "CAST_INT",
+            "CBRT", "CEILING", "CELL_TEXT", "CHR", "COALESCE", "CONCAT", "CONCAT_JOIN",
             "CONCAT_WS", "COS", "COSH", "COT", "CURRENT_USER_FN", "DATETIME_CANON_TEXT", "DATETIME_TO_TEXT",
             "DATE_AT_TIME", "DATE_DIFF", "DATE_TRUNC", "DATE_TRUNC_DAY", "DAYNAME", "DECIMAL_TO_TEXT",
             "DECODE_BASE64", "DEGREES", "DIVIDE", "ENCODE_BASE64", "ENDS_WITH", "EPOCH_MS", "EPOCH_NS",
@@ -101,7 +111,11 @@ class SqlFnSortedTest {
             // ROUND_RAW (2026-11-26, the edition program's step 5): the database's own ROUND, written by the lowering's
             // named rule for it (DecimalKindRules.roundAsGiven, which a door's table names) -- product code alone
             // writes it, so PRODUCT, by the user's standing rule of 2026-11-23 (dated here and reported)
-            "ROUND_RAW", "RPAD", "RTRIM",
+            "ROUND_RAW",
+            // DECIMAL_RAW (2026-11-26, step 5): the database's own DECIMAL with no precision written, written by the
+            // lowering's named rule for toDecimal (NamedRules, which a door's table names) -- product code alone
+            // writes it: PRODUCT, by the same standing rule
+            "DECIMAL_RAW", "RPAD", "RTRIM",
             "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1",
             "SHA256", "SIGN", "SIN", "SINH", "SPLIT", "SPLIT_PART", "SQRT", "STARTS_WITH", "STRFTIME", "STRPOS",
             "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "SUBSTRING_AS_GIVEN", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",
@@ -248,7 +262,10 @@ class SqlFnSortedTest {
             // printer); the product's writers keep theirs)
             // EQUAL: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
+            // + lowering.NamedRules (2026-11-26, the edition program's step 5): the rule a door's table names for a text
+            // with no cased letter, lower(s) = upper(s), moved from the edge's forms into the lowering's named rules
             Map.entry("EQUAL", Set.of(
+                    "com.legend.lowering.NamedRules",
                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5b: the CSV's empty String (S420)
                     "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CalendarAgg",
@@ -343,11 +360,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.CheckedDefectsToLists",
                     "com.legend.sql.dialect.CommonSubexpressions", "com.legend.sql.dialect.FoldToListReduce")),
-            // LOWER and UPPER join 2026-11-18 on d-int11 18208beaa6 (J20, 222d136808, train 11): legend-engine's H2
-            // isNumeric, lower(x) = upper(x), is the edge's (EdgeLoweringForms); the product's writers keep theirs
-            Map.entry("LOWER", Set.of(
-                    "com.legend.lowering.Scalars",
-                    "com.legend.sql.dialect.FloatShortestText", "com.legend.testdatagen.TestDataPlanner")),
+            // (LOWER and UPPER: both sides' no more, 2026-11-26, a shrink -- the edition program's step 5: legend-engine's
+            // isNumeric, lower(x) = upper(x), is a rule the lowering holds, lowering.NamedRules, which the door's table
+            // names; the edge's forms, which wrote the two since J20, 2026-11-18, write neither)
             Map.entry("LPAD", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
                     "com.legend.lowering.SnapshotEnvelope", "com.legend.sql.dialect.StringCountsAsInt")),
@@ -378,7 +393,9 @@ class SqlFnSortedTest {
                     "com.legend.sql.DecodeShapes", "com.legend.sql.dialect.AsOfAsPick",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FrameGuard",
                     "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("PARSE_INT", Set.of("com.legend.lowering.Scalars")),
+            // (PARSE_INT: both sides' no more, 2026-11-26, a shrink -- the edition program's step 5: the edge's pass that
+            // read it to write the plain cast, PurePrintForms' UnguardedParses, is deleted; the plain parses are rows of
+            // legend-engine's door's table, written by lowering.NamedRules as CAST_INT)
             Map.entry("REGEXP_REPLACE", Set.of(
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.LetBinding",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
@@ -396,7 +413,7 @@ class SqlFnSortedTest {
             Map.entry("STRFTIME", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.Fold",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
-                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText")),
+                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText"))
             // (STRPOS: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
             // went with stage B's B2b S5c (a TDS's csv refused by name in the product until the user's ruling of 2026-11-25, S405, a last step's printed by the doors' Java
             // printer); the product's writers keep theirs)
@@ -407,8 +424,8 @@ class SqlFnSortedTest {
             // in A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the user's
             // ruling of 2026-11-19 ~20:45 ("Approved to move guards down"): the host judge is the only judge in
             // compatibility, so the edge writes none of them; the product's writers keep their own)
-            // (J20, as LOWER's note)
-            Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")));
+            // (UPPER: as LOWER's note above, gone 2026-11-26)
+            );
 
     /** The functions both sides write, as {@code writers} has them, each with its product writers' top classes. */
     static Map<String, Set<String>> bothProduct(Map<String, Set<String>> writers, Collection<String> names) {

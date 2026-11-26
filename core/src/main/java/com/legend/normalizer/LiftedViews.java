@@ -104,7 +104,7 @@ final class LiftedViews {
                     spell(signature),
                     Multiplicity.Concrete.PURE_ONE, List.of(body), List.of(), List.of())
                     .withSynthesizedFrom(new FunctionDefinition.Synthesized(
-                            SynthHat.VIEW, owner.ownerDb(), view.name())));
+                            SynthHat.VIEW, owner.ownerDb(), view.name()).ofRelationalLanguage()));
             return body;
         } catch (ModelException | NotImplementedException e) {
             walls.put(view, e);

@@ -1390,10 +1390,17 @@ final class ArchitectureTest {
             // the rules an edition's table may name (2026-11-26, the edition program's step 5): legend-engine's
             // door's table reads each constant it maps a call to -- data, a name of a rule the lowering holds
             // (lowering.NamedRules); anEditionsTableAloneNamesARule keeps every other namer out
+            "lowering.NamedRule#CAST_TO_BARE_DECIMAL", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#DATE_DIFF_AS_GIVEN", "com.legend.edge.EngineTable",
             "lowering.NamedRule#ROUND_AS_GIVEN", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#SPLIT_PART_AS_GIVEN", "com.legend.edge.EngineTable",
             "lowering.NamedRule#SQL_POSITION", "com.legend.edge.EngineTable",
             "lowering.NamedRule#SUBSTRING_AS_GIVEN", "com.legend.edge.EngineTable",
             "lowering.NamedRule#SUBSTR_AS_GIVEN", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#TEXT_CAST_TO_FLOAT", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#TEXT_CAST_TO_INTEGER", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#TEXT_HAS_NO_CASED_LETTER", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#TEXT_IS_PLAIN_DECIMAL", "com.legend.edge.EngineTable",
             "lowering.NamedRule#TRUST_ONE", "com.legend.edge.EngineTable",
             // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)

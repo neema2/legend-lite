@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE COMPARISON SETTING REACHES THE CODE A QUERY REACHES (the edition program's step 2b, 2026-11-26;
@@ -32,6 +33,8 @@ class CrossTypeRuleTest {
             function x::loose(a: Integer[1]): Boolean[1] { $a == 1.0 }
             function x::keep<T>(r: Relation<T>[1], b: Boolean[1]): Relation<T>[1] { $r->filter(x | $b) }
             function x::ones<T>(r: Relation<T>[1]): Relation<T>[1] { $r->filter(x | $x.n == 1.0) }
+            function x::same<T,P,Q>(r: Relation<T>[1], a: ColSpec<P⊆T>[1], b: ColSpec<Q⊆T>[1]): Relation<T>[1]
+            { $r->filter(x | $x->read($a)->toOne() == $x->read($b)->toOne()) }
             """;
 
     /** A setting that lists what it is asked and answers the call. */
@@ -134,12 +137,47 @@ class CrossTypeRuleTest {
     }
 
     @Test
-    @DisplayName("lite's own setting: the query's comparison is the marker the planner refuses; a body's is the call")
+    @DisplayName("lite's own setting: a comparison across types is a mistake in the query (the planner refuses its"
+            + " marker) and in a body (refused when the body is typed whole); a number literal against a value reads"
+            + " as the value's type")
     void litesSetting() {
         ModelContext ctx = Compiler.compileModel(MODEL);
         TypedQuery q = Compiler.query(ctx, "|1 == 1.0");
         assertEquals(1, CrossTypeComparisons.in(q.body()).size());
+        // $a == 1.0 over an Integer: the literal reads as 1 (the literal rule), so the body holds no marker
         assertEquals(List.of(), CrossTypeComparisons.in(q.specs().compile(one(ctx, "x::loose")).body()));
+        // $this.n > 1.5 over an Integer: 1.5 is no Integer, so the body is refused by name (step 4, 2026-11-26)
+        com.legend.error.ModelException refused = assertThrows(com.legend.error.ModelException.class,
+                () -> q.specs().compile(one(ctx, "x::A$prop$big")));
+        assertTrue(refused.getMessage().startsWith("> compares Integer with Float"), refused.getMessage());
+        // the model's compile check says the same of the same body
+        assertTrue(Compiler.compileAllBodies(ctx).values().stream()
+                .anyMatch(m -> m.contains("> compares Integer with Float")), Compiler.compileAllBodies(ctx).toString());
+    }
+
+    @Test
+    @DisplayName("lite's setting in a body typed into its call: two generic positions compare when the query runs, no"
+            + " mistake of the function as written; a literal there still reads as the call's column type")
+    void litesSettingInABodyTypedIntoItsCall() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        // an Integer column against a Float column, through a function generic over both: no marker
+        assertEquals(List.of(), CrossTypeComparisons.in(
+                Compiler.query(ctx, "|#TDS\nn, f\n1, 1.5\n#->x::same(~n, ~f)").body()));
+        // the same two columns compared in the query itself: a mistake
+        assertEquals(1, CrossTypeComparisons.in(
+                Compiler.query(ctx, "|#TDS\nn, f\n1, 1.5\n#->filter(x | $x.n == $x.f)").body()).size());
+        // a literal in a generic body reads as this call's column type: $x.n == 1.0 over an Integer column
+        assertEquals(List.of(), CrossTypeComparisons.in(Compiler.query(ctx, "|#TDS\nn\n1\n#->x::ones()").body()));
+    }
+
+    @Test
+    @DisplayName("a model's compile check is its door's: lite's refuses a comparison across types in a body; a door"
+            + " whose audience sends it as written does not")
+    void theCompileCheckIsTheDoors() {
+        assertTrue(Compiler.compileErrors(MODEL).stream().anyMatch(m -> m.contains("> compares Integer with Float")),
+                Compiler.compileErrors(MODEL).toString());
+        assertEquals(List.of(), Compiler.compileErrors(MODEL, e -> String.valueOf(e.getMessage()),
+                CrossTypeRule.AS_WRITTEN));
     }
 
     @Test

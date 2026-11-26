@@ -82,6 +82,17 @@ public final class SidePlanner {
                 penv, r.route(), stores.isEmpty());
     }
 
+    /** {@code condition} over its sides' bound values ({@link com.legend.lowering.Lowerer#over}: an assert as the
+     *  Pure condition it means, each side's name the column that holds its value), lowered with the lowerer a side's
+     *  body is lowered with ({@link BodyPlanner#lowererFor}: the model's layouts and keys, the environment's time
+     *  zone, features and options), so the condition is the product's own SQL and no judge's (the equality program's
+     *  first slice, 2026-11-26). A comparison across types in it is refused by name, as in any body lite plans. */
+    public static com.legend.sql.SqlExpr over(TypedSpec condition,
+            java.util.Map<String, com.legend.sql.SqlExpr> bound, PlanEnv env) {
+        com.legend.compiler.spec.CrossTypeComparisons.refuse(List.of(condition));
+        return BodyPlanner.lowererFor(List.of(condition), env, env.ctx(), true).over(condition, bound);
+    }
+
     /** Whether {@code declaredInfo} declares a primitive collection over a relation-rooted {@code root}: the side is
      *  then that collection, not the relation. */
     public static boolean collectionDeclared(

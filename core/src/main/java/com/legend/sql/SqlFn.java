@@ -21,6 +21,13 @@ public enum SqlFn {
     // spell its golden 'integer' while execution casts BIGINT (the
     // per-dynafunction origin tag audit 19 F3 called for)
     PARSE_INT,
+    /** CAST_INT(text), CAST_FLOAT(text): the database's OWN cast of a text to its 64-bit integer and to its double
+     *  (the edition program's step 5, 2026-11-26): every dialect writes its plain CAST, with no grammar check before
+     *  it, so a text the database cannot convert is the database's own conversion error. Not {@link #PARSE_INT} nor
+     *  a user's cast to a Float, which the product checks against Pure's grammar and raises as its own. Written by
+     *  two of the lowering's named rules ({@code NamedRule.TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}), which
+     *  an edition's table alone names. */
+    CAST_INT, CAST_FLOAT,
     // Strings
     CONCAT, LENGTH, UPPER, LOWER, GREATEST, LEAST,
     // joinStrings over a literal element list in VALUE (map) position:
@@ -59,6 +66,10 @@ public enum SqlFn {
     // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
     SQRT, CBRT, EXP, LN, LOG10, POW, PI,
     SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
+    /** acos and asin of a value the statement's own guard holds within [-1, 1] (the lowering's rule raises outside it,
+     *  as legend-pure does: register S119): the database's function alone, with none of the dialect's own handling of
+     *  a value outside the domain, which {@link #ACOS} and {@link #ASIN} keep for a style that writes the raise plain. */
+    ACOS_IN_DOMAIN, ASIN_IN_DOMAIN,
     CEILING, FLOOR, ROUND, SIGN, XOR,
     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
     REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH,
@@ -153,6 +164,13 @@ public enum SqlFn {
      *  every database, nor {@link #ROUND_HALF_UP}, half away from zero on every database. Written by one of the
      *  lowering's named rules ({@code NamedRule.ROUND_AS_GIVEN}), which an edition's table alone names. */
     ROUND_RAW,
+    /** DECIMAL_RAW(x): the database's OWN cast of a value to its DECIMAL with no precision written (the edition
+     *  program's step 5, 2026-11-26): whatever precision and scale that database gives a bare DECIMAL -- three
+     *  places on DuckDB, none on H2, where 3.8 is 4 (measured,
+     *  docs/records/edition-homework/r3/measured-step5-facts.md A1, B6). No type is stated for it: it differs by
+     *  database. Written by one of the lowering's named rules ({@code NamedRule.CAST_TO_BARE_DECIMAL}), which an
+     *  edition's table alone names; a dialect whose database's answer is not read refuses it by name. */
+    DECIMAL_RAW,
     ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
@@ -241,8 +259,8 @@ public enum SqlFn {
      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
      *  SubselectPrune). */
     public static final java.util.Set<SqlFn> RAISING = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(ERROR,
-            PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
-            MAKE_TIMESTAMP));
+            PARSE_INT, CAST_INT, CAST_FLOAT, PARSE_DATE, ACOS, ASIN, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ADD_INTERVAL,
+            ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE, MAKE_TIMESTAMP));
 
     /** The functions that may leave an argument unevaluated on SOME dialect: AND, OR and COALESCE (SQL promises no
      *  order of evaluation), and every function a dialect renders with a branch -- a CASE, ClickHouse's
