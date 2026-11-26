@@ -1083,8 +1083,9 @@ public final class VerdictSql {
     }
 
     /** {@code assertSize} / {@code assertNotSize} over a graph side, TYPED (item 3's S4, the last families): the
-     *  graph's count of root objects against the size side's one Integer, both riding the failure, as
-     *  {@link #typedSize}'s. Null where the size side has no typed value column. */
+     *  graph's count of root objects against the size side's one Integer, both riding the failure. The judge's own
+     *  count and comparison still: a graph's size as the product's condition ({@link #typedOverValues}) waits for the
+     *  product to count a graph's root objects itself. Null where the size side has no typed value column. */
     public static @com.legend.base.Nullable TypedRow typedSizeOfGraph(SqlQuery graphPlan, SqlQuery nWrapped,
             boolean wantSize) {
         SqlQuery nRows = valueRows(nWrapped);
