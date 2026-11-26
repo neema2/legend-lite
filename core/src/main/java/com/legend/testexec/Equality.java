@@ -291,7 +291,7 @@ public final class Equality {
         // kind breaks the tie (two lists are matched element by element after this sort, and 3 is not 3.0)
         out.sort(java.util.Comparator.comparingInt((Typed t) -> typeRank(t.value()))
                 .thenComparing(t -> withinRank(t.value()))
-                .thenComparing(t -> String.valueOf(effectiveKind(t))));
+                .thenComparingInt(t -> java.util.Optional.ofNullable(effectiveKind(t)).map(Enum::ordinal).orElse(-1)));
         return out;
     }
 
