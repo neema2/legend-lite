@@ -1981,15 +1981,19 @@ final class Scalars {
         // (register S138).
         for (var trig : List.of(Map.entry(Pure.AT_MATH_ACOS, SqlFn.ACOS), Map.entry(Pure.AT_MATH_ASIN, SqlFn.ASIN))) {
             SqlFn fn = trig.getValue();
+            SqlFn inDomain = fn == SqlFn.ACOS ? SqlFn.ACOS_IN_DOMAIN : SqlFn.ASIN_IN_DOMAIN;
             String label = fn == SqlFn.ACOS ? "acos" : "asin";
             for (com.legend.model.FunctionId f : trig.getKey()) {
                 RULES.put(f, (StyledRule) (n, args, styled) -> {
                     SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
-                    return guarded(
-                            SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.IntLit(1)),
-                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
-                                    List.of(new SqlExpr.StringLit(label), args.get(0))),
-                            SqlExpr.Call.of(fn, args.get(0)), styled);
+                    SqlExpr.RaiseText words = new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
+                            List.of(new SqlExpr.StringLit(label), args.get(0)));
+                    // guarded, the function alone (its argument is within the domain); plain, the function with its
+                    // dialect's own answer outside the domain
+                    return styled.forms().raise(words.kind(),
+                            () -> guarded(SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, x),
+                                    new SqlExpr.IntLit(1)), words, SqlExpr.Call.of(inDomain, args.get(0))),
+                            SqlExpr.Call.of(fn, args.get(0)));
                 });
             }
         }

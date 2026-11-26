@@ -910,6 +910,9 @@ public class Postgres extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
             // the engine's out-of-domain answer is NaN; Postgres raises
             case ACOS, ASIN -> acos(writer, c);
+            // within the domain by the statement's own guard: the function alone
+            case ACOS_IN_DOMAIN -> writer.function("acos", c.args());
+            case ASIN_IN_DOMAIN -> writer.function("asin", c.args());
 
             // ---- strings
             // the engine coerces a non-text argument (DuckDb's arm)
