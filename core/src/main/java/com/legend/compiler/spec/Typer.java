@@ -134,6 +134,11 @@ final class Typer {
         }
     }
 
+    /** A typer with lite's own comparison setting ({@link LiteCrossTypeRule}). */
+    Typer(ModelContext ctx, InferenceKernel kernel) {
+        this(ctx, kernel, LiteCrossTypeRule.INSTANCE);
+    }
+
     Typer(ModelContext ctx, InferenceKernel kernel, CrossTypeRule crossTypes) {
         this.ctx = ctx;
         this.kernel = kernel;
