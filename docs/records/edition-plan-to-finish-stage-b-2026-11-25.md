@@ -148,7 +148,7 @@ before.
 
 **Not in Stage B:** editions per project; PMCD and two-way SQL plans; checking legend-engine's answers on databases beyond DuckDB and H2; a lite-native service test runner.
 
-**Open, with no owner:** `//pct:pct_channel_b_twice_h2_relation` (a manual lane) fails 4 cases on a clean tree.
+**Open, with no owner:** `//pct:pct_channel_b_twice_h2_relation` (a manual lane) fails 4 cases on a clean tree. *(Owned and fixed 2026-11-26: section 6a, the heavy gate attributed.)*
 
 ## 6. State on 2026-11-25
 
@@ -561,6 +561,31 @@ lane failed again on the five trigonometry tests (not this branch's; 6b item 8).
 (`//gates:heavy`, one pass in the measuring session, no baseline): 83 of 150 passed; 36 failures need cloud
 credentials, the rest are being attributed against the merge-base before anything is concluded -- among them
 `//spec:corpus_warehouse_verdict` (41 tests failing that its roster does not list).
+
+**The full round on `810dbfe7`, the third CI reading, and the heavy gate attributed (2026-11-26).**
+- *The measuring session's round on `810dbfe7`:* `//...` 690 targets, 660 passed; the 29 that did not are the 22 that
+  fail only as root (27 of 27 pass unprivileged, the Postgres PCT suites and their channel B among them) and the
+  three CI had found (the edge guard target, the generated dialect table, the SQLite chunked-window test in five
+  integration targets), fixed at `c7ffb6af`. `//gates:local`: 549 passed, 21 failed (14 root-only and those seven).
+  Against its round on `b4c9bf0a` nothing else changed verdict; the nine stale recordings pass. Both corpus totals
+  are unchanged (DuckDB 2281 passed, 276 failed, 7 skipped; H2 2140, 422, 7); the size pins, the parser check, the
+  legend-engine lane's pins, python and DataCube pass.
+- *The local gate here on the fixes* (`c9b82f4d`): 556 passed, the 14 root-only failing.
+- *CI on the pushed head* (`55f5e3d9`, gates run 45788970603): every lane passes on Linux (16), Windows (16) and
+  Linux arm; on macOS 11 lanes had passed and 5 were still running when read, the corpus lane among them (6b item 8).
+  The first green CI on Linux and Windows for this branch.
+- *The heavy gate, attributed against the merge-base `c04c30ec`:* twelve of the thirteen targets that could have
+  been this branch's fail there too, with the same tests and first lines: `//spec:corpus_warehouse_verdict` (the same
+  41 tests its roster does not list), the reference lane and its pin, the manifest-world census, the line-spike
+  test, DataCube's two measures, the python lock file, the small-heap benchmark, the scale measure, and MariaDB's
+  channel B order failures (which differ run to run: not deterministic). None is this program's.
+- *The thirteenth is the program's own:* `//pct:pct_channel_b_twice_h2_relation`, the manual lane that plans and
+  runs each body twice. It passes on `main` and fails four tests on this branch (`project::testSimpleProject`,
+  `testSimpleProjectList`, `testSimpleProjectWithEmpty`, `composition::testFilterPostProject`: "LIST_GET reached a
+  dialect without a list encoding"), the item section 5 lists as open with no owner. Cause: since B3 step 2b the run
+  reads a relation's printed text at the edge before the body, and the guard's planning half still planned the
+  body before that read, so H2, which prints no relation itself, refused it. The guard now plans the body the run
+  plans.
 
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
