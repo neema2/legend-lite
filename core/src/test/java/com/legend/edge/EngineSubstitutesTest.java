@@ -107,7 +107,7 @@ class EngineSubstitutesTest {
         return String.format(STORE, connectionBody);
     }
 
-    /** The product's style handed legend-engine's table: the product's own dialects and session settings (the
+    /** The product's style handed legend-engine's edition: the product's own dialects and session settings (the
      *  backends' sessions are the product's), every store-bound {@code substring} lowered by the table's row. */
     private static final com.legend.database.PlanStyle PRODUCT_WITH_THE_TABLE = new com.legend.database.PlanStyle() {
         @Override
@@ -122,7 +122,7 @@ class EngineSubstitutesTest {
 
         @Override
         public <F> F twoForm(Class<F> kind, F productForm) {
-            return kind == com.legend.lowering.EditionTable.class ? kind.cast(EngineTable.INSTANCE) : productForm;
+            return kind == com.legend.planner.Edition.class ? kind.cast(EngineTable.DOOR) : productForm;
         }
 
         @Override

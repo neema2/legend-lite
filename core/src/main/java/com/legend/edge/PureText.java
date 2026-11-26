@@ -135,9 +135,9 @@ public final class PureText {
                 // legend-engine's AggregationAwareActivity, the routed query's print (J5 of the edge audit, 2026-11-17)
                 return kind.cast((com.legend.planner.RoutedQueries) AggAwareActivities::routingActivity);
             }
-            if (kind == com.legend.lowering.EditionTable.class) {
-                // the edition's table (the edition program's step 2): PCT's and the corpus's doors hand no row yet,
-                // the product's table as it is
+            if (kind == com.legend.planner.Edition.class) {
+                // the door's edition (the edition program's step 2): PCT's and the corpus's doors hand none yet, the
+                // product's as it is
                 return productForm;
             }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
@@ -180,9 +180,9 @@ public final class PureText {
 
     /** THE PURE/V1 ROUTE'S STYLE (B7, the user's ruling of 2026-11-17: pure/v1 matches legend-engine): {@link #UPSTREAM}
      *  in every dialect and facet, but a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain
-     *  operation, the database's own error passing through, and the lowering is handed legend-engine's table
-     *  ({@link EngineTable}; the edition program's step 2, 2026-11-25: the table and the planner's stamp took the place
-     *  of the door's rewrite of the typed query). Handed by the pure/v1 routes alone ({@link PureV1Routes},
+     *  operation, the database's own error passing through, and the planner is handed legend-engine's edition
+     *  ({@link EngineTable#DOOR}; the edition program's step 2, 2026-11-25: its table and the planner's stamp took the
+     *  place of the door's rewrite of the typed query). Handed by the pure/v1 routes alone ({@link PureV1Routes},
      *  {@link EdgeServer#runner}); PCT and the corpus keep {@link #UPSTREAM}. */
     public static final PlanStyle PURE_V1 = new PlanStyle() {
         @Override
@@ -225,16 +225,16 @@ public final class PureText {
         }
 
         /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its plain raises (B7; the lowering's
-         *  two-form choices since the audit's K5, 2026-11-17) and in its edition table, legend-engine's. */
+         *  two-form choices since the audit's K5, 2026-11-17) and in its edition, legend-engine's. */
         @Override
         public <F> F twoForm(Class<F> kind, F productForm) {
             if (kind == com.legend.lowering.LoweringForms.class) {
                 java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
                 return kind.cast(EdgeLoweringForms.PURE_V1);
             }
-            if (kind == com.legend.lowering.EditionTable.class) {
+            if (kind == com.legend.planner.Edition.class) {
                 java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
-                return kind.cast(EngineTable.INSTANCE);
+                return kind.cast(EngineTable.DOOR);
             }
             return UPSTREAM.twoForm(kind, productForm);
         }

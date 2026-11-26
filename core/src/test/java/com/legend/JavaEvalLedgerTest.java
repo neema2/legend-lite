@@ -1601,6 +1601,12 @@ class JavaEvalLedgerTest {
                     // planned against, no session. InstanceIds.java DELETED 2026-10-31 (the test-is-the-product plan's
                     // M1, B9): it was the lowering's ObjectSites twice over, and one program's objects take one minter
                     "PlanEnv.java",
+                    // a door's edition as the planner reads it, and the product's (the edition program's step 2,
+                    // 2026-11-26; docs/records/edition-plan-to-finish-stage-b-2026-11-25.md sections 2.2 and 2.3): an
+                    // interface of five questions about the program's shape or the door (what is stamped, whether
+                    // written flags are read, the lowering's table for a database) and its product form, which
+                    // answers no to each and hands the table with no row; signatures and constants, nothing evaluated
+                    "Edition.java", "LiteEdition.java",
                     // the body driver's planning helpers (the seam program's S2g, 2026-10-31): the body planner (the
                     // statement resolver, the Lowerer and the plan-preparation ladder, a value's road to its body),
                     // the engine's plan text (EnginePlans, EngineText, PlanEnvelope, SqlTextInputs), the handles' and
@@ -1898,9 +1904,11 @@ class JavaEvalLedgerTest {
                             // their recorder: deleted 2026-11-20 with stage B's B1 -- a site is worded after the run
                             // from its record)
                             // 2026-11-19, A3 of the compatibility program (the user's word ~22:20 "Yes to all three" to
-                            // the guard moves for the engine opt-in, relayed by the compat owner): the engine rewrite's
-                            // substitutes, typed by the typer's own overload resolution over the registry; builds typed
-                            // nodes, plans and runs nothing
+                            // the guard moves for the engine opt-in, relayed by the compat owner): a call built at a
+                            // compatibility door, typed by the typer's own overload resolution over the registry;
+                            // builds typed nodes, plans and runs nothing (2026-11-26, the edition program's step 2:
+                            // its substitutes for the door's rewrite went with the rewrite; the test-body door's
+                            // order-free assert still builds its call here)
                             "EngineSubstitutes.java",
                             // 2026-11-18, J40's only-edge-callers census: the bound context of legend-engine's test natives'
                             // runtime argument, moved from planner.BodyPlanner; a typed read, nothing evaluated
@@ -1921,24 +1929,14 @@ class JavaEvalLedgerTest {
                             "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
-                            // 2026-11-19, A3 piece 3 (the user's rulings of ~14:55 and ~19:20, the compat owner's go): the
-                            // pure-meaning detector at those routes -- a reading of the typed tree (which calls of the
-                            // String substring and indexOf legend-engine would send to the database); it computes no
-                            // value and changes no query; the door rewrites what it finds, with no setting since the
-                            // user's ruling of 2026-11-20 ~07:55 (claude/compat-program 25ede64f §1); since 2026-11-20
-                            // (the user's ~13:10, "toOne yes needs to be fixed for engine") it also reads which toOne
-                            // calls have an operand the typer gives no value, a multiplicity read, no value met
-                            "PureMeaningCheck.java",
-                            // 2026-11-19, A3's engine rewrite (the user's ruling of ~20:05, then an opt-in, the door's
-                            // one answer since 2026-11-20 ~07:55; the design approved to build by the independent reviewer; this row ruled by the
-                            // user 2026-11-19 ~22:20, "Yes to all three", relayed by the compat owner): each call the
-                            // detector flags replaced by the core's native for the database's own function, through
-                            // the planner's own inliner; it computes no value (the database computes the answer) and
-                            // builds no call of its own
-                            "PureMeaningRewrite.java",
+                            // (PureMeaningCheck.java and PureMeaningRewrite.java, A3's detector and its rewrite of the
+                            // typed query at pure/v1's routes: deleted 2026-11-26 with the edition program's step 2 --
+                            // the lowering's table and the planner's stamp decide what they decided; a register moving
+                            // down only)
                             // the edition's table at legend-engine's door (the edition program's step 2, 2026-11-25):
-                            // per native, which product native's rule lowers a call, by its stamp and the statement's
-                            // flags -- data, no SQL, no value computed
+                            // per native, which product native's rule lowers a call, by its stamp, the statement's
+                            // flags, its operand's static multiplicity and the statement's database -- data, no SQL,
+                            // no value computed
                             "EngineTable.java",
                             // a pure/v1 request's model, text or PureModelContextData (2026-10-21, leg 8 step 3) -- read
                             // and compiled only; no connection, no JDBC, no value. Moved here from com.legend.server

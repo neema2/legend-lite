@@ -1348,8 +1348,14 @@ final class ArchitectureTest {
             // the test-data routes (edge.TestDataRoutes since phase D's D1.0b, merged 2026-11-15 in ca5c4338f9: the
             // callers moved from server.TestDataRoutes; dated 2026-11-17 by C.13-CI): the raw-SQL refusal of a typed
             // query, and the seed's one entry, which refuses
-            "planner.ProductStatements#lowerTestDataSeed(com.legend.TypedQuery, java.lang.String)",
-            "com.legend.edge.TestDataRoutes",
+            // (2026-11-26, the edition program's step 2: the seed's entry takes the door's plan style as its third
+            // parameter and is reached from edge.PureV1Routes, the module that selects pure/v1's style -- the seed is
+            // planned as the door plans every query, its edition's table included, where until then the door rewrote
+            // the typed seed and lowered it in the product's style. One entry and one caller before and after: the
+            // two-parameter overload is reached from inside the planners alone now, the test planner's generator)
+            "planner.ProductStatements#lowerTestDataSeed(com.legend.TypedQuery, java.lang.String, "
+                    + "com.legend.database.PlanStyle)",
+            "com.legend.edge.PureV1Routes",
             "planner.QueryDoor#refuseRawSql(com.legend.TypedQuery)", "com.legend.edge.TestDataRoutes",
             // the planning observer (E-1's capture hook), from the root's Compiler and TypedQuery: told, never asked
             // (listed 2026-11-15 with the merge of main's #101, c2d5fa3650; dated 2026-11-17 by C.13-CI)

@@ -4,12 +4,10 @@
 package com.legend.lowering;
 
 import com.legend.compiler.spec.typed.TypedNativeCall;
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.FunctionId;
 import com.legend.platform.Feature;
 
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * THE EDITION'S TABLE (the edition program, docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.2): what
@@ -23,12 +21,12 @@ import java.util.function.Supplier;
  *
  * <p>THE STAMP picks the column. A call the planner stamped as outside any store query
  * ({@code TypedNativeCall.outsideStore}) is code the audience's own Java runs: at legend-engine's door a host-side
- * {@code let} (Pure's meaning), at the corpus's the test's own code around {@code execute()}. A door whose two columns
- * are the same never asks for stamps ({@link #stampsOutsideStore}).
+ * {@code let} (Pure's meaning), at the corpus's the test's own code around {@code execute()}.
  *
  * <p>A row is chosen by what the program fixes, never by a value: the call's resolved native, its stamp, the feature
- * flags its statement runs under, a fact its typed operands state (an operand that is always empty), and the database
- * the statement runs on ({@link #on}). A row whose answer is not checked on that database is refused by name there.
+ * flags its statement runs under and a fact its typed operands state (an operand that is always empty). A table is
+ * made by the planner for the database its statement runs on ({@code planner.Edition.table}); the lowering names no
+ * database and asks for none.
  */
 public interface EditionTable {
 
@@ -37,23 +35,4 @@ public interface EditionTable {
      *  @param call     the call, typed: its resolved native, its stamp, its operands' types
      *  @param features legend-engine's feature flags the statement runs under (a flag may choose the row) */
     @com.legend.base.Nullable FunctionId lowersAs(TypedNativeCall call, Set<Feature> features);
-
-    /** Whether this table's two columns differ, so the planner stamps the calls outside a store query. */
-    boolean stampsOutsideStore();
-
-    /** Whether, for this audience, a model-to-model mapping's transforms run outside any store query in a statement
-     *  that fetches a graph or not ({@code fetchesAGraph}) and whose mappings are chained over a store or not
-     *  ({@code chained}): where they do, the resolver stamps them as it composes them. Asked only of a table that
-     *  stamps. */
-    boolean transformsOutsideStore(boolean fetchesAGraph, boolean chained);
-
-    /** Whether, at this door, a statement runs under the legend-engine feature flags it carries itself
-     *  ({@code withFeatureFlags} calls written in the query): legend-engine's door reads them, as legend-engine does;
-     *  lite's own doors do not (register S130: the meaning is chosen by the door, never by a setting in the query). */
-    boolean readsWrittenFlags();
-
-    /** This table for the statements of one planning, which run on {@code database} (asked only when a row is
-     *  chosen, after the planner has decided the runtime; null where the planning names no single database). The
-     *  lowering imports no dialect and names no database: the planner binds the table before handing it over. */
-    EditionTable on(Supplier<@com.legend.base.Nullable DatabaseType> database);
 }

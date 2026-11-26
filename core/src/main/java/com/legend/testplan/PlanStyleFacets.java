@@ -60,9 +60,11 @@ import java.util.List;
             // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
             // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
             com.legend.sql.dialect.DatabaseSettingsForm.class,
-            // the edition's table (the edition program's step 2, 2026-11-25;
-            // docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.2): the product's has no row; a
-            // compatibility door's names, per native, the product rule its audience means. The one kind the other
-            // lowering forms fold into as the program goes
-            com.legend.lowering.EditionTable.class);
+            // the door's edition (the edition program's step 2, 2026-11-25;
+            // docs/records/edition-plan-to-finish-stage-b-2026-11-25.md sections 2.2 and 2.3): the product's has no
+            // row and stamps nothing; a compatibility door's names, per native, the product rule its audience means,
+            // and says where its audience's own code runs. The one kind the other lowering forms fold into as the
+            // program goes. (2026-11-26: the kind is the planner's Edition, which makes the lowering's table for the
+            // statement's database; until then the lowering's table itself, which made the lowering see a database.)
+            com.legend.planner.Edition.class);
 }

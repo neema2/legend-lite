@@ -116,20 +116,23 @@ public class ClaimRegistryTest {
         }
     }
 
-    /** The edge's claimers of {@code substringAsGiven}: the class that builds the engine rewrite's substitutes. */
-    static final java.util.Set<String> SUBSTRING_AS_GIVEN_EDGE_CLAIMERS = java.util.Set.of("EngineSubstitutes");
+    /** The edge's claimers of {@code substringAsGiven}: legend-engine's door's edition table, whose rows name it.
+     *  (2026-11-26, the edition program's step 2: {@code EngineTable} in {@code EngineSubstitutes}' place -- the door's
+     *  rewrite of the typed query, whose substitutes that class built, is deleted, and the lowering's table names the
+     *  native instead; one edge claimer before and after, no product claimer joins.) */
+    static final java.util.Set<String> SUBSTRING_AS_GIVEN_EDGE_CLAIMERS = java.util.Set.of("EngineTable");
 
     /**
      * NO PRODUCT CLAIMER OF {@code substringAsGiven} BUT {@code Scalars} (the pin the user ruled, 2026-11-19 ~21:10, "Yes
      * to all three for substring", relayed by the compat owner; the reviewer's D-S1 as corrected, ca8ea4a5). The native is
      * the legend-engine door's alone, and no user may name it (Pure.COMPILER_OWN). So in the committed ledger its
      * {@code also} column -- the files naming one of its overload constants, its id group or its quoted name -- holds the
-     * lowering's rule and the door's substitute builder ({@code edge.EngineSubstitutes}, its producer), and no other.
+     * lowering's rule and the door's table ({@code edge.EngineTable}, the one place that names it), and no other.
      * A product frontend that wrote it would be named here.
      * Named limit: the column does not read a use through the {@code Pure.Lite} name constant alone.
      */
     @Test
-    @DisplayName("substringAsGiven's one product claimer is Scalars, its producer the door's EngineSubstitutes")
+    @DisplayName("substringAsGiven's one product claimer is Scalars, its namer the door's EngineTable")
     void substringAsGivensOneProductClaimerIsScalars() throws IOException {
         List<String[]> rows = new ArrayList<>();
         for (String line : Files.readAllLines(RESOURCE, StandardCharsets.UTF_8)) {
@@ -141,21 +144,21 @@ public class ClaimRegistryTest {
         assertEquals(2, rows.size(), "substringAsGiven's two overloads");
         for (String[] row : rows) {
             assertEquals("", strayClaimers(row[5]), row[2]);
-            assertEquals(java.util.Set.of("Scalars", "EngineSubstitutes"), java.util.Set.of(row[5].split(";")),
-                    row[2] + ": its lowering's rule and its producer");
+            assertEquals(java.util.Set.of("Scalars", "EngineTable"), java.util.Set.of(row[5].split(";")),
+                    row[2] + ": its lowering's rule and the door's table");
         }
         // the pin bites: a planted product claimer is named
-        assertEquals("CypherToPure", strayClaimers("CypherToPure;EngineSubstitutes;Scalars"));
+        assertEquals("CypherToPure", strayClaimers("CypherToPure;EngineTable;Scalars"));
     }
 
     /**
      * NO PRODUCT CLAIMER OF {@code substrAsGiven} BUT {@code Scalars} (A3, 2026-11-20; the user's word ~07:45, "Okay 1",
      * relayed by the compat owner): substringAsGiven's pin, for its sibling. The native is the legend-engine door's
-     * alone (its engine rewrite's substitute for {@code substr} and the corrected {@code substring}), and no user may name
-     * it (Pure.COMPILER_OWN), so its {@code also} column holds the lowering's rule and the door's substitute builder.
+     * alone (its table's row for {@code substr} and the corrected {@code substring}), and no user may name
+     * it (Pure.COMPILER_OWN), so its {@code also} column holds the lowering's rule and the door's table.
      */
     @Test
-    @DisplayName("substrAsGiven's one product claimer is Scalars, its producer the door's EngineSubstitutes")
+    @DisplayName("substrAsGiven's one product claimer is Scalars, its namer the door's EngineTable")
     void substrAsGivensOneProductClaimerIsScalars() throws IOException {
         List<String[]> rows = new ArrayList<>();
         for (String line : Files.readAllLines(RESOURCE, StandardCharsets.UTF_8)) {
@@ -167,8 +170,8 @@ public class ClaimRegistryTest {
         assertEquals(2, rows.size(), "substrAsGiven's two overloads");
         for (String[] row : rows) {
             assertEquals("", strayClaimers(row[5]), row[2]);
-            assertEquals(java.util.Set.of("Scalars", "EngineSubstitutes"), java.util.Set.of(row[5].split(";")),
-                    row[2] + ": its lowering's rule and its producer");
+            assertEquals(java.util.Set.of("Scalars", "EngineTable"), java.util.Set.of(row[5].split(";")),
+                    row[2] + ": its lowering's rule and the door's table");
         }
     }
 

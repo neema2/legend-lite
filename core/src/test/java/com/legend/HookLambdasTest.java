@@ -58,9 +58,11 @@ class HookLambdasTest {
             Map.entry("com.legend.planner.PlanEnv#styled()", Set.of("com.legend.lowering.DateTimeTexts",
                     "com.legend.lowering.ListTexts", "com.legend.lowering.PureOnlyTexts",
                     // + LoweringForms (K5, train 5)
-                    "com.legend.lowering.LoweringForms",
-                    // + EditionTable (the edition program's step 2, 2026-11-25)
-                    "com.legend.lowering.EditionTable", "(twoForm reaches 4)")),
+                    "com.legend.lowering.LoweringForms", "(twoForm reaches 3)")),
+            // the door's edition (the edition program's step 2, 2026-11-25; its own method since 2026-11-26, when the
+            // kind became the planner's Edition: the statement road asks it what to stamp before a lowering is made)
+            Map.entry("com.legend.planner.PlanEnv#edition()", Set.of("com.legend.planner.Edition",
+                    "(twoForm reaches 1)")),
             // an execute's activity SQL (J40.PlanStyle, 2026-11-18: until then PlanStyle.activitySql picked one of two)
             Map.entry("com.legend.planner.PlanAllocations#activitySql(java.util.List, java.lang.String,"
                     + " com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, boolean)",
@@ -113,8 +115,9 @@ class HookLambdasTest {
             // trains 5 and 6 (2026-11-17): the lowering forms' product answer, an anonymous class in the kind (K5,
             // fd1df9928, a criterion (a) exception); the test-data printing's product form, its own class (K12, a095d0b56)
             Map.entry("com.legend.lowering.ProductLoweringForms", Set.of("com.legend.lowering.LoweringForms")),
-            // the edition's table's product form, no row and no stamp (the edition program's step 2, 2026-11-25)
-            Map.entry("com.legend.lowering.LiteEditionTable", Set.of("com.legend.lowering.EditionTable")),
+            // the edition's product form, no row and no stamp (the edition program's step 2, 2026-11-25; the planner's
+            // LiteEdition since 2026-11-26, with the kind)
+            Map.entry("com.legend.planner.LiteEdition", Set.of("com.legend.planner.Edition")),
             Map.entry("com.legend.testdatagen.LitePrinting", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")),
             // the failure words' product form (C1 item 4, 3120418b2a, train 8; measured 2026-11-18); census J29 (train 14's
             // 21a9734475) renamed it LiteVerdictWords, of the VerdictWords kind (re-measured 2026-11-18 on 1931d419b1)
@@ -177,11 +180,10 @@ class HookLambdasTest {
             Map.entry("com.legend.planner.PlanEnv#configure(com.legend.lowering.Lowerer)",
                     Set.of("(facet reaches 1)", "com.legend.lowering.ResultEnvelopes")),
             // the lowering helpers' Pure-only texts, asked with its call's refusal (B8); the kinds beside it are
-            // twoForm's, named in the same method (+ EditionTable, the edition program's step 2, 2026-11-25)
+            // twoForm's, named in the same method
             Map.entry("com.legend.planner.PlanEnv#styled()",
                     Set.of("(facet reaches 1)", "com.legend.lowering.DateTimeTexts", "com.legend.lowering.ListTexts",
-                            "com.legend.lowering.EditionTable", "com.legend.lowering.LoweringForms",
-                            "com.legend.lowering.PureOnlyTexts")),
+                            "com.legend.lowering.LoweringForms", "com.legend.lowering.PureOnlyTexts")),
             // the plan-text natives' routines, each asking when called: a body naming none plans on any style
             Map.entry("com.legend.planner.PlanTextRoutines#of(com.legend.compiler.spec.SpecCompiler,"
                     + " com.legend.planner.PlanEnv)",

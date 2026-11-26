@@ -118,20 +118,19 @@ public final class ProductStatements {
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         ProgramFrames.StatementRows rows = frames.statementRows();
-        // the flags the statements themselves carry (withFeatureFlags, legend-engine's second carrier), where the door
-        // reads them (legend-engine's does; lite's own never did, and do not): read here as written, because the
-        // resolver reads through the call and the lowering never sees it on the prepared body (the edition program's
-        // step 2, 2026-11-25)
-        Set<Feature> flagged = style.twoForm(com.legend.lowering.EditionTable.class,
-                com.legend.lowering.LiteEditionTable.INSTANCE).readsWrittenFlags()
-                        ? withWrittenFlags(features, statements) : features;
         // the query's own planning options (TypedQuery.withOptions), its lowering's
-        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, flagged, rows, style).withOptions(query.options())
-                : env(ctx, runtime, flagged, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
+        PlanEnv made = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows, style).withOptions(query.options())
+                : env(ctx, runtime, features, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
+        // the door's edition (the edition program's step 2): what it stamps, and whether it reads the flags the
+        // statements themselves carry (withFeatureFlags, legend-engine's second carrier). legend-engine's door reads
+        // them; lite's own never did, and do not. Read here as written, because the resolver reads through the call
+        // and the lowering never sees it on the prepared body
+        Edition edition = made.edition();
+        PlanEnv env = edition.readsWrittenFlags() ? made.withFeatures(withWrittenFlags(features, statements)) : made;
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
-        // the stamp (the edition program's step 2): asked for by a door whose table's two columns differ, never the product
+        // the stamp: asked for by a door whose table's two columns differ, never the product
         Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered,
-                env.styled().edition().stampsOutsideStore());
+                edition.stampsOutsideStore());
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
@@ -156,14 +155,12 @@ public final class ProductStatements {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
                 PlanTextRoutines.of(specs, env)));
-        // the stamp on a model-to-model mapping's transforms: the door's table says where its audience runs them
-        com.legend.lowering.EditionTable edition = env.styled().edition();
+        // the stamp on a model-to-model mapping's transforms: the door's edition says where its audience runs them
         boolean transformsOutside = edition.stampsOutsideStore() && edition.transformsOutsideStore(
                 reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedGraphFetch),
                 reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom f
                         && !f.context().chainMappings().isEmpty()));
-        body = BodyPlanner.resolver(specs, env).withTransformsOutsideStore(transformsOutside)
-                .resolve(body, runtime);   // Phase H
+        body = BodyPlanner.resolver(specs, env, transformsOutside).resolve(body, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by name),
         // then every store the statement touches must be bound to it (C3b)
         Compiler.executesOn(ctx, runtime);

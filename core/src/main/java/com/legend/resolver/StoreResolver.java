@@ -114,18 +114,12 @@ public final class StoreResolver {
         return this;
     }
 
-    private boolean transformsOutsideStore;
-
-    /** THE STAMP ON A MODEL-TO-MODEL MAPPING'S TRANSFORMS (the edition program's step 2, 2026-11-25): with
-     *  {@code outside}, the native calls of each transform this resolution composes are stamped as outside any store
-     *  query ({@code TypedNativeCall.outsideStore}), for the lowering's edition table. The planner decides it per
-     *  statement from its door's table ({@code lowering.EditionTable.transformsOutsideStore}); the product never
-     *  asks. Every resolver this one makes for a nested resolution carries it. */
-    public StoreResolver withTransformsOutsideStore(boolean outside) {
-        this.transformsOutsideStore = outside;
-        sources.setTransformsOutsideStore(outside);
-        return this;
-    }
+    /** THE STAMP ON A MODEL-TO-MODEL MAPPING'S TRANSFORMS (the edition program's step 2, 2026-11-25): where true, the
+     *  native calls of each transform this resolution composes are stamped as outside any store query
+     *  ({@code TypedNativeCall.outsideStore}), for the lowering's edition table. The planner decides it per statement
+     *  from its door's edition ({@code planner.Edition.transformsOutsideStore}); the product never asks. Every
+     *  resolver this one makes for a nested resolution is made with it. */
+    private final boolean transformsOutsideStore;
 
     private GraphEmission.@com.legend.base.Nullable SerializeTypeConfig serializeTypeCfg;
     private boolean checkedEnvelope;   // graphFetchChecked defect gate
@@ -146,10 +140,17 @@ public final class StoreResolver {
     private final ModelContext ctx;
 
     public StoreResolver(ModelContext ctx, SpecCompiler specs) {
+        this(ctx, specs, false);
+    }
+
+    /** {@link #StoreResolver(ModelContext, SpecCompiler)}, stamping a model-to-model mapping's transforms where
+     *  {@code transformsOutsideStore}. */
+    public StoreResolver(ModelContext ctx, SpecCompiler specs, boolean transformsOutsideStore) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.callees = new Callees(this.ctx);
         this.specs = Objects.requireNonNull(specs, "specs");
-        this.sources = new ClassSources(ctx, specs);
+        this.transformsOutsideStore = transformsOutsideStore;
+        this.sources = new ClassSources(ctx, specs, transformsOutsideStore);
         this.constructed = new ConstructedInstances(ctx, sources);
         sources.setConstructedRows(constructed::rowsFor, constructed::parametersFor);
         this.synthetics = new SyntheticHeads(ctx);

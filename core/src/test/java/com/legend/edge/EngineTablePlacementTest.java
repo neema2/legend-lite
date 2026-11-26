@@ -81,7 +81,7 @@ class EngineTablePlacementTest {
     static final String CORRECTED = "->meta::pure::executionPlan::featureFlag::withFeatureFlags("
             + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)";
 
-    /** The door's style with the product's table in legend-engine's place: the door's own plan of a query as written,
+    /** The door's style with the product's edition in legend-engine's place: the door's own plan of a query as written,
      *  every call by its own rule. What a row's effect is read against. */
     private static final PlanStyle AS_WRITTEN = new PlanStyle() {
         @Override
@@ -96,7 +96,7 @@ class EngineTablePlacementTest {
 
         @Override
         public <F> F twoForm(Class<F> kind, F productForm) {
-            return kind == com.legend.lowering.EditionTable.class ? productForm
+            return kind == com.legend.planner.Edition.class ? productForm
                     : PureText.PURE_V1.twoForm(kind, productForm);
         }
 
@@ -126,7 +126,7 @@ class EngineTablePlacementTest {
         }
     };
 
-    private static final ModelContext H2 = Compiler.compileModel(MODEL);
+    private static final ModelContext MODELLED = Compiler.compileModel(MODEL);
 
     private static String cut(String call) {
         return "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->" + call + ")->select(~[a])->from(t::RT)";
@@ -138,7 +138,7 @@ class EngineTablePlacementTest {
     }
 
     private static String engines(String query) {
-        return engines(H2, query, "t::RT");
+        return engines(MODELLED, query, "t::RT");
     }
 
     /** {@code query} planned in the door's style with no row: every call by its own rule. */
@@ -147,7 +147,7 @@ class EngineTablePlacementTest {
     }
 
     private static String asWritten(String query) {
-        return asWritten(H2, query, "t::RT");
+        return asWritten(MODELLED, query, "t::RT");
     }
 
     // ---- inside a store query: the database's own function ---------------------------------------------------------
@@ -261,7 +261,7 @@ class EngineTablePlacementTest {
     @Test
     void anUnchainedModelToModelTransformKeepsLegendPuresMeaning() {
         String query = "|t::Out.all()->project(~[s: o|$o.short])->from(t::M2, t::JsonRT)";
-        assertEquals(asWritten(H2, query, "t::JsonRT"), engines(H2, query, "t::JsonRT"));
+        assertEquals(asWritten(MODELLED, query, "t::JsonRT"), engines(MODELLED, query, "t::JsonRT"));
     }
 
     // ---- both in one query ------------------------------------------------------------------------------------------
@@ -291,7 +291,7 @@ class EngineTablePlacementTest {
      *  query no row answers plans as it did. */
     @Test
     void onADatabaseNotYetCheckedACallARowAnswersIsRefusedByName() {
-        ModelContext postgres = Compiler.compileModel(UNCHECKED);
+        ModelContext unchecked = Compiler.compileModel(UNCHECKED);
         Map<String, String> named = new LinkedHashMap<>();
         named.put(PLANTED, "substring/3 at 1:");
         named.put(cut("substring(2)"), "substring/2 at 1:");
@@ -301,7 +301,7 @@ class EngineTablePlacementTest {
         named.put("|" + TABLE + "->limit(1)->extend(~o: r|[]->cast(@Integer)->toOne())->from(t::RT)", "toOne(empty)");
         for (Map.Entry<String, String> e : named.entrySet()) {
             NotImplementedException refused = assertThrows(NotImplementedException.class,
-                    () -> engines(postgres, e.getKey(), "t::RT"), e.getKey());
+                    () -> engines(unchecked, e.getKey(), "t::RT"), e.getKey());
             assertTrue(refused.getMessage().contains("legend-engine's answer for " + e.getValue())
                     && refused.getMessage().contains("is not yet checked on Postgres"), refused.getMessage());
             assertFalse(refused.getMessage().contains("NAME"), "a refusal names calls, never the query's text");
@@ -309,20 +309,37 @@ class EngineTablePlacementTest {
         for (String quiet : List.of("|" + TABLE + "->select(~[NAME])->from(t::RT)",
                 "{|let x = 'abcdef'->substring(1, 3); " + TABLE + "->filter(r|$r.NAME == $x)->from(t::RT);}",
                 "|" + TABLE + "->extend(~[b: r|$r.NAME->toOne()->indexOf('o', 1)])->from(t::RT)")) {
-            assertEquals(asWritten(postgres, quiet, "t::RT"), engines(postgres, quiet, "t::RT"), quiet);
+            assertEquals(asWritten(unchecked, quiet, "t::RT"), engines(unchecked, quiet, "t::RT"), quiet);
         }
     }
 
-    /** The table as the style hands it over answers nothing until the planner binds it to its statement's database. */
+    /** The door's edition answers no row itself: the planner makes the table of a statement's database from it. */
     @Test
-    void theTableIsBoundToItsStatementsDatabaseBeforeItAnswers() {
+    void theTableIsMadeForItsStatementsDatabase() {
         com.legend.compiler.spec.typed.TypedNativeCall[] call = new com.legend.compiler.spec.typed.TypedNativeCall[1];
-        find(Compiler.query(H2, PLANTED).body(), call);
-        assertThrows(IllegalStateException.class, () -> EngineTable.INSTANCE.lowersAs(call[0], java.util.Set.of()));
+        find(Compiler.query(MODELLED, PLANTED).body(), call);
+        // the database the model's connection declares (read, never named here: the dialect owners name databases)
+        DatabaseType declared = MODELLED.findConnection("t::Conn").orElseThrow().databaseType();
+        assertThrows(IllegalStateException.class, () -> EngineTable.DOOR.lowersAs(call[0], java.util.Set.of()));
         assertEquals(com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN.get(1),
-                EngineTable.INSTANCE.on(() -> DatabaseType.H2).lowersAs(call[0], java.util.Set.of()));
-        assertEquals(null, EngineTable.INSTANCE.on(() -> DatabaseType.H2)
-                .lowersAs(call[0].stampedOutsideStore(true), java.util.Set.of()));
+                EngineTable.DOOR.table(declared).lowersAs(call[0], java.util.Set.of()));
+        assertEquals(null, EngineTable.DOOR.table(declared).lowersAs(call[0].stampedOutsideStore(true),
+                java.util.Set.of()));
+        // no database named: refused, as on one not yet checked
+        assertThrows(NotImplementedException.class,
+                () -> EngineTable.DOOR.table(null).lowersAs(call[0], java.util.Set.of()));
+    }
+
+    /** A function whose body does not type is no concern of a query that does not call it (the door's rewrite read
+     *  every function a query could reach, and reported one it could not type; the lowering meets only what the query
+     *  becomes). */
+    @Test
+    void aFunctionWhoseBodyDoesNotTypeIsNoConcernOfAQueryThatDoesNotCallIt() {
+        ModelContext c = Compiler.compileModel(MODEL + String.join("\n",
+                "###Pure",
+                "function t::untyped(s: String[1]): Integer[1] { $s->substring(1, 2) }",
+                ""));
+        assertEquals(engines(PLANTED), engines(c, PLANTED, "t::RT"));
     }
 
     private static void find(List<com.legend.compiler.spec.typed.TypedSpec> nodes,

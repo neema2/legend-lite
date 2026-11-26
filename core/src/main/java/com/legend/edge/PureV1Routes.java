@@ -335,6 +335,13 @@ public final class PureV1Routes {
         return EngineComparisons.asTheDatabases(query);
     }
 
+    /** A test-data seed's query, lowered as this door plans every query: legend-engine's meaning, in the door's style
+     *  (the seed's query is the one whose meaning chooses the keys), or refused by name. Here, with the door's other
+     *  plannings, because the door's style is selected by the pure/v1 routes' module alone. */
+    static com.legend.sql.SqlQuery loweredSeed(com.legend.TypedQuery seed, String runtime) {
+        return com.legend.planner.ProductStatements.lowerTestDataSeed(asLegendEngine(seed), runtime, PureText.PURE_V1);
+    }
+
     /**
      * E8 in upstream's Arrow format ({@code ?serializationFormat=ARROW_IPC}; the result boundary program's track A,
      * 2026-10-29): the relation's rows as ONE Arrow IPC stream written by lite's own writer

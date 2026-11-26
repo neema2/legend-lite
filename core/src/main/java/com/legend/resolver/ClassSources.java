@@ -104,12 +104,8 @@ public final class ClassSources {
             constructedParameters = id -> List.of();
 
     /** Whether a model-to-model mapping's transforms are stamped as outside any store query as they are composed
-     *  ({@link StoreResolver#withTransformsOutsideStore}). */
-    private boolean transformsOutsideStore;
-
-    void setTransformsOutsideStore(boolean outside) {
-        this.transformsOutsideStore = outside;
-    }
+     *  (its resolver's: {@code StoreResolver.transformsOutsideStore}). */
+    private final boolean transformsOutsideStore;
 
     void setConstructedRows(
             java.util.function.Function<String, Map<String, List<List<String>>>> rows,
@@ -186,8 +182,15 @@ public final class ClassSources {
     private final StackBuilder stacks;
 
     public ClassSources(ModelContext ctx, SpecCompiler specs) {
+        this(ctx, specs, false);
+    }
+
+    /** {@link #ClassSources(ModelContext, SpecCompiler)}, stamping a model-to-model mapping's transforms as outside any
+     *  store query where {@code transformsOutsideStore} (its resolver's, the planner's decision). */
+    ClassSources(ModelContext ctx, SpecCompiler specs, boolean transformsOutsideStore) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.specs = Objects.requireNonNull(specs, "specs");
+        this.transformsOutsideStore = transformsOutsideStore;
         this.stacks = new StackBuilder(ctx, this);
     }
 
@@ -921,7 +924,7 @@ public final class ClassSources {
         // across instances — no corpus shape does; a cycle dies by stack,
         // loudly, not silently.
         if (anchoredInFlow(pipeline)) {
-            var nested = new StoreResolver(ctx, specs).withTransformsOutsideStore(transformsOutsideStore)
+            var nested = new StoreResolver(ctx, specs, transformsOutsideStore)
                     .resolve(java.util.List.of(pipeline), null, mappingFqn);
             pipeline = nested.get(0);
         }

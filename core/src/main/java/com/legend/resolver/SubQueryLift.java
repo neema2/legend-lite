@@ -239,7 +239,7 @@ final class SubQueryLift {
                         context.runtimeFqn(), proj.info()));
         TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
                 m, r, context.chainMappings(), context.jsonSources()), proj.info());
-        TypedSpec resolved = new StoreResolver(ctx, specs).withTransformsOutsideStore(transformsOutsideStore)
+        TypedSpec resolved = new StoreResolver(ctx, specs, transformsOutsideStore)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);
         while (resolved instanceof TypedFrom fr) {
@@ -276,7 +276,7 @@ final class SubQueryLift {
                 : Optional.of(new TypedPackageableRef(context.runtimeFqn(), proj.info()));
         TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
                 m, r, context.chainMappings(), context.jsonSources()), proj.info());
-        TypedSpec resolved = new StoreResolver(ctx, specs).withTransformsOutsideStore(transformsOutsideStore)
+        TypedSpec resolved = new StoreResolver(ctx, specs, transformsOutsideStore)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);
         while (resolved instanceof TypedFrom fr) {
@@ -320,7 +320,7 @@ final class SubQueryLift {
                         context.runtimeFqn(), proj.info()));
         TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
                 m, r, context.chainMappings(), context.jsonSources()), proj.info());
-        TypedSpec resolved = new StoreResolver(ctx, specs).withTransformsOutsideStore(transformsOutsideStore)
+        TypedSpec resolved = new StoreResolver(ctx, specs, transformsOutsideStore)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);
         while (resolved instanceof TypedFrom fr) {

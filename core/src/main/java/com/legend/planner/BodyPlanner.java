@@ -67,7 +67,15 @@ public final class BodyPlanner {
      * rows ride every resolution (one construction, every site). */
     public static StoreResolver resolver(
             SpecCompiler specs, PlanEnv env) {
-        return new StoreResolver(env.ctx(), specs)
+        return resolver(specs, env, false);
+    }
+
+    /** {@link #resolver(SpecCompiler, PlanEnv)}; with {@code transformsOutsideStore}, a model-to-model mapping's
+     *  transforms are stamped as outside any store query as they are composed (the edition program's step 2: the
+     *  door's edition decides it per statement, {@code Edition.transformsOutsideStore}). */
+    public static StoreResolver resolver(
+            SpecCompiler specs, PlanEnv env, boolean transformsOutsideStore) {
+        return new StoreResolver(env.ctx(), specs, transformsOutsideStore)
                 // a graph fetch's key arguments in the plan's style (D1.2, register S312)
                 .withGraphKeyText(new com.legend.resolver.GraphKeyText(env.style()::graphKeyDate,
                         env.style()::graphKeyString))

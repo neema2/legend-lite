@@ -180,15 +180,21 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
                 style.twoForm(com.legend.lowering.LoweringForms.class, com.legend.lowering.ProductLoweringForms.INSTANCE),
                 style.twoForm(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.Styled.LITE_DATE_TIMES),
                 style.twoForm(com.legend.lowering.ListTexts.class, com.legend.lowering.ProductListTexts.INSTANCE),
-                style.twoForm(com.legend.lowering.EditionTable.class, com.legend.lowering.LiteEditionTable.INSTANCE)
-                        .on(this::database));
+                editionTable());
     }
 
-    /** The database this environment's statements run on, as its runtime's connections declare it
-     *  ({@code Compiler.executesOn}); null where the environment names no runtime. Asked after the resolver has
-     *  decided the runtime, by the edition's table when it chooses a row ({@code EditionTable.on}). */
-    public com.legend.model.ConnectionDefinition.@Nullable DatabaseType database() {
-        return runtimeFqn == null ? null : com.legend.Compiler.executesOn(ctx, runtimeFqn).type();
+    /** The door's edition ({@link Edition}): the product's, or a compatibility door's own. */
+    public Edition edition() {
+        return style.twoForm(Edition.class, LiteEdition.INSTANCE);
+    }
+
+    /** The edition's table for this environment's statements: made for the database they run on, as the runtime's
+     *  connections declare it ({@code Compiler.executesOn}), where the edition's rows depend on it. The lowering is
+     *  configured after the resolver has decided the runtime, so the database is read no earlier than that. */
+    private com.legend.lowering.EditionTable editionTable() {
+        Edition edition = edition();
+        return edition.table(edition.rowsByDatabase() && runtimeFqn != null
+                ? com.legend.Compiler.executesOn(ctx, runtimeFqn).type() : null);
     }
 
     /** A Lowerer configured by this environment: its frame's time zone, its style's text facets ({@link #styled}: the
