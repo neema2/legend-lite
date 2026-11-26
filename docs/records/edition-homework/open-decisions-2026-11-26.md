@@ -72,64 +72,144 @@ come back quickly.
 
 Each has: the problem, the options with what each costs, and the orchestrator's recommendation. Answer by number.
 
-### Needed now (they block slice 6.2 or 6.3)
+### Step 6's decisions, with what upstream answers (measured 2026-11-26, about 22:40 UTC)
 
-**D1. Numbers of different types inside a mixed list** (`[3, 'a']->contains(3D)`, `[1.5, 'a']->contains(1.5D)`).
-- *Problem:* lite's rule is that values of different types are never equal. Compiled legend-pure answers the first
-  one true (it compares the printed digits); interpreted legend-pure answers false. Today lite refuses these with an
-  error, and whether it refuses depends on the list's shape. Inside a mixed list the types are known only at run
-  time, so legend-pure's door cannot rewrite the comparison.
-- *Options:* (a) **answer false at every door.** Consistent, no SQL (the refusal's code goes), one recorded
-  difference from compiled legend-pure. (b) Keep refusing. No wrong-looking answer, but a valid program errors, and
-  inconsistently. (c) Compare the printed digits in SQL as compiled legend-pure does. Matches it; costs SQL on every
-  such comparison and breaks lite's own rule.
-- *Recommendation:* (a). Built, waiting for the word.
+*Every upstream answer here was RUN on upstream's own code that evening (interpreted legend-pure 5.99.0, compiled
+legend-pure 5.99.0, legend-engine 4.145.0 store-less and inside an H2 store query) or READ in the pinned sources:
+`docs/records/edition-homework/upstream-step6/answers.md`, with the probes and raw output beside it. The orchestrator's
+first recommendations on D2 and D3 were made before this measurement and are changed below.*
 
-**D2. `max` and `min` when equal numbers have different types** (`[3, 3.0]->max()`).
-- *Problem:* legend-pure keeps whichever came first in the list. Lite's sort now orders equal numbers Integer, Float,
-  Decimal (your ruling of 2026-11-25).
-- *Options:* (a) **follow the type order:** `max` is the Float and `min` the Integer wherever they sit. `sort`,
-  `max` and `min` agree and the answer does not depend on list order; one recorded difference from legend-pure; the
-  SQL cost is not measured yet and comes back to you if it is more than a few characters. (b) Keep legend-pure's
-  first-in-list. Free, matches legend-pure; but `[3, 3.0]->max()` is `3` while `[3, 3.0]->sort()->last()` is `3.0`.
-- *Recommendation:* (a), because the equality rule's own text says ordering, `max`, `min` and `sort` hold to one
-  order.
+**What upstream does, in one paragraph.** Pure keeps two different ideas apart. EQUALITY is by type and value in
+interpreted legend-pure (`1 == 1.0` false, `3 == 3D` false); compiled legend-pure loosens it to "the same printed
+digits" (`3 == 3D` true, `1 == 1.0` false); legend-engine's own generated Java depends on the shape of the code
+(`1 == 1.0` true between two literals, false through a `Number`, false inside `contains`). ORDERING is by value in all
+three, with no regard to type: `1 < 1.0` false, `1 <= 1.0` true, `1 >= 1.0` true, `compare(1, 1.0)` 0. Inside a
+database query legend-engine leaves everything to the database, equality included: `intCol == floatCol` is
+`I is not distinct from F`, true where the numbers are equal.
 
-**D3. `<` and `>` between two values whose types are known only at run time** (an Integer 1 and a Float 1.0 reached
-through `Number` or `Any`).
-- *Problem:* `1 == 1.0` is false (two types). If `<` compares by value alone, then none of `<`, `==`, `>` holds.
-- *Options:* (a) **by value, then by type** (`1 < 1.0` is true): exactly one of the three always holds, and it
-  agrees with sort. Costs one extra condition in the SQL of such comparisons only. (b) By value alone: free, but
-  incoherent as above. (c) Refuse them with an error: safe, but programs that run in Pure fail.
-- *Recommendation:* (a). Where both types are known when the query is compiled this stays a compile error, as today.
+**D1. Numbers of different types inside a mixed list.**
 
-**D4. The host judge's size limit.**
-- *Problem:* the host judge (the second, independent checker of test asserts) needs the same tie-break, or the two
-  judges can disagree on `[3, 3.0]` against `[3.0, 3]`. Its comparison file sits exactly at its line limit (319).
-- *Options:* (a) **raise the limit by about four lines.** (b) Make room by reshaping other code in the file: keeps
-  the number, costs time and risk for no gain. (c) Leave the host judge without it: a known disagreement.
+| | interpreted Pure | compiled Pure | legend-engine store-less | lite today | lite, slice 6.2 as built |
+|---|---|---|---|---|---|
+| `[3, 'a']->contains(3D)` | false | **true** | false | refused (an error) | false |
+| `3->in([3D, 'a'])` | false | **true** | false | refused | false |
+| `[1.5, 'a']->contains(1.5D)` | false | false | false | refused | false |
+| `[1, 'a']->contains(1.0)` | false | false | false | false | false |
+| `[3, 'a'] == [3D, 'a']` | false | **true** | **true** | refused | false |
+| `[3, 3D]->removeDuplicates()->size()` | 2 | 2 | 2 | 2 | 2 |
+
+Inside a store query legend-engine writes `I in (3, 'a')` and H2 refuses it when it runs.
+- *Option (a), answer false at every door:* agrees with interpreted legend-pure on every row and with legend-engine
+  on all but the list-against-list row; disagrees with compiled legend-pure on three rows. No SQL (the refusal's
+  code is deleted). One register row amended (S127). Compiled legend-pure contradicts itself here anyway: it says
+  `3 == 3D` yet `removeDuplicates` keeps both.
+- *Option (b), keep refusing:* no answer that differs from anyone, but a program every upstream runtime runs gets an
+  error, and which lists are refused depends on their shape.
+- *Option (c), compiled legend-pure's rule (compare the printed digits):* matches compiled legend-pure, disagrees
+  with interpreted legend-pure and legend-engine, costs a text comparison in SQL, and breaks the ruled equality rule.
+- *What it locks in:* slices 6.4 and 6.5 build `==` and the asserts on this rule. If PCT is later run against
+  compiled legend-pure (step 10), any PCT test that relies on `3 == 3D` inside a mixed list would differ; none is
+  known.
 - *Recommendation:* (a).
 
-**D5. A comparison inside a general-purpose function** (slice 6.3). `f(x: Number[1]) { $x->in([0, 1]) }` called as
-`f(1.0)`.
-- *Problem:* today the database answers by value: true. The strict run-time reading says a Float is never one of two
-  Integers: false. The literal rule says a number literal reads as the type of the value it is written against:
-  true.
-- *Options:* (a) **a literal written against a `Number` reads as whatever number type the value has at run time**
-  (true): what a user expects, what the database does for free, what landed in the last batch. (b) Strict (false):
-  the purest reading of "different types never equal", but `1.0->in([0, 1])` written directly is true by the
-  literal rule, so the same code would answer differently inside a function; and it costs SQL to carry the types.
-- *Recommendation:* (a). Two values that are not literals and hold different number types still compare as
-  different (D1's rule).
+**D2. `max` and `min` over a list when equal numbers have different types.**
 
-**D6. Counting a table's cells in an assert** (`assertSize($t.rows.values, 4)`).
-- *Problem:* lite counts the rows (2) where Pure counts the cells (4). Older than this program. Inside the compiler
-  "a table's cells" and "a table's rows" are the same thing by a decision of 2026-08-24, so nothing later can tell
-  them apart.
-- *Options:* (a) **leave it recorded, outside Stage B.** One rare assert shape stays wrong. (b) A narrow rewrite of
-  that one assert when it is typed: perhaps half a day, not yet probed. (c) Give cells their own representation:
-  large, and reopens the August decision.
-- *Recommendation:* (b) if the probe shows it is small, else (a). Never (c) inside Stage B.
+| | all three upstream runtimes | lite today |
+|---|---|---|
+| `[3, 3.0]->max()` | Float 3.0 | **Integer 3** |
+| `[3.0, 3]->max()` | Integer 3 | **Float 3.0** |
+| `[3, 3.0]->min()` | Float 3.0 | **Integer 3** |
+| `[3.0, 3]->min()` | Integer 3 | **Float 3.0** |
+| `max(3, 3.0)`, two arguments | Integer 3 (the left one) | a compile error (two known types) |
+
+Upstream's rule, read in `max.pure` and `min.pure`: the list form folds from the front and keeps the LATER element on
+a tie; the two-argument form keeps the left. **Lite today keeps the FIRST, the opposite of all three,** under a test
+whose comment says it is Pure's rule (`TaggedSelectionTest`). Found by this measurement. Inside a store query
+legend-engine writes a `CASE` and the database answers the Float.
+- *Option (a), match upstream: the last of the tied elements.* Fixes an existing difference; no recorded
+  difference afterwards; the answer depends on the list's order, as upstream's does. A small SQL change (the last
+  position of the winning value instead of the first), to be measured.
+- *Option (b), the type order (the Float for `max`, the Integer for `min`, wherever they sit).* The answer does not
+  depend on list order; agrees with upstream in two of the four rows and differs in two; needs a register row.
+- *Option (c), leave it:* differs from every upstream runtime on all four rows.
+- *Recommendation:* (a). (Changed: the first recommendation, (b), assumed upstream kept the first; it keeps the
+  last, in all three runtimes.)
+
+**D3. `<`, `<=`, `>`, `>=` between values whose types are known only at run time.**
+
+| | all three upstream runtimes | in an H2 store query (legend-engine) |
+|---|---|---|
+| `1 < 1.0` | false | by value |
+| `1 <= 1.0` | true | by value |
+| `1 >= 1.0` | true | by value |
+| `compare(1, 1.0)` | 0 | no SQL translation |
+| `1->cast(@Number) < 1.0->cast(@Number)` | false | |
+
+- *Option (a), by value then by type (`1 < 1.0` true, `1 >= 1.0` false):* exactly one of `<`, `==`, `>` holds, but
+  it **differs from every upstream runtime and from the database** on equal numbers of different types, and costs
+  an extra condition in SQL.
+- *Option (b), by value alone:* what all three upstream runtimes and the database do; zero SQL. `1 <= 1.0` and
+  `1 >= 1.0` are both true while `1 == 1.0` is false: that is Pure's own design (ordering is numeric, equality is
+  typed), not an accident of lite's.
+- *Recommendation:* (b). (Changed from (a).) Where both types are known when the query is compiled, lite's door
+  keeps its compile error, as ruled.
+
+**D3b. Sort, and the ruling of 2026-11-25 ("among equal magnitudes Integer < Float < Decimal"), to look at again.**
+
+| | all three upstream runtimes | lite today | lite, slice 6.2 as built |
+|---|---|---|---|
+| `[3.0, 3, 1]->sort()` | [1, 3.0, 3] | [1, 3.0, 3] | **[1, 3, 3.0]** |
+| `[3, 3.0, 1]->sort()` | [1, 3, 3.0] | [1, 3, 3.0] | [1, 3, 3.0] |
+| `[3D, 3.0, 3]->sort()` | [3D, 3.0, 3] | not measured | [3, 3.0, 3D] |
+
+Upstream's sort is stable and compares equal numbers as equal, so ties keep the list's order. The ruling was made
+before this was measured; as built it makes lite differ from all three on any list where a Float is written before
+an equal Integer.
+- *Option (a), keep the list's order on a tie (upstream's):* no difference from anyone; deterministic; the cheapest
+  SQL (the position is already the last sort key). The tie-break written today comes out; the cheaper sort (the
+  redundant sort removed, MySQL 16,826 to about 7,900 characters) stays.
+- *Option (b), keep the ruled type order:* the answer does not depend on the order the list was written in; one
+  register row; the compatibility doors answer it too (nothing after the typer knows the audience, so they cannot
+  undo it without a second sort function).
+- *Recommendation:* (a), reversing the 2026-11-25 ruling on the numbers. The dates' half of that ruling (a day before
+  a date-time at the same instant) is legend-pure's own order and stays.
+
+**D4. The host judge's size limit.** Needed whichever way D2 and D3b go: to match two lists as multisets the host
+judge sorts both and compares position by position, and with ties `[3, 3.0]` against `[3.0, 3]` it would say
+"different". That tie-break is inside the judge, not a program-visible order. Its file is exactly at its limit of
+319 lines. *Options:* raise the limit by about four lines; or reshape the file to make room (time and risk for
+nothing); or leave the judges able to disagree. *Recommendation:* raise it.
+
+**D5. A function written for `Number`, called with a specific type.**
+`amongWholes(x: Number[1]) { $x->in([0, 1]) }`, `amongFloats(x: Number[1]) { $x->in([0.0, 1.0]) }`,
+`same(x: Number[1], y: Number[1]) { $x == $y }`.
+
+| | interpreted Pure | compiled Pure | legend-engine store-less | legend-engine in an H2 store (columns) | lite today |
+|---|---|---|---|---|---|
+| `amongWholes(1.0)` | false | false | false | by value: the rows where F is 0.0 or 1.0 | **true** |
+| `amongFloats(1)` | false | false | false | by value | **true** |
+| `1.0->in([0, 1])`, written directly | false | false | false | `F in (0, 1)`: by value | a compile error (two literals); over a Float column, by value (the literal rule) |
+| `same(1, 1.0)` | false | false | **true** | `I is not distinct from F`: by value | not measured |
+
+Upstream gives two answers to the same code: false when nothing is in a database, by value when the values are
+columns. Lite has one meaning everywhere, so it has to pick.
+- *Option (a), a literal written against a `Number` reads as the value's own number type (by value):* the same
+  answer as legend-engine gives inside a database, which is where lite's queries run; the same answer whether the
+  comparison is written directly over a column (your literal rule of 2026-11-26) or inside a function; free in SQL.
+  Differs from all three store-less answers for a literal argument (`amongWholes(1.0)` true against false). One
+  register row.
+- *Option (b), strict (a Float is never one of two Integers):* matches all three store-less answers; but the same
+  comparison then answers differently inside a function (false) and written directly over a Float column (true by
+  the literal rule), and it differs from legend-engine inside a database; costs SQL to carry each value's type.
+- *For two values that are not literals* (`same`): interpreted and compiled Pure say false; legend-engine says true
+  both store-less and in a database. Lite's equality rule says false (two types). Slice 6.3 builds this; it is a
+  difference from legend-engine at lite's own door, already covered by S127's ruling ("the principled fix for the
+  product").
+- *Recommendation:* (a) for literals; the equality rule (false) for two non-literal values.
+
+**D6. Counting a table's cells in an assert** (`assertSize($t.rows.values, 4)`): lite counts the rows where Pure
+counts the cells. Not measured upstream (legend-engine plans no assert). *Recommendation:* out of step 6 unless a
+half-day narrow fix proves out; recorded either way.
 
 ### Step 8's (they block its two later slices)
 

@@ -1,0 +1,43 @@
+A1	[3, 'a']->contains(3D)
+A2	[1.5, 'a']->contains(1.5D)
+A3	[1, 'a']->contains(1.0)
+A4	3->in([3D, 'a'])
+A5	[3, 'a'] == [3D, 'a']
+A6	[1, 'a'] == [1.0, 'a']
+A7	[3, 3D]->removeDuplicates()->size()
+A8	[1, 1.0]->removeDuplicates()->size()
+A7x	[3, 3D]->removeDuplicates()
+A8x	[1, 1.0]->removeDuplicates()
+B1	[3, 3.0]->max()
+B2	[3.0, 3]->max()
+B3	[3, 3.0]->min()
+B4	[3.0, 3]->min()
+B5	[3.0, 3, 1]->sort()
+B6	[3, 3.0, 1]->sort()
+B7	[3D, 3.0, 3]->sort()
+B8a	max(3, 3.0)
+B8b	max(3.0, 3)
+B9	[3.0, 'a', 3]->sort()
+B9x	['a', 3, 3.0]->sort()
+C1	1 < 1.0
+C2	1 <= 1.0
+C3	1 > 1.0
+C4	1 >= 1.0
+C5	1.0 < 1
+C6	1 < 1D
+C7a	1.5 < 1.5D
+C7b	1.5 <= 1.5D
+C8	1 == 1.0
+C9	compare(1, 1.0)
+C9x	compare(3, 3D)
+C9y	compare(1.5, 1.5D)
+C10a	1->cast(@Number) < 1.0->cast(@Number)
+C10b	1->cast(@Number) == 1.0->cast(@Number)
+D1	p::amongWholes(1.0)
+D2	p::amongWholes(1)
+D3	p::amongFloats(1)
+D4	p::amongFloats(1.0)
+D5	p::same(1, 1.0)
+D6	p::less(1, 1.0)
+D7	1.0->in([0, 1])
+D8	1->in([0.0, 1.0])

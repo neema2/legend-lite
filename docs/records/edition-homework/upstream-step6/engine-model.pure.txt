@@ -1,0 +1,65 @@
+// step 6 probe model (2026-11-26): the four Number functions of group D, and a small H2 store with an INTEGER, a
+// FLOAT (DOUBLE in H2) and a DECIMAL column, seeded by LocalH2 testDataSetupSqls (after core/src/test/resources/upstream-api/variant-probe.pure).
+function p::amongWholes(x: Number[1]): Boolean[1] { $x->in([0, 1]) }
+function p::amongFloats(x: Number[1]): Boolean[1] { $x->in([0.0, 1.0]) }
+function p::same(x: Number[1], y: Number[1]): Boolean[1] { $x == $y }
+function p::less(x: Number[1], y: Number[1]): Boolean[1] { $x < $y }
+
+Class p::Row
+{
+  id: Integer[1];
+  i: Integer[1];
+  f: Float[1];
+  d: Decimal[1];
+}
+
+###Relational
+Database p::DB
+(
+  Table T
+  (
+    ID INTEGER PRIMARY KEY,
+    I INTEGER,
+    F FLOAT,
+    D DECIMAL(10, 2)
+  )
+)
+
+###Mapping
+Mapping p::M
+(
+  p::Row: Relational
+  {
+    ~mainTable [p::DB]T
+    id: [p::DB]T.ID,
+    i: [p::DB]T.I,
+    f: [p::DB]T.F,
+    d: [p::DB]T.D
+  }
+)
+
+###Connection
+RelationalDatabaseConnection p::H2Conn
+{
+  store: p::DB;
+  type: H2;
+  specification: LocalH2
+  {
+    testDataSetupSqls: [
+      'DROP TABLE IF EXISTS T;',
+      'CREATE TABLE T (ID INTEGER PRIMARY KEY, I INTEGER, F DOUBLE, D DECIMAL(10, 2));',
+      'INSERT INTO T VALUES (1, 1, 1.0, 1.00), (2, 0, 0.0, 0.00), (3, 2, 2.5, 2.50), (4, 3, 3.0, 3.00), (5, 1, 1.5, 1.50);'
+    ];
+  };
+  auth: DefaultH2;
+}
+
+###Runtime
+Runtime p::H2RT
+{
+  mappings: [ p::M ];
+  connections:
+  [
+    p::DB: [ c1: p::H2Conn ]
+  ];
+}

@@ -1,0 +1,105 @@
+package probe;
+
+import org.eclipse.collections.api.RichIterable;
+import org.finos.legend.engine.language.pure.compiler.Compiler;
+import org.finos.legend.engine.language.pure.compiler.toPureGraph.HelperValueSpecificationBuilder;
+import org.finos.legend.engine.language.pure.compiler.toPureGraph.PureModel;
+import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
+import org.finos.legend.engine.plan.execution.PlanExecutor;
+import org.finos.legend.engine.plan.execution.result.ConstantResult;
+import org.finos.legend.engine.plan.execution.result.Result;
+import org.finos.legend.engine.plan.execution.result.StreamingResult;
+import org.finos.legend.engine.plan.execution.result.serialization.SerializationFormat;
+import org.finos.legend.engine.plan.generation.PlanGenerator;
+import org.finos.legend.engine.plan.generation.transformers.LegendPlanTransformers;
+import org.finos.legend.engine.plan.platform.PlanPlatform;
+import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextData;
+import org.finos.legend.engine.protocol.pure.v1.model.executionPlan.SingleExecutionPlan;
+import org.finos.legend.engine.pure.code.core.PureCoreExtensionLoader;
+import org.finos.legend.engine.shared.core.ObjectMapperFactory;
+import org.finos.legend.engine.shared.core.deployment.DeploymentMode;
+import org.finos.legend.pure.generated.Root_meta_pure_extension_Extension;
+import org.finos.legend.pure.m3.coreinstance.meta.pure.metamodel.function.LambdaFunction;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * A local measurement, never committed (step 6 probe, 2026-11-26; after docs/result-boundary-homework/probes/EqualityProbe.java.txt):
+ * legend-engine 4.145.0's PlanGenerator (PlanPlatform.JAVA) and PlanExecutor over each lambda.
+ * Args: model.pure, outDir, queries.tsv (ID TAB lambda per line). Prints only; writes each plan's JSON to outDir.
+ */
+public final class EngineProbe {
+    public static void main(String[] args) throws Exception {
+        String model = Files.readString(Path.of(args[0]));
+        Path outDir = Path.of(args[1]);
+        Files.createDirectories(outDir);
+        List<String> lines = Files.readAllLines(Path.of(args[2]));
+        PureModelContextData pmcd = PureGrammarParser.newInstance().parseModel(model);
+        PureModel pureModel = Compiler.compile(pmcd, DeploymentMode.TEST, null);
+        RichIterable<? extends Root_meta_pure_extension_Extension> extensions = PureCoreExtensionLoader.extensions()
+                .flatCollect(e -> e.extraPureCoreExtensions(pureModel.getExecutionSupport()));
+        PlanExecutor executor = PlanExecutor.newPlanExecutorBuilder().withAvailableStoreExecutors().build();
+        var mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+        Pattern sqlPat = Pattern.compile("\"sqlQuery\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+        for (String line : lines) {
+            if (line.isBlank() || line.startsWith("#")) continue;
+            int tab = line.indexOf('\t');
+            String id = line.substring(0, tab);
+            String query = line.substring(tab + 1);
+            System.out.println("\n[" + id + "] query=" + query);
+            try {
+                LambdaFunction<?> lambda = HelperValueSpecificationBuilder.buildLambda(
+                        PureGrammarParser.newInstance().parseLambda(query), pureModel.getContext());
+                SingleExecutionPlan plan = PlanGenerator.generateExecutionPlan(lambda, null, null, null, pureModel,
+                        "vX_X_X", PlanPlatform.JAVA, null, extensions, LegendPlanTransformers.transformers);
+                String planJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(plan);
+                Files.writeString(outDir.resolve(id + ".plan.json"), planJson);
+                String root = mapper.writeValueAsString(plan.rootExecutionNode);
+                Matcher km = Pattern.compile("^\\{\"_type\":\"([^\"]+)\"").matcher(root);
+                System.out.println("[" + id + "] root node=" + plan.rootExecutionNode.getClass().getSimpleName()
+                        + (km.find() ? " (_type " + km.group(1) + ")" : "")
+                        + " resultType=" + mapper.writeValueAsString(plan.rootExecutionNode.resultType));
+                Matcher m = sqlPat.matcher(planJson);
+                while (m.find()) {
+                    System.out.println("[" + id + "] sql=" + m.group(1).replace("\\\"", "\""));
+                }
+                Result result = executor.execute(plan);
+                if (result instanceof ConstantResult c) {
+                    Object v = c.getValue();
+                    System.out.println("[" + id + "] constant=" + v + " javaClass=" + (v == null ? "null" : v.getClass().getName()));
+                    if (v instanceof Iterable<?> it) {
+                        int i = 0;
+                        for (Object o : it) {
+                            System.out.println("[" + id + "]   [" + i++ + "] " + o + " javaClass=" + (o == null ? "null" : o.getClass().getName()));
+                        }
+                    }
+                } else if (result instanceof StreamingResult sr) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    sr.getSerializer(SerializationFormat.DEFAULT).stream(out);
+                    String s = out.toString(StandardCharsets.UTF_8);
+                    int at = s.indexOf("\"result\"");
+                    System.out.println("[" + id + "] execute DEFAULT result=" + (at >= 0 ? s.substring(at) : s));
+                } else {
+                    System.out.println("[" + id + "] result class=" + result.getClass().getName());
+                }
+            } catch (Throwable t) {
+                String msg = String.valueOf(t);
+                System.out.println("[" + id + "] refused: " + (msg.length() > 1500 ? msg.substring(0, 1500) + "..." : msg));
+                Throwable c = t.getCause();
+                int depth = 0;
+                while (c != null && depth++ < 6) {
+                    String cm = String.valueOf(c);
+                    System.out.println("[" + id + "]   cause: " + (cm.length() > 800 ? cm.substring(0, 800) + "..." : cm));
+                    c = c.getCause();
+                }
+            }
+        }
+        System.exit(0);
+    }
+}
