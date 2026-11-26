@@ -3423,11 +3423,11 @@ core	DuckDB	TypedEval	1	26	1279	0	0	0
 core	DuckDB	TypedExtend	174	24947	524428	10	82	0
 core	DuckDB	TypedExtendAgg	25	6129	124307	1	230	0
 core	DuckDB	TypedExtendWindow	124	38915	778954	2	1272	0
-core	DuckDB	TypedFilter	48	12314	231361	26	393	0
+core	DuckDB	TypedFilter	48	12310	231351	26	393	0
 core	DuckDB	TypedFold	26	3947	84053	0	215	0
 core	DuckDB	TypedFrom	68	13453	322511	30	418	0
 core	DuckDB	TypedGetAll	1	80	2041	0	0	0
-core	DuckDB	TypedGroupBy	124	21797	526604	6	449	0
+core	DuckDB	TypedGroupBy	124	21709	526456	6	402	0
 core	DuckDB	TypedIf	5	459	11484	0	0	0
 core	DuckDB	TypedJoin	27	11757	361385	8	1138	0
 core	DuckDB	TypedLimit	41	6351	141430	10	169	0
@@ -3437,11 +3437,11 @@ core	DuckDB	TypedMerge	15	3678	30059	13	55	0
 core	DuckDB	TypedNewInstance	5	1086	25079	0	0	0
 core	DuckDB	TypedPackageableRef	1	23	52094	0	0	0
 core	DuckDB	TypedPivot	53	25064	392350	46	2814	0
-core	DuckDB	TypedProject	638	92485	6628487	138	2690	0
+core	DuckDB	TypedProject	638	92287	6628154	138	2690	0
 core	DuckDB	TypedPropertyAccess	7	5893	79144	6	174	0
 core	DuckDB	TypedRename	4	473	15468	0	0	0
 core	DuckDB	TypedSelect	143	24410	619606	22	1710	0
-core	DuckDB	TypedSerialize	68	29573	455218	70	1515	0
+core	DuckDB	TypedSerialize	68	29529	455144	70	1515	0
 core	DuckDB	TypedSlice	12	1831	38619	3	0	0
 core	DuckDB	TypedSort	231	70846	1417034	105	7691	0
 core	DuckDB	TypedSortBy	1	149	3197	1	0	0
