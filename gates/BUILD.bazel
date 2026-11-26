@@ -270,7 +270,9 @@ test_suite(
     name = "pct_h2",
     tests = [
         "//pct:engine_lane_h2_test",
-        "//pct:pct_h2",
+        # the relation suite alone (2026-11-26: //pct:pct_h2 became the five suites; the other four join a gate only
+        # by the orchestrator's decision)
+        "//pct:pct_h2_relation",
     ],
 )
 

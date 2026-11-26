@@ -21,8 +21,8 @@ This covers the dialects the lanes EXECUTE: DuckDB and H2.
 ## 2. The render census: every PCT case on every dialect
 
 ```
-git switch --detach <base>; tools/census/render.sh base runs/census/head/pct_pct_duckdb.cases.tsv runs/census/head/pct_pct_h2.cases.tsv
-git switch <branch>;        tools/census/render.sh head runs/census/head/pct_pct_duckdb.cases.tsv runs/census/head/pct_pct_h2.cases.tsv
+git switch --detach <base>; tools/census/render.sh base runs/census/head/pct_pct_duckdb.cases.tsv runs/census/head/pct_pct_h2_relation.cases.tsv
+git switch <branch>;        tools/census/render.sh head runs/census/head/pct_pct_duckdb.cases.tsv runs/census/head/pct_pct_h2_relation.cases.tsv
 diff runs/census/render/base.tsv runs/census/render/head.tsv
 ```
 

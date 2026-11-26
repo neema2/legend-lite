@@ -11,7 +11,7 @@ label=${1:?usage: tools/census/lanes.sh <label>}
 # (and core_tests: a suite of one target per test package since P3-05)
 expanded=$(bazel query 'tests(//core:core_tests + //pct:pct_duckdb + //pct:pct_channel_b + //spec:corpus_duckdb + //spec:corpus_h2)')
 [ -n "$expanded" ] || { echo "lanes.sh: the suites expanded to nothing" >&2; exit 1; }
-lanes=(//core:stress_suites //core:stress_suites_h2 $expanded //pct:pct_h2)
+lanes=(//core:stress_suites //core:stress_suites_h2 $expanded //pct:pct_h2_relation)
 mkdir -p runs/census/$label
 bazel test "${lanes[@]}" --jvmopt=-Dlegend.diagnostics=dump-sql,pct-cases \
   --test_env=LEGEND_LITE_DUMP_SQL=1 --cache_test_results=no \

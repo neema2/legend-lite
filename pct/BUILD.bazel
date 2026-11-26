@@ -202,15 +202,27 @@ test_suite(
 # run.
 # memory_mb 4096, not the rule's 4864 (live peak 3180 MB, measured 2026-10-04): CI's 7 GB macOS runner runs this
 # lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
-junit_test(
-    name = "pct_h2",
+#
+# ONE JVM PER SUITE (2026-11-26, the user's question "Should we run full h2 pct like duck?"), as DuckDB's and SQLite's:
+# //pct:pct_h2_<suite> runs Test_LegendLite_H2_<Suite>Functions_PCT, each with H2's own expected failures. The relation
+# suite is the one gate 7 runs (//gates:pct_h2 names //pct:pct_h2_relation); the other four are in no gate or CI lane
+# until the orchestrator decides (manual). //pct:pct_h2 is the five.
+[junit_test(
+    name = "pct_h2_" + s.lower(),
     memory_mb = 4096,
     env = {"LEGENDLITE_PCT_BACKEND": "h2"},
-    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_H2_RelationFunctions_PCT"],
+    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_H2_%sFunctions_PCT" % s],
+    tags = [] if s == "Relation" else ["manual"],
     runtime_deps = [
         ":pct_tests_lib",
         "@h2//jar",
     ],
+) for s in _SUITES]
+
+test_suite(
+    name = "pct_h2",
+    tags = ["manual"],
+    tests = [":pct_h2_" + s.lower() for s in _SUITES],
 )
 
 # GATE 7P — the five suites on POSTGRES 16 (leg P2; LEGENDLITE_PCT_BACKEND=postgres selects the
