@@ -2336,7 +2336,8 @@ final class Scalars {
                 if (mixedColl != null) {
                     return args.get(1) instanceof SqlExpr.Tagged needleT
                             ? TaggedLists.containsElement(mixedColl, needleT)
-                            : TaggedLists.contains(mixedColl, MixedEncoding.kindOf(n.args().get(1)), args.get(1),
+                            : TaggedLists.contains(mixedColl,
+                                    MixedEncoding.kindOfValue(n.args().get(1), args.get(1)), args.get(1),
                                     n.args().get(1).info().type());
                 }
                 // A heterogeneous (Any) list is variant-wrapped — wrap the
@@ -2723,7 +2724,7 @@ final class Scalars {
             if (tl != null) {
                 return raw instanceof SqlExpr.Tagged needleT
                         ? TaggedLists.containsElement(tl, needleT)
-                        : TaggedLists.contains(tl, MixedEncoding.kindOf(n.args().get(0)), raw,
+                        : TaggedLists.contains(tl, MixedEncoding.kindOfValue(n.args().get(0), raw), raw,
                                 n.args().get(0).info().type());
             }
             SqlExpr needle = collVariant
@@ -3855,10 +3856,10 @@ final class Scalars {
             return TaggedLists.sameElement(x, y);
         }
         if (a instanceof SqlExpr.Tagged x) {
-            return TaggedLists.sameElement(x, MixedEncoding.kindOf(s1), b, s1.info().type());
+            return TaggedLists.sameElement(x, MixedEncoding.kindOfValue(s1, b), b, s1.info().type());
         }
         if (b instanceof SqlExpr.Tagged y) {
-            return TaggedLists.sameElement(y, MixedEncoding.kindOf(s0), a, s0.info().type());
+            return TaggedLists.sameElement(y, MixedEncoding.kindOfValue(s0, a), a, s0.info().type());
         }
         SqlExpr.TaggedList la = asTaggedList(s0, a);
         SqlExpr.TaggedList lb = asTaggedList(s1, b);
