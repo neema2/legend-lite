@@ -210,24 +210,25 @@ landed).** legend-engine's door no longer rewrites the typed query. The old rewr
 
 What was built to get there, after the wider run's work list above was read test by test (most of the 21 were tests
 that inspected the rewritten tree, or expected a refusal before planning; three were real):
-- **The table takes the whole call and knows its database.** `EditionTable.lowersAs(call, features)`; the planner
-  binds the table to the statement's database (`PlanEnv.styled()`, `EditionTable.on`), so the lowering still names no
-  database. `EngineTable` has four rows (`substring`, `substr`, the two-argument `indexOf`, and `toOne` of an operand
+- **A door's edition has two sides.** The planner's side (`planner/Edition`, the kind a door's style hands over; the
+  product's is `LiteEdition`) answers what the planner needs: what is stamped, whether written flags are read, and
+  the lowering's table for the statement's database. The lowering's side (`lowering/EditionTable`) is one lookup,
+  `lowersAs(call, features)`, and sees no database: the architecture guard on the lowering's dependencies refused a
+  first draft that handed it one. `EngineTable` has four rows (`substring`, `substr`, the two-argument `indexOf`, and `toOne` of an operand
   that is always empty) and refuses by name, while the statement is planned, a call a row answers on a database where
   legend-engine's answer is not yet checked.
 - **At legend-engine's door a statement's own feature flags reach its lowering.** A `withFeatureFlags` call written
   in a query is read through by the resolver before the lowering sees it, so on the product's road its flags never
   arrived (the old rewrite read them itself, at the door). `ProductStatements.prepare` now reads them from the
-  statements as written, where the door's table says the door reads them (`EditionTable.readsWrittenFlags`:
+  statements as written, where the door's edition says the door reads them (`Edition.readsWrittenFlags`:
   legend-engine's does, lite's own doors do not, as before). Two consequences at legend-engine's door, both in
   legend-engine's direction and both to confirm with the user: `LEGACY_SQL_NULL_UNSAFE_EQUALS` written in a query is
   honoured (it was ignored), and a flag nothing in lite consumes is refused by name (it was ignored).
 - **The seed is planned in the door's style** (`ProductStatements.lowerTestDataSeed(query, runtime, style)`).
 - **A model-to-model mapping's transforms are stamped where the resolver composes them.** legend-engine runs them in
   its own Java under a graph fetch and over a model connection, and pushes them into the SQL in a TDS query over a
-  chain. The table states that rule (`EditionTable.transformsOutsideStore(fetchesAGraph, chained)`), the planner asks
-  it per statement, and the resolver stamps the transforms (`StoreResolver.withTransformsOutsideStore`,
-  `ClassSources.build`). The rule is the old detector's, statement-wide, unchanged.
+  chain. The edition states that rule (`Edition.transformsOutsideStore(fetchesAGraph, chained)`), the planner asks
+  it per statement, and the resolver, made with the answer, stamps the transforms (`ClassSources.build`). The rule is the old detector's, statement-wide, unchanged.
 
 **What changes for a caller of legend-engine's door.** Nothing the old rewrite answered changes: while both stood,
 the two were planned side by side over the old rewrite's own test queries (25 of them at the end) and wrote the same
