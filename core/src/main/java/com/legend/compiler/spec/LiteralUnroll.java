@@ -432,6 +432,22 @@ final class LiteralUnroll {
                 .orElse(c);
     }
 
+    /** {@code value->in(list)} over a list of spelled scalars. A value of one number type against a list of another's
+     *  literals is a comparison only by the literal rule (NumberLiterals: a whole number written against a Float reads
+     *  as that Float, and is left as written), so its answer is by VALUE and the database's -- never this fold's, which
+     *  compares two spelled values as two kinds (2026-11-26, the audit of the edition program's steps 4 and 5:
+     *  {@code 1.0->in([0, 1])}, a call inlined, was folded to false). A list of mixed kinds is another matter: its
+     *  values carry their types, two kinds are never equal, and the fold answers. */
+    private static TypedSpec inFold(TypedNativeCall c, TypedSpec value, TypedCollection list) {
+        Type.Primitive valueKind = numberKind(value.info().type());
+        Type.Primitive listKind = numberKind(list.info().type());
+        if (valueKind != null && listKind != null && valueKind != listKind) {
+            return c;
+        }
+        return scalar(value).<TypedSpec>map(needle -> bool(list.elements().stream()
+                .anyMatch(e -> !neverEqual(value, e) && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
+    }
+
     /** {@code t} as the number type it is (a Decimal of a declared precision is a Decimal), or null where it is no
      *  one number type (Number, Any, anything else). */
     private static Type.@com.legend.base.Nullable Primitive numberKind(Type t) {
@@ -612,19 +628,7 @@ final class LiteralUnroll {
         }
         if (is(c, Pure.AT_COLLECTION_IN, Pure.AT_RELATION_IN) && a.size() == 2 && a.get(1) instanceof TypedCollection coll
                 && coll.elements().stream().allMatch(e -> scalar(e).isPresent())) {
-            // a value of one number type against a list of another's literals is a comparison only by the literal rule
-            // (NumberLiterals: a whole number written against a Float reads as that Float, and is left as written),
-            // so its answer is by VALUE and the database's -- never this fold's, which compares two spelled values as
-            // two kinds (2026-11-26, the audit of the edition program's steps 4 and 5: 1.0->in([0, 1]), a call inlined,
-            // was folded to false). A list of mixed kinds is another matter: its values carry their types, two kinds
-            // are never equal, and the fold answers as before
-            Type.Primitive needleKind = numberKind(a.get(0).info().type());
-            Type.Primitive listKind = numberKind(coll.info().type());
-            if (needleKind != null && listKind != null && needleKind != listKind) {
-                return c;
-            }
-            return scalar(a.get(0)).<TypedSpec>map(needle -> bool(coll.elements().stream()
-                    .anyMatch(e -> !neverEqual(a.get(0), e) && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
+            return inFold(c, a.get(0), coll);
         }
         if ((is(c, Pure.AT_COLLECTION_IS_EMPTY) || is(c, Pure.AT_COLLECTION_IS_NOT_EMPTY)) && a.size() == 1
                 && spelledList(a.get(0))) {
