@@ -49,7 +49,7 @@ meta::pure::functions::collection::tests::head::testHeadOnEmptySet	REFUSES	REFUS
 meta::pure::functions::collection::tests::head::testHeadOnOneElement	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::head::testHeadSimple	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::indexof::testIndexOf	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::init::testInit	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::init::testInitOnEmptySet	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::init::testInitOneElement	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
@@ -222,7 +222,7 @@ meta::pure::functions::math::tests::pow::testComplexPow	PASS		PASS		SAME
 meta::pure::functions::math::tests::pow::testNumberPow	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::pow::testSimplePow	PASS		PASS		SAME
 meta::pure::functions::math::tests::rem::testRem	PASS		PASS		SAME
-meta::pure::functions::math::tests::rem::testRemError	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::math::tests::rem::testRemError	DEFECT	PLANNER_FAULT	FAIL	ERROR_MISMATCH	BOTH_FAIL
 meta::pure::functions::math::tests::rem::testRemWithDecimals	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::rem::testRemWithFloats	PASS		PASS		SAME
 meta::pure::functions::math::tests::rem::testRemWithMixedIntegersAndFloats	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
@@ -232,12 +232,12 @@ meta::pure::functions::math::tests::round::testDecimalRound	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testFloatRoundWithScale	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testNegativeFloatRoundDown	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testNegativeFloatRoundHalfEvenDown	PASS		PASS		SAME
-meta::pure::functions::math::tests::round::testNegativeFloatRoundHalfEvenUp	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::round::testNegativeFloatRoundHalfEvenUp	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::math::tests::round::testNegativeFloatRoundUp	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testNegativeFloatWithZeroDecimalRound	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testNegativeIntegerRound	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testPositiveFloatRoundDown	PASS		PASS		SAME
-meta::pure::functions::math::tests::round::testPositiveFloatRoundHalfEvenDown	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::round::testPositiveFloatRoundHalfEvenDown	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::math::tests::round::testPositiveFloatRoundHalfEvenUp	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testPositiveFloatRoundUp	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testPositiveFloatWithZeroDecimalRound	PASS		PASS		SAME
@@ -245,7 +245,7 @@ meta::pure::functions::math::tests::round::testPositiveIntegerRound	PASS		PASS		
 meta::pure::functions::math::tests::sign::testSign	PASS		PASS		SAME
 meta::pure::functions::math::tests::testCubeRoot	PASS		FAIL	DATABASE_ERROR	LITE_BEHIND
 meta::pure::functions::math::tests::testSquareRoot	PASS		PASS		SAME
-meta::pure::functions::math::tests::testSquareRootError	DEFECT	ERROR_MISMATCH	PASS		LITE_FIXES
+meta::pure::functions::math::tests::testSquareRootError	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
 meta::pure::functions::math::tests::toDecimal::testDecimalToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::toDecimal::testDoubleToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::math::tests::toDecimal::testIntToDecimal	PASS		PASS		SAME
@@ -280,7 +280,7 @@ meta::pure::functions::string::tests::format::testFormatRepr	REFUSES	format_Stri
 meta::pure::functions::string::tests::format::testFormatString	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::format::testSimpleFormatDate	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::indexOf::testFromIndex	REFUSES	indexOf_String_1__String_1__Integer_1__Integer_1_	PASS		LITE_ANSWERS
-meta::pure::functions::string::tests::indexOf::testSimple	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::indexOf::testSimple	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::joinStrings::testJoinStrings	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::joinStrings::testJoinStringsNoStrings	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::string::tests::joinStrings::testJoinStringsSingleString	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
@@ -319,8 +319,8 @@ meta::pure::functions::string::tests::startswith::testTrueStartsWith	PASS		PASS	
 meta::pure::functions::string::tests::substr::testSubstrEmptyResult	PASS		PASS		SAME
 meta::pure::functions::string::tests::substr::testSubstrStart	PASS		PASS		SAME
 meta::pure::functions::string::tests::substr::testSubstrStartEnd	PASS		PASS		SAME
-meta::pure::functions::string::tests::substring::testStart	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
-meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::substring::testStart	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::toString::testBooleanToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testClassToString	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testComplexClassToString	REFUSES	REFUSES_OTHER: not supported	FAIL	WRONG_ANSWER	BOTH_FAIL

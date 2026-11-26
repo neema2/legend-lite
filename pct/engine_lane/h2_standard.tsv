@@ -90,9 +90,9 @@ meta::pure::functions::math::tests::bitNot::testBitNot_SmallNumbers	PASS		FAIL	O
 meta::pure::functions::math::tests::bitOr::testBitOr_LargeNumbers	DEFECT	DATABASE_ERROR	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::math::tests::bitOr::testBitOr_NegativeNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
 meta::pure::functions::math::tests::bitOr::testBitOr_SmallNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
-meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_MoreThan62Bits	DEFECT	ERROR_MISMATCH	PASS		LITE_FIXES
+meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_MoreThan62Bits	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
 meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_UpTo62Bits	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_MoreThan62Bits	DEFECT	ERROR_MISMATCH	PASS		LITE_FIXES
+meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_MoreThan62Bits	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
 meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_UpTo62Bits	PASS		FAIL	REFUSED	LITE_BEHIND
 meta::pure::functions::math::tests::bitXor::testBitXor_LargeNumbers	DEFECT	DATABASE_ERROR	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::math::tests::bitXor::testBitXor_NegativeNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
