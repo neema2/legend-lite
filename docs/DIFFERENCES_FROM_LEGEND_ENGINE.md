@@ -125,7 +125,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **One measured consequence on Postgres:** `[3.14, 6.28, 9.42]->stdDevSample()` is `3.1399999999999997` in lite and
   `3.14` in legend-engine. Postgres's own `stddev_samp` over doubles is one unit in the last place low; over
   legend-engine's NUMERIC literals it is exact (register S421, ruled 2026-11-26: recorded, not rewritten). That is
-  Postgres built for x86-64; built for arm64 (an Apple or Graviton machine) it answers `3.14` in lite too.
+  Postgres built for x86-64; built for arm64 it answers `3.14` in lite too (measured on macOS; arm64 Linux is not
+  measured).
 - **To get legend-engine's DuckDB answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
 - **When:** since 2026-11-25 (the user's ruling, "yes delete the float decimal thing"; the compatibility doors no longer
   write legend-engine's bare DECIMAL literal).
