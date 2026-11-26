@@ -208,6 +208,9 @@
 > - **Inside functions and mapping code too** (the edition program's step 4,
 >   2026-11-26): a function's, a derived property's, a constraint's and a mapping's
 >   Pure hold to the same rule, the error raised when the body is compiled.
+>   One kind of body is not yet held to it, a gap to close with step 6 (register
+>   S127): a function whose body is typed into each call (generic over a relation's
+>   columns, or taking a table with no declared columns).
 > - **Types known only at run time** (`Any`, `Number`, the abstract `Date`, a generic
 >   position) carry their type beside the value; equal means the same type and the
 >   same value, and a mixed list orders by value, then by type.

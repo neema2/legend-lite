@@ -595,8 +595,20 @@ final class LiteralUnroll {
         }
         if (is(c, Pure.AT_COLLECTION_IN, Pure.AT_RELATION_IN) && a.size() == 2 && a.get(1) instanceof TypedCollection coll
                 && coll.elements().stream().allMatch(e -> scalar(e).isPresent())) {
-            return scalar(a.get(0)).<TypedSpec>map(needle -> bool(coll.elements().stream()
-                    .anyMatch(e -> !neverEqual(a.get(0), e) && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
+            Optional<Literal> needle = literal(a.get(0)).filter(l -> l instanceof Scalar);
+            // folded only where every element is of the value's own kind (or an enumeration's value against another
+            // kind's, never equal): a fold never answers a comparison across types, as contains' and =='s do not
+            // (2026-11-26, the audit of the edition program's steps 4 and 5: the literal rule reads a whole number
+            // written against a Float as that Float and leaves it as written, so 1.0->in([0, 1]) reached this fold as
+            // a Float beside Integers, which compared them as two Java objects and answered false; the database
+            // answers true)
+            if (needle.isPresent() && coll.elements().stream().allMatch(e -> neverEqual(a.get(0), e)
+                    || literal(e).filter(l -> l.cls().equals(needle.get().cls())).isPresent())) {
+                Object value = ((Scalar) needle.get()).value();
+                return bool(coll.elements().stream()
+                        .anyMatch(e -> !neverEqual(a.get(0), e) && scalar(e).filter(value::equals).isPresent()));
+            }
+            return c;
         }
         if ((is(c, Pure.AT_COLLECTION_IS_EMPTY) || is(c, Pure.AT_COLLECTION_IS_NOT_EMPTY)) && a.size() == 1
                 && spelledList(a.get(0))) {

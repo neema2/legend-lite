@@ -213,7 +213,7 @@ public final class PureV1Routes {
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
             com.legend.compiler.element.type.Type t = model.with(models,
-                    ctx -> com.legend.Compiler.query(ctx, lambda).resultType().type());
+                    ctx -> EngineComparisons.query(ctx, lambda).resultType().type());
             String path = com.legend.compiler.element.type.Type.schemaView(t) != null
                     ? "meta::pure::metamodel::relation::Relation"
                     : com.legend.plan.PureSpelling.typePath(t);
@@ -250,7 +250,7 @@ public final class PureV1Routes {
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
             return model.with(models, ctx -> Json.toCompact(UpstreamRelationType.of(
-                    com.legend.Compiler.query(ctx, lambda).resultType())));
+                    EngineComparisons.query(ctx, lambda).resultType())));
         });
     }
 
@@ -268,7 +268,7 @@ public final class PureV1Routes {
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("function"));
             // compiled and typed once: the target it names and its plan come off the one typed query
             return model.with(models, ctx -> {
-                com.legend.TypedQuery query = asLegendEngine(com.legend.Compiler.query(ctx, lambda));
+                com.legend.TypedQuery query = EngineComparisons.query(ctx, lambda);
                 String runtime = runtimeOf(request, query);
                 // a value the program wrote and folds (a String or Boolean literal, a model's DDL text): upstream's own
                 // constant node (M5, the user's ruling); a diagnostic's (print) stays refused below, as upstream refuses
@@ -308,7 +308,7 @@ public final class PureV1Routes {
             // the model compiled ONCE (leg 8 step 3; a host that holds models answers over the one it holds for the
             // text), and the query typed once, here: the runner plans and runs it
             return ModelInput.of(request.getObj("model")).with(models, model -> {
-                com.legend.TypedQuery query = asLegendEngine(com.legend.Compiler.query(model, lambda));
+                com.legend.TypedQuery query = EngineComparisons.query(model, lambda);
                 String runtime = runtimeOf(request, query);
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
@@ -359,7 +359,7 @@ public final class PureV1Routes {
             LambdaFunction lambda = ProtocolReader.lambda(
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
             return ModelInput.of(request.getObj("model")).with(models, model -> {
-                com.legend.TypedQuery query = asLegendEngine(com.legend.Compiler.query(model, lambda));
+                com.legend.TypedQuery query = EngineComparisons.query(model, lambda);
                 String runtime = runtimeOf(request, query);
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.arrow(out, facts(query))));
