@@ -273,9 +273,23 @@ Recorded and not changed:
 - No test model exercises a transform that calls a function: lite's composition refused the shapes tried.
 - Design note from the audit (its F5): the door's edition is read after the type-checker in four places (the statement road, the inliner's stamp, the resolver's stamp, the lowering's lookup). That is this plan's design (section 2), and it stands beside the wording of AGENTS.md's edition exception ("only the typer reads it"), which was written for the earlier design; the two are to be reconciled when the rules are next amended.
 
-**Still open from the work list:** the stamp does not yet reach the raise choice (a host-side `let` that divides by
-zero is the plain operation at pure/v1, where legend-engine's Java raises; this is older than this step); the corpus
-door's stamping needs the frame-aware walk; a runtime's own model-chain connection is not counted as "chained" (the
+**Step 3, the plain raises as the table's (2026-11-26).** Which of the product's checks a door's audience writes was
+a lowering form of the style (`LoweringForms.raise`, with the edge's set of plain kinds), which knew the kind of raise
+and not the call. It is the door's table's now (`EditionTable.checks(kind, call)`), so the stamp decides it: at
+legend-engine's door a check its SQL does not write (a zero divisor, a square root of a negative, a shift out of
+range, a `toOne` over several, a parse) is the plain operation inside a store query and is written in a host-side
+`let`, where legend-engine's own Java raises as Pure does. `LoweringForms.raise` and the edge's two form instances
+are gone (one remains). **One answer moves at legend-engine's door, to confirm with the user:** a host-side `let`
+whose operation legend-engine's SQL would not check (`let x = 5->rem(0)`) raises Pure's error now; until now it was
+the plain operation in lite's SQL, and the database's own error or answer. A cast that can never succeed and a slice
+are their own nodes and carry no stamp: they stay plain at that door wherever they are written, as before.
+
+`acos`/`asin` out of range (ruled 2026-11-25 to raise as legend-pure does) is drafted on `claude/edit-next` with
+in-domain functions per dialect, so the product's check is the one check in the SQL. It waits on the corpus's door:
+legend-engine's own tests (`testFilterUsingArcCosFunction`, `...ArcSin...`) expect the database's answer inside the
+query, so the raise must be plain there, which needs the corpus's edition and its stamping (below).
+
+**Still open from the work list:** the corpus door's edition and its stamping, which needs the frame-aware walk; a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
 ## 7. The user's words on this plan (2026-11-25, late night)
