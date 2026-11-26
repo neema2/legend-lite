@@ -275,7 +275,11 @@ class OwnCorpusConformanceTest {
                 // 10 -> 12 (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a: overloads by a relation's
                 // column type, lite's dialect, ruled): RelationGeneric's aColumnsTypePicksTheOverload (test::pick<K> beside
                 // test::pick of key:All) and SignatureMangleTest's fixture of the same two
-                Map.entry("PURE-DIALECT-generics", 12),
+                // 12 -> 15 (2026-11-26, REVIEWED, register S112 again): three models, each with a function generic
+                // over relations, whose body is typed into its call -- where the equality rule must keep a query-written
+                // comparison's answer (CrossTypeComparisonsTest, on the branch since B3 step 5a's review of 2026-11-25
+                // and unpinned until now; CrossTypeRuleTest and PureComparisonsTest, the edition program's step 2b)
+                Map.entry("PURE-DIALECT-generics", 15),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
