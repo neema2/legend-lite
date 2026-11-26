@@ -37,3 +37,96 @@ Without a row today, legend-engine's template and answer alone:
 - `divide`: `((1.0 * %s) / %s)` (DEF:218): 1/0 raises; `sqrt(-1.0)` raises.
 
 **So on Snowflake:** the `substring`, `substr`, `indexOf` and `round` rows give legend-engine's answers.
+
+## Postgres (16.15)
+
+Paths: PGX = `postgresExtension.pure`; DEF and P2S as above. No dialect translation (H2 only).
+
+| Function | legend-engine writes | Answers on the battery | lite's row | Verdict |
+|---|---|---|---|---|
+| `substring` (2, 3 arguments) | `substring(s, a[, b])`, as given (PGX:248) | `'abcdef'` (start, length): (0,0) `''`, (0,3) `ab`, (0,9) `abcdef`, (1,3) `abc`, (2,3) `bcd`, (2,9) `bcdef`; two arguments: 0 and 1 `abcdef`, 2 `bcdef`, 9 `''`, -2 `abcdef`; a negative length raises | `substr(s, a[, b])` | the same answers |
+| the corrected `substring`, and `substr` | `substring(s, start+1, end-start)` | (0,3) `abc`, (0,9) `abcdef`, (1,3) `bc`, (1,9) `bcdef`, (2,3) `c`, (2,9) `cdef`; an end below the start raises | `substr(s, start+1, end-start)` | the same answers |
+| the String `indexOf` | `strpos(%s, %s)` (PGX:220) | `'b'` 2, `'z'` 0, `''` 1 | `strpos(s, t)` | the same text |
+| `round` | `round((%s)::numeric, %s)` (PGX:243), `0` added for one argument | a half away from zero on a double and on a decimal (0.5 is 1, 2.5 is 3, 16.5 is 17); `round(0.125, 2)` is 0.13 for both | bare `round(x)`, `round(x, n)` | **differs on a Float:** Postgres's `round(float8)` sends a half to even (0, 2, 2, 16), and `round(double precision, integer)` does not exist (an error). The same on a Decimal. To match, the rule needs legend-engine's `::numeric` |
+
+Without a row, legend-engine's template and answer:
+- `toDecimal`: `cast(%s as decimal)` (PGX:252), an unconstrained numeric: 3.8 stays `3.8`.
+- one-argument `parseDecimal`: `cast(%s as decimal)`: `'123.450021'` stays `123.450021`.
+- `parseInteger`: `cast(%s as integer)` (PGX:238), 32 bits; `parseFloat`: `cast(%s as float)` (PGX:237), a double.
+  `' 12'` is 12; `'abc'` raises "invalid input syntax".
+- `isNumeric`: **no template** (H2's `h2Extension2_1_214.pure:232` only).
+- `dateDiff`: `generateDateDiffExpressionForPostgres` (PGX:292-328), fields subtracted for years and months, days
+  divided by 7 for weeks, the elapsed seconds truncated for hours, minutes, seconds. **Broken on some types:** weeks
+  on timestamps raises (`trunc(interval)` does not exist), days on timestamps returns an interval, the sub-day units
+  on dates raise. 2015-12-31 to 2016-01-01 is 1 year, 1 month, 1 day.
+- `splitPart`: `split_part` with the index plus one: `('a,b,,c', ',', 2)` is `''`; `('abc', '', 0)` is `'abc'`.
+- `rem` `mod(a,b)`; `mod` `mod(mod(a,b)+b,b)`; a zero divisor raises. `divide` `((1.0 * a) / b)` raises on zero.
+  `sqrt(-1.0)` raises.
+- `toString`: `cast(%s as varchar)`: 1.3421e-8 is `'1.3421e-08'`, 1.0 is `'1'`, a timestamp keeps its microseconds.
+
+**So on Postgres:** the `substring`, `substr` and `indexOf` rows give legend-engine's answers; `round` needs its own
+rule (a cast to numeric first).
+
+## Trino (483)
+
+Path: `trinoExtension.pure` (TX) over the defaults; not Presto's. A function with no template raises
+"[unsupported-api] ... is not supported yet".
+
+| Function | legend-engine writes | Answers on the battery | lite's row | Verdict |
+|---|---|---|---|---|
+| `substring` (2, 3 arguments) | `substring(s, a[, b])` (TX:119) | a start of 0 is `''` (Postgres clips, Trino does not): (0,3) `''`, (1,3) `abc`, (2,9) `bcdef`; -2 is `ef` (from the end); a negative length is `''` | `substr(s, a[, b])` | the same answers on every case |
+| the corrected `substring`, and `substr` | `substring(s, start+1, end-start)` | (0,3) `abc`, (1,3) `bc`, (2,9) `cdef` | `substr(s, start+1, end-start)` | the same answers |
+| the String `indexOf` | `strpos(s, t)` (TX:88) | 2, 0, 1 | `strpos(s, t)` | the same text |
+| `round` | `round(x, 0)`, `round(x, n)` (TX:115) | a half away from zero on a double and a decimal | `CAST(round(x) AS BIGINT)`, `round(x, n)` | the same values (the one-argument result is legend-engine's double or decimal, lite's integer) |
+
+Without a row: `toDecimal`, one-argument `parseDecimal` and `isNumeric` have **no template** on Trino.
+`parseInteger` `cast(%s as integer)` (32 bits), `parseFloat` `cast(%s as double)`. `dateDiff` is
+`date_diff(unit, a, b)`, elapsed whole units (2015-12-31 to 2016-01-01 is 0 years, 0 months, 1 day; Saturday to
+Sunday 0 weeks; 10:59:59 to 11:00:01 is 0 hours). `splitPart`: `('abc', '', 0)` is `'a'`, `('abc', ',', 1)` is NULL.
+`rem(5, 0)` raises on integers and is NaN on doubles. `toString`: 1.3421e-8 is `'1.3421E-8'`, 1.0 is `'1.0E0'`. A
+double divided by zero is Infinity; `sqrt(-1.0)` is NaN.
+
+**So on Trino:** the `substring`, `substr`, `indexOf` and `round` rows give legend-engine's answers.
+
+## ClickHouse (26.3)
+
+Path: `clickHouseExtension.pure` (CH) over the defaults; no dialect translation. A Float or Decimal literal is
+written as plain text, so a Pure Decimal literal reaches ClickHouse as a Float64; a DateTime literal is
+`'...'::DateTime64`, precision 3 (its microseconds are lost in the literal).
+
+| Function | legend-engine writes | Answers on the battery | lite's row | Verdict |
+|---|---|---|---|---|
+| `substring` (2, 3 arguments) | `substring(args)` (CH:138): a start of 0 is `''`, the third argument a length | (0,3) `''`, (1,3) `abc`, (2,9) `bcdef` | `substringUTF8(args)` | the same on plain text; **differs on multi-byte text** (`substring` counts bytes, `substringUTF8` characters) |
+| the corrected `substring`, and `substr` | `substring(s, start+1, end-start)`, literals folded; a negative length cuts from the right | (0,3) `abc`, (1,0) `bcde`, (2,0) `cd` | `substringUTF8(s, start + 1, end - start)` | the same on plain text; bytes against characters as above |
+| the String `indexOf` | `position(%s, %s)` (CH:108) | 2, 0 | `toInt64(positionUTF8(s, t))` | the same on plain text; bytes against characters |
+| `round` | `round(x, 0)`, `round(x, n)` (CH:131) | a double sends a half to EVEN (0.5 is 0, 2.5 is 2); a Decimal away from zero (2.5 is 3). A Decimal LITERAL is a Float64 here, so legend-engine's `round(2.5D)` is 2 on a literal and 3 on a column | `round(x)` cast to Int64, `round(x, n)` | the same on a column; **a Decimal literal differs** (lite writes it as a Decimal) |
+
+Without a row: `toDecimal` `toDecimal128(%s, 10)` (CH:144); one-argument `parseDecimal` `cast(%s as Decimal)`
+(`'123.450021'` is `123`, the scale lost); `parseInteger` `cast(%s as Int32)`, `parseFloat` `cast(%s as Float32)`
+(a leading blank raises); `isNumeric` **no template**; `dateDiff` `datediff(UNIT, a, b)`, boundaries crossed, weeks
+from Monday; `splitPart` `splitByString(sep, s)[i+1]` (an empty separator splits into characters); `divide` by zero
+is `inf`, `sqrt(-1.0)` is `nan`; `toString` `cast(%s as String)`.
+
+**So on ClickHouse:** no row answers yet: each differs from legend-engine's on multi-byte text or on a Decimal
+literal, and would need its own rule (the byte functions; a Decimal literal as text).
+
+## MariaDB and MySQL
+
+**Nothing to match.** legend-engine 4.145.0 has no MySQL or MariaDB database: its `DatabaseType` enum
+(`legend-engine-xt-relationalStore-protocol/.../connection/DatabaseType.java:17`) and its extension directory hold
+neither; the family's only member is MemSQL (SingleStore), another database. A request at legend-engine's door on
+either stays refused by name.
+
+## What the table can take from this (per row and database)
+
+| Row | H2 | DuckDB | Snowflake | Postgres | Trino | ClickHouse |
+|---|---|---|---|---|---|---|
+| `substring` as given | yes | yes | same answers | same answers | same answers | differs on multi-byte text |
+| corrected `substring`, `substr` | yes | yes | same | same | same | differs on multi-byte text |
+| String `indexOf` | yes | yes | same | same | same | differs on multi-byte text |
+| `round` | yes | yes | same values | differs on a Float | same values | differs on a Decimal literal |
+| `toDecimal` | bare DECIMAL | bare DECIMAL | `to_decimal(x, 38, 19)` | unconstrained `decimal` | none | `toDecimal128(x, 10)` |
+| `isNumeric` | a pattern | `lower = upper` | none | none | none | none |
+| plain parses | `integer`, `float` | `BIGINT`, `float` (single) | `integer` (38 digits), `float` | `integer`, `float` | `integer`, `double` | `Int32`, `Float32` |
+
+Databricks and BigQuery: reports not yet in.
