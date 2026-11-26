@@ -43,7 +43,14 @@ public class Test_LegendLite_Postgres_StandardFunctions_PCT extends PCTReportCon
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
-            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)")
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
+            // 2026-11-26, the user's ruling ("Postgres record it"; register S421): Postgres's own stddev_samp over
+            // doubles answers one unit in the last place below the double Pure expects (3.1399999999999997 for 3.14;
+            // measured in psql on PostgreSQL 16.15, outside the driver and Java:
+            // docs/records/edition-homework/lanes/round1-postgres-trino.md). The list is sent as doubles since the
+            // edition program's step 1 (the edge's DECIMAL Float literal deleted, register S20); until then Postgres
+            // computed it in NUMERIC. Recorded as the database's native answer, never rewritten as a formula
+            one("meta::pure::functions::math::tests::stdDev::testFloatStdDev_Function_1__Boolean_1_", "expected: 3.14, actual: 3.1399999999999997")
     );
 
     public static Test suite() {

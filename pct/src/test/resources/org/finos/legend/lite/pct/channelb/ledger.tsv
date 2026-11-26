@@ -349,6 +349,11 @@ postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::test
 postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; Postgres keeps 6: refused, never cut (S181)
 postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; Postgres keeps 6: refused, never cut (S181)
 postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; Postgres keeps 6: refused, never cut (S181)
+# 2026-11-26, the user's ruling ("Postgres record it"; register S421): Postgres's own stddev_samp over doubles answers
+# one unit in the last place below the double Pure expects (measured in psql, PostgreSQL 16.15:
+# docs/records/edition-homework/lanes/round1-postgres-trino.md); the list is sent as doubles since the edition
+# program's step 1 (register S20). The database's native answer, recorded
+postgres	Standard	meta::pure::functions::math::tests::stdDev::testFloatStdDev	expected: 3.14, actual: 3.1399999999999997
 mysql	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; MySql keeps 6: refused, never cut (S181)
 mysql	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; MySql keeps 6: refused, never cut (S181)
 mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; MySql keeps 6: refused, never cut (S181)

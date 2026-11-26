@@ -122,6 +122,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   door: a Float is a double, compiled Pure's answer. On ClickHouse, BigQuery and Snowflake lite still writes a Float
   literal as a decimal, at every door, until each is measured with the double (register S20), and answers `1.7`.
 - **Why:** Pure's Float is floating point.
+- **One measured consequence on Postgres:** `[3.14, 6.28, 9.42]->stdDevSample()` is `3.1399999999999997` in lite and
+  `3.14` in legend-engine. Postgres's own `stddev_samp` over doubles is one unit in the last place low; over
+  legend-engine's NUMERIC literals it is exact (register S421, ruled 2026-11-26: recorded, not rewritten).
 - **To get legend-engine's DuckDB answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
 - **When:** since 2026-11-25 (the user's ruling, "yes delete the float decimal thing"; the compatibility doors no longer
   write legend-engine's bare DECIMAL literal).
