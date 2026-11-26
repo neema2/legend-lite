@@ -813,7 +813,7 @@ public class Postgres extends AnsiSqlRenderer {
             // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
             case CONCAT_WS -> writer.function("concat_ws", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> parseInt(writer, c.args().get(0));
+            case PARSE_INT, CAST_INT, CAST_FLOAT -> parses(writer, c, parentPrec);
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -1124,6 +1124,12 @@ public class Postgres extends AnsiSqlRenderer {
         return writer.append("make_timestamp(")
                 .join(a.subList(0, 5), ", ", (w, x) -> w.append("CAST(").expr(x, 0).append(" AS INTEGER)"))
                 .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE PRECISION))");
+    }
+
+    /** The {@code PARSE_INT}, {@code CAST_INT} and {@code CAST_FLOAT} arm of {@link #call}: the checked parse, or the
+     *  database's own cast of a text as given. */
+    private SqlWriter parses(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return c.fn() == SqlFn.PARSE_INT ? parseInt(writer, c.args().get(0)) : rawCast(writer, c, parentPrec);
     }
 
     /** The {@code ROUND_HALF_UP} and {@code ROUND_RAW} arm of {@link #call}: Pure's HALF_UP rounding, or the

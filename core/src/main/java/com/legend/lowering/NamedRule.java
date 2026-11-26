@@ -46,12 +46,12 @@ public enum NamedRule {
      *  16). */
     ROUND_AS_GIVEN,
 
-    /** A text read as an Integer by the target database's own cast ({@code CAST(s AS BIGINT)}), its refusal the
+    /** A text read as an Integer by the target database's own cast ({@code SqlFn.CAST_INT}), its refusal the
      *  database's own conversion error. Not the product's {@code parseInteger}, which checks the text against Pure's
      *  grammar first and raises lite's own error. */
     TEXT_CAST_TO_INTEGER,
 
-    /** A text read as a Float by the target database's own cast ({@code CAST(s AS DOUBLE)}), its refusal the
+    /** A text read as a Float by the target database's own cast ({@code SqlFn.CAST_FLOAT}), its refusal the
      *  database's own conversion error. Not the product's {@code parseFloat}, which checks the text first. */
     TEXT_CAST_TO_FLOAT
 }

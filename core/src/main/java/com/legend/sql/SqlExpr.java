@@ -1031,10 +1031,6 @@ public sealed interface SqlExpr
         RAISE("raise"),
         /** A database's own requirement, made by its dialect: an argument type its function needs, its encoding. */
         DIALECT("dialect"),
-        /** The database's own conversion of a value as given, asked for by name: one of the lowering's named rules
-         *  that an edition's table names ({@code lowering.NamedRule}; the edition program's step 5, 2026-11-26). The
-         *  plain cast, its refusal the database's own conversion error: no product check reads it. */
-        AS_GIVEN("given"),
         /** The test road's verdict statement (the judges'; never a product query's). */
         JUDGE("judge"),
         /** The test road's verdict statement where a compared value carries a digit of a second past the microsecond

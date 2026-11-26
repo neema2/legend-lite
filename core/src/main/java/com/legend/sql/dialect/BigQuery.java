@@ -1673,7 +1673,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
-            case PARSE_INT -> parseInt(writer, a.get(0));
+            case PARSE_INT, CAST_INT, CAST_FLOAT -> parses(writer, c, parentPrec);
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
@@ -2011,6 +2011,12 @@ public class BigQuery extends AnsiSqlRenderer {
     }
 
     // ---- call arms too long to stay inline (CodeShapeGuardrailTest: call under 250 lines)
+
+    /** The {@code PARSE_INT}, {@code CAST_INT} and {@code CAST_FLOAT} arm of {@link #call}: the checked parse, or the
+     *  database's own cast of a text as given. */
+    private SqlWriter parses(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return c.fn() == SqlFn.PARSE_INT ? parseInt(writer, c.args().get(0)) : rawCast(writer, c, parentPrec);
+    }
 
     /** The {@code ROUND_HALF_UP} and {@code ROUND_RAW} arm of {@link #call}: Pure's HALF_UP rounding, or the
      *  database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN). */

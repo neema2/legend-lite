@@ -6,7 +6,6 @@ package com.legend.lowering;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
-import com.legend.sql.SqlType;
 
 import java.util.List;
 
@@ -27,8 +26,8 @@ final class NamedRules {
             case SQL_POSITION -> new SqlExpr.Call(SqlFn.STRPOS, args);
             case TRUST_ONE -> args.get(0);
             case ROUND_AS_GIVEN -> DecimalKindRules.roundAsGiven(call, args);
-            case TEXT_CAST_TO_INTEGER -> new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT, SqlExpr.Reason.AS_GIVEN);
-            case TEXT_CAST_TO_FLOAT -> new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.AS_GIVEN);
+            case TEXT_CAST_TO_INTEGER -> new SqlExpr.Call(SqlFn.CAST_INT, args);
+            case TEXT_CAST_TO_FLOAT -> new SqlExpr.Call(SqlFn.CAST_FLOAT, args);
         };
     }
 

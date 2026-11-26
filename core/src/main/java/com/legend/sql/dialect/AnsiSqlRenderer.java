@@ -1470,6 +1470,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append("CAST(").append(fn).append("(").expr(a.get(0), 0).append(") AS BIGINT)");
     }
 
+    /** The {@code CAST_INT} and {@code CAST_FLOAT} arm of every dialect's {@code call}: the database's own cast of a
+     *  text, as given (an edition's table's rules, NamedRule.TEXT_CAST_TO_INTEGER and TEXT_CAST_TO_FLOAT) -- this
+     *  dialect's plain cast to its 64-bit integer or its double, which no parse guard reads. */
+    protected final SqlWriter rawCast(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return writer.expr(new SqlExpr.Cast(c.args().get(0), c.fn() == com.legend.sql.SqlFn.CAST_INT
+                ? com.legend.sql.SqlType.Scalar.BIGINT : com.legend.sql.SqlType.Scalar.DOUBLE,
+                SqlExpr.Reason.DIALECT), parentPrec);
+    }
+
     /** {@code CAST(x AS type)}, the type as the calling dialect spells it. */
     protected final SqlWriter castAs(SqlWriter writer, SqlExpr x, String type) {
         return writer.append("CAST(").expr(x, 0).append(" AS ").append(type).append(")");

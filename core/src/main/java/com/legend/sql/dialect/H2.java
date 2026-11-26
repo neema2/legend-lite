@@ -663,6 +663,7 @@ public class H2 extends AnsiSqlRenderer {
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> parseInteger(writer, c.args().get(0));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
