@@ -13,7 +13,7 @@ corpus	DuckDB	meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational	
 corpus	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty	1	652	9603	1	0	0
 corpus	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty	3	1467	24741	3	0	2
 corpus	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty	1	543	8208	1	0	0
-corpus	DuckDB	meta::pure::lineage::scanColumns::test	0	0	0	0	0	1
+corpus	DuckDB	meta::pure::lineage::scanColumns::test	0	0	0	0	0	2
 corpus	DuckDB	meta::pure::lineage::scanRelations::test	0	0	0	0	0	0
 corpus	DuckDB	meta::pure::router::preeval::tests	0	0	0	0	0	1
 corpus	DuckDB	meta::pure::tds::tests::extensions	11	15970	299546	39	1470	0
@@ -63,7 +63,7 @@ corpus	DuckDB	meta::relational::tests::functions::fetchDbMetaData	4	6124	21020	0
 corpus	DuckDB	meta::relational::tests::functions::objectReferenceIn	7	7142	125156	19	20	0
 corpus	DuckDB	meta::relational::tests::functions::pureToSqlQuery	0	0	0	0	0	8
 corpus	DuckDB	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations	92	43537	604737	4	448	0
-corpus	DuckDB	meta::relational::tests::functions::sqlstring	0	0	0	0	0	27
+corpus	DuckDB	meta::relational::tests::functions::sqlstring	0	0	0	0	0	28
 corpus	DuckDB	meta::relational::tests::getter	2	380	6688	0	0	0
 corpus	DuckDB	meta::relational::tests::groupBy	46	14053	326338	15	480	1
 corpus	DuckDB	meta::relational::tests::groupBy::datePeriods	2	1583	102926	5	252	0
@@ -125,12 +125,12 @@ corpus	DuckDB	meta::relational::tests::mapping::relation	66	15996	364740	70	0	0
 corpus	DuckDB	meta::relational::tests::mapping::relation::aggregation	0	0	0	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::selfJoin	3	1172	25618	4	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction	1	59	3940	0	0	0
-corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::acos	2	551	9167	0	203	0
-corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::asin	2	551	9169	0	203	0
+corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::acos	2	746	9362	0	315	0
+corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::asin	2	746	9364	0	315	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::atan	2	128	8014	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::atan2	2	164	8524	0	20	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::base64	0	0	0	0	0	1
-corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::castInteger	2	176	8124	0	22	0
+corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::castInteger	2	176	8121	0	22	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::ceiling	2	182	8093	0	27	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::cos	2	123	7997	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::date	0	0	0	0	0	0
@@ -157,7 +157,7 @@ corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::sqrt	2	122	8009	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::stddev::population	1	67	3825	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::stddev::sample	1	64	3811	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::stringToDate	2	224	8415	0	0	2
-corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::stringToFloat	2	200	8304	0	27	0
+corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::stringToFloat	2	200	8181	0	27	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::tan	2	123	8000	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::toString	2	165	8242	0	20	2
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::trim	0	0	0	0	0	1
@@ -222,7 +222,7 @@ corpus	DuckDB	meta::relational::tests::projection::filter::lessThanEqual	2	633	1
 corpus	DuckDB	meta::relational::tests::projection::function	16	1986	58953	0	166	0
 corpus	DuckDB	meta::relational::tests::projection::function::abs	1	81	2625	0	0	0
 corpus	DuckDB	meta::relational::tests::projection::function::concatenate	10	3909	87617	12	70	0
-corpus	DuckDB	meta::relational::tests::projection::function::date	6	836	19863	0	0	0
+corpus	DuckDB	meta::relational::tests::projection::function::date	6	819	19407	0	0	0
 corpus	DuckDB	meta::relational::tests::projection::functionvariables	10	6023	178521	15	0	0
 corpus	DuckDB	meta::relational::tests::projection::limit	2	116	4424	0	0	0
 corpus	DuckDB	meta::relational::tests::projection::qualifier	25	7825	201898	25	0	0
@@ -252,9 +252,9 @@ corpus	DuckDB	meta::relational::tests::query::filter::lessThanEqual	2	778	13495	
 corpus	DuckDB	meta::relational::tests::query::filter::multipleFilters	3	1474	29233	3	0	0
 corpus	DuckDB	meta::relational::tests::query::filter::notEqual	2	528	8601	0	0	0
 corpus	DuckDB	meta::relational::tests::query::filter::or	1	468	10512	1	0	0
-corpus	DuckDB	meta::relational::tests::query::function	26	7761	160818	6	64	1
-corpus	DuckDB	meta::relational::tests::query::function::acos	1	698	9918	1	46	0
-corpus	DuckDB	meta::relational::tests::query::function::asin	1	698	9918	1	46	0
+corpus	DuckDB	meta::relational::tests::query::function	26	7761	160817	6	64	1
+corpus	DuckDB	meta::relational::tests::query::function::acos	1	762	9982	1	92	0
+corpus	DuckDB	meta::relational::tests::query::function::asin	1	762	9982	1	92	0
 corpus	DuckDB	meta::relational::tests::query::function::atan	1	551	9521	1	0	0
 corpus	DuckDB	meta::relational::tests::query::function::atan2	1	569	9700	1	0	0
 corpus	DuckDB	meta::relational::tests::query::function::ceiling	1	567	9541	1	0	0
