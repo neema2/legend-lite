@@ -32,14 +32,23 @@ class RefereeAppealsCensusTest {
 
     private static final Path MAIN = Path.of("core/src/main/java/com/legend");
 
-    /** The referee and the appeals (their own files under {@link #MAIN}). */
+    /** The edge's test harness's sources (2026-11-26, the edition program's step 9, slice 1: the referee's SPI, the held
+     *  appeals and the plan's appeals by number are test machinery, moved there from the edge's product sources). */
+    private static final String HARNESS = "core/src/edge_harness/java/com/legend/";
+
+    /** {@link #MAIN} as the prefix of a path from the repository root, '/'-separated on every platform. */
+    private static final String MAIN_DIR = "core/src/main/java/com/legend/";
+
+    /** The referee and the appeals, each with its own file by its path from the repository root (2026-11-26: until
+     *  then a path under {@link #MAIN}; three of the files left it for {@link #HARNESS}, and the paths moved with
+     *  them so each names a file that is there). */
     static final Map<String, String> CLASSES = Map.of(
-            "SqlReplayReferee", "edge/SqlReplayReferee.java",
-            "Appeals", "edge/Appeals.java",
-            "Appeal", "edge/Appeal.java",
-            "PlannedAppeals", "edge/PlannedAppeals.java",
-            "AppealsByVerdict", "testplan/AppealsByVerdict.java",
-            "EngineTextAppeals", "testplan/EngineTextAppeals.java");
+            "SqlReplayReferee", HARNESS + "edge/SqlReplayReferee.java",
+            "Appeals", HARNESS + "edge/Appeals.java",
+            "Appeal", MAIN_DIR + "edge/Appeal.java",
+            "PlannedAppeals", HARNESS + "edge/PlannedAppeals.java",
+            "AppealsByVerdict", MAIN_DIR + "testplan/AppealsByVerdict.java",
+            "EngineTextAppeals", MAIN_DIR + "testplan/EngineTextAppeals.java");
 
     /** Each class's product reachers outside the edge: NONE (2026-11-17, census C2 closed -- the referee and the
      *  appeals moved to com.legend.edge, the run reaching them through the run hook EdgeRun in the referee's slot, the
@@ -62,7 +71,7 @@ class RefereeAppealsCensusTest {
             String rel = MAIN.relativize(f).toString();
             String code = EdgeOnlyNodesCensusTest.code(Files.readString(f));
             for (var c : CLASSES.entrySet()) {
-                if (!rel.equals(c.getValue()) && Pattern.compile("\\b" + c.getKey() + "\\b").matcher(code).find()) {
+                if (!(MAIN_DIR + rel.replace('\\', '/')).equals(c.getValue()) && Pattern.compile("\\b" + c.getKey() + "\\b").matcher(code).find()) {
                     found.computeIfAbsent(c.getKey(), k -> new TreeSet<>()).add(rel);
                 }
             }
