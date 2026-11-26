@@ -323,6 +323,16 @@ public final class SpecCompiler {
         return typer.typeBody(expr, env, Expected.infer());
     }
 
+    /** {@link #typeExpression(ValueSpecification, java.util.Map)} for a condition a judge plans as the product's own
+     *  (an assert as the comparison it means, over its sides as named values; the equality program's first slice,
+     *  2026-11-26): each comparison across types in it is the comparison setting's answer for a query
+     *  ({@link CrossTypeRule#inQuery}) -- lite's the marker its planner refuses -- as in the body a door receives
+     *  ({@link #typeQueryBodyMarked}). */
+    public TypedSpec typeExpressionMarked(ValueSpecification expr,
+            java.util.Map<String, com.legend.compiler.element.type.ExprType> bindings) {
+        return typer.comparing(Typer.Compared.QUERY, () -> typeExpression(expr, bindings));
+    }
+
     /** A lambda parameter's declared type and multiplicity, as {@link #typeQueryBody} puts it in scope. */
     public com.legend.compiler.element.type.ExprType declaredParameterType(com.legend.protocol.spec.Variable parameter) {
         com.legend.base.RunScope.planning("type a spec");
