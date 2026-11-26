@@ -334,32 +334,14 @@ final class MixedEncoding {
         // date-time is ONE type whatever precision it was written at (the equality rule, register S399; the edition
         // program's step 6, slice 6.1, 2026-11-26): two date-times at one instant are equal, so they tie here and
         // keep the list's own order (until then the written precision ordered them, an hour before a second)
-        // A number's TYPE is its tie-break the same way (the equality rule's run-time reading, the user's ruling of
-        // 2026-11-25: among equal magnitudes Integer, then Float, then Decimal; slice 6.2 of the edition program's
-        // step 6): 3 and 3.0 are two values, so a sort must put them in one order whatever order they were written
-        // in. A value typed Number names no type here and takes no tie-break (it keeps the list's order, as before)
         SqlExpr p = group == 1 ? new SqlExpr.IntLit(Math.min(precisionOf(t, e).ordinal(),
-                PureDateLiteral.Precision.HOUR.ordinal())) : group == 0 ? numberTypeRank(t) : new SqlExpr.NullLit();
+                PureDateLiteral.Precision.HOUR.ordinal())) : new SqlExpr.NullLit();
         return new SqlExpr.StructLit(List.of(
                 new SqlExpr.StructLit.Field("g", new SqlExpr.IntLit(group)),
                 new SqlExpr.StructLit.Field("n", n != null ? n : new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE),
                 new SqlExpr.StructLit.Field("d", d != null ? d : new SqlExpr.NullLit(), SqlType.Scalar.TIMESTAMP),
                 new SqlExpr.StructLit.Field("s", s != null ? s : new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR),
                 new SqlExpr.StructLit.Field("p", p, SqlType.Scalar.BIGINT)));
-    }
-
-    /** A number type's place among equal magnitudes: Integer, Float, Decimal; none for a value typed Number. */
-    private static SqlExpr numberTypeRank(Type t) {
-        if (t == Type.Primitive.INTEGER) {
-            return new SqlExpr.IntLit(0);
-        }
-        if (t == Type.Primitive.FLOAT) {
-            return new SqlExpr.IntLit(1);
-        }
-        if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
-            return new SqlExpr.IntLit(2);
-        }
-        return new SqlExpr.NullLit();
     }
 
     /** A date's precision, read off its spelling where it has one (a literal, a {@code date()} call), else its type's:
@@ -373,30 +355,27 @@ final class MixedEncoding {
 
     /**
      * Whether a list's ranks, all of one comparison {@code group}, may be ordered by the group's own channel alone (the
-     * number, or the instant): only where every element is of one type -- numbers of one number type, dates of one
-     * precision; otherwise two elements may share a value and be told apart by their type alone (O2's D1 for dates;
-     * slice 6.2 for numbers: 3 and 3.0), so the whole rank is kept.
+     * number, or the instant): numbers always; dates only where every element has one precision -- otherwise two
+     * elements may share an instant and be told apart by their precision alone (O2's D1), so the whole rank is kept.
      */
     static boolean oneChannelOrders(List<SqlExpr> ranks, int group) {
-        return (group == 0 || group == 1) && ((SqlExpr.StructLit) ranks.get(0)).fields().size() == 4;
+        return group == 0 || group == 1 && ((SqlExpr.StructLit) ranks.get(0)).fields().size() == 4;
     }
 
     /**
-     * {@code ranks} with the type field dropped where it decides nothing: where, within each comparison group, the
-     * list's elements are of one type (its numbers of one number type, its dates of one precision), no two elements
-     * are told apart by it, and the rank keeps its four fields (today's SQL, byte for byte). It stays only where a
-     * group holds two types: dates of differing precisions (O2's D1), numbers of two number types (slice 6.2).
+     * {@code ranks} with the precision field dropped where it decides nothing: where the list's dates (if any) are of
+     * one precision, no two elements are told apart by it, and the rank keeps its four fields (today's SQL, byte for
+     * byte). It stays only where the list holds dates of differing precisions (O2's D1).
      */
     static void dropUndecidingPrecision(List<SqlExpr> ranks) {
-        java.util.Map<SqlExpr, Set<SqlExpr>> typesOfGroup = new java.util.HashMap<>();
+        Set<SqlExpr> precisions = new HashSet<>();
         for (SqlExpr r : ranks) {
-            List<SqlExpr.StructLit.Field> fields = ((SqlExpr.StructLit) r).fields();
-            SqlExpr p = fields.get(4).value();
+            SqlExpr p = ((SqlExpr.StructLit) r).fields().get(4).value();
             if (!(p instanceof SqlExpr.NullLit)) {
-                typesOfGroup.computeIfAbsent(fields.get(0).value(), g -> new HashSet<>()).add(p);
+                precisions.add(p);
             }
         }
-        if (typesOfGroup.values().stream().anyMatch(types -> types.size() > 1)) {
+        if (precisions.size() > 1) {
             return;
         }
         for (int i = 0; i < ranks.size(); i++) {

@@ -284,11 +284,70 @@ final class TaggedLists {
         SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(unnested, "p", null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
         SqlExpr p = SqlExpr.Column.of(alias, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
+        SqlExpr typeOrder = numberTypeOrder(tl, tl.tagAt(p));
+        if (typeOrder != null) {
+            // equal numbers of two types in the list: each position's PLACE by the comparable, then the number's
+            // type, then the position (a row number over the three), and the positions listed by their place
+            String placed = alias + "o";
+            SqlSelect places = new SqlSelect(List.of(new SqlSelect.Projection(p, "p", null),
+                    new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
+                            List.of()), List.of(), List.of(
+                                    new SqlSelect.SortKey(tl.comparableAt(p), true,
+                                            SqlSelect.SortKey.NullOrder.NULLS_LAST, null),
+                                    new SqlSelect.SortKey(typeOrder, true, null, null),
+                                    new SqlSelect.SortKey(p, true, null, null)), null), "r", null)),
+                    false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
+                    null, null, List.of());
+            SqlSelect listed = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(
+                    SqlExpr.Column.of(placed, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED),
+                    SqlExpr.Column.of(placed, "r", SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED)),
+                    "s", null)),
+                    false, new SqlSource.Subselect(places, placed, null), null, List.of(), null, null, List.of(),
+                    null, null, List.of());
+            return tl.withPositions(new SqlExpr.ScalarSubquery(listed))
+                    .withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
+        }
         SqlSelect outer = new SqlSelect(List.of(new SqlSelect.Projection(
                 new SqlExpr.OrderedListAgg(p, tl.comparableAt(p)), "s", null)),
                 false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
                 null, null, List.of());
         return tl.withPositions(new SqlExpr.ScalarSubquery(outer)).withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
+    }
+
+    /**
+     * The tie-break of EQUAL NUMBERS OF DIFFERENT TYPES in a mixed list's order (the equality rule's run-time
+     * reading, the user's ruling of 2026-11-25: among equal magnitudes Integer, then Float, then Decimal; slice 6.2
+     * of the edition program's step 6): {@code 3} and {@code 3.0} are two values, so a sort puts them in one order
+     * whatever order they were written in. The type is read off the element's {@code tag}, which names its channel
+     * and so its kind: no column and no rank field is added for it (measured 2026-11-26: carrying the type in the
+     * rank made every sort of an Integer and a Float two to seven times its SQL). Null where the list holds numbers
+     * of at most one type: nothing to break, and the sort is written as before.
+     */
+    private static @com.legend.base.Nullable SqlExpr numberTypeOrder(SqlExpr.TaggedList tl, SqlExpr tag) {
+        List<SqlExpr.Case.When> later = new ArrayList<>();
+        java.util.Set<Integer> places = new java.util.HashSet<>();
+        for (int k = 0; k < tl.channels().size(); k++) {
+            int place = numberTypePlace(tl.channels().get(k).kind());
+            if (place < 0) {
+                continue;
+            }
+            places.add(place);
+            if (place > 0) {
+                later.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
+                        new SqlExpr.IntLit(place)));
+            }
+        }
+        return places.size() < 2 ? null : new SqlExpr.Case(later, new SqlExpr.IntLit(0), SqlExpr.Reason.CARRIER);
+    }
+
+    /** A number kind's place among equal magnitudes (Integer, Float, Decimal); -1 for a kind that is no number. */
+    private static int numberTypePlace(String kind) {
+        return switch (MixedEncoding.family(kind)) {
+            case "Integer" -> 0;
+            case "Float" -> 1;
+            case "Decimal" -> 2;
+            default -> -1;
+        };
     }
 
     /**
@@ -405,6 +464,11 @@ final class TaggedLists {
                 keys.add(new SqlSelect.SortKey(c.apply(o.name()), true, SqlSelect.SortKey.NullOrder.NULLS_LAST,
                         null));
             }
+        }
+        // equal numbers of two types: the number's type before the position (numberTypeOrder), read off the cell's tag
+        SqlExpr typeOrder = numberTypeOrder(tl, c.apply(SqlExpr.TaggedList.ROW_TAG));
+        if (typeOrder != null) {
+            keys.add(new SqlSelect.SortKey(typeOrder, true, null, null));
         }
         keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_POSITION), true, null, null));
         List<SqlSelect.Projection> renumbered = new ArrayList<>(cells.outputs().size());
