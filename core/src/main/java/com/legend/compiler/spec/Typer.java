@@ -156,8 +156,18 @@ final class Typer {
         rigid.addAll(fn.multiplicityParameters());
         // a function's body is a body the query reaches: its comparisons across types are the door's setting's for a
         // body (the edition program's step 2b, 2026-11-26; until then never read, B3 step 5)
-        return comparing(Compared.BODY, () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
+        return comparing(bodyOf(fn), () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
                 body)));
+    }
+
+    /** Whose code {@code fn}'s body is, for the comparison setting: a body the query reaches, unless it is the
+     *  relational mapping language's translation (a relational class mapping's columns, filters and joins, a view,
+     *  an association mapped through a join: {@code FunctionDefinition.Synthesized.relationalLanguage}), which is
+     *  code written in another language and compares by SQL's rule -- never asked, as an island's translation is not
+     *  (the edition program's step 4, 2026-11-26: a filter {@code T.FLAG = 0} over a BIT column). */
+    Compared bodyOf(com.legend.compiler.element.TypedFunction fn) {
+        return fn.definition() instanceof com.legend.model.FunctionDefinition fd && fd.synthesizedFrom() != null
+                && fd.synthesizedFrom().relationalLanguage() ? Compared.UNREAD : Compared.BODY;
     }
 
     /** Whose code is being typed, as the comparison setting reads it ({@link CrossTypeRule}). */

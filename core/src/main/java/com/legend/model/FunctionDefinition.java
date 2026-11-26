@@ -153,11 +153,28 @@ public record FunctionDefinition(
      * @param hat        body-site kind ({@link SynthHat})
      * @param ownerFqn   FQN of the structural owner the body site belonged to
      * @param memberName original member name (derived property / constraint / mapped class / association / route)
+     * @param relationalLanguage whether the body is the relational mapping language's translation
+     *                   ({@link #ofRelationalLanguage})
      */
     public record Synthesized(SynthHat hat, String ownerFqn, String memberName,
-                              @com.legend.base.Nullable String forwardProperty) {
+                              @com.legend.base.Nullable String forwardProperty, boolean relationalLanguage) {
         public Synthesized(SynthHat hat, String ownerFqn, String memberName) {
-            this(hat, ownerFqn, memberName, null);
+            this(hat, ownerFqn, memberName, null, false);
+        }
+
+        public Synthesized(SynthHat hat, String ownerFqn, String memberName,
+                           @com.legend.base.Nullable String forwardProperty) {
+            this(hat, ownerFqn, memberName, forwardProperty, false);
+        }
+
+        /** This provenance for a body that is the RELATIONAL MAPPING LANGUAGE's translation (a relational class
+         *  mapping, its filters and joins, a view, an association mapped through a join): code written in another
+         *  language, which compares by SQL's rule ({@code T.FLAG = 0} over a BIT column), so the type-checker's
+         *  comparison setting is never asked about it -- as an island's translation is not (the edition program's
+         *  step 4, 2026-11-26; the plan's "one change must come first"). A body of Pure (a model-to-model mapping's
+         *  transforms, a cross-store association's condition, a derived property) is not one. */
+        public Synthesized ofRelationalLanguage() {
+            return new Synthesized(hat, ownerFqn, memberName, forwardProperty, true);
         }
 
         /** THE FORWARD END of a self-association mapped through ONE join
