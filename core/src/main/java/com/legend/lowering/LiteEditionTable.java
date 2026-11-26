@@ -4,7 +4,6 @@
 package com.legend.lowering;
 
 import com.legend.compiler.spec.typed.TypedNativeCall;
-import com.legend.model.FunctionId;
 import com.legend.platform.Feature;
 
 import java.util.Set;
@@ -21,7 +20,7 @@ public final class LiteEditionTable implements EditionTable {
     }
 
     @Override
-    public @com.legend.base.Nullable FunctionId lowersAs(TypedNativeCall call, Set<Feature> features) {
+    public @com.legend.base.Nullable NamedRule lowersAs(TypedNativeCall call, Set<Feature> features) {
         return null;
     }
 

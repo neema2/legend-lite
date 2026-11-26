@@ -10,6 +10,7 @@ import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.NotImplementedException;
 import com.legend.lowering.EditionTable;
+import com.legend.lowering.NamedRule;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.FunctionId;
 import com.legend.planner.Edition;
@@ -22,17 +23,17 @@ import java.util.Set;
 /**
  * LEGEND-ENGINE'S EDITION AND ITS TABLE (the edition program's step 2, 2026-11-25;
  * docs/records/edition-plan-to-finish-stage-b-2026-11-25.md): what legend-engine's door hands the planner
- * ({@link Edition}: {@link #DOOR}) and, through it, the lowering ({@link EditionTable}). Each row names a product native
- * by what it is; none of legend-engine's SQL is here.
+ * ({@link Edition}: {@link #DOOR}) and, through it, the lowering ({@link EditionTable}). Each row names a rule of the
+ * product's by what it writes ({@link NamedRule}); none of legend-engine's SQL is here.
  *
  * <p>Inside a store query legend-engine sends these to the database as it has them (register S130, S134, S383, S384):
  * <ul>
- *   <li>{@code substring}: the database's own SUBSTRING over the arguments as given ({@code substringAsGiven}), or,
+ *   <li>{@code substring}: the database's own SUBSTRING over the arguments as given ({@code SUBSTRING_AS_GIVEN}), or,
  *       under {@code CORRECT_SQL_SUBSTRING_INDEXING}, over {@code start + 1} and {@code end - start}
- *       ({@code substrAsGiven}: legend-engine's processSubstr);</li>
- *   <li>{@code substr}: always corrected ({@code substrAsGiven});</li>
- *   <li>the two-argument String {@code indexOf}: the database's position ({@code sqlPosition});</li>
- *   <li>{@code toOne} of an operand that is always empty: no check, the operand's SQL null ({@code trustOne}:
+ *       ({@code SUBSTR_AS_GIVEN}: legend-engine's processSubstr);</li>
+ *   <li>{@code substr}: always corrected ({@code SUBSTR_AS_GIVEN});</li>
+ *   <li>the two-argument String {@code indexOf}: the database's position ({@code SQL_POSITION});</li>
+ *   <li>{@code toOne} of an operand that is always empty: no check, the operand's SQL null ({@code TRUST_ONE}:
  *       legend-engine's processNoOp).</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
@@ -55,24 +56,24 @@ final class EngineTable implements EditionTable, Edition {
      *  every call of a test body outside those queries is stamped ({@link #stampsTestBodies}). */
     static final EngineTable TESTS = new EngineTable(false, null, true);
 
-    /** A row: the native whose rule lowers the call, and what a refusal calls the call. */
-    private record Row(FunctionId as, String named) {
+    /** A row: the rule that lowers the call, and what a refusal calls the call. */
+    private record Row(NamedRule as, String named) {
     }
 
     private static final FunctionId TO_ONE = FunctionId.of(Pure.TO_ONE__T_MANY);
-    private static final Row TO_ONE_OF_EMPTY = new Row(Pure.AT_LEGEND_LITE_TRUST_ONE.get(0), "toOne(empty)");
+    private static final Row TO_ONE_OF_EMPTY = new Row(NamedRule.TRUST_ONE, "toOne(empty)");
 
     private static final Map<FunctionId, Row> AS_GIVEN;
     private static final Map<FunctionId, Row> CORRECTED;
 
     static {
         Map<FunctionId, Row> given = new java.util.LinkedHashMap<>();
-        byPosition(given, Pure.AT_STRING_SUBSTRING, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN, "substring");
-        byPosition(given, Pure.AT_STRING_SUBSTR, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN, "substr");
-        given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1),
-                new Row(Pure.AT_LEGEND_LITE_SQL_POSITION.get(0), "indexOf/2"));
+        each(given, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTRING_AS_GIVEN, "substring/2", "substring/3");
+        each(given, Pure.AT_STRING_SUBSTR, NamedRule.SUBSTR_AS_GIVEN, "substr/2", "substr/3");
+        given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), new Row(NamedRule.SQL_POSITION, "indexOf/2"));
         Map<FunctionId, Row> flagged = new java.util.LinkedHashMap<>();
-        byPosition(flagged, Pure.AT_STRING_SUBSTRING, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN, "substring(corrected)");
+        each(flagged, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTR_AS_GIVEN, "substring(corrected)/2",
+                "substring(corrected)/3");
         // lookup tables, never iterated; unmodifiable in declaration order all the same (NoSaltedIterationOrderTest)
         AS_GIVEN = java.util.Collections.unmodifiableMap(given);
         CORRECTED = java.util.Collections.unmodifiableMap(flagged);
@@ -92,23 +93,22 @@ final class EngineTable implements EditionTable, Edition {
         this.testBodies = testBodies;
     }
 
-    /** Each overload of {@code from} to the overload of {@code to} at the same place, named {@code name} and its
-     *  argument count: the two lists are declared in the same order, the two-argument overload then the three-argument
-     *  one (builtin.Pure). */
-    private static void byPosition(Map<FunctionId, Row> rows, List<FunctionId> from, List<FunctionId> to, String name) {
-        if (from.size() != 2 || to.size() != 2) {
-            throw new IllegalStateException("the engine table pairs a two- and a three-argument overload: " + from
-                    + " and " + to);
+    /** Each overload of {@code from} lowered by {@code rule}, named in a refusal by the name at its place: the
+     *  overloads are listed in their declared order (builtin.Pure). */
+    private static void each(Map<FunctionId, Row> rows, List<FunctionId> from, NamedRule rule, String... names) {
+        if (from.size() != names.length) {
+            throw new IllegalStateException("the engine table names each overload of a row: " + from + " and "
+                    + List.of(names));
         }
         for (int i = 0; i < from.size(); i++) {
-            rows.put(from.get(i), new Row(to.get(i), name + "/" + (i + 2)));
+            rows.put(from.get(i), new Row(rule, names[i]));
         }
     }
 
     // ---- the lowering's table ---------------------------------------------------------------------------------------
 
     @Override
-    public @Nullable FunctionId lowersAs(TypedNativeCall call, Set<Feature> features) {
+    public @Nullable NamedRule lowersAs(TypedNativeCall call, Set<Feature> features) {
         if (!table) {
             throw new IllegalStateException("legend-engine's edition was asked for a row: the planner makes the table"
                     + " of a statement's database from it (Edition.table)");

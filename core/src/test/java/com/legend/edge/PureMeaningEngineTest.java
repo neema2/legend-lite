@@ -304,7 +304,7 @@ class PureMeaningEngineTest {
                 + "{\"values\": [\"abc\"]},{\"values\": [\"ab\"]}");
     }
 
-    /** A computed index is legend-engine's too: substrAsGiven's positions are SQL arithmetic the database computes.
+    /** A computed index is legend-engine's too: the corrected rule's positions are SQL arithmetic the database computes.
      *  substr(1, length + 1) runs one past every row's end: legend-engine's SUBSTRING(NAME, 2, length) answers the text
      *  after its first character. */
     @Test

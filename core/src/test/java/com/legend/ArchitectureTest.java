@@ -3520,6 +3520,48 @@ final class ArchitectureTest {
         bites(ONLY_THE_PLANS_READERS_MINT, com.legend.exec.PlantedPlanText.MintsByReference.class);
     }
 
+    /**
+     * AN EDITION'S TABLE ALONE NAMES A RULE (the edition program's step 5, 2026-11-26). A door's table maps a call to
+     * another rule of the product's ({@code lowering.NamedRule}); the lowering writes the rule the table names
+     * ({@code Scalars.lower}, which is handed the name and passes it on) and chooses none itself. So in the product a
+     * {@code NamedRule} constant is named by {@code lowering.NamedRules} alone, the switch that holds each rule; every
+     * other namer is a door's table, at the edge. A product class that named one would be the product taking an
+     * audience's meaning by itself. In the place of spec's two claim pins (ClaimRegistryTest, "substringAsGiven's one
+     * product claimer is Scalars", the user's ruling of 2026-11-19 ~21:10, and its sibling's): they pinned the same
+     * fact while the two rules were natives of the language.
+     */
+    @Test
+    void anEditionsTableAloneNamesARule() {
+        NAMED_RULES_ARE_THE_TABLES.check(CORE_PROD_CLASSES);
+    }
+
+    /** The rule of {@link #anEditionsTableAloneNamesARule}. */
+    static final com.tngtech.archunit.lang.ArchRule NAMED_RULES_ARE_THE_TABLES = noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a lowering.NamedRule named outside"
+                    + " lowering.NamedRules") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    if (!access.getTargetOwner().isEquivalentTo(com.legend.lowering.NamedRule.class)) {
+                        return false;
+                    }
+                    // the enum itself, and NamedRules with the class javac writes for its switch
+                    String origin = access.getOrigin().getOwner().getName();
+                    return !(origin.equals("com.legend.lowering.NamedRule")
+                            || origin.equals("com.legend.lowering.NamedRules")
+                            || origin.startsWith("com.legend.lowering.NamedRules$"));
+                }
+            })
+            .as("an edition's table alone names a rule: in the product a NamedRule constant is named by"
+                    + " lowering.NamedRules alone");
+
+    /** {@link #anEditionsTableAloneNamesARule} fails on a class of the lowering's package that names a rule
+     *  ({@code lowering.PlantedNamedRule}, a test class planted for this alone). */
+    @Test
+    void theNamedRuleRuleBitesAPlantedNamer() {
+        bites(NAMED_RULES_ARE_THE_TABLES, com.legend.lowering.PlantedNamedRule.class);
+    }
+
     /** A JDBC member that sends a statement: one made, prepared or called ({@code Connection.createStatement},
      *  {@code prepareStatement}, {@code prepareCall}), or one executed in any form or batched ({@code Statement}'s and its
      *  subtypes' {@code execute*}, {@code addBatch}). */

@@ -336,32 +336,6 @@ class EngineTablePlacementTest {
                 && refused.getMessage().contains("a runtime with no single database"), refused.getMessage());
     }
 
-    /** Each row names a native with the call's own signature: the rule it names lowers the call as typed. */
-    @Test
-    void eachRowsNativeHasItsCallsSignature() {
-        Map<List<com.legend.model.FunctionId>, List<com.legend.model.FunctionId>> rows = new LinkedHashMap<>();
-        rows.put(com.legend.builtin.Pure.AT_STRING_SUBSTRING, com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN);
-        rows.put(com.legend.builtin.Pure.AT_STRING_SUBSTR, com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
-        rows.put(List.of(com.legend.model.FunctionId.of(com.legend.builtin.Pure.INDEX_OF__STRING_1__STRING_1)),
-                com.legend.builtin.Pure.AT_LEGEND_LITE_SQL_POSITION);
-        rows.put(List.of(com.legend.model.FunctionId.of(com.legend.builtin.Pure.TO_ONE__T_MANY)),
-                com.legend.builtin.Pure.AT_LEGEND_LITE_TRUST_ONE);
-        for (Map.Entry<List<com.legend.model.FunctionId>, List<com.legend.model.FunctionId>> row : rows.entrySet()) {
-            assertEquals(row.getKey().size(), row.getValue().size(), row.toString());
-            for (int i = 0; i < row.getKey().size(); i++) {
-                com.legend.compiler.element.TypedFunction from =
-                        MODELLED.findFunctionById(row.getKey().get(i).qualified()).get(0);
-                com.legend.compiler.element.TypedFunction to =
-                        MODELLED.findFunctionById(row.getValue().get(i).qualified()).get(0);
-                assertEquals(from.parameters().stream().map(p -> p.type() + " " + p.multiplicity()).toList(),
-                        to.parameters().stream().map(p -> p.type() + " " + p.multiplicity()).toList(),
-                        from.qualifiedName() + " and " + to.qualifiedName());
-                assertEquals(from.returnType() + " " + from.returnMultiplicity(),
-                        to.returnType() + " " + to.returnMultiplicity(), from.qualifiedName());
-            }
-        }
-    }
-
     /** A check legend-engine's SQL does not write (a zero divisor's) is written where legend-engine's own Java runs the
      *  call: a host-side let raises as Pure does, a store-bound call is the plain operation (the stamp reaches the
      *  raise choice; the edition program's step 3). */
@@ -429,7 +403,7 @@ class EngineTablePlacementTest {
         // the database the model's connection declares (read, never named here: the dialect owners name databases)
         DatabaseType declared = MODELLED.findConnection("t::Conn").orElseThrow().databaseType();
         assertThrows(IllegalStateException.class, () -> EngineTable.DOOR.lowersAs(call[0], java.util.Set.of()));
-        assertEquals(com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN.get(1),
+        assertEquals(com.legend.lowering.NamedRule.SUBSTRING_AS_GIVEN,
                 EngineTable.DOOR.table(declared).lowersAs(call[0], java.util.Set.of()));
         assertEquals(null, EngineTable.DOOR.table(declared).lowersAs(call[0].stampedOutsideStore(true),
                 java.util.Set.of()));

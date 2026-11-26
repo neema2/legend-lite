@@ -1,0 +1,41 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.lowering;
+
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
+
+import java.util.List;
+
+/**
+ * THE RULE EACH {@link NamedRule} NAMES: what the lowering writes for a call an edition's table maps to it
+ * ({@link Scalars#lower}). One arm per name, no default: a name with no rule does not compile.
+ */
+final class NamedRules {
+
+    private NamedRules() {
+    }
+
+    /** {@code call} written by {@code rule} over its lowered arguments. */
+    static SqlExpr lower(NamedRule rule, TypedNativeCall call, List<SqlExpr> args) {
+        return switch (rule) {
+            case SUBSTRING_AS_GIVEN -> new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, args);
+            case SUBSTR_AS_GIVEN -> substrAsGiven(args);
+            case SQL_POSITION -> new SqlExpr.Call(SqlFn.STRPOS, args);
+            case TRUST_ONE -> args.get(0);
+        };
+    }
+
+    /** SUBSTRING_AS_GIVEN over {@code start + 1} and {@code end - start}: the positions are SQL arithmetic the
+     *  database computes, a literal index included (no fold here), and no pass rewrites the call. */
+    private static SqlExpr substrAsGiven(List<SqlExpr> args) {
+        SqlExpr start1 = SqlExpr.Call.of(SqlFn.PLUS, args.get(1), new SqlExpr.IntLit(1));
+        if (args.size() == 2) {
+            return new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, List.of(args.get(0), start1));
+        }
+        return new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, List.of(args.get(0), start1,
+                SqlExpr.Call.of(SqlFn.MINUS, args.get(2), args.get(1))));
+    }
+}
