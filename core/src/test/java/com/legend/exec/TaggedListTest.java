@@ -149,7 +149,7 @@ class TaggedListTest {
         assertFalse(sql.contains("list_"), sql);
         // one element of the value's type: an equality, never IN over one value
         String one = query("|2.5->in(" + col + ")").plan("s::RT").sql();
-        assertTrue(one.contains("2.5 = 2.5") && !one.contains(" IN ("), one);
+        assertTrue(one.contains("2.5E0 = 2.5E0") && !one.contains(" IN ("), one);
         // a lone parameter of the value's type is compared, not read as a list parameter (the audit of 2026-11-26)
         String parameter = query("{s:String[1] | 'a'->in([$s, 1])}").plan("s::RT").sql();
         assertTrue(parameter.contains("'a' = ") && !parameter.contains(" IN ("), parameter);
