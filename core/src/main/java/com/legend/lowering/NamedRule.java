@@ -44,5 +44,14 @@ public enum NamedRule {
      *  exactly halfway going where that database sends it (away from zero on DuckDB and H2: 16.5 to 17). Not the
      *  product's {@code round}, which sends a half to the even neighbour on every database, as Pure does (16.5 to
      *  16). */
-    ROUND_AS_GIVEN
+    ROUND_AS_GIVEN,
+
+    /** Whether a text has no cased letter: {@code LOWER(s) = UPPER(s)}, true of digits, signs, blanks and the empty
+     *  text alike; NULL of NULL. */
+    TEXT_HAS_NO_CASED_LETTER,
+
+    /** Whether a text is a plain decimal number: an optional minus sign, digits, and optionally a point and digits,
+     *  the whole text (a full match of {@code [-]?[0-9]+(\.[0-9]+)?}). No plus sign, no exponent, no blank; NULL of
+     *  NULL. */
+    TEXT_IS_PLAIN_DECIMAL
 }

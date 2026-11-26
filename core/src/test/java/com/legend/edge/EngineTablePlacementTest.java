@@ -351,6 +351,17 @@ class EngineTablePlacementTest {
         }
     }
 
+    /** The relational {@code isNumeric} is a row that differs by database (register S370): its own form where
+     *  legend-engine's is read (H2 here), and refused by name where it is not. */
+    @Test
+    void isNumericIsARowByDatabase_refusedWhereLegendEnginesIsNotRead() {
+        String query = "|" + TABLE + "->extend(~a: r|meta::legend::lite::isNumeric($r.NAME))->from(t::RT)";
+        assertNotEquals(asWritten(query), engines(query), query);
+        NotImplementedException refused = assertThrows(NotImplementedException.class,
+                () -> engines(Compiler.compileModel(UNCHECKED), query, "t::RT"));
+        assertTrue(refused.getMessage().contains("legend-engine's answer for isNumeric/1"), refused.getMessage());
+    }
+
     /** {@code round} is a row (register S422): inside a store query the database's own ROUND, by the row's rule; in
      *  a host-side let, which legend-engine's own Java computes, the call's own rule, Pure's. */
     @Test

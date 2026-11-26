@@ -156,8 +156,11 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Register:** S384 (provisional).
 
 ### 6. `isNumeric`, `parseDecimal`, `parseJson` on unusual input
-- **legend-engine on H2:**
-  - `isNumeric` is "has no cased letter", so `' 1 '`, `''` and `'-'` count as numeric;
+- **legend-engine:**
+  - `isNumeric` on DuckDB is "has no cased letter", so `' 1 '`, `''` and `'+3'` count as numeric; on H2 it is a
+    plain decimal's text (an optional minus, digits, an optional point and digits), so `'+3'`, `'1e5'` and `''` do
+    not. At legend-engine's door lite answers each database's own (corrected 2026-11-26: until then lite's door
+    answered DuckDB's form on H2 too);
   - `parseDecimal` cuts to `DECIMAL(5,2)`, so `'123.450021'` becomes `123.45`;
   - `parseJson` patches concatenated objects.
 - **lite** answers each Pure's way: numeric text by its full form, an exact decimal, a JSON parse.

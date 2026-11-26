@@ -38,7 +38,9 @@ import java.util.Set;
  *   <li>{@code round}: the database's own ROUND, which on DuckDB and H2 sends a half away from zero
  *       ({@code ROUND_AS_GIVEN}; legend-engine's {@code transformRoundForDuckDB} and H2's {@code round}
  *       write the bare function; the edition program's step 5, 2026-11-26, a delegation the user ruled matched,
- *       amendment 22). Pure's {@code round} sends a half to the even neighbour.</li>
+ *       amendment 22). Pure's {@code round} sends a half to the even neighbour;</li>
+ *   <li>the relational {@code isNumeric}: legend-engine's own form on each database ({@link #BY_DATABASE}), where the
+ *       product's is one numeric check on every database (register S370).</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
@@ -65,8 +67,9 @@ final class EngineTable implements EditionTable, Edition {
      *  ({@link #stampsOutsideStore}). */
     static final EngineTable PCT = new EngineTable(false, null, false, false);
 
-    /** A row: the rule that lowers the call, and what a refusal calls the call. */
-    private record Row(NamedRule as, String named) {
+    /** A row: the rule that lowers the call, and what a refusal calls the call. A row with no rule stands for a call
+     *  whose rows differ by database ({@link #BY_DATABASE}) on a database that has none: refused by name there. */
+    private record Row(@Nullable NamedRule as, String named) {
     }
 
     private static final FunctionId TO_ONE = FunctionId.of(Pure.TO_ONE__T_MANY);
@@ -74,6 +77,16 @@ final class EngineTable implements EditionTable, Edition {
 
     private static final Map<FunctionId, Row> AS_GIVEN;
     private static final Map<FunctionId, Row> CORRECTED;
+
+    /** The rows that differ by database: legend-engine writes the function its own way on each. {@code isNumeric} is
+     *  the regular expression its dialect translation writes on H2 ({@code toPostgresModel.pure:367}, through
+     *  {@code sqlDialectDefaults.pure:894-897, 966-970}: a plain decimal's text) and {@code lower(s) = upper(s)} on
+     *  DuckDB ({@code duckdbExtension.pure:238}); read and run 2026-11-26
+     *  (docs/records/edition-homework/r3/measured-step5-facts.md, C9). Until that day the edge's forms wrote
+     *  {@code lower = upper} on every database, H2 included (register S370, corrected). */
+    private static final Map<DatabaseType, Map<FunctionId, Row>> BY_DATABASE;
+    /** Each call whose rows are {@link #BY_DATABASE}'s, to its row on a database that has none (no rule: refused). */
+    private static final Map<FunctionId, Row> PER_DATABASE;
 
     static {
         Map<FunctionId, Row> given = new java.util.LinkedHashMap<>();
@@ -87,6 +100,13 @@ final class EngineTable implements EditionTable, Edition {
         // lookup tables, never iterated; unmodifiable in declaration order all the same (NoSaltedIterationOrderTest)
         AS_GIVEN = java.util.Collections.unmodifiableMap(given);
         CORRECTED = java.util.Collections.unmodifiableMap(flagged);
+        FunctionId isNumeric = Pure.AT_LEGEND_LITE_IS_NUMERIC.get(0);
+        Map<DatabaseType, Map<FunctionId, Row>> byDatabase = new java.util.EnumMap<>(DatabaseType.class);
+        byDatabase.put(DatabaseType.H2, Map.of(isNumeric, new Row(NamedRule.TEXT_IS_PLAIN_DECIMAL, "isNumeric/1")));
+        byDatabase.put(DatabaseType.DuckDB,
+                Map.of(isNumeric, new Row(NamedRule.TEXT_HAS_NO_CASED_LETTER, "isNumeric/1")));
+        BY_DATABASE = java.util.Collections.unmodifiableMap(byDatabase);
+        PER_DATABASE = Map.of(isNumeric, new Row(null, "isNumeric/1"));
     }
 
     /** Whether this is a statement's table (made by {@link #table}); the door's edition is not. */
@@ -135,7 +155,7 @@ final class EngineTable implements EditionTable, Edition {
         if (row == null) {
             return null;
         }
-        if (!PureText.engineAnswers(database)) {
+        if (!PureText.engineAnswers(database) || row.as() == null) {
             // never guessed: legend-engine's answer on another database is checked first (the database lanes)
             throw new NotImplementedException("legend-engine's answer for " + row.named()
                     + (call.pos() == null ? "" : " at " + call.pos().startLine() + ":" + call.pos().startColumn())
@@ -165,8 +185,13 @@ final class EngineTable implements EditionTable, Edition {
         return call.outsideStore() || !PureText.ENGINE_UNCHECKED.contains(kind);
     }
 
-    private static @Nullable Row row(TypedNativeCall call, Set<Feature> features) {
+    private @Nullable Row row(TypedNativeCall call, Set<Feature> features) {
         FunctionId key = call.callee().id();
+        Row unrowed = PER_DATABASE.get(key);
+        if (unrowed != null) {
+            Map<FunctionId, Row> own = database == null ? null : BY_DATABASE.get(database);
+            return own == null ? unrowed : own.getOrDefault(key, unrowed);
+        }
         if (TO_ONE.equals(key)) {
             return alwaysEmpty(call.args().get(0)) ? TO_ONE_OF_EMPTY : null;
         }
