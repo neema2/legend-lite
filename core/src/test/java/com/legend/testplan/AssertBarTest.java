@@ -1108,12 +1108,18 @@ class AssertBarTest {
                 + " p::RT.runtimeValue, []).values";
         want.put("{|assertEquals([1, '1', 2, '2'], " + grid + ")}", "pass");
         want.put("{|assertEquals([1, '1', 2, '3'], " + grid + ")}", "AssertFailed");
-        // a table's values counted (the audit of the next batch, 2026-11-26, S1): its cells, row-major, two rows of two
-        // columns -- one count under every judge, or the database judge's refusal by name (a grid's envelope has no
-        // typed size), never the rows alone
-        want.put("{|assertSize(" + grid + ", 4)}", "pass");
-        want.put("{|assertSize(" + grid + ", 2)}", "AssertFailed");
-        want.put("{|assertNotSize(" + grid + ", 2)}", "pass");
+        // a table's values counted (the audit of the next batch, 2026-11-26, S1): a table is a relation, which
+        // upstream counts as ONE value, so lite refuses its size assert by name under every judge (register S137) --
+        // assertNotSize too, since the same day: it had missed the rule, the host judge refused it as a table, the
+        // database judge counted its rows, and under both the judges disagreed. One row's cells are a list: counted
+        String relation = "ModelException: assertSize over a relation counts the relation as ONE value";
+        want.put("{|assertSize(" + grid + ", 4)}", relation);
+        want.put("{|assertSize(" + grid + ", 2)}", relation);
+        want.put("{|assertNotSize(" + grid + ", 2)}", relation.replace("assertSize", "assertNotSize"));
+        String cells = grid.substring(0, grid.length() - ".values".length()) + ".values.rows->at(0).values";
+        want.put("{|assertSize(" + cells + ", 2)}", "pass");
+        want.put("{|assertSize(" + cells + ", 3)}", "AssertFailed");
+        want.put("{|assertNotSize(" + cells + ", 3)}", "pass");
         // the audit of 3f2fe452: a wider table's cells in the table's own order (a descending sort read descending); a
         // class reference against itself cast to Class<Any> one reference; a store-read Decimal carried as its text
         // against a Decimal literal refused by name, never its text joined against a number
@@ -1328,7 +1334,10 @@ class AssertBarTest {
     /** A graph's size is its ROOT objects, whatever each root holds (the audit of the next batch, 2026-11-26, S2: since
      *  the equality program's first slice the database judge asks the product's own {@code size} of a graph side, where
      *  it had counted the graph's JSON documents itself; the host judge counts the root objects it decoded). A root with
-     *  three children and a root with none are two objects under every judge, on every database. */
+     *  three children and a root with none are two objects under every judge, on every database; the roots that have a
+     *  child past the first are one, never the two child rows that match. (A graph fetch inside a test body's
+     *  {@code execute} is not planned yet -- "class query under TypedGraphFetch is not resolvable" under every judge --
+     *  so the children are reached through a filter over the to-many property.) */
     private static final String ROOTS_WITH_MANY = """
             ###Pure
             Class p::A { id: Integer[1]; bs: p::B[*]; }
@@ -1349,12 +1358,17 @@ class AssertBarTest {
 
     @Test
     void aGraphsSizeIsItsRootObjectsUnderEveryJudge() throws Exception {
-        String roots = "execute(|p::A.all()->graphFetch(#{p::A{id, bs{id}}}#), p::M, p::RT.runtimeValue, []).values";
+        String roots = "execute(|p::A.all(), p::M, p::RT.runtimeValue, []).values";
+        String withLaterChild = "execute(|p::A.all()->filter(a | $a.bs->exists(b | $b.id > 1)), p::M,"
+                + " p::RT.runtimeValue, []).values";
         java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
         want.put("{|assertSize(" + roots + ", 2)}", "pass");
         want.put("{|assertSize(" + roots + ", 3)}", "AssertFailed");
         want.put("{|assertNotSize(" + roots + ", 3)}", "pass");
         want.put("{|assertNotSize(" + roots + ", 2)}", "AssertFailed");
+        want.put("{|assertSize(" + withLaterChild + ", 1)}", "pass");
+        want.put("{|assertSize(" + withLaterChild + ", 2)}", "AssertFailed");
+        want.put("{|assertNotSize(" + withLaterChild + ", 2)}", "pass");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             var database = backend.type();
