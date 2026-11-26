@@ -227,7 +227,7 @@ that inspected the rewritten tree, or expected a refusal before planning; three 
   `ClassSources.build`). The rule is the old detector's, statement-wide, unchanged.
 
 **What changes for a caller of legend-engine's door.** Nothing the old rewrite answered changes: while both stood,
-the two were planned side by side over the old rewrite's own test queries (29 of them at the end) and wrote the same
+the two were planned side by side over the old rewrite's own test queries (25 of them at the end) and wrote the same
 statement for each. Three kinds of code the old rewrite **refused by name are answered now**, because everything that
 becomes SQL passes the lowering. Each is to be confirmed with the user:
 1. a graph fetch's computed (qualified) property: the database's meaning, as legend-engine computes it (asked of
