@@ -1,6 +1,6 @@
 # legend-engine's planning refusals by database, from its manifests: by signature ("No SQL translation exists for the PURE function"), or by the words matched (REFUSES_OTHER); lite's outcome on those tests as legend-engine's audience (bazel run //pct:update_engine_lane)
 database	refusal	tests	lite_pass	lite_fail
-h2	REFUSES_OTHER: couldn't find dynafunction	86	46	40
+h2	REFUSES_OTHER: couldn't find dynafunction	86	47	39
 h2	REFUSES_OTHER: does not support	25	11	14
 h2	REFUSES_OTHER: ensure the target system understands	8	4	4
 h2	REFUSES_OTHER: is supported only	4	2	2
