@@ -397,9 +397,13 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   size: three fraction digits on DuckDB (the database holds `3.800`), none on H2 (`4`; legend-engine's own H2 test
   record says "expected: 3.8D, actual: 4D").
   - On DuckDB that type holds 15 digits before the point, so a value of 10^15 or more raises there.
-- **At legend-engine's door, lite answers legend-engine's** on DuckDB and H2, with no setting. In a host-side `let`
-  it keeps Pure's meaning; on any other database such a request is refused by name (legend-engine writes another
-  form on each: Postgres keeps `3.8`, Snowflake and ClickHouse name a precision, Trino has none).
+- **At legend-engine's door, lite answers legend-engine's on H2**, with no setting. In a host-side `let` it keeps
+  Pure's meaning.
+  - **On DuckDB lite keeps Pure's `3.8` for now:** legend-engine's value there is the same number printed two ways
+    (`3.8D` by legend-engine, `3.800D` by lite), and it rounds past the third fraction digit where lite does not.
+    Not yet matched.
+  - On any other database such a request is refused by name (legend-engine writes another form on each: Postgres
+    keeps `3.8`, Snowflake and ClickHouse name a precision, Trino and BigQuery have none).
 - **On lite's own route**, lite answers `3.8` on every database.
 - **Why:** Pure's `toDecimal` changes the type and keeps the number. Dropping or padding digits by the database's
   default is legend-engine's SQL, not Pure's meaning.

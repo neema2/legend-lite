@@ -40,8 +40,8 @@ import java.util.Set;
  *       write the bare function; the edition program's step 5, 2026-11-26, a delegation the user ruled matched,
  *       amendment 22). Pure's {@code round} sends a half to the even neighbour;</li>
  *   <li>{@code toDecimal}: the database's own DECIMAL with no precision written ({@code CAST_TO_BARE_DECIMAL};
- *       legend-engine's {@code cast(%s as decimal)} on DuckDB and through its Postgres model on H2): three places
- *       on DuckDB, none on H2, where {@code toDecimal(3.8)} is 4 (register S423; ruled matched, amendment 22).</li>
+ *       legend-engine's {@code cast(%s as decimal)}), where its row answers ({@link PureText#ENGINE_BARE_DECIMAL_READ}):
+ *       no fraction digit on H2, where {@code toDecimal(3.8)} is 4 (register S423; ruled matched, amendment 22).</li>
  *   <li>{@code parseInteger} and {@code parseFloat}: the database's own cast of the text, its refusal the database's
  *       own conversion error ({@code TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}; legend-engine's SQL casts,
  *       ruled plain inside a store query: the edition design's S-2). Until 2026-11-26 a pass of the edge's dialect
@@ -116,7 +116,8 @@ final class EngineTable implements EditionTable, Edition {
         given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1),
                 List.of(new Row(NamedRule.SQL_POSITION, "indexOf/2")));
         each(given, Pure.AT_MATH_ROUND, NamedRule.ROUND_AS_GIVEN, "round/2", "round/2", "round/1");
-        each(given, Pure.AT_MATH_TO_DECIMAL, NamedRule.CAST_TO_BARE_DECIMAL, "toDecimal/1");
+        given.put(Pure.AT_MATH_TO_DECIMAL.get(0), List.of(
+                new Row(NamedRule.CAST_TO_BARE_DECIMAL, "toDecimal/1", PureText.ENGINE_BARE_DECIMAL_READ)));
         // the plain parses answer on every database, as the edge's pass they replace did (2026-11-26)
         given.put(Pure.AT_STRING_PARSE_INTEGER.get(0),
                 List.of(new Row(NamedRule.TEXT_CAST_TO_INTEGER, "parseInteger/1", null)));
