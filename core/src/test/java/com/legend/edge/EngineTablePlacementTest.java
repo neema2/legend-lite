@@ -375,6 +375,24 @@ class EngineTablePlacementTest {
         assertTrue(asWritten(host).contains("LG#") && asWritten(store).contains("LG#"), asWritten(store));
     }
 
+    /** The same for each kind of check the lowering asks the table about with the call (the independent audit of
+     *  2026-11-26, finding 5): a shift out of range, a square root of a negative, a zero divisor, a range's zero step,
+     *  a {@code toOne} over several -- written in a host-side let, where legend-engine's own Java raises. */
+    @Test
+    void eachCheckLegendEnginesSqlDoesNotWriteIsWrittenInAHostSideLet() {
+        for (String value : List.of("1->bitShiftRight(63)", "(0.0 - 4.0)->sqrt()->toString()->length()",
+                "(7 / 0)->toString()->length()", "range(0, 5, 0)->size()", "[1, 2]->toOne()")) {
+            String host = "{|let x = " + value + "; " + TABLE + "->extend(~v: r|$x)->from(t::RT);}";
+            assertTrue(engines(host).contains("LG#"), value + ": " + engines(host));
+        }
+        // inside the store query the plain operation, as before: the shift and the division over a row's value
+        for (String cell : List.of("$r.ID->toOne()->bitShiftRight(63)", "7 / $r.ID->toOne()")) {
+            String store = "|" + TABLE + "->extend(~v: r|" + cell + ")->from(t::RT)";
+            assertFalse(engines(store).contains("LG#"), cell + ": " + engines(store));
+            assertTrue(asWritten(store).contains("LG#"), cell + ": " + asWritten(store));
+        }
+    }
+
     // ---- a database where legend-engine's answer is not yet checked -------------------------------------------------
 
     /** A call a row would answer is refused by name while the statement is planned, never answered with a guess; a

@@ -36,14 +36,28 @@ public final class PureComparisons implements CrossTypeRule {
     }
 
     /** {@code query} typed with each comparison across types written in it answered as legend-pure answers it. The door
-     *  asks where it types the query, before anything reads its body ({@code TypedQuery.comparing}). */
+     *  asks where it types the query, before anything reads its body ({@code TypedQuery.comparing}). One the door
+     *  cannot answer yet (an equality both of whose sides may be empty) is left as its marker while the query is
+     *  typed and refused by name here, once it is: the type-checker tries a call's overloads in turn, and a
+     *  comparison met inside a candidate it then drops was never the query's (the independent audit of 2026-11-26,
+     *  finding 1: a refusal thrown while typing would have ended the search). */
     public static TypedQuery asPures(TypedQuery query) {
-        return query.comparing(RULE);
+        TypedQuery typed = query.comparing(RULE);
+        java.util.List<TypedCrossTypeComparison> left = com.legend.compiler.spec.CrossTypeComparisons.in(typed.body());
+        if (!left.isEmpty()) {
+            throw refusal(left.get(0));
+        }
+        return typed;
     }
 
     @Override
     public TypedSpec inQuery(TypedCrossTypeComparison crossing) {
         return answer(crossing);
+    }
+
+    @Override
+    public boolean readsBodies() {
+        return false;
     }
 
     @Override
@@ -54,7 +68,7 @@ public final class PureComparisons implements CrossTypeRule {
     private static TypedSpec answer(TypedCrossTypeComparison c) {
         return switch (c.kind()) {
             // equal([], []) is true in legend-pure: only a side that is never empty makes the answer the types' alone
-            case EQUALITY -> neverEmpty(c) ? falseOf(c) : refused(c);
+            case EQUALITY -> neverEmpty(c) ? falseOf(c) : c;
             case MEMBERSHIP -> falseOf(c);
             case INDEX -> new TypedCInteger(-1L, c.info());
             // the database's comparison, as before the one equality (B3 step 5a's review, M3, measured 2026-11-25:
@@ -78,8 +92,8 @@ public final class PureComparisons implements CrossTypeRule {
         return new TypedCBoolean(false, c.info());
     }
 
-    private static TypedSpec refused(TypedCrossTypeComparison c) {
-        throw new com.legend.error.NotImplementedException("legend-pure's door: " + c.operator() + " of "
+    private static com.legend.error.NotImplementedException refusal(TypedCrossTypeComparison c) {
+        return new com.legend.error.NotImplementedException("legend-pure's door: " + c.operator() + " of "
                 + c.left().typeName() + " and " + c.right().typeName() + " where both sides may be empty is not"
                 + " rewritten yet, so this body is refused (legend-pure's answer is true when both are empty)");
     }

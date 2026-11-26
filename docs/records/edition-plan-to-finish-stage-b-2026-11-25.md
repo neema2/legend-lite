@@ -279,10 +279,17 @@ and not the call. It is the door's table's now (`EditionTable.checks(kind, call)
 legend-engine's door a check its SQL does not write (a zero divisor, a square root of a negative, a shift out of
 range, a `toOne` over several, a parse) is the plain operation inside a store query and is written in a host-side
 `let`, where legend-engine's own Java raises as Pure does. `LoweringForms.raise` and the edge's two form instances
-are gone (one remains). **One answer moves at legend-engine's door, to confirm with the user:** a host-side `let`
-whose operation legend-engine's SQL would not check (`let x = 5->rem(0)`) raises Pure's error now; until now it was
-the plain operation in lite's SQL, and the database's own error or answer. A cast that can never succeed and a slice
-are their own nodes and carry no stamp: they stay plain at that door wherever they are written, as before.
+are gone (one remains). **Answers that move at legend-engine's door, to confirm with the user** (the independent
+audit of the step listed them in full, `r3/audit-step2b-3raise.md` finding 4): wherever the planner stamps code as
+outside any store query, an operation legend-engine's SQL would not check raises Pure's error now; until now it was
+the plain operation in lite's SQL, and the database's own error or answer. That is:
+- a host-side `let` (`let x = 5->rem(0)`);
+- a whole query that reads no store (`|5->rem(0)`, `|sqrt(-1.0)`, `|[1, 2]->toOne()` sent to pure/v1);
+- a model-to-model mapping's transform under a graph fetch or over a model connection, and a constraint a checked
+  graph fetch evaluates (a `rem(0)` written there).
+In each, legend-engine's own Java runs the code and raises as Pure does, so this is closer to legend-engine; none was
+measured against the engine runner yet. A cast that can never succeed and a slice are their own nodes and carry no
+stamp: they stay plain at that door wherever they are written, as before.
 
 `acos`/`asin` out of range (ruled 2026-11-25 to raise as legend-pure does) is drafted on `claude/edit-next` with
 in-domain functions per dialect, so the product's check is the one check in the SQL. It waits on the corpus's door:
@@ -309,6 +316,30 @@ query and the call in a body, all as before. A test (`CrossTypeRuleTest`) lists 
 - **A side effect to know:** the query a door admits is a new typed query (its own type-checker), so a test harness
   that remembers a query by identity from `Compiler.query(text)` no longer finds the admitted one (the lean-SQL
   capture, for product queries only; `JudgeJsonTest` compares the bodies now).
+
+**Lite's own clients under the query-level rule (2026-11-26).** The measuring session found the python tests red on
+this branch, and not on `main`: 19 cases in `//python:engine_test`, `edge_test` and `notebook_test`, which the local
+gate does not run (they are the warehouse gate's). All come from B3 step 5a, which made a comparison across types in a
+query a compile error:
+- **12** were the fix step 5a itself made: one shared test query went from `> 5` to `> 5.0`, and a parsed Float
+  literal is read exactly (as a Decimal), which the tests then wrote with the standard library's JSON writer. They use
+  the library's own writer now.
+- **6** are what a person types into a filter or a calculated column: a Float column against a whole number
+  (`$x.qty > 0`, `$x.pnl->toOne() < 0`). Written `0.0` now. **This is the rule's cost to a user, and it is the
+  question for the user below (a literal against a column).**
+- **1** is DataCube's own code: its Oversample wrote `rank <= count * (100 - n) / n`, an Integer against a Float. It
+  writes `rank * n <= count * (100 - n)` now, in whole numbers and exact, and reads that form back
+  (`datacube/src/row-sample.ts`). No DataCube test planned an oversample, which is why its lanes were green.
+Pushed as `593aca57`, not run here; the measuring session runs the python and DataCube lanes on it.
+
+**The independent audit of step 2b and the plain raises (2026-11-26, `r3/audit-step2b-3raise.md`):** no blocker, no
+major finding; the product road and the SQL inside a store query at legend-engine's door are as before. Fixed from
+it: legend-pure's refusal of an equality whose two sides may both be empty was raised while the query was typed, where
+the search of a call's overloads could meet it inside a candidate it then drops, so it is raised once the query is
+typed, as before the step; the type-checker looked for a body's comparisons across types although no setting answers
+them yet, which asks the model whether two classes are related (a broken superclass refuses), so a setting now says
+whether it reads bodies and none does; the door guard files the setting as a callback, not an option; stale comments
+and an unused helper left; tests added for each.
 
 **Still open from the work list:** the corpus door's edition and its stamping, which needs the frame-aware walk; a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).

@@ -46,9 +46,36 @@ class CrossTypeRuleTest {
         }
 
         @Override
+        public boolean readsBodies() {
+            return true;
+        }
+
+        @Override
         public TypedSpec inBody(TypedCrossTypeComparison c) {
             asked.add("body: " + c.left().typeName() + " " + c.operator() + " " + c.right().typeName());
             return c.comparison();
+        }
+    }
+
+    /** A setting that reads no body, as every door's today: asked of a body's comparison, it fails the test. */
+    private static final class QueryOnly implements CrossTypeRule {
+
+        private final List<String> asked = new ArrayList<>();
+
+        @Override
+        public TypedSpec inQuery(TypedCrossTypeComparison c) {
+            asked.add("query: " + c.left().typeName() + " " + c.operator() + " " + c.right().typeName());
+            return c.comparison();
+        }
+
+        @Override
+        public boolean readsBodies() {
+            return false;
+        }
+
+        @Override
+        public TypedSpec inBody(TypedCrossTypeComparison c) {
+            throw new AssertionError("a setting that reads no body was asked of one: " + c.operator());
         }
     }
 
@@ -92,6 +119,18 @@ class CrossTypeRuleTest {
         Compiler.query(Compiler.compileModel(MODEL), "|#TDS\nn\n1\n#->x::keep(1 == 1.0)").comparing(argument).body();
         assertEquals(List.of("query: Integer == Float"), argument.asked,
                 "typed once, as the query's: never again as the body's");
+    }
+
+    @Test
+    @DisplayName("a setting that reads no body is never asked of one: a function's body, a body typed into its call")
+    void aSettingThatReadsNoBodyIsNotAskedOfOne() {
+        QueryOnly rule = new QueryOnly();
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        TypedQuery q = Compiler.query(ctx, "|#TDS\nn\n1\n#->x::ones()->x::keep(1 == 1.0)").comparing(rule);
+        q.body();
+        q.specs().compile(one(ctx, "x::loose"));
+        q.specs().compile(one(ctx, "x::A$prop$big"));
+        assertEquals(List.of("query: Integer == Float"), rule.asked);
     }
 
     @Test

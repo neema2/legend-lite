@@ -90,8 +90,8 @@ class CrossTypeComparisonsTest {
     }
 
     @Test
-    @DisplayName("a door's rewrite replaces each marker with its answer: legend-engine's the comparison itself")
-    void aDoorRewritesEachMarker() {
+    @DisplayName("a marker wraps the call the typer typed: taken off, the statement holds none")
+    void aMarkerWrapsTheCallTheTyperTyped() {
         ModelContext ctx = Compiler.compileModel(MODEL);
         TypedSpec statement = Compiler.query(ctx, "|(1 == 1.0) && (2 == 2.0)").body().get(0);
         assertEquals(2, CrossTypeComparisons.in(List.of(statement)).size());
@@ -99,7 +99,8 @@ class CrossTypeComparisonsTest {
         assertEquals(List.of(), CrossTypeComparisons.in(List.of(engine)));
     }
 
-    /** {@code n} with each marker replaced by the call it wraps, as legend-engine's door does (edge.EngineComparisons). */
+    /** {@code n} with each marker replaced by the call it wraps (legend-engine's setting answers that call where the
+     *  comparison is typed, edge.EngineComparisons). */
     private static TypedSpec unwrapped(TypedSpec n) {
         TypedSpec rebuilt = n.mapChildren(CrossTypeComparisonsTest::unwrapped);
         return rebuilt instanceof TypedCrossTypeComparison c ? c.comparison() : rebuilt;

@@ -15,9 +15,9 @@ import java.util.function.Supplier;
  *
  * @param pureOnly  the texts only legend-pure writes ({@link PureOnlyTexts}): the edge's answers, the product's style
  *                  throwing the call's refusal
- * @param forms     the lowering's two-form choices ({@link LoweringForms}, the audit's K5, 2026-11-17; until then the
- *                  set of raises the style wrote plain, B7): the product's {@link ProductLoweringForms}, every check
- *                  written; the edge's pure/v1 style legend-engine's census class A plain
+ * @param forms     the lowering's two-form choices ({@link LoweringForms}, the audit's K5, 2026-11-17): the product's
+ *                  {@link ProductLoweringForms}; the edge's legend-engine's. (Which checks are written left them for
+ *                  the edition's table with the edition program's step 3, 2026-11-26: {@link EditionTable#checks}.)
  * @param dateTimes a DateTime's text in a message, a two-form hook ({@link DateTimeTexts}, census B9, 2026-11-17): the
  *                  product's lite text, the edge's legend-pure's
  * @param lists     a list's text, a two-form kind ({@link ListTexts}, census B8, 2026-11-17): the product's JSON array,

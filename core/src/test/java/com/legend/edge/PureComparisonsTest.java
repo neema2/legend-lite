@@ -27,7 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PureComparisonsTest {
 
     private static TypedQuery typed(String query) {
-        ModelContext ctx = Compiler.compileModel("Class x::A { n: Integer[1]; }\n");
+        ModelContext ctx = Compiler.compileModel("Class x::A { n: Integer[1]; }\n"
+                + "function x::keep<T>(r: Relation<T>[1], b: Boolean[1]): Relation<T>[1] { $r->filter(x | $b) }\n");
         return Compiler.query(ctx, query);
     }
 
@@ -51,6 +52,37 @@ class PureComparisonsTest {
             + " date-time; the tie at one instant recorded)")
     void legendPureOrdersOtherTypesAsTheDatabase() {
         assertTrue(pures("|%2020-01-02 < %2020-01-03T00:00:00").children().size() == 2, "the comparison itself");
+    }
+
+    @Test
+    @DisplayName("legend-pure's door: an equality both of whose sides may be empty is refused by name, once the query"
+            + " is typed (never while it is: the independent audit of 2026-11-26, finding 1)")
+    void anEqualityOfTwoSidesThatMayBeEmptyIsRefusedByName() {
+        com.legend.error.NotImplementedException e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
+                () -> PureComparisons.asPures(typed("|[1]->first() == [1.0]->first()")));
+        assertTrue(e.getMessage().startsWith("legend-pure's door: == of Integer and Float where both sides may be"
+                + " empty"), e.getMessage());
+    }
+
+    @Test
+    @DisplayName("legend-pure's door: an argument written in the query keeps legend-pure's answer when the function's"
+            + " body is typed into the call")
+    void anArgumentWrittenInTheQueryKeepsLegendPuresAnswer() {
+        TypedSpec answered = pures("|#TDS\nn\n1\n#->x::keep(1 == 1.0)");
+        assertTrue(holdsFalse(answered), "legend-pure's false stands in the expanded call: " + answered);
+    }
+
+    private static boolean holdsFalse(TypedSpec n) {
+        if (n instanceof TypedCBoolean b && !b.value()) {
+            return true;
+        }
+        for (TypedSpec k : n.children()) {
+            if (holdsFalse(k)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Test

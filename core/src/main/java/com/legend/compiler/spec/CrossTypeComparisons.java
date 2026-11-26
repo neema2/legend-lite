@@ -38,18 +38,14 @@ public final class CrossTypeComparisons {
         return c.refusal();
     }
 
-    /** Every comparison across types in {@code body}, in order: what a door that rewrites them loosened. */
+    /** Every marker of a comparison across types in {@code body}, in order: what a setting left for the planner to
+     *  refuse (lite's every one; legend-pure's the one it cannot answer yet, which its door refuses by name). */
     public static List<TypedCrossTypeComparison> in(List<? extends TypedSpec> body) {
         List<TypedCrossTypeComparison> out = new ArrayList<>();
         for (TypedSpec statement : body) {
             collect(statement, out);
         }
         return out;
-    }
-
-    /** Whether {@code n} holds a comparison across types. */
-    static boolean holds(TypedSpec n) {
-        return first(n) != null;
     }
 
     private static @com.legend.base.Nullable TypedCrossTypeComparison first(TypedSpec n) {
