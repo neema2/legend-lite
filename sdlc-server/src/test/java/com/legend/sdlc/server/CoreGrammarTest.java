@@ -14,9 +14,9 @@ import org.junit.jupiter.api.Test;
  * them"): the check a review must pass to land answers as lite's own compile route does, so since the edition
  * program's step 4 (2026-11-26) a comparison of two different types inside a function's body is a compile error
  * here too, and a tree holding one does not land. Held here because nothing held it: the independent audit of that
- * step found the SDLC's answer had moved with no test and no record. Which meaning the SDLC gives a project that
- * declares none is the user's to rule (lite's, as built; or legend-engine's, whose compile route accepts such a
- * body); this test is where that ruling shows.
+ * step found the SDLC's answer had moved with no test and no record. The user ruled it kept that day ("keep sdlc but
+ * we need a way later to accept engine"): a way for a project to be taken with legend-engine's meaning, whose
+ * compile route accepts such a body, is carried forward (the plan record's section 5b), and would show here.
  */
 class CoreGrammarTest {
 

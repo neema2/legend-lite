@@ -61,19 +61,19 @@ comparison setting); `ArchitectureTest.PLANNER_ENTRIES` (`lowering.NamedRule` na
 | Finding | Done |
 |---|---|
 | **Blocker: lite's strictness inside bodies reached legend-engine's door.** The test-data routes typed their query without the door's comparison setting, so their raw-SQL check, which types the bodies a query reaches, refused a legend-engine model whose function compares across types | the door types every query through one admission (`EngineComparisons.query`); every route switched; an architecture rule (`legendEnginesDoorTypesAQueryThroughItsSetting`) keeps any other edge class from typing one; `PureMeaningEngineTest` holds four routes |
-| the same finding named lite's SDLC, whose compile check refuses such a body since step 4 | not a leak: the SDLC's check is lite's own by its contract (`Sdlc.Grammar.compile`: "as legend-lite's compilation/compile finds them"). But it moved with no test and no record: `CoreGrammarTest` holds it now, the differences page says it, and which meaning the SDLC gives a project that declares none is put to the user |
+| the same finding named lite's SDLC, whose compile check refuses such a body since step 4 | not a leak: the SDLC's check is lite's own by its contract (`Sdlc.Grammar.compile`: "as legend-lite's compilation/compile finds them"). But it moved with no test and no record: `CoreGrammarTest` holds it now, the differences page says it, and the user ruled it kept (2026-11-26: "keep sdlc but we need a way later to accept engine"); the way is carried forward in the plan record's section 5b |
 | a fold answered `false` for `1.0->in([0, 1])` once a call was inlined (a Float beside Integers compared as Java objects), where the literal rule and the database say `true` | the `in` fold leaves a value of one number type against a list of another's literals to the database (the literal rule's own case); a list of mixed kinds folds as before. `LiteralRuleAnswersTest` runs the bodies. A first, broader fix (no fold over any list holding another kind) was caught by the re-recorded size baseline before anything landed: ten PCT `in` tests that are constants had written SQL, up to ten times the characters |
-| functions typed into their call are not held to the rule in their whole body | recorded as a gap (register S127, the differences page, AGENTS.md), to close with step 6's generic positions |
+| functions typed into their call are not held to the rule in their whole body | recorded as a gap (register S127, the differences page, AGENTS.md) and owned by step 6 (the user, 2026-11-26: "let's fix it in the step not forget"; the plan record's section 5b) |
 | the bare DECIMAL cast can raise and was not in the set of raising functions | added (`SqlFn.RAISING`) |
 | three record errors (`toDecimal` "refused by name" elsewhere; channel B's 168; six macOS tests) | corrected: the call keeps Pure's meaning elsewhere; 104; the overlay file's rows counted again below |
 | H2 might answer a number for `acos` of NULL | measured on the jar: `GREATEST(NULL, -1)` is NULL on H2 2.5.252, so `acos` of NULL stays NULL |
 | the `acos`/`asin` error tests left the expected failures of all eleven databases, four measured | the database lanes run the batch before the program branch moves |
 
 **Size pins that go up, and by whose word:** `acos`/`asin` families (the user, ruling 1); H2's `isNumeric` in the
-corpus (ruling 3, measured 6 characters over the 41 ruled). **Not yet ruled, put to the user in the landing's
-report:** three queries that were refused and are planned (so their families hold one more statement each: core
-`TypedFilter` 624 characters; the `and` and `or` families' plans about 269 characters on each database; channel B's
-grammar ratchet two statements and 520 characters). No existing query's SQL grew for the equality work.
+corpus (ruling 3 for 41 characters; its measured 47 ruled 2026-11-26 ~16:08, "isnumeric okay"); three queries that
+were refused and are planned, so their families hold one more statement each (core `TypedFilter` 624 characters; the
+`and` and `or` families' plans about 269 characters on each database; channel B's grammar ratchet two statements and
+520 characters: ruled the same minute, "pins okay"). No existing query's SQL grew for the equality work.
 
 ## Found by the landing's own run
 
