@@ -1120,7 +1120,9 @@ class AssertBarTest {
         // and owned by the equality program's later slices (the plan record's carried-forward table): the typer keeps
         // a row's bare .values as the row itself, one value, so the host judge counts 1; the database judge asks the
         // product's size of it, whose value is the row's cells as a mixed list under a to-one stamp, and the lowering
-        // refuses that by name. Never a count of 2 from one judge and 1 from the other
+        // refuses that by name. A MOVE of the first slice, measured against its base: until it the database judge
+        // counted the side's rows itself and AGREED with the host on 1, the wrong count; it now refuses where it
+        // would have agreed on a wrong answer. Never a count of 2 from one judge and 1 from the other
         String cells = grid.substring(0, grid.length() - ".values".length()) + ".values.rows->at(0).values";
         String unlowered = "DialectCapability: a tagged list reached the renderer";
         String everyDatabase = "|DuckDB/DATABASE=" + unlowered + "|DuckDB/BOTH=" + unlowered + "|H2/DATABASE=" + unlowered
