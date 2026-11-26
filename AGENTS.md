@@ -662,6 +662,12 @@ step, with its register row.
 - research for the steps ahead goes to subagents: an inventory of the guards a draft will trip, a sheet of the rows to
   add with upstream's own text beside lite's, the list of tests that will judge a change.
 
+**Scratch branches** (the user, 2026-11-26: "Def can push to scratch branches or make any number of branches you
+need without my permission"): a session may create and push any number of scratch branches (`claude/...`) without
+asking: work in progress for a worker session to build or measure, a backup of an edit tree, a worker's own results.
+So the pull request's branch carries verified work only, and a push to it is a deliberate CI run. Never `main`, and
+never a merge of a pull request, without the user's word (below).
+
 **Starting a session** (`create_session`): the environment **Legend Dev** (it sets `DB_AWS_ACCESS_KEY_ID` and
 `DB_AWS_SECRET_ACCESS_KEY`, which the cloud lanes need), `model` Opus, `effort` medium, `source_url` this repository,
 `source_revision` the branch under test, and a prompt that says: measure only (no tracked file edited, no commit, no

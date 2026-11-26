@@ -830,6 +830,11 @@ The corpus lane on macOS gets a per-platform overlay of its recorded answers, as
 orchestrator recommended): started the same minute as its own session, on its own branch, merged into the pull
 request's branch when it reports, CI's macOS job the proof.
 
+**The user, ~12:25, to the orchestrator's one request on pace:** "Def can push to scratch branches or make any
+number of branches you need without my permission". Recorded in AGENTS.md ("The fast setup"). From here unverified
+work goes to scratch branches (the edit tree is pushed as `claude/edit-ahead`), worker sessions build and measure
+from them, and the pull request's branch takes verified batches only.
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
