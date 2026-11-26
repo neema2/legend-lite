@@ -502,6 +502,22 @@ final class TaggedLists {
             }
             return new SqlExpr.BoolLit(false);
         }
+        List<SqlExpr.Tagged.Candidate> written = tl.literalElements();
+        if (written != null) {
+            // A LIST WRITTEN IN THE QUERY needs no list at all (the user, 2026-11-26, on the measured SQL of the fold
+            // rule): each element's kind is the compiler's, and only an element of the needle's kind can equal it
+            // (the equality rule), so membership is the plain IN over those elements, as a list of one type writes
+            // it. The elements are chosen by their TYPE; every value is compared by the database. Every element of
+            // the kind, whichever slot holds it: Decimals of two scales are one type, equal by their number (S139)
+            List<SqlExpr> flat = new ArrayList<>();
+            flat.add(needle);
+            for (SqlExpr.Tagged.Candidate c : written) {
+                if (c.kind().equals(kind)) {
+                    flat.add(c.value());
+                }
+            }
+            return SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Call(SqlFn.IN, flat), new SqlExpr.BoolLit(false));
+        }
         String p = "_tlp";
         SqlExpr hit = SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(SqlExpr.Column.derived(null, p)), new SqlExpr.IntLit(k + 1)),

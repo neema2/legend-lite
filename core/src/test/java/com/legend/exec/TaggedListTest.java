@@ -135,6 +135,31 @@ class TaggedListTest {
         }
     }
 
+    /** A list WRITTEN IN THE QUERY needs no list in the SQL (the user, 2026-11-26, on the fold rule's measured SQL):
+     *  the compiler knows each element's type and only an element of the value's type can equal it, so membership
+     *  is the plain IN over those elements, on every database. The elements are chosen by type; the database
+     *  compares every value. */
+    @Test
+    void membershipInAWrittenListIsAPlainInOverTheElementsOfTheValuesType() throws Exception {
+        String col = "[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']";
+        String sql = query("|1->in(" + col + ")").plan("s::RT").sql();
+        assertTrue(sql.contains("1 IN (1, 2, 5, 2)"), sql);
+        assertFalse(sql.contains("'a'"), sql);
+        assertFalse(sql.contains("2014"), sql);
+        assertFalse(sql.contains("list_"), sql);
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(true, value(c, "|1->in(" + col + ")"));
+            assertEquals(false, value(c, "|7->in(" + col + ")"));
+            assertEquals(true, value(c, "|%2014-02-01->in(" + col + ")"));
+            assertEquals(false, value(c, "|%2014-02-02->in(" + col + ")"));
+            assertEquals(false, value(c, "|1.0->in(" + col + ")"));
+            // Decimals of two scales are one type, equal by their number (S139): every Decimal of the list is read
+            assertEquals(true, value(c, "|1.5D->in([2.00D, 1.5D, 'a'])"));
+            assertEquals(true, value(c, "|1.50D->in([2.00D, 1.5D, 'a'])"));
+            assertEquals(false, value(c, "|1.51D->in([2.00D, 1.5D, 'a'])"));
+        }
+    }
+
     @Test
     void indexingSizeAndPrintReadTheKinds() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
