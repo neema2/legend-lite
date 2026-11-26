@@ -466,6 +466,48 @@ recorded answers have per-platform overlays for exactly this; the corpus has non
 fixed here. And `//datacube:live_channel_test` failed once on macOS (one case of 52, a timing-sensitive page test);
 unconfirmed, watched on the next run.
 
+**Step 5 begun, and step 3's remainder for PCT (2026-11-26).** Three pieces, built together:
+- **A row names a rule, not a function.** Until now a row of legend-engine's table mapped a call to another native
+  of the Pure language (`substringAsGiven`, `substrAsGiven`), a leftover of the old rewrite, which had to write a
+  real function into the typed query. The table is read where the SQL is produced, so a row needs only a rule to
+  name: `lowering/NamedRule`, a closed list (`SUBSTRING_AS_GIVEN`, `SUBSTR_AS_GIVEN`, `SQL_POSITION`, `TRUST_ONE`,
+  and now `ROUND_HALF_AWAY_FROM_ZERO`), each rule written in the lowering (`NamedRules`, one arm a name, no default).
+  The two natives left the language: four overloads off the catalogue, the pins down (`INTERNAL_DESUGAR` 42 to 40,
+  `NOT_UPSTREAM_MAX` 80 to 76, implementation kinds 742 to 738), and nothing for the name resolver to refuse.
+  Step 5's rows therefore add no function to the language. **Two pins the user ruled were replaced, not dropped**
+  (`ClaimRegistryTest`: "`substringAsGiven`'s one product claimer is Scalars", 2026-11-19, and its sibling's,
+  2026-11-20): the same fact, that no product class chooses one of these rules, is now
+  `ArchitectureTest.anEditionsTableAloneNamesARule` over the compiled classes of core, the hosts' doors and the
+  edge, with a planted violation. No answer and no SQL changed with this piece.
+- **`round` at legend-engine's door** (register S422; a delegation ruled matched, amendment 22). Inside a query sent
+  to DuckDB or H2, `round` is the database's own, which sends a half away from zero (16.5 is 17), as legend-engine's
+  own manifests record; a host-side `let` and lite's own doors keep Pure's half to even (16). On any other database
+  the door refuses such a query by name, as it does `substring`.
+- **PCT's legend-engine run has its own edition** (`PureText.ENGINE_PCT`, `EngineTable.PCT`). A PCT case reaches
+  lite as the one expression legend-engine's own PCT adapter sends to the database, so all of it is a store query's
+  code: nothing is stamped and every row answers. Until now the run planned under pure/v1's style, where a case
+  that reads no store is legend-engine's own Java's.
+
+**What the legend-engine lane shows with it** (`pct/engine_lane/`, each row read): 24 rows move to "both fail", and
+on the delegations lite's answer is legend-engine's own manifest's, to the character:
+- `substring::testStart`, `testStartEnd`, `indexOf::testSimple`, `indexof::testIndexOfOneElement` (DuckDB and H2):
+  `5` for `4`, `1` for `0`, the database's own cut of the text;
+- the two `round` tests (DuckDB and H2): `-17` and `17`;
+- the nine error tests return to "both fail" (the database decides, as in legend-engine's SQL);
+- three tests legend-engine refuses and lite answers, on DuckDB, now fail against Pure
+  (`sort::testSimpleSortWithKey`, `testSimpleSortWithFunctionVariables`,
+  `removeDuplicatesBy::testRemoveDuplicatesByPrimitive`): their key function is a `substring`, which is
+  legend-engine's in this run.
+- Nothing moved to "lite is behind" (1 on DuckDB, 6 and 27 on H2, unchanged: `testBigFloatAbs`, and H2 functions
+  the product does not write yet). H2's four lateral tests stay "lite passes".
+
+**The independent audit of these three pieces** (`r3/audit-step5-start.md` holds its findings): one blocker, the
+generated claims ledger (regenerated); the rest fixed the same day: the guard reads the hosts' doors too and names
+its limit (a class literal is not an access); every row's rule is tested on every overload it maps, in the place of
+the deleted test that compared a row's native's signature with its call's; `round` at a scale is run on H2. Left
+as it is: `SqlTyping` does not type `ROUND_HALF_UP` (it never did; a Float `round(x, n)` at the door carries no
+type fact, as the product's three-argument `divide` does not).
+
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
@@ -514,6 +556,17 @@ old detector did not count it either).
    Linux in the last digit whenever the lane really runs on macOS. The choices are a per-platform overlay for the
    corpus's recorded files, as PCT's have (new pinned files), a tolerance in those five comparisons, or not running
    the corpus lanes on macOS. Until one is chosen the pull request's macOS corpus job can be red for this alone.
+9. **Two pins the user ruled were replaced by an architecture rule** (item "Step 5 begun" in 6a): the claim pins
+   for `substringAsGiven` and `substrAsGiven`, with the two functions themselves, which are rules of the lowering's
+   now. Say if the old pins should be kept in some form.
+10. **Answers that moved with step 5's start:** (a) `round` inside a store query at legend-engine's door: half away
+   from zero on DuckDB and H2 (legend-engine's), and **refused by name on every other database** until its answer
+   is checked there (it was answered Pure's way before); (b) PCT's legend-engine scoreboard: 24 rows to "both
+   fail", listed in 6a.
+11. **Step 5's rows that carry a decision** (from `r3/research-engine-rows.md`): `dateDiff` (legend-engine writes
+   the database's own for every unit; only weeks were ruled); `splitPart` on DuckDB differs from Pure beyond the
+   empty token; H2's `isNumeric` in legend-engine 4.145.0 is a regular expression, so register S370 is stale;
+   `parseJSON`'s leniency is not in legend-engine's SQL; legend-engine's H2 `parseDate` fails every PCT input.
 
 ## 7. The user's words on this plan (2026-11-25, late night)
 
