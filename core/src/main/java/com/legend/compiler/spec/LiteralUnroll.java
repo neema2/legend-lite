@@ -448,6 +448,19 @@ final class LiteralUnroll {
                 || spelled instanceof TypedCInteger;
     }
 
+    /** Whether {@code other} is spelled as the same kind of literal as {@code value}, one of the kinds the compiler
+     *  compares ({@link #comparedHere}): a String against a String, a whole number against a whole number. A literal
+     *  of another kind is never the value's match in a fold, whatever key its spelling shares with it. */
+    private static boolean spelledAlike(TypedSpec value, TypedSpec other) {
+        return switch (value) {
+            case TypedCString s -> other instanceof TypedCString;
+            case TypedCBoolean b -> other instanceof TypedCBoolean;
+            case TypedEnumValue v -> other instanceof TypedEnumValue;
+            case TypedCInteger i -> other instanceof TypedCInteger;
+            default -> false;
+        };
+    }
+
     /** {@code value->in(list)} over a list of spelled scalars: folded where the value is of a kind the compiler may
      *  compare ({@link #comparedHere}) -- against a list of mixed kinds too, whose other kinds are never equal to it:
      *  an element is a match only where it is spelled as the value's own kind (the audit of this slice, 2026-11-26:
@@ -460,7 +473,7 @@ final class LiteralUnroll {
             return c;
         }
         return scalar(value).<TypedSpec>map(needle -> bool(list.elements().stream()
-                .anyMatch(e -> e.getClass() == value.getClass() && !neverEqual(value, e)
+                .anyMatch(e -> spelledAlike(value, e) && !neverEqual(value, e)
                         && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
     }
 
