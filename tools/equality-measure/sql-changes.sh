@@ -16,6 +16,7 @@ fi
 a="$1"; b="$2"
 out="$(mkdir -p "$3" && cd "$3" && pwd)"
 cd "$repo"
+cp "$here/sql_diff.py" "$out/.sql_diff.py"  # the harness leaves the tree with each checkout
 [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "the tree must be clean" >&2; exit 1; }
 harness="$(git rev-parse HEAD)"
 base="$(cat "$here/BASE")"
@@ -31,4 +32,4 @@ for c in "$a" "$b"; do
   git reset -q --hard
 done
 sa="$(git rev-parse --short=8 "$a")"; sb="$(git rev-parse --short=8 "$b")"
-python3 "$here/sql_diff.py" "$out/$sa" "$out/$sb" "$out/sql-changes-$sa-$sb.md" "$sa" "$sb"
+python3 "$out/.sql_diff.py" "$out/$sa" "$out/$sb" "$out/sql-changes-$sa-$sb.md" "$sa" "$sb"
