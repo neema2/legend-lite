@@ -72,7 +72,7 @@ and standard 198 up**, the same constant comparisons inside test bodies. The sam
 The relational corpus's size baselines and its two rosters: unchanged. The re-check's fixes (below) moved no size
 row: the baseline, the census and the ratchets were re-recorded on the final code and came back the same.
 
-`parser-equivalence/.../ratchets.tsv`: `own_corpus.matched` up, 3355 to 3361: the new tests' models (`OneValueWithinOneTypeTest`, `TaggedListTest`'s and `LiteralRuleAnswersTest`'s new functions) match the reference parser.
+`parser-equivalence/.../ratchets.tsv`: `own_corpus.matched` up, 3359 to 3361: `LiteralRuleAnswersTest`'s two new functions match the reference parser (the user's standing word of 2026-11-24, "parser bumps are always okay").
 
 ## Tests whose answer moves
 
