@@ -54,7 +54,7 @@ final class DecimalKindRules {
                     && n.args().get(1).info().type()
                             == Type.Primitive.INTEGER
                     && !(args.get(1) instanceof SqlExpr.IntLit k && k.value() != 0)) {
-                return Scalars.guarded(
+                return Scalars.guarded(n,
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1),
                                 new SqlExpr.IntLit(0)),
                         // DIVIDE_BY_ZERO, no operand (the interpreter's 'Division by zero', the edge's: D1.1)

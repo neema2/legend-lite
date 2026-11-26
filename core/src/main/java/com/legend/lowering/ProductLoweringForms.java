@@ -3,11 +3,9 @@
 
 package com.legend.lowering;
 
-import com.legend.sql.RaiseKind;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
 
-import java.util.function.Supplier;
 
 /**
  * THE PRODUCT'S FORM OF THE LOWERING'S TWO-FORM CHOICES ({@link LoweringForms}; a product class of its own since
@@ -20,11 +18,6 @@ public final class ProductLoweringForms implements LoweringForms {
     public static final ProductLoweringForms INSTANCE = new ProductLoweringForms();
 
     private ProductLoweringForms() {
-    }
-
-    @Override
-    public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain) {
-        return checked.get();
     }
 
 

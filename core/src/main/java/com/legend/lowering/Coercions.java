@@ -99,7 +99,7 @@ final class Coercions {
                         && CollectionLanes.valueLane(n.args().get(0))
                         && !CollectionLanes.scalarCarriedIf(
                                 n.args().get(0))) {
-                    return Scalars.guarded(
+                    return Scalars.guarded(n,
                             new SqlExpr.Call(SqlFn.IS_NULL,
                                     List.of(args.get(0))),
                             SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1]"),

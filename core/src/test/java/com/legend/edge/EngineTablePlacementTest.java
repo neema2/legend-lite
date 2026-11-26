@@ -362,6 +362,19 @@ class EngineTablePlacementTest {
         }
     }
 
+    /** A check legend-engine's SQL does not write (a zero divisor's) is written where legend-engine's own Java runs the
+     *  call: a host-side let raises as Pure does, a store-bound call is the plain operation (the stamp reaches the
+     *  raise choice; the edition program's step 3). */
+    @Test
+    void aCheckLegendEnginesSqlDoesNotWriteIsWrittenOutsideAStoreQuery() {
+        String host = "{|let x = 5->rem(0); " + TABLE + "->filter(r|$r.ID == $x)->from(t::RT);}";
+        assertTrue(engines(host).contains("LG#"), engines(host));
+        String store = "|" + TABLE + "->extend(~m: r|$r.ID->toOne()->rem(0))->from(t::RT)";
+        assertFalse(engines(store).contains("LG#"), engines(store));
+        // the product's edition writes the check in both places
+        assertTrue(asWritten(host).contains("LG#") && asWritten(store).contains("LG#"), asWritten(store));
+    }
+
     // ---- a database where legend-engine's answer is not yet checked -------------------------------------------------
 
     /** A call a row would answer is refused by name while the statement is planned, never answered with a guess; a

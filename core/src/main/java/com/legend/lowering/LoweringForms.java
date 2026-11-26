@@ -3,11 +3,9 @@
 
 package com.legend.lowering;
 
-import com.legend.sql.RaiseKind;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
 
-import java.util.function.Supplier;
 
 /**
  * THE LOWERING'S TWO-FORM CHOICES (the audit's K5, 2026-11-17, the orchestrator's ruling: one two-form kind,
@@ -20,8 +18,8 @@ import java.util.function.Supplier;
  * (docs/records/edition-census-2026-11-25.md).
  *
  * <ul>
- * <li>{@link #raise}: a check the plan writes -- the product writes every one ({@code checked}); legend-engine's pure/v1
- * route writes none for its census class A, the plain operation, the database's own error passing through.</li>
+ * <li>(a check the plan writes -- {@code raise}, until the edition program's step 3, 2026-11-26: the door's table says
+ * which checks its audience writes, by the call's stamp, {@link EditionTable#checks}.)</li>
  * <li>{@link #executeValues}: a serialize's values where legend-engine's cardinality rule could apply -- the root of an
  * engine {@code execute(...)}'s values read (the audit's J3, 2026-11-17) and a serialize in scalar position (the lens
  * audit's L6, 2026-11-18: until then folded unconditionally) -- the product's stays the array, lite's own (the user's
@@ -37,9 +35,6 @@ import java.util.function.Supplier;
  * </ul>
  */
 public interface LoweringForms {
-
-    /** A raise of {@code kind}: the guarded operation ({@code checked}) or the plain one ({@code plain}). */
-    SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain);
 
     /** A serialize's values as the product answers them ({@code own}: the object where the graph is to-one, the array
      *  where it is many -- the product's multiplicity fact): the product's form returns them unchanged; legend-engine's
