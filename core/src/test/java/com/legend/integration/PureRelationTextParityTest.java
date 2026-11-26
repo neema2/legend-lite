@@ -130,21 +130,27 @@ class PureRelationTextParityTest {
         String model = backend.withStorelessRuntime("");
         String hours = "->adjust(1, meta::pure::functions::date::DurationUnit.HOURS)->cast(@DateTime)";
         java.util.Map<String, String> texts = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> lites = new java.util.LinkedHashMap<>();
         texts.put("%2014-01-01T10:20:30.250+0000" + hours, "2014-01-01T11:20:30.25+0000");
+        lites.put("%2014-01-01T10:20:30.250+0000" + hours, "2014-01-01T11:20:30.250000000Z");
         texts.put("%2014-01-01T10:20:30+0000" + hours, "2014-01-01T11:20:30+0000");
+        lites.put("%2014-01-01T10:20:30+0000" + hours, "2014-01-01T11:20:30.000000000Z");
         texts.put("%2014-01-01T10:20:30.123456+0000" + hours, "2014-01-01T11:20:30.123456+0000");
+        lites.put("%2014-01-01T10:20:30.123456+0000" + hours, "2014-01-01T11:20:30.123456000Z");
         texts.put("%2014-01-01T23:00:00.000+0000" + hours, "2014-01-02T00:00:00+0000");
+        lites.put("%2014-01-01T23:00:00.000+0000" + hours, "2014-01-02T00:00:00.000000000Z");
         try (Connection c = backend.open(PureText.UPSTREAM)) {
             for (var e : texts.entrySet()) {
                 String query = "|" + e.getKey() + "->toString()";
                 assertEquals(e.getValue(), lifted(model, query, c), backend.name() + " the Java print: " + query);
                 // not lifted, the edge's plan writes the product's text of the instant (each style on a session of
                 // its own: the product's and the edge's sessions are opened differently on one lane)
+                Object edges = Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, backend, PureText.UPSTREAM).rows()
+                        .get(0).get(0);
+                assertEquals(lites.get(e.getKey()), edges, backend.name() + " used further: " + query);
                 assertEquals(Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, backend,
-                                com.legend.database.PlanStyle.PRODUCT).rows().get(0).get(0),
-                        Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, backend, PureText.UPSTREAM).rows().get(0)
-                                .get(0),
-                        backend.name() + " used further: " + query);
+                        com.legend.database.PlanStyle.PRODUCT).rows().get(0).get(0), edges,
+                        backend.name() + " used further, the product's: " + query);
             }
         }
     }

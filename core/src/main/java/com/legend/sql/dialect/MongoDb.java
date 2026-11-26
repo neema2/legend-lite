@@ -826,12 +826,13 @@ public class MongoDb extends AnsiSqlRenderer {
         return temporal(e) == SqlType.Scalar.DATE ? "%Y-%m-%d" : dateTimeFormat();
     }
 
-    /** The {@code $dateToString} format of a date-time's text: the product's, ISO 8601 in UTC with six fraction digits
-     *  and {@code Z} (the user's ruling of 2026-11-10, register S312; MongoDB keeps milliseconds, so the last three of
-     *  the six are its zeros); the compatibility edge writes legend-pure's ({@code +0000}) instead (phase D's D1.2,
-     *  2026-11-15: until then Pure's was the product's here). */
-    @SpellingArm
-    protected String dateTimeFormat() {
+    /** The {@code $dateToString} format of a date-time's text: lite's, ISO 8601 in UTC with six fraction digits and
+     *  {@code Z} (the user's ruling of 2026-11-10, register S312; MongoDB keeps milliseconds, so the last three of the
+     *  six are its zeros). (A spelling hook from phase D's D1.2, 2026-11-15, to 2026-11-26: the compatibility edge's
+     *  MongoDB overrode it with legend-pure's {@code +0000} text; that override went with the edition program's step
+     *  8 -- a date-time's text the program goes on computing with is lite's own on every database -- and with its
+     *  one overrider the hook.) */
+    private static String dateTimeFormat() {
         return "%Y-%m-%dT%H:%M:%S.%L000Z";
     }
 

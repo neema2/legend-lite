@@ -16,7 +16,7 @@ corpus	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilestonedSo
 corpus	DuckDB	meta::pure::lineage::scanColumns::test	0	0	0	0	0	1
 corpus	DuckDB	meta::pure::lineage::scanRelations::test	0	0	0	0	0	0
 corpus	DuckDB	meta::pure::router::preeval::tests	0	0	0	0	0	1
-corpus	DuckDB	meta::pure::tds::tests::extensions	11	15970	299546	39	1470	0
+corpus	DuckDB	meta::pure::tds::tests::extensions	11	15970	299585	39	1470	0
 corpus	DuckDB	meta::pure::tds::toRelation	0	0	0	0	0	2
 corpus	DuckDB	meta::relational::functions::sqlQueryToString::debugPrint	0	0	0	0	0	0
 corpus	DuckDB	meta::relational::functions::sqlQueryToString::default	0	0	0	0	0	1
@@ -53,7 +53,7 @@ corpus	DuckDB	meta::relational::tests::advanced::forced::structure	4	3380	92486	
 corpus	DuckDB	meta::relational::tests::advanced::forcedselfjoin	1	1058	23137	4	0	0
 corpus	DuckDB	meta::relational::tests::advanced::resultSourcing	16	48113	182350	5	12578	1
 corpus	DuckDB	meta::relational::tests::advanced::structure	20	13876	381965	42	0	0
-corpus	DuckDB	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy	13	7242	133221	11	237	0
+corpus	DuckDB	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy	13	7242	133299	11	237	0
 corpus	DuckDB	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware	8	2091	45794	0	78	0
 corpus	DuckDB	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy	7	1603	36599	0	0	0
 corpus	DuckDB	meta::relational::tests::database	0	0	0	0	0	0
@@ -311,7 +311,7 @@ corpus	DuckDB	meta::relational::tests::tds::window::routing	0	0	0	0	0	1
 corpus	DuckDB	meta::relational::tests::typeInference	0	0	0	0	0	1
 corpus	DuckDB	meta::relational::transform::autogen::tests	0	0	0	0	0	1
 corpus	DuckDB	meta::relational::validation::complex	10	8677	197512	34	44	0
-corpus	DuckDB	meta::relational::validation::showcase::standalone	8	11690	243214	17	0	0
+corpus	DuckDB	meta::relational::validation::showcase::standalone	8	11690	243331	17	0	0
 corpus	DuckDB	meta::relational::validation::tests::milestoning	14	9489	174829	20	0	0
 corpus	H2	meta::external::store::relational::modelJoins::test	1	1843	9955	1	0	0
 corpus	H2	meta::pure::alloy::connections::tests::relationalMapper	0	0	0	0	0	0
@@ -329,7 +329,7 @@ corpus	H2	meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilestonedSource
 corpus	H2	meta::pure::lineage::scanColumns::test	0	0	0	0	0	1
 corpus	H2	meta::pure::lineage::scanRelations::test	0	0	0	0	0	0
 corpus	H2	meta::pure::router::preeval::tests	0	0	0	0	0	1
-corpus	H2	meta::pure::tds::tests::extensions	11	21298	312811	39	1722	3
+corpus	H2	meta::pure::tds::tests::extensions	11	21298	312850	39	1722	3
 corpus	H2	meta::pure::tds::toRelation	0	0	0	0	0	2
 corpus	H2	meta::relational::functions::sqlQueryToString::debugPrint	0	0	0	0	0	9
 corpus	H2	meta::relational::functions::sqlQueryToString::default	0	0	0	0	0	1
@@ -366,7 +366,7 @@ corpus	H2	meta::relational::tests::advanced::forced::structure	4	3762	95284	6	0	
 corpus	H2	meta::relational::tests::advanced::forcedselfjoin	1	1194	23920	4	0	0
 corpus	H2	meta::relational::tests::advanced::resultSourcing	16	44591	168746	5	10250	1
 corpus	H2	meta::relational::tests::advanced::structure	20	15626	395543	42	0	0
-corpus	H2	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy	13	7790	140832	11	255	0
+corpus	H2	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy	13	7790	140910	11	255	0
 corpus	H2	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware	8	2154	49993	0	80	0
 corpus	H2	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy	7	1656	40267	0	0	0
 corpus	H2	meta::relational::tests::database	0	0	0	0	0	0
@@ -624,5 +624,5 @@ corpus	H2	meta::relational::tests::tds::window::routing	0	0	0	0	0	1
 corpus	H2	meta::relational::tests::typeInference	0	0	0	0	0	1
 corpus	H2	meta::relational::transform::autogen::tests	0	0	0	0	0	1
 corpus	H2	meta::relational::validation::complex	10	9708	204731	34	48	0
-corpus	H2	meta::relational::validation::showcase::standalone	8	12780	249280	17	0	0
+corpus	H2	meta::relational::validation::showcase::standalone	8	12780	249397	17	0	0
 corpus	H2	meta::relational::validation::tests::milestoning	14	10490	183848	20	23	0

@@ -324,8 +324,8 @@ meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWE
 meta::pure::functions::string::tests::toString::testBooleanToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testClassToString	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testComplexClassToString	REFUSES	REFUSES_OTHER: not supported	FAIL	WRONG_ANSWER	BOTH_FAIL
-meta::pure::functions::string::tests::toString::testDateTimeToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
-meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testDateTimeToString	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::toString::testDateToString	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testEnumerationToString	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testFloatToString	PASS		PASS		SAME
@@ -338,7 +338,7 @@ meta::pure::functions::string::tests::toString::testListToString	DEFECT	RUNTIME_
 meta::pure::functions::string::tests::toString::testPairCollectionToString	DEFECT	RUNTIME_FAULT	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::string::tests::toString::testPairToString	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testPersonToString	PASS		PASS		SAME
-meta::pure::functions::string::tests::toString::testSimpleDateToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testSimpleDateToString	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::toString::testStringToString	PASS		PASS		SAME
 meta::pure::functions::string::tests::tolower::testToLower	PASS		PASS		SAME
 meta::pure::functions::string::tests::toupper::testToUpper	PASS		PASS		SAME

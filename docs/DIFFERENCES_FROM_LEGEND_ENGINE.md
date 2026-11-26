@@ -511,11 +511,14 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   lite at that door, since 2026-11-26.
 - **At legend-pure's door** (PCT, the corpus's test code):
   - a literal's text is its written text and `+0000`, as legend-pure prints it;
-  - a computed DateTime's `toString` at a last step is written in Java: its seconds, the fraction without its
-    trailing zeros, `+0000`. legend-pure keeps the precision the value carries (`.250+0000` where lite writes
+  - a computed DateTime's `toString` at a last step, where the door can read it as a computation (a built-in
+    function's call or a cast, directly or through a `let`), is written in Java: its seconds, the fraction without
+    its trailing zeros, `+0000`. legend-pure keeps the precision the value carries (`.250+0000` where lite writes
     `.25+0000`): an instant from a database carries none;
-  - a computed DateTime's text the program goes on computing with is lite's own: ISO 8601, nine fraction digits and
-    `Z` (`2014-01-01T10:20:30.250000000Z`).
+  - every other text of a computed DateTime is lite's own, ISO 8601 with nine fraction digits and `Z`
+    (`2014-01-01T10:20:30.250000000Z`): a `toString` the program goes on computing with, `format`'s `%s` and `%r`,
+    `toRepresentation`, a `joinStrings` or a table's text used further, and a last-step `toString` of a value the
+    door cannot read as a computation (your own function's result, a property).
 - **`format`'s `%s` and `%r` of a DateTime literal** keep its written text at both doors.
 - **Ruled:** by the user on 2026-11-26: "agreed on float/date text for engine"; "match engine for engine";
   "datetime for engine should use engines database form, datetime for pure is there a cheap format in database we can

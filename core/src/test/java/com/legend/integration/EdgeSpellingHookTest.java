@@ -157,8 +157,8 @@ class EdgeSpellingHookTest {
      *  S3: since B1 a raise is the product's site on every door, and its last use, a checked graph's defect cell, wrote
      *  the one catalog's sentence byte for byte; no edge dialect overrides it.) */
 
-    /** D1.2's arm (2026-11-15): {@code spellingPasses}, legend-pure's print form of a DateTime and legend-engine's
-     *  {@code TDSNull} (edge.PurePrintForms). ({@code floatToText}, legend-engine's in-query cast of a Float where the
+    /** D1.2's arm (2026-11-15): {@code spellingPasses}, legend-engine's {@code TDSNull} (edge.PurePrintForms;
+     *  legend-pure's print form of a DateTime too until 2026-11-26, the edition program's step 8). ({@code floatToText}, legend-engine's in-query cast of a Float where the
      *  product writes its six decimals, went from all twelve dialects on 2026-11-26, the edition program's step 8: that
      *  cast is a row of legend-engine's table inside a store query, edge.EngineTable, and lite's own text everywhere
      *  else. A shrink of this pin.) */

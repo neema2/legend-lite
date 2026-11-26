@@ -441,8 +441,8 @@ public final class PureText {
                     : java.util.List.of();
         }
 
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -459,8 +459,8 @@ public final class PureText {
         }
 
 
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -485,8 +485,8 @@ public final class PureText {
                     : statement;
         }
 
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -497,8 +497,8 @@ public final class PureText {
     /** Databricks, spelled as upstream spells it. */
     public static final class Databricks extends com.legend.sql.dialect.Databricks {
 
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -508,8 +508,8 @@ public final class PureText {
 
     /** Snowflake, spelled as upstream spells it. */
     public static final class Snowflake extends com.legend.sql.dialect.Snowflake {
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -519,8 +519,8 @@ public final class PureText {
 
     /** BigQuery, spelled as upstream spells it. */
     public static final class BigQuery extends com.legend.sql.dialect.BigQuery {
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -538,8 +538,8 @@ public final class PureText {
             return false;
         }
 
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -549,8 +549,8 @@ public final class PureText {
 
     /** MariaDB, spelled as upstream spells it. */
     public static final class MariaDb extends com.legend.sql.dialect.MariaDb {
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -560,8 +560,8 @@ public final class PureText {
 
     /** MySQL, spelled as upstream spells it. */
     public static final class MySql extends com.legend.sql.dialect.MySql {
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -572,8 +572,8 @@ public final class PureText {
     /** Trino, spelled as upstream spells it. */
     public static final class Trino extends com.legend.sql.dialect.Trino {
 
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -583,8 +583,8 @@ public final class PureText {
 
     /** ClickHouse, spelled as upstream spells it. */
     public static final class ClickHouse extends com.legend.sql.dialect.ClickHouse {
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();
@@ -598,8 +598,8 @@ public final class PureText {
         // edition program's step 8 -- a date-time's text the program goes on computing with is lite's own on every
         // database, the product's format; the user's ruling of that day, "go with lite in the middle")
 
-        /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
-         *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */
+        /** legend-engine's {@code TDSNull} for the product's text of a joined cell ({@link PurePrintForms}; D1.3; a
+         *  Float's and a DateTime's print forms went 2026-11-26, the edition program's step 8). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
             return PurePrintForms.passes();

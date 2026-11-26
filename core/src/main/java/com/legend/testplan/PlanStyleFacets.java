@@ -28,7 +28,8 @@ import java.util.List;
     /** The TWO-FORM kinds ({@code PlanStyle.twoForm}, the orchestrator's ruling of 2026-11-17, census B9): each a value
      *  the product answers in its own canonical form and the edge in upstream's. A closed list, each kind added with its
      *  family and its dated reason: a DateTime's text in a message (census B9, 2026-11-17: {@code lowering.DateTimeTexts},
-     *  lite's DATETIME_TO_TEXT in the product, legend-pure's print form at the edge). */
+     *  lite's DATETIME_TO_TEXT in the product; at the edge a literal's written text, as legend-pure prints it, and since
+     *  2026-11-26 lite's too for a computed value). */
     // A4 of the compatibility program (stage A ratified by the user 2026-11-19; rule 4 of the rules of record: the host
     // judge is the only judge in compatibility): six kinds left the list with the database judge's compatibility arms
     // -- JsonGrammar's planning read, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts,

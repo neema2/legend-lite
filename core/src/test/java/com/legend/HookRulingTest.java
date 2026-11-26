@@ -574,8 +574,11 @@ class HookRulingTest {
      *  ({@code com.legend.sql.dialect}) with lite's own default. A spelling hook is terminal when its product default is
      *  pinned ({@link #eachSpellingHooksProductDefault}) and every override outside its declaring class is an edge
      *  class ({@link #onlyTheEdgeOverridesASpellingHook}). Named by method; each one's product declarer is found. */
-    static final List<String> SPELLING_HOOKS = List.of("raw", "spellingPasses", "raiseMessage", "scanOrderPasses",
-            "dateTimeFormat");
+    static final List<String> SPELLING_HOOKS = List.of("raw", "spellingPasses", "raiseMessage", "scanOrderPasses");
+    // ("dateTimeFormat", MongoDB's $dateToString format of a date-time: a spelling hook no more, 2026-11-26, a shrink
+    // -- the edge's MongoDB, its one overrider (legend-pure's +0000 text), no longer overrides it: the edition
+    // program's step 8, the user's ruling of that day, "go with lite in the middle"; the product's format is a private
+    // constant of its dialect)
 
     /** (c) for the spelling hooks: every class of the product's and the edge's jars that overrides one, other than its
      *  one product declarer, is an edge class. */
@@ -697,8 +700,9 @@ class HookRulingTest {
     }
 
     /** The product's default of each spelling hook, pinned on every product dialect that has it: a raw statement as
-     *  written, no spelling pass, no scan order, a DateTime format of lite's own (six digits and Z), and a raise its
-     *  site's bare token, worded nowhere upstream's way (raiseMessage: the edge audit's K16, 2026-11-17). */
+     *  written, no spelling pass, no scan order, and a raise its site's bare token, worded nowhere upstream's way
+     *  (raiseMessage: the edge audit's K16, 2026-11-17). (MongoDB's DateTime format was the fifth until 2026-11-26:
+     *  the note at SPELLING_HOOKS.) */
     @Test
     void eachSpellingHooksProductDefault() throws Exception {
         for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
@@ -715,11 +719,6 @@ class HookRulingTest {
                 if (passes != NONE) {
                     assertEquals(List.of(), passes, t + ": the product's " + name + " adds none");
                 }
-            }
-            Object format = invoke(d, "dateTimeFormat");
-            if (format != NONE) {
-                assertTrue(String.valueOf(format).endsWith("Z") && !String.valueOf(format).contains("+0000"),
-                        t + ": the product's DateTime format is lite's, " + format);
             }
         }
     }

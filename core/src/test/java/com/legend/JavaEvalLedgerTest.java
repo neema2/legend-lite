@@ -1936,8 +1936,9 @@ class JavaEvalLedgerTest {
                             // a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards
                             // down"))
                             "PureText.java",
-                            // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,
-                            // 2026-11-15): a node for a node, no value met
+                            // legend-engine's TDSNull written for the product's text of a joined cell, one rewrite
+                            // (D1.3, 2026-11-15; legend-pure's print forms of a Float and a DateTime, D1.2, went
+                            // 2026-11-26 with the edition program's step 8): a node for a node, no value met
                             "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",

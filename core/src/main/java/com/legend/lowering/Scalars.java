@@ -2439,8 +2439,9 @@ final class Scalars {
                                     com.legend.sql.SqlSelect.SYNTH_MAP_COL)));
                 }
                 // a DateTime's text, the style's two-form text (the audit's K15, 2026-11-17): the product's lite's
-                // (D1.2, 2026-11-15: ISO 8601 with Z), the value alone; the edge's legend-pure's print form, a literal at
-                // its written precision (%2014-01-01T00:00:00.00 prints '.00' there, which no timestamp carrier retains)
+                // (D1.2, 2026-11-15: ISO 8601 with Z), the value alone; the edge's the same for a computed value since
+                // 2026-11-26, and for a literal its written text, as legend-pure prints it
+                // (%2014-01-01T00:00:00.00 prints '.00' there, which no timestamp carrier retains)
                 if (t == Type.Primitive.DATE_TIME) {
                     return dateTimeOf(styled, n.args().get(0), args.get(0));
                 }

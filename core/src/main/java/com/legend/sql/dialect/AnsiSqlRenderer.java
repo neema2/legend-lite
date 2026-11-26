@@ -261,8 +261,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // the compatibility edge's spellings, expanded before every other pass (legend-pure's print form of a Float:
         // phase D's D1.2, 2026-11-15); the product's dialects add none
         ps.addAll(spellingPasses());
-        // a DateTime's texts (phase D's D1.2, 2026-11-15): the product's, a STRFTIME (the edge's spelling passes wrote
-        // legend-pure's node for it first, if any); legend-pure's, the judges' and the edge's, its composition
+        // a DateTime's text (phase D's D1.2, 2026-11-15): the product's, a STRFTIME, at the compatibility edge too
+        // (until 2026-11-26 the edge's spelling passes rewrote the node to legend-pure's print form first)
         ps.add(new DateTimeText.Expansion());
         // the judges' canon of a timestamp, lite's spelling (census C5's step C, 2026-11-17)
         ps.add(new DateTimeCanonText.Expansion());
@@ -284,9 +284,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return v.toPlainString();
     }
 
-    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-pure's print form
-     *  of a DateTime and legend-engine's {@code TDSNull}, phase D's D1.2 and D1.3, 2026-11-15; a Float's in-query cast
-     *  was one until 2026-11-26). The product's dialects run none: they write each node lite's own way. */
+    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-engine's
+     *  {@code TDSNull}, phase D's D1.3, 2026-11-15; a Float's in-query cast and legend-pure's print form of a DateTime
+     *  were passes until 2026-11-26). The product's dialects run none: they write each node lite's own way. */
     /** {@inheritDoc} A raw statement AS WRITTEN (Phase 6's B4 (ii), 2026-11-17): a SPELLING arm -- the statement's
      *  text, no decision -- so the compatibility edge's DuckDB and Postgres translate legend-engine's H2 text here. */
     @SpellingArm
