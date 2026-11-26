@@ -10,6 +10,53 @@ duckdb	upstream	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n
 duckdb	upstream	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
 duckdb	upstream	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
 duckdb	upstream	edge3.formatRepr.newline	VALUE String:'a\nb';
+duckdb	upstream	tail.length.aboveFFFF	VALUE Long:3;
+duckdb	upstream	tail.indexOf.aboveFFFF	VALUE Long:2;
+duckdb	upstream	tail.replace.emptyTarget	VALUE String:abc;
+duckdb	upstream	tail.trim.controlCharacters	VALUE Long:3;
+duckdb	upstream	tail.indexOf.fromPastAnInt	VALUE Long:-1;
+duckdb	upstream	tail.indexOf.emptyNeedle	VALUE Long:0;
+duckdb	upstream	tail.startsWith.emptyNeedle	VALUE Boolean:true;
+duckdb	upstream	tail.startsWith.trailingSpace	VALUE Boolean:false;
+duckdb	upstream	tail.endsWith.trailingSpace	VALUE Boolean:false;
+duckdb	upstream	tail.replace.aDot	VALUE String:axb;
+duckdb	upstream	tail.contains.aDollar	VALUE Boolean:true;
+duckdb	upstream	tail.contains.aPercent	VALUE Boolean:true;
+duckdb	upstream	tail.startsWith.anUnderscore	VALUE Boolean:false;
+duckdb	upstream	tail.indexOf.emptyNeedlePastTheEnd	VALUE Long:3;
+duckdb	upstream	tail.endsWith.emptyNeedle	VALUE Boolean:true;
+duckdb	upstream	tail.contains.emptyNeedle	VALUE Boolean:true;
+duckdb	upstream	tail.indexOf.fromPastTheEnd	VALUE Long:-1;
+duckdb	upstream	tail.indexOf.fromBeforeTheStart	VALUE Long:1;
+duckdb	upstream	tail.emptyText.length	VALUE Long:0;
+duckdb	upstream	tail.emptyText.replaceEmpty	VALUE String:;
+duckdb	upstream	tail.emptyText.indexOfEmpty	VALUE Long:0;
+duckdb	upstream	tail.emptyText.contains	VALUE Boolean:false;
+duckdb	upstream	tail.emptyText.trim	VALUE Long:0;
+duckdb	upstream	float.negativeZero	VALUE String:0.0;
+duckdb	upstream	float.largest	VALUE String:179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+duckdb	upstream	float.smallest	VALUE String:0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000049;
+duckdb	upstream	float.1e21	VALUE String:1000000000000000000000.0;
+duckdb	upstream	float.1e-7	VALUE String:0.0000001;
+duckdb	upstream	float.whole	VALUE String:6.0;
+duckdb	upstream	float.fromAnInteger	VALUE String:3.0;
+duckdb	upstream	float.overflow	VALUE String:∞;
+duckdb	upstream	float.zeroByZero	VALUE String:NaN;
+duckdb	upstream	float.negativeLiteral	VALUE String:-0.000000013421;
+duckdb	upstream	float.1e7	VALUE String:10000000.0;
+duckdb	upstream	float.1e-3	VALUE String:0.001;
+duckdb	upstream	float.negativeOverflow	VALUE String:-∞;
+duckdb	upstream	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
+duckdb	upstream	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
+duckdb	upstream	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
+duckdb	upstream	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
+duckdb	upstream	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
+duckdb	upstream	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+duckdb	upstream	float.toRepresentation	VALUE String:0.30000000000000004;
+duckdb	upstream	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
+duckdb	upstream	float.format.r.heldWhole	RELATION String:1000000.0;
+duckdb	upstream	dateTime.format.s.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
+duckdb	upstream	dateTime.toString.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
 duckdb	pure_v1	edge1.toString.0.00001	VALUE String:#TDS\n   x\n   0.00001\n#;
 duckdb	pure_v1	edge1.toCSV.0.00001	VALUE String:x\n0.00001\n;
 duckdb	pure_v1	edge1.toString.0.0005	VALUE String:#TDS\n   x\n   0.0005\n#;
@@ -22,6 +69,53 @@ duckdb	pure_v1	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n 
 duckdb	pure_v1	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
 duckdb	pure_v1	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
 duckdb	pure_v1	edge3.formatRepr.newline	VALUE String:'a\nb';
+duckdb	pure_v1	tail.length.aboveFFFF	VALUE Long:3;
+duckdb	pure_v1	tail.indexOf.aboveFFFF	VALUE Long:2;
+duckdb	pure_v1	tail.replace.emptyTarget	VALUE String:abc;
+duckdb	pure_v1	tail.trim.controlCharacters	VALUE Long:3;
+duckdb	pure_v1	tail.indexOf.fromPastAnInt	VALUE Long:-1;
+duckdb	pure_v1	tail.indexOf.emptyNeedle	VALUE Long:0;
+duckdb	pure_v1	tail.startsWith.emptyNeedle	VALUE Boolean:true;
+duckdb	pure_v1	tail.startsWith.trailingSpace	VALUE Boolean:false;
+duckdb	pure_v1	tail.endsWith.trailingSpace	VALUE Boolean:false;
+duckdb	pure_v1	tail.replace.aDot	VALUE String:axb;
+duckdb	pure_v1	tail.contains.aDollar	VALUE Boolean:true;
+duckdb	pure_v1	tail.contains.aPercent	VALUE Boolean:true;
+duckdb	pure_v1	tail.startsWith.anUnderscore	VALUE Boolean:false;
+duckdb	pure_v1	tail.indexOf.emptyNeedlePastTheEnd	VALUE Long:3;
+duckdb	pure_v1	tail.endsWith.emptyNeedle	VALUE Boolean:true;
+duckdb	pure_v1	tail.contains.emptyNeedle	VALUE Boolean:true;
+duckdb	pure_v1	tail.indexOf.fromPastTheEnd	VALUE Long:-1;
+duckdb	pure_v1	tail.indexOf.fromBeforeTheStart	VALUE Long:1;
+duckdb	pure_v1	tail.emptyText.length	VALUE Long:0;
+duckdb	pure_v1	tail.emptyText.replaceEmpty	VALUE String:;
+duckdb	pure_v1	tail.emptyText.indexOfEmpty	VALUE Long:0;
+duckdb	pure_v1	tail.emptyText.contains	VALUE Boolean:false;
+duckdb	pure_v1	tail.emptyText.trim	VALUE Long:0;
+duckdb	pure_v1	float.negativeZero	VALUE String:0.0;
+duckdb	pure_v1	float.largest	VALUE String:179769313486231570801464840769767761230468750000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+duckdb	pure_v1	float.smallest	VALUE String:0.0;
+duckdb	pure_v1	float.1e21	VALUE String:1000000000000000000000.0;
+duckdb	pure_v1	float.1e-7	VALUE String:0.0;
+duckdb	pure_v1	float.whole	VALUE String:6.0;
+duckdb	pure_v1	float.fromAnInteger	VALUE String:3.0;
+duckdb	pure_v1	float.overflow	VALUE String:Infinity;
+duckdb	pure_v1	float.zeroByZero	VALUE String:-NaN;
+duckdb	pure_v1	float.negativeLiteral	VALUE String:0.0;
+duckdb	pure_v1	float.1e7	VALUE String:10000000.0;
+duckdb	pure_v1	float.1e-3	VALUE String:0.001;
+duckdb	pure_v1	float.negativeOverflow	VALUE String:-Infinity;
+duckdb	pure_v1	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
+duckdb	pure_v1	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
+duckdb	pure_v1	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
+duckdb	pure_v1	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
+duckdb	pure_v1	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
+duckdb	pure_v1	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+duckdb	pure_v1	float.toRepresentation	VALUE String:0.3;
+duckdb	pure_v1	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
+duckdb	pure_v1	float.format.r.heldWhole	RELATION String:1000000.0;
+duckdb	pure_v1	dateTime.format.s.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
+duckdb	pure_v1	dateTime.toString.inAStoreQuery	RELATION String:2014-01-01 10:20:30.25;
 h2	upstream	edge1.toString.0.00001	VALUE String:#TDS\n   x\n   0.00001\n#;
 h2	upstream	edge1.toCSV.0.00001	VALUE String:x\n0.00001\n;
 h2	upstream	edge1.toString.0.0005	VALUE String:#TDS\n   x\n   0.0005\n#;
@@ -34,6 +128,53 @@ h2	upstream	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n   1
 h2	upstream	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
 h2	upstream	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
 h2	upstream	edge3.formatRepr.newline	VALUE String:'a\nb';
+h2	upstream	tail.length.aboveFFFF	VALUE Long:4;
+h2	upstream	tail.indexOf.aboveFFFF	VALUE Long:3;
+h2	upstream	tail.replace.emptyTarget	VALUE String:abc;
+h2	upstream	tail.trim.controlCharacters	VALUE Long:3;
+h2	upstream	tail.indexOf.fromPastAnInt	THREW DataError: Numeric value out of range: "2147483649"; SQL statement:\nSELECT CASE WHEN LOCATE('b', substr('abcb', 2147483649)) > 0 THEN LOCATE('b', substr('abcb', 2147483649)) + 2147483648 - 1 ELSE -1 END AS "value" [22003-252]
+h2	upstream	tail.indexOf.emptyNeedle	VALUE Long:0;
+h2	upstream	tail.startsWith.emptyNeedle	VALUE Boolean:true;
+h2	upstream	tail.startsWith.trailingSpace	VALUE Boolean:false;
+h2	upstream	tail.endsWith.trailingSpace	VALUE Boolean:false;
+h2	upstream	tail.replace.aDot	VALUE String:axb;
+h2	upstream	tail.contains.aDollar	VALUE Boolean:true;
+h2	upstream	tail.contains.aPercent	VALUE Boolean:true;
+h2	upstream	tail.startsWith.anUnderscore	VALUE Boolean:false;
+h2	upstream	tail.indexOf.emptyNeedlePastTheEnd	VALUE Long:3;
+h2	upstream	tail.endsWith.emptyNeedle	VALUE Boolean:true;
+h2	upstream	tail.contains.emptyNeedle	VALUE Boolean:true;
+h2	upstream	tail.indexOf.fromPastTheEnd	VALUE Long:-1;
+h2	upstream	tail.indexOf.fromBeforeTheStart	VALUE Long:1;
+h2	upstream	tail.emptyText.length	VALUE Long:0;
+h2	upstream	tail.emptyText.replaceEmpty	VALUE String:;
+h2	upstream	tail.emptyText.indexOfEmpty	VALUE Long:0;
+h2	upstream	tail.emptyText.contains	VALUE Boolean:false;
+h2	upstream	tail.emptyText.trim	VALUE Long:0;
+h2	upstream	float.negativeZero	VALUE String:0.0;
+h2	upstream	float.largest	VALUE String:179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+h2	upstream	float.smallest	VALUE String:0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000049;
+h2	upstream	float.1e21	VALUE String:1000000000000000000000.0;
+h2	upstream	float.1e-7	VALUE String:0.0000001;
+h2	upstream	float.whole	VALUE String:6.0;
+h2	upstream	float.fromAnInteger	VALUE String:3.0;
+h2	upstream	float.overflow	VALUE String:∞;
+h2	upstream	float.zeroByZero	THREW DataError: Division by zero: "CAST(0.0 AS DOUBLE PRECISION)"; SQL statement:\nSELECT (CAST(0.0 AS DOUBLE PRECISION) / CAST(0.0 AS DOUBLE PRECISION)) AS "value" [22012-252]
+h2	upstream	float.negativeLiteral	VALUE String:-0.000000013421;
+h2	upstream	float.1e7	VALUE String:10000000.0;
+h2	upstream	float.1e-3	VALUE String:0.001;
+h2	upstream	float.negativeOverflow	VALUE String:-∞;
+h2	upstream	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
+h2	upstream	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
+h2	upstream	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
+h2	upstream	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
+h2	upstream	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
+h2	upstream	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+h2	upstream	float.toRepresentation	VALUE String:0.30000000000000004;
+h2	upstream	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
+h2	upstream	float.format.r.heldWhole	RELATION String:1000000.0;
+h2	upstream	dateTime.format.s.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
+h2	upstream	dateTime.toString.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
 h2	pure_v1	edge1.toString.0.00001	VALUE String:#TDS\n   x\n   0.00001\n#;
 h2	pure_v1	edge1.toCSV.0.00001	VALUE String:x\n0.00001\n;
 h2	pure_v1	edge1.toString.0.0005	VALUE String:#TDS\n   x\n   0.0005\n#;
@@ -46,3 +187,168 @@ h2	pure_v1	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n   10
 h2	pure_v1	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
 h2	pure_v1	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
 h2	pure_v1	edge3.formatRepr.newline	VALUE String:'a\nb';
+h2	pure_v1	tail.length.aboveFFFF	VALUE Long:4;
+h2	pure_v1	tail.indexOf.aboveFFFF	VALUE Long:3;
+h2	pure_v1	tail.replace.emptyTarget	VALUE String:abc;
+h2	pure_v1	tail.trim.controlCharacters	VALUE Long:3;
+h2	pure_v1	tail.indexOf.fromPastAnInt	THREW DataError: Numeric value out of range: "2147483649"; SQL statement:\nSELECT CASE WHEN LOCATE('b', substr('abcb', 2147483649)) > 0 THEN LOCATE('b', substr('abcb', 2147483649)) + 2147483648 - 1 ELSE -1 END AS "value" [22003-252]
+h2	pure_v1	tail.indexOf.emptyNeedle	VALUE Long:0;
+h2	pure_v1	tail.startsWith.emptyNeedle	VALUE Boolean:true;
+h2	pure_v1	tail.startsWith.trailingSpace	VALUE Boolean:false;
+h2	pure_v1	tail.endsWith.trailingSpace	VALUE Boolean:false;
+h2	pure_v1	tail.replace.aDot	VALUE String:axb;
+h2	pure_v1	tail.contains.aDollar	VALUE Boolean:true;
+h2	pure_v1	tail.contains.aPercent	VALUE Boolean:true;
+h2	pure_v1	tail.startsWith.anUnderscore	VALUE Boolean:false;
+h2	pure_v1	tail.indexOf.emptyNeedlePastTheEnd	VALUE Long:3;
+h2	pure_v1	tail.endsWith.emptyNeedle	VALUE Boolean:true;
+h2	pure_v1	tail.contains.emptyNeedle	VALUE Boolean:true;
+h2	pure_v1	tail.indexOf.fromPastTheEnd	VALUE Long:-1;
+h2	pure_v1	tail.indexOf.fromBeforeTheStart	VALUE Long:1;
+h2	pure_v1	tail.emptyText.length	VALUE Long:0;
+h2	pure_v1	tail.emptyText.replaceEmpty	VALUE String:;
+h2	pure_v1	tail.emptyText.indexOfEmpty	VALUE Long:0;
+h2	pure_v1	tail.emptyText.contains	VALUE Boolean:false;
+h2	pure_v1	tail.emptyText.trim	VALUE Long:0;
+h2	pure_v1	float.negativeZero	VALUE String:0.0;
+h2	pure_v1	float.largest	VALUE String:179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+h2	pure_v1	float.smallest	VALUE String:0.0;
+h2	pure_v1	float.1e21	VALUE String:1000000000000000000000.0;
+h2	pure_v1	float.1e-7	VALUE String:0.0;
+h2	pure_v1	float.whole	VALUE String:6.0;
+h2	pure_v1	float.fromAnInteger	VALUE String:3.0;
+h2	pure_v1	float.overflow	VALUE String:Infinity;
+h2	pure_v1	float.zeroByZero	THREW DataError: Division by zero: "CAST(0.0 AS DOUBLE PRECISION)"; SQL statement:\nSELECT CASE WHEN ABS((CAST(0.0 AS DOUBLE PRECISION) / CAST(0.0 AS DOUBLE PRECISION))) > 1.7976931348623157E308 THEN CAST((CAST(0.0 AS DOUBLE PRECISION) / CAST(0.0 AS DOUBLE PRECISION)) AS VARCHAR) ELSE REPLACE(rtrim(REPLACE(REPLACE(CAST(CAST((CAST(0.0 AS DOUBLE PRECISION) / CAST(0.0 AS DOUBLE PRECISION)) AS DECIMAL(1000, 6)) AS VARCHAR), '-0.000000', '0.000000'), '.000000', '.#'), '0'), '#', '0') END AS "value" [22012-252]
+h2	pure_v1	float.negativeLiteral	VALUE String:0.0;
+h2	pure_v1	float.1e7	VALUE String:10000000.0;
+h2	pure_v1	float.1e-3	VALUE String:0.001;
+h2	pure_v1	float.negativeOverflow	VALUE String:-Infinity;
+h2	pure_v1	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
+h2	pure_v1	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
+h2	pure_v1	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
+h2	pure_v1	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
+h2	pure_v1	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
+h2	pure_v1	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+h2	pure_v1	float.toRepresentation	VALUE String:0.3;
+h2	pure_v1	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
+h2	pure_v1	float.format.r.heldWhole	RELATION String:1000000.0;
+h2	pure_v1	dateTime.format.s.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
+h2	pure_v1	dateTime.toString.inAStoreQuery	RELATION String:2014-01-01 10:20:30.25;
+sqlite	upstream	edge1.toString.0.00001	VALUE String:#TDS\n   x\n   0.00001\n#;
+sqlite	upstream	edge1.toCSV.0.00001	VALUE String:x\n0.00001\n;
+sqlite	upstream	edge1.toString.0.0005	VALUE String:#TDS\n   x\n   0.0005\n#;
+sqlite	upstream	edge1.toCSV.0.0005	VALUE String:x\n0.0005\n;
+sqlite	upstream	edge1.toString.25000000.0	VALUE String:#TDS\n   x\n   25000000.0\n#;
+sqlite	upstream	edge1.toCSV.25000000.0	VALUE String:x\n25000000.0\n;
+sqlite	upstream	edge1.toString.10000000000000000.0	VALUE String:#TDS\n   x\n   10000000000000000.0\n#;
+sqlite	upstream	edge1.toCSV.10000000000000000.0	VALUE String:x\n10000000000000000.0\n;
+sqlite	upstream	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n   100000000000000000000.0\n#;
+sqlite	upstream	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
+sqlite	upstream	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
+sqlite	upstream	edge3.formatRepr.newline	VALUE String:'a\nb';
+sqlite	upstream	tail.length.aboveFFFF	VALUE Long:3;
+sqlite	upstream	tail.indexOf.aboveFFFF	VALUE Long:2;
+sqlite	upstream	tail.replace.emptyTarget	VALUE String:abc;
+sqlite	upstream	tail.trim.controlCharacters	VALUE Long:3;
+sqlite	upstream	tail.indexOf.fromPastAnInt	VALUE Long:-1;
+sqlite	upstream	tail.indexOf.emptyNeedle	VALUE Long:0;
+sqlite	upstream	tail.startsWith.emptyNeedle	VALUE Boolean:true;
+sqlite	upstream	tail.startsWith.trailingSpace	VALUE Boolean:false;
+sqlite	upstream	tail.endsWith.trailingSpace	VALUE Boolean:false;
+sqlite	upstream	tail.replace.aDot	VALUE String:axb;
+sqlite	upstream	tail.contains.aDollar	VALUE Boolean:true;
+sqlite	upstream	tail.contains.aPercent	VALUE Boolean:true;
+sqlite	upstream	tail.startsWith.anUnderscore	VALUE Boolean:false;
+sqlite	upstream	tail.indexOf.emptyNeedlePastTheEnd	VALUE Long:3;
+sqlite	upstream	tail.endsWith.emptyNeedle	VALUE Boolean:true;
+sqlite	upstream	tail.contains.emptyNeedle	VALUE Boolean:true;
+sqlite	upstream	tail.indexOf.fromPastTheEnd	VALUE Long:-1;
+sqlite	upstream	tail.indexOf.fromBeforeTheStart	VALUE Long:1;
+sqlite	upstream	tail.emptyText.length	VALUE Long:0;
+sqlite	upstream	tail.emptyText.replaceEmpty	VALUE String:;
+sqlite	upstream	tail.emptyText.indexOfEmpty	VALUE Long:0;
+sqlite	upstream	tail.emptyText.contains	VALUE Boolean:false;
+sqlite	upstream	tail.emptyText.trim	VALUE Long:0;
+sqlite	upstream	float.negativeZero	VALUE String:0.0;
+sqlite	upstream	float.largest	VALUE String:179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+sqlite	upstream	float.smallest	VALUE String:0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000049;
+sqlite	upstream	float.1e21	VALUE String:1000000000000000000000.0;
+sqlite	upstream	float.1e-7	VALUE String:0.0000001;
+sqlite	upstream	float.whole	VALUE String:6.0;
+sqlite	upstream	float.fromAnInteger	VALUE String:3.0;
+sqlite	upstream	float.overflow	VALUE String:∞;
+sqlite	upstream	float.zeroByZero	THREW IllegalStateException: a value's toString prints one value; the answer is empty
+sqlite	upstream	float.negativeLiteral	VALUE String:-0.000000013421;
+sqlite	upstream	float.1e7	VALUE String:10000000.0;
+sqlite	upstream	float.1e-3	VALUE String:0.001;
+sqlite	upstream	float.negativeOverflow	VALUE String:-∞;
+sqlite	upstream	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
+sqlite	upstream	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
+sqlite	upstream	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
+sqlite	upstream	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
+sqlite	upstream	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
+sqlite	upstream	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+sqlite	upstream	float.toRepresentation	VALUE String:0.30000000000000004;
+sqlite	upstream	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
+sqlite	upstream	float.format.r.heldWhole	RELATION String:1000000.0;
+sqlite	upstream	dateTime.format.s.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
+sqlite	upstream	dateTime.toString.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
+sqlite	pure_v1	edge1.toString.0.00001	VALUE String:#TDS\n   x\n   0.00001\n#;
+sqlite	pure_v1	edge1.toCSV.0.00001	VALUE String:x\n0.00001\n;
+sqlite	pure_v1	edge1.toString.0.0005	VALUE String:#TDS\n   x\n   0.0005\n#;
+sqlite	pure_v1	edge1.toCSV.0.0005	VALUE String:x\n0.0005\n;
+sqlite	pure_v1	edge1.toString.25000000.0	VALUE String:#TDS\n   x\n   25000000.0\n#;
+sqlite	pure_v1	edge1.toCSV.25000000.0	VALUE String:x\n25000000.0\n;
+sqlite	pure_v1	edge1.toString.10000000000000000.0	VALUE String:#TDS\n   x\n   10000000000000000.0\n#;
+sqlite	pure_v1	edge1.toCSV.10000000000000000.0	VALUE String:x\n10000000000000000.0\n;
+sqlite	pure_v1	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n   100000000000000000000.0\n#;
+sqlite	pure_v1	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
+sqlite	pure_v1	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
+sqlite	pure_v1	edge3.formatRepr.newline	VALUE String:'a\nb';
+sqlite	pure_v1	tail.length.aboveFFFF	VALUE Long:3;
+sqlite	pure_v1	tail.indexOf.aboveFFFF	VALUE Long:2;
+sqlite	pure_v1	tail.replace.emptyTarget	VALUE String:abc;
+sqlite	pure_v1	tail.trim.controlCharacters	VALUE Long:3;
+sqlite	pure_v1	tail.indexOf.fromPastAnInt	VALUE Long:-1;
+sqlite	pure_v1	tail.indexOf.emptyNeedle	VALUE Long:0;
+sqlite	pure_v1	tail.startsWith.emptyNeedle	VALUE Boolean:true;
+sqlite	pure_v1	tail.startsWith.trailingSpace	VALUE Boolean:false;
+sqlite	pure_v1	tail.endsWith.trailingSpace	VALUE Boolean:false;
+sqlite	pure_v1	tail.replace.aDot	VALUE String:axb;
+sqlite	pure_v1	tail.contains.aDollar	VALUE Boolean:true;
+sqlite	pure_v1	tail.contains.aPercent	VALUE Boolean:true;
+sqlite	pure_v1	tail.startsWith.anUnderscore	VALUE Boolean:false;
+sqlite	pure_v1	tail.indexOf.emptyNeedlePastTheEnd	VALUE Long:3;
+sqlite	pure_v1	tail.endsWith.emptyNeedle	VALUE Boolean:true;
+sqlite	pure_v1	tail.contains.emptyNeedle	VALUE Boolean:true;
+sqlite	pure_v1	tail.indexOf.fromPastTheEnd	VALUE Long:-1;
+sqlite	pure_v1	tail.indexOf.fromBeforeTheStart	VALUE Long:1;
+sqlite	pure_v1	tail.emptyText.length	VALUE Long:0;
+sqlite	pure_v1	tail.emptyText.replaceEmpty	VALUE String:;
+sqlite	pure_v1	tail.emptyText.indexOfEmpty	VALUE Long:0;
+sqlite	pure_v1	tail.emptyText.contains	VALUE Boolean:false;
+sqlite	pure_v1	tail.emptyText.trim	VALUE Long:0;
+sqlite	pure_v1	float.negativeZero	VALUE String:0.0;
+sqlite	pure_v1	float.largest	VALUE String:179769313486231600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+sqlite	pure_v1	float.smallest	VALUE String:0.0;
+sqlite	pure_v1	float.1e21	VALUE String:1000000000000000000000.0;
+sqlite	pure_v1	float.1e-7	VALUE String:0.0;
+sqlite	pure_v1	float.whole	VALUE String:6.0;
+sqlite	pure_v1	float.fromAnInteger	VALUE String:3.0;
+sqlite	pure_v1	float.overflow	VALUE String:Infinity;
+sqlite	pure_v1	float.zeroByZero	VALUE String:0.0;
+sqlite	pure_v1	float.negativeLiteral	VALUE String:0.0;
+sqlite	pure_v1	float.1e7	VALUE String:10000000.0;
+sqlite	pure_v1	float.1e-3	VALUE String:0.001;
+sqlite	pure_v1	float.negativeOverflow	VALUE String:-Infinity;
+sqlite	pure_v1	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
+sqlite	pure_v1	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
+sqlite	pure_v1	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
+sqlite	pure_v1	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
+sqlite	pure_v1	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
+sqlite	pure_v1	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+sqlite	pure_v1	float.toRepresentation	VALUE String:0.3;
+sqlite	pure_v1	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
+sqlite	pure_v1	float.format.r.heldWhole	RELATION String:1000000.0;
+sqlite	pure_v1	dateTime.format.s.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;
+sqlite	pure_v1	dateTime.toString.inAStoreQuery	RELATION String:2014-01-01T10:20:30.250000000Z;

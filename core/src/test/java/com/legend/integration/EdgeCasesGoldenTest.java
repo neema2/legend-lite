@@ -111,10 +111,10 @@ class EdgeCasesGoldenTest {
         // the texts of a Float and of a DateTime that are lite's own at the doors since step 8's deletions (the
         // outside audit of slices 3 and 4, 2026-11-26: each move held as it is, for the register's amendments) --
         // format's directives and a table's text used further; and a Float's toRepresentation, which is lifted
-        CASES.put("float.format.r", "|format('%r', [1.0 / 3.0])");
-        CASES.put("float.format.s.small", "|format('%s', [1.5e-8 * 1.0])");
-        CASES.put("float.format.s.1e-5", "|format('%s', [1.0e-5 * 1.0])");
-        CASES.put("float.format.f", "|format('%f', [1.0 / 3.0])");
+        CASES.put("float.format.r", "|format('%r', [(1.0 / 3.0)])");
+        CASES.put("float.format.s.small", "|format('%s', [(1.5e-8 * 1.0)])");
+        CASES.put("float.format.s.1e-5", "|format('%s', [(1.0e-5 * 1.0)])");
+        CASES.put("float.format.f", "|format('%f', [(1.0 / 3.0)])");
         CASES.put("float.toRepresentation", "|toRepresentation(0.1 + 0.2)");
         CASES.put("float.inATableTextUsedFurther", "|#TDS\n  x:Float\n  0.00001\n#->toString() + ';'");
         CASES.put("float.format.r.heldWhole",
