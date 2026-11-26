@@ -1073,6 +1073,9 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#withBody(List<TypedSpec>)", List.of(LAMBDA)),
             // merged main 3a217086a (#81), 2026-11-14: lite's own planning options, a closed set of words
             Map.entry("TypedQuery#withOptions(Set<PlanOption>)", List.of(OPTION)),
+            // 2026-11-26 (the edition program's step 2b): a door's comparison setting for the query it admits, one of
+            // the settings the doors hold (lite's, legend-engine's, legend-pure's) -- no text, no name, nothing planned
+            Map.entry("TypedQuery#comparing(CrossTypeRule)", List.of(OPTION)),
             Map.entry("TypedQuery#options()", List.of()),
             Map.entry("TypedQuery#context()", List.of()),
             Map.entry("TypedQuery#specs()", List.of()),
@@ -1206,6 +1209,7 @@ class PlannerSurfaceTest {
             // TypedQuery: its receiver is the query; its rewrites keep it a TypedQuery, whose plans scan its body
             Map.entry("TypedQuery#withBody(List<TypedSpec>)", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#withOptions(Set<PlanOption>)", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#comparing(CrossTypeRule)", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#options()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#context()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#specs()", QueryRoad.PLANS_NOTHING),
