@@ -763,7 +763,7 @@ public class DuckDb extends AnsiSqlRenderer {
     }
 
     /** The passes that make an implicit scan order explicit, where {@link #passes} runs them: none in the product (a
-     *  statement carries no order it did not ask for, the user's ruling of 2026-09-20); the compatibility edge's DuckDB
+     *  statement carries no order it did not ask for, the user's ruling of 2026-09-20); the tests' harness's DuckDB
      *  supplies legend-engine's ({@code edge.StableScanOrder}, the corpus replay's; W6, 2026-11-16). A spelling arm: the
      *  order it adds is legend-engine's text of a statement the product leaves unordered, decided by no plan. */
     @SpellingArm
@@ -778,7 +778,7 @@ public class DuckDb extends AnsiSqlRenderer {
         // the engine's scan order (edge.StableScanOrder) is ENGINE-CORPUS-COMPAT ONLY (user ruling, 2026-08-29): the
         // engine's own tests assert positionally while relying on H2's implicit scan order -- replaying them on DuckDB
         // needs the order made explicit. The product stays order-honest (no sort demanded = no order guaranteed); the
-        // compatibility edge's DuckDB supplies it, the corpus runner opting in (scanOrderPasses; W6, 2026-11-16).
+        // tests' harness's DuckDB supplies it, the corpus runner opting in (scanOrderPasses; W6, 2026-11-16).
         java.util.List<com.legend.sql.SqlRewriter> ps =
                 new java.util.ArrayList<>(java.util.List.of(
                         new CarrierStrategies(CAPS),

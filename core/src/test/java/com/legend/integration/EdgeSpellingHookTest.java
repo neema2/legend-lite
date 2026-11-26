@@ -166,10 +166,8 @@ class EdgeSpellingHookTest {
     private static final Set<String> D1_2_MONGO = Set.of("spellingPasses", "floatToText",
             "dateTimeFormat");
 
-    /** D1.2's arms and DuckDB's {@code scanOrderPasses} (W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
-     *  legend-engine's scan order ({@code edge.StableScanOrder}) for the corpus replay, where the product adds none. */
-    private static final Set<String> D1_2_SCAN_ORDER = Set.of("spellingPasses", "floatToText",
-            "scanOrderPasses");
+    // (D1_2_SCAN_ORDER, D1.2's arms and DuckDB's scanOrderPasses, W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16:
+    // the arm is the tests' harness's DuckDB's since 2026-11-26, pinned in HARNESS_OVERRIDES below)
 
     // THE EDGE'S IN-QUERY VARIANTS: the decisions an edge dialect takes because legend-engine computes inside the query
     // differently (the edge program's §2.3, kind B), each a listed row of its §6.
@@ -192,17 +190,23 @@ class EdgeSpellingHookTest {
         return out;
     }
 
-    /** DuckDB's and Postgres's raw arm too (Phase 6's B4 (ii), 2026-11-17): legend-engine's H2 text translated, where the
-     *  product runs a raw statement as written. */
-    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("spellingPasses", "floatToText",
-            "scanOrderPasses", "raw");
-    private static final Set<String> D1_2_RAW = Set.of("spellingPasses", "floatToText", "raw");
-
+    // (D1_2_SCAN_ORDER_RAW and D1_2_RAW, DuckDB's and Postgres's raw arm of Phase 6's B4 (ii), 2026-11-17, with DuckDB's
+    // scanOrderPasses: the three arms left the edge's dialects for the tests' harness's, 2026-11-26, the edition
+    // program's step 9, slice 2; they are pinned in HARNESS_OVERRIDES, so the pinned arms are as many as before)
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
             Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", D1_2),
-            Map.entry("DuckDb", D1_2_SCAN_ORDER_RAW), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
-            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", D1_2_RAW),
+            Map.entry("DuckDb", D1_2), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
+            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", D1_2),
             Map.entry("SQLite", withRow22(D1_2)), Map.entry("Snowflake", D1_2), Map.entry("Trino", D1_2)));
+
+    /** The arms the tests' harness's dialects override over the edge's ({@code edge.HarnessText}, core/src/edge_harness;
+     *  2026-11-26, the edition program's step 9, slice 2: moved from {@link #OVERRIDES}' DuckDb and Postgres with the
+     *  arms themselves). DuckDB's {@code raw} and Postgres's (Phase 6's B4 (ii), 2026-11-17): legend-engine's H2 text
+     *  translated, where the product and the edge run a raw statement as written. DuckDB's {@code scanOrderPasses} (W6
+     *  of docs/records/d-plan-2026-11-16.md, 2026-11-16): legend-engine's scan order ({@code edge.StableScanOrder}) for
+     *  the corpus replay, where the product and the edge add none. */
+    private static final Map<String, Set<String>> HARNESS_OVERRIDES = new TreeMap<>(Map.of(
+            "DuckDb", Set.of("raw", "scanOrderPasses"), "Postgres", Set.of("raw")));
 
     /** The methods {@code c} declares that override a product dialect's method which is not a
      *  {@link com.legend.sql.dialect.SpellingArm}: a decision the edge must not take ({@code EdgeMayOverride}, used
@@ -251,15 +255,45 @@ class EdgeSpellingHookTest {
 
     @Test
     void theEdgesDialectsOverrideOnlyThePinnedArms() {
+        assertEquals(OVERRIDES, armsOf(PureText.class),
+                "the edge's overridden arms (PureText): an arm moves here only with its D step");
+        assertEquals(List.of(), Arrays.stream(PureText.class.getDeclaredClasses())
+                .filter(c -> c.getDeclaredFields().length > 0).map(Class::getSimpleName).toList(),
+                "an edge dialect holds no state of its own");
+    }
+
+    /** The tests' harness's dialects, checked as the edge's are (2026-11-26, the edition program's step 9, slice 2): the
+     *  arms each overrides over the edge's are the pinned ones, each a spelling arm, and none holds state. */
+    @Test
+    void theHarnessesDialectsOverrideOnlyThePinnedArms() {
+        assertEquals(HARNESS_OVERRIDES, armsOf(com.legend.edge.HarnessText.class),
+                "the harness's overridden arms (HarnessText): the corpus's two hooks and no other");
+        List<String> decisions = new java.util.ArrayList<>();
+        for (Class<?> c : com.legend.edge.HarnessText.class.getDeclaredClasses()) {
+            decisions.addAll(decisionsOverridden(c));
+            // the edge's dialect of the same name, subclassed
+            assertEquals(PureText.class, c.getSuperclass().getEnclosingClass(), c.getSimpleName());
+            assertEquals(c.getSuperclass().getSimpleName(), c.getSimpleName());
+        }
+        assertEquals(List.of(), decisions, "a harness dialect overriding a decision");
+        assertEquals(List.of(), Arrays.stream(com.legend.edge.HarnessText.class.getDeclaredClasses())
+                .filter(c -> c.getDeclaredFields().length > 0).map(Class::getSimpleName).toList(),
+                "a harness dialect holds no state of its own");
+    }
+
+    /** Each dialect class {@code holder} declares, with the methods it declares. Dialect classes alone (2026-11-26, the
+     *  edition program's step 9, slice 2, the orchestrator's ruling): a nested type of PureText that is no dialect --
+     *  the edge-style marker {@code OfTheEdge} -- is not what the rule pins. */
+    private static Map<String, Set<String>> armsOf(Class<?> holder) {
         Map<String, Set<String>> found = new TreeMap<>();
-        for (Class<?> c : PureText.class.getDeclaredClasses()) {
+        for (Class<?> c : holder.getDeclaredClasses()) {
+            if (!com.legend.sql.dialect.SqlDialect.class.isAssignableFrom(c)) {
+                continue;
+            }
             Set<String> arms = new TreeSet<>();
             Arrays.stream(c.getDeclaredMethods()).filter(m -> !m.isSynthetic()).forEach(m -> arms.add(m.getName()));
             found.put(c.getSimpleName(), arms);
         }
-        assertEquals(OVERRIDES, found, "the edge's overridden arms (PureText): an arm moves here only with its D step");
-        assertEquals(List.of(), Arrays.stream(PureText.class.getDeclaredClasses())
-                .filter(c -> c.getDeclaredFields().length > 0).map(Class::getSimpleName).toList(),
-                "an edge dialect holds no state of its own");
+        return found;
     }
 }
