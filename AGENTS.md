@@ -198,6 +198,16 @@
 >   three types; a day and a date-time; an enumeration and a String; two unrelated
 >   classes. `==`, `!=`, `in`, `contains`, `indexOf`, the deduplications, joins and
 >   ordering (`<`, `max`, `min`, `sort`) all hold to it.
+> - **A number literal reads as the type of the value it is written against** (the
+>   user, 2026-11-26: "okay for float/decimal literal compare"): `$x.qty > 0` over a
+>   Float is `> 0.0`, `$x.salary < 50000` over a Decimal is `< 50000D`, when the
+>   literal is exact in that type. Still a compile error: two literals (`1 == 1.0`),
+>   two values, a literal that is not exact there (`1.5` against an Integer), a
+>   Decimal literal (`1.5D`: its suffix states its type). The literal is read by its
+>   written digits; nothing is computed from a row (`compiler.spec.NumberLiterals`).
+> - **Inside functions and mapping code too** (the edition program's step 4,
+>   2026-11-26): a function's, a derived property's, a constraint's and a mapping's
+>   Pure hold to the same rule, the error raised when the body is compiled.
 > - **Types known only at run time** (`Any`, `Number`, the abstract `Date`, a generic
 >   position) carry their type beside the value; equal means the same type and the
 >   same value, and a mixed list orders by value, then by type.

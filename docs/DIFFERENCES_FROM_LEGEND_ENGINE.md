@@ -420,6 +420,26 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   legend-engine's choice of SQL type, not Pure's meaning.
 - **Register:** S424.
 
+### 21. Comparing two different types is a compile error on lite's own route (the equality rule, 2026-11-24 and 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1: at legend-engine's door a comparison is sent to the
+  database as written, legend-engine's answer, with no setting.
+- **You write**, on lite's own route: `$x.kind == 'CITY'` where `kind` is an enumeration, `$x.day == $x.stamp` (a day
+  against a date-time), `$x.count == $x.ratio` (an Integer against a Float).
+- **legend-engine** sends the comparison to the database, which converts one side by its own rules.
+- **lite** refuses to compile it and names the two types and the fix: write both sides in one type (an enumeration's
+  own value, `toFloat()`, `toString()`). Two values are equal only when they have the same type and the same value.
+  - The rule holds everywhere Pure is written: the query, a function, a derived property, a constraint, a mapping.
+  - **A number literal is not a mistake:** written against a number of another type it reads as that type when it
+    is exact there. `$x.qty > 0` over a Float is `> 0.0`; `$x.salary < 50000` over a Decimal is `< 50000D`. Only a
+    literal that cannot be that type (`1.5` against an Integer), two literals (`1 == 1.0`) and a Decimal literal
+    (`1.5D`) are refused.
+  - A value whose type is known only when the query runs (`Any`, `Number`) is compared when it runs: equal means the
+    same type and the same value.
+- **Why:** a comparison across types usually hides a mistake, and each database converts differently, so the same
+  query would answer differently on two databases. Refusing it when the code is compiled is the one answer that is
+  the same everywhere.
+- **Register:** S127 (as amended 2026-11-25 and 2026-11-26).
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,
