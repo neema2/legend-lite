@@ -133,12 +133,15 @@ public final class UpstreamPrints {
     }
 
     /** Whether any statement of {@code body} holds a printed side (a value's counted wherever it stands: the walk
-     *  that follows reads only the ones at an assert's argument). */
+     *  that follows reads only the ones at an assert's argument). A side is read through the body's lets, as the
+     *  walk reads it: a computed DateTime bound by a let is a print only through its let (the outside audit of
+     *  slices 3 and 4, 2026-11-26, its B1: with no lets here such a body was returned untouched). */
     static boolean anyPrinted(List<TypedSpec> body) {
+        List<TypedSpec> lets = body.stream().filter(TypedLet.class::isInstance).toList();
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
             TypedSpec n = work.pop();
-            if (side(n, true, List.of()) != null) {
+            if (side(n, true, lets) != null) {
                 return true;
             }
             work.addAll(n.children());
@@ -391,6 +394,17 @@ public final class UpstreamPrints {
         return n instanceof TypedNativeCall c && answersAnew(c.callee().id());
     }
 
+    /** The natives that take their answer BY POSITION among those the order view reads through (the typer writes
+     *  a limit, a drop and a slice as nodes of their own, {@link #readsByOrder}'s first arms; listed here so that
+     *  the rule does not rest on that). */
+    private static final List<com.legend.model.FunctionId> BY_POSITION = com.legend.model.FunctionId.ofAll(
+            com.legend.builtin.Pure.AT__T_MANY__INTEGER_1, com.legend.builtin.Pure.TAKE__T_MANY__INTEGER_1,
+            com.legend.builtin.Pure.LIMIT__T_MANY__INTEGER_1, com.legend.builtin.Pure.LIMIT__RELATION_1__INTEGER_1,
+            com.legend.builtin.Pure.LIMIT__TDS_1__INTEGER_0_1, com.legend.builtin.Pure.DROP__T_MANY__INTEGER_1,
+            com.legend.builtin.Pure.DROP__RELATION_1__INTEGER_1,
+            com.legend.builtin.Pure.SLICE__T_MANY__INTEGER_1__INTEGER_1,
+            com.legend.builtin.Pure.SLICE__RELATION_1__INTEGER_1__INTEGER_1);
+
     /** Whether the native {@code c} answers the same whatever order its rows arrive in: the natives the order view
      *  reads through (a map, a filter, a projection, a distinct, {@code toOne}), a sort, the natives that leave no
      *  order (a grouping, a join, a union), and a count or an emptiness test -- but never a native that takes its
@@ -399,17 +413,7 @@ public final class UpstreamPrints {
     private static boolean orderFree(TypedNativeCall c) {
         com.legend.model.FunctionId id = c.callee().id();
         String fqn = c.callee().qualifiedName();
-        // the order view's own names for them (the typer writes a limit, a drop and a slice as nodes of their own,
-        // readsByOrder's first three arms; named here so that the rule does not rest on that)
-        if (fqn.equals(com.legend.builtin.Pure.AT__T_MANY__INTEGER_1.qualifiedName())
-                || fqn.equals(com.legend.builtin.Pure.TAKE__T_MANY__INTEGER_1.qualifiedName())
-                || fqn.equals(com.legend.builtin.Pure.LIMIT__T_MANY__INTEGER_1.qualifiedName())
-                || fqn.equals(com.legend.builtin.Pure.LIMIT__RELATION_1__INTEGER_1.qualifiedName())
-                || fqn.equals(com.legend.builtin.Pure.LIMIT__TDS_1__INTEGER_0_1.qualifiedName())
-                || fqn.equals(com.legend.builtin.Pure.DROP__T_MANY__INTEGER_1.qualifiedName())
-                || fqn.equals(com.legend.builtin.Pure.DROP__RELATION_1__INTEGER_1.qualifiedName())
-                || fqn.equals(com.legend.builtin.Pure.SLICE__T_MANY__INTEGER_1__INTEGER_1.qualifiedName())
-                || fqn.equals(com.legend.builtin.Pure.SLICE__RELATION_1__INTEGER_1__INTEGER_1.qualifiedName())) {
+        if (BY_POSITION.contains(id)) {
             return false;
         }
         return com.legend.compiler.spec.OrderView.ORDER_PRESERVING.contains(fqn)
@@ -472,7 +476,7 @@ public final class UpstreamPrints {
      *  </ul>
      *  It errs to the database's side: a parameter's rows are never in sight, so a pick or a sum of a lambda's or a
      *  called function's own parameter leaves the print as written whatever the caller passed; and a callee whose
-     *  body cannot be compiled is not in sight at all. (The independent review of the date slice, the independent
+     *  body the compiler walls is not in sight at all. (The independent review of the date slice, the independent
      *  audit of slice 2, the review of its repair, the audit's re-check, R1, and its review: 2026-11-26.) */
     private static boolean unrepeatable(TypedSpec e, List<TypedSpec> lets, com.legend.TypedQuery typed) {
         java.util.Map<com.legend.model.FunctionId, Boolean> called = new java.util.HashMap<>();
@@ -495,9 +499,9 @@ public final class UpstreamPrints {
                             typed.specs(), called)) {
                         return true;
                     }
-                } catch (RuntimeException notInSight) {
-                    // a body the compiler refuses (a wall, a construct not planned): what it reads is not known
-                    // here, so the print stays the run's, which meets the same refusal on its own road
+                } catch (com.legend.error.NotImplementedException notInSight) {
+                    // a body the compiler walls (a construct not planned): what it reads is not known here, so
+                    // the print stays the run's, which meets the same refusal on its own road
                     return true;
                 }
             }

@@ -159,7 +159,10 @@ class UpstreamPrintsTest {
                     com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
                     com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE, answer);
             for (String body : List.of("|assertEquals('2014-01-01T11:20:30.25+0000', " + computed + "->toString());",
-                    "|assertEquals(27, " + computed + "->toString()->length());")) {
+                    "|assertEquals(27, " + computed + "->toString()->length());",
+                    // through its let, with no other print in the body (the outside audit of slices 3 and 4, its B1:
+                    // the door looked for a print with no lets in hand and returned this body untouched)
+                    "|let d = " + computed + "; assertEquals('2014-01-01T11:20:30.25+0000', $d->toString());")) {
                 com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
                 com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);
                 assertTrue(read != typed, body);

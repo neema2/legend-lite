@@ -203,8 +203,8 @@ public enum SqlFn {
      *  ({@code 1e-07} on DuckDB, {@code 1.0E-7} on H2). It is never one spelling across databases: it is each
      *  database's own. */
     FLOAT_FULL_TEXT,
-    /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
-     *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
+    /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, nine fraction
+     *  digits and {@code Z} (2026-11-10, D_BRIEF §1; D1.2; nine since 2026-11-22; MongoDB's six), a STRFTIME the
      *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
      *  a literal's written text, which legend-pure prints at its written precision, is the edge's alone, through the
      *  style's two-form DateTimeTexts). The compatibility edge's dialects write it as the product's do (until

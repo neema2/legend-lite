@@ -91,8 +91,9 @@ by some databases' SQL (no test, no pin).
 - `PureRelationTextTest.aComputedDateTimeIsItsSecondsAndTrimmedFraction`: the Java text, value by value.
 - `edge/EngineDateTimeTextRowTest`: the row's SQL planned for every implemented database, read from `PureText`'s
   sets, no database named: where the row answers, the statement is the very one that prints the same value declared
-  an abstract Date, the plain cast; a literal, a day, a value outside any store query and every database off the set
-  keep the door's plan as written.
+  an abstract Date, the plain cast, for a literal too (since the ruling "match engine for engine"; this line said a
+  literal was kept as written until the outside audit of 2026-11-26); a day, a value outside any store query and
+  every database off the set keep the door's plan as written.
 - `integration/EngineDateTimeTextTest`: the row run on each lane's database.
 
 ## The guards it moved

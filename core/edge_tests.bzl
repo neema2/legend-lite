@@ -84,7 +84,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/PrintedRelationsTest.java",
     # the tail of a lifted print, its closed set pinned (the edition program's step 8, 2026-11-26)
     "src/test/java/com/legend/edge/PrintTailTest.java",
-    # a DateTime's text inside a store query at legend-engine's door, where it is no literal (step 8, 2026-11-26)
+    # a DateTime's text inside a store query at legend-engine's door, a literal's too (step 8, 2026-11-26)
     "src/test/java/com/legend/edge/EngineDateTimeTextRowTest.java",
     # a Float's text inside a store query at legend-engine's door, a row of its table (step 8, 2026-11-26)
     "src/test/java/com/legend/edge/EngineFloatTextRowTest.java",

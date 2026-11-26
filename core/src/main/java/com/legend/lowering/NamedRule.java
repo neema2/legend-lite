@@ -97,6 +97,6 @@ public enum NamedRule {
     /** A DateTime's text as the target database's own cast of the value to text writes it
      *  ({@code CAST(x AS VARCHAR)}): that database's layout of a timestamp ({@code 2014-01-02 10:20:30.25} on most: a
      *  space, the fraction it holds, no zone). Not the product's text of a DateTime, ISO 8601 with nine fraction
-     *  digits and {@code Z} on every database. */
+     *  digits and {@code Z} (MongoDB's six: {@code SqlFn.DATETIME_TO_TEXT}). */
     DATE_TIME_TEXT_BY_CAST
 }

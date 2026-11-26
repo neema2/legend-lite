@@ -141,8 +141,14 @@ public final class PrintedRelations {
         }
         List<TypedSpec> lifted = new ArrayList<>(body.subList(0, body.size() - 1));
         lifted.add(side.relation());
+        // a literal's print is written at the door, and then NOTHING is run: so only where nothing before it would
+        // have run. A let is computed where it is read, and a literal's print reads none that computes (measured:
+        // PctPlanRoutePrintTest, a let that would raise beside a written and a run print); behind any other earlier
+        // statement the print is the run's to answer, with that statement (the audit's re-check of slice 2, N1)
+        boolean letsAlone = lifted.subList(0, lifted.size() - 1).stream()
+                .allMatch(com.legend.compiler.spec.typed.TypedLet.class::isInstance);
         // withBody keeps the query's model, options and parameters: only the body changes
-        return new Lifted(query.withBody(lifted), side.form(), side.tail(), side.written());
+        return new Lifted(query.withBody(lifted), side.form(), side.tail(), letsAlone ? side.written() : null);
     }
 
     /** The double a Float literal is, or null: the literal itself, or the literal under a unary minus (Pure writes
@@ -159,6 +165,50 @@ public final class PrintedRelations {
         return null;
     }
 
+    /** Whether a date the program SPELLED may be {@code e}'s value when the lowering reads it. The compiler folds
+     *  literal structure and nothing else (a pick from a spelled list, a cast of a literal, a spelled instance's
+     *  field: {@code compiler.spec.LiteralUnroll}, "no fold produces a new value"), so a spelled date reaches
+     *  {@code e}'s place only through nodes that hand a value on. It errs to yes: a node is taken to hand a date on
+     *  unless it cannot -- its own value is of a type that is no date; it is {@code adjust}, which computes a new
+     *  instant; it is a relation's column or a lambda's own parameter, whose values are data or are read at their
+     *  source. A date-typed node this door does not know (a user function's call, a class's property, an
+     *  {@code if}) is taken to be one: the print is then the run's. */
+    private static boolean mayBeASpelledDate(TypedSpec e, List<TypedSpec> lets, java.util.Set<TypedSpec> seen) {
+        TypedSpec n = com.legend.compiler.spec.typed.Lets.bound(e, lets);
+        if (!seen.add(n)) {
+            return false;
+        }
+        com.legend.compiler.element.type.Type type = n.info().type();
+        boolean date = type == com.legend.compiler.element.type.Type.Primitive.DATE
+                || type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
+                || type == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE;
+        if (type instanceof com.legend.compiler.element.type.Type.Primitive && !date) {
+            return false;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable) {
+            return false;
+        }
+        if (n instanceof TypedNativeCall c && com.legend.builtin.Pure.AT_DATE_ADJUST.contains(c.callee().id())) {
+            return false;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess column
+                && (column.source().info().type() instanceof com.legend.compiler.element.type.Type.RelationType
+                        || com.legend.compiler.element.type.Type.isRelation(column.source().info().type()))) {
+            return false;
+        }
+        boolean handsOn = !date || n instanceof TypedNativeCall || n instanceof com.legend.compiler.spec.typed.TypedCast
+                || n instanceof com.legend.compiler.spec.typed.TypedCollection;
+        if (!handsOn) {
+            return true;
+        }
+        for (TypedSpec child : n.children()) {
+            if (mayBeASpelledDate(child, lets, seen)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** legend-engine's relation functions' {@code toString} (toString.pure), the name the lowering matches too. */
     private static final String RELATION_TO_STRING = "meta::pure::functions::relation::toString";
 
@@ -171,14 +221,20 @@ public final class PrintedRelations {
     }
 
     /** {@code e} as a print the printer writes, or null: a relation's, or with {@code values} the {@code toString}
-     *  of a Float or of a DateTime that is no literal. Only a relation whose columns the compiler knows is lifted
+     *  of a Float (its {@code toRepresentation} too, the same text) or of a DateTime that is no literal. Only a relation whose columns the compiler knows is lifted
      *  ({@link #knownColumns}); the lowering's own special shapes stay the run's. */
     private static @com.legend.base.Nullable Printed printed(TypedSpec e, boolean values, List<TypedSpec> lets) {
         if (e instanceof TypedNativeCall c) {
             String name = c.callee().qualifiedName();
             // a value's toString at legend-pure's doors (the edition program's step 8, 2026-11-26): a Float's, printed
             // by legend-pure's rule in Java from the double the database computed (PureValueText.value)
-            if (values && name.equals(PlatformTypes.TO_STRING) && c.args().size() == 1) {
+            // ...and a Float's toRepresentation, which legend-pure defines as its toString (toRepresentation.pure:
+            // n:Number[1] | $n->toString(); a Decimal's, a date's and a text's are other texts and are not lifted):
+            // the outside audit of slices 3 and 4, 2026-11-26, its B2 (a)
+            boolean representation = c.args().size() == 1
+                    && com.legend.builtin.Pure.AT_STRING_TO_REPRESENTATION.contains(c.callee().id())
+                    && c.args().get(0).info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT;
+            if (values && (name.equals(PlatformTypes.TO_STRING) && c.args().size() == 1 || representation)) {
                 TypedSpec operand = c.args().get(0);
                 com.legend.compiler.element.type.Type type = operand.info().type();
                 if (type == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
@@ -198,9 +254,15 @@ public final class PrintedRelations {
                 // may each have become a literal the door cannot see (the independent review of 2026-11-26). So only
                 // a computation whose root stays a computation is lifted: a native's call or a cast, where it stands
                 // or through the let it is bound to. Anything else is left to the run, as before.
+                // ...and only where no SPELLED literal can be that computation's value: the compiler rearranges
+                // literal structure before the lowering reads it ([lit]->toOne(), lit->cast(@DateTime),
+                // [a, b]->at(0) are each the literal there: probed 2026-11-26, the outside audit of slices 3 and 4),
+                // and the lowering then writes the literal's written text, which is legend-pure's own
                 if (type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME) {
                     TypedSpec bound = com.legend.compiler.spec.typed.Lets.bound(operand, lets);
-                    if (bound instanceof TypedNativeCall || bound instanceof com.legend.compiler.spec.typed.TypedCast) {
+                    if ((bound instanceof TypedNativeCall || bound instanceof com.legend.compiler.spec.typed.TypedCast)
+                            && !mayBeASpelledDate(bound, lets, java.util.Collections.newSetFromMap(
+                                    new java.util.IdentityHashMap<>()))) {
                         return new Printed(operand, PureRelationTextWriter.Form.VALUE);
                     }
                 }

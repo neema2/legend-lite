@@ -52,6 +52,9 @@ class PctPlanRoutePrintTest {
         assertEquals(List.of(List.of("0.000000013421")), answer.rows().rows());
         assertEquals(List.of(List.of("134210000.0")), PctPlanRoute.execute("", "|1.3421e8->toString()").rows().rows());
         assertEquals(List.of(List.of("0.00001")), PctPlanRoute.execute("", "|(1.0E-5 * 1.0)->toString()").rows().rows());
+        // a Float's toRepresentation is its toString in legend-pure (the outside audit of slices 3 and 4, B2 (a))
+        assertEquals(List.of(List.of("0.30000000000000004")),
+                PctPlanRoute.execute("", "|toRepresentation(0.1 + 0.2)").rows().rows());
         PctPlanRoute.Answer length = PctPlanRoute.execute("", "|(1.0E-5 * 1.0)->toString()->length()");
         assertEquals(List.of(List.<Object>of(7L)), length.rows().rows());
         assertEquals("Integer", length.rows().columns().get(0).type());
@@ -62,30 +65,36 @@ class PctPlanRoutePrintTest {
                 "|#TDS\n  i:Integer\n  1\n#->toString()->replace('\\n', ';')->startsWith('#TDS;')").rows().rows());
     }
 
-    /** A LITERAL'S PRINT WRITTEN AT THE DOOR RUNS NOTHING, SO NOTHING BEFORE IT MAY BE LEFT UNRUN THAT WOULD HAVE
-     *  RUN (the audit's re-check of slice 2, 2026-11-26, its N1): a body whose earlier statement raises answers the
-     *  same with the literal's print written at the door as with a computed value's print, which is run -- each body
-     *  twice, its last step a literal's print and the same value computed. */
+    /** A LITERAL'S PRINT WRITTEN AT THE DOOR RUNS NOTHING, SO NOTHING BEFORE IT MAY BE LEFT UNRUN THAT A RUN WOULD
+     *  HAVE RUN (the audit's re-check of slice 2, 2026-11-26, its N1). Measured that day: lite's run computes a let
+     *  where it is read, so a let that would raise if computed ({@code 'x'->parseInteger()}) raises neither beside a
+     *  print the door writes nor beside one the database computes -- each answers the print. That is the product's
+     *  own behaviour and older than the door (legend-pure computes every let: reported to the orchestrator, no row);
+     *  what this holds is that the door changes nothing: each body twice, its last step a literal's print and the same
+     *  value computed, the same outcome. Behind an earlier statement that is no let the door writes nothing
+     *  ({@code PrintedRelations.lift}), so both are the run's. */
     @Test
     void aBodysEarlierStatementAnswersAlike_whetherItsLastPrintIsWrittenOrRun() {
+        List<String> earlier = List.of("let y = 1 / 0;", "let y = [1, 2]->at(5);", "let y = 'x'->parseInteger();",
+                "let y = 2;", "assert(1 == 2, 'boom');");
         java.util.Map<String, String> outcomes = new java.util.LinkedHashMap<>();
-        for (String earlier : List.of("let y = 1 / 0;", "let y = [1, 2]->at(5);", "let y = 'x'->parseInteger();",
-                "let y = 2;")) {
+        for (String statement : earlier) {
             for (String last : List.of("1.5->toString()", "(1.5 * 1.0)->toString()")) {
                 String outcome;
                 try {
-                    outcome = String.valueOf(PctPlanRoute.execute("", "|" + earlier + " " + last + ";").rows().rows());
+                    outcome = String.valueOf(PctPlanRoute.execute("", "|" + statement + " " + last + ";").rows().rows());
                 } catch (Exception | AssertionError e) {
-                    outcome = "RAISED " + e.getClass().getSimpleName() + " " + e.getMessage();
+                    outcome = "RAISED " + e.getClass().getSimpleName() + ": " + e.getMessage();
                 }
-                outcomes.put(earlier + " " + last, outcome);
+                outcomes.put(statement + " " + last, outcome);
             }
         }
-        for (String earlier : List.of("let y = 1 / 0;", "let y = [1, 2]->at(5);", "let y = 'x'->parseInteger();",
-                "let y = 2;")) {
-            assertEquals(outcomes.get(earlier + " (1.5 * 1.0)->toString()"), outcomes.get(earlier + " 1.5->toString()"),
-                    earlier + ": " + outcomes);
+        for (String statement : earlier) {
+            assertEquals(outcomes.get(statement + " (1.5 * 1.0)->toString()"), outcomes.get(statement + " 1.5->toString()"),
+                    statement + ": " + outcomes);
         }
+        // the measured fact the door rests on: a let nothing reads is not computed by the run
+        assertEquals("[[1.5]]", outcomes.get("let y = 'x'->parseInteger(); (1.5 * 1.0)->toString()"), outcomes.toString());
     }
 
     /** A DateTime that is no literal, printed at a last step at legend-pure's door (the edition program's step 8,
@@ -107,6 +116,13 @@ class PctPlanRoutePrintTest {
         answers.put("|%2014-01-01T10:20:30.123+0000->adjust(1, meta::pure::functions::date::DurationUnit.DAYS)->cast(@DateTime)"
                 + "->toString()->length()", "28");
         answers.put("{|let d = %2014-01-01T00:00:00.000+0000; $d->toString();}", "2014-01-01T00:00:00.000+0000");
+        // a literal under a call or a cast that hands it on: the lowering reads the literal and writes its written
+        // text, legend-pure's own; the door does not lift it (it lifted these until the outside audit of slices 3
+        // and 4, 2026-11-26, and printed the instant, its written zeros trimmed)
+        answers.put("|[%2014-01-01T00:00:00.00]->toOne()->toString()", "2014-01-01T00:00:00.00+0000");
+        answers.put("|%2014-01-01T00:00:00.00->cast(@DateTime)->toString()", "2014-01-01T00:00:00.00+0000");
+        answers.put("|[%2014-01-01T00:00:00.00, %2015-01-01T00:00:00.00]->at(0)->toString()",
+                "2014-01-01T00:00:00.00+0000");
         java.util.Map<String, String> got = new java.util.LinkedHashMap<>();
         for (String query : answers.keySet()) {
             got.put(query, String.valueOf(PctPlanRoute.execute("", query).rows().rows().get(0).get(0)));

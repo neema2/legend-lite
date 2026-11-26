@@ -308,6 +308,10 @@ class PureRelationTextTest {
         texts.put("2014-01-01T10:20:32.000000001", "2014-01-01T10:20:32.000000001+0000");
         texts.put("2014-01-01T10:20:30", "2014-01-01T10:20:30+0000");
         texts.put("2014-01-01T10:20", "2014-01-01T10:20:00+0000");
+        // a year below 1000 is written as the number it is, unpadded: legend-pure's own print
+        // (legend-pure-m4 DateFormat.append, line 240: safeAppendable.append(date.getYear()), an int; the outside
+        // audit of slices 3 and 4, S3)
+        texts.put("0999-03-04T10:20:30.500000000", "999-03-04T10:20:30.5+0000");
         for (var e : texts.entrySet()) {
             assertEquals(e.getValue(), PureValueText.value(com.legend.values.PureDateLiteral.parse(e.getKey()), at),
                     e.getKey());

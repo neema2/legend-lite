@@ -1,0 +1,31 @@
+// A MEASURE-ONLY PROBE, never committed (docs/records/edition-homework/step8/probe-engine-date-time-cast-on-a-lane.md)
+package org.finos.legend.lite.pct.extension;
+
+import org.junit.jupiter.api.Test;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/** A DateTime's toString at legend-engine's door on this lane's database: the SQL lite sends and the text it answers. */
+class EngineDateTimeCastProbe {
+
+    @Test
+    void probe() {
+        String hours = "meta::pure::functions::date::DurationUnit.HOURS";
+        Map<String, String> cases = new LinkedHashMap<>();
+        cases.put("literal, a fraction", "|%2014-01-01T00:00:00.000+0000->toString()");
+        cases.put("literal, no fraction", "|%2014-01-01T00:00:00+0000->toString()");
+        cases.put("computed", "|%2014-01-01T10:20:30.250+0000->adjust(1, " + hours + ")->cast(@DateTime)->toString()");
+        cases.put("column", "|#TDS\n  at:DateTime\n  2014-01-01T10:20:30.25\n  2014-01-01T10:20:30.123456\n"
+                + "  2014-01-02T00:00:00\n#->extend(~t: r|$r.at->toOne()->toString())->select(~t)");
+        for (Map.Entry<String, String> c : cases.entrySet()) {
+            System.err.println("PROBE CASE " + c.getKey() + " :: " + c.getValue().replace("\n", "\\n"));
+            try {
+                PctPlanRoute.Answer answer = PctPlanRoute.execute("", c.getValue());
+                System.err.println("PROBE ANSWER " + c.getKey() + " :: " + answer.rows().rows());
+            } catch (Exception | AssertionError e) {
+                System.err.println("PROBE RAISED " + c.getKey() + " :: " + e);
+            }
+        }
+    }
+}

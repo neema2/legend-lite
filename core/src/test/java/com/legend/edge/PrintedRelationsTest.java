@@ -130,6 +130,23 @@ class PrintedRelationsTest {
         assertEquals("0.000000013421", bound.written());
         assertEquals(14L, bound.answer(bound.written()));
         assertNull(PrintedRelations.lift(typed("{|let x = 1.3421e-8 * 1.0; $x->toString();}"), true).written());
+        // behind an earlier statement that is no let, the literal's print is the run's: writing it at the door would
+        // run nothing, that statement included (the audit's re-check of slice 2, N1)
+        PrintedRelations.Lifted behind = PrintedRelations.lift(typed("{|assert(1 == 1, 'ok'); 1.3421e-8->toString();}"),
+                true);
+        assertNotNull(behind);
+        assertNull(behind.written());
+        // a Float's toRepresentation is its toString in legend-pure (toRepresentation.pure): lifted alike, a literal's
+        // written; a Decimal's and a text's are other texts, and legend-engine's door lifts no value (the outside
+        // audit of slices 3 and 4, B2 (a))
+        PrintedRelations.Lifted represented = PrintedRelations.lift(typed("|toRepresentation(0.1 + 0.2)"), true);
+        assertNotNull(represented);
+        assertEquals(PureRelationTextWriter.Form.VALUE, represented.form());
+        assertNull(represented.written());
+        assertEquals("0.000000013421", PrintedRelations.lift(typed("|1.3421e-8->toRepresentation()"), true).written());
+        assertNull(PrintedRelations.lift(typed("|toRepresentation(1.5D * 2)"), true));
+        assertNull(PrintedRelations.lift(typed("|toRepresentation('a')"), true));
+        assertNull(PrintedRelations.lift(typed("|toRepresentation(0.1 + 0.2)")));
         assertNull(PrintedRelations.lift(typed("|(1.5 * 2.0)->toString()")));
         assertNull(PrintedRelations.lift(typed("|1->toString()"), true));
         assertNull(PrintedRelations.lift(typed("|'a'->toString()->length()"), true));
@@ -159,6 +176,21 @@ class PrintedRelationsTest {
         assertNull(PrintedRelations.lift(com.legend.Compiler.query(returning, "|f::d()->toString()"), true));
         assertNull(PrintedRelations.lift(com.legend.Compiler.query(returning, "{|let d = f::d(); $d->toString();}"),
                 true));
+        // a literal UNDER a call or a cast that hands a value on is the literal when the lowering reads it (the
+        // compiler rearranges literal structure: probed 2026-11-26, the outside audit of slices 3 and 4), and the
+        // lowering writes its written text: such an operand is left to the run -- where a spelled date may be the
+        // value, the door does not lift. A function over the literal that computes (adjust) is lifted, above
+        String literal = "%2014-01-01T00:00:00.00";
+        for (String handedOn : List.of("|[" + literal + "]->toOne()->toString()",
+                "|" + literal + "->cast(@DateTime)->toString()",
+                "|" + literal + "->toOne()->toString()",
+                "|[" + literal + ", %2015-01-01T00:00:00.00]->at(0)->toString()",
+                "|[" + literal + "]->first()->toOne()->toString()",
+                "{|let d = [" + literal + "]->toOne(); $d->toString();}",
+                // one of two values, the other computed: the pick may be the spelled one
+                "|[" + literal + ", " + computed + "]->at(0)->toString()")) {
+            assertNull(PrintedRelations.lift(typed(handedOn), true), handedOn);
+        }
         // legend-engine's door's rule lifts no value; the abstract Date and a StrictDate are not lifted
         assertNull(PrintedRelations.lift(typed("|" + computed + "->toString()")));
         assertNull(PrintedRelations.lift(typed("|%2014-01-01T10:20:30+0000->adjust(1,"
