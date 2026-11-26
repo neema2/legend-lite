@@ -26,7 +26,8 @@ import java.util.Set;
  * printer, the print's tail applied in Java ({@link PrintTail}: the replaces, and since the edition program's step 8,
  * 2026-11-26, the other calls of its closed set), and the answer substituted for the side as a literal -- a String, or
  * the Integer or Boolean the tail's last step answers; lite's judge then compares at the assert's own place, by lite's
- * rules. Since step 8 a Float's {@code toString} is read the same way where it is a LAST STEP: the side is an assert's
+ * rules. Since step 8 a Float's {@code toString}, and that of a DateTime that is a computation and reads no clock, is
+ * read the same way where it is a LAST STEP: the side is an assert's
  * own argument (with its tail), nowhere else -- a Float's text the program goes on computing with (joined, in a let, in
  * a list, under a call outside the tail's set) is left to the database, as tenet 1 says (the user's amendment of
  * 2026-11-25; the independent review of this slice, 2026-11-26: the first draft read a value side wherever it stood,
@@ -162,6 +163,9 @@ public final class UpstreamPrints {
             // line by line in any order where an assertEquals compares it with a golden (above), and left as written
             // anywhere else
             if (!readable(p.relation(), lets) || incidental(p, lets)) {
+                return n;
+            }
+            if (p.form() == PureRelationTextWriter.Form.VALUE && readsTheClock(p.relation(), lets)) {
                 return n;
             }
             Object answer = print(p, typed, lets, reads, printer);
@@ -371,6 +375,25 @@ public final class UpstreamPrints {
     }
 
     /** Whether every name {@code relation} reads is bound by one of {@code lets}: a lambda's parameter is not. */
+    /** Whether {@code e}, through the lets it reads, calls {@code now()}. A side read as a query of its own draws its
+     *  own instant, where the assert's statement draws one for all it reads: such a value's print is left as written
+     *  (the independent review of step 8's date slice, 2026-11-26). */
+    private static boolean readsTheClock(TypedSpec e, List<TypedSpec> lets) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(List.of(e));
+        Set<TypedSpec> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        while (!work.isEmpty()) {
+            TypedSpec n = com.legend.compiler.spec.typed.Lets.bound(work.pop(), lets);
+            if (!seen.add(n)) {
+                continue;
+            }
+            if (n instanceof TypedNativeCall c && com.legend.builtin.Pure.AT_DATE_NOW.contains(c.callee().id())) {
+                return true;
+            }
+            work.addAll(n.children());
+        }
+        return false;
+    }
+
     private static boolean readable(TypedSpec relation, List<TypedSpec> lets) {
         Set<String> bound = new java.util.HashSet<>();
         for (TypedSpec l : lets) {

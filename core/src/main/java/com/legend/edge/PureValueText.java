@@ -16,7 +16,8 @@ import java.math.BigInteger;
  * S6a, legend-pure's door, 2026-11-25; the orchestrator's agreement of the same day, G1: one printer, never a second
  * Float printer -- the midpoint audit's item, B2b's record). Its reader is a relation's cell in the table printer
  * ({@link #cell}, the rules {@link PureRelationText} held until S6a, moved here unchanged) and, since the edition
- * program's step 8 (2026-11-26), a Float whose {@code toString} is a program's last step at legend-pure's doors
+ * program's step 8 (2026-11-26), a Float or a computed DateTime whose {@code toString} is a program's last step at
+ * legend-pure's doors
  * ({@link #value}; S6a's lift, held on 2026-11-25 because alone it left a print used further to the edge's SQL passes,
  * returned with the print's tail, {@link PrintTail}). A printer only: the database computed every value, and this
  * class chooses only how each is written (tenet 3; G6, small Java formatting at the edge); a value it has no rule for
@@ -75,24 +76,33 @@ final class PureValueText {
      * ({@link PrintedRelations}; the edition program's step 8, 2026-11-26, tenet 1 as the user amended it on
      * 2026-11-25: a print at a last step is Java's, with upstream's text, from the typed value the database computed):
      * a Float as the double it is declared, by legend-pure's print ({@link #pureFloat}) -- {@code 0.000000013421},
-     * where the edge's SQL pass wrote legend-engine's in-query cast of it. Any other type is refused by name: the door
-     * lifts this one alone.
+     * where the edge's SQL pass wrote legend-engine's in-query cast of it; a DateTime the database computed by the
+     * rule the edge's SQL composition has ({@link #dateTime}). Any other type is refused by name: the door lifts these
+     * alone.
      */
     static String value(Object v, ExecutionPlan.Column c) {
         if (c.type().equals("Float")) {
             return asFloat(v, c);
         }
-        if (c.type().equals("DateTime") && v instanceof PureDateLiteral d && hasTime(d)) {
-            return dateTime(d);
+        if (c.type().equals("DateTime") && v instanceof PureDateLiteral d) {
+            if (hasTime(d)) {
+                return dateTime(d);
+            }
+            if (d instanceof PureDateLiteral.StrictDate) {
+                // a DateTime the database holds as a day (a DATE column under a DateTime property): its midnight, as
+                // the SQL composition prints it
+                return d.canonicalText() + "T00:00:00+0000";
+            }
         }
         throw refused("value toString", v, c);
     }
 
     /** A DateTime the database computed, as the edge prints one that is no literal: its seconds, the fraction without
-     *  its trailing zeros (none: no point), and {@code +0000} -- the text the edge's SQL composition wrote until the
-     *  edition program's step 8, 2026-11-26 ({@code PureDateTimePrint}; held equal to it by PCT's route test before
-     *  that SQL was deleted). legend-pure prints a DateTime at the precision its VALUE carries, which an instant from
-     *  a database does not: this is the nearest rule, the one the SQL had. */
+     *  its trailing zeros (none: no point), and {@code +0000} -- the text the edge's SQL composition writes for a
+     *  print this door does not lift ({@code PureDateTimePrint}; held equal to it by PCT's route test, whose answers
+     *  were first run against that SQL: the edition program's step 8, 2026-11-26). legend-pure prints a DateTime at
+     *  the precision its VALUE carries, which an instant from a database does not: this is the nearest rule, the
+     *  SQL's. Not held equal: a year outside 1000 to 9999, which this writes as its digits and some databases pad. */
     static String dateTime(PureDateLiteral d) {
         String nine = d.toNineDigits();
         int point = nine.length() - 10;

@@ -25,8 +25,8 @@ import java.util.List;
  * knows, followed by a tail of calls of one closed set with literal arguments ({@link PrintTail}: {@code replace} since
  * 2026-11-24, the rest since the edition program's step 8, 2026-11-26), answers the query that computes the
  * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). At legend-pure's doors a
- * value's print is lifted too ({@code values}): a Float's {@code toString}, printed in Java by legend-pure's rule
- * ({@link PureValueText#value}) with the same tail -- tenet 1 as the user amended it on 2026-11-25, a print at a last
+ * value's print is lifted too ({@code values}): a Float's {@code toString}, and that of a DateTime that is a
+ * computation (never a literal's), printed in Java ({@link PureValueText#value}) with the same tail -- tenet 1 as the user amended it on 2026-11-25, a print at a last
  * step is Java's. (B2b S6a lifted it and was held, 2026-11-25: alone it left a print used further to the edge's SQL
  * passes, two printers at one door; the tail answers that for every function of the set.) At legend-engine's door a
  * value's print inside a store query is legend-engine's own answer, a row of its table, and is not lifted. (The tail
@@ -137,14 +137,19 @@ public final class PrintedRelations {
                 if (type == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
                     return new Printed(operand, PureRelationTextWriter.Form.VALUE);
                 }
-                // a DateTime's too, from the instant the database computed. Not a literal's, where it stands or
-                // through the let it is bound to: legend-pure prints a literal at its WRITTEN precision
-                // (%2014-01-01T00:00:00.00 prints '.00'), which no instant carries, so its text stays the constant
-                // the lowering writes (edge.EdgeDateTimeTexts)
-                if (type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
-                        && !(com.legend.compiler.spec.typed.Lets.bound(operand, lets)
-                                instanceof com.legend.compiler.spec.typed.TypedCDate)) {
-                    return new Printed(operand, PureRelationTextWriter.Form.VALUE);
+                // a DateTime's too, from the instant the database computed -- where the lowering can never read the
+                // operand as a LITERAL. legend-pure prints a literal at its WRITTEN precision
+                // (%2014-01-01T00:00:00.00 prints '.00'), which no instant carries, so a literal's text stays the
+                // constant the lowering writes (edge.EdgeDateTimeTexts); and the lowering reads the operand after the
+                // planner has inlined it, where a variable, a user function's call, a derived or a mapped property
+                // may each have become a literal the door cannot see (the independent review of 2026-11-26). So only
+                // a computation whose root stays a computation is lifted: a native's call or a cast, where it stands
+                // or through the let it is bound to. Anything else is left to the run, as before.
+                if (type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME) {
+                    TypedSpec bound = com.legend.compiler.spec.typed.Lets.bound(operand, lets);
+                    if (bound instanceof TypedNativeCall || bound instanceof com.legend.compiler.spec.typed.TypedCast) {
+                        return new Printed(operand, PureRelationTextWriter.Form.VALUE);
+                    }
                 }
             }
             if (c.args().isEmpty() || !knownColumns(c.args().get(0))) {

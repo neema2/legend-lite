@@ -60,7 +60,7 @@ import java.util.Set;
  *       double), on every database legend-engine has, where the product's is six decimals (the edition program's
  *       step 8, 2026-11-26; the user's ruling that day, "agreed on float/date text for engine").</li>
  *   <li>{@code toString} of a DateTime that is no literal: the database's own cast to text
- *       ({@code DATE_TIME_TEXT_BY_CAST}), on the databases whose text of it has been read, where the product's is
+ *       ({@code DATE_TIME_TEXT_BY_CAST}), on the databases whose text of it has been run, where the product's is
  *       ISO 8601 with {@code Z} (the same step and ruling).</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.

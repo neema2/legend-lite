@@ -87,12 +87,19 @@ public final class PureText {
     static final java.util.Set<DatabaseType> ENGINE_FLOAT_LITERAL_AS_DOUBLE = ON_H2;
 
     /** Where legend-engine's {@code toString} of a DateTime, the database's cast of the timestamp to text, is read
-     *  as its answer for the row: the databases whose text of that cast has been read -- Postgres and Snowflake by
-     *  their lanes (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md: "a timestamp keeps its
-     *  microseconds"), DuckDB and H2 run here (2026-11-26). Trino, ClickHouse, Databricks and BigQuery, which
-     *  legend-engine has too and writes the same cast on, join when a lane has read theirs. */
-    static final java.util.Set<DatabaseType> ENGINE_DATE_TIME_CAST_READ = java.util.Collections.unmodifiableSet(
-            java.util.EnumSet.of(DatabaseType.H2, DatabaseType.DuckDB, DatabaseType.Postgres, DatabaseType.Snowflake));
+     *  as its answer for the row: the databases whose text of that cast has been run beside the door's, DuckDB and
+     *  H2 ({@link #CHECKED}; run 2026-11-26). Postgres and Snowflake, whose lanes have read the same cast
+     *  (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md: "a timestamp keeps its microseconds"),
+     *  and Trino, ClickHouse, Databricks and BigQuery, which legend-engine writes the same cast on, join as a set of
+     *  their own when it is ruled: a line here that names a database is counted (DialectBoundaryTest). */
+    static final java.util.Set<DatabaseType> ENGINE_DATE_TIME_CAST_READ = CHECKED;
+
+    /** Whether legend-engine's row for a DateTime's {@code toString} answers on {@code database}
+     *  ({@link #ENGINE_DATE_TIME_CAST_READ}): what a test that runs the row on its lane's database asks, so that it
+     *  names no database. */
+    public static boolean dateTimeCastRead(DatabaseType database) {
+        return ENGINE_DATE_TIME_CAST_READ.contains(database);
+    }
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS},

@@ -161,7 +161,7 @@ final class PctPlanRoute {
         // printed in Java from the relation's typed rows (edge.PrintedRelations, edge.PureRelationText) -- lite's own
         // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5). Since the edition
         // program's step 8 (2026-11-26; tenet 1 as amended 2026-11-25) legend-pure's audience has a last step's print of
-        // a value lifted too -- a Float's toString, legend-pure's print in Java (edge.PureValueText) -- and either
+        // a value lifted too -- a Float's toString, or a computed DateTime's, printed in Java (edge.PureValueText) -- and either
         // audience the print's tail, the calls of one closed set after it (edge.PrintTail), whose answer may be an
         // Integer or a Boolean. legend-engine's audience keeps a value's print in the query: its database's cast is
         // legend-engine's own answer

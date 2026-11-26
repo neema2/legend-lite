@@ -144,6 +144,41 @@ class UpstreamPrintsTest {
         }
     }
 
+    /** A computed DateTime's print at an assert's own argument is read and printed in Java, as a Float's is (the
+     *  edition program's step 8, 2026-11-26); one that reads the clock is left as written: read as a query of its
+     *  own it would draw its own instant, where the assert's statement draws one for both its sides (the independent
+     *  review of that day). A literal's is left too: its written text is the lowering's constant. */
+    @Test
+    void aComputedDateTimesPrintIsJavas_andOneThatReadsTheClockIsLeft() throws Exception {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        String computed = "%2014-01-01T10:20:30.250+0000->adjust(1, meta::pure::functions::date::DurationUnit.HOURS)"
+                + "->cast(@DateTime)";
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            UpstreamPrints.Reads reads = (query, answer) -> com.legend.TestExecution.runProgram(query,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                    com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE, answer);
+            for (String body : List.of("|assertEquals('2014-01-01T11:20:30.25+0000', " + computed + "->toString());",
+                    "|assertEquals(27, " + computed + "->toString()->length());")) {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
+                com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);
+                assertTrue(read != typed, body);
+                assertEquals(0, toStrings(read), body);
+                com.legend.TestExecution.runProgram(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                        com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            }
+            for (String left : List.of(
+                    "|assertEquals(now()->toString(), now()->toString());",
+                    "|let n = now(); assertEquals($n->adjust(1, meta::pure::functions::date::DurationUnit.HOURS)"
+                            + "->cast(@DateTime)->toString(), 'x');",
+                    "|assertEquals('2014-01-01T00:00:00.000+0000', %2014-01-01T00:00:00.000+0000->toString());")) {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, left);
+                assertTrue(UpstreamPrints.read(typed, false, reads) == typed, left);
+            }
+        }
+    }
+
     /** A Float's print the program goes on computing with is left to the database (tenet 1 as the user amended it on
      *  2026-11-25; the independent review of step 8's slice 2, 2026-11-26): joined to a text, bound by a let, in a list,
      *  or under a call outside the tail's set, it is no last step, and the body is the door's as it was. */

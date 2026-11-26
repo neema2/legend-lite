@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A DATETIME'S TEXT INSIDE A STORE QUERY AT LEGEND-ENGINE'S DOOR, RUN (the edition program's step 8, 2026-11-26; the
@@ -37,15 +36,14 @@ class EngineDateTimeTextTest {
     void aDateTimeColumnsTextIsTheDatabasesCastWhereTheRowAnswers() throws Exception {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
-        Boolean byCast = null;
         for (var e : TEXTS.entrySet()) {
             String text = atEnginesDoor(model, backend, "|#TDS\n  at:DateTime\n  " + e.getKey()
                     + "\n#->extend(~t: r|$r.at->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
             assertTrue(e.getValue().contains(text), backend.name() + " " + e.getKey() + ": " + text);
-            // one form for every value on a lane: the row answers there, or it does not
-            boolean cast = text.equals(e.getValue().get(0));
-            assertTrue(byCast == null || byCast == cast, backend.name() + " " + e.getKey() + ": " + text);
-            byCast = cast;
+            // the cast's text exactly where the row answers on the lane's database, the door's text where it does
+            // not (the independent review of 2026-11-26: the row must be seen to answer)
+            assertEquals(e.getValue().get(com.legend.edge.PureText.dateTimeCastRead(backend.type()) ? 0 : 1), text,
+                    backend.name() + " " + e.getKey());
         }
         // a literal has no row: its written text, at its written precision, on every lane
         assertEquals("2014-01-01T00:00:00.000+0000", atEnginesDoor(model, backend, "|#TDS\n  i:Integer\n  1\n#"

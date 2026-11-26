@@ -64,9 +64,10 @@ class PctPlanRoutePrintTest {
 
     /** A DateTime that is no literal, printed at a last step at legend-pure's door (the edition program's step 8,
      *  2026-11-26): its seconds, the fraction without its trailing zeros (none: no point), and {@code +0000} -- the
-     *  text the edge's SQL composition wrote until then ({@code edge.PureDateTimePrint}; these answers were first
-     *  run against that SQL, then against the Java print that replaced it, {@code edge.PureValueText}). A literal is
-     *  its written text, at its written precision, as legend-pure prints it. */
+     *  text the edge's SQL composition writes ({@code edge.PureDateTimePrint}; these answers were first run against
+     *  that SQL, before the lift, then held to the Java print, {@code edge.PureValueText}). A literal is its written
+     *  text, at its written precision, as legend-pure prints it, where it stands, through a let, and through a
+     *  function that returns it (the planner inlines the call: the door leaves every such operand to the run). */
     @Test
     void aFinalDateTimeToStringThatIsNoLiteralIsItsSecondsAndTrimmedFraction() throws Exception {
         java.util.Map<String, String> answers = new java.util.LinkedHashMap<>();
@@ -85,6 +86,11 @@ class PctPlanRoutePrintTest {
             got.put(query, String.valueOf(PctPlanRoute.execute("", query).rows().rows().get(0).get(0)));
         }
         assertEquals(answers, got);
+        // a literal a function returns: the planner inlines the call, the lowering writes the literal's written
+        // text, and the door, which sees a call it cannot read through, leaves it to the run (the independent review
+        // of 2026-11-26)
+        assertEquals(List.of(List.of("2014-01-01T00:00:00.000+0000")), PctPlanRoute.execute(
+                "function f::d(): DateTime[1] { %2014-01-01T00:00:00.000+0000 }", "|f::d()->toString()").rows().rows());
     }
 
     /** A MIXED SELECTION IN A COLUMN (the review of 6fc717f9f, 2026-11-24, asked whether the door lifts a print the

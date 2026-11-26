@@ -121,6 +121,13 @@ class PrintedRelationsTest {
         assertNotNull(PrintedRelations.lift(typed("{|let d = " + computed + "; $d->toString();}"), true));
         assertNull(PrintedRelations.lift(typed("{|let d = %2014-01-01T00:00:00.000+0000; $d->toString();}"), true));
         assertNull(PrintedRelations.lift(typed("|%2014-01-01T00:00:00.000+0000->toString()"), true));
+        // an operand the planner may yet turn into a literal (a function's call, which it inlines) is left to the run:
+        // only a computation whose root stays one -- a native's call, a cast -- is lifted
+        com.legend.compiler.element.ModelContext returning = com.legend.Compiler.compileModel(
+                "function f::d(): DateTime[1] { %2014-01-01T00:00:00.000+0000 }");
+        assertNull(PrintedRelations.lift(com.legend.Compiler.query(returning, "|f::d()->toString()"), true));
+        assertNull(PrintedRelations.lift(com.legend.Compiler.query(returning, "{|let d = f::d(); $d->toString();}"),
+                true));
         // legend-engine's door's rule lifts no value; the abstract Date and a StrictDate are not lifted
         assertNull(PrintedRelations.lift(typed("|" + computed + "->toString()")));
         assertNull(PrintedRelations.lift(typed("|%2014-01-01T10:20:30+0000->adjust(1,"

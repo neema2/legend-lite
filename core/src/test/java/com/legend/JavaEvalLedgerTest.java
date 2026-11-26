@@ -2038,7 +2038,7 @@ class JavaEvalLedgerTest {
                             // yes"): reads the typed query, removes the final toString/toCSV and its literal replace
                             // calls by TypedQuery.withBody -- whole calls removed, nothing planned, no value computed.
                             // Since 2026-11-26 (the edition program's step 8) it removes the print's whole tail
-                            // (PrintTail.java below) and, at legend-pure's doors, a Float's last toString
+                            // (PrintTail.java below) and, at legend-pure's doors, a Float's or a computed DateTime's last toString
                             "PrintedRelations.java",
                             // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words
                             // that day, "maybe small set up string/count functions chained should all be in java", and
