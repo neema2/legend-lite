@@ -2426,28 +2426,25 @@ public class MariaDb extends AnsiSqlRenderer {
 
     /**
      * DuckDB's regexp_extract_all: each non-overlapping match's group, left to right; NULL for NULL. The k-th match is
-     * the one after k - 1 matches, each a lazy prefix and a match: {@code ^(?:[\s\S]*?(?:p)){k-1}[\s\S]*?(p)}, a
+     * the one after k - 1 matches, each a lazy prefix and a match, taken once: {@code ^(?>[\s\S]*?(?:p)){k-1}[\s\S]*?(p)}, a
      * pattern built per row (a dynamic pattern is compiled per row here); k runs over a correlated row generator, as
      * far as the text has matches. The k-th's groups follow the repeated ones (the last repeat's): group g is
      * {@code \(m + 1 + g)} for a pattern of m groups.
      */
     private SqlWriter.Piece regexpExtractAll(List<SqlExpr> a) {
         String p = patternOf(a, SqlFn.REGEXP_EXTRACT_ALL);
-        if (!oneMatchLength(p)) {
-            // the filter below asks whether SOME split of the text into k matches exists, which is the left-to-right
-            // scan's k-th match only where every match has one length: 'abc'->chunk(5), pattern .{1,5}, answered
-            // ['abc', 'c', 'c'] (the independent audit of 2026-11-26; chunk reached here since its written size
-            // became a literal pattern that day, refused until then as a pattern that is not a literal)
-            throw wall(SqlFn.REGEXP_EXTRACT_ALL, "a pattern whose matches may differ in length (its k-th match is"
-                    + " found by counting matches, which holds for one length alone)");
-        }
         int g = group(a);
         int ref = captureGroups(p) + 1 + g;
         if (ref > 9) {
             throw new DialectCapability("regexp_extract_all of group " + g + " of a pattern of " + captureGroups(p)
                     + " groups reached " + product() + " (a replacement names groups 1-9)");
         }
-        String repeat = stringLit("^(?:[\\s\\S]*?(?:" + p + ")){");
+        // each earlier match is an ATOMIC group ((?>...), PCRE's and ICU's alike): once the scan has taken a match it
+        // is not split again to make room for another. With a plain group the filter below asked whether SOME split of
+        // the text into k matches exists, which overcounts where a match can be cut into shorter ones:
+        // 'abc'->chunk(5), pattern .{1,5}, answered ['abc', 'c', 'c'] (the independent audit of 2026-11-26; chunk
+        // reached here since its written size became a literal pattern that day, refused until then)
+        String repeat = stringLit("^(?>[\\s\\S]*?(?:" + p + ")){");
         SqlWriter.Piece k = w -> w.append("__k.\"__n\"");
         SqlWriter.Piece kth = w -> w.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", CONCAT(" + repeat + ", ")
                 .piece(k).append(" - 1, " + stringLit("}[\\s\\S]*?(" + p + ")[\\s\\S]*\\z") + "), "
@@ -2457,38 +2454,6 @@ public class MariaDb extends AnsiSqlRenderer {
                 .piece(rows(v -> v.append("CHAR_LENGTH(").expr(a.get(0), 0).append(") + 1"), "__k"))
                 .append(" WHERE ").expr(a.get(0), 4).append(" REGEXP CONCAT(" + repeat + ", ").piece(k)
                 .append(", '}')), JSON_ARRAY()) END)");
-    }
-
-    /** Whether every match of {@code p} has one length, read off its text and erring toward no: no quantifier that
-     *  varies ({@code *}, {@code +}, {@code ?}, {@code {m,n}} with m other than n, {@code {m,}}) and no alternation,
-     *  outside an escape and a character class. A group's marker ({@code (?}) is no quantifier. */
-    static boolean oneMatchLength(String p) {
-        boolean inClass = false;
-        for (int i = 0; i < p.length(); i++) {
-            char ch = p.charAt(i);
-            if (ch == '\\') {
-                i++;
-            } else if (inClass) {
-                inClass = ch != ']';
-            } else if (ch == '[') {
-                inClass = true;
-            } else if (ch == '(' && i + 1 < p.length() && p.charAt(i + 1) == '?') {
-                i++;
-            } else if (ch == '*' || ch == '+' || ch == '?' || ch == '|') {
-                return false;
-            } else if (ch == '{') {
-                int close = p.indexOf('}', i);
-                if (close > i) {
-                    String bounds = p.substring(i + 1, close);
-                    int comma = bounds.indexOf(',');
-                    if (comma >= 0 && !bounds.substring(0, comma).equals(bounds.substring(comma + 1))) {
-                        return false;
-                    }
-                    i = close;
-                }
-            }
-        }
-        return true;
     }
 
     /** The capturing groups of a pattern: each '(' not escaped, not in a class, not a '(?' group (but a named one). */

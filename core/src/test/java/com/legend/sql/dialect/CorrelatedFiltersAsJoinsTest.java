@@ -123,7 +123,8 @@ class CorrelatedFiltersAsJoinsTest {
     void aLeftLateralIsALeftJoin_andAnyComparisonMoves() {
         SqlExpr below = SqlExpr.Call.of(SqlFn.LESS, SqlExpr.Column.physical("r0", "k"), SqlExpr.Column.physical("l0", "k"));
         SqlSelect given = SqlSelect.starOf(new SqlSource.Join(L, new SqlSource.Subselect(
-                SqlSelect.starOf(R).withWhere(below), "t1", null), SqlSource.Join.Kind.LEFT_LATERAL, null));
+                SqlSelect.starOf(R).withWhere(below), "t1", null), SqlSource.Join.Kind.LEFT_LATERAL,
+                new SqlExpr.BoolLit(true)));
         SqlSource.Join j = joinOf(rewritten(given));
         assertEquals(SqlSource.Join.Kind.LEFT, j.kind());
         assertEquals(SqlFn.LESS, assertInstanceOf(SqlExpr.Call.class, j.on()).fn());
