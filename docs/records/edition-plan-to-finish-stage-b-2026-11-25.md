@@ -647,6 +647,15 @@ old detector did not count it either).
    - **size pins:** the product's `==` changes may grow SQL size pins, which only shrink.
    A first slice needs no ruling and moves no verdict: `assertSize` and `assertEmpty` planned as the product's
    `size()` and `isEmpty()`, and the two measuring classes of the retired byte channel deleted.
+14. **`isNumeric` at legend-engine's door: built, parked (`edition-homework/parked/`), waiting on one size pin.**
+   Measured, and asked of legend-engine itself: its `isNumeric` on H2 is a regular expression (a plain decimal's
+   text), not the `lower = upper` lite's door writes there today, which calls `'+3'`, `''` and `'1,000'` numeric.
+   The row answers each database's own. It makes one corpus SQL size pin grow, H2's `isNumeric` family, 549 to 590
+   characters (its plan shrinks). No corpus test's verdict moves.
+   **One question covers the three parked pieces (items 7, 12, 14): may these pins move up for these ruled
+   answers?** (a) 41 product SQL size pins for `acos`/`asin` raising; (b) the ceiling of error sentences whose value
+   the edge cannot print, 4 to 5, for the checked parse in PCT's legend-pure run; (c) one corpus size pin, 41
+   characters, for `isNumeric` on H2.
 11. **Step 5's rows that carry a decision** (from `r3/research-engine-rows.md`): `dateDiff` (legend-engine writes
    the database's own for every unit; only weeks were ruled); `splitPart` on DuckDB differs from Pure beyond the
    empty token; H2's `isNumeric` in legend-engine 4.145.0 is a regular expression, so register S370 is stale;
