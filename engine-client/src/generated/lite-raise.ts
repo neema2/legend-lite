@@ -50,6 +50,9 @@ export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
   SQRT_OF_NEGATIVE: [
     { arity: -1, emptySlot: -1, template: 'Unable to compute sqrt of %1$s', slots: ['FLOAT'], shape: 'TEMPLATE' },
   ],
+  INVERSE_TRIG_OUT_OF_DOMAIN: [
+    { arity: -1, emptySlot: -1, template: 'Unable to compute %1$s of %2$s', slots: ['TEXT', 'FLOAT'], shape: 'TEMPLATE' },
+  ],
   SIZE_NOT_MULTIPLICITY: [
     { arity: 1, emptySlot: -1, template: 'Cannot cast a collection of size 0 to multiplicity %1$s', slots: [], shape: 'TEMPLATE' },
     { arity: -1, emptySlot: -1, template: 'Cannot cast a collection of size %2$s to multiplicity %1$s', slots: [], shape: 'TEMPLATE' },

@@ -22,86 +22,93 @@ import java.util.List;
  * reads the typed query once and, where its last statement is a relation's {@code toString}, legend-engine's
  * relational test helper's {@code meta::relational::tests::csv::toCSV} of a TDS (helperFunctions.pure:198-232, a
  * native in lite: {@code PlatformTypes.TO_CSV}) or a TDS's {@code csv}, over a relation whose columns the compiler
- * knows, followed by any number of {@code replace} calls with literal arguments, answers the query that computes the
- * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). A value's print is not lifted: a
- * last step's Float print at legend-pure's door, lifted by B2b S6a's legend-pure door, is held with the edge's value
- * passes for the user's ruling (the design audit of 2026-11-25: alone it moved no case and left a print used further to
- * the passes, two printers at one door). Anything else is not lifted: the
+ * knows, followed by a tail of calls of one closed set with literal arguments ({@link PrintTail}: {@code replace} since
+ * 2026-11-24, the rest since the edition program's step 8, 2026-11-26), answers the query that computes the
+ * relation and the print the run's receiver performs ({@link PureRelationTextWriter}). At legend-pure's doors a
+ * value's print is lifted too ({@code values}): a Float's {@code toString}, printed in Java by legend-pure's rule
+ * ({@link PureValueText#value}) with the same tail -- tenet 1 as the user amended it on 2026-11-25, a print at a last
+ * step is Java's. (B2b S6a lifted it and was held, 2026-11-25: alone it left a print used further to the edge's SQL
+ * passes, two printers at one door; the tail answers that for every function of the set.) At legend-engine's door a
+ * value's print inside a store query is legend-engine's own answer, a row of its table, and is not lifted. (The tail
+ * after a RELATION's print is Java's at that door too: legend-engine has no SQL for a relation's text, so the print
+ * and everything after it run in its own Java, which is legend-pure's.) Anything else is not lifted: the
  * query is the door's as it was, and a print the door leaves is lite's own text, computed by the database
  * ({@code lowering.ProductRelationText}, B2b S5a and S5b; until S6 its Float and DateTime cells the edge's value texts,
  * the progress record's S5a window), and a TDS's {@code csv} the door does not lift lite's CSV, as {@code toCSV(t)}
  * writes it (the user's ruling of 2026-11-25, S405; refused by name from B2b S5c until then). It
- * computes no value and plans nothing; the run computes the rows and the printer spells them.
+ * computes no value and plans nothing; the run computes the rows, the printer spells them, and the tail's steps are
+ * applied to the printed text by the receiver ({@link PrintTail}).
  */
 public final class PrintedRelations {
 
     private PrintedRelations() {
     }
 
-    /** The lifted program: {@code relation} computes the rows (its last statement the printed relation), and
-     *  {@code form} and {@code replaces} are the print the receiver performs on them. */
-    public record Lifted(com.legend.TypedQuery relation, PureRelationTextWriter.Form form,
-            List<PureRelationText.Replace> replaces) {
+    /** The lifted program: {@code relation} computes the rows (its last statement the printed relation, or under
+     *  {@link PureRelationTextWriter.Form#VALUE} the printed value), and {@code form} and {@code tail} are the print the
+     *  receiver performs on them and the steps it applies to the text. */
+    public record Lifted(com.legend.TypedQuery relation, PureRelationTextWriter.Form form, List<PrintTail> tail) {
         public Lifted {
-            replaces = List.copyOf(replaces);
+            tail = List.copyOf(tail);
         }
 
-        /** The receiver that prints this program's rows and hands the text to {@code receiver}. */
-        public PureRelationTextWriter writer(java.util.function.Consumer<String> receiver) {
-            return new PureRelationTextWriter(form, replaces, receiver);
+        /** The receiver that prints this program's rows, applies the tail and hands the answer to {@code receiver}: a
+         *  String, or what the tail's last step answers ({@link #answers}). */
+        public PureRelationTextWriter writer(java.util.function.Consumer<Object> receiver) {
+            return new PureRelationTextWriter(form, tail, receiver);
+        }
+
+        /** The Pure type of the answer: {@code String}, or {@code Integer} or {@code Boolean} by the tail's last step. */
+        public String answers() {
+            return PrintTail.answers(tail);
         }
     }
 
-    /** One expression read as a print of a relation: the relation, the print, and the literal {@code replace} calls
-     *  after it, in the program's order. */
-    public record Side(TypedSpec relation, PureRelationTextWriter.Form form, List<PureRelationText.Replace> replaces) {
+    /** One expression read as a print: the relation (or the value), the print, and the tail after it, in the program's
+     *  order. */
+    public record Side(TypedSpec relation, PureRelationTextWriter.Form form, List<PrintTail> tail) {
         public Side {
-            replaces = List.copyOf(replaces);
+            tail = List.copyOf(tail);
         }
     }
 
-    /** {@code e} read as a print of a relation this edge prints, or null: THE ONE RULE for a printed expression, which
-     *  the door's lift of a final statement ({@link #lift}) and B3's lift of a test body's printed side read alike (G1;
-     *  the orchestrator's request of 2026-11-24). A {@code replace} whose target or replacement is no literal, or a
-     *  print this edge does not write, is null. */
+    /** {@code e} read as a print of a relation this edge prints, or null ({@link #side(TypedSpec, boolean)}, a
+     *  relation's print alone: legend-engine's door's rule). */
     public static @com.legend.base.Nullable Side side(TypedSpec e) {
-        List<PureRelationText.Replace> replaces = new ArrayList<>();
-        TypedSpec last = beneathReplaces(e, replaces);
-        Printed printed = last == null ? null : printed(last);
-        return printed == null ? null : new Side(printed.relation(), printed.form(), replaces);
+        return side(e, false);
     }
 
-    /** {@code e} beneath its {@code replace} calls, each added to {@code replaces} in the program's order; null where
-     *  one's target or replacement is no literal (nothing is read then). */
-    private static @com.legend.base.Nullable TypedSpec beneathReplaces(TypedSpec e,
-            List<PureRelationText.Replace> replaces) {
-        TypedSpec last = e;
-        // the replace calls, outermost first; each with literal arguments, else nothing is read
-        while (last instanceof TypedNativeCall c && c.callee().qualifiedName().equals(PlatformTypes.STRING_REPLACE)
-                && c.args().size() == 3) {
-            if (!(c.args().get(1) instanceof TypedCString target) || !(c.args().get(2) instanceof TypedCString with)) {
-                return null;
-            }
-            replaces.add(0, new PureRelationText.Replace(target.value(), with.value()));
-            last = c.args().get(0);
-        }
-        return last;
+    /** {@code e} read as a print this edge writes, or null: THE ONE RULE for a printed expression, which the door's
+     *  lift of a final statement ({@link #lift}) and B3's lift of a test body's printed side read alike (G1; the
+     *  orchestrator's request of 2026-11-24). The tail is read first, outermost call first ({@link PrintTail#beneath}):
+     *  a call outside the closed set, or one of it with an argument that is no literal, ends the tail, and what is
+     *  beneath must be a print -- a relation's, or with {@code values} (legend-pure's doors) a value's -- else null. */
+    public static @com.legend.base.Nullable Side side(TypedSpec e, boolean values) {
+        List<PrintTail> tail = new ArrayList<>();
+        Printed printed = printed(PrintTail.beneath(e, tail), values);
+        return printed == null ? null : new Side(printed.relation(), printed.form(), tail);
     }
 
     /** {@code query} lifted, or null where its last statement is no print of a relation this door lifts ({@link #side}). */
     public static @com.legend.base.Nullable Lifted lift(com.legend.TypedQuery query) {
+        return lift(query, false);
+    }
+
+    /** {@code query} lifted, or null where its last statement is no print this door lifts
+     *  ({@link #side(TypedSpec, boolean)}). */
+    public static @com.legend.base.Nullable Lifted lift(com.legend.TypedQuery query, boolean values) {
         List<TypedSpec> body = query.body();
         if (body.isEmpty()) {
             return null;
         }
-        Side side = side(body.get(body.size() - 1));
+        Side side = side(body.get(body.size() - 1), values);
         if (side == null) {
             return null;
         }
         List<TypedSpec> lifted = new ArrayList<>(body.subList(0, body.size() - 1));
         lifted.add(side.relation());
         // withBody keeps the query's model, options and parameters: only the body changes
-        return new Lifted(query.withBody(lifted), side.form(), side.replaces());
+        return new Lifted(query.withBody(lifted), side.form(), side.tail());
     }
 
     /** legend-engine's relation functions' {@code toString} (toString.pure), the name the lowering matches too. */
@@ -110,11 +117,18 @@ public final class PrintedRelations {
     private record Printed(TypedSpec relation, PureRelationTextWriter.Form form) {
     }
 
-    /** {@code e} as a print of a relation the printer writes, or null. Only a relation whose columns the compiler
-     *  knows is lifted ({@link #knownColumns}); the lowering's own special shapes stay the run's. */
-    private static @com.legend.base.Nullable Printed printed(TypedSpec e) {
+    /** {@code e} as a print the printer writes, or null: a relation's, or with {@code values} a Float's
+     *  {@code toString}. Only a relation whose columns the compiler knows is lifted ({@link #knownColumns}); the
+     *  lowering's own special shapes stay the run's. */
+    private static @com.legend.base.Nullable Printed printed(TypedSpec e, boolean values) {
         if (e instanceof TypedNativeCall c) {
             String name = c.callee().qualifiedName();
+            // a value's toString at legend-pure's doors (the edition program's step 8, 2026-11-26): a Float's, printed
+            // by legend-pure's rule in Java from the double the database computed (PureValueText.value)
+            if (values && name.equals(PlatformTypes.TO_STRING) && c.args().size() == 1
+                    && c.args().get(0).info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+                return new Printed(c.args().get(0), PureRelationTextWriter.Form.VALUE);
+            }
             if (c.args().isEmpty() || !knownColumns(c.args().get(0))) {
                 return null;
             }

@@ -57,7 +57,7 @@ class UpstreamPrintsTest {
         assertNotNull(p);
         assertEquals(PureRelationTextWriter.Form.TO_STRING, p.form());
         assertEquals(List.of(new PureRelationText.Replace("\n", ","), new PureRelationText.Replace("A", "a")),
-                p.replaces());
+                p.tail());
         // a String's toString, and a replace whose argument is not a literal, are not printed sides
         assertNull(first(com.legend.Compiler.query(ctx, "|assertEquals('x', 'x'->toString());")));
         assertNull(first(com.legend.Compiler.query(ctx,
@@ -108,6 +108,76 @@ class UpstreamPrintsTest {
                     com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
                     com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
         }
+    }
+
+    @Test
+    @DisplayName("a Float's print and a print's tail (the edition program's step 8, 2026-11-26): a value side is read and"
+            + " printed by legend-pure's rule in Java, and the calls of the tail's closed set after a print are applied"
+            + " in Java too, the side substituted by a literal of the tail's type")
+    void aFloatsPrintAndAPrintsTailAreJavas() throws Exception {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            UpstreamPrints.Reads reads = (query, answer) -> com.legend.TestExecution.runProgram(query,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                    com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE, answer);
+            // the read runs in the product's style here: the product's own text of this Float is 0.0, so the texts
+            // below are the Java printer's
+            java.util.Map<String, Object> bodies = new java.util.LinkedHashMap<>();
+            bodies.put("|assertEquals('0.000000013421', (1.3421e-8 * 1.0)->toString());", "0.000000013421");
+            bodies.put("|assertEquals(14, (1.3421e-8 * 1.0)->toString()->length());", 14L);
+            bodies.put("|let r = " + REL + "; assertEquals(31, $r->toString()->length());", 31L);
+            bodies.put("|let r = " + REL + "; assert($r->toString()->replace('\n', ';')->contains(';   1,A;'));",
+                    true);
+            bodies.put("|let r = " + REL + "; assertEquals(0, $r->toString()->trim()->indexOf('#TDS'));", 0L);
+            for (var e : bodies.entrySet()) {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, e.getKey());
+                com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);
+                assertTrue(read != typed, e.getKey());
+                // the print and its tail are gone from the body: no toString call is left for the database
+                assertEquals(0, toStrings(read), "the print is read before the body, its answer " + e.getValue()
+                        + ": " + e.getKey());
+                com.legend.TestExecution.runProgram(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                        com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            }
+        }
+    }
+
+    /** A Float's print the program goes on computing with is left to the database (tenet 1 as the user amended it on
+     *  2026-11-25; the independent review of step 8's slice 2, 2026-11-26): joined to a text, bound by a let, in a list,
+     *  or under a call outside the tail's set, it is no last step, and the body is the door's as it was. */
+    @Test
+    @DisplayName("a Float's print used further is not read: only an assert's own argument is a last step")
+    void aFloatsPrintUsedFurtherIsLeftToTheDatabase() {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        UpstreamPrints.Reads never = (query, answer) -> {
+            throw new AssertionError("nothing is read: " + query.body());
+        };
+        for (String body : List.of(
+                "|assertEquals('3.0;', (1.5 * 2.0)->toString() + ';');",
+                "|let s = (1.5 * 2.0)->toString(); assertEquals('3.0', $s);",
+                "|assertEquals(['3.0'], [(1.5 * 2.0)->toString()]);",
+                "|assertEquals('3.0', (1.5 * 2.0)->toString()->toUpper());",
+                "|assert((1.5 * 2.0)->toString()->length() > 2);")) {
+            com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
+            org.junit.jupiter.api.Assertions.assertSame(typed, UpstreamPrints.read(typed, false, never), body);
+        }
+    }
+
+    /** The {@code toString} calls left anywhere in {@code q}'s body. */
+    private static int toStrings(com.legend.TypedQuery q) {
+        int n = 0;
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(q.body());
+        while (!work.isEmpty()) {
+            TypedSpec node = work.pop();
+            if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                    && c.callee().qualifiedName().endsWith("::toString")) {
+                n++;
+            }
+            work.addAll(node.children());
+        }
+        return n;
     }
 
     @Test

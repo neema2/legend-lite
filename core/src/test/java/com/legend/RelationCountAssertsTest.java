@@ -56,6 +56,10 @@ class RelationCountAssertsTest {
         ModelException notEmpty = assertThrows(ModelException.class,
                 () -> run("|assertNotEmpty(" + TWO_ROWS + ")"));
         assertTrue(notEmpty.getMessage().contains("say assertNotEquals(0, $relation->size())"), notEmpty.getMessage());
+        // assertNotSize too (2026-11-26: it had missed the rule; legend-pure defines it as assertSize's mirror)
+        ModelException notSize = assertThrows(ModelException.class, () -> run("|assertNotSize(" + TWO_ROWS + ", 2)"));
+        assertTrue(notSize.getMessage().contains("assertNotSize over a relation counts the relation as ONE value")
+                && notSize.getMessage().contains("say assertNotEquals(<size>, $relation->size())"), notSize.getMessage());
     }
 
     @Test

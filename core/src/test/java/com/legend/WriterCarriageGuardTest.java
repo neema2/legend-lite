@@ -179,6 +179,12 @@ class WriterCarriageGuardTest {
             Map.entry("PureValueText.java", Map.ofEntries(
                     Map.entry("atLeast", 1),
                     Map.entry("doubleValue", 5))),
+            // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words that day, "maybe
+            // small set up string/count functions chained should all be in java", and on the set and its guard
+            // exception, ~13:57, "yes should add guard"): indexOf's start read as an int, as
+            // legend-pure's own Java reads it (CompiledSupport.indexOf: from.intValue()) -- the program's literal, not
+            // a value the database computed
+            Map.entry("PrintTail.java", Map.of("intValue", 1)),
             Map.entry("RaiseWords.java", Map.ofEntries(
                     Map.entry("intValue", 1),
                     Map.entry("doubleValue", 1),
@@ -315,9 +321,11 @@ class WriterCarriageGuardTest {
         // track Z, 2026-10-29 (the final audit's finding 2): the service test runner spelled a program's last side
         // itself; since door 1 (2026-10-29) it reads its answer from the boundary's writers -- scanned here with an
         // empty register so that it never spells a cell again
-        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/ServiceTestRunner.java"));
+        // (2026-11-26, the edition program's step 9, slice 1: the runner and its writer are test machinery, in the edge's harness root
+        // core/src/edge_harness; the two paths move with their files, still scanned)
+        files.add(SourceFiles.file("core/src/edge_harness/java/com/legend/edge/ServiceTestRunner.java"));
         // legend-engine's PURE_TDSOBJECT writer, moved from result/ to the edge with its runner (D1.4, 2026-11-15)
-        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/TdsObjectsWriter.java"));
+        files.add(SourceFiles.file("core/src/edge_harness/java/com/legend/edge/TdsObjectsWriter.java"));
         // legend-engine's pure/v1 writer and its receivers, and legend-engine's and legend-pure's cell text, moved from
         // result/ to the edge (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16): scanned where they live
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureV1Writer.java"));
@@ -329,6 +337,8 @@ class WriterCarriageGuardTest {
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
         // the edge's value printer, the cell rules moved out of PureRelationText (B2b S6a, 2026-11-25)
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureValueText.java"));
+        // the tail of a lifted print (the edition program's step 8, 2026-11-26): scanned with the printers it follows
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PrintTail.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();

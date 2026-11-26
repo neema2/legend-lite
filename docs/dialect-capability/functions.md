@@ -46,6 +46,8 @@ Database types planned with it: H2.
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | spelled | `coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `parseInteger` |  | 11 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `concatFlat` |  | 756 |
 | `LENGTH` | spelled | `length` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -76,13 +78,15 @@ Database types planned with it: H2.
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
-| `ASIN` | emulated | `domainGuarded: asin` |  | 4 |
-| `ACOS` | emulated | `domainGuarded: acos` |  | 4 |
+| `ASIN` | emulated | `inverseTrig` |  | 4 |
+| `ACOS` | emulated | `inverseTrig` |  | 4 |
 | `ATAN` | spelled | `atan` |  | 3 |
 | `ATAN2` | spelled | `atan2` |  | 3 |
 | `SINH` | spelled | `sinh` |  | 22 |
 | `COSH` | spelled | `cosh` |  | 24 |
 | `TANH` | spelled | `tanh` |  | 29 |
+| `ACOS_IN_DOMAIN` | emulated | `inverseTrig` |  | 0 |
+| `ASIN_IN_DOMAIN` | emulated | `inverseTrig` |  | 0 |
 | `CEILING` | emulated | `bigintOf: ceil` |  | 12 |
 | `FLOOR` | emulated | `bigintOf: floor` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -201,7 +205,8 @@ Database types planned with it: H2.
 | `LIST_REVERSE` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 4 |
 | `TYPEOF` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `ROUND_HALF_UP` | spelled | `ROUND` |  | 1 |
-| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
+| `ROUND_RAW` | emulated | `asGiven: ROUND, DECIMAL` |  | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: ROUND, DECIMAL` |  | 0 |
 | `ERROR` | emulated | `errorArm` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -246,7 +251,9 @@ Database types planned with it: Postgres.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | emulated | `coalesceArm` |  | 552 |
-| `PARSE_INT` | emulated | `parseInt` |  | 11 |
+| `PARSE_INT` | emulated | `parses` |  | 11 |
+| `CAST_INT` | emulated | `parses` |  | 0 |
+| `CAST_FLOAT` | emulated | `parses` |  | 0 |
 | `CONCAT` | emulated | `concatFlat` |  | 756 |
 | `LENGTH` | emulated | `by its operands: length(…) / length(CAST(… AS VARCHAR))` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -284,6 +291,8 @@ Database types planned with it: Postgres.
 | `SINH` | spelled | `sinh` |  | 22 |
 | `COSH` | spelled | `cosh` |  | 24 |
 | `TANH` | spelled | `tanh` |  | 29 |
+| `ACOS_IN_DOMAIN` | emulated | `acos` |  | 0 |
+| `ASIN_IN_DOMAIN` | emulated | `acos` |  | 0 |
 | `CEILING` | emulated | `bigintOf: ceil` |  | 12 |
 | `FLOOR` | emulated | `bigintOf: floor` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -403,6 +412,7 @@ Database types planned with it: Postgres.
 | `TYPEOF` | refused | `collections over the jsonb carrier are leg P4 reached Postgres:` |  | 0 |
 | `ROUND_HALF_UP` | emulated | `rounds` |  | 1 |
 | `ROUND_RAW` | emulated | `rounds` |  | 0 |
+| `DECIMAL_RAW` | emulated | `rounds` |  | 0 |
 | `ERROR` | emulated | `raise` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -448,6 +458,8 @@ Database types planned with it: Snowflake.
 | `IN` | emulated | `inArm` |  | 6 |
 | `COALESCE` | emulated | `by its operands: coalesce(, PARSE_JSON(…)TO_VARIANT(…)…) / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `guardedParseInt: REGEXP_LIKE(, , , ^[+-]?[0-9]+$, ), CAST(,  AS BIGINT)` |  | 11 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `concat, flattenConcat` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -485,6 +497,8 @@ Database types planned with it: Snowflake.
 | `SINH` | spelled | `sinh` |  | 22 |
 | `COSH` | spelled | `cosh` |  | 24 |
 | `TANH` | spelled | `tanh` |  | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `ACOS` |  | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `ASIN` |  | 0 |
 | `CEILING` | emulated | `bigintOf: ceil` |  | 12 |
 | `FLOOR` | emulated | `bigintOf: floor` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -603,7 +617,8 @@ Database types planned with it: Snowflake.
 | `LIST_REVERSE` | spelled | `array_reverse` |  | 4 |
 | `TYPEOF` | emulated | `TYPEOF(TO_VARIANT(…))` | `via Snowflake.list` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
-| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
+| `ROUND_RAW` | emulated | `asGiven: ROUND` |  | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: ROUND` |  | 0 |
 | `ERROR` | emulated | `raise` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -649,6 +664,8 @@ Database types planned with it: Trino.
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | emulated | `by its operands: coalesce(, json_parse(…)…) / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `guardedParseInt: regexp_like(, , '^[+-]?[0-9]+$'), BIGINT` |  | 11 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `flattenConcat: concat_ws('', , )` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -686,6 +703,8 @@ Database types planned with it: Trino.
 | `SINH` | spelled | `sinh` |  | 22 |
 | `COSH` | spelled | `cosh` |  | 24 |
 | `TANH` | spelled | `tanh` |  | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `acos` |  | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `asin` |  | 0 |
 | `CEILING` | emulated | `bigintOf: ceil` |  | 12 |
 | `FLOOR` | emulated | `bigintOf: floor` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -804,7 +823,8 @@ Database types planned with it: Trino.
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
 | `TYPEOF` | spelled | `typeof` | `via Trino.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
-| `ROUND_RAW` | spelled | `round` |  | 0 |
+| `ROUND_RAW` | emulated | `asGiven: round` |  | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: round` |  | 0 |
 | `ERROR` | emulated | `error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -849,7 +869,9 @@ Database types planned with it: BigQuery.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `in` |  | 6 |
 | `COALESCE` | emulated | `coalesceArm` |  | 552 |
-| `PARSE_INT` | emulated | `parseInt` |  | 11 |
+| `PARSE_INT` | emulated | `parses` |  | 11 |
+| `CAST_INT` | emulated | `parses` |  | 0 |
+| `CAST_FLOAT` | emulated | `parses` |  | 0 |
 | `CONCAT` | emulated | `flattenConcat, asText: CONCAT(, IFNULL(…, ''))` |  | 756 |
 | `LENGTH` | emulated | `asText: LENGTH(…)` |  | 73 |
 | `UPPER` | spelled | `UPPER` |  | 2 |
@@ -887,6 +909,8 @@ Database types planned with it: BigQuery.
 | `SINH` | spelled | `SINH` |  | 22 |
 | `COSH` | spelled | `COSH` |  | 24 |
 | `TANH` | spelled | `TANH` |  | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `ACOS` |  | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `ASIN` |  | 0 |
 | `CEILING` | emulated | `CAST(CEIL(…) AS INT64)` |  | 12 |
 | `FLOOR` | emulated | `CAST(FLOOR(…) AS INT64)` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -1006,6 +1030,7 @@ Database types planned with it: BigQuery.
 | `TYPEOF` | refused | `its type names are BigQuery's reached BigQuery:` |  | 0 |
 | `ROUND_HALF_UP` | emulated | `rounds` |  | 1 |
 | `ROUND_RAW` | emulated | `rounds` |  | 0 |
+| `DECIMAL_RAW` | emulated | `rounds` |  | 0 |
 | `ERROR` | emulated | `raiseEnvelope: ERROR` |  | 70 |
 | `FLOOR_RAW` | spelled | `FLOOR` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1051,6 +1076,8 @@ Database types planned with it: Databricks.
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | spelled | `coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `guardedParseInt:  RLIKE '^[+-]?[0-9]+$', BIGINT` |  | 11 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `flattenConcat: concat_ws('', , )` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -1088,6 +1115,8 @@ Database types planned with it: Databricks.
 | `SINH` | spelled | `sinh` |  | 22 |
 | `COSH` | spelled | `cosh` |  | 24 |
 | `TANH` | spelled | `tanh` |  | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `acos` |  | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `asin` |  | 0 |
 | `CEILING` | emulated | `bigintOf: ceil` |  | 12 |
 | `FLOOR` | emulated | `bigintOf: floor` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -1206,7 +1235,8 @@ Database types planned with it: Databricks.
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
 | `TYPEOF` | spelled | `typeof` | `via Databricks.listCall` | 0 |
 | `ROUND_HALF_UP` | spelled | `ROUND` |  | 1 |
-| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
+| `ROUND_RAW` | emulated | `asGiven: ROUND` |  | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: ROUND` |  | 0 |
 | `ERROR` | emulated | `raiseEnvelope: raise_error` |  | 70 |
 | `FLOOR_RAW` | emulated | `(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1252,6 +1282,8 @@ Database types planned with it: DuckDB.
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | spelled | `coalesce` |  | 561 |
 | `PARSE_INT` | emulated | `guardedParseInt: regexp_full_match(, , '[+-]?[0-9]+'), BIGINT` |  | 11 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `concatFlat` |  | 755 |
 | `LENGTH` | emulated | `lengthArm` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -1289,6 +1321,8 @@ Database types planned with it: DuckDB.
 | `SINH` | spelled | `sinh` |  | 22 |
 | `COSH` | spelled | `cosh` |  | 24 |
 | `TANH` | spelled | `tanh` |  | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `acos` |  | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `asin` |  | 0 |
 | `CEILING` | emulated | `bigintOf: ceil` |  | 14 |
 | `FLOOR` | emulated | `bigintOf: floor` |  | 19 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -1407,7 +1441,8 @@ Database types planned with it: DuckDB.
 | `LIST_REVERSE` | spelled | `list_reverse` | `via DuckDb.listCall` | 4 |
 | `TYPEOF` | spelled | `typeof` | `via DuckDb.listCall` | 0 |
 | `ROUND_HALF_UP` | spelled | `ROUND` |  | 1 |
-| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
+| `ROUND_RAW` | emulated | `asGiven: ROUND, DECIMAL` |  | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: ROUND, DECIMAL` |  | 0 |
 | `ERROR` | emulated | `raiseEnvelope: error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1453,6 +1488,8 @@ Database types planned with it: ClickHouse.
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | spelled | `coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `parseInteger` |  | 11 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `flattenConcat: concat(, )` |  | 755 |
 | `LENGTH` | emulated | `toInt64(lengthUTF8(…))` |  | 73 |
 | `UPPER` | spelled | `upperUTF8` |  | 2 |
@@ -1490,6 +1527,8 @@ Database types planned with it: ClickHouse.
 | `SINH` | spelled | `sinh` |  | 22 |
 | `COSH` | spelled | `cosh` |  | 24 |
 | `TANH` | emulated | `(1 - 2 / (pow(e(), 2 * toFloat64(…)) + 1))` |  | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `acos` |  | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `asin` |  | 0 |
 | `CEILING` | emulated | `bigintOf: ceil` |  | 12 |
 | `FLOOR` | emulated | `bigintOf: floor` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -1608,7 +1647,8 @@ Database types planned with it: ClickHouse.
 | `LIST_REVERSE` | spelled | `arrayReverse` |  | 4 |
 | `TYPEOF` | emulated | `replaceRegexpOne(toTypeName(…), '^Nullable\((.*)\)$', '\1')` | `via ClickHouse.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
-| `ROUND_RAW` | spelled | `round` |  | 0 |
+| `ROUND_RAW` | emulated | `asGiven: round` |  | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: round` |  | 0 |
 | `ERROR` | emulated | `error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1654,6 +1694,8 @@ Database types planned with it: SQLite.
 | `IN` | emulated | `in` |  | 6 |
 | `COALESCE` | emulated | `by its operands: composed / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `parseInt` |  | 11 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `concatParts, flattenConcat` |  | 756 |
 | `LENGTH` | emulated | `asText: length(…)` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -1691,6 +1733,8 @@ Database types planned with it: SQLite.
 | `SINH` | spelled | `sinh` |  | 22 |
 | `COSH` | spelled | `cosh` |  | 24 |
 | `TANH` | spelled | `tanh` |  | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `acos` |  | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `asin` |  | 0 |
 | `CEILING` | emulated | `bigintOf: ceil` |  | 12 |
 | `FLOOR` | emulated | `bigintOf: floor` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -1809,7 +1853,8 @@ Database types planned with it: SQLite.
 | `LIST_REVERSE` | emulated | `unlessNull, jsonOf, listElement, elements: …(SELECT json_group_array(… ORDER BY DESC) FROM …__e__o)` | `via SQLite.lists` | 4 |
 | `TYPEOF` | refused | `its type names are SQLite's storage classes reached SQLite:` | `via SQLite.lists` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
-| `ROUND_RAW` | spelled | `round` |  | 0 |
+| `ROUND_RAW` | emulated | `asGiven: round` |  | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: round` |  | 0 |
 | `ERROR` | emulated | `raise` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1855,6 +1900,8 @@ Database types planned with it: MariaDB.
 | `IN` | emulated | `in` |  | 6 |
 | `COALESCE` | emulated | `by its operands: composed / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `parseInt` |  | 11 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `flattenConcat, asText: CONCAT_WS('', , …)` |  | 741 |
 | `LENGTH` | emulated | `asText: CHAR_LENGTH(…)` |  | 53 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -1892,6 +1939,8 @@ Database types planned with it: MariaDB.
 | `SINH` | emulated | `((EXP(…) - EXP(-(…))) / 2)` |  | 22 |
 | `COSH` | emulated | `((EXP(…) + EXP(-(…))) / 2)` |  | 24 |
 | `TANH` | emulated | `((EXP(2 * (…)) - 1) / (EXP(2 * (…)) + 1))` |  | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `ACOS` |  | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `ASIN` |  | 0 |
 | `CEILING` | emulated | `CAST(CEIL(…) AS SIGNED)` |  | 12 |
 | `FLOOR` | emulated | `CAST(FLOOR(…) AS SIGNED)` |  | 18 |
 | `ROUND` | emulated | `roundHalfEven` |  | 22 |
@@ -2010,7 +2059,8 @@ Database types planned with it: MariaDB.
 | `LIST_REVERSE` | emulated | `unlessNull, arrayAgg, jsonOf, listElement, elements: …coalesce((SELECT … DESC FROM …__e__o), JSON_ARRAY())` | `via MariaDb.lists` | 4 |
 | `TYPEOF` | refused | `its type names are DuckDB's reached :` | `via MariaDb.lists` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
-| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
+| `ROUND_RAW` | emulated | `asGiven: ROUND` |  | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: ROUND` |  | 0 |
 | `ERROR` | emulated | `raise, typeOf` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -2056,6 +2106,8 @@ Database types planned with it: MySQL.
 | `IN` | emulated | `in` | `as MariaDb` | 6 |
 | `COALESCE` | emulated | `by its operands: composed / …coalesce` | `as MariaDb` | 552 |
 | `PARSE_INT` | emulated | `parseInt` | `as MariaDb` | 11 |
+| `CAST_INT` | emulated | `rawCast` | `as MariaDb` | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` | `as MariaDb` | 0 |
 | `CONCAT` | emulated | `flattenConcat, asText: CONCAT_WS('', , …)` | `as MariaDb` | 741 |
 | `LENGTH` | emulated | `asText: CHAR_LENGTH(…)` | `as MariaDb` | 53 |
 | `UPPER` | spelled | `upper` | `as MariaDb` | 2 |
@@ -2093,6 +2145,8 @@ Database types planned with it: MySQL.
 | `SINH` | emulated | `((EXP(…) - EXP(-(…))) / 2)` | `as MariaDb` | 22 |
 | `COSH` | emulated | `((EXP(…) + EXP(-(…))) / 2)` | `as MariaDb` | 24 |
 | `TANH` | emulated | `((EXP(2 * (…)) - 1) / (EXP(2 * (…)) + 1))` | `as MariaDb` | 29 |
+| `ACOS_IN_DOMAIN` | spelled | `ACOS` | `as MariaDb` | 0 |
+| `ASIN_IN_DOMAIN` | spelled | `ASIN` | `as MariaDb` | 0 |
 | `CEILING` | emulated | `CAST(CEIL(…) AS SIGNED)` | `as MariaDb` | 12 |
 | `FLOOR` | emulated | `CAST(FLOOR(…) AS SIGNED)` | `as MariaDb` | 18 |
 | `ROUND` | emulated | `roundHalfEven` | `as MariaDb` | 22 |
@@ -2211,7 +2265,8 @@ Database types planned with it: MySQL.
 | `LIST_REVERSE` | emulated | `unlessNull, arrayAgg, jsonOf, listElement, elements: …coalesce((SELECT … DESC FROM …__e__o), JSON_ARRAY())` | `as MariaDb, via MariaDb.lists` | 4 |
 | `TYPEOF` | refused | `its type names are DuckDB's reached :` | `as MariaDb, via MariaDb.lists` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` | `as MariaDb` | 1 |
-| `ROUND_RAW` | spelled | `ROUND` | `as MariaDb` | 0 |
+| `ROUND_RAW` | emulated | `asGiven: ROUND` | `as MariaDb` | 0 |
+| `DECIMAL_RAW` | emulated | `asGiven: ROUND` | `as MariaDb` | 0 |
 | `ERROR` | emulated | `raise, typeOf` | `as MariaDb` | 70 |
 | `FLOOR_RAW` | spelled | `floor` | `as MariaDb` | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
@@ -2257,6 +2312,8 @@ Database types planned with it: MongoDB.
 | `IN` | emulated | `inList` |  | 0 |
 | `COALESCE` | emulated | `coalesce` |  | 0 |
 | `PARSE_INT` | emulated | `guardedParse: ^[+-]?[0-9]+$, {"$toLong": , }` |  | 0 |
+| `CAST_INT` | emulated | `rawCast` |  | 0 |
+| `CAST_FLOAT` | emulated | `rawCast` |  | 0 |
 | `CONCAT` | emulated | `concatSkippingNull` |  | 0 |
 | `LENGTH` | emulated | `length` |  | 0 |
 | `UPPER` | emulated | `guardedOp: $toUpper` |  | 0 |
@@ -2294,6 +2351,8 @@ Database types planned with it: MongoDB.
 | `SINH` | emulated | `op1: $sinh` |  | 0 |
 | `COSH` | emulated | `op1: $cosh` |  | 0 |
 | `TANH` | emulated | `op1: $tanh` |  | 0 |
+| `ACOS_IN_DOMAIN` | emulated | `unfolded: {"$acos": …}` |  | 0 |
+| `ASIN_IN_DOMAIN` | emulated | `unfolded: {"$asin": …}` |  | 0 |
 | `CEILING` | emulated | `longOf: $ceil` |  | 0 |
 | `FLOOR` | emulated | `longOf: $floor` |  | 0 |
 | `ROUND` | emulated | `roundHalfEven` |  | 0 |
@@ -2412,7 +2471,8 @@ Database types planned with it: MongoDB.
 | `LIST_REVERSE` | emulated | `op1: $reverseArray` | `via MongoDb.listCall` | 0 |
 | `TYPEOF` | emulated | `op1: $type` | `via MongoDb.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 0 |
-| `ROUND_RAW` | refused | `the database's own ROUND over the arguments as given (ROUND_RAW): MongoDB has no SQL ROUND of its own to answer as` |  | 0 |
+| `ROUND_RAW` | refused | `the database's own function as given (): MongoDB has no SQL function of its own to answer as` |  | 0 |
+| `DECIMAL_RAW` | refused | `the database's own function as given (): MongoDB has no SQL function of its own to answer as` |  | 0 |
 | `ERROR` | emulated | `raise` |  | 0 |
 | `FLOOR_RAW` | emulated | `op1: $floor` |  | 0 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |

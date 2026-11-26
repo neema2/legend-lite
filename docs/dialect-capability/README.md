@@ -37,18 +37,18 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 83 | 83 | 50 | 18 | 34 |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 76 | 132 | 8 | 18 | 41 |
-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 96 | 114 | 6 | 18 | 44 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 85 | 126 | 5 | 18 | 44 |
-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 71 | 133 | 12 | 18 | 41 |
-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 98 | 111 | 7 | 18 | 42 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 148 | 68 | 0 | 18 | 50 |
-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 67 | 142 | 7 | 18 | 42 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 59 | 150 | 7 | 18 | 44 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 55 | 153 | 8 | 18 | 43 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 55 | 153 | 8 | 18 | 43 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 201 | 15 | 18 | 201 |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 82 | 89 | 50 | 18 | 39 |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 76 | 137 | 8 | 18 | 46 |
+| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 97 | 118 | 6 | 18 | 49 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 86 | 130 | 5 | 18 | 49 |
+| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 73 | 136 | 12 | 18 | 46 |
+| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 99 | 115 | 7 | 18 | 47 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 149 | 72 | 0 | 18 | 55 |
+| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 68 | 146 | 7 | 18 | 47 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 60 | 154 | 7 | 18 | 49 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 56 | 157 | 8 | 18 | 48 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 56 | 157 | 8 | 18 | 48 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 205 | 16 | 18 | 205 |
 
 ## Functions
 
@@ -76,6 +76,8 @@ input).
 | `IN` | E | E | E | E | E | E | E | E | E | E | E | E· |
 | `COALESCE` | S | E | E | E | E | S | S | S | E | E | E | E· |
 | `PARSE_INT` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `CAST_INT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `CAST_FLOAT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
 | `CONCAT` | E | E | E | E | E | E | E | E | E | E | E | E· |
 | `LENGTH` | S | E | S | S | E | S | E | E | E | E | E | E· |
 | `UPPER` | S | S | S | S | S | S | S | S | S | S | S | E· |
@@ -113,6 +115,8 @@ input).
 | `SINH` | S | S | S | S | S | S | S | S | S | E | E | E· |
 | `COSH` | S | S | S | S | S | S | S | S | S | E | E | E· |
 | `TANH` | S | S | S | S | S | S | S | E | S | E | E | E· |
+| `ACOS_IN_DOMAIN` | E· | E· | S· | S· | S· | S· | S· | S· | S· | S· | S· | E· |
+| `ASIN_IN_DOMAIN` | E· | E· | S· | S· | S· | S· | S· | S· | S· | S· | S· | E· |
 | `CEILING` | E | E | E | E | E | E | E | E | E | E | E | E· |
 | `FLOOR` | E | E | E | E | E | E | E | E | E | E | E | E· |
 | `ROUND` | E | E | E | E | E | E | E | E | E | E | E | E· |
@@ -231,7 +235,8 @@ input).
 | `LIST_REVERSE` | R | E | S | S | S | S | S | S | E | E | E | E· |
 | `TYPEOF` | R | R | E· | S· | R | S· | S· | E· | R | R | R | E· |
 | `ROUND_HALF_UP` | S | E | E | E | E | S | S | E | E | E | E | E· |
-| `ROUND_RAW` | S· | E· | S· | S· | E· | S· | S· | S· | S· | S· | S· | R |
+| `ROUND_RAW` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R |
+| `DECIMAL_RAW` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R |
 | `ERROR` | E | E | E | E | E | E | E | E | E | E | E | E· |
 | `FLOOR_RAW` | S | S | S | S | S | E | S | S | S | S | S | E· |
 | `TO_VARIANT` | E | E | E | E | E | E | E | E | E | E | E | E· |

@@ -1,0 +1,142 @@
+diff --git a/core/src/main/java/com/legend/edge/EdgePureOnlyTexts.java b/core/src/main/java/com/legend/edge/EdgePureOnlyTexts.java
+index f1016c1..7aa9110 100644
+--- a/core/src/main/java/com/legend/edge/EdgePureOnlyTexts.java
++++ b/core/src/main/java/com/legend/edge/EdgePureOnlyTexts.java
+@@ -92,9 +92,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
+         }
+         if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+             // legend-pure's print form, the judges' %r of a Float; a value the store holds as an integer its digits
+-            return heldAsInteger(x)
+-                    ? new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
+-                    : SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, x);
++            return com.legend.lowering.LiteralSpelling.floatPrint(x);   // STEP8-EXPERIMENT
+         }
+         // numbers, booleans, and the Any carrier: the toString spelling IS the representation
+         return com.legend.lowering.ReprParts.pureToString(styled, t, x);
+diff --git a/core/src/main/java/com/legend/edge/PurePrintForms.java b/core/src/main/java/com/legend/edge/PurePrintForms.java
+index 4b2091a..7e3c19a 100644
+--- a/core/src/main/java/com/legend/edge/PurePrintForms.java
++++ b/core/src/main/java/com/legend/edge/PurePrintForms.java
+@@ -163,9 +163,7 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
+         if (joined(e) instanceof SqlExpr j) {
+             return j;
+         }
+-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_TO_TEXT) {
+-            return floatOf(expr(c.args().get(0)), floatLiteral);
+-        }
++        // STEP8-EXPERIMENT (never committed): a Float text used further is lite's own
+         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_TO_TEXT) {
+             // legend-pure's print form, composed here (census B12, 2026-11-17: the DATETIME_PRINT node gone)
+             return PureDateTimePrint.of(expr(c.args().get(0)));
+diff --git a/core/src/main/java/com/legend/edge/PureText.java b/core/src/main/java/com/legend/edge/PureText.java
+index 9061eb3..5635fc4 100644
+--- a/core/src/main/java/com/legend/edge/PureText.java
++++ b/core/src/main/java/com/legend/edge/PureText.java
+@@ -371,7 +371,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -394,7 +394,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x, PurePrintForms.FloatLiteral.PRINT_AS_FLOAT), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -425,7 +425,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -442,7 +442,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -458,7 +458,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -474,7 +474,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -498,7 +498,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -514,7 +514,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -530,7 +530,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -547,7 +547,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -563,7 +563,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ 
+@@ -585,7 +585,7 @@ public final class PureText {
+         @Override
+         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
+                 com.legend.sql.SqlExpr x) {
+-            return writer.expr(PurePrintForms.floatOf(x), 0);
++            return super.floatToText(writer, x);
+         }
+     }
+ }

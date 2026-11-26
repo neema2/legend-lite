@@ -15,10 +15,10 @@ import java.math.BigInteger;
  * LEGEND-PURE'S TEXT OF A VALUE, WRITTEN IN JAVA FROM LITE'S TYPED VALUE: THE EDGE'S VALUE PRINTER (stage B's B2b
  * S6a, legend-pure's door, 2026-11-25; the orchestrator's agreement of the same day, G1: one printer, never a second
  * Float printer -- the midpoint audit's item, B2b's record). Its reader is a relation's cell in the table printer
- * ({@link #cell}, the rules {@link PureRelationText} held until S6a, moved here unchanged). A Float whose
- * {@code toString} is a program's last step is not lifted to it yet: S6a's lift at legend-pure's door is held with the
- * edge's value passes for the user's ruling (the design audit of 2026-11-25: alone it moved no case and left a print
- * used further to the passes, two printers at one door). A printer only: the database computed every value, and this
+ * ({@link #cell}, the rules {@link PureRelationText} held until S6a, moved here unchanged) and, since the edition
+ * program's step 8 (2026-11-26), a Float whose {@code toString} is a program's last step at legend-pure's doors
+ * ({@link #value}; S6a's lift, held on 2026-11-25 because alone it left a print used further to the edge's SQL passes,
+ * returned with the print's tail, {@link PrintTail}). A printer only: the database computed every value, and this
  * class chooses only how each is written (tenet 3; G6, small Java formatting at the edge); a value it has no rule for
  * is refused by name (AGENTS.md invariant 4).
  */
@@ -68,6 +68,21 @@ final class PureValueText {
             case PureTimeLiteral t -> t.canonicalText();
             default -> throw refused("toString", v, c);
         };
+    }
+
+    /**
+     * legend-pure's {@code toString()} of a value a program prints at a last step, lifted at legend-pure's doors
+     * ({@link PrintedRelations}; the edition program's step 8, 2026-11-26, tenet 1 as the user amended it on
+     * 2026-11-25: a print at a last step is Java's, with upstream's text, from the typed value the database computed):
+     * a Float as the double it is declared, by legend-pure's print ({@link #pureFloat}) -- {@code 0.000000013421},
+     * where the edge's SQL pass wrote legend-engine's in-query cast of it. Any other type is refused by name: the door
+     * lifts this one alone.
+     */
+    static String value(Object v, ExecutionPlan.Column c) {
+        if (c.type().equals("Float")) {
+            return asFloat(v, c);
+        }
+        throw refused("value toString", v, c);
     }
 
     /** {@code v} under a Float type, as the double it is declared (an integer or a decimal the database held it in). */

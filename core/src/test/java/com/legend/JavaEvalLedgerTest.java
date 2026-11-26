@@ -1076,7 +1076,7 @@ class JavaEvalLedgerTest {
             Map.entry("core/src/main/java/com/legend/testexec/AssertErrorRuns.java", 56),   // 66 -> 56 (2026-11-22, item 3's S4 step 4, a shrink under the user's standing word for cleanups: the database judge's sentence rows deleted, every assert a typed row or a refusal by name); 68 -> 66 (2026-11-22, item 3's S8, a shrink under the user's standing word for cleanups: an assertError expecting legend-pure's unraised text passes, Q-B -- the no-error and the message checks one rule each); 72 -> 68 (2026-11-21, item 3, a shrink under the user's standing word for cleanups: S2, assertError's failures records: the words hook and the line/column sentence outside the catalog gone); 68 -> 72 (2026-11-21, the BE audit 2's S3, stage B's BE: the inner assert's branch takes an error by its code, as the branch beside it does -- a run-time cell offset no longer escapes the arm, a refusal stays loud -- raised for the user's word in the BE PR); 64 -> 68 (2026-11-21, the BE audit of D, finding 6, stage B's BE: assertError catches every error upstream raises at run, as upstream's does, and a refusal stays loud -- raised for the user's word in the BE PR); 80 -> 64 (2026-11-18, census J29, E-Java: assertError's four failures worded by the run's HostWords, legend-pure's at the edge); 70 -> 80 (2026-11-17, isolated BOTH and #28, the orchestrator's ruling: lite's sentence table beside the compat words; C1 moves the compat half to the edge and re-pins DOWN). new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): assertError's run half, from testplan/AssertVerdicts: the planned failure compared with the raised one)
             Map.entry("core/src/main/java/com/legend/testexec/SideShapes.java", 285),   // 286 -> 285 (2026-11-20, stage B's B1: the no-rows refusal raised as its record, testexec.SizeRefusal; no size words); 287 -> 286 (2026-11-17, C-2's corpus fix: the null-cell wire token decoded at read, SideShapes; Equality meets no sentinel)
               // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): a side's row-count and shape contract at run, from TestPlanner's Moved and AssertVerdicts: counting rows, never computing a cell); 279 -> 287 (2026-11-12, the C4 exec-id item, B3's check): the cardinality holder hands on answers() and execution() to the sink it holds -- two delegating methods, no value computed -- so the door's execution id reaches a writer under it
-            Map.entry("core/src/main/java/com/legend/edge/SqlTextRuns.java", 199),   // 214 -> 199 (2026-11-19, A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"): the database judge's row appeal deleted); 220 -> 214 (2026-11-18, train 17 JudgingRules step 1, E-Java: the edge's hook always appeals a failed text, the rules' check deleted); MOVED (2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2)). 224 -> 220 (2026-11-11, B2d.2 of the total-wall program: the TDG appeal's case deleted with its kind; nothing evaluated)   // 233 -> 224 (2026-11-09, mutable static state: the census suspend toggles around the appeal's runs deleted with SqlTypeCensus, a dead census; nothing evaluated)   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the engine-text appeal decided after the run, from testplan/SqlTextVerdicts (1491 -> 1259))
+            // (core/src/main/java/com/legend/edge/SqlTextRuns.java, 199: EVICTED WHOLE from the product's sources -- 2026-11-26, the edition program's step 9, slice 1: the appeals' decision after the run is test machinery, moved unchanged to the testonly //core:edge_harness (core/src/edge_harness), out of this register's scan; a guard moving down only. Its history: 214 -> 199 (2026-11-19, A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"): the database judge's row appeal deleted); 220 -> 214 (2026-11-18, train 17 JudgingRules step 1, E-Java: the edge's hook always appeals a failed text, the rules' check deleted); MOVED (2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2)). 224 -> 220 (2026-11-11, B2d.2 of the total-wall program: the TDG appeal's case deleted with its kind; nothing evaluated)   // 233 -> 224 (2026-11-09, mutable static state: the census suspend toggles around the appeal's runs deleted with SqlTypeCensus, a dead census; nothing evaluated)   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the engine-text appeal decided after the run, from testplan/SqlTextVerdicts (1491 -> 1259)))
             Map.entry("core/src/main/java/com/legend/testexec/DatabaseVerdicts.java", 23),   // 36 -> 23 (2026-11-22, item 3's S4 step 4, a shrink under the user's standing word for cleanups: the database judge's sentence rows deleted, every assert a typed row or a refusal by name); 38 -> 36 (2026-11-22, item 3's S4 step 2, a shrink under the user's standing word for cleanups: a typed row's verdict asks AssertRecords.ofTypedRow, the one choice of a failure's record the host judge makes too, and the lenient column's census, planned false since A4, is gone); new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the database judge's verdict over its row, from testplan/DatabaseJudge (819 -> 790))
             Map.entry("core/src/main/java/com/legend/testexecutionplan/Verdicts.java", 77),   // 80 -> 77 (2026-11-23, a shrink, the final audit of c758fe95: fail(String) moved to the edge, SqlTextReferee, its one caller once the database judge planned no sentence); 93 -> 80 (2026-11-21, item 3's S2, a shrink under the user's standing word for cleanups: a failure raised as its record, fail(ErrorRecord), +2; firstTextDiff moved to the edge's referee, its one caller, -15); 98 -> 93 (2026-11-18, J33 narrowed: scalarString moved to the edge's SqlTextReferee, with VerdictQueries.fromWrapped's two overloads); 113 -> 98 (2026-11-18, J33: the referee's golden-text helpers textsDiffer, stripChainedPlanWarning and isPopulationGolden moved to the edge's SqlTextReferee); 151 -> 113 (2026-11-17, census C5's Verdicts row, closed by E-Java: repr and pureText deleted, legend-pure's date text the edge's UpstreamDateLiteralTexts); 148 -> 151 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-pure's text of a date, pureText, the judges' own printer where PureDateLiteral.toString wrote it until then -- the minute rule moved, nothing evaluated)   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the shared value spelling (repr, wireId) from testexec/PureAsserts (257 -> 218), read by planning's messages and the run's judges)
             Map.entry("core/src/main/java/com/legend/testexec/TdsCompare.java", 107));   // 236 -> 107 (2026-11-17, census C1: the compatibility rules' rendered-text comparison moved to the edge's UpstreamRenderedTexts); 235 -> 236 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): one import line: the judged side's type is the test plan's library's, com.legend.testexecutionplan.TypedSide; nothing evaluated)   // 350 -> 235 (2026-11-07, P1: the host judge's byte channel deleted -- a canon rider built and declined at run since the plan path's step 6, 2026-10-18, the dual verdict it fed, its canon framing, its census and the grid canons it read; nothing evaluated, nothing judged differently)   // 346 -> 350 (2026-11-05, the exact-comparison report (the user's ruling S15/S132, 2026-11-05: clean mode compares Floats exactly, measured first): a print under -Dlegend.diagnostics=judge-declines where the 2-ULP tolerance, not equality, decided a verdict; a measurement, nothing evaluated)   // 207 -> 346 (2026-11-03, the user's ruling "no sort can be multiset compare" restored: grids' row multiset unless the actual side is sorted, renderedText with its line / token multiset and cell rule, ordLeniency, as at de641baf (344) plus the per-side column kinds kept (+2); judgement only, nothing evaluated)   // 344 -> 207 (2026-11-03, the user's ruling: never more lenient than upstream -- the multiset, rendered-text, cell-pool, unordered-JSON and stamped-kind paths deleted)   // 343 -> 344 (2026-10-31, the seam program's S4a): the import of CanonRider, the lowering's now; nothing evaluated   // in judge since 2026-10-30 (D71)   // 366 -> 343 (2026-09-20, one float rule: the printed-precision cell tolerance DELETED; cellEquals delegates to Equality.withinTwoUlp)
@@ -1876,19 +1876,25 @@ class JavaEvalLedgerTest {
                     "core/src/main/java/com/legend", ROOT_CLASSES,
                     // THE COMPATIBILITY EDGE (phase D; registered 2026-11-15, the D part 1 audit's S6: it had escaped
                     // the registers since D1.0b): upstream's spellings, routes and texts over the product -- parse,
-                    // plan and print; no connection, no JDBC, no value computed (the JDBC funnel rules hold its jar)
+                    // plan and print; no connection, no JDBC, no value computed (the JDBC funnel rules hold its jar).
+                    // One named exception since 2026-11-26, PrintTail.java below: it computes over a text the edge
+                    // itself printed, by the user's words of that day
                     "core/src/main/java/com/legend/edge", java.util.Set.of(
-                            // the test road's compatibility rules handed to exec (the edge's typed extension point)
-                            "CompatEdge.java", "EdgeCodec.java",
+                            // GONE DOWN (2026-11-26, the edition program's step 9, slice 1: test machinery out of the product's sources, moved
+                            // unchanged to the testonly //core:edge_harness and //core:edge_service_tests, sources under
+                            // core/src/edge_harness -- so out of this register's scan): the 15 rows CompatEdge.java,
+                            // EdgeCodec.java, AppealJson.java, PlannedAppeals.java, AppealRun.java, Appeals.java,
+                            // SqlTextRuns.java, SqlReplayReferee.java, EffectTexts.java, RawLedger.java, RefereeLoad.java,
+                            // ServiceTestRunner.java, TdsObjectsWriter.java, CompiledPureHostForms.java, EqualToJson.java
                             // 2026-11-16 (W9's judge half, E-Java): the edge's answer to the plan style's engine-text
                             // facet (testplan.EngineTestText); the arm's planning arrives behind it
                             "EdgeEngineTestText.java",
                             // 2026-11-16 (W9's judge half, S2c): the engine-text arm itself, moved from the test planner
                             "SqlTextVerdicts.java",
-                            // 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2): the appeal (its record, its JSON, the plan's by number),
-                            // the run that hears it (AppealRun, Appeals), its decision (SqlTextRuns) and the referee's SPI
-                            "Appeal.java", "AppealJson.java", "PlannedAppeals.java", "AppealRun.java", "Appeals.java",
-                            "SqlTextRuns.java", "SqlReplayReferee.java",
+                            // 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2): the appeal's record
+                            // (its JSON, the plan's by number, the run that hears it, its decision and the referee's SPI
+                            // left for the harness, 2026-11-26, the edition program's step 9, slice 1)
+                            "Appeal.java",
                             // 2026-11-18, J33: the referee's residue left in the product after C2 (its reads over a Result, its fixed
                             // parameter bindings, the golden texts' shapes), moved unchanged from VerdictQueries and Verdicts
                             "SqlTextReferee.java",
@@ -1900,8 +1906,9 @@ class JavaEvalLedgerTest {
                             // legend-engine's module as the shipped server's opt-in (K2's server half, 2026-11-18, the
                             // user's ruling "Product root, edge opt-in"): a MountProvider naming EdgeServer's mount
                             "EngineMount.java",
-                            // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
-                            "EffectTexts.java", "PureMessages.java",
+                            // the texts of upstream's refusals, and legend-pure's raise sentences, as SQL (the effects'
+                            // ledger texts, EffectTexts.java, left for the harness, 2026-11-26, the edition program's step 9, slice 1)
+                            "PureMessages.java",
                             // 2026-11-18, L10: legend-engine's WHERE conjunct zones, moved from lowering.WhereMerge (and the
                             // DISTINCT-key subselect's zone order, from sql.ExistsJoins); its own order, nothing evaluated
                             "EngineWhereZones.java",
@@ -1982,9 +1989,8 @@ class JavaEvalLedgerTest {
                             // 2026-11-17) left 2026-11-19 with its printers (A2 of the compatibility program, CP-4) (a
                             // guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards
                             // down"))
-                            // the referee's raw-SQL ledger (Raw, FileRead, Recorder), moved from sql.dialect's
-                            // RawSqlBoundary (Phase 6's B4 (i), 2026-11-17): records the statements run, decides nothing
-                            "RawLedger.java",
+                            // (RawLedger.java, the referee's raw-SQL ledger moved from sql.dialect's RawSqlBoundary by
+                            // Phase 6's B4 (i), 2026-11-17: left for the harness, 2026-11-26, the edition program's step 9, slice 1)
                             // legend-engine's result envelopes (tdsBuilder, classBuilder, the json builder), moved from
                             // lowering.JsonEmission (Phase 6's B5, 2026-11-17): composes the envelope's SQL from the
                             // product's parts, decides nothing
@@ -2007,32 +2013,42 @@ class JavaEvalLedgerTest {
                             // product runs a raw statement as written, as legend-engine does; the edge's dialects (PureText's)
                             // translate -- a text rewrite at the edge, decides nothing
                             "RawSqlBoundary.java",
-                            // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
-                            "RefereeLoad.java",
-                            // legend-engine's service tests (D1.4, 2026-11-15, moved from com.legend.test and
-                            // com.legend.result): the runner -- a test's data seeded and its query run through the
-                            // test door, its answer compared as the test's JSON -- and legend-engine's PURE_TDSOBJECT
-                            // writer, objects keyed by the presented column name, each cell legend-engine's token
-                            // (CellText.engine); spells, decides nothing
-                            "ServiceTestRunner.java", "TdsObjectsWriter.java",
+                            // (RefereeLoad.java, the referee's load of a fixture's rows, and legend-engine's service
+                            // tests of D1.4, 2026-11-15 -- ServiceTestRunner.java and TdsObjectsWriter.java: left for
+                            // the harness, 2026-11-26, the edition program's step 9, slice 1)
                             // legend-pure's text of a relation written in Java from lite's typed rows, and the run's
                             // receiver that prints it (stage B's B2, B2b S1, 2026-11-24: the plan of record's B2, the
                             // user's ~18:12 ruling of 2026-11-19, "Yes record it"; rule 3 and G6, small Java formatting
                             // at the edge): spells each typed cell as legend-pure prints it, decides nothing, computes no
-                            // value (the database computed every cell); the one string operation it runs is the
+                            // value (the database computed every cell); the one string operation it ran is the
                             // program's literal replace calls on the printed text, the user's ruling of 2026-11-24
-                            // ~13:53 ("also do the replace in java too")
+                            // ~13:53 ("also do the replace in java too"). Since 2026-11-26 (the edition program's step
+                            // 8) the receiver applies the print's whole tail, PrintTail.java below, and prints one
+                            // value under its VALUE form
                             "PureRelationText.java", "PureRelationTextWriter.java",
                             // the edge's value printer (B2b S6a's legend-pure door, 2026-11-25, the orchestrator's
                             // agreement, G1): the cell rules moved, unchanged, from PureRelationText (a move); S6a's
-                            // last-step Float print held with the edge's value passes (the design audit, 2026-11-25) --
-                            // spells a typed value, decides nothing
+                            // last-step Float print, held on 2026-11-25, is back since 2026-11-26 (the edition
+                            // program's step 8: tenet 1 as the user amended it on 2026-11-25) -- spells a typed value,
+                            // decides nothing
                             "PureValueText.java",
                             // a program whose last step prints a relation, lifted at legend-pure's and legend-engine's
                             // doors (stage B's B2, B2b S2, 2026-11-24: the plan of record's B2; E0 = A, 2026-11-20, "E0 -
                             // yes"): reads the typed query, removes the final toString/toCSV and its literal replace
-                            // calls by TypedQuery.withBody -- whole calls removed, nothing planned, no value computed
+                            // calls by TypedQuery.withBody -- whole calls removed, nothing planned, no value computed.
+                            // Since 2026-11-26 (the edition program's step 8) it removes the print's whole tail
+                            // (PrintTail.java below) and, at legend-pure's doors, a Float's last toString
                             "PrintedRelations.java",
+                            // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words
+                            // that day, "maybe small set up string/count functions chained should all be in java", and
+                            // of 2026-11-24, "also do the replace in java too"): one closed set of functions of a text
+                            // (replace, length, trim, startsWith, endsWith, contains, indexOf), each legend-pure's own
+                            // Java for it, applied to the text the edge's printer wrote -- upstream's text, which no
+                            // database holds. It COMPUTES values in Java (a length, an index, a Boolean), the one
+                            // class of the edge that does, and only over that text. The set's members and this
+                            // exception were ruled by the user, 2026-11-26 ~13:57: "yes should add guard"; pinned by
+                            // edge.PrintTailTest
+                            "PrintTail.java",
                             // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
                             // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds
                             // an ORDER BY the engine's insertion order implies -- a node for a node, no value met
@@ -2084,11 +2100,9 @@ class JavaEvalLedgerTest {
                             // deleted 2026-11-24, B3 step 2b -- a printed side read before the body and printed by the
                             // edge's printer, an unordered printed table an explicit assertSameElements of its lines,
                             // UpstreamPrints)
-                            // compiled legend-pure's host forms, the edge's form of the run hook's HostForms (census
-                            // C1's step 2c, 2026-11-17: moved from testexec.Equality): the Float's 2-ULP tolerance until
-                            // B3 step 1b and the caught error's words (its S127, date and Decimal rules went 2026-11-24,
-                            // B3 step 1a) -- two values the judge holds compared, no session, no statement
-                            "CompiledPureHostForms.java",
+                            // (CompiledPureHostForms.java, compiled legend-pure's host forms, the edge's form of the
+                            // run hook's HostForms since census C1's step 2c, 2026-11-17: left for the harness,
+                            // 2026-11-26, the edition program's step 9, slice 1)
                             // (CompiledPureNumbers.java, UpstreamRenderedTextRule.java, UpstreamDateLiteralTexts.java,
                             // UpstreamGoldenNullWord.java and CompiledPureVerdictNumbers.java: gone 2026-11-19, with
                             // the database judge's two-form kinds whose edge forms they were -- A4 of the compatibility
@@ -2103,9 +2117,8 @@ class JavaEvalLedgerTest {
                             // (CompatRules.java: gone 2026-11-18, train 17, with the judging rules -- the compiled
                             // legend-pure equality is the edge's two-form forms, CompiledPureHostForms and
                             // CompiledPureVerdictNumbers)
-                            // legend-engine's service-test EqualToJson comparator (J11's residue, 2026-11-17: moved
-                            // from testexec.Equality and test.TestAssertions) -- two JSON trees the runner read, compared
-                            "EqualToJson.java",
+                            // (EqualToJson.java, legend-engine's service-test comparator, J11's residue of 2026-11-17:
+                            // left for the harness with its runner, 2026-11-26, the edition program's step 9, slice 1)
                             // (EdgeHostWords.java, legend-pure's words of a failed assert: gone 2026-11-21, item 3's S2, Q15 = A)
                             // legend-engine's set-implementation identity for the plan printer (J40, 2026-11-18: moved
                             // from lineage.ScanRelations#rootImpl) -- the product's mapping reads, composed; nothing evaluated
@@ -2328,9 +2341,11 @@ class JavaEvalLedgerTest {
             "core/src/main/java/com/legend/testexec/TestRunner.java",
             "core/src/main/java/com/legend/testexec/TestRun.java",
             // (2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
-            "core/src/main/java/com/legend/edge/Appeals.java",
-            "core/src/main/java/com/legend/edge/SqlTextRuns.java",
-            "core/src/main/java/com/legend/edge/SqlReplayReferee.java",
+            // (2026-11-26, the edition program's step 9, slice 1: the three moved to the edge's test harness, core/src/edge_harness; the
+            // entries move with their files, so the connection ban still holds them)
+            "core/src/edge_harness/java/com/legend/edge/Appeals.java",
+            "core/src/edge_harness/java/com/legend/edge/SqlTextRuns.java",
+            "core/src/edge_harness/java/com/legend/edge/SqlReplayReferee.java",
             // 2026-11-18, J33: the referee's residue moved from VerdictQueries and Verdicts
             "core/src/main/java/com/legend/edge/SqlTextReferee.java",
             "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java",

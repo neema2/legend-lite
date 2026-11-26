@@ -51,12 +51,9 @@ class ErrorShapeGuardrailTest {
             // abort the run on the next kind); the harness carried these
             // same four before the extraction
             Map.entry("PureTestRunner.java", 4),
-            // the service test-suite runner (2026-09-16): the same four
-            // designed boundaries — a test's harness failure, its resolve
-            // and execute failures, each becoming a FAIL result carrying the
-            // platform's whole message (a failing test never aborts the
-            // run), and a session that fails to close
-            Map.entry("ServiceTestRunner.java", 4),
+            // (ServiceTestRunner.java, 4 -- the service test-suite runner's four designed boundaries of
+            // 2026-09-16: GONE DOWN, 2026-11-26, the edition program's step 9, slice 1: test machinery, moved unchanged out
+            // of core/src/main to the testonly //core:edge_service_tests, core/src/edge_harness, so out of this scan)
             // F3.1b (2026-08-16): isValidJson delegates the VARIANT gate
             // to the platform reader; ANY parse failure means not-JSON —
             // a designed total catch (the reader throws ISE/SIOOBE/NFE
@@ -93,7 +90,9 @@ class ErrorShapeGuardrailTest {
             // moved 2026-11-17 with the hook's gates (census C4: reachesThroughHelpers's un-inlinable helper), from
             // testplan/EngineTestText.java to the edge's implementation
             Map.entry("EdgeEngineTestText.java", 1),
-            Map.entry("SqlTextRuns.java", 1),
+            // (SqlTextRuns.java, 1 -- the rows leg's read of our rows, decided after the run: GONE DOWN,
+            // 2026-11-26, the edition program's step 9, slice 1: test machinery, moved unchanged out of core/src/main to the
+            // testonly //core:edge_harness, core/src/edge_harness, so out of this scan)
             // (AgreementArm.java's 1 went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted; IsolatedRun's one, below, takes its place: net 0)
             // 2026-11-17 (isolated BOTH, the orchestrator's ruling): IsolatedRun.runAlone records how a judge's run
             // ENDED -- the failure is data compared with the other judge's -- then the host's failure is rethrown or

@@ -80,13 +80,11 @@ testAdjustByYears	006	VALUE	type=ExprType[type=DATE, multiplicity=Bounded[lower=
 testArcCosine	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.5707963267948966;
 testArcCosine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:3.141592653589793;
 testArcCosine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.0471975511965979;
-testArcCosineError	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:NaN;
-testArcCosineError	002	ERROR	the database answered NaN for a Float, which has no NaN in Pure
+testArcCosineError	001	ERROR	Unable to compute acos of 2.0
 testArcSine	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.0;
 testArcSine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.5707963267948966;
 testArcSine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:-0.5235987755982989;
-testArcSineError	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:NaN;
-testArcSineError	002	ERROR	the database answered NaN for a Float, which has no NaN in Pure
+testArcSineError	001	ERROR	Unable to compute asin of 2.0
 testArcTangent	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.0;
 testArcTangent	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.982793723247329;
 testArcTangent	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.5607966601082315;

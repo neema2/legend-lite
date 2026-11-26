@@ -126,6 +126,10 @@ legend_java_library(
         "//core",
         # the compatibility edge the corpus's runs are handed (the plan-as-data design's step 8, 2026-11-08)
         "//core:edge",
+        # the edge's test harness (2026-11-26, the edition program's step 9, slice 1: out of //core:edge): the corpus's
+        # recorder, run hook and referee SPI (CompatEdge, AppealRun, SqlReplayReferee, RawLedger), and the plan's codec
+        # for the edge's records -- every lane that decodes a plan holding appeals needs it on its classpath
+        "//core:edge_harness",
         # the corpus lanes' databases: each lane's workspaces, fixture asides and the replay referee's sessions
         "//core:test_backends",
         # the corpus's product-SQL size baseline measures with the product set's rule (LeanSqlCorpusTest; E3,

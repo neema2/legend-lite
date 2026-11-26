@@ -1082,9 +1082,9 @@ public class MongoDb extends AnsiSqlRenderer {
             case TAN -> MongoJson.op1(writer, "$tan", a.get(0));
             case ASIN -> domainGuarded(writer, "$asin", a);
             case ACOS -> domainGuarded(writer, "$acos", a);
-            // within the domain by the statement's own guard: the operator alone
-            case ASIN_IN_DOMAIN -> MongoJson.op1(writer, "$asin", a.get(0));
-            case ACOS_IN_DOMAIN -> MongoJson.op1(writer, "$acos", a.get(0));
+            // within the domain by the statement's own guard: the operator alone, over the unfolded operand (below)
+            case ASIN_IN_DOMAIN -> writer.append("{\"$asin\": ").piece(unfolded(a.get(0))).append("}");
+            case ACOS_IN_DOMAIN -> writer.append("{\"$acos\": ").piece(unfolded(a.get(0))).append("}");
             case ATAN -> MongoJson.op1(writer, "$atan", a.get(0));
             case ATAN2 -> MongoJson.op(writer, "$atan2", a);
             case SINH -> MongoJson.op1(writer, "$sinh", a.get(0));
@@ -1284,7 +1284,8 @@ public class MongoDb extends AnsiSqlRenderer {
     }
 
     /** A literal operand of an operator that raises on its value (a modulus by zero, the root of a negative, a range
-     *  of step zero) read through the row ({@link #UNFOLDED}, its length 0 added): the server's optimizer folds a
+     *  of step zero, an arc cosine or sine outside its domain: 2026-11-26, the lanes on batch A, "cannot apply $acos
+     *  to 2") read through the row ({@link #UNFOLDED}, its length 0 added): the server's optimizer folds a
      *  constant operator and raises while it plans, before the CASE that guards it runs (measured 8.0: "Failed to
      *  optimize pipeline :: caused by :: can't $mod by zero", where the guard's own message was due; 2026-10-20, the
      *  parity phase). Any other operand as it is. */

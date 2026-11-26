@@ -1,0 +1,1248 @@
+diff --git a/core/src/main/java/com/legend/edge/EdgePureOnlyTexts.java b/core/src/main/java/com/legend/edge/EdgePureOnlyTexts.java
+index f1016c1..22d9ab5 100644
+--- a/core/src/main/java/com/legend/edge/EdgePureOnlyTexts.java
++++ b/core/src/main/java/com/legend/edge/EdgePureOnlyTexts.java
+@@ -94,7 +94,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
+             // legend-pure's print form, the judges' %r of a Float; a value the store holds as an integer its digits
+             return heldAsInteger(x)
+                     ? new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
+-                    : SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, x);
++                    : floatPrint(x);
+         }
+         // numbers, booleans, and the Any carrier: the toString spelling IS the representation
+         return com.legend.lowering.ReprParts.pureToString(styled, t, x);
+@@ -134,6 +134,80 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
+         return com.legend.lowering.ReprParts.dateLiteralText(typed);
+     }
+ 
++    // ---- legend-pure's print of a Float, composed here from the product's own nodes (the edition program's step 8,
++    // ---- slice 1, 2026-11-26: moved unchanged from the product's sql.dialect.FloatShortestText, whose node
++    // ---- FLOAT_SHORTEST_TEXT only this class wrote; the node, its expansion pass and each dialect's arm are deleted)
++
++    /**
++     * legend-pure's print of the Float {@code x}, as SQL over the database's text of it ({@code CAST(x AS VARCHAR)}):
++     * the database's shortest round-trip text ('1.5', '2.0') except where it chooses exponent notation -- those
++     * re-render plain, a whole value below 1e38 through HUGEINT with {@code .0}, a fractional one from 1e-17 below
++     * 2^53 through a DECIMAL(38,18) cast with its trailing zeros trimmed. Outside those windows the database's own
++     * exponent form stays. NaN and the infinities by Java's names. Each database's own casts and functions, the
++     * product's nodes as its dialects write them: a database whose text of a double is long writes it once per read
++     * here (Snowflake and BigQuery read it once while the product's dialects spelled the node).
++     */
++    private static SqlExpr floatPrint(SqlExpr x) {
++        SqlExpr s = new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
++        // the exponent marker in either case: DuckDB and Postgres write 2.5e-07, H2 1.5E15
++        SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
++                SqlExpr.Call.of(SqlFn.STRPOS, SqlExpr.Call.of(SqlFn.LOWER, s), new SqlExpr.StringLit("e")),
++                new SqlExpr.IntLit(0));
++        // fraction-free values render through HUGEINT, exact plain digits for the whole [1e16, 1e38) band where the
++        // DECIMAL(38,18) cast is not exact; every double from 2^53 is fraction-free
++        SqlExpr fractionFree = SqlExpr.Call.of(SqlFn.AND,
++                SqlExpr.Call.of(SqlFn.EQUAL, x, SqlExpr.Call.of(SqlFn.FLOOR_RAW, x)),
++                SqlExpr.Call.of(SqlFn.LESS,
++                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e38)));
++        // the DECIMAL path only where the scale-18 cast is exact for short-decimal values: [1e-17, 2^53)
++        SqlExpr inRange = SqlExpr.Call.of(SqlFn.AND,
++                SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
++                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-17)),
++                SqlExpr.Call.of(SqlFn.LESS,
++                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(9.007199254740992e15)));
++        // each cast reads the value only where its branch is taken (NULL elsewhere): a database that computes every
++        // branch of a CASE (ClickHouse) otherwise failed the cast of a value the branch never takes
++        SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
++                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(fractionFree, x), com.legend.sql.SqlType.Scalar.HUGEINT,
++                        SqlExpr.Reason.PRINT), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
++                new SqlExpr.StringLit(".0"));
++        SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
++                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(inRange, x), new com.legend.sql.SqlType.Decimal(38, 18),
++                        SqlExpr.Reason.PRINT), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
++                new SqlExpr.StringLit("0"));
++        SqlExpr fixed = new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
++                SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
++                SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
++                plain, SqlExpr.Reason.PRINT);
++        // a whole value the database writes without a fraction (Postgres's double 3, an integer slot a Float declares)
++        // takes .0: a Float's text always has a fraction
++        SqlExpr bare = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, hasExp),
++                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit(".")),
++                        new SqlExpr.IntLit(0)));
++        // a double that is no number by Java's names, from the database's own (DuckDB writes nan, inf and -inf, H2 and
++        // Postgres Java's): the spelled tokens compared, nothing computed
++        SqlExpr lower = SqlExpr.Call.of(SqlFn.LOWER, s);
++        java.util.List<SqlExpr.Case.When> whens = new java.util.ArrayList<>();
++        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("nan"), text("-nan")), text("NaN")));
++        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("inf"), text("+inf"), text("infinity")),
++                text("Infinity")));
++        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("-inf"), text("-infinity")),
++                text("-Infinity")));
++        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain));
++        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed));
++        whens.add(new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0"))));
++        return new SqlExpr.Case(whens, s, SqlExpr.Reason.PRINT);
++    }
++
++    /** {@code x} where {@code guard} holds, else NULL. */
++    private static SqlExpr onlyWhere(SqlExpr guard, SqlExpr x) {
++        return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(guard, x)), null, SqlExpr.Reason.PRINT);
++    }
++
++    private static SqlExpr text(String s) {
++        return new SqlExpr.StringLit(s);
++    }
++
+     /** Whether {@code x} is a Float the STORE holds as an integer: a physical column the store declares integral
+      *  (legend-engine's test {@code tradeTable.quantity} INT under the validation showcase's Float), read off the scan's
+      *  own column (origin PHYSICAL), never inferred. legend-pure's print of it is the integer the database holds, as
+diff --git a/core/src/main/java/com/legend/edge/PurePrintForms.java b/core/src/main/java/com/legend/edge/PurePrintForms.java
+index 4b2091a..caa0cae 100644
+--- a/core/src/main/java/com/legend/edge/PurePrintForms.java
++++ b/core/src/main/java/com/legend/edge/PurePrintForms.java
+@@ -10,7 +10,7 @@ import com.legend.sql.SqlFn;
+  * LEGEND-PURE'S PRINT FORMS AT THE EDGE (phase D's D1.2, 2026-11-15): each product text node written as legend-pure's
+  * form of it, which each product dialect spells for the judges already -- a Float's ({@link SqlFn#FLOAT_TO_TEXT}, lite's
+  * six decimals) as legend-engine writes it in a query ({@link #floatOf}: the database's cast, a literal legend-pure's
+- * print; Phase 5, 2026-11-16, until then {@link SqlFn#FLOAT_SHORTEST_TEXT}), a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
++ * print; Phase 5, 2026-11-16), a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
+  * legend-pure's print form ({@link PureDateTimePrint}; a literal's written text kept), a joined element's
+  * ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
+  * legend-pure writes (D1.3: the product refuses them by name), {@code format}'s padded {@code %0<w>d}
+diff --git a/core/src/main/java/com/legend/lowering/Fold.java b/core/src/main/java/com/legend/lowering/Fold.java
+index 8177170..146bc9b 100644
+--- a/core/src/main/java/com/legend/lowering/Fold.java
++++ b/core/src/main/java/com/legend/lowering/Fold.java
+@@ -641,7 +641,7 @@ final class Fold {
+      * kept projection among them, and at least the first -- costs its nodes less the read it replaces, against the
+      * same {@link Budget#BLOAT}. Over it, the name of the projection whose copies cost most, and the pass is
+      * unfoldable: its base isolated, the reads are reads of the subselect's column, as for every unfoldable read.
+-     * What a dialect writes more than once from one node is counted once: the message's {@code FLOAT_SHORTEST_TEXT} is one
++     * What a dialect writes more than once from one node is counted once: a message's text of a Float is one
+      * call here and some 23 copies in DuckDB's text, a spelling the lowering may not know (invariant 3), so a sqrt
+      * costs three copies of its argument here, not 27. */
+     static @com.legend.base.Nullable String overCopied(SqlSelect base, List<SqlSelect.Projection> written) {
+diff --git a/core/src/main/java/com/legend/lowering/LiteralSpelling.java b/core/src/main/java/com/legend/lowering/LiteralSpelling.java
+index 64c7ade..b13a0cf 100644
+--- a/core/src/main/java/com/legend/lowering/LiteralSpelling.java
++++ b/core/src/main/java/com/legend/lowering/LiteralSpelling.java
+@@ -502,7 +502,7 @@ public final class LiteralSpelling {
+      * A Float's text ({@code toString}, {@code format}'s {@code %f}): one call, {@link SqlFn#FLOAT_TO_TEXT}, which each
+      * dialect writes -- the product six decimals trimmed, a whole value keeping one (the user's rulings of 2026-11-10
+      * and 2026-11-23), the compatibility edge legend-engine's in-query cast (edge/PurePrintForms; phase D's D1.2,
+-     * 2026-11-15; until then this was Pure's form, FLOAT_SHORTEST_TEXT, everywhere).
++     * 2026-11-15; until then this was Pure's form everywhere, a node deleted 2026-11-26).
+      */
+     public static SqlExpr floatPrint(SqlExpr x) {
+         // ONE text for every Float, a value the store holds as an integer too (a physical column the store declares
+diff --git a/core/src/main/java/com/legend/sql/SqlFn.java b/core/src/main/java/com/legend/sql/SqlFn.java
+index 86cc18a..5a398b0 100644
+--- a/core/src/main/java/com/legend/sql/SqlFn.java
++++ b/core/src/main/java/com/legend/sql/SqlFn.java
+@@ -161,23 +161,14 @@ public enum SqlFn {
+      *  as the VARCHAR cast they wrote until then; H2 with its number printer for every such operand (its DECFLOAT's
+      *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
+     DECIMAL_TO_TEXT,
+-    /** LITE'S CANONICAL TEXT OF A FLOAT, its shortest round-trip digits (renamed from FLOAT_PRINT 2026-11-17, census B9,
+-     *  the orchestrator's ruling: measured equal to lite's writers' text, result.CellText.carriedFloat, inside its
+-     *  windows): plain within the database's plain range and fixed point past it where exact (whole values below 1e38,
+-     *  fractional ones from 1e-17 below 2^53), at least one fraction digit, NaN and the infinities by name. One call per
+-     *  value, which each dialect spells (dialect/FloatShortestText the portable decomposition; a dialect whose text of a
+-     *  double is long reads it once). A message's text of a Float (the judges', both judges alike, G2); legend-pure's
+-     *  print form is the same text (the compatibility edge wrote this node for a relation text's Float cell until B2b's
+-     *  S5a-S5c deleted its relation texts; legend-engine's in-query cast for {@link #FLOAT_TO_TEXT} elsewhere). Outside the
+-     *  windows the database's own exponent notation stays, which differs per database: logged for after separation
+-     *  ("one canonical Float text outside the windows"). */
+-    FLOAT_SHORTEST_TEXT,
++    // (FLOAT_SHORTEST_TEXT, a Float's shortest round-trip text made plain inside its windows: gone 2026-11-26, the
++    // edition program's step 8, slice 1 -- since B2b's S5a-S5c only the compatibility edge wrote it, for
++    // legend-pure's %r of a Float, which the edge composes at lowering from the product's nodes, edge.EdgePureOnlyTexts)
+     /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
+      *  zeros trimmed, a whole value keeping one ({@code 2.0}), NaN and the infinities by name (the user's ruling of
+      *  2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15; S311 amended by the user's ruling of 2026-11-23, "I think
+      *  we do it as 2.0") -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
+-     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms; its
+-     *  relation texts' {@link #FLOAT_SHORTEST_TEXT} cells, PR #118's fix round, went with B2b S5a-S5c). */
++     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms). */
+     FLOAT_TO_TEXT,
+     /** A Float's FULL-PRECISION TEXT AS THE DATABASE ITSELF WRITES IT ({@code (x)}, one operand, a double; NULL stays
+      *  NULL): toCSV's Float cell (the user's ruling of 2026-11-25, "okay make exact": each database's own full-precision
+@@ -188,8 +179,8 @@ public enum SqlFn {
+      *  MySQL, {@code toString} on ClickHouse, {@code printf('%!.17g')} on SQLite (its cast writes fifteen digits),
+      *  {@code $toString} on MongoDB, and on Snowflake its DECFLOAT cast, NaN and the infinities by its plain cast (its
+      *  format models cap a FLOAT at sixteen digits, measured 2026-10-24; B3 agreed the same day). The text differs by database
+-     *  ({@code 1e-07} on DuckDB, {@code 1.0E-7} on H2). Unlike {@link #FLOAT_SHORTEST_TEXT} it is never one spelling
+-     *  across databases: it is each database's own. */
++     *  ({@code 1e-07} on DuckDB, {@code 1.0E-7} on H2). It is never one spelling across databases: it is each
++     *  database's own. */
+     FLOAT_FULL_TEXT,
+     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
+      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
+@@ -264,7 +255,7 @@ public enum SqlFn {
+                     // A6, 2026-11-16, made conservative: a strict function read as may-skip costs a missed binding, the
+                     // reverse a wrong raise; E-SQL may take one out with a per-dialect proof that it never skips)
+                     ACOS, ASIN, CONCAT, CONCAT_JOIN, DAYNAME, DECIMAL_TO_TEXT, DECODE_BASE64, ENCODE_BASE64,
+-                    EPOCH_MS, EPOCH_SECONDS, FLOAT_SHORTEST_TEXT, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
++                    EPOCH_MS, EPOCH_SECONDS, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
+                     LIST_APPEND, LIST_AVG, LIST_FLATTEN, LIST_INIT, LIST_MEDIAN, LIST_MODE, LIST_REVERSE, LIST_SLICE,
+                     LIST_SORT, LIST_SORT_DESC, LIST_TAIL, MD5, MONTHNAME, PARSE_DATE, PURE_SPLIT_PART, RANGE_FN,
+                     REGEXP_EXTRACT_ALL, ROUND, ROUND_HALF_UP, SHA1, SHA256, TO_VARIANT, UNNEST, VARIANT_ELEMENTS,
+diff --git a/core/src/main/java/com/legend/sql/SqlTyping.java b/core/src/main/java/com/legend/sql/SqlTyping.java
+index 8836c31..1fb06e4 100644
+--- a/core/src/main/java/com/legend/sql/SqlTyping.java
++++ b/core/src/main/java/com/legend/sql/SqlTyping.java
+@@ -404,7 +404,7 @@ public final class SqlTyping {
+                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART, PURE_SPLIT_PART,
+                     REGEXP_EXTRACT, REGEXP_REPLACE, CHR, ENCODE_BASE64,
+                     DECODE_BASE64, MD5, SHA1, SHA256, GUID, DAYNAME,
+-                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_SHORTEST_TEXT, FLOAT_TO_TEXT, FLOAT_FULL_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT,
++                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_TO_TEXT, FLOAT_FULL_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT,
+                     FORMAT,
+                     JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR, BINARY_COLLATE -> T_VARCHAR;
+             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
+diff --git a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+index 67edd2d..37e3cf0 100644
+--- a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
++++ b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+@@ -272,11 +272,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+         ps.add(new CellTexts.Rest());
+         // (TextForms.Product and PureOnlyText.Refusal: gone 2026-11-17 with B8 -- a list's text is the style's two-form
+         // kind, and every text only legend-pure writes is refused at lowering)
+-        // lite's canonical text of a Float (a message's; the edge's text of a Float too), expanded before every other
+-        // pass unless this dialect spells it itself
+-        if (!spellsFloatShortestText()) {
+-            ps.add(new FloatShortestText.Expansion(readsLongTextOnce()));
+-        }
++        // (FloatShortestText.Expansion: gone 2026-11-26, the edition program's step 8 -- legend-pure's print of a Float
++        // is the edge's alone, composed at lowering, edge.EdgePureOnlyTexts)
+         ps.addAll(passes());
+         ps.add(new StoredReads(this::readsStored));
+         return java.util.List.copyOf(ps);
+@@ -287,21 +284,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+         return v.toPlainString();
+     }
+ 
+-    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_SHORTEST_TEXT} itself; else it is expanded before every
+-     *  other pass ({@link FloatShortestText.Expansion}) to the portable spelling over the double's text. */
+-    protected boolean spellsFloatShortestText() {
+-        return false;
+-    }
+-
+-    /** Whether a composition that reads a value's text more than once reads the value and its text from a one-row
+-     *  derived table, each written once (a dialect whose text of a value is a long expression and whose derived tables
+-     *  read the row around them; renamed from bindsFloatPrint 2026-11-17, census B9: a generic size capability). */
+-    protected boolean readsLongTextOnce() {
+-        return false;
+-    }
+-
+-    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-pure's print form
+-     *  of a Float, {@code FLOAT_SHORTEST_TEXT}, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
++    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-engine's in-query
++     *  cast of a Float, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
+      *  The product's dialects run none: they write each node lite's own way. */
+     /** {@inheritDoc} A raw statement AS WRITTEN (Phase 6's B4 (ii), 2026-11-17): a SPELLING arm -- the statement's
+      *  text, no decision -- so the compatibility edge's DuckDB and Postgres translate legend-engine's H2 text here. */
+@@ -1540,12 +1524,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+                 + ": the lowering's bug");
+     }
+ 
+-    /** Lite's canonical text of a Float ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_SHORTEST_TEXT} call): the portable decomposition
+-     *  over the double's text (a dialect whose double text is long spells it once, its own way). */
+-    protected final SqlWriter floatShortestTextByCast(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+-        return writer.expr(FloatShortestText.of(c.args().get(0)), parentPrec);
+-    }
+-
+     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
+      *  {@link com.legend.sql.SqlFn#CELL_TEXT},
+      *  {@link DateTimeText}, {@link CellTexts}): one reaching a dialect's arm is a renderer
+diff --git a/core/src/main/java/com/legend/sql/dialect/BigQuery.java b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+index be87166..3ead3b9 100644
+--- a/core/src/main/java/com/legend/sql/dialect/BigQuery.java
++++ b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+@@ -203,14 +203,6 @@ public class BigQuery extends AnsiSqlRenderer {
+         return false;
+     }
+ 
+-    /** A Float's print forms over the value and its text bound once: the portable spellings read the text nine times
+-     *  (Pure's) and over a thousand (legend-engine's), each read this dialect's text of a double, its own subquery (the
+-     *  served statement for {@code 1.5 + 2.25} was 321 KB, measured 2026-10-22). */
+-    @Override
+-    protected boolean readsLongTextOnce() {
+-        return true;
+-    }
+-
+     @Override
+     protected List<com.legend.sql.SqlRewriter> passes() {
+         return List.of(new CarrierStrategies(CAPS), new FoldsAsRecursiveCtes(),
+@@ -1587,7 +1579,6 @@ public class BigQuery extends AnsiSqlRenderer {
+                     + " code points) reached BigQuery, whose binary collation is not measured");
+             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "STRING");   // its own cast: SqlFn's javadoc
+             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+diff --git a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+index f760239..22cabc7 100644
+--- a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
++++ b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+@@ -1940,7 +1940,6 @@ public class ClickHouse extends AnsiSqlRenderer {
+             // Pure's divide is a Float division: both operands DOUBLE
+             case DIVIDE -> divideAsDoubles(writer, c.args());
+             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             // a Float's full-precision text: ClickHouse's own toString (its shortest digits; a NULL stays NULL, where
+             // CAST to a non-Nullable String refuses one), never re-spelled
+diff --git a/core/src/main/java/com/legend/sql/dialect/Databricks.java b/core/src/main/java/com/legend/sql/dialect/Databricks.java
+index 60bc7ab..679347b 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Databricks.java
++++ b/core/src/main/java/com/legend/sql/dialect/Databricks.java
+@@ -1107,7 +1107,6 @@ public class Databricks extends AnsiSqlRenderer {
+             case ROUND_RAW -> writer.function("ROUND", c.args());
+             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
+             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             // a Float's full-precision text: Spark's own cast, never re-spelled (its exponent written E)
+             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "STRING");
+diff --git a/core/src/main/java/com/legend/sql/dialect/DuckDb.java b/core/src/main/java/com/legend/sql/dialect/DuckDb.java
+index 123069b..9b995ef 100644
+--- a/core/src/main/java/com/legend/sql/dialect/DuckDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/DuckDb.java
+@@ -620,7 +620,6 @@ public class DuckDb extends AnsiSqlRenderer {
+             case ERROR -> raiseEnvelope(writer, c.args(), "error");
+             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
+             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             // a Float's full-precision text: DuckDB's own cast (its shortest digits, which read back)
+             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+diff --git a/core/src/main/java/com/legend/sql/dialect/FloatShortestText.java b/core/src/main/java/com/legend/sql/dialect/FloatShortestText.java
+deleted file mode 100644
+index cd07924..0000000
+--- a/core/src/main/java/com/legend/sql/dialect/FloatShortestText.java
++++ /dev/null
+@@ -1,184 +0,0 @@
+-// Copyright 2026 Legend Contributors
+-// SPDX-License-Identifier: Apache-2.0
+-
+-package com.legend.sql.dialect;
+-
+-import com.legend.sql.SqlExpr;
+-import com.legend.sql.SqlFn;
+-import com.legend.sql.SqlType;
+-
+-import java.util.List;
+-
+-/**
+- * {@link SqlFn#FLOAT_SHORTEST_TEXT}, lite's canonical text of a Float, spelled through a database's text of a double
+- * ({@code CAST(v AS VARCHAR)}): the portable decomposition (moved unchanged from the lowering's
+- * {@code LiteralSpelling.floatPrint} 2026-10-22; renamed from FloatPrintText 2026-11-17, census B9: it is lite's own
+- * spelling, measured equal to its writers' text). It reads the text some nine times through the pieces it pastes. That
+- * is cheap where a double's text is a CAST. A dialect whose double text is itself a long expression spells the call its
+- * own way, the value read once: Snowflake from its digits ({@code spellsFloatShortestText}), BigQuery over its text
+- * bound once ({@code readsLongTextOnce}). Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB on this path
+- * (measured 2026-10-22).
+- */
+-final class FloatShortestText {
+-
+-    private FloatShortestText() {
+-    }
+-
+-    /**
+-     * The FIRST pass of a dialect that does not spell the two calls itself (AnsiSqlRenderer.renderPasses): each call
+-     * becomes {@link #of}, so every later pass sees the tree the lowering wrote before the calls existed, and the SQL is
+-     * the same.
+-     */
+-    static final class Expansion extends com.legend.sql.SqlRewriter {
+-
+-        private final boolean bind;
+-        private final int[] fresh = {0};
+-        private final java.util.Map<SqlExpr.Call, SqlExpr> spelledCalls = new java.util.HashMap<>();
+-
+-        /** {@code bind}: the value and its text are columns of a one-row derived table, each written once, under a
+-         *  scalar subquery ({@code (SELECT <spelling over v and t> FROM (SELECT v, CAST(v AS VARCHAR) AS t FROM
+-         *  (SELECT <value> AS v) AS __fpN) AS __fpN)}, the shape the Float canon's binding takes); else the spelling
+-         *  reads them in place. */
+-        Expansion(boolean bind) {
+-            this.bind = bind;
+-        }
+-
+-        @Override
+-        protected SqlExpr expr(SqlExpr e) {
+-            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_SHORTEST_TEXT) {
+-                SqlExpr x = expr(c.args().get(0));
+-                // a double's text is the dialect's long expression; any other value's (a literal, a decimal slot) is
+-                // the database's own cast, read in place as before
+-                if (!(bind && isDouble(x))) {
+-                    return of(x);
+-                }
+-                // an equal call is the same node, its aliases too: a cell's text read again (a CSV cell's quoting
+-                // reads it five times) is then one subtree a common-subexpression binding writes once, as the canon's
+-                return spelledCalls.computeIfAbsent(c, k -> bound(x));
+-            }
+-            return super.expr(e);
+-        }
+-
+-        private SqlExpr bound(SqlExpr x) {
+-            String inner = "__fp" + fresh[0]++;
+-            String outer = "__fp" + fresh[0]++;
+-            com.legend.sql.SqlSelect value = select(List.of(projection(x, "v", SqlType.Scalar.DOUBLE)),
+-                    new com.legend.sql.SqlSource.Dual());
+-            SqlExpr v = column(inner, "v", SqlType.Scalar.DOUBLE);
+-            com.legend.sql.SqlSelect texted = select(List.of(projection(v, "v", SqlType.Scalar.DOUBLE),
+-                    projection(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), "t", SqlType.Scalar.VARCHAR)),
+-                    new com.legend.sql.SqlSource.Subselect(value, inner, null));
+-            SqlExpr spelled = print(column(outer, "v", SqlType.Scalar.DOUBLE),
+-                    column(outer, "t", SqlType.Scalar.VARCHAR));
+-            return new SqlExpr.ScalarSubquery(select(List.of(projection(spelled, "p", SqlType.Scalar.VARCHAR)),
+-                    new com.legend.sql.SqlSource.Subselect(texted, outer, null)));
+-        }
+-
+-        private static boolean isDouble(SqlExpr x) {
+-            return x.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == SqlType.Scalar.DOUBLE;
+-        }
+-
+-        private static com.legend.sql.SqlSelect.Projection projection(SqlExpr e, String name, SqlType type) {
+-            return new com.legend.sql.SqlSelect.Projection(e, name, new com.legend.sql.OutputCol(name, type, true));
+-        }
+-
+-        private static com.legend.sql.SqlSelect select(List<com.legend.sql.SqlSelect.Projection> projections,
+-                com.legend.sql.SqlSource from) {
+-            return new com.legend.sql.SqlSelect(projections, false, from, null, List.of(), null, null, List.of(), null,
+-                    null, List.of());
+-        }
+-
+-        private static SqlExpr column(String alias, String name, SqlType type) {
+-            return SqlExpr.Column.of(alias, name, type, true, com.legend.sql.OutputCol.Origin.DERIVED);
+-        }
+-    }
+-
+-    /** Lite's canonical text of the double {@code x}, as SQL over its text. */
+-    static SqlExpr of(SqlExpr x) {
+-        return print(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
+-    }
+-
+-    /**
+-     * Lite's canonical text of the double {@code x} whose text is {@code s}: {@code s} read where it is written, the value
+-     * where it is (a dialect that binds the two once reads them as columns; {@code ofText}, a pass-through to here whose
+-     * function parameter had gone, deleted 2026-10-28: the phase 3 audit's nit, the start page's S1.4 item 4).
+-     * Lite writes a Float as its MINIMAL decimal repr: DuckDB's shortest round-trip VARCHAR cast already matches
+-     * ('1.5', '2.0') EXCEPT where it chooses exponent notation -- those re-render plain through a DECIMAL(38,18) cast
+-     * with trailing zeros trimmed (and a bare trailing dot restored to '.0'). Magnitudes outside DECIMAL(38,18) keep the
+-     * exponent form.
+-     */
+-    private static SqlExpr print(SqlExpr x, SqlExpr s) {
+-        // FRACTION-FREE values render through HUGEINT — exact plain digits
+-        // for the whole [1e16, 1e38) band where the DECIMAL(38,18) cast
+-        // fabricates garbage (audit: 1e18 printed ...042.42...); every
+-        // double >= 2^53 is fraction-free, so all large magnitudes take
+-        // this branch.
+-        // the exponent marker in either case: DuckDB and Postgres write 2.5e-07, H2 1.5E15 (the output matrix,
+-        // docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3 gap 2, 2026-10-18)
+-        SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
+-                SqlExpr.Call.of(SqlFn.STRPOS, SqlExpr.Call.of(SqlFn.LOWER, s), new SqlExpr.StringLit("e")),
+-                new SqlExpr.IntLit(0));
+-        SqlExpr fractionFree = SqlExpr.Call.of(SqlFn.AND,
+-                SqlExpr.Call.of(SqlFn.EQUAL, x, SqlExpr.Call.of(SqlFn.FLOOR_RAW, x)),
+-                SqlExpr.Call.of(SqlFn.LESS,
+-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e38)));
+-        // The DECIMAL path stays only where the scale-18 cast is exact for
+-        // short-decimal values: fractional magnitudes in [1e-17, 2^53)
+-        // (below 1e-17 the scale rounds — 1.5e-18 gained a digit; audit).
+-        SqlExpr inRange = SqlExpr.Call.of(SqlFn.AND,
+-                SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
+-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-17)),
+-                SqlExpr.Call.of(SqlFn.LESS,
+-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(9.007199254740992e15)));
+-        // each cast reads the value only where its branch is taken (NULL elsewhere, never read): a database that
+-        // computes every branch of a CASE -- ClickHouse, whose constant folding casts a constant whatever its guard --
+-        // otherwise failed the cast of a value the branch never takes (cosh(-100), 1.3E43, out of Decimal(38,18):
+-        // DECIMAL_OVERFLOW; step 9, 2026-10-19, the ClickHouse lane on the plan route)
+-        SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
+-                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(fractionFree, x), SqlType.Scalar.HUGEINT, SqlExpr.Reason.PRINT),
+-                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
+-                new SqlExpr.StringLit(".0"));
+-        SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
+-                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(inRange, x), new SqlType.Decimal(38, 18), SqlExpr.Reason.PRINT),
+-                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
+-                new SqlExpr.StringLit("0"));
+-        SqlExpr fixed = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+-                SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
+-                SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
+-                plain, SqlExpr.Reason.PRINT);
+-        // a whole value the database writes without a fraction (Postgres's double 3, an integer slot a Float
+-        // declares) takes .0: a Float's text always has a fraction (the output layer's step 5, 2026-10-18)
+-        SqlExpr bare = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, hasExp),
+-                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit(".")),
+-                        new SqlExpr.IntLit(0)));
+-        List<SqlExpr.Case.When> whens = new java.util.ArrayList<>(nonFinite(s));
+-        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain));
+-        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed));
+-        whens.add(new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0"))));
+-        return new SqlExpr.Case(whens, s, SqlExpr.Reason.PRINT);
+-    }
+-
+-    /** {@code x} where {@code guard} holds, else NULL. */
+-    private static SqlExpr onlyWhere(SqlExpr guard, SqlExpr x) {
+-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(guard, x)), null, SqlExpr.Reason.PRINT);
+-    }
+-
+-    /** The text of a double that is no number, by Java's names ({@code NaN}, {@code Infinity},
+-     *  {@code -Infinity}), from the database's own: DuckDB writes {@code nan}, {@code inf} and {@code -inf}, H2 and
+-     *  Postgres write Java's (the channel A shadow run of 2026-10-18 found {@code acos(2.0)} printed {@code nan.0};
+-     *  the plan path program's step 7). The spelled tokens are compared, nothing computed (docs/WORLD_MAP.md). */
+-    private static List<SqlExpr.Case.When> nonFinite(SqlExpr s) {
+-        SqlExpr lower = SqlExpr.Call.of(SqlFn.LOWER, s);
+-        return List.of(
+-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("nan"), text("-nan")), text("NaN")),
+-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("inf"), text("+inf"), text("infinity")),
+-                        text("Infinity")),
+-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("-inf"), text("-infinity")),
+-                        text("-Infinity")));
+-    }
+-
+-    private static SqlExpr text(String s) {
+-        return new SqlExpr.StringLit(s);
+-    }
+-
+-}
+diff --git a/core/src/main/java/com/legend/sql/dialect/H2.java b/core/src/main/java/com/legend/sql/dialect/H2.java
+index 219fa91..6ab8e27 100644
+--- a/core/src/main/java/com/legend/sql/dialect/H2.java
++++ b/core/src/main/java/com/legend/sql/dialect/H2.java
+@@ -701,7 +701,6 @@ public class H2 extends AnsiSqlRenderer {
+             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+             case ROUND_RAW -> writer.function("ROUND", c.args());
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             // a Float's full-precision text: H2's own cast (Java's shortest digits, which read back)
+             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+diff --git a/core/src/main/java/com/legend/sql/dialect/MariaDb.java b/core/src/main/java/com/legend/sql/dialect/MariaDb.java
+index df7a33c..48a7920 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MariaDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MariaDb.java
+@@ -1990,7 +1990,6 @@ public class MariaDb extends AnsiSqlRenderer {
+             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads
+             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
+             // mixed list, measured 2026-10-11)
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             // a Float's full-precision text: the database's own CAST AS CHAR (its shortest digits), never laid out
+             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "CHAR");
+diff --git a/core/src/main/java/com/legend/sql/dialect/MongoDb.java b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+index 4038cf2..1ac5cfe 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MongoDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+@@ -1258,7 +1258,6 @@ public class MongoDb extends AnsiSqlRenderer {
+                     + " no JSON text operator");
+             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
+             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
+             // a Float's full-precision text: the pipeline's own $toString (1e+20, 2: numberText's javadoc), never
+             // laid out
+diff --git a/core/src/main/java/com/legend/sql/dialect/MySql.java b/core/src/main/java/com/legend/sql/dialect/MySql.java
+index 4072831..991035f 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MySql.java
++++ b/core/src/main/java/com/legend/sql/dialect/MySql.java
+@@ -121,7 +121,7 @@ public class MySql extends MariaDb {
+                  LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE,
+                  LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
+                  NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER, STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
+-                 ROUND_HALF_UP, ROUND_RAW, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_SHORTEST_TEXT, FLOAT_TO_TEXT, FLOAT_FULL_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT, VARIANT_ELEMENTS,
++                 ROUND_HALF_UP, ROUND_RAW, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_TO_TEXT, FLOAT_FULL_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT, VARIANT_ELEMENTS,
+                  VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
+         };
+     }
+diff --git a/core/src/main/java/com/legend/sql/dialect/Postgres.java b/core/src/main/java/com/legend/sql/dialect/Postgres.java
+index 26d7952..fbfd0e7 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Postgres.java
++++ b/core/src/main/java/com/legend/sql/dialect/Postgres.java
+@@ -829,7 +829,6 @@ public class Postgres extends AnsiSqlRenderer {
+             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
+             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");   // its own cast: SqlFn's javadoc
+             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+diff --git a/core/src/main/java/com/legend/sql/dialect/SQLite.java b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+index 733c623..059ce4e 100644
+--- a/core/src/main/java/com/legend/sql/dialect/SQLite.java
++++ b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+@@ -257,7 +257,7 @@ public class SQLite extends AnsiSqlRenderer {
+             SqlFn.LIST_MIN, SqlFn.LIST_MAX, SqlFn.LIST_AVG, SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_SORT,
+             SqlFn.LIST_SORT_DESC, SqlFn.LIST_TAIL, SqlFn.LIST_INIT, SqlFn.RANGE_FN, SqlFn.LIST_PRODUCT,
+             SqlFn.LIST_SLICE, SqlFn.REPEAT_VALUE, SqlFn.LIST_BOOL_AND, SqlFn.LIST_BOOL_OR, SqlFn.ALL_DISTINCT,
+-            SqlFn.PARSE_DATE, SqlFn.LIST_REVERSE, SqlFn.DECIMAL_TO_TEXT, SqlFn.FLOAT_SHORTEST_TEXT,
++            SqlFn.PARSE_DATE, SqlFn.LIST_REVERSE, SqlFn.DECIMAL_TO_TEXT,
+             // a lambda's operations and a map of entries, over json_each (the census builds no lambda, no entry list)
+             SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM, SqlFn.LIST_EXISTS, SqlFn.LIST_FOR_ALL, SqlFn.LIST_REDUCE,
+             SqlFn.MAP_FROM_ENTRIES));
+@@ -1709,7 +1709,6 @@ public class SQLite extends AnsiSqlRenderer {
+             case FLOOR -> bigintOf(writer, "floor", c.args());
+             case SIGN -> bigintOf(writer, "sign", c.args());
+             case PI -> writer.append("pi()");
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             // a Float's full-precision text: SQLite's own printf at seventeen significant digits (its cast writes
+             // fifteen), the NULL kept
+diff --git a/core/src/main/java/com/legend/sql/dialect/Snowflake.java b/core/src/main/java/com/legend/sql/dialect/Snowflake.java
+index 900626e..8ea1df9 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Snowflake.java
++++ b/core/src/main/java/com/legend/sql/dialect/Snowflake.java
+@@ -195,13 +195,6 @@ public class Snowflake extends AnsiSqlRenderer {
+                 + " MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, STRICT_JSON_OUTPUT = TRUE");
+     }
+ 
+-    /** {@inheritDoc} Spelled here ({@link #floatShortestText}): the portable spelling reads this dialect's long double text
+-     *  some nine times (Pure's print form). */
+-    @Override
+-    protected boolean spellsFloatShortestText() {
+-        return true;
+-    }
+-
+     /** A dynamic pivot is discovered first: the static form is emulated (PivotAsGroupBy). */
+     // the probe plan's facts (2026-10-20): Snowflake: READ COMMITTED only, each statement its own snapshot; no result column limit documented
+     @Override
+@@ -1418,10 +1411,6 @@ public class Snowflake extends AnsiSqlRenderer {
+             case DIVIDE -> divideAsDoubles(writer, c.args());
+             case MOD -> modFloored(writer, c.args());
+             case REM -> modTruncated(writer, c.args());
+-            // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
+-            // it, which is exact, as the portable spelling read it
+-            case FLOAT_SHORTEST_TEXT -> isDouble(a.get(0)) ? floatShortestText(writer, a.get(0))
+-                    : floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
+             // a Float's full-precision text: Snowflake's own casts, never laid out (floatFullText)
+             case FLOAT_FULL_TEXT -> floatFullText(writer, a.get(0));
+@@ -1890,34 +1879,6 @@ public class Snowflake extends AnsiSqlRenderer {
+                 + ") END"));
+     }
+ 
+-    /**
+-     * Pure's print form of a Float ({@link SqlFn#FLOAT_SHORTEST_TEXT}), spelled here from {@link #floatText}'s digits, the value
+-     * read once: what the portable spelling (dialect/FloatShortestText) makes of {@link #floatText}'s text, which it read
+-     * nine times (Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB, 46 KB of it the text nine times, measured
+-     * 2026-10-22). The text where it is plain (an exponent from -4 to 15); past it, a whole value's exact digits under
+-     * 10^38 with {@code .0}; a value from 10^-17 below 10^-4 at eighteen places with its trailing zeros trimmed; else
+-     * the text with its exponent. NaN and the infinities are Pure's names, which are Java's.
+-     */
+-    private SqlWriter floatShortestText(SqlWriter writer, SqlExpr v) {
+-        return writer.piece(shortestDigits(v, d -> {
+-            String x = d.value();
+-            String fractionFree = x + " = FLOOR(" + x + ") AND ABS(" + x + ") < 1e38";
+-            String inRange = "ABS(" + x + ") >= 1e-17 AND ABS(" + x + ") < 9.007199254740992e15";
+-            String fixed = "RTRIM(CAST(CAST(IFF(" + inRange + ", " + x + ", NULL) AS NUMBER(38, 18)) AS VARCHAR), '0')";
+-            return "CASE WHEN " + nonFinite(x) + " THEN " + javaNonFinite(x) + " WHEN " + x + " = 0 THEN '0.0' WHEN "
+-                    + d.exponent() + " BETWEEN -4 AND 15 THEN " + d.sign() + " || " + d.unfolded() + " WHEN "
+-                    + fractionFree + " THEN CAST(CAST(IFF(" + fractionFree + ", " + x + ", NULL) AS NUMBER(38, 0)) AS"
+-                    + " VARCHAR) || '.0' WHEN " + inRange + " THEN IFF(ENDSWITH(" + fixed + ", '.'), " + fixed + " || '0', "
+-                    + fixed + ") ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH(" + d.digits()
+-                    + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent() + ") END";
+-        }));
+-    }
+-
+-    /** Java's name of the non-finite double {@code x}: Snowflake's NaN equals itself and exceeds every number. */
+-    private static String javaNonFinite(String x) {
+-        return "CASE WHEN " + x + " = 'NaN'::FLOAT THEN 'NaN' WHEN " + x + " > 0 THEN 'Infinity' ELSE '-Infinity' END";
+-    }
+-
+     /** A Float's shortest digits as {@link #shortestDigits} reads them: the value (for NaN and the infinities), its
+      *  sign ({@code '-'} or empty), its significant digits (no sign, no point, no trailing zero; empty for a zero) and
+      *  the exponent of the first. */
+@@ -2014,7 +1975,7 @@ public class Snowflake extends AnsiSqlRenderer {
+      * {@code 1.0000000000000001E-01}), double-rounding the seventeenth digit of 80 of the 1,946 (pre-rounded to
+      * eighteen at run time) though each still reads back; that cast raises on NaN and the infinities, which take the
+      * plain cast. The DECFLOAT cast reads a non-finite value as NULL ({@code IFF}), since a CASE's branches may all be
+-     * evaluated here ({@link #floatShortestText}'s rule; the review of the slice, 2026-11-25). NULL stays NULL.
++     * evaluated here (the review of the slice, 2026-11-25). NULL stays NULL.
+      * Unmeasured as this node until the Snowflake lane runs (B3's (B), agreed 2026-11-25).
+      */
+     private SqlWriter floatFullText(SqlWriter writer, SqlExpr x) {
+diff --git a/core/src/main/java/com/legend/sql/dialect/Trino.java b/core/src/main/java/com/legend/sql/dialect/Trino.java
+index 186a523..c6f50eb 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Trino.java
++++ b/core/src/main/java/com/legend/sql/dialect/Trino.java
+@@ -954,7 +954,6 @@ public class Trino extends AnsiSqlRenderer {
+             case TODAY -> writer.append("current_date");
+             // Pure's divide is a Float division: both operands DOUBLE
+             case DIVIDE -> divideAsDoubles(writer, c.args());
+-            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+             // a Float's full-precision text: Trino's own cast, never re-spelled (always its exponent form, 1.5E0)
+             case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+diff --git a/core/src/test/java/com/legend/EdgeOnlyNodesCensusTest.java b/core/src/test/java/com/legend/EdgeOnlyNodesCensusTest.java
+index 0df3c73..314f28e 100644
+--- a/core/src/test/java/com/legend/EdgeOnlyNodesCensusTest.java
++++ b/core/src/test/java/com/legend/EdgeOnlyNodesCensusTest.java
+@@ -38,7 +38,8 @@ class EdgeOnlyNodesCensusTest {
+ 
+     private static final Path MAIN = Path.of("core/src/main/java/com/legend");
+ 
+-    /** The edge-only members (FLOAT_PRINT was renamed FLOAT_SHORTEST_TEXT, a product node, 2026-11-17, census B9). */
++    /** The edge-only members (FLOAT_PRINT was renamed FLOAT_SHORTEST_TEXT, a product node, 2026-11-17, census B9; that
++     *  node deleted 2026-11-26, the edition program's step 8: the edge composes its text at lowering). */
+     static final List<SqlFn> EDGE_ONLY = List.of();   // DATETIME_PRINT gone 2026-11-17 (census B12: the edge composes it)
+ 
+     /** Each member's emitting sites, "file (under core/src/main/java/com/legend)" -> occurrences in code, measured on
+diff --git a/core/src/test/java/com/legend/SqlFnSortedTest.java b/core/src/test/java/com/legend/SqlFnSortedTest.java
+index 796b33a..94e95a5 100644
+--- a/core/src/test/java/com/legend/SqlFnSortedTest.java
++++ b/core/src/test/java/com/legend/SqlFnSortedTest.java
+@@ -73,7 +73,7 @@ class SqlFnSortedTest {
+             "CONCAT_WS", "COS", "COSH", "COT", "CURRENT_USER_FN", "DATETIME_CANON_TEXT", "DATETIME_TO_TEXT",
+             "DATE_AT_TIME", "DATE_DIFF", "DATE_TRUNC", "DATE_TRUNC_DAY", "DAYNAME", "DECIMAL_TO_TEXT",
+             "DECODE_BASE64", "DEGREES", "DIVIDE", "ENCODE_BASE64", "ENDS_WITH", "EPOCH_MS", "EPOCH_NS",
+-            "EPOCH_SECONDS", "EQUAL", "ERROR", "EXP", "EXTRACT", "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT",
++            "EPOCH_SECONDS", "EQUAL", "ERROR", "EXP", "EXTRACT", "FLOAT_TO_TEXT",
+             // FLOAT_FULL_TEXT added 2026-11-25 (B2b, toCSV's Float cell exact; the user's ruling "okay make exact" and
+             // B3's (B) the same day, under the standing rule that a new function only product code writes is sorted
+             // PRODUCT with a dated note and reported): the database's own full-precision text of a double, written by
+@@ -180,6 +180,10 @@ class SqlFnSortedTest {
+     // of COALESCE, GREATER, IS_NULL, OR, REPLACE and STRPOS (and of the aggregate STRING_AGG, BOTH_AGG) -- a relation's
+     // toString is lite's own text, computed by the database, the user's rulings of 2026-11-19 ~18:05 and ~18:36 and the
+     // orchestrator's go of 2026-11-24: the direct, measured cost of the ruled change, done and reported)
++    // (2026-11-26, the edition program's step 8, slice 1, a shrink: sql.dialect.FloatShortestText deleted with the node
++    // FLOAT_SHORTEST_TEXT, which only the edge wrote -- out of ABS, AND, CONCAT, EQUAL, GREATER, GREATER_EQUAL, IN, LESS,
++    // LOWER, NOT and RTRIM's product writers; the edge composes legend-pure's print of a Float from these at lowering,
++    // edge.EdgePureOnlyTexts)
+     static final Map<String, Set<String>> BOTH_WRITERS = Map.ofEntries(
+             // the product's lowering and the edge's compositions (upstream's texts, its plans, its renderings) each
+             // build calls of these, each with its product writers' top classes (the review of f788dd3230: names alone
+@@ -188,8 +192,7 @@ class SqlFnSortedTest {
+             // legend-pure's CoreHelper.newDate keeps it)
+             Map.entry("ABS", Set.of(
+                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.MixedEncoding",
+-                    "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
+-                    "com.legend.sql.dialect.FloatShortestText")),
++                    "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql")),
+             // re-measured 2026-11-18 on d-int10 5f83349087: the EXISTS decomposition's writer is sql.ExistsJoins, not
+             // lowering.ExistsJoinForm (F's J19, a3b8f3f3: ClickHouse decomposes the EXISTS it cannot correlate at render)
+             // in AND, EQUAL, IS_NOT_NULL, IS_NULL and NOT; REGEXP_REPLACE joins (E-SQL's J2, train 9: the goldens' '}{'
+@@ -209,8 +212,7 @@ class SqlFnSortedTest {
+                     "com.legend.lowering.NullSemantics", "com.legend.lowering.RelationPredicates",
+                     "com.legend.lowering.Scalars", "com.legend.lowering.SqlPostProcessors",
+                     "com.legend.lowering.TaggedLists", "com.legend.lowering.VerdictSql",
+-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FloatShortestText",
+-                    "com.legend.sql.dialect.MongoDbPipeline", "com.legend.sql.dialect.OuterJoinResidualsAsMatches",
++                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.MongoDbPipeline", "com.legend.sql.dialect.OuterJoinResidualsAsMatches",
+                     "com.legend.sql.dialect.OuterJoinSubqueryFilters", "com.legend.sql.dialect.SelectMerge",
+                     "com.legend.sql.dialect.WholePartitionOrderedSets",
+                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated",
+@@ -238,8 +240,7 @@ class SqlFnSortedTest {
+                     "com.legend.lowering.SnapshotEnvelope", "com.legend.lowering.ValueCollections",
+                     "com.legend.lowering.VerdictSql", "com.legend.planner.PlanEnv",
+                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CellTexts",
+-                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.FloatShortestText",
+-                    "com.legend.testdatagen.TestDataPlanner")),
++                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.testdatagen.TestDataPlanner")),
+             Map.entry("DATETIME_TO_TEXT", Set.of(
+                     "com.legend.lowering.Styled",
+                     "com.legend.sql.dialect.DateTimeText", "com.legend.testdatagen.LitePrinting")),
+@@ -268,12 +269,9 @@ class SqlFnSortedTest {
+                     "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql",
+                     "com.legend.sql.DecodeShapes", "com.legend.sql.EnumValueTables",
+                     "com.legend.sql.dialect.AsOfAsPick", "com.legend.sql.dialect.CarrierStrategies",
+-                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.FloatShortestText",
+-                    "com.legend.sql.dialect.LateralExplodeToUnion",
++                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.LateralExplodeToUnion",
+                     "com.legend.sql.dialect.OuterJoinResidualsAsMatches", "com.legend.sql.dialect.PivotAsGroupBy",
+                     "com.legend.testdatagen.TestDataPlanner")),
+-            Map.entry("FLOAT_SHORTEST_TEXT", Set.of(
+-                    "com.legend.sql.dialect.FloatShortestText")),
+             Map.entry("FLOAT_TO_TEXT", Set.of("com.legend.lowering.LiteralSpelling")),
+             Map.entry("GREATER", Set.of(
+                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
+@@ -285,18 +283,17 @@ class SqlFnSortedTest {
+                     "com.legend.lowering.MixedEncoding", "com.legend.lowering.RelationPredicates",
+                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
+                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
+-                    "com.legend.sql.dialect.FloatShortestText", "com.legend.sql.dialect.FrameGuard",
++                    "com.legend.sql.dialect.FrameGuard",
+                     "com.legend.testdatagen.TestDataPlanner")),
+             Map.entry("GREATER_EQUAL", Set.of(
+                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.DateCtorRule",
+                     "com.legend.lowering.DateShifts", "com.legend.lowering.KeyedCounts",
+                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
+                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
+-                    "com.legend.sql.dialect.FloatShortestText",
+                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated", "com.legend.testdatagen.TestDataPlanner")),
+             Map.entry("IN", Set.of(
+                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.Scalars",
+-                    "com.legend.sql.EnumValueTables", "com.legend.sql.dialect.FloatShortestText")),
++                    "com.legend.sql.EnumValueTables")),
+             Map.entry("IS_NOT_NULL", Set.of(
+                     "com.legend.lowering.CheckedEnvelope", "com.legend.lowering.CollectionLanes",
+                     "com.legend.sql.ExistsJoins", "com.legend.lowering.Fold",
+@@ -324,8 +321,7 @@ class SqlFnSortedTest {
+                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.KeyedCounts",
+                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
+                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
+-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FloatShortestText",
+-                    "com.legend.sql.dialect.FoldsAsRecursiveCtes", "com.legend.sql.dialect.FrameGuard",
++                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FoldsAsRecursiveCtes", "com.legend.sql.dialect.FrameGuard",
+                     "com.legend.testdatagen.TestDataPlanner")),
+             // (DateCtorRule joins 2026-11-21, the BE audit 2's S2: a fractional second's whole part below 0 is -1 or less)
+             Map.entry("LESS_EQUAL", Set.of(
+@@ -347,7 +343,7 @@ class SqlFnSortedTest {
+             // isNumeric, lower(x) = upper(x), is the edge's (EdgeLoweringForms); the product's writers keep theirs
+             Map.entry("LOWER", Set.of(
+                     "com.legend.lowering.Scalars",
+-                    "com.legend.sql.dialect.FloatShortestText", "com.legend.testdatagen.TestDataPlanner")),
++                    "com.legend.testdatagen.TestDataPlanner")),
+             Map.entry("LPAD", Set.of(
+                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
+                     "com.legend.lowering.SnapshotEnvelope", "com.legend.sql.dialect.StringCountsAsInt")),
+@@ -360,7 +356,7 @@ class SqlFnSortedTest {
+                     "com.legend.lowering.RelationPredicates", "com.legend.lowering.Scalars",
+                     "com.legend.lowering.TaggedLists", "com.legend.lowering.VerdictSql",
+                     "com.legend.sql.EnumValueTables", "com.legend.sql.dialect.CarrierStrategies",
+-                    "com.legend.sql.dialect.FloatShortestText", "com.legend.sql.dialect.WholePartitionOrderedSets",
++                    "com.legend.sql.dialect.WholePartitionOrderedSets",
+                     "com.legend.testdatagen.TestDataPlanner")),
+             // NOT_EQUAL: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
+             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
+@@ -392,7 +388,7 @@ class SqlFnSortedTest {
+             Map.entry("RTRIM", Set.of(
+                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.LiteralSpelling",
+                     "com.legend.lowering.Scalars", "com.legend.lowering.SnapshotEnvelope",
+-                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.FloatShortestText")),
++                    "com.legend.sql.dialect.DateTimeCanonText")),
+             Map.entry("STRFTIME", Set.of(
+                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.Fold",
+                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
+diff --git a/core/src/test/java/com/legend/exec/MongoDbPlanTest.java b/core/src/test/java/com/legend/exec/MongoDbPlanTest.java
+index 9920f61..a761b76 100644
+--- a/core/src/test/java/com/legend/exec/MongoDbPlanTest.java
++++ b/core/src/test/java/com/legend/exec/MongoDbPlanTest.java
+@@ -409,18 +409,17 @@ class MongoDbPlanTest {
+             spelled.put("text of hugeint(1e20) + '.0'", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                     text(new com.legend.sql.SqlExpr.Cast(big, com.legend.sql.SqlType.Scalar.HUGEINT, com.legend.sql.SqlExpr.Reason.USER)),
+                     new com.legend.sql.SqlExpr.StringLit(".0")));
+-            // the product's text of a Float (FLOAT_TO_TEXT: six decimals trimmed, S311; phase D's D1.2, 2026-11-15) and
+-            // legend-pure's print form (FLOAT_SHORTEST_TEXT, the judges' and the edge's)
++            // the product's text of a Float (FLOAT_TO_TEXT: six decimals trimmed, S311; phase D's D1.2, 2026-11-15).
++            // (legend-pure's print form, the node FLOAT_SHORTEST_TEXT, was measured here until 2026-11-26: the node is
++            // deleted, the edition program's step 8, slice 1 -- that text is the compatibility edge's alone, composed
++            // from the product's nodes, edge.EdgePureOnlyTexts; the casts it reads are spelled above)
+             spelled.put("the product's text of 1e20", com.legend.lowering.LiteralSpelling.floatPrint(big));
+-            spelled.put("Pure's print of 1e20", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT, big));
+             spelled.put("text of 2.0", text(new com.legend.sql.SqlExpr.FloatLit(2.0)));
+             spelled.put("text of 1.5e-8", text(new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
+             spelled.put("text of decimal(38,18) of 1.5e-8", text(new com.legend.sql.SqlExpr.Cast(
+                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8), new com.legend.sql.SqlType.Decimal(38, 18), com.legend.sql.SqlExpr.Reason.USER)));
+             spelled.put("the product's text of 1.5e-8", com.legend.lowering.LiteralSpelling.floatPrint(
+                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
+-            spelled.put("Pure's print of 1.5e-8", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT,
+-                    new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
+             // toCSV's Float cell (SqlFn.FLOAT_FULL_TEXT, 2026-11-25; the slice's review): the pipeline's own $toString,
+             // which must read back as the very double
+             double[] full = {1e20, 1.5e-8, 2.0, 0.30000000000000004, 123456789.12345679, -0.04999999999999999, 1e-300};
+@@ -452,8 +451,6 @@ class MongoDbPlanTest {
+             // as 2.0"; B2a, 2026-11-24)
+             assertEquals("100000000000000000000.0", got.get("the product's text of 1e20"));
+             assertEquals("0.0", got.get("the product's text of 1.5e-8"));
+-            assertEquals("100000000000000000000.0", got.get("Pure's print of 1e20"));
+-            assertEquals("0.000000015", got.get("Pure's print of 1.5e-8"));
+         }
+     }
+ 
+diff --git a/core/src/test/java/com/legend/integration/EdgeSpellingHookTest.java b/core/src/test/java/com/legend/integration/EdgeSpellingHookTest.java
+index f347f44..3684fd1 100644
+--- a/core/src/test/java/com/legend/integration/EdgeSpellingHookTest.java
++++ b/core/src/test/java/com/legend/integration/EdgeSpellingHookTest.java
+@@ -157,8 +157,9 @@ class EdgeSpellingHookTest {
+      *  S3: since B1 a raise is the product's site on every door, and its last use, a checked graph's defect cell, wrote
+      *  the one catalog's sentence byte for byte; no edge dialect overrides it.) */
+ 
+-    /** D1.2's arms (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of a Float
+-     *  ({@code FLOAT_SHORTEST_TEXT}, edge.PurePrintForms) where the product writes its six decimals. */
++    /** D1.2's arms (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-engine's in-query cast of a Float
++     *  (edge.PurePrintForms; until Phase 5, 2026-11-16, legend-pure's print form) where the product writes its six
++     *  decimals. */
+     private static final Set<String> D1_2 = Set.of("spellingPasses", "floatToText");
+ 
+     /** D1.2's arms and MongoDB's {@code dateTimeFormat} (2026-11-15): legend-pure's {@code +0000} text of a date-time
+diff --git a/core/src/test/java/com/legend/integration/PureOnlyTextTest.java b/core/src/test/java/com/legend/integration/PureOnlyTextTest.java
+index 877a194..55bd1b6 100644
+--- a/core/src/test/java/com/legend/integration/PureOnlyTextTest.java
++++ b/core/src/test/java/com/legend/integration/PureOnlyTextTest.java
+@@ -50,6 +50,49 @@ class PureOnlyTextTest {
+         }
+     }
+ 
++    /**
++     * legend-pure's {@code %r} and {@code toRepresentation} of a Float at the edge (the edition program's step 8, slice
++     * 1, 2026-11-26): the edge composes the text at lowering from the product's own nodes
++     * ({@code edge.EdgePureOnlyTexts}); until then it wrote the node FLOAT_SHORTEST_TEXT, which the product's dialects
++     * spelled. Each answer was measured on the commit before the move, on every lane this test runs on, and is the same
++     * after it. Inside the text's windows it is legend-pure's print on every lane. Outside them (below 1e-17, from 1e38)
++     * the database's own exponent form stays, which differs by lane in its case, its sign and its {@code .0}: the test
++     * holds each to the forms measured. The product refuses both calls by name. (A whole value past 64 bits is left
++     * out: one lane's integer does not hold it, and answered a wrong text before the move and after it; the slice's
++     * record names it.)
++     */
++    @Test
++    void theEdgeWritesPuresRepresentationOfAFloat() throws Exception {
++        TestBackend backend = LaneFloor.backend();
++        String model = backend.withStorelessRuntime("Class s::P { name: String[1]; }\n");
++        try (Connection c = backend.open()) {
++            Exception refused = assertThrows(Exception.class,
++                    () -> Lean.run(model, "|toRepresentation(1.5 * 2.0)", StorelessRuntime.RUNTIME, c));
++            assertTrue(String.valueOf(refused.getMessage()).contains("compatibility edge's"), refused.toString());
++        }
++        java.util.Map<String, List<String>> expected = new java.util.LinkedHashMap<>();
++        expected.put("|format('%r', [1.5])", List.of("1.5"));
++        expected.put("|format('%r', [(1.5 * 2.0)])", List.of("3.0"));
++        expected.put("|format('a %r b %r', [(1.0/3.0), 2])", List.of("a 0.3333333333333333 b 2"));
++        expected.put("|toRepresentation(3.0 * 1.0)", List.of("3.0"));
++        expected.put("|toRepresentation(0.1 + 0.2)", List.of("0.30000000000000004"));
++        expected.put("|toRepresentation(1.5e-8)", List.of("0.000000015"));
++        expected.put("|toRepresentation(1.5e-8 * 1.0)", List.of("0.000000015"));
++        expected.put("|toRepresentation(-2.5e15 * 10.0)", List.of("-25000000000000000.0"));
++        expected.put("|toRepresentation(123456789012345680.0 * 1.0)", List.of("123456789012345680.0"));
++        // by lane: the last digit of a root as each database prints its double, and outside the windows each database's
++        // own exponent form
++        expected.put("|format('%r', [sqrt(2.0)])", List.of("1.4142135623730951", "1.4142135623730952"));
++        expected.put("|toRepresentation(1.0e-20 * 1.0)", List.of("1e-20", "1.0E-20", "1.0e-20"));
++        expected.put("|toRepresentation(1.0e40 * 1.0)", List.of("1e+40", "1.0E40", "1.0e+40"));
++        for (var e : expected.entrySet()) {
++            String got = scalar(Lean.runInStyle(model, e.getKey(), StorelessRuntime.RUNTIME, backend,
++                    com.legend.edge.PureText.UPSTREAM));
++            assertTrue(e.getValue().contains(got), backend.name() + ": " + e.getKey() + " answered " + got
++                    + ", expected one of " + e.getValue());
++        }
++    }
++
+     /** An assert in a lambda body with no message of its caller's (item 3's S6, 2026-11-23; the user's Q-C = C1, Q-S6
+      *  and Q15 = A): it raises its assert kind, worded by the one catalog on every route -- the product's and the
+      *  compatibility edge's the same sentence (until then the edge wrote legend-pure's "Assert failed", the user's R1 of
+diff --git a/core/src/test/java/com/legend/sql/dialect/BigQueryDialectTest.java b/core/src/test/java/com/legend/sql/dialect/BigQueryDialectTest.java
+index 8bc4e44..8edbdbc 100644
+--- a/core/src/test/java/com/legend/sql/dialect/BigQueryDialectTest.java
++++ b/core/src/test/java/com/legend/sql/dialect/BigQueryDialectTest.java
+@@ -59,22 +59,9 @@ class BigQueryDialectTest {
+         assertFalse(sql.contains("`t`.`x` AS STRING"), sql);
+     }
+ 
+-    /** A Float's print form reads its text once (2026-10-22): the value and its text bound in a one-row derived table
+-     *  under a scalar subquery, as the canon's binding; the portable spelling reads the text nine times, each read its
+-     *  own subquery here. (legend-engine's print form, and its served statement of 321 KB for {@code 1.5 + 2.25}, went
+-     *  with the database-written wires, 2026-10-27.) */
+-    @Test
+-    void aFloatsPrintFormsReadItsTextOnce() {
+-        for (SqlFn fn : List.of(SqlFn.FLOAT_SHORTEST_TEXT)) {
+-            String sql = render(SqlExpr.Call.of(fn, X), null);
+-            // the double's text once (its own BIGNUMERIC read; the print form's HUGEINT and DECIMAL casts are BIGNUMERIC
+-            // here too)
+-            assertTrue(sql.split("SAFE_CAST\\(`__fv` AS BIGNUMERIC\\)", -1).length - 1 == 1, fn + ": " + sql);
+-            assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, fn + ": " + sql);
+-            assertTrue(sql.contains("AS `__fp0`"), fn + ": " + sql);
+-            assertTrue(sql.length() < 4_000, fn + ": " + sql.length() + ": " + sql);
+-        }
+-    }
++    // (aFloatsPrintFormsReadItsTextOnce: gone 2026-11-26 with FLOAT_SHORTEST_TEXT and the readsLongTextOnce hook, the
++    // edition program's step 8, slice 1 -- legend-pure's print of a Float is the compatibility edge's alone, composed
++    // at lowering from the product's nodes, edge.EdgePureOnlyTexts)
+ 
+     /** The product's Float text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): {@code FORMAT}'s six decimals,
+      *  trimmed, BigQuery's {@code nan} and {@code inf} by Pure's names; the value read once, no derived table. */
+diff --git a/core/src/test/java/com/legend/sql/dialect/RaiseTextTest.java b/core/src/test/java/com/legend/sql/dialect/RaiseTextTest.java
+index 3482b65..8340ca2 100644
+--- a/core/src/test/java/com/legend/sql/dialect/RaiseTextTest.java
++++ b/core/src/test/java/com/legend/sql/dialect/RaiseTextTest.java
+@@ -172,7 +172,7 @@ class RaiseTextTest {
+         moved.put(new SqlExpr.RaiseText(RaiseKind.INSERT_OUT_OF_BOUNDS, List.of()),
+                 lit("add(set, index, value): index out of bounds"));
+         moved.put(new SqlExpr.RaiseText(RaiseKind.SQRT_OF_NEGATIVE, List.of(a)),
+-                cat(lit("Unable to compute sqrt of "), SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, a)));
++                cat(lit("Unable to compute sqrt of "), str(a)));
+         moved.put(new SqlExpr.RaiseText(RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(lit("[1..*]"))),
+                 lit("Cannot cast a collection of size 0 to multiplicity [1..*]"));
+         moved.put(new SqlExpr.RaiseText(RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(lit("[1]"), b)),
+diff --git a/core/src/test/java/com/legend/sql/dialect/SnowflakeDialectTest.java b/core/src/test/java/com/legend/sql/dialect/SnowflakeDialectTest.java
+index 0bcbf07..021c5fd 100644
+--- a/core/src/test/java/com/legend/sql/dialect/SnowflakeDialectTest.java
++++ b/core/src/test/java/com/legend/sql/dialect/SnowflakeDialectTest.java
+@@ -88,33 +88,14 @@ class SnowflakeDialectTest {
+     }
+ 
+     /**
+-     * A Float's print forms are spelled here, from its digits read once (2026-10-22): Pure's {@code toString} plain where
+-     * the exponent is from -4 to 15, legend-engine's text plain from -3 to 6 and with an {@code E} past it. The portable
+-     * spellings read the double's text nine times and over a thousand, each read this dialect's long text of it:
+-     * the PCT statement for {@code 1.5 + 2.25} was 48 KB and the served one 6 MB. A literal is no double here and
+-     * prints through the database's own text of it, as before.
++     * The product's text of a Float is six decimals trimmed, with no shortest-digits machinery. (Until 2026-11-26 this
++     * test also held Snowflake's own spelling of FLOAT_SHORTEST_TEXT, legend-pure's print of a Float from its digits
++     * read once: the node and that spelling are deleted, the edition program's step 8, slice 1 -- the text is the
++     * compatibility edge's alone, composed at lowering from the product's nodes, edge.EdgePureOnlyTexts.)
+      */
+     @Test
+-    void aFloatsPrintFormsAreSpelledHere_theValueReadOnce() {
++    void aFloatsTextIsSixDecimalsTrimmed_noShortestDigits() {
+         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+-        for (SqlFn fn : List.of(SqlFn.FLOAT_SHORTEST_TEXT)) {
+-            String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+-                    SqlExpr.Call.of(fn, x), "p", null)), false, new SqlSource.Table("t", "t",
+-                    List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
+-                    com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
+-            assertTrue(sql.split("\"t\"\\.\"x\"", -1).length - 1 == 1, fn + ": " + sql);
+-            assertTrue(sql.split("AS NUMBER\\(38, 28\\)", -1).length - 1 == 1, fn + ": " + sql);
+-            assertTrue(sql.length() < 8_000, fn + ": " + sql.length() + " characters: " + sql);
+-            assertFalse(sql.contains("(SELECT"), fn + ": " + sql);
+-            assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
+-            assertTrue(sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"), sql);
+-            assertTrue(sql.contains("AS NUMBER(38, 18)) AS VARCHAR), '0')"), sql);
+-            assertTrue(sql.contains("THEN 'NaN' WHEN "), sql);
+-        }
+-        String literal = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+-                SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, new SqlExpr.FloatLit(1.5)), "p", null)), false,
+-                new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
+-        assertFalse(literal.contains("NUMBER(38, 28)"), literal);
+         // the product's text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): six decimals trimmed, NaN and the
+         // infinities by name, no shortest-digits machinery
+         String product = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+diff --git a/docs/dialect-capability/README.md b/docs/dialect-capability/README.md
+index 78a7209..8ce6d1e 100644
+--- a/docs/dialect-capability/README.md
++++ b/docs/dialect-capability/README.md
+@@ -37,18 +37,18 @@ input).
+ 
+ | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
+ |---|---|---:|---:|---:|---:|---:|
+-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 83 | 83 | 50 | 18 | 34 |
+-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 76 | 132 | 8 | 18 | 41 |
+-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 96 | 114 | 6 | 18 | 44 |
+-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 85 | 126 | 5 | 18 | 44 |
+-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 71 | 133 | 12 | 18 | 41 |
+-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 98 | 111 | 7 | 18 | 42 |
+-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 148 | 68 | 0 | 18 | 50 |
+-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 67 | 142 | 7 | 18 | 42 |
+-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 59 | 150 | 7 | 18 | 44 |
+-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 55 | 153 | 8 | 18 | 43 |
+-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 55 | 153 | 8 | 18 | 43 |
+-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 201 | 15 | 18 | 201 |
++| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 83 | 82 | 50 | 18 | 33 |
++| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 76 | 131 | 8 | 18 | 40 |
++| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 96 | 113 | 6 | 18 | 43 |
++| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 85 | 125 | 5 | 18 | 43 |
++| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 71 | 132 | 12 | 18 | 40 |
++| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 98 | 110 | 7 | 18 | 41 |
++| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 148 | 67 | 0 | 18 | 49 |
++| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 67 | 141 | 7 | 18 | 41 |
++| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 59 | 149 | 7 | 18 | 43 |
++| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 55 | 152 | 8 | 18 | 42 |
++| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 55 | 152 | 8 | 18 | 42 |
++| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 200 | 15 | 18 | 200 |
+ 
+ ## Functions
+ 
+@@ -237,7 +237,6 @@ input).
+ | `TO_VARIANT` | E | E | E | E | E | E | E | E | E | E | E | E· |
+ | `BOOL_TO_TEXT` | E | E | E | E | E | E | E | S | E | E | E | E· |
+ | `DECIMAL_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+-| `FLOAT_SHORTEST_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+ | `FLOAT_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+ | `FLOAT_FULL_TEXT` | E· | E· | E· | E· | E· | E· | E· | S· | E· | E· | E· | E· |
+ | `DATETIME_TO_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – |
+diff --git a/docs/dialect-capability/functions.md b/docs/dialect-capability/functions.md
+index bf6c8c3..667190c 100644
+--- a/docs/dialect-capability/functions.md
++++ b/docs/dialect-capability/functions.md
+@@ -207,7 +207,6 @@ Database types planned with it: H2.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `castAs: VARCHAR` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -408,7 +407,6 @@ Database types planned with it: Postgres.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `castAs: VARCHAR` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -609,7 +607,6 @@ Database types planned with it: Snowflake.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `by its operands: composed / composed` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `floatFullText` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -810,7 +807,6 @@ Database types planned with it: Trino.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `CAST(… AS VARCHAR)` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `castAs: VARCHAR` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -1011,7 +1007,6 @@ Database types planned with it: BigQuery.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `castAs: STRING` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -1212,7 +1207,6 @@ Database types planned with it: Databricks.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `castAs: STRING` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -1413,7 +1407,6 @@ Database types planned with it: DuckDB.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `castAs: VARCHAR` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -1614,7 +1607,6 @@ Database types planned with it: ClickHouse.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | spelled | `toString` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | spelled | `toString` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -1815,7 +1807,6 @@ Database types planned with it: SQLite.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `exactText` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -2016,7 +2007,6 @@ Database types planned with it: MariaDB.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
+ | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `castAs: CHAR` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+@@ -2217,7 +2207,6 @@ Database types planned with it: MySQL.
+ | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
+ | `BOOL_TO_TEXT` | emulated | `textOf` | `as MariaDb` | 2 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as MariaDb` | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as MariaDb` | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as MariaDb` | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `castAs: CHAR` | `as MariaDb` | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
+@@ -2418,7 +2407,6 @@ Database types planned with it: MongoDB.
+ | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
+ | `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
+ | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
+-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
+ | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
+ | `FLOAT_FULL_TEXT` | emulated | `op1: $toString` |  | 0 |
+ | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+diff --git a/docs/dialect-capability/matrix.tsv b/docs/dialect-capability/matrix.tsv
+index 0714da4..cde6a65 100644
+--- a/docs/dialect-capability/matrix.tsv
++++ b/docs/dialect-capability/matrix.tsv
+@@ -185,7 +185,6 @@ H2	H2	call	FLOOR_RAW	spelled	floor		55
+ H2	H2	call	TO_VARIANT	emulated	variantConstruct		8
+ H2	H2	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END		2
+ H2	H2	call	DECIMAL_TO_TEXT	emulated	REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')		0
+-H2	H2	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ H2	H2	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ H2	H2	call	FLOAT_FULL_TEXT	emulated	castAs: VARCHAR		0
+ H2	H2	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -419,7 +418,6 @@ Postgres	Postgres	call	FLOOR_RAW	spelled	floor		55
+ Postgres	Postgres	call	TO_VARIANT	emulated	variantConstruct		8
+ Postgres	Postgres	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
+ Postgres	Postgres	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-Postgres	Postgres	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ Postgres	Postgres	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ Postgres	Postgres	call	FLOAT_FULL_TEXT	emulated	castAs: VARCHAR		0
+ Postgres	Postgres	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -653,7 +651,6 @@ Snowflake	Snowflake	call	FLOOR_RAW	spelled	floor		55
+ Snowflake	Snowflake	call	TO_VARIANT	emulated	variantConstruct		8
+ Snowflake	Snowflake	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
+ Snowflake	Snowflake	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-Snowflake	Snowflake	call	FLOAT_SHORTEST_TEXT	emulated	by its operands: composed / composed		0
+ Snowflake	Snowflake	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ Snowflake	Snowflake	call	FLOAT_FULL_TEXT	emulated	floatFullText		0
+ Snowflake	Snowflake	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -887,7 +884,6 @@ Trino	Trino	call	FLOOR_RAW	spelled	floor		55
+ Trino	Trino	call	TO_VARIANT	emulated	variantConstruct		8
+ Trino	Trino	call	BOOL_TO_TEXT	emulated	CAST(… AS VARCHAR)		2
+ Trino	Trino	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-Trino	Trino	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ Trino	Trino	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ Trino	Trino	call	FLOAT_FULL_TEXT	emulated	castAs: VARCHAR		0
+ Trino	Trino	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -1121,7 +1117,6 @@ BigQuery	BigQuery	call	FLOOR_RAW	spelled	FLOOR		55
+ BigQuery	BigQuery	call	TO_VARIANT	emulated	variantConstruct		8
+ BigQuery	BigQuery	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
+ BigQuery	BigQuery	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-BigQuery	BigQuery	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ BigQuery	BigQuery	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ BigQuery	BigQuery	call	FLOAT_FULL_TEXT	emulated	castAs: STRING		0
+ BigQuery	BigQuery	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -1355,7 +1350,6 @@ Databricks	Databricks	call	FLOOR_RAW	emulated	(CASE WHEN abs(…) >= 45035996273
+ Databricks	Databricks	call	TO_VARIANT	emulated	variantConstruct		8
+ Databricks	Databricks	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
+ Databricks	Databricks	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-Databricks	Databricks	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ Databricks	Databricks	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ Databricks	Databricks	call	FLOAT_FULL_TEXT	emulated	castAs: STRING		0
+ Databricks	Databricks	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -1589,7 +1583,6 @@ DuckDb	DuckDB	call	FLOOR_RAW	spelled	floor		55
+ DuckDb	DuckDB	call	TO_VARIANT	emulated	variantConstruct		8
+ DuckDb	DuckDB	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
+ DuckDb	DuckDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-DuckDb	DuckDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ DuckDb	DuckDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ DuckDb	DuckDB	call	FLOAT_FULL_TEXT	emulated	castAs: VARCHAR		0
+ DuckDb	DuckDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -1823,7 +1816,6 @@ ClickHouse	ClickHouse	call	FLOOR_RAW	spelled	floor		55
+ ClickHouse	ClickHouse	call	TO_VARIANT	emulated	variantConstruct		8
+ ClickHouse	ClickHouse	call	BOOL_TO_TEXT	spelled	toString		2
+ ClickHouse	ClickHouse	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-ClickHouse	ClickHouse	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ ClickHouse	ClickHouse	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ ClickHouse	ClickHouse	call	FLOAT_FULL_TEXT	spelled	toString		0
+ ClickHouse	ClickHouse	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -2057,7 +2049,6 @@ SQLite	SQLite	call	FLOOR_RAW	spelled	floor		55
+ SQLite	SQLite	call	TO_VARIANT	emulated	variantConstruct		8
+ SQLite	SQLite	call	BOOL_TO_TEXT	emulated	textOf		2
+ SQLite	SQLite	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-SQLite	SQLite	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ SQLite	SQLite	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ SQLite	SQLite	call	FLOAT_FULL_TEXT	emulated	exactText		0
+ SQLite	SQLite	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -2291,7 +2282,6 @@ MariaDb	MariaDB	call	FLOOR_RAW	spelled	floor		55
+ MariaDb	MariaDB	call	TO_VARIANT	emulated	variantConstruct		8
+ MariaDb	MariaDB	call	BOOL_TO_TEXT	emulated	textOf		2
+ MariaDb	MariaDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-MariaDb	MariaDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ MariaDb	MariaDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ MariaDb	MariaDB	call	FLOAT_FULL_TEXT	emulated	castAs: CHAR		0
+ MariaDb	MariaDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+@@ -2525,7 +2515,6 @@ MySql	MySQL	call	FLOOR_RAW	spelled	floor	as MariaDb	55
+ MySql	MySQL	call	TO_VARIANT	emulated	variantConstruct	as MariaDb	8
+ MySql	MySQL	call	BOOL_TO_TEXT	emulated	textOf	as MariaDb	2
+ MySql	MySQL	call	DECIMAL_TO_TEXT	emulated	varcharCast	as MariaDb	0
+-MySql	MySQL	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as MariaDb	0
+ MySql	MySQL	call	FLOAT_TO_TEXT	emulated	floatToText	as MariaDb	0
+ MySql	MySQL	call	FLOAT_FULL_TEXT	emulated	castAs: CHAR	as MariaDb	0
+ MySql	MySQL	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
+@@ -2759,7 +2748,6 @@ MongoDb	MongoDB	call	FLOOR_RAW	emulated	op1: $floor		0
+ MongoDb	MongoDB	call	TO_VARIANT	emulated	variantConstruct		0
+ MongoDb	MongoDB	call	BOOL_TO_TEXT	emulated	op1: $toString		0
+ MongoDb	MongoDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
+-MongoDb	MongoDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ MongoDb	MongoDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ MongoDb	MongoDB	call	FLOAT_FULL_TEXT	emulated	op1: $toString		0
+ MongoDb	MongoDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0

@@ -55,9 +55,10 @@ class NativeCallStampGuardTest {
             Map.entry("compiler/spec/TdsDesugars.java", 1),
             Map.entry("compiler/spec/Typer.java", 1),
             Map.entry("compiler/spec/UserCallInliner.java", 3),
-            // 7 -> 6 (2026-11-26, a shrink, the audit of the equality program's first slice: an assert's condition is
-            // built from the exact declared function, and the class's three builders of a declared call share one
-            // construction)
+            // 7 -> 6 (2026-11-26, the audit of the equality program's first slice): ONE construction was ADDED (an
+            // assert's condition built from the exact declared function, VerdictQueries.declared, which would have
+            // read 8) and three were folded into one (declared, native1 and native2 share VerdictQueries.built). The
+            // same unstamped NEW calls are built as before plus that one; built is for new calls alone, and says so
             Map.entry("compiler/spec/VerdictQueries.java", 6),
             Map.entry("compiler/spec/typed/TypedNativeCall.java", 1),
             Map.entry("edge/EngineSubstitutes.java", 1),
