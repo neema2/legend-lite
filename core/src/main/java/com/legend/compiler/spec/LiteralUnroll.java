@@ -437,8 +437,8 @@ final class LiteralUnroll {
      * except string and boolean const"). A Float, a Decimal, a date and a time are compared by the database alone,
      * which knows what each denotes: two date-times by their instant whatever precision they were written at (S399),
      * two Decimals by their number whatever their scale (S139) -- the folds had compared two spelled date-times by
-     * their written text and answered false where the database answers true. AN INTEGER STAYS, put to the user
-     * 2026-11-26 after the audit of this slice: the unroll of a function that recurses over a written list ends at
+     * their written text and answered false where the database answers true. AN INTEGER STAYS (the user's ruling of
+     * 2026-11-26, "Whole numbers fine", after this slice's audit): a function that recurses over a written list ends at
      * its guard, {@code $l->size() == 0}, an equality of two whole numbers it must answer to stop (docs/WORLD_MAP.md:
      * the unroll compares spelled tokens); a whole number has one spelling, so there is no second answer to give.
      * The comparison part of the folds' cut-back (the edition program's step 10), taken with the one equality.
