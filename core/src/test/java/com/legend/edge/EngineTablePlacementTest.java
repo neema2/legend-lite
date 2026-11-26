@@ -336,6 +336,23 @@ class EngineTablePlacementTest {
                 && refused.getMessage().contains("a runtime with no single database"), refused.getMessage());
     }
 
+    /** {@code round} is a row (register S422): inside a store query the database's own ROUND, by the row's rule; in
+     *  a host-side let, which legend-engine's own Java computes, the call's own rule, Pure's. */
+    @Test
+    void roundIsTheDatabasesOwnInsideAStoreQuery_andItsOwnRuleOutside() {
+        for (String rounded : List.of("round()", "round(1)")) {
+            String store = "|" + TABLE + "->extend(~a: r|($r.ID->toOne() / 3)->" + rounded + ")->from(t::RT)";
+            assertNotEquals(asWritten(store), engines(store), store);
+            String host = "{|let x = (7 / 2)->" + rounded + "; " + TABLE + "->filter(r|$r.ID > $x)->from(t::RT);}";
+            assertEquals(asWritten(host), engines(host), host);
+        }
+        // where legend-engine's answer is not checked, the row refuses by name
+        NotImplementedException refused = assertThrows(NotImplementedException.class, () -> engines(
+                Compiler.compileModel(UNCHECKED),
+                "|" + TABLE + "->extend(~a: r|($r.ID->toOne() / 3)->round())->from(t::RT)", "t::RT"));
+        assertTrue(refused.getMessage().contains("legend-engine's answer for round/1"), refused.getMessage());
+    }
+
     /** A check legend-engine's SQL does not write (a zero divisor's) is written where legend-engine's own Java runs the
      *  call: a host-side let raises as Pure does, a store-bound call is the plain operation (the stamp reaches the
      *  raise choice; the edition program's step 3). */

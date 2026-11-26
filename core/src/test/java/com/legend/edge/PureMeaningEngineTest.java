@@ -324,6 +324,21 @@ class PureMeaningEngineTest {
         assertTrue(puresPlan(ZERO_START, cut("substr(1, 3)")).contains("case"));
     }
 
+    // ---- round: a half goes away from zero (register S422; the edition program's step 5, 2026-11-26) ----------------
+
+    /** {@code round} inside a query sent to the database is the database's own ROUND: 0.5, 1.5, 2.5 and 3.5 are 1, 2,
+     *  3 and 4 (legend-engine's own manifests record 16.5 as 17 and -16.5 as -17 on H2 and DuckDB), where Pure's
+     *  half to even answers 0, 2, 2 and 4. With a scale, the same: 0.25, 1.25, 2.25, 3.25 at one place. */
+    @Test
+    void roundOfAHalfGoesAwayFromZero_legendEnginesAnswer() {
+        legendEngines("|" + EngineTablePlacementTest.TABLE + "->extend(~a: r|($r.ID->toOne() - 0.5)->round())"
+                + "->select(~[a])->from(t::RT)",
+                "{\"values\": [1]},{\"values\": [2]},{\"values\": [3]},{\"values\": [4]}");
+        legendEngines("|" + EngineTablePlacementTest.TABLE + "->extend(~a: r|(0.5 - $r.ID->toOne())->round())"
+                + "->select(~[a])->from(t::RT)",
+                "{\"values\": [-1]},{\"values\": [-2]},{\"values\": [-3]},{\"values\": [-4]}");
+    }
+
     // ---- toOne of an operand that is always empty (register S384) ---------------------------------------------------
 
     private static final String TO_ONE_OF_EMPTY = "|" + EngineTablePlacementTest.TABLE + "->sort(~ID->ascending())->limit(1)"

@@ -34,7 +34,11 @@ import java.util.Set;
  *   <li>{@code substr}: always corrected ({@code SUBSTR_AS_GIVEN});</li>
  *   <li>the two-argument String {@code indexOf}: the database's position ({@code SQL_POSITION});</li>
  *   <li>{@code toOne} of an operand that is always empty: no check, the operand's SQL null ({@code TRUST_ONE}:
- *       legend-engine's processNoOp).</li>
+ *       legend-engine's processNoOp);</li>
+ *   <li>{@code round}: the database's own ROUND, which on DuckDB and H2 sends a half away from zero
+ *       ({@code ROUND_HALF_AWAY_FROM_ZERO}; legend-engine's {@code transformRoundForDuckDB} and H2's {@code round}
+ *       write the bare function; the edition program's step 5, 2026-11-26, a delegation the user ruled matched,
+ *       amendment 22). Pure's {@code round} sends a half to the even neighbour.</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
@@ -71,6 +75,7 @@ final class EngineTable implements EditionTable, Edition {
         each(given, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTRING_AS_GIVEN, "substring/2", "substring/3");
         each(given, Pure.AT_STRING_SUBSTR, NamedRule.SUBSTR_AS_GIVEN, "substr/2", "substr/3");
         given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), new Row(NamedRule.SQL_POSITION, "indexOf/2"));
+        each(given, Pure.AT_MATH_ROUND, NamedRule.ROUND_HALF_AWAY_FROM_ZERO, "round/2", "round/2", "round/1");
         Map<FunctionId, Row> flagged = new java.util.LinkedHashMap<>();
         each(flagged, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTR_AS_GIVEN, "substring(corrected)/2",
                 "substring(corrected)/3");

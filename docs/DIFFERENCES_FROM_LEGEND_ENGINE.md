@@ -373,6 +373,19 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   close to pure when cheap/fast so don't have to reword everything on compatibility").
 - Register S398.
 
+### 18. `round` sends a half to the even neighbour, as Pure does (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write**, in a query sent to the database: `$t.price->round()` over the values `16.5` and `-16.5`.
+- **legend-engine** (on DuckDB and H2) answers `17` and `-17`: it sends the database's own `round`, which sends a half
+  away from zero. Its own test manifests record these two answers as known failures against Pure.
+- **At legend-engine's door, lite answers legend-engine's** `17` and `-17` on DuckDB and H2, with no setting. A `round`
+  in a host-side `let`, which legend-engine computes before the query, keeps Pure's meaning. On any other database
+  such a request is refused by name until legend-engine's answer is checked there.
+- **On lite's own route**, lite answers `16` and `-16` on every database.
+- **Why:** Pure defines `round` as half to even (legend-pure's own tests, `round::testPositiveFloatRoundHalfEvenDown`
+  and `testNegativeFloatRoundHalfEvenUp`).
+- **Register:** S422.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,

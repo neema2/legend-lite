@@ -37,5 +37,11 @@ public enum NamedRule {
 
     /** The operand as it is, with no check that it holds exactly one value: SQL's null passes through (the rule of
      *  {@code meta::legend::lite::trustOne}). */
-    TRUST_ONE
+    TRUST_ONE,
+
+    /** {@code round}, a half going away from zero: {@code round(x)} is the nearest whole number as an Integer,
+     *  {@code round(x, n)} the nearest at {@code n} places, and a value exactly halfway goes away from zero (16.5 to
+     *  17, -16.5 to -17: {@code SqlFn.ROUND_HALF_UP}). Not the product's {@code round}, which sends a half to the even
+     *  neighbour as Pure does (16.5 to 16). */
+    ROUND_HALF_AWAY_FROM_ZERO
 }
