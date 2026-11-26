@@ -412,6 +412,35 @@ register row changes (the rows on these functions already say what legend-engine
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
+## 6b. Waiting on the user (gathered 2026-11-26)
+
+1. **A number literal against a number column** (step 4's design question, and the equality rule's cost to a user
+   today). The rule as ruled makes `$x.qty > 0` a compile error when `qty` is a Float: write `0.0`. Measured: 6 of
+   lite's python tests, 63 of the 65 places in DataCube's timeseries library, one M2M test model, the `CreateClass`
+   tool and a stress service are exactly this (`edition-homework/step4-exposure-2026-11-26.md`). 23 of the library's
+   are in functions generic over the caller's column, where no literal is right for every caller. Options:
+   - (a) keep the rule: a literal has its written type; lite's own code is fixed place by place, and the generic
+     functions convert (`->toFloat() == 0.0`);
+   - (b) a number literal written against a value of another number type reads as that type when it is exact there
+     (`0` against a Float is `0.0`, `50000` against a Decimal is `50000D`, `2.375` against a Decimal is `2.375D`);
+     two columns, a column and a computed value, or a literal that is not exact in the other type (`1.5` against an
+     Integer) stay a compile error. Recommended: it keeps "a value is what it denotes, not how it was written", and
+     it is how most typed languages read a number literal;
+   - (c) numbers of different types compare by value everywhere (undoes the ruling for numbers).
+2. **Step 4's other places** once 1 is ruled: the `CreateClass` tool copies a request's comparison into the model it
+   generates (refuse at the request, or leave to the compile error); `$v != TDSNull` in a function (leave the SQL
+   null out of the rule, or write `isEmpty()`).
+3. **Answers that moved at legend-engine's door** (pure/v1), all toward what legend-engine's own Java does, none
+   asked of the engine runner yet: an operation its SQL does not check now raises Pure's error when it is outside any
+   store query (a host-side `let`, a query that reads no store, a model-to-model transform under a graph fetch, a
+   checked constraint). And the four kinds answered since step 2 that the old rewrite refused (register S130).
+4. **The corpus as legend-engine's own tests** (six tests gained on each lane, none lost): the limits listed in 6a.
+5. **Step 8, presentation at the edge:** its research is `edition-homework/r3/research-step8-presentation.md`. It
+   found the realistic size is 900 to 1,100 lines, not 2,000, and eight questions to rule first (two printers at one
+   door; whether `TDSNull` is meaning or format; whether legend-engine's door's text is a table row; whether the
+   corpus's SQL size pins may grow). Its own session can start when these are ruled.
+6. **The pull request** (#141, draft): whether this session should watch it and act on CI failures.
+
 ## 7. The user's words on this plan (2026-11-25, late night)
 
 1. On the `substring` rewrite: "Substring you can leave until 16 yes" (amendment 24). Then, on the stamp: "why cant we stamp the substring if database or not when we know it and then use that at the right time? dont we need something like this to do corpus blended pure and engine?" The stamp is §2.3; if step 2 proves it, the old rewrite goes in step 3, and if not, amendment 24 stands.
