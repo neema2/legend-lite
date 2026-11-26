@@ -598,7 +598,7 @@ public final class SqlTyping {
             // ARITHMETIC family — probed rules split to arithType
             // (method-size guard; receipts on each arm there)
             case PLUS, MINUS, TIMES, REM, MOD, NEGATE, ABS,
-                    INT_DIVIDE, ROUND, CEILING, FLOOR, SIGN ->
+                    INT_DIVIDE, ROUND, ROUND_HALF_UP, CEILING, FLOOR, SIGN ->
                     arithType(fn, a);
             // error() RAISES — it yields no value and conforms to every
             // slot (§4bZ-U leg 3: the fourth TypeFact variant, replacing
@@ -898,7 +898,10 @@ public final class SqlTyping {
                 // operand stays UNKNOWN (unprobed corners)
                 yield UNKNOWN;
             }
-            case ROUND -> {
+            // ROUND_HALF_UP types as ROUND does (2026-11-26, the edition program's step 5): the rounding's direction
+            // at a half changes no type -- a whole number stays its kind, a DOUBLE a DOUBLE. Untyped until then, a
+            // Float round(x, n) by it was cast to DOUBLE again (the corpus's round family, 14 characters a plan)
+            case ROUND, ROUND_HALF_UP -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }
