@@ -2274,11 +2274,16 @@ public class ClickHouse extends AnsiSqlRenderer {
     /** The {@code ROUND_HALF_UP} arm of {@link #call}. */
     private SqlWriter roundHalfUp(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        writer.append("round(toDecimal128(").expr(a.get(0), 0).append(", 18)");
+        // the rounding runs in a decimal; a double's is cast back, so a DOUBLE stays one (SqlTyping's fact for
+        // ROUND_HALF_UP, 2026-11-26; the product writes it over decimals alone, so no SQL of today's moves)
+        boolean ofDouble = a.get(0).type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE;
+        writer.append(ofDouble ? "toFloat64(round(toDecimal128(" : "round(toDecimal128(").expr(a.get(0), 0)
+                .append(", 18)");
         if (a.size() > 1) {
             writer.append(", ").expr(a.get(1), 0);
         }
-        return writer.append(")");
+        return writer.append(ofDouble ? "))" : ")");
     }
 
     /** The {@code REGEXP_EXTRACT} arm of {@link #call}. */

@@ -9,7 +9,6 @@ import com.legend.protocol.TypeExpression;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
@@ -119,5 +118,7 @@ public class ClaimRegistryTest {
     // EngineTable": the user's rulings of 2026-11-19 ~21:10 and 2026-11-20 ~07:45) left with the two natives,
     // 2026-11-26 (the edition program's step 5): they are rules a door's table names (lowering.NamedRule), no
     // functions of the language, so this ledger has no row for them. The fact the pins held -- no product class
-    // chooses one -- is ArchitectureTest.anEditionsTableAloneNamesARule's, over the compiled classes.
+    // chooses one -- is ArchitectureTest.anEditionsTableAloneNamesARule's, over the compiled classes. The two pins
+    // were the user's; their replacement by that rule is put to the user (the plan record's section 6b), under the
+    // standing word of 2026-11-25 on small ruled changes.
 }

@@ -337,6 +337,10 @@ class PureMeaningEngineTest {
         legendEngines("|" + EngineTablePlacementTest.TABLE + "->extend(~a: r|(0.5 - $r.ID->toOne())->round())"
                 + "->select(~[a])->from(t::RT)",
                 "{\"values\": [-1]},{\"values\": [-2]},{\"values\": [-3]},{\"values\": [-4]}");
+        // at a scale: 0.125 and 0.375 are exact doubles halfway between two hundredths; 0.125 is 0.13 (Pure's 0.12)
+        legendEngines("|" + EngineTablePlacementTest.TABLE + "->extend(~a: r|($r.ID->toOne() / 8)->round(2))"
+                + "->select(~[a])->from(t::RT)",
+                "{\"values\": [0.13]},{\"values\": [0.25]},{\"values\": [0.38]},{\"values\": [0.5]}");
     }
 
     // ---- toOne of an operand that is always empty (register S384) ---------------------------------------------------
