@@ -311,8 +311,13 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated", "com.legend.testdatagen.TestDataPlanner")),
+            // IN: + lowering.TaggedLists (2026-11-26, the edition program's step 6.1, measured by the full run): a value's
+            // membership in a list WRITTEN in the query is a plain IN over the elements of the value's own type, with no
+            // list built in the SQL (the user's rulings of that day, "Yes apply fold rule" and "Whole numbers fine": the
+            // compiler compares only Strings, Booleans, enumeration values and whole numbers, so the rest is the
+            // database's IN) -- the direct cost of the ruled change, a product writer added, nothing moved to the edge
             Map.entry("IN", Set.of(
-                    "com.legend.lowering.CalendarAgg", "com.legend.lowering.Scalars",
+                    "com.legend.lowering.CalendarAgg", "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.sql.EnumValueTables", "com.legend.sql.dialect.FloatShortestText")),
             Map.entry("IS_NOT_NULL", Set.of(
                     "com.legend.lowering.CheckedEnvelope", "com.legend.lowering.CollectionLanes",
