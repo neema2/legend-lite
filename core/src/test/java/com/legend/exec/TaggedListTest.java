@@ -385,6 +385,21 @@ class TaggedListTest {
         }
     }
 
+    @Test
+    void equalNumbersOfDifferentTypesSortInOneOrder() throws Exception {
+        // slice 6.2 (the user's ruling of 2026-11-25): 3 and 3.0 are two values of two types, so a sort orders them
+        // one way whatever order they were written in -- by value, then Integer, Float, Decimal (until then a tie
+        // kept the list's order: [3.0, 3, 1]->sort() answered [1, 3.0, 3])
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals("[1, 3, 3.0]", String.valueOf(values(c, "|[3, 3.0, 1]->sort()")));
+            assertEquals("[1, 3, 3.0]", String.valueOf(values(c, "|[3.0, 3, 1]->sort()")));
+            assertEquals("[3, 3.0, a]", String.valueOf(values(c, "|[3.0, 'a', 3]->sort()")));
+            // one number type: the order by value alone, as before
+            assertEquals("[1, 2, 3]", String.valueOf(values(c, "|[3, 1, 2]->sort()")));
+            assertEquals("[1.5, 2.5]", String.valueOf(values(c, "|[2.5, 1.5]->sort()")));
+        }
+    }
+
     /** A failing multiset over a raw grid fails under each judge, the database judge deciding it (2026-11-04, the core
      *  program: a keyed verdict step; until then the database judge refused the body and, under BOTH, the host decided
      *  alone). A raw grid's order is incidental, so each comparison is a multiset. The words agree where the canon's
