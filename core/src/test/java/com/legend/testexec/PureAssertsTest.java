@@ -124,6 +124,18 @@ class PureAssertsTest {
     }
 
     @Test
+    @DisplayName("equal numbers of two types written in two orders are the same elements: the sort gives each one"
+            + " place on both sides (slice 6.2; they were paired as written, 3 against 3.0, and failed)")
+    void sameElementsWithEqualNumbersOfTwoTypes() {
+        assertNull(sameMsg(List.of(3L, 3.0d, "a"), List.of(3.0d, 3L, "a"), LITE));
+        assertNull(sameMsg(List.of(3.0d, 3L, new java.math.BigDecimal("3")),
+                List.of(new java.math.BigDecimal("3"), 3L, 3.0d), LITE));
+        // and two types are still two values: an Integer does not stand in for a Float
+        assertEquals("expected the elements [3, 3] in any order, got [3, 3.0]",
+                sameMsg(List.of(3L, 3L), List.of(3L, 3.0d), LITE));
+    }
+
+    @Test
     @DisplayName("spec: testFailureAssertSameElements — lite's words, each side in its own order")
     void sameElementsFailureMessage() {
         assertEquals("expected the elements [1, 3, 2] in any order, got [2, 4, 1, 5]",
