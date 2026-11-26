@@ -113,10 +113,6 @@ h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_S
 h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
 h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
 h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
-h2	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin	DataError: Function "LATERAL" not found; SQL statement:
-h2	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	DataError: Function "LATERAL" not found; SQL statement:
-h2	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins	DataError: Function "LATERAL" not found; SQL statement:
-h2	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner	DataError: Function "LATERAL" not found; SQL statement:
 h2	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin	DialectCapability: UNNEST reached a dialect without an unnest placement
 h2	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested	DialectCapability: UNNEST reached a dialect without an unnest placement
 h2	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Extend	DialectCapability: LIST_FILTER reached a dialect without a list encoding

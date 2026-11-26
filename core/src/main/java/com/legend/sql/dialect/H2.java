@@ -149,6 +149,8 @@ public class H2 extends AnsiSqlRenderer {
         // a lateral over a constant list first: its rows need no correlation (ConstantLateralsAsRows)
         ps.add(new ConstantLateralsAsRows());
         ps.add(new LateralExplodeToUnion());
+        // a lateral that only filters its source by the row before it: a join (CorrelatedFiltersAsJoins)
+        ps.add(new CorrelatedFiltersAsJoins());
         ps.add(new AggregatesDeliverDouble(java.util.Set.of(com.legend.sql.SqlAgg.Fn.AVG)));
         // a select that only names its subselect's columns folded into it: H2 plans each nested derived table again at
         // every level above it (ProjectionWrapsFold)

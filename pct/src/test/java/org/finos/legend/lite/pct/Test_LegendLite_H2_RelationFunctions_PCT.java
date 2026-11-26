@@ -63,15 +63,14 @@ public class Test_LegendLite_H2_RelationFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
-            one("meta::pure::functions::relation::tests::composition::testVariantMapColumn_values_LateralFlatten_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            one("meta::pure::functions::relation::tests::composition::testVariantMapColumn_values_LateralFlatten_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement")
             // NOTE 2026-10-20 (the parity phase): testSimpleProject, testSimpleProjectList, testSimpleProjectWithEmpty
             // and testFilterPostProject unpinned -- a lateral over a constant list is that list's rows, each struct
             // field a column (ConstantLateralsAsRows)
-            // H2 has no LATERAL: the SQL lite renders is refused by the database
-            one("meta::pure::functions::relation::tests::lateral::testLateralJoin_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),
-            one("meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),
-            one("meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),
-            one("meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner_Function_1__Boolean_1_", "Function \"LATERAL\" not found")
+            // (the four lateral tests -- testLateralJoin, _Chained, AreInnerJoins, _CorrelatedColumnNameAlsoOnInner --
+            // left this list 2026-11-26: each lateral only filters its source by the row before it, which is a join
+            // on that filter; H2 has no LATERAL and never needed one for them -- CorrelatedFiltersAsJoins, the user's
+            // ruling of 2026-11-25 on the Pure-mode gaps)
             // the ten uncast dynamic pivots answer since the probe plan (2026-10-20, KeyedPivot: the keys read
             // first, the body written for them on every database); their pins of step 9 (2026-10-19) removed
             // with the run that passed them

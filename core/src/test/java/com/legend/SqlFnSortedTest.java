@@ -192,7 +192,11 @@ class SqlFnSortedTest {
             // tolerance is the edge's own REGEXP_REPLACE, EdgeLoweringForms; the product's writers keep theirs)
             // AND: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
+            // AND: + sql.dialect.CorrelatedFiltersAsJoins (2026-11-26, the edition program's step 1, the user's ruling of
+            // 2026-11-25 on H2's lateral): the conjuncts a lateral's filter is split into are joined again by AND, for
+            // the join's ON and for what stays inside -- a shape rearranged, nothing computed
             Map.entry("AND", Set.of(
+                    "com.legend.sql.dialect.CorrelatedFiltersAsJoins",
                     "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.CollectionLanes", "com.legend.sql.ExistsJoins",
