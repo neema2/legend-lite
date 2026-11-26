@@ -115,6 +115,10 @@ public final class SpecCompiler {
             // the body's error inside the function's frame (stage B's BE, 2026-11-21, the one error model)
             throw new TypeInferenceException(frameOf(fn), e);
         }
+        // a comparison across types the door's setting left as its marker in this body (lite's: the one equality
+        // inside a function's and a mapping's code, the edition program's step 4, 2026-11-26): the function's compile
+        // error, raised here, once its body is typed whole -- never where the comparison is typed
+        CrossTypeComparisons.refuse(cf.body());
         memo.put(fn, cf);
         return cf;
     }
