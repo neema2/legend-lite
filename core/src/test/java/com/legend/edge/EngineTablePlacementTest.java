@@ -40,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EngineTablePlacementTest {
 
     /** A relational model over H2: a table, a class mapped to it, two qualified properties, two user functions, a
-     *  constraint, a model-to-model mapping over the class, a runtime on the store and one on a model connection. */
+     *  constraint, two model-to-model mappings over the class (one whose transform calls a function), a runtime on the
+     *  store and one on a model connection. */
     static final String MODEL = String.join("\n",
             "###Relational\nDatabase t::DB ( Table PERSON ( ID INTEGER PRIMARY KEY, NAME VARCHAR(32), CODE VARCHAR(8) ) )",
             "###Pure",
@@ -52,13 +53,14 @@ class EngineTablePlacementTest {
             "    initials() { $this.name->substring(1, 2) }: String[1];",
             "    firstC() { $this.name->indexOf('c') }: Integer[1];",
             "}",
-            "Class t::Out { short: String[1]; }",
+            "Class t::Out { short: String[1]; where() { $this.short->indexOf('b') }: Integer[1]; }",
             "Class t::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}",
             "function t::firstThree(s: String[1]): String[1] { $s->substring(1, 3) }",
             "function t::position(s: String[1]): Integer[1] { $s->indexOf('a') }",
             "###Mapping\nMapping t::M ( t::Person: Relational { ~mainTable [t::DB]PERSON name: [t::DB]PERSON.NAME,"
                     + " code: [t::DB]PERSON.CODE } )",
             "###Mapping\nMapping t::M2 ( t::Out: Pure { ~src t::Person short: $src.name->substring(1, 2) } )",
+            "###Mapping\nMapping t::M3 ( t::Out: Pure { ~src t::Person short: t::firstThree($src.name) } )",
             "###Connection\nRelationalDatabaseConnection t::Conn { store: t::DB; type: H2; specification: LocalH2 { };"
                     + " auth: DefaultH2; }",
             "###Runtime\nRuntime t::RT { mappings: [t::M]; connections: [ t::DB: [ c1: t::Conn ] ]; }",
@@ -194,6 +196,15 @@ class EngineTablePlacementTest {
                 + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
         STORE_BOUND.put("a function value read out of a collection", "|" + TABLE
                 + "->extend(~i: r|[{s: String[1]|$s->indexOf('x')}]->at(0)->eval($r.NAME->toOne()))->from(t::RT)");
+        // the independent audit's cases (docs/records/edition-homework/r3/audit-step2-3.md)
+        STORE_BOUND.put("a let bound to a function value that is no written lambda, applied in the store query (F1)",
+                "{|let f = [{s: String[1]|$s->indexOf('x')}]->toOne(); " + TABLE
+                        + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}");
+        STORE_BOUND.put("a let that builds on a relation not yet executed (F3)", "{|let t = " + TABLE
+                + "; let u = $t->extend(~a: r|$r.NAME->toOne()->substring(1, 3)); $u->select(~[a])->from(t::RT);}");
+        STORE_BOUND.put("a model-to-model transform that calls a function, in a TDS query over a chain",
+                "|t::Out.all()->project(~[s: o|$o.short])"
+                        + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M3, t::RT)");
     }
 
     @Test
@@ -248,6 +259,15 @@ class EngineTablePlacementTest {
                 "|t::Person.all()->project(~[n: p|$p.name])->from(t::M, t::RT)");
         AS_PURE.put("a model-to-model transform under a graph fetch", "|t::Out.all()->graphFetch(#{t::Out{short}}#)"
                 + "->serialize(#{t::Out{short}}#)->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
+        // the independent audit's cases
+        AS_PURE.put("a model-to-model transform that calls a function, under a graph fetch",
+                "|t::Out.all()->graphFetch(#{t::Out{short}}#)->serialize(#{t::Out{short}}#)"
+                        + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M3, t::RT)");
+        AS_PURE.put("a qualified property a graph fetch reads off a class a model-to-model mapping makes (F4)",
+                "|t::Out.all()->graphFetch(#{t::Out{short,where}}#)->serialize(#{t::Out{short,where}}#)"
+                        + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
+        AS_PURE.put("a checked graph fetch's constraint", "|t::Person.all()->graphFetchChecked(#{t::Person{name}}#)"
+                + "->serialize(#{t::Person{name}}#)->from(t::M, t::RT)");
     }
 
     @Test
@@ -283,6 +303,68 @@ class EngineTablePlacementTest {
         // the store's use is the database's position, 1-based; the host's is legend-pure's, 0-based
         assertTrue(shared.contains("LOCATE('x', \"t0\".NAME) AS \"i\""), shared);
         assertTrue(shared.contains("LOCATE('x', 'abcx') - 1"), shared);
+    }
+
+    /** A function value a let holds is placed where it is applied (the audit's F1): in the store query the database's
+     *  position, in a host-side let legend-pure's. */
+    @Test
+    void aFunctionValueIsPlacedWhereItIsApplied() {
+        String shared = engines("{|let f = [{s: String[1]|$s->indexOf('x')}]->toOne(); let n = $f->eval('abcx'); "
+                + TABLE + "->filter(r|$r.ID == $n)->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}");
+        assertTrue(shared.contains("LOCATE('x', \"t0\".NAME) AS \"i\""), shared);
+        assertTrue(shared.contains("LOCATE('x', 'abcx') - 1"), shared);
+    }
+
+    /** A checked graph fetch reads its constraints in legend-engine's own Java and its tree's qualified property in
+     *  the database: one statement, each by where it runs. */
+    @Test
+    void aCheckedGraphFetchsConstraintAndItsQualifiedPropertyAreEachPlaced() {
+        String checked = "|t::Person.all()->graphFetchChecked(#{t::Person{name,initials}}#)"
+                + "->serialize(#{t::Person{name,initials}}#)->from(t::M, t::RT)";
+        String sql = engines(checked);
+        assertTrue(sql.contains("substr(\"t0\".NAME, 1, 2)"), sql);
+        assertNotEquals(asWritten(checked), sql);
+        // the constraint's own substring(1, 2) keeps legend-pure's form: the one a fetch without the property plans
+        String constraintOnly = "|t::Person.all()->graphFetchChecked(#{t::Person{name}}#)"
+                + "->serialize(#{t::Person{name}}#)->from(t::M, t::RT)";
+        assertEquals(asWritten(constraintOnly), engines(constraintOnly));
+    }
+
+    /** A runtime that binds model data alone names no database of legend-engine's (legend-engine runs the whole query
+     *  in its own Java): a call a row would answer in the query's own code is refused by name, as before the table (the
+     *  audit's F2); the mapping's transforms, stamped, are not. */
+    @Test
+    void onARuntimeOfModelDataAloneAQuerysOwnCallIsRefused() {
+        NotImplementedException refused = assertThrows(NotImplementedException.class, () -> engines(MODELLED,
+                "|t::Out.all()->project(~[s: o|$o.short->substring(0, 1)])->from(t::M2, t::JsonRT)", "t::JsonRT"));
+        assertTrue(refused.getMessage().contains("legend-engine's answer for substring/3")
+                && refused.getMessage().contains("a runtime with no single database"), refused.getMessage());
+    }
+
+    /** Each row names a native with the call's own signature: the rule it names lowers the call as typed. */
+    @Test
+    void eachRowsNativeHasItsCallsSignature() {
+        Map<List<com.legend.model.FunctionId>, List<com.legend.model.FunctionId>> rows = new LinkedHashMap<>();
+        rows.put(com.legend.builtin.Pure.AT_STRING_SUBSTRING, com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN);
+        rows.put(com.legend.builtin.Pure.AT_STRING_SUBSTR, com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
+        rows.put(List.of(com.legend.model.FunctionId.of(com.legend.builtin.Pure.INDEX_OF__STRING_1__STRING_1)),
+                com.legend.builtin.Pure.AT_LEGEND_LITE_SQL_POSITION);
+        rows.put(List.of(com.legend.model.FunctionId.of(com.legend.builtin.Pure.TO_ONE__T_MANY)),
+                com.legend.builtin.Pure.AT_LEGEND_LITE_TRUST_ONE);
+        for (Map.Entry<List<com.legend.model.FunctionId>, List<com.legend.model.FunctionId>> row : rows.entrySet()) {
+            assertEquals(row.getKey().size(), row.getValue().size(), row.toString());
+            for (int i = 0; i < row.getKey().size(); i++) {
+                com.legend.compiler.element.TypedFunction from =
+                        MODELLED.findFunctionById(row.getKey().get(i).qualified()).get(0);
+                com.legend.compiler.element.TypedFunction to =
+                        MODELLED.findFunctionById(row.getValue().get(i).qualified()).get(0);
+                assertEquals(from.parameters().stream().map(p -> p.type() + " " + p.multiplicity()).toList(),
+                        to.parameters().stream().map(p -> p.type() + " " + p.multiplicity()).toList(),
+                        from.qualifiedName() + " and " + to.qualifiedName());
+                assertEquals(from.returnType() + " " + from.returnMultiplicity(),
+                        to.returnType() + " " + to.returnMultiplicity(), from.qualifiedName());
+            }
+        }
     }
 
     // ---- a database where legend-engine's answer is not yet checked -------------------------------------------------
