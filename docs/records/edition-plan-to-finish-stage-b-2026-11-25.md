@@ -50,11 +50,18 @@ One bit on a call: "this call is outside any query sent to a store".
 
 | Door | What is stamped |
 |---|---|
-| pure/v1 | every call in a `let` whose value reads no store, including calls from functions it uses |
+| pure/v1 | every call in a `let` whose value reads no store, including calls from functions it uses; and the model's and mappings' code legend-engine's own Java runs (below) |
 | the corpus | every call in the test body that is not inside the query handed to `execute()`; the judges' own calls |
 | the product, PCT | nothing |
 
-Mapping code arrives later and is never stamped, which is right: mapping code exists only inside a store query.
+Mapping code arrives later, when the store is resolved. Most of it exists only inside a store query and is never stamped. Two kinds are legend-engine's own Java's, and the resolver stamps them as it brings them in (amended 2026-11-26, as built, after the old rewrite's own rule and the independent audit, `r3/audit-step2-3.md`):
+- a model-to-model mapping's transforms, under a graph fetch or over a model connection (not in a TDS query over a chain to a store, where legend-engine pushes them into the SQL), with the code of the functions they call and the qualified properties a graph fetch reads off the classes such a mapping makes;
+- a class's constraints, where a checked graph fetch evaluates them.
+
+The rule for a query's own statements, as built:
+- A statement that reads a store is that store query's code: not stamped.
+- A relation bound by a `let` and not yet executed (no `from`) is a fragment of the query that executes it, so the statements that build on it are that query's code too. A `let` that was executed holds a value; a statement that only uses the value is outside.
+- A function a `let` holds is never stamped where it is bound. Its code runs where it is applied, and is stamped there or not. A function value that is computed some way other than by writing the lambda is refused by name.
 
 The door hands in two columns, and the stamp picks one:
 
@@ -220,10 +227,9 @@ that inspected the rewritten tree, or expected a refusal before planning; three 
 - **At legend-engine's door a statement's own feature flags reach its lowering.** A `withFeatureFlags` call written
   in a query is read through by the resolver before the lowering sees it, so on the product's road its flags never
   arrived (the old rewrite read them itself, at the door). `ProductStatements.prepare` now reads them from the
-  statements as written, where the door's edition says the door reads them (`Edition.readsWrittenFlags`:
-  legend-engine's does, lite's own doors do not, as before). Two consequences at legend-engine's door, both in
-  legend-engine's direction and both to confirm with the user: `LEGACY_SQL_NULL_UNSAFE_EQUALS` written in a query is
-  honoured (it was ignored), and a flag nothing in lite consumes is refused by name (it was ignored).
+  statements as written, where the door's edition says the door reads them (first `Edition.readsWrittenFlags`:
+  legend-engine's does, lite's own doors do not, as before). After the audit the door reads only the flag its table
+  has a row for, as the old rewrite did (`Edition.writtenFlagsRead`).
 - **The seed is planned in the door's style** (`ProductStatements.lowerTestDataSeed(query, runtime, style)`).
 - **A model-to-model mapping's transforms are stamped where the resolver composes them.** legend-engine runs them in
   its own Java under a graph fetch and over a model connection, and pushes them into the SQL in a TDS query over a
@@ -239,7 +245,10 @@ becomes SQL passes the lowering. Each is to be confirmed with the user:
 2. a model-to-model mapping's transforms in a TDS query over a chain to a store: the database's meaning, as
    legend-engine pushes them into the source query (read in `chain.pure:111-116`; not yet asked of the engine runner);
 3. a function value read out of a collection and applied in a store query: the database's meaning, by the one rule
-   (legend-engine's own answer not asked).
+   (legend-engine's own answer not asked). A function value a `let` holds is placed the same way, where it is
+   applied;
+4. a statement that builds on a relation a `let` bound and did not execute: the database's meaning (the old rewrite
+   left it legend-pure's; legend-engine cannot compute it anywhere but the database).
 A refusal on a database not yet checked now names the first call it meets, not every call of the query.
 
 **The tests.** `PureMeaningCheckTest`, `PureMeaningRewriteTest` and the side-by-side test are replaced by
@@ -247,6 +256,22 @@ A refusal on a database not yet checked now names the first call it meets, not e
 product's table (the same statement means no row applied). `PureMeaningEngineTest` keeps every route's answers and
 gains the three newly answered cases and the refusals. `EngineSubstitutesTest` keeps the natives' dialect, answer and
 internal-name tests; the deleted substitutes' tests went with them.
+
+**The independent audit, and what it changed (2026-11-26; `r3/audit-step2-3.md`).** It confirmed the product's road is untouched (an unstamped call compares, hashes and prints as before; the product's edition answers no to every question) and found gaps at legend-engine's door, each fixed and pinned by a test in `EngineTablePlacementTest`:
+1. *A `let` whose value becomes a lambda only once reduced* (`[{..}]->toOne()`) was stamped, and its code carried the stamp into the store query. Now a function value is never stamped where it is bound and is placed where it is applied; one that does not reduce to a written lambda is refused by name. (The old rewrite refused all of these.)
+2. *A runtime of model data alone* counted as a checked database, because it runs on the platform's own engine. It names no database now, so a call a row would answer in the query's own code is refused by name, as before the table.
+3. *A statement that builds on a relation not yet executed* was stamped, as the old rewrite also left it alone. It is that query's code now and gets the database's meaning (an answer that moves from the old rewrite's, in legend-engine's direction).
+4. *Code legend-engine's own Java runs that the first cut did not stamp:* the qualified properties a graph fetch reads off a class a model-to-model mapping makes; a checked graph fetch's constraints; the code of functions a transform calls.
+5. *The feature flags a query writes:* the door reads the one its table has a row for (`CORRECT_SQL_SUBSTRING_INDEXING`), as the old rewrite did. The first cut read them all, which would have turned on `LEGACY_SQL_NULL_UNSAFE_EQUALS` and refused unknown flags at that door; that is withdrawn.
+6. *The hosts' two plan halves* (`HostAnswers.arrowPlan`, `jsonPlan`) took legend-engine's meaning from whatever style the caller handed. They refuse a style that is not pure/v1's now. Production already handed it; three tests handed legend-pure's door's style and were corrected, one of which pinned a raise (division by zero) that pure/v1 has written plain since B7.
+
+Recorded and not changed:
+- The seed of a test-data request is planned whole in the door's style, so its other forms are the door's too (plain raises, legend-pure's texts), not only its table.
+- Roads that plan a frame's own query inside a pure/v1 request (`execute(...)` written in a query, the plan-text natives) get the table's rows and no stamp, as the old rewrite also gave them the database's meaning throughout.
+- A `let` bound to an executed relation, built on by a later statement, keeps the old rewrite's answer (outside); what legend-engine does there has not been asked.
+- A graph fetch whose tree mixes classes a model-to-model mapping makes with relationally mapped ones stamps every qualified property in it.
+- No test model exercises a transform that calls a function: lite's composition refused the shapes tried.
+- Design note from the audit (its F5): the door's edition is read after the type-checker in four places (the statement road, the inliner's stamp, the resolver's stamp, the lowering's lookup). That is this plan's design (section 2), and it stands beside the wording of AGENTS.md's edition exception ("only the typer reads it"), which was written for the earlier design; the two are to be reconciled when the rules are next amended.
 
 **Still open from the work list:** the stamp does not yet reach the raise choice (a host-side `let` that divides by
 zero is the plain operation at pure/v1, where legend-engine's Java raises; this is older than this step); the corpus
