@@ -7,12 +7,11 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 
 /**
- * LEGEND-PURE'S PRINT FORMS AT THE EDGE (phase D's D1.2, 2026-11-15): a product text node written as legend-pure's form
- * of it -- a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as legend-pure's print form
- * ({@link PureDateTimePrint}; a literal's written text kept), and a joined element's ({@link SqlFn#CELL_TEXT}, D1.3: the
- * product skips an empty one) as its text or {@code TDSNull}. (A Float's text, legend-engine's in-query cast, was this
- * pass's until 2026-11-26: the note below. The texts only legend-pure writes are composed at lowering since B8 (i),
- * 2026-11-17: {@code EdgePureOnlyTexts}.) The edge's first pass, so every later pass sees the tree the lowering wrote.
+ * LEGEND-ENGINE'S {@code TDSNull} AT THE EDGE (phase D's D1.3, 2026-11-15): a joined element's text
+ * ({@link SqlFn#CELL_TEXT}; the product skips an empty one) as its text or {@code TDSNull}. Once the pass of
+ * legend-pure's print forms too: a Float's text went 2026-11-26 and a DateTime's the same day (the notes below; the
+ * edition program's step 8). (The texts only legend-pure writes are composed at lowering since B8 (i), 2026-11-17:
+ * {@code EdgePureOnlyTexts}.) The edge's first pass, so every later pass sees the tree the lowering wrote.
  */
 final class PurePrintForms extends com.legend.sql.SqlRewriter {
 
@@ -92,10 +91,14 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         if (joined(e) instanceof SqlExpr j) {
             return j;
         }
-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_TO_TEXT) {
-            // legend-pure's print form, composed here (census B12, 2026-11-17: the DATETIME_PRINT node gone)
-            return PureDateTimePrint.of(expr(c.args().get(0)));
-        }
+        // (a DateTime's text, legend-pure's print form composed in SQL for the product's DATETIME_TO_TEXT
+        // (PureDateTimePrint): gone 2026-11-26, the edition program's step 8. At legend-pure's doors a computed
+        // DateTime's print at a last step is Java's (PrintedRelations, PureValueText.dateTime); one the program goes
+        // on computing with is lite's own text, the product's node as the product's dialect writes it (the user's
+        // ruling of that day: "if there is a cheap standard format we can use maybe we should use everywhere for pure
+        // - if not go with lite in the middle"; no database writes legend-pure's text in one call); inside a store
+        // query at legend-engine's door it is a row of legend-engine's table, the database's cast (EngineTable). A
+        // literal's written text is the lowering's constant still (EdgeDateTimeTexts).)
         return super.expr(e);
     }
 }

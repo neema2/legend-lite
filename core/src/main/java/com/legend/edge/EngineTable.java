@@ -59,9 +59,10 @@ import java.util.Set;
  *       {@code FLOAT_TEXT_BY_CAST_OF_A_DOUBLE} where legend-engine's literal processor reads a Float literal as a
  *       double), on every database legend-engine has, where the product's is six decimals (the edition program's
  *       step 8, 2026-11-26; the user's ruling that day, "agreed on float/date text for engine").</li>
- *   <li>{@code toString} of a DateTime that is no literal: the database's own cast to text
- *       ({@code DATE_TIME_TEXT_BY_CAST}), on the databases whose text of it has been run, where the product's is
- *       ISO 8601 with {@code Z} (the same step and ruling).</li>
+ *   <li>{@code toString} of a DateTime, a literal's too: the database's own cast to text
+ *       ({@code DATE_TIME_TEXT_BY_CAST}), on every database legend-engine has, where the product's is ISO 8601
+ *       with {@code Z} (the same step; the user's rulings of that day, "datetime for engine should use engines
+ *       database form" and "match engine for engine").</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
@@ -119,17 +120,20 @@ final class EngineTable implements EditionTable, Edition {
      *  (docs/records/edition-homework/step8/). The row answers a call whose operand's declared type is Float; a
      *  Float reached through a Number or an Any has no row and keeps lite's text. */
     private static final FunctionId TO_STRING = FunctionId.of(Pure.TO_STRING__ANY_1);
-    /** {@code toString} of a DateTime that is no literal, inside a store query: legend-engine writes
-     *  {@code cast(%s as varchar)} for every type (legend-engine 4.145.0, each database's extension), so the
-     *  database's own text of the timestamp is its answer ({@code 2014-01-02 10:20:30.25}); the user's ruling of
-     *  2026-11-26, "agreed on float/date text for engine". Where the database's text of that cast has been read
-     *  ({@link PureText#ENGINE_DATE_TIME_CAST_READ}); on any other database there is no row and the call keeps its
-     *  own rule. A LITERAL has no row: its text stays its written text and {@code +0000}, the constant the edge's
-     *  lowering writes, until the user rules on it (PCT's legend-engine lane passes three {@code toString} tests
-     *  with it that legend-engine itself fails: docs/records/edition-homework/step8/moves-if-date-text-is-lites.md).
-     *  No recorded test holds the row. */
+    /** {@code toString} of a DateTime, inside a store query: legend-engine writes {@code cast(%s as varchar)} for
+     *  every type on every database lite shares with it (legend-engine 4.145.0, each extension's {@code toString}:
+     *  {@code varchar}, or {@code String} on ClickHouse and {@code string} on Databricks and BigQuery; no extension
+     *  writes a DateTime's another way, and {@code pureToSQLQuery.pure} sends the call there for every type), so the
+     *  database's own text of the timestamp is its answer ({@code 2014-01-02 10:20:30.25} on most). The user's
+     *  rulings of 2026-11-26: "agreed on float/date text for engine", "datetime for engine should use engines
+     *  database form", and for a LITERAL, which legend-engine writes as a timestamp on every one of those databases
+     *  (each extension's literal processor) and casts the same way, "match engine for engine": so the row answers a
+     *  literal too, and PCT's legend-engine lane fails {@code testDateTimeToString},
+     *  {@code testDateTimeWithTimezoneToString} and {@code testSimpleDateToString} as legend-engine itself does
+     *  (until that day a literal's text was its written text and {@code +0000} at this door, legend-pure's print). On
+     *  a database legend-engine does not have there is no row and the call keeps its own rule. */
     private static final List<Row> DATE_TIME_TO_STRING = List.of(
-            new Row(NamedRule.DATE_TIME_TEXT_BY_CAST, "toString(DateTime)", PureText.ENGINE_DATE_TIME_CAST_READ));
+            new Row(NamedRule.DATE_TIME_TEXT_BY_CAST, "toString(DateTime)", PureText.ENGINE_DATABASES));
     private static final List<Row> FLOAT_TO_STRING = List.of(
             new Row(NamedRule.FLOAT_TEXT_BY_CAST_OF_A_DOUBLE, "toString(Float)", PureText.ENGINE_FLOAT_LITERAL_AS_DOUBLE),
             new Row(NamedRule.FLOAT_TEXT_BY_CAST, "toString(Float)", PureText.ENGINE_DATABASES));
@@ -274,18 +278,15 @@ final class EngineTable implements EditionTable, Edition {
             return alwaysEmpty(call.args().get(0)) ? TO_ONE_OF_EMPTY : null;
         }
         if (TO_STRING.equals(key)) {
-            // a Float's, where legend-engine has the database, and a DateTime's that is no literal, where its
-            // database's cast text has been read: no row is the call's own rule
-            com.legend.compiler.spec.typed.TypedSpec operand = call.args().get(0);
-            com.legend.compiler.element.type.Type type = operand.info().type();
+            // a Float's and a DateTime's, where legend-engine has the database: no row is the call's own rule
+            if (!PureText.ENGINE_DATABASES.contains(database)) {
+                return null;
+            }
+            com.legend.compiler.element.type.Type type = call.args().get(0).info().type();
             if (type == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-                return PureText.ENGINE_DATABASES.contains(database) ? FLOAT_TO_STRING : null;
+                return FLOAT_TO_STRING;
             }
-            if (type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
-                    && !(operand instanceof com.legend.compiler.spec.typed.TypedCDate)) {
-                return PureText.ENGINE_DATE_TIME_CAST_READ.contains(database) ? DATE_TIME_TO_STRING : null;
-            }
-            return null;
+            return type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME ? DATE_TIME_TO_STRING : null;
         }
         Row written = WHERE_WRITTEN.get(key);
         if (written != null) {

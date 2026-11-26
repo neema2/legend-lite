@@ -79,13 +79,13 @@ class FloatTextTest {
 
     /** A TABLE TEXT USED FURTHER AT THE EDGE (the review of S5a, 2026-11-24, and its re-review, 2026-11-25): a
      *  relation's toString is lite's layout computed by the database on every plan style
-     *  (lowering.ProductRelationText). Its FLOAT cells are lite's own text at the edge too since the edition program's
-     *  step 8 (2026-11-26: the edge's Float pass is deleted, so the window this test pinned is closed for them). Its
-     *  DATETIME cells are still re-spelled by the edge dialect's pass (edge.PurePrintForms) as it re-spells any
-     *  DateTime's text there, legend-pure's {@code +0000} form: pinned two ways -- each cell is the edge's own text of
-     *  that value, and the table is NOT lite's text, so the deletion of that pass turns this test red by name; the
-     *  helper's toCSV used further alike (S5b, 2026-11-25). No PCT or corpus case meets either (a last-step table is the
-     *  doors' Java printer's: PureRelationTextTest, PureRelationTextParityTest). */
+     *  (lowering.ProductRelationText). Its FLOAT and its DATETIME cells are lite's own text at the edge too since the
+     *  edition program's step 8 (2026-11-26: the edge's Float pass and its DateTime composition are deleted; the
+     *  user's ruling of that day for a DateTime, "go with lite in the middle"). Until then the edge dialect's pass
+     *  re-spelled each such cell, legend-pure's {@code +0000} form for a DateTime, and this test pinned that window so
+     *  that the deletion turned it red by name: it did, and it is re-pointed. Pinned now: each cell is the edge's own
+     *  text of that value, and the table and the helper's toCSV are lite's text. No PCT or corpus case meets either
+     *  (a last-step table is the doors' Java printer's: PureRelationTextTest, PureRelationTextParityTest). */
     @Test
     void anEdgeTableTextUsedFurtherWritesItsCellsAsTheEdgeWritesTheirValues() throws Exception {
         TestBackend backend = LaneFloor.backend();
@@ -107,16 +107,11 @@ class FloatTextTest {
             }
             assertEquals("#TDS\n   " + col + "\n   " + String.join("\n   ", cells) + "\n#", table,
                     backend.name() + " " + col);
-            if (col.equals("x")) {
-                assertEquals(lites.get(col), table, backend.name() + " x: a Float cell is lite's own text at the edge");
-            } else {
-                org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col), table, backend.name() + " " + col
-                        + ": the edge's table text is lite's -- the window closed: re-point this test");
-            }
-            // the helper's toCSV used further (the review of S5b, 2026-11-25): its DateTime cell the same window, the edge's
-            // text of its value; its Float cell the window CLOSED, the database's own full-precision text since the
-            // user's ruling of 2026-11-25 ("okay make exact"; SqlFn.FLOAT_FULL_TEXT, B3's (B)), which no edge pass
-            // re-spells -- the same CSV at the edge's door and in the product
+            assertEquals(lites.get(col), table, backend.name() + " " + col + ": a cell is lite's own text at the edge");
+            // the helper's toCSV used further (the review of S5b, 2026-11-25): its DateTime cell lite's text of its
+            // value; its Float cell the database's own full-precision text since the user's ruling of 2026-11-25
+            // ("okay make exact"; SqlFn.FLOAT_FULL_TEXT, B3's (B)) -- the same CSV at the edge's door and in the
+            // product
             String csv = Lean.runInStyle(model, "|" + rows + "->select(~" + col + ")->meta::relational::tests::csv::toCSV()",
                     StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
             if (col.equals("x")) {
@@ -127,9 +122,8 @@ class FloatTextTest {
                 continue;
             }
             assertEquals(col + "\n" + String.join("\n", cells) + "\n", csv, backend.name() + " " + col + " toCSV");
-            org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col).replace("#TDS\n   ", "").replace("\n   ", "\n")
-                    .replace("\n#", "\n"), csv, backend.name() + " " + col
-                    + ": the edge's CSV is lite's -- the window closed (S6): re-point this test");
+            assertEquals(lites.get(col).replace("#TDS\n   ", "").replace("\n   ", "\n").replace("\n#", "\n"), csv,
+                    backend.name() + " " + col + ": the edge's CSV is lite's");
         }
     }
 

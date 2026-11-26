@@ -86,19 +86,10 @@ public final class PureText {
      *  4.145.0; until 2026-11-26 the edge's SQL pass chose between the two ({@code PurePrintForms.FloatLiteral}). */
     static final java.util.Set<DatabaseType> ENGINE_FLOAT_LITERAL_AS_DOUBLE = ON_H2;
 
-    /** Where legend-engine's {@code toString} of a DateTime, the database's cast of the timestamp to text, is read
-     *  as its answer for the row: the databases whose text of that cast has been run beside the door's, DuckDB and
-     *  H2 ({@link #CHECKED}; run 2026-11-26). Postgres and Snowflake, whose lanes have read the same cast
-     *  (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md: "a timestamp keeps its microseconds"),
-     *  and Trino, ClickHouse, Databricks and BigQuery, which legend-engine writes the same cast on, join as a set of
-     *  their own when it is ruled: a line here that names a database is counted (DialectBoundaryTest). */
-    static final java.util.Set<DatabaseType> ENGINE_DATE_TIME_CAST_READ = CHECKED;
-
-    /** Whether legend-engine's row for a DateTime's {@code toString} answers on {@code database}
-     *  ({@link #ENGINE_DATE_TIME_CAST_READ}): what a test that runs the row on its lane's database asks, so that it
-     *  names no database. */
-    public static boolean dateTimeCastRead(DatabaseType database) {
-        return ENGINE_DATE_TIME_CAST_READ.contains(database);
+    /** Whether legend-engine 4.145.0 has {@code database} ({@link #ENGINE_DATABASES}): what a test that runs one of
+     *  the table's rows on its lane's database asks, so that it names no database. */
+    public static boolean legendEngineHas(DatabaseType database) {
+        return ENGINE_DATABASES.contains(database);
     }
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
@@ -603,11 +594,9 @@ public final class PureText {
 
     /** MongoDB, spelled as upstream spells it. */
     public static final class MongoDb extends com.legend.sql.dialect.MongoDb {
-        /** legend-pure's text of a date-time, to the millisecond with {@code +0000} (D1.2: until then the product's). */
-        @Override
-        protected String dateTimeFormat() {
-            return "%Y-%m-%dT%H:%M:%S.%L+0000";
-        }
+        // (dateTimeFormat, legend-pure's text of a date-time to the millisecond with +0000: gone 2026-11-26, the
+        // edition program's step 8 -- a date-time's text the program goes on computing with is lite's own on every
+        // database, the product's format; the user's ruling of that day, "go with lite in the middle")
 
         /** legend-pure's print form of a DateTime and legend-engine's {@code TDSNull} for the product's text of each
          *  ({@link PurePrintForms}; D1.2; a Float's went 2026-11-26, the edition program's step 8). */

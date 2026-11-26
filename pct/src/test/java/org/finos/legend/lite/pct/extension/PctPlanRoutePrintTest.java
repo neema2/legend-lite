@@ -64,8 +64,8 @@ class PctPlanRoutePrintTest {
 
     /** A DateTime that is no literal, printed at a last step at legend-pure's door (the edition program's step 8,
      *  2026-11-26): its seconds, the fraction without its trailing zeros (none: no point), and {@code +0000} -- the
-     *  text the edge's SQL composition writes ({@code edge.PureDateTimePrint}; these answers were first run against
-     *  that SQL, before the lift, then held to the Java print, {@code edge.PureValueText}). A literal is its written
+     *  text the edge's SQL composition wrote ({@code edge.PureDateTimePrint}, deleted the same day; these answers
+     *  were first run against that SQL, before the lift, then held to the Java print, {@code edge.PureValueText}). A literal is its written
      *  text, at its written precision, as legend-pure prints it, where it stands, through a let, and through a
      *  function that returns it (the planner inlines the call: the door leaves every such operand to the run). */
     @Test

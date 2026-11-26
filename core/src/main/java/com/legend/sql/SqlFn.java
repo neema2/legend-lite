@@ -207,11 +207,13 @@ public enum SqlFn {
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
      *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
      *  a literal's written text, which legend-pure prints at its written precision, is the edge's alone, through the
-     *  style's two-form DateTimeTexts). The compatibility edge's dialects print it legend-pure's way
-     *  (edge.PureDateTimePrint; census B12, 2026-11-17). */
+     *  style's two-form DateTimeTexts). The compatibility edge's dialects write it as the product's do (until
+     *  2026-11-26 a pass of theirs composed legend-pure's print for it, edge.PureDateTimePrint, deleted: the edition
+     *  program's step 8). */
     DATETIME_TO_TEXT,
-    // (DATETIME_PRINT, legend-pure's print form of a DateTime: gone 2026-11-17, census B12 -- the edge composes it from
-    // the product's nodes, edge.PureDateTimePrint, at lowering and in its print pass)
+    // (DATETIME_PRINT, legend-pure's print form of a DateTime: gone 2026-11-17, census B12 -- the edge composed it from
+    // the product's nodes until 2026-11-26, when the composition was deleted too: legend-pure's print of a computed
+    // DateTime is Java's at a last step, at the compatibility edge)
     /** THE JUDGES' CANON OF A TIMESTAMP (census C5's step C, 2026-11-17): {@code T}-separated, the fraction's digits
      *  with their trailing zeros trimmed (a timestamp carries no written precision), {@code Z} -- lite's spelling, which
      *  every side of a comparison is written in, so lite's date equality (A1) is kept and no message reads it.

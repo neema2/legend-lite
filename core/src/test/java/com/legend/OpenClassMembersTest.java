@@ -71,7 +71,7 @@ class OpenClassMembersTest {
                     "public abstract java.util.List<java.lang.String> engineSeedSqlFromRecords(java.util.List<java.util.List<java.lang.String>>, com.legend.model.DatabaseDefinition, java.util.function.Function<java.lang.String, java.util.Optional<com.legend.model.DatabaseDefinition>>)",
                     "public abstract java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText()")),
             // (B12, sql.dialect.DateTimePrintText: deleted 2026-11-17 with train 7's B12 close, a8b7e2e32e -- the edge's
-            // PureDateTimePrint composes legend-pure's DateTime print)
+            // PureDateTimePrint composed legend-pure's DateTime print until 2026-11-26, deleted with step 8)
             // C4 (a ruled hook)
             Map.entry("com.legend.testplan.EngineTestText", Set.of(
                     "public abstract boolean isRoot(java.lang.String)",

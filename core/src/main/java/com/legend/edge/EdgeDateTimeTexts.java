@@ -6,12 +6,14 @@ package com.legend.edge;
 import com.legend.sql.SqlExpr;
 
 /**
- * legend-pure's print form of a DateTime in a message, the edge's form of the two-form hook
- * {@link com.legend.lowering.DateTimeTexts} (census B9, 2026-11-17). Census B12 (2026-11-17, the orchestrator's ruling on
- * K15's shape): a literal's text is its written text, as legend-pure prints it (the parser already shifted it to GMT);
- * any other value is the product's own node, {@code DATETIME_TO_TEXT}, the value alone, which the edge's dialects print
- * legend-pure's way ({@link PurePrintForms}, {@link PureDateTimePrint}). No operand only the edge reads reaches the
- * product's node, and the DATETIME_PRINT node is gone.
+ * A DateTime's text at the edge, the edge's form of the two-form hook {@link com.legend.lowering.DateTimeTexts}
+ * (census B9, 2026-11-17). A LITERAL's text is its written text and {@code +0000}, as legend-pure prints it (the
+ * parser already shifted it to GMT; census B12, 2026-11-17, the orchestrator's ruling on K15's shape): a constant, no
+ * SQL computes it. Any other value is the product's own node, {@code DATETIME_TO_TEXT}, the value alone, which the
+ * edge's dialects write as the product's do: lite's own text (the edition program's step 8, 2026-11-26; the user's
+ * ruling of that day, "go with lite in the middle" -- until then a pass of the edge's dialects composed legend-pure's
+ * print for it in SQL, {@code PureDateTimePrint}, deleted). legend-pure's print of a computed DateTime is Java's at a
+ * last step ({@link PrintedRelations}, {@link PureValueText#dateTime}).
  */
 final class EdgeDateTimeTexts implements com.legend.lowering.DateTimeTexts {
 

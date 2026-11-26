@@ -251,8 +251,8 @@ class PureRelationTextTest {
 
     /** A DateTime the database computed, printed at a last step (the edition program's step 8, 2026-11-26): its
      *  seconds, the fraction without its trailing zeros (none: no point), and {@code +0000}, the text the edge's SQL
-     *  composition writes for a print the door does not lift. A DateTime the database holds as a day is its
-     *  midnight, as that SQL prints it; a month or a text is no DateTime's value: refused by name. */
+     *  composition wrote until it was deleted that day. A DateTime the database holds as a day is its midnight, as
+     *  that SQL printed it; a month or a text is no DateTime's value: refused by name. */
     @Test
     void aComputedDateTimeIsItsSecondsAndTrimmedFraction() {
         ExecutionPlan.Column at = new ExecutionPlan.Column("value", "DateTime", new ExecutionPlan.Multiplicity(1, 1),

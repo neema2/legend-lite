@@ -164,9 +164,11 @@ class EdgeSpellingHookTest {
      *  else. A shrink of this pin.) */
     private static final Set<String> D1_2 = Set.of("spellingPasses");
 
-    /** D1.2's arms and MongoDB's {@code dateTimeFormat} (2026-11-15): legend-pure's {@code +0000} text of a date-time
-     *  in its {@code $dateToString}s, where the product writes ISO with {@code Z}. */
-    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses", "dateTimeFormat");
+    /** D1.2's arms on MongoDB. (Its {@code dateTimeFormat}, legend-pure's {@code +0000} text of a date-time in its
+     *  {@code $dateToString}s where the product writes ISO with {@code Z}, 2026-11-15: gone 2026-11-26, the edition
+     *  program's step 8 -- a date-time's text used further is lite's own on every database, the user's ruling of that
+     *  day, "go with lite in the middle"; a shrink.) */
+    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses");
 
     /** D1.2's arms and DuckDB's {@code scanOrderPasses} (W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
      *  legend-engine's scan order ({@code edge.StableScanOrder}) for the corpus replay, where the product adds none. */

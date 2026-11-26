@@ -116,16 +116,16 @@ class PureRelationTextParityTest {
     }
 
     /**
-     * A COMPUTED DATETIME'S LAST-STEP PRINT, THE JAVA PRINTER AGAINST THE EDGE'S SQL (the edition program's step 8,
-     * 2026-11-26; kept in the tree while the SQL composition exists, at the orchestrator's word): the text
-     * {@code edge.PureDateTimePrint} composes in SQL for {@code x->toString()}, and the text the door's lift prints
-     * in Java from the instant the same database computed ({@code edge.PrintedRelations}, {@code PureValueText}),
-     * equal on each lane's database for every value below -- whole seconds, a fraction with trailing zeros, a finer
-     * one, a midnight, and a day read as a DateTime. When the SQL composition is deleted, the SQL half goes and the
-     * texts stay pinned as written here.
+     * A COMPUTED DATETIME'S LAST-STEP PRINT, ONCE HELD EQUAL TO THE EDGE'S SQL (the edition program's step 8,
+     * 2026-11-26): the text the door's lift prints in Java from the instant the lane's database computed
+     * ({@code edge.PrintedRelations}, {@code PureValueText}) -- whole seconds, a fraction with trailing zeros, a finer
+     * one, a midnight. Each was held equal on every lane (DuckDB, H2, SQLite) to the text the edge's SQL composition
+     * wrote for the same query ({@code edge.PureDateTimePrint}), in the tree and run, before that SQL was deleted the
+     * same day (the user's ruling: "go with lite in the middle"); the texts stay pinned. The same query not lifted is
+     * lite's own text now, the product's.
      */
     @Test
-    void aComputedDateTimesLastStepPrintIsTheEdgesSqlText() throws Exception {
+    void aComputedDateTimesLastStepPrintIsTheTextTheEdgesSqlWrote() throws Exception {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
         String hours = "->adjust(1, meta::pure::functions::date::DurationUnit.HOURS)->cast(@DateTime)";
@@ -137,10 +137,12 @@ class PureRelationTextParityTest {
         try (Connection c = backend.open()) {
             for (var e : texts.entrySet()) {
                 String query = "|" + e.getKey() + "->toString()";
-                String sql = Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, c, PureText.UPSTREAM).rows().get(0)
-                        .get(0).toString();
-                assertEquals(e.getValue(), sql, backend.name() + " the edge's SQL: " + query);
-                assertEquals(sql, lifted(model, query, c), backend.name() + " the Java print: " + query);
+                assertEquals(e.getValue(), lifted(model, query, c), backend.name() + " the Java print: " + query);
+                // not lifted, the edge's plan writes the product's text of the instant
+                assertEquals(Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, c,
+                                com.legend.database.PlanStyle.PRODUCT).rows().get(0).get(0),
+                        Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, c, PureText.UPSTREAM).rows().get(0).get(0),
+                        backend.name() + " used further: " + query);
             }
         }
     }

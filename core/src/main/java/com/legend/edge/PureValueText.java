@@ -98,11 +98,12 @@ final class PureValueText {
     }
 
     /** A DateTime the database computed, as the edge prints one that is no literal: its seconds, the fraction without
-     *  its trailing zeros (none: no point), and {@code +0000} -- the text the edge's SQL composition writes for a
-     *  print this door does not lift ({@code PureDateTimePrint}; held equal to it by PCT's route test, whose answers
-     *  were first run against that SQL: the edition program's step 8, 2026-11-26). legend-pure prints a DateTime at
-     *  the precision its VALUE carries, which an instant from a database does not: this is the nearest rule, the
-     *  SQL's. Not held equal: a year outside 1000 to 9999, which this writes as its digits and some databases pad. */
+     *  its trailing zeros (none: no point), and {@code +0000} -- the text the edge's SQL composition wrote until the
+     *  edition program's step 8, 2026-11-26 ({@code PureDateTimePrint}, deleted that day; this print was held equal to
+     *  it on every lane first, {@code PureRelationTextParityTest}, whose texts stay pinned). legend-pure prints a
+     *  DateTime at the precision its VALUE carries, which an instant from a database does not: this is the nearest
+     *  rule, the SQL's. Not held equal: a year outside 1000 to 9999, which this writes as its digits and some
+     *  databases padded. */
     static String dateTime(PureDateLiteral d) {
         String nine = d.toNineDigits();
         int point = nine.length() - 10;

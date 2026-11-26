@@ -16,14 +16,15 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A DATETIME'S TEXT INSIDE A STORE QUERY AT LEGEND-ENGINE'S DOOR IS A ROW OF ITS TABLE, WHERE IT IS NO LITERAL (the
- * edition program's step 8, 2026-11-26; the user's ruling of that day, "agreed on float/date text for engine"):
- * legend-engine writes {@code toString} as {@code cast(%s as varchar)}, so the database's own text of the timestamp
- * is its answer. {@link EngineTable} holds the row, on the databases whose text of that cast has been read
- * ({@link PureText#ENGINE_DATE_TIME_CAST_READ}). Planned here for every database lite implements, read as SQL (no
- * database is run): where the row answers, the statement is the very one that prints the same value declared an
- * abstract Date, the plain cast; a literal, a value outside any store query, a day, and every database off the set
- * keep the door's plan as written.
+ * A DATETIME'S TEXT INSIDE A STORE QUERY AT LEGEND-ENGINE'S DOOR IS A ROW OF ITS TABLE (the edition program's step 8,
+ * 2026-11-26; the user's rulings of that day, "agreed on float/date text for engine", "datetime for engine should use
+ * engines database form", and for a literal "match engine for engine"): legend-engine writes {@code toString} as
+ * {@code cast(%s as varchar)} on every database it has, a literal's too, so the database's own text of the timestamp
+ * is its answer. {@link EngineTable} holds the row, on every database legend-engine has
+ * ({@link PureText#ENGINE_DATABASES}). Planned here for every database lite implements, read as SQL (no database is
+ * run): where the row answers, the statement is the very one that prints the same value declared an abstract Date,
+ * the plain cast, and a literal's is no longer its written text; a value outside any store query, a day, and every
+ * database legend-engine does not have keep the door's plan as written.
  */
 class EngineDateTimeTextRowTest {
 
@@ -69,31 +70,34 @@ class EngineDateTimeTextRowTest {
     }
 
     @Test
-    void aDateTimesToStringIsTheDatabasesCastWhereItsTextHasBeenRead() {
+    void aDateTimesToStringIsTheDatabasesCastWhereLegendEngineHasTheDatabase() {
         List<DatabaseType> planned = planned();
-        assertTrue(planned.containsAll(PureText.ENGINE_DATE_TIME_CAST_READ), "every database of the row is planned: "
+        assertTrue(planned.containsAll(PureText.ENGINE_DATABASES), "every database legend-engine has is planned: "
                 + planned);
-        assertTrue(PureText.ENGINE_DATABASES.containsAll(PureText.ENGINE_DATE_TIME_CAST_READ),
-                "the row answers only on a database legend-engine has");
+        assertTrue(planned.size() > PureText.ENGINE_DATABASES.size(), "and one it does not have: " + planned);
         for (DatabaseType type : planned) {
             ModelContext c = Compiler.compileModel(model(type));
             String column = printed("$r.AT->toOne()");
-            // a literal has no row: its written text, the constant the edge's lowering writes
             String literal = printed("%2014-01-01T00:00:00.000+0000");
-            assertEquals(asWritten(c, literal), engines(c, literal), type + " " + literal);
-            assertTrue(engines(c, literal).contains("2014-01-01T00:00:00.000+0000"), type + ": " + engines(c, literal));
             // a day's text is no DateTime's: no row
             String day = printed("$r.DAY->toOne()");
             assertEquals(asWritten(c, day), engines(c, day), type + " " + day);
-            if (!PureText.ENGINE_DATE_TIME_CAST_READ.contains(type)) {
-                // no row where the database's text of the cast has not been read: the call's own rule
+            if (!PureText.ENGINE_DATABASES.contains(type)) {
+                // no row where legend-engine has no such database: the call's own rule, a literal its written text
                 assertEquals(asWritten(c, column), engines(c, column), type + " " + column);
+                assertEquals(asWritten(c, literal), engines(c, literal), type + " " + literal);
+                assertTrue(engines(c, literal).contains("2014-01-01T00:00:00.000+0000"), type + ": " + engines(c, literal));
                 continue;
             }
             assertNotEquals(asWritten(c, column), engines(c, column), type + " " + column);
             // the row's statement is exactly the one that prints the same value declared an abstract Date: the one
             // cast of the column to text
             assertEquals(engines(c, printed("$r.AT->toOne()->cast(@Date)")), engines(c, column), type + " " + column);
+            // a literal is cast too, as legend-engine casts the timestamp it writes for one: its written text, which
+            // legend-pure prints and legend-engine does not, is gone from the statement
+            assertNotEquals(asWritten(c, literal), engines(c, literal), type + " " + literal);
+            assertTrue(asWritten(c, literal).contains("2014-01-01T00:00:00.000+0000"), type + ": " + asWritten(c, literal));
+            assertTrue(!engines(c, literal).contains("+0000"), type + ": " + engines(c, literal));
             // outside any store query legend-engine's own Java prints: no row, the door's plan as written
             String host = "{|let x = %2014-01-01T10:20:30.250+0000->adjust(1,"
                     + " meta::pure::functions::date::DurationUnit.HOURS)->cast(@DateTime)->toString(); " + TABLE

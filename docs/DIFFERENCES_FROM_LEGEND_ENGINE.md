@@ -477,6 +477,55 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   the same everywhere.
 - **Register:** S127 (as amended 2026-11-25 and 2026-11-26).
 
+### 23. A Float's text used further in a program is lite's own (the edition program's step 8, 2026-11-26)
+- **You write** a Float's `toString()`, or `format` with `%s`, `%f` or `%r`, or `toRepresentation()`, and go on
+  computing with the text (join it, put it in a list, compare it).
+- **legend-pure and legend-engine's own Java write** every digit of the double: `0.30000000000000004` for
+  `0.1 + 0.2`, `0.000000013421` for `1.3421e-8`.
+- **lite writes** its own text, computed by the database: six decimals, trailing zeros trimmed, a whole value
+  keeping one (`0.3`, `0.0`).
+- **Unchanged:**
+  - a `toString` that is the program's last step, or is followed only by `replace`, `length`, `trim`, `startsWith`,
+    `endsWith`, `contains` or `indexOf` with literal arguments, is legend-pure's text at legend-pure's door (PCT, the
+    corpus's test code), written in Java from the value;
+  - a `toString` inside a query sent to the database at legend-engine's door is the database's cast, as legend-engine
+    writes it, on every database legend-engine has.
+- **At legend-engine's door, also lite's text:**
+  - a Float's `toString` in code outside a query sent to the database (it is always used further there: that door
+    answers no scalar today);
+  - inside such a query, `format`'s `%s` and `%f` of a Float (legend-engine has no `format` there), and the
+    `toString` of a Float held in a Number or an Any, where legend-engine writes the database's cast (open: the
+    edition program's step 6).
+- **Ruled:** by the user on 2026-11-26: "yes that's right but remember we have a list of chained functions that are
+  okay after that you came up with"; "agreed on float/date text for engine".
+- **Measured:** no recorded PCT, corpus, pure/v1 or edge-case answer moves on DuckDB, H2 or SQLite
+  (`docs/records/edition-homework/step8/slice3-float-text-deletion.md`).
+- **Register:** S428.
+
+### 24. A date-time's text: the database's at legend-engine's door, lite's own in the middle of a program (the edition program's step 8, 2026-11-26)
+- **You write** a DateTime's `toString()`.
+- **Inside a query sent to the database, at legend-engine's door,** lite answers legend-engine's: the database's own
+  cast of the timestamp, `2014-01-01 10:20:30.25` on DuckDB and H2 (a space, the fraction the value holds, no zone),
+  a literal's too, on every database legend-engine has. legend-pure's text of the same value is
+  `2014-01-01T10:20:30.250+0000`; legend-engine itself fails PCT's three `toString` tests of a DateTime, and so does
+  lite at that door, since 2026-11-26.
+- **At legend-pure's door** (PCT, the corpus's test code):
+  - a literal's text is its written text and `+0000`, as legend-pure prints it;
+  - a computed DateTime's `toString` at a last step is written in Java: its seconds, the fraction without its
+    trailing zeros, `+0000`. legend-pure keeps the precision the value carries (`.250+0000` where lite writes
+    `.25+0000`): an instant from a database carries none;
+  - a computed DateTime's text the program goes on computing with is lite's own: ISO 8601, nine fraction digits and
+    `Z` (`2014-01-01T10:20:30.250000000Z`).
+- **`format`'s `%s` and `%r` of a DateTime literal** keep its written text at both doors.
+- **Ruled:** by the user on 2026-11-26: "agreed on float/date text for engine"; "match engine for engine";
+  "datetime for engine should use engines database form, datetime for pure is there a cheap format in database we can
+  use or no? If there is a cheap standard format we can use maybe we should use everywhere for pure - if not go with
+  lite in the middle".
+- **Measured:** every recorded answer that depended on the edge's date-time text was a literal's
+  (`docs/records/edition-homework/step8/moves-if-date-text-is-lites.md`); run on DuckDB, H2 and SQLite. Not measured:
+  the cast's text on Postgres, Trino, Snowflake, ClickHouse, Databricks and BigQuery beside legend-engine's.
+- **Register:** S429.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,

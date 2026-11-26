@@ -2089,10 +2089,10 @@ class JavaEvalLedgerTest {
                             // edge's form of the two-form ListTexts kind (the separation census's B8, TEXT_FORMS gone
                             // from SqlFn 2026-11-17) -- planning work, no session, no value computed
                             "PureListTexts.java",
-                            // legend-pure's print form of a DateTime, composed from the product's nodes (census B12,
-                            // 2026-11-17: moved from sql.dialect.DateTimePrintText, the DATETIME_PRINT node gone) --
-                            // planning work, no session, no value computed
-                            "PureDateTimePrint.java",
+                            // (PureDateTimePrint.java, legend-pure's print form of a DateTime composed from the
+                            // product's nodes, census B12: deleted 2026-11-26, the edition program's step 8 -- a
+                            // computed DateTime's print is Java's at a last step and lite's own text used further,
+                            // the user's ruling of that day, "go with lite in the middle")
                             // (JsonSimpleGrammar.java, json-simple 1.1.1's grammar, register S144: deleted 2026-11-24,
                             // B3 step 2 -- the judges read strict JSON on every route, the two goldens it read past
                             // cleaned at the test-body door, UpstreamTestBodies)
