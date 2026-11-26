@@ -511,6 +511,34 @@ a Float `round(x, 2)` was cast to DOUBLE a second time. Typing `ROUND_HALF_UP` i
 made twelve of the product's plans for a decimal `divide` larger. The database's own ROUND is also what
 legend-engine writes, so a database checked later needs no new rule).
 
+**Where step 5 stands (2026-11-26, branch tip `810dbfe7`, pushed to the pull request).** Checked here on that
+commit: the guards and the census, the edge's, lowering's, SQL's, builtin's and compiler's tests, spec's tests, the
+product's SQL size baseline (unchanged) and the corpus's (four `round` pins down, none up), both corpus lanes and
+their recorded answers, the legend-engine lane's pins, the parser check, pure/v1's recorded answers, the generated
+files: 42 of 42 targets, then 8 of 8 after the last change. A full round with the local gate is asked of the
+measuring session on `810dbfe7`; its round on `b4c9bf0a` was clean but for the nine recorded files since re-recorded
+(690 targets: 658 passed, 22 failed only as root and pass unprivileged, 9 stale recordings; the local gate 556
+passed, 14 root-only). The database lanes were not asked for a round: the product's SQL did not move.
+
+**The rows left, in the order the sheet gives (`r3/research-engine-rows.md`), with what each waits on:**
+1. *The plain parses* (`parseInteger`, `parseFloat`): today a pass of the edge's dialect unguards them for every
+   compatibility style, PCT's legend-pure run included (`edge/PurePrintForms.UnguardedParses`). As rows they are
+   legend-engine's inside a store query alone; PCT's legend-pure run and a host-side `let` get lite's checked parse.
+   Ruled (v3 section 5.3, S-2). Moves PCT's legend-pure answers on every database: needs a lane round.
+2. *`isNumeric`, the one-argument `parseDecimal`, `parseJSON`*: today in the forms object the edge hands every
+   compatibility style (`edge/EdgeLoweringForms`). Each needs a point settled first: H2's `isNumeric` in
+   legend-engine 4.145.0 is a regular expression, so the `lower = upper` form and register S370 are stale;
+   `parseDecimal` is `DECIMAL(5,2)` on H2 and `DECIMAL(18,3)` on DuckDB; `parseJSON`'s tolerance of a missing comma
+   is legend-engine's own Java's, not its SQL's, so its row belongs to the stamped side (the table has rows for the
+   unstamped side only today).
+3. *`dateDiff`*: after the user's answer on the units (6b, item 11).
+4. *`toDecimal` and `parseDecimal` on DuckDB*: a new SQL function for "the database's DECIMAL with no precision
+   written"; H2 2.5.252's bare DECIMAL is not measured.
+5. *A DateTime's and a Boolean's `toString` used further*, *`splitPart`* (DuckDB), *an enumeration by name*, *the
+   keyed count*, *the null-unsafe flag*: as the sheet lists them.
+`rem` needs no row (lite already writes the database's `MOD`; only the zero-divisor check differs, which is the
+table's `checks`).
+
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
