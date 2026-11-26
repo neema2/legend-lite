@@ -31,7 +31,7 @@ class CrossTypeRuleTest {
             Class x::A { n: Integer[1]; big() { $this.n > 1.5 }: Boolean[1]; }
             function x::loose(a: Integer[1]): Boolean[1] { $a == 1.0 }
             function x::keep<T>(r: Relation<T>[1], b: Boolean[1]): Relation<T>[1] { $r->filter(x | $b) }
-            function x::ones<T>(r: Relation<T>[1]): Relation<T>[1] { $r->filter(x | 1 == 1.0) }
+            function x::ones<T>(r: Relation<T>[1]): Relation<T>[1] { $r->filter(x | $x.n == 1.0) }
             """;
 
     /** A setting that lists what it is asked and answers the call. */
@@ -82,7 +82,8 @@ class CrossTypeRuleTest {
     }
 
     @Test
-    @DisplayName("a body typed into its call is a body; an argument written in the query keeps the query's answer")
+    @DisplayName("a body typed into its call, over the caller's own columns, is a body; an argument written in the"
+            + " query keeps the query's answer")
     void aBodyTypedIntoItsCall() {
         Recording inBody = new Recording();
         Compiler.query(Compiler.compileModel(MODEL), "|#TDS\nn\n1\n#->x::ones()").comparing(inBody).body();
