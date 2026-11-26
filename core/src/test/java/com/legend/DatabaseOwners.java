@@ -169,6 +169,12 @@ final class DatabaseOwners {
             // upstream's spellings (a declared type to the edge's subclass of its product dialect), its test, and the
             // test class planted for the rule that a dialect is the product's or the edge's
             MAIN + "edge/PureText.java",
+            // 2026-11-26 (the edition program's step 9, slice 2, the orchestrator's ruling): the harness's dialect
+            // registry, PureText's counterpart for the tests (a declared type to the harness's subclass of the edge's
+            // DuckDB or Postgres, the edge's own for any other) -- test tooling under core/src/edge_harness. It is the
+            // move of those two subclasses' hooks from the edge to the harness: the product's owner set is unchanged,
+            // and PureText names no more databases than before
+            HARNESS + "edge/HarnessText.java",
             TEST + "integration/EdgeSpellingHookTest.java",
             TEST + "planner/PlantedDialect.java",
             // 2026-11-12 (phase D's guards): the test classes planted for the dialect-blind rule and the edge's
