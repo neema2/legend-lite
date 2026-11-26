@@ -853,6 +853,17 @@ number of branches you need without my permission". Recorded in AGENTS.md ("The 
 work goes to scratch branches (the edit tree is pushed as `claude/edit-ahead`), worker sessions build and measure
 from them, and the pull request's branch takes verified batches only.
 
+**The user, ~13:57, on six questions the orchestrator put (the words are the user's):**
+
+| # | The question | The user's words | What it settles |
+|---|---|---|---|
+| 1 | an assert that compares two different types on lite's own door (`assertEquals(1D, 1)`): a compile error, as any comparison across types? | "yes compile error" | step 6's D4: lite refuses; the 21 deliberate probes in lite's own tests are rewritten to expect the error; the compatibility doors are unaffected |
+| 2 | the host judge's ledger pin growing by about 3 lines for the tie-break Integer before Float before Decimal | "yes growth okay" | step 6's D9 |
+| 3 | at legend-pure's door, a Float's text used further in a query is lite's own text (six decimals), with no recorded test moving | "yes that's right but remember we have a list of chained functions that are okay after that you came up with" | the register row may land with step 8's deletion slice; a print followed by the tail's functions stays Java's, with upstream's text |
+| 4 | does legend-engine's door promise `toSQLString` and `planToString` inside a program? | "I think those are platform functions - useful if we need for backwards compatibility - but I don't immediately see a product use for it - I don't think users can use it - can we check somehow?" | not ruled: to be CHECKED (asked of legend-engine itself through the engine runner, and read in lite's routes), then brought back |
+| 5 | when to widen legend-engine's table to the other databases | "whenever you think is right time is fine" | the orchestrator's call: after steps 4 to 6 land, with a proof run through lite on each database |
+| 6 | the print tail's members (`replace`, `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf`), which need a guard exception because Java computes a length, an index or a true/false over text the edge printed | "yes should add guard" | the set is ruled as proposed, pinned by its guard (`PrintTailTest`, the dated ledger entry) |
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
