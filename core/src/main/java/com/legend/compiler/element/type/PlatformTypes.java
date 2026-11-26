@@ -50,6 +50,15 @@ public final class PlatformTypes {
         return t instanceof Type.ClassType c && c.fqn().equals(TDS_NULL_FQN);
     }
 
+    /** The relational SQL null's CLASS: what a bare {@code TDSNull} reference types as, through the {@code sqlNull()}
+     *  funnel (a presence test, never a value). */
+    public static final String SQL_NULL_FQN = "meta::relational::metamodel::SQLNull";
+
+    /** Whether {@code t} is the SQL null's class. */
+    public static boolean isSqlNull(Type t) {
+        return t instanceof Type.ClassType c && c.fqn().equals(SQL_NULL_FQN);
+    }
+
     private PlatformTypes() {
     }
 

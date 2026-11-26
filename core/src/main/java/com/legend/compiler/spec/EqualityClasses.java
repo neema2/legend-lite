@@ -27,7 +27,7 @@ import java.util.Optional;
  * Decimal); String; Boolean; Byte; a day ({@code StrictDate}); a date-time; a time; each enumeration; Variant; a class,
  * crossing another only when no value can be of both (neither is a subtype of the other and they share no subclass).
  * Known only when the query runs, and never marked: {@code Number}, the abstract {@code Date}, {@code LatestDate},
- * {@code Any}, the {@code Enum} class, a type variable, a generic, a function, a relation. Each comparison is known by its declaration's identity, never its name.
+ * {@code Any}, the {@code Enum} class, the SQL null's sentinel in both spellings ({@code TDSNull}, {@code SQLNull}), a type variable, a generic, a function, a relation. Each comparison is known by its declaration's identity, never its name.
  */
 public final class EqualityClasses {
 
@@ -114,8 +114,11 @@ public final class EqualityClasses {
             };
             case Type.PrecisionDecimal ignored -> Optional.of(Type.Primitive.DECIMAL);
             case Type.EnumType e -> Optional.of(e);
+            // the SQL null, in both its spellings (a TDSNull instance and the bare reference's sqlNull() funnel), is
+            // a presence test's sentinel, never a value's class: $v != TDSNull asks whether $v is there (step 4,
+            // 2026-11-26: strict bodies met the funnel in a function, TdsNullTypingPinTest)
             case Type.ClassType c -> PlatformTypes.isAny(c) || PlatformTypes.isNil(c) || PlatformTypes.isTdsNull(c)
-                    || PlatformTypes.isEnumClass(c) ? Optional.empty() : Optional.of(c);
+                    || PlatformTypes.isSqlNull(c) || PlatformTypes.isEnumClass(c) ? Optional.empty() : Optional.of(c);
             case Type.TypeVar ignored -> Optional.empty();
             case Type.GenericType ignored -> Optional.empty();
             case Type.FunctionType ignored -> Optional.empty();
