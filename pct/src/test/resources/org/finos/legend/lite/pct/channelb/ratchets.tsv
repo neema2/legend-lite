@@ -9,8 +9,8 @@ channel_b.grammar.judge.chars	373350
 channel_b.grammar.judge.plan	7940878
 channel_b.relation.discovered	469
 channel_b.relation.judge.statements	469
-channel_b.relation.judge.chars	1329424
-channel_b.relation.judge.plan	24792104
+channel_b.relation.judge.chars	1329114
+channel_b.relation.judge.plan	24786374
 channel_b.standard.discovered	205
 channel_b.standard.judge.statements	218
 channel_b.standard.judge.chars	780133

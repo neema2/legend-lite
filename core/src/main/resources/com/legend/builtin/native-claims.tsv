@@ -582,9 +582,9 @@ meta::pure::functions::math::plus	(numbers:meta::pure::metamodel::type::Number[*
 meta::pure::functions::math::pow	(base:meta::pure::metamodel::type::Number[1], exponent:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1]	POW__NUMBER_1__NUMBER_1	SCALAR_RULE	Scalars.RULES	Scalars
 meta::pure::functions::math::random	():meta::pure::metamodel::type::Float[1]	RANDOM	SCALAR_RULE	Scalars.RULES	CypherToPure;Scalars;UserCallInliner
 meta::pure::functions::math::rem	(dividend:meta::pure::metamodel::type::Number[1], divisor:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1]	REM__NUMBER_1__NUMBER_1	SCALAR_RULE	Scalars.RULES	NumberKinds;Scalars
-meta::pure::functions::math::round	(decimal:meta::pure::metamodel::type::Decimal[1], scale:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Decimal[1]	ROUND__DECIMAL_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	Scalars
-meta::pure::functions::math::round	(float:meta::pure::metamodel::type::Float[1], scale:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Float[1]	ROUND__FLOAT_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	Scalars
-meta::pure::functions::math::round	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Integer[1]	ROUND__NUMBER_1	SCALAR_RULE	Scalars.RULES	Scalars
+meta::pure::functions::math::round	(decimal:meta::pure::metamodel::type::Decimal[1], scale:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Decimal[1]	ROUND__DECIMAL_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	EngineTable;Scalars
+meta::pure::functions::math::round	(float:meta::pure::metamodel::type::Float[1], scale:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Float[1]	ROUND__FLOAT_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	EngineTable;Scalars
+meta::pure::functions::math::round	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Integer[1]	ROUND__NUMBER_1	SCALAR_RULE	Scalars.RULES	EngineTable;Scalars
 meta::pure::functions::math::sign	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Integer[1]	SIGN__NUMBER_1	SCALAR_RULE	Scalars.RULES	Scalars
 meta::pure::functions::math::sin	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	SIN__NUMBER_1	SCALAR_RULE	Scalars.RULES	Scalars
 meta::pure::functions::math::sinh	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	SINH__NUMBER_1	SCALAR_RULE	Scalars.RULES	Scalars
