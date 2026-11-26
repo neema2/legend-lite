@@ -182,7 +182,7 @@ the corpus's doors still hand the product's own edition, so no PCT answer moves 
 | Snowflake | nothing differs | every per-test line of all ten suites, timings stripped |
 | Databricks | nothing differs | every junit outcome and message and every channel B line against its round 1 candidate (`2cd0b2f9`); whole logs equal after normalising ids and timings |
 | MariaDB, MySQL, ClickHouse | nothing differs on MySQL and ClickHouse; MariaDB moves only by its known list shuffle | test by test. ClickHouse channel A: four echoed results list the same rows in another order (unordered relations; the tests pass either way). MariaDB channel B: Essential 21 unledgered failures (30 at the baseline), Grammar the same 4, Relation one of the two sort tests seen on `main`, a different one on a rerun: all rotated lists, the window with no order |
-| Postgres, Trino | (running when this was written) | it is measuring `c06ebbab` first, its stored logs being older |
+| Postgres, Trino | nothing differs | it ran `c06ebbab` again in the same container, then `29f58b21`: every channel B line with its message, channel A's expected-failure lines and counts, every logged result as a multiset of rows (Trino's row order moves on unordered results; no row value does), and the SQL text of the logged plans. Postgres Standard fails at both on the known `testFloatStdDev` |
 
 The three stale Relation ledger blocks (MySQL 21, ClickHouse 5, MariaDB 2 "PASSES, ledgered as failing") are unchanged
 and still to shrink.
