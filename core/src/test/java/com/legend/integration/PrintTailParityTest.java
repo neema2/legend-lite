@@ -4,7 +4,6 @@
 package com.legend.integration;
 
 import com.legend.edge.PrintTail;
-import com.legend.edge.PureRelationText;
 import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackend;
 import com.legend.testing.LaneFloor;
@@ -29,6 +28,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * {@code String.trim}, which strips them, where lite's own SQL strips spaces alone (measured here 2026-11-26 on DuckDB,
  * H2 and SQLite: {@code 'id,name\n1,A\n2,B\n'->trim()} keeps its last line break in lite's SQL). So {@code trim} is compared
  * on the texts whose ends are spaces or printable.
+ *
+ * <p>WHERE THEY PART, each database's answer is RECORDED, one per case per database (the audit's re-check of slice 2,
+ * 2026-11-26, its S7: a test here had accepted any of several answers and any exception): the {@code tail.*} cases of
+ * {@code EdgeCasesGoldenTest}, in {@code edge_cases_answers.tsv}, on every database the platform runs in-process; and
+ * Java's, legend-pure's own answer for the same inputs, is {@code PrintTailTest}'s.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class PrintTailParityTest {
@@ -39,8 +43,8 @@ class PrintTailParityTest {
         String model = backend.withStorelessRuntime("Class s::P { name: String[1]; }\n");
         // the call as Pure writes it after the text -> the step
         Map<String, PrintTail> steps = new LinkedHashMap<>();
-        steps.put("->replace('\\n', ';')", new PureRelationText.Replace("\n", ";"));
-        steps.put("->replace(',', '')", new PureRelationText.Replace(",", ""));
+        steps.put("->replace('\\n', ';')", new PrintTail.Replace("\n", ";"));
+        steps.put("->replace(',', '')", new PrintTail.Replace(",", ""));
         steps.put("->length()", new PrintTail.Length());
         steps.put("->trim()", new PrintTail.Trim());
         steps.put("->startsWith('#TDS')", new PrintTail.StartsWith("#TDS"));
@@ -64,72 +68,15 @@ class PrintTailParityTest {
                     Object database = Lean.run(model, query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
                     assertEquals(String.valueOf(e.getValue().applied(text)), String.valueOf(database),
                             backend.name() + ": " + query);
-                    // and what legend-pure's door itself answered for the call before the tail was lifted: the
-                    // edge's own plan of it (the independent audit of slice 2, 2026-11-26)
+                    // and the edge's own plan of the same call over the same text (the independent audit of slice 2,
+                    // 2026-11-26): legend-pure's door ran the call in the edge's SQL before the tail was lifted --
+                    // over lite's text of the relation there, over this literal here
                     Object edges = Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, backend,
                             com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0);
                     assertEquals(String.valueOf(e.getValue().applied(text)), String.valueOf(edges),
                             backend.name() + " at legend-pure's door: " + query);
                 }
             }
-        }
-    }
-
-    /**
-     * WHERE JAVA AND LITE'S SQL PART (the independent audit of slice 2, 2026-11-26, its S4 and S7): the same call,
-     * Java's answer (legend-pure's own: {@code PrintTailTest}) beside what each lane's database answers for it at
-     * legend-pure's door, where it stands one call away from a print. Measured on every lane 2026-11-26; each
-     * database's answer is one of the forms listed, and none is a register row yet (they are the product's
-     * behaviours, older than the tail, drafted for the user in
-     * docs/records/edition-homework/step8/slice2-repair-2026-11-26.md):
-     * <ul>
-     *   <li>a character above U+FFFF: Java counts two units; a database counts as it counts, one or two;</li>
-     *   <li>{@code replace('', x)}: Java puts {@code x} at every position; lite's SQL leaves the text as it is;</li>
-     *   <li>{@code trim}: Java strips every character up to a space; lite's SQL strips spaces alone;</li>
-     *   <li>{@code indexOf} from a start past an int: Java wraps the start, as legend-pure's {@code intValue()} does,
-     *       and searches from the beginning; lite's SQL answers -1, or the database refuses the number.</li>
-     * </ul>
-     * Where they agree on an input the earlier test left out (an empty needle, a start outside the text), that is
-     * held too.
-     */
-    @Test
-    void whereJavaAndLitesSqlPart_eachIsHeld() throws Exception {
-        TestBackend backend = LaneFloor.backend();
-        String model = backend.withStorelessRuntime("Class s::P { name: String[1]; }\n");
-        String astral = "a\uD83D\uDE00b";
-        record Case(String query, Object javas, List<String> databases) {
-        }
-        List<Case> cases = List.of(
-                new Case("|'" + astral + "'->length()", new PrintTail.Length().applied(astral), List.of("3", "4")),
-                new Case("|'" + astral + "'->indexOf('b')", new PrintTail.IndexOf("b", null).applied(astral),
-                        List.of("2", "3")),
-                new Case("|'abc'->replace('', 'x')", new PureRelationText.Replace("", "x").applied("abc"),
-                        List.of("abc")),
-                new Case("|'\\ta\\n'->trim()->length()", (long) ((String) new PrintTail.Trim().applied("\ta\n")).length(),
-                        List.of("3")),
-                new Case("|'abcb'->indexOf('b', 2147483648)", new PrintTail.IndexOf("b", 2147483648L).applied("abcb"),
-                        List.of("-1", "REFUSED")),
-                // agreed, on inputs the first test left out
-                new Case("|'abc'->indexOf('')", new PrintTail.IndexOf("", null).applied("abc"), List.of("0")),
-                new Case("|'abc'->indexOf('', 5)", new PrintTail.IndexOf("", 5L).applied("abc"), List.of("3")),
-                new Case("|'abc'->startsWith('')", new PrintTail.StartsWith("").applied("abc"), List.of("true")),
-                new Case("|'abc'->endsWith('')", new PrintTail.EndsWith("").applied("abc"), List.of("true")),
-                new Case("|'abc'->contains('')", new PrintTail.Contains("").applied("abc"), List.of("true")),
-                new Case("|'abcb'->indexOf('b', 99)", new PrintTail.IndexOf("b", 99L).applied("abcb"), List.of("-1")),
-                new Case("|'abcb'->indexOf('b', -5)", new PrintTail.IndexOf("b", -5L).applied("abcb"), List.of("1")));
-        List<Object> javas = List.of(4L, 3L, "xaxbxcx", 1L, 1L, 0L, 3L, true, true, true, -1L, 1L);
-        for (int i = 0; i < cases.size(); i++) {
-            Case c = cases.get(i);
-            assertEquals(javas.get(i), c.javas(), "Java's, legend-pure's: " + c.query());
-            String database;
-            try {
-                database = String.valueOf(Lean.runInStyle(model, c.query(), StorelessRuntime.RUNTIME, backend,
-                        com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0));
-            } catch (RuntimeException refused) {
-                database = "REFUSED";
-            }
-            org.junit.jupiter.api.Assertions.assertTrue(c.databases().contains(database),
-                    backend.name() + " " + c.query() + ": " + database + ", not one of " + c.databases());
         }
     }
 }

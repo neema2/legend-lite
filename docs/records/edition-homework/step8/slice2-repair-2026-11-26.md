@@ -12,8 +12,8 @@ after that merge: `90d2759b5..` to the commit this record lands in.*
 | The audit's item | What was wrong | What the repair does |
 |---|---|---|
 | S3 (confirmed) | `PureRelationTextWriter.end` applied the print's tail and handed back an Integer or a Boolean: a result writer computing an answer the plan never typed. | The writer takes no tail and hands back the text alone. The DOOR that lifted the print applies the tail to it: `PrintedRelations.Lifted.answer` and `Side.answer`, called by `PctPlanRoute` (PCT's channel A) and `UpstreamPrints.PRINTER` (channel B, the corpus). |
-| S3, the guard (N2) | `WriterCarriageGuardTest` listed `PrintTail.java` among the writers it scans, but its vocabulary sees none of what the tail computes. | `PrintTail.java` leaves that scan (it is no writer's part), dated. A new test, `WriterCarriageGuardTest.noWriterAppliesAPrintsTail`, fails if any file of the result library, of exec, or of the edge's writers and printers names the tail. What holds the tail itself is unchanged: its closed set is pinned (`PrintTailTest`), and it is the edge's one registered class that computes a value (`JavaEvalLedgerTest`; the user, 2026-11-26: "yes should add guard"). |
-| S2 (plausible) | At a test body's door a printed side is read as a query of its own before the body runs. For a value, the order guard was off, so a value from an unrepeatable source was read twice. | A value's print is not lifted there where a second reading may answer another value: its operand, through its lets, calls `now()`, `today()`, `random()` or `generateGuid()`, or holds a node whose order view is INCIDENTAL (`compiler.spec.OrderView`: rows of a store or of an execution frame with no sort, or past a grouping, a join, a union or a pivot). It is left as written, the database's. PCT's channel A needs no such rule: there the lifted program is the one query, run once. |
+| S3, the guard (N2) | `WriterCarriageGuardTest` listed `PrintTail.java` among the writers it scans, but its vocabulary sees none of what the tail computes. | `PrintTail.java` leaves that scan (it is no writer's part), dated. **That is a loosening of the carriage guard, said plainly: one class that computes is no longer read by it** (2026-11-26, this repair). It is right because the guard's vocabulary (casts, rounding, `intValue`, formatting calls) is a writer's vocabulary and saw one `intValue` of what the tail does, so the scan held nothing of the tail's meaning; what holds it is the closed set's pin and the ledger, below. In its place a dependency rule, `ArchitectureTest.noWriterDependsOnAPrintsTail` (ArchUnit, over the compiled classes; the re-check's R3, which replaced a text scan that a one-line indirection passed): no class that implements `ResultSink`, and no class of the result library or of exec, depends on `PrintTail` or on `PrintedRelations`. `Replace` moved into `PrintTail` so that one class is the thing forbidden. What holds the tail itself is unchanged: its closed set is pinned (`PrintTailTest`), and it is the edge's one registered class that computes a value (`JavaEvalLedgerTest`; the user, 2026-11-26: "yes should add guard"). |
+| S2 (plausible) | At a test body's door a printed side is read as a query of its own before the body runs. For a value, the order guard was off, so a value from an unrepeatable source was read twice. | A value's print is not lifted there where a second reading may answer another value: (as narrowed by the re-check's R1, below) its operand, through its lets, reaches a call of `now()`, `today()`, `random()` or `generateGuid()` anywhere -- in a lambda, in the compiled body of a user function it calls, in a derived property's body -- or takes a value by position (`at`, `first`, `head`, `last`, `take`, `drop`, `slice`, `limit`), outside a lambda, from rows whose order view is INCIDENTAL (`compiler.spec.OrderView`: rows of a store or of an execution frame with no sort, or past a grouping, a join, a union or a pivot). It is left as written, the database's. A sorted read, and pure values through a lambda, are repeatable and lifted. PCT's channel A needs no such rule: there the lifted program is the one query, run once. |
 | S6 (mechanism confirmed) | A Float LITERAL's last-step print went to the database as a literal and came back as a double: each database's parse of the literal reached the text. | The door writes a literal's print itself, from the typed literal (`PureValueText.pureFloat` of its double), where it stands or through the let it is bound to. Nothing is run for it. A computed value is still the database's to compute. |
 | S5 (plausible) | At legend-engine's door a relation's print took the whole tail to Java: `indexOf` moved from the door's own rule (the database's position, register S134) to Java's, `trim` and `length` too, on a reason that was recalled and never asked of legend-engine. | Restored. legend-engine's door lifts a relation's print with its `replace`s alone (the user's ruling of 2026-11-24, "also do the replace in java too"), as before slice 2; a print followed by another call of the set is left to the run there. The engine runner was NOT asked: if the tail is wanted at that door, that question goes to it first. |
 | S7 | The tests held easy inputs; the parity test compared with the product's SQL and skipped the inputs where Java and SQL part. | Below. |
@@ -57,6 +57,16 @@ own Java, run on the build's JDK. Held by `PrintTailParityTest.whereJavaAndLites
 | `'abc'->indexOf('')`, `indexOf('', 5)` | 0, 3 | the same | the same | the same |
 | `startsWith('')`, `endsWith('')`, `contains('')` | true | true | true | true |
 | `'abcb'->indexOf('b', 99)`, `indexOf('b', -5)` | -1, 1 | the same | the same | the same |
+| `'a'->startsWith('a ')`, `'a'->endsWith('a ')` | false | false | false | false |
+
+**Measured by the lane, pending (the re-check's R4, not fixed here):** on MariaDB and MySQL a comparison pads with
+spaces, so `'a'->startsWith('a ')` and `'a'->endsWith('a ')` (a needle longer than the text by trailing spaces) answer
+TRUE in lite's SQL there, where Java and Pure answer false. A product behaviour older than step 8; the three embedded
+lanes above answer false. To be measured on the MariaDB and MySQL lane and drafted as a row with the others.
+
+Since the re-check, each line of this table is a RECORDED answer, one per case per database and per edge style: the
+`tail.*` cases of `EdgeCasesGoldenTest` in `core/src/test/resources/edge/edge_cases_answers.tsv`, which runs on every
+database the platform runs in-process (SQLite joined DuckDB and H2 there).
 
 ## The tests the audit asked for
 
@@ -133,8 +143,9 @@ tail's parity tests; measured on DuckDB, H2 and SQLite on 2026-11-26.
    - Choice B, record it, with the databases' answers as a known quirk.
 3. **`replace('', x)` leaves the text as it is**, where Pure puts `x` at every position (`'abc'->replace('', 'x')` is
    `xaxbxcx`). All three databases answer `abc`.
-4. **`indexOf(s, from)` with a start past an int** is -1 on DuckDB and SQLite and refused by H2's own conversion,
-   where legend-pure wraps the start (`intValue()`) and searches from the beginning. An artifact of legend-pure's
+4. **`indexOf(s, from)` with a start past an int: the product RAISES on H2** (the database's own conversion error,
+   "Numeric value out of range") **where Pure answers 1** for `'abcb'->indexOf('b', 2147483648)`; on DuckDB and SQLite
+   the product answers -1. legend-pure wraps the start (`intValue()`) and searches from the beginning. An artifact of legend-pure's
    implementation; a candidate for "lite's answer, recorded".
 5. **A Float a store holds as an integer, printed at a last step at legend-pure's door, is `1000000.0`** (the audit's
    N4): Pure's meaning for a Float. legend-engine's own result carries the column's integer, which prints

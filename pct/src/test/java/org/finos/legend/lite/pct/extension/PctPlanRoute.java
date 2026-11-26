@@ -181,8 +181,9 @@ final class PctPlanRoute {
                         new com.legend.result.Output.Rows(lifted.writer(text::add)),
                         com.legend.result.Batcher.DEFAULT_CAPACITY);
             }
-            // the plans compared are the ones the case ran: the relation's (the review of 54d922e92: the print's own
-            // query, which the product refuses at lowering, reported every lifted case as PRODUCT_REFUSES)
+            // the plans compared are the relation's (the review of 54d922e92: the print's own query, which the product
+            // refuses at lowering, reported every lifted case as PRODUCT_REFUSES): the ones the case ran, or for a
+            // literal the door wrote itself, the plan of the literal, which was not run
             PctCaseRecorder.onePlan(() -> onePlan(lifted.relation(), features));
             if (text.size() != 1) {
                 throw new IllegalStateException("a lifted print answers one value; got " + text.size());

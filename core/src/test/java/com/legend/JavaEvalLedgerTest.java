@@ -2037,9 +2037,11 @@ class JavaEvalLedgerTest {
                             // a program whose last step prints a relation, lifted at legend-pure's and legend-engine's
                             // doors (stage B's B2, B2b S2, 2026-11-24: the plan of record's B2; E0 = A, 2026-11-20, "E0 -
                             // yes"): reads the typed query, removes the final toString/toCSV and its literal replace
-                            // calls by TypedQuery.withBody -- whole calls removed, nothing planned, no value computed.
-                            // Since 2026-11-26 (the edition program's step 8) it removes the print's whole tail
-                            // (PrintTail.java below) and, at legend-pure's doors, a Float's or a computed DateTime's last toString
+                            // calls by TypedQuery.withBody -- whole calls removed, nothing planned. Since 2026-11-26
+                            // (the edition program's step 8) it removes the print's whole tail at legend-pure's doors
+                            // (the replaces alone at legend-engine's) and a Float's or a computed DateTime's last
+                            // toString; it APPLIES the tail to the printed text for the door (answer(): PrintTail.java
+                            // below, the registered class that computes) and writes a Float literal's print itself
                             "PrintedRelations.java",
                             // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words
                             // that day, "maybe small set up string/count functions chained should all be in java", and

@@ -33,19 +33,9 @@ public final class PureRelationText {
     private PureRelationText() {
     }
 
-    /** A literal {@code replace(target, replacement)} applied to the printed text, in the program's order: the first
-     *  member of a print's tail ({@link PrintTail}; the edition program's step 8, 2026-11-26). */
-    public record Replace(String target, String replacement) implements PrintTail {
-        public Replace {
-            java.util.Objects.requireNonNull(target, "target");
-            java.util.Objects.requireNonNull(replacement, "replacement");
-        }
-
-        @Override
-        public Object applied(String text) {
-            return text.replace(target, replacement);
-        }
-    }
+    // (The record Replace, a literal replace applied to the printed text, lived here from 2026-11-24 to 2026-11-26:
+    // it is PrintTail.Replace now, with the rest of a print's tail, so that no printer or writer file holds code that
+    // computes over a printed text -- the audit's re-check of step 8's slice 2, R3.)
 
     /** The columns refused before a run's rows are read: a mixed column (its cells tagged by kind, which a typed
      *  batch hands over without the tag) has no rule here. */

@@ -185,7 +185,9 @@ class WriterCarriageGuardTest {
             // writer's part. This scan never saw what the tail computes anyway (a length, a trim, a replace are not in
             // its vocabulary; its one hit was indexOf's intValue). What holds the tail: its closed set is pinned
             // (edge.PrintTailTest), it is the edge's one registered class that computes a value (JavaEvalLedgerTest,
-            // the user's "yes should add guard"), and no writer may name it: noWriterAppliesAPrintsTail, below.)
+            // the user's "yes should add guard"), and no writer may depend on it:
+            // ArchitectureTest.noWriterDependsOnAPrintsTail. A LOOSENING of this scan, stated as one: a class that
+            // computes is no longer read by it; it is held by those three instead.)
             Map.entry("RaiseWords.java", Map.ofEntries(
                     Map.entry("intValue", 1),
                     Map.entry("doubleValue", 1),
@@ -314,30 +316,11 @@ class WriterCarriageGuardTest {
             Map.entry("WireTypes.java", Map.of("Math.", 1, "startsWith(\"\")", 1, "contains(\"\")", 1,
                     "endsWith(\"\")", 2)));
 
-    /** NO WRITER APPLIES A PRINT'S TAIL (the independent audit of step 8's slice 2, 2026-11-26): the calls a program
-     *  makes over a printed text ({@code edge.PrintTail}: a length, an index, a true or false) are computed at the
-     *  door that lifted the print, from the text the writer handed it. A result writer that named the tail would be
-     *  computing an answer the plan never typed. Held over every file of the result library and exec, and the edge's
-     *  writers and printers the scan below names. */
-    @Test
-    void noWriterAppliesAPrintsTail() throws IOException {
-        List<Path> files = new java.util.ArrayList<>(
-                SourceFiles.under(RESULT, EXEC.toArray(String[]::new)).stream()
-                        .filter(p -> p.toString().endsWith(".java")).toList());
-        for (String edges : List.of("PureV1Writer", "EngineAnswers", "Presenter", "PureRelationText",
-                "PureRelationTextWriter", "PureValueText")) {
-            files.add(SourceFiles.file("core/src/main/java/com/legend/edge/" + edges + ".java"));
-        }
-        StringBuilder named = new StringBuilder();
-        for (Path f : files) {
-            // PureRelationText declares the tail's first member, the record Replace: the one mention it may hold
-            String code = stripped(Files.readString(f)).replace("implements PrintTail", "");
-            if (code.contains("PrintTail")) {
-                named.append("\n  ").append(f.getFileName());
-            }
-        }
-        assertTrue(named.isEmpty(), "a writer names the print's tail (the door applies it, never a writer):" + named);
-    }
+    // (noWriterAppliesAPrintsTail, a source scan for the tail's name in a list of writer files, stood here for one day,
+    // 2026-11-26. The audit's re-check of step 8's slice 2 (R3) showed what it missed: a writer applying a step by
+    // another spelling, or a writer outside the list. It is a dependency rule over the compiled classes now,
+    // ArchitectureTest.noWriterDependsOnAPrintsTail: no class that implements the result sink, and none of the result
+    // library or of exec, depends on edge.PrintTail or on the door that applies it.)
 
     @Test
     void theWritersCarryAndDecideNothing() throws IOException {

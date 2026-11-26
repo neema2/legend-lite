@@ -29,7 +29,7 @@ import java.util.List;
  * set's seven members and the guard exception they need on 2026-11-26: "yes should add guard". They are pinned
  * ({@code PrintTailTest}): one is added with the user's word or not at all.
  *
- * <p>{@code replace} is {@link PureRelationText.Replace}, the set's first member.
+ * <p>{@code replace} is {@link Replace}, the set's first member.
  *
  * <p>Java's answer is legend-pure's, which is not always lite's own SQL's for the same call: {@code length} counts
  * UTF-16 units where a database counts characters, and {@code trim} strips a line break at either end where lite's SQL
@@ -43,16 +43,32 @@ import java.util.List;
  *
  * <p>Applied at the DOOR that lifted the print ({@code PrintedRelations.Side.answer}, {@code Lifted.answer}), from
  * the text the writer handed it; never by a result writer, which writes and computes nothing (the independent audit
- * of slice 2, 2026-11-26; {@code WriterCarriageGuardTest.noWriterAppliesAPrintsTail}). At legend-pure's doors alone
+ * of slice 2, 2026-11-26; {@code ArchitectureTest.noWriterDependsOnAPrintsTail}). At legend-pure's doors alone
  * for every member but {@code replace}: legend-engine's door lifts a relation's print with its replaces, as before
  * the set grew, since what legend-engine itself answers for another member after a relation's print has not been
  * asked of it ({@code PrintedRelations.lift}).
  */
-public sealed interface PrintTail permits PureRelationText.Replace, PrintTail.Length, PrintTail.Trim,
+public sealed interface PrintTail permits PrintTail.Replace, PrintTail.Length, PrintTail.Trim,
         PrintTail.StartsWith, PrintTail.EndsWith, PrintTail.Contains, PrintTail.IndexOf {
 
     /** This step applied to {@code text}. */
     Object applied(String text);
+
+    /** {@code replace(target, replacement)}: {@code String.replace} ({@code CompiledSupport.replace}), every
+     *  occurrence, left to right, the target read as text and never as a pattern. The set's first member (the user's
+     *  ruling of 2026-11-24, "also do the replace in java too"; it was {@code PureRelationText}'s nested record until
+     *  2026-11-26). */
+    record Replace(String target, String replacement) implements PrintTail {
+        public Replace {
+            java.util.Objects.requireNonNull(target, "target");
+            java.util.Objects.requireNonNull(replacement, "replacement");
+        }
+
+        @Override
+        public Object applied(String text) {
+            return text.replace(target, replacement);
+        }
+    }
 
     /** {@code length()}: {@code String.length} ({@code CompiledSupport.length}), UTF-16 units as legend-pure counts. */
     record Length() implements PrintTail {
@@ -110,7 +126,7 @@ public sealed interface PrintTail permits PureRelationText.Replace, PrintTail.Le
             return "String";
         }
         return switch (steps.get(steps.size() - 1)) {
-            case PureRelationText.Replace r -> "String";
+            case PrintTail.Replace r -> "String";
             case Trim t -> "String";
             case Length l -> "Integer";
             case IndexOf i -> "Integer";
@@ -160,7 +176,7 @@ public sealed interface PrintTail permits PureRelationText.Replace, PrintTail.Le
         if (a.size() == 3 && a.get(1) instanceof TypedCString s) {
             if (id.equals(Declared.REPLACE)
                     && a.get(2) instanceof TypedCString with) {
-                return new PureRelationText.Replace(s.value(), with.value());
+                return new PrintTail.Replace(s.value(), with.value());
             }
             if (id.equals(Declared.INDEX_OF_FROM)
                     && a.get(2) instanceof TypedCInteger from

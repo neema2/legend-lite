@@ -197,12 +197,12 @@ class PureRelationTextTest {
     @Test
     void literalReplacesApplyInOrder() {
         String csv = PureRelationText.csv(List.of(col("a", "Integer")), List.of(row(1L), row(2L)));
-        assertEquals("a,1,2,", PrintTail.applied(csv, List.of(new PureRelationText.Replace("\n", ","))));
-        assertEquals("b-1", PrintTail.applied("a-1", List.of(new PureRelationText.Replace("a", "b"))));
-        assertEquals("cc", PrintTail.applied("aa", List.of(new PureRelationText.Replace("a", "b"),
-                new PureRelationText.Replace("b", "c"))));
+        assertEquals("a,1,2,", PrintTail.applied(csv, List.of(new PrintTail.Replace("\n", ","))));
+        assertEquals("b-1", PrintTail.applied("a-1", List.of(new PrintTail.Replace("a", "b"))));
+        assertEquals("cc", PrintTail.applied("aa", List.of(new PrintTail.Replace("a", "b"),
+                new PrintTail.Replace("b", "c"))));
         // an empty target is Java's String.replace's, which Pure's replace is: before and after each character
-        assertEquals("xax", PrintTail.applied("a", List.of(new PureRelationText.Replace("", "x"))));
+        assertEquals("xax", PrintTail.applied("a", List.of(new PrintTail.Replace("", "x"))));
     }
 
     // ---- the writer: a run's receiver ----------------------------------------------------------------------------

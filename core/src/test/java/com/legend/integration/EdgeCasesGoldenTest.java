@@ -36,7 +36,18 @@ import java.util.Map;
  *       text until then);</li>
  *   <li>EDGE-3: {@code format('%r', ...)} of a string holding a newline (raw today, upstream's {@code \n}: pinned as
  *       it is).</li>
+ *   <li>STEP 8's (2026-11-26, the audit's re-check of slice 2: one recorded answer per case per database, where a
+ *       test had accepted any of several): {@code tail.*}, the calls of a print's tail ({@code edge.PrintTail}) as
+ *       each database's own SQL answers them over a text, on the inputs where Java -- legend-pure's answer,
+ *       {@code PrintTailTest} -- and a database part (a character above U+FFFF, an empty target, a control character
+ *       in {@code trim}, a start past an int) and two where they must not (a needle that a pattern would read
+ *       specially); and {@code float.*}, a Float the DATABASE computes, printed at a last step: legend-pure's print
+ *       in Java under the edge's legend-pure style, whose door lifts it, and the database's own text under
+ *       legend-engine's -- a negative zero, the largest and the smallest doubles, the exponent-form boundaries, a
+ *       whole value, an overflow and a division by zero as each database answers them.</li>
  * </ul>
+ * Since that day the net runs on every database the platform runs in-process (SQLite joined DuckDB and H2), and a
+ * last step is lifted as each style's own door lifts it: a value's print at legend-pure's alone.
  * A case that fails is recorded with its message: the net pins what the edge answers, not what it should.
  */
 class EdgeCasesGoldenTest {
@@ -53,6 +64,42 @@ class EdgeCasesGoldenTest {
         }
         CASES.put("edge2.toCSV.dateTime", "|#TDS\n  id:Integer, at:DateTime\n  1, 2024-01-02T10:30:00.123+0000\n#" + CSV);
         CASES.put("edge3.formatRepr.newline", "|format('%r', ['a\\nb'])");
+        // step 8 (2026-11-26): the tail's calls over a text, in each database's own SQL
+        String astral = "a\uD83D\uDE00b";
+        CASES.put("tail.length.aboveFFFF", "|'" + astral + "'->length()");
+        CASES.put("tail.indexOf.aboveFFFF", "|'" + astral + "'->indexOf('b')");
+        CASES.put("tail.replace.emptyTarget", "|'abc'->replace('', 'x')");
+        CASES.put("tail.trim.controlCharacters", "|'\\ta\\n'->trim()->length()");
+        CASES.put("tail.indexOf.fromPastAnInt", "|'abcb'->indexOf('b', 2147483648)");
+        CASES.put("tail.indexOf.emptyNeedle", "|'abc'->indexOf('')");
+        CASES.put("tail.startsWith.emptyNeedle", "|'abc'->startsWith('')");
+        CASES.put("tail.startsWith.trailingSpace", "|'a'->startsWith('a ')");
+        CASES.put("tail.endsWith.trailingSpace", "|'a'->endsWith('a ')");
+        CASES.put("tail.replace.aDot", "|'a.b'->replace('.', 'x')");
+        CASES.put("tail.contains.aDollar", "|'a$b'->contains('$')");
+        CASES.put("tail.contains.aPercent", "|'a%b'->contains('%')");
+        CASES.put("tail.startsWith.anUnderscore", "|'ab'->startsWith('_')");
+        CASES.put("tail.indexOf.emptyNeedlePastTheEnd", "|'abc'->indexOf('', 5)");
+        CASES.put("tail.endsWith.emptyNeedle", "|'abc'->endsWith('')");
+        CASES.put("tail.contains.emptyNeedle", "|'abc'->contains('')");
+        CASES.put("tail.indexOf.fromPastTheEnd", "|'abcb'->indexOf('b', 99)");
+        CASES.put("tail.indexOf.fromBeforeTheStart", "|'abcb'->indexOf('b', -5)");
+        CASES.put("tail.emptyText.length", "|''->length()");
+        CASES.put("tail.emptyText.replaceEmpty", "|''->replace('', 'x')");
+        CASES.put("tail.emptyText.indexOfEmpty", "|''->indexOf('')");
+        CASES.put("tail.emptyText.contains", "|''->contains('a')");
+        CASES.put("tail.emptyText.trim", "|''->trim()->length()");
+        // step 8: a Float the database computes, printed at a last step
+        CASES.put("float.negativeZero", "|(-1.0 * 0.0)->toString()");
+        CASES.put("float.largest", "|(1.7976931348623157E308 * 1.0)->toString()");
+        CASES.put("float.smallest", "|(4.9E-324 * 1.0)->toString()");
+        CASES.put("float.1e21", "|(1.0E21 * 1.0)->toString()");
+        CASES.put("float.1e-7", "|(1.0E-7 * 1.0)->toString()");
+        CASES.put("float.whole", "|(2.0 * 3.0)->toString()");
+        CASES.put("float.fromAnInteger", "|(3->toFloat() * 1)->toString()");
+        CASES.put("float.overflow", "|(1.7976931348623157E308 * 10.0)->toString()");
+        CASES.put("float.zeroByZero", "|(0.0 / 0.0)->toString()");
+        CASES.put("float.negativeLiteral", "|(-1.3421e-8)->toString()");
     }
 
     private static final Map<String, PlanStyle> STYLES = new LinkedHashMap<>();
@@ -78,7 +125,14 @@ class EdgeCasesGoldenTest {
             // B2b S5a, 2026-11-24): lifted (edge.PrintedRelations, the one rule B3's lift reads too), the relation run and
             // printed in Java from its rows -- until then the edge composed the text in SQL, which S5a deleted
             com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query);
-            com.legend.edge.PrintedRelations.Lifted lifted = com.legend.edge.PrintedRelations.lift(typed);
+            // each style's own door: legend-pure's (UPSTREAM) lifts a value's print and the whole tail, legend-engine's
+            // a relation's print with its replaces
+            com.legend.edge.PrintedRelations.Lifted lifted = com.legend.edge.PrintedRelations.lift(typed,
+                    style == com.legend.edge.PureText.UPSTREAM);
+            if (lifted != null && lifted.written() != null) {
+                // a literal's print, written at the door: nothing is run
+                return "VALUE\t" + lifted.answers() + ":" + lifted.answer(lifted.written()) + ";";
+            }
             if (lifted != null) {
                 List<String> text = new java.util.ArrayList<>();
                 try (java.sql.Connection c = backend.open(style)) {
@@ -112,8 +166,15 @@ class EdgeCasesGoldenTest {
         // the platform's own engine and legend-engine's database, by role (the dialect-leak ban: a test names no
         // database; the census's DialectLeakRatchetTest caught the names here in the compatibility program's slice 0.2,
         // 2026-11-19): Databases.REPLAY_REFEREE is the type legend-engine's tests run on, lite's own session of it here
-        for (DatabaseType type : List.of(com.legend.database.Databases.PLATFORM,
-                com.legend.database.Databases.REPLAY_REFEREE)) {
+        List<DatabaseType> types = new java.util.ArrayList<>(List.of(com.legend.database.Databases.PLATFORM,
+                com.legend.database.Databases.REPLAY_REFEREE));
+        // and every other database the platform runs in-process (step 8, 2026-11-26), after the two the net began with
+        for (TestBackend inProcess : TestBackends.inProcess()) {
+            if (!types.contains(inProcess.type())) {
+                types.add(inProcess.type());
+            }
+        }
+        for (DatabaseType type : types) {
             TestBackend backend = TestBackends.of(type);
             for (Map.Entry<String, PlanStyle> style : STYLES.entrySet()) {
                 for (Map.Entry<String, String> c : CASES.entrySet()) {

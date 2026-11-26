@@ -47,7 +47,7 @@ class PrintedRelationsTest {
         PrintedRelations.Lifted lifted = PrintedRelations.lift(typed("|" + REL
                 + "->toString()->replace('\\n', ',')->replace('x', 'y')"));
         assertNotNull(lifted);
-        assertEquals(List.of(new PureRelationText.Replace("\n", ","), new PureRelationText.Replace("x", "y")),
+        assertEquals(List.of(new PrintTail.Replace("\n", ","), new PrintTail.Replace("x", "y")),
                 lifted.tail());
     }
 
@@ -75,7 +75,7 @@ class PrintedRelationsTest {
         PrintedRelations.Lifted length = PrintedRelations.lift(typed("|" + REL
                 + "->toString()->replace('\\n', ',')->trim()->length()"), true);
         assertNotNull(length);
-        assertEquals(List.of(new PureRelationText.Replace("\n", ","), new PrintTail.Trim(), new PrintTail.Length()),
+        assertEquals(List.of(new PrintTail.Replace("\n", ","), new PrintTail.Trim(), new PrintTail.Length()),
                 length.tail());
         assertEquals("Integer", length.answers());
         PrintedRelations.Lifted contains = PrintedRelations.lift(typed("|" + REL + CSV + "()->contains('x')"), true);
@@ -122,6 +122,9 @@ class PrintedRelationsTest {
         // database parses the literal and hands a double back for it (the independent audit of slice 2, 2026-11-26)
         assertEquals("0.000000013421", PrintedRelations.lift(typed("|1.3421e-8->toString()"), true).written());
         assertEquals("134210000.0", PrintedRelations.lift(typed("|1.3421e8->toString()"), true).written());
+        // a negative literal, which Pure writes as minus(literal), is a literal too
+        assertEquals("-0.000000013421", PrintedRelations.lift(typed("|(-1.3421e-8)->toString()"), true).written());
+        assertEquals("0.0", PrintedRelations.lift(typed("|(-0.0)->toString()"), true).written());
         PrintedRelations.Lifted bound = PrintedRelations.lift(typed("{|let x = 1.3421e-8; $x->toString()->length();}"),
                 true);
         assertEquals("0.000000013421", bound.written());
@@ -180,7 +183,7 @@ class PrintedRelationsTest {
         PrintedRelations.Side side = PrintedRelations.side(printed);
         assertNotNull(side);
         assertEquals(PureRelationTextWriter.Form.TO_STRING, side.form());
-        assertEquals(List.of(new PureRelationText.Replace("x", "y")), side.tail());
+        assertEquals(List.of(new PrintTail.Replace("x", "y")), side.tail());
         assertEquals(((com.legend.compiler.spec.typed.TypedNativeCall) ((com.legend.compiler.spec.typed.TypedNativeCall)
                 printed).args().get(0)).args().get(0), side.relation());
         assertNull(PrintedRelations.side(typed("|" + REL + "->filter(r|$r.a == 1)").body().get(0)));

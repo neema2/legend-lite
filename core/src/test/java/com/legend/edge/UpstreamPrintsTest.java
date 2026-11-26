@@ -56,7 +56,7 @@ class UpstreamPrintsTest {
                 "|let r = " + REL + "; assertEquals('x', $r->toString()->replace('\\n', ',')->replace('A', 'a'));"));
         assertNotNull(p);
         assertEquals(PureRelationTextWriter.Form.TO_STRING, p.form());
-        assertEquals(List.of(new PureRelationText.Replace("\n", ","), new PureRelationText.Replace("A", "a")),
+        assertEquals(List.of(new PrintTail.Replace("\n", ","), new PrintTail.Replace("A", "a")),
                 p.tail());
         // a String's toString, and a replace whose argument is not a literal, are not printed sides
         assertNull(first(com.legend.Compiler.query(ctx, "|assertEquals('x', 'x'->toString());")));
@@ -215,9 +215,84 @@ class UpstreamPrintsTest {
         for (String body : List.of(
                 "|let x = random(); assertEquals($x->toString(), $x->toString());",
                 "|assertEquals('0.5', (random() * 1.0)->toString());",
+                // a draw inside a lambda is still a draw
+                "|assertEquals('0.5', ([1.0]->map(x|$x * random())->at(0))->toString());",
+                // a value taken by position from rows past a grouping: their order is the database's
                 "|" + grouped + " assertEquals('1.5', ($g->map(r|$r.n->toOne() * 1.5)->at(0))->toString());")) {
             com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
             org.junit.jupiter.api.Assertions.assertSame(typed, UpstreamPrints.read(typed, false, never), body);
+        }
+        // a user's function in the operand: its body is not in sight at the door and may draw
+        com.legend.compiler.element.ModelContext drawing = com.legend.Compiler.compileModel(
+                com.legend.testbackend.StorelessRuntime.with(MODEL + "function t::draw(): Float[1] { random() }\n",
+                        com.legend.database.Databases.PLATFORM));
+        com.legend.TypedQuery called = com.legend.Compiler.query(drawing,
+                "|let x = t::draw(); assertEquals($x->toString(), $x->toString());");
+        org.junit.jupiter.api.Assertions.assertSame(called, UpstreamPrints.read(called, false, never));
+        // ...and behind a second function, a lambda inside one, and a derived property (the audit's re-check, R1:
+        // the scan is over the whole tree, the compiled bodies the operand calls included)
+        com.legend.compiler.element.ModelContext behind = com.legend.Compiler.compileModel(
+                com.legend.testbackend.StorelessRuntime.with(MODEL
+                        + "function t::draw(): Float[1] { random() }\n"
+                        + "function t::outer(): Float[1] { t::draw() * 1.0 }\n"
+                        + "function t::mapped(): Float[1] { [1.0]->map(x|$x * random())->toOne() }\n"
+                        + "Class t::Box { v: Float[1]; drawn() { $this.v * random() }: Float[1]; }\n",
+                        com.legend.database.Databases.PLATFORM));
+        for (String body : List.of(
+                "|assertEquals('0.5', t::outer()->toString());",
+                "|assertEquals('0.5', t::mapped()->toString());",
+                "|assertEquals('0.5', [1.0]->map(x|$x * t::outer())->toOne()->toString());",
+                "|let b = ^t::Box(v = 1.0); assertEquals('0.5', $b.drawn->toString());")) {
+            com.legend.TypedQuery typed = com.legend.Compiler.query(behind, body);
+            org.junit.jupiter.api.Assertions.assertSame(typed, UpstreamPrints.read(typed, false, never), body);
+        }
+    }
+
+    /** ...AND A VALUE WHOSE SOURCE IS REPEATABLE IS LIFTED (the review of the repair, 2026-11-26: the rule must not
+     *  refuse a value merely because it reads rows or holds a lambda): pure values through a lambda are in the
+     *  language's order, and a value taken by position from SORTED rows is in the sort's. Each is read, printed by
+     *  legend-pure's rule in Java -- {@code 0.0000001}, where lite's own text of the value is {@code 0.0} -- and the
+     *  body then passes. */
+    @Test
+    void aValueFromARepeatableSourceIsLifted() throws Exception {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        String sorted = "let s = " + REL + "->sort(~id->descending());";
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            UpstreamPrints.Reads reads = (query, answer) -> com.legend.TestExecution.runProgram(query,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                    com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE, answer);
+            // a function and a derived property that draw nothing are in sight, and repeatable (the re-check's R1)
+            com.legend.compiler.element.ModelContext pure = com.legend.Compiler.compileModel(
+                    com.legend.testbackend.StorelessRuntime.with(MODEL
+                            + "function t::twice(x: Float[1]): Float[1] { $x * 2.0 }\n"
+                            + "Class t::Box { v: Float[1]; twice() { $this.v * 2.0 }: Float[1]; }\n",
+                            com.legend.database.Databases.PLATFORM));
+            for (String body : List.of(
+                    "|assertEquals('0.0000002', t::twice(1.0E-7)->toString());",
+                    "|let b = ^t::Box(v = 1.0E-7); assertEquals('0.0000002', $b.twice->toString());")) {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(pure, body);
+                com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);
+                assertTrue(read != typed, body);
+                assertEquals(0, toStrings(read), body);
+                com.legend.TestExecution.runProgram(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                        com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            }
+            for (String body : List.of(
+                    // the re-check's two examples: pure values through a lambda, in the language's order
+                    "|assertEquals('0.30000000000000004', [0.1]->map(x|$x + 0.2)->toOne()->toString());",
+                    "|assertEquals('0.0000001', [1.0E-7]->map(x|$x)->toOne()->toString());",
+                    "|assertEquals('0.0000001', ([1.0E-7]->map(x|$x * 1.0)->at(0))->toString());",
+                    "|" + sorted + " assertEquals('0.0000002', ($s->map(r|$r.id->toOne() * 1.0E-7)->at(0))->toString());")) {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
+                com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);
+                assertTrue(read != typed, body);
+                assertEquals(0, toStrings(read), body);
+                com.legend.TestExecution.runProgram(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                        com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            }
         }
     }
 

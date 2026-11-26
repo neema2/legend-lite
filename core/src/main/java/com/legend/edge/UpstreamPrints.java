@@ -65,9 +65,9 @@ public final class UpstreamPrints {
         Printer NONE = (side, read, reads) -> null;
     }
 
-    /** The edge's printer: legend-pure's text of the rows (or the value) the read answers, the tail applied (B2b's
-     *  S1, {@link PureRelationTextWriter}: one writer per read, the database's typed cells in; out, legend-pure's text
-     *  or what the tail's last step answers). */
+    /** The edge's printer: legend-pure's text of the rows (or the value) the read answers (B2b's S1,
+     *  {@link PureRelationTextWriter}: one writer per read, the database's typed cells in; out, legend-pure's text),
+     *  and then, here at the door, the print's tail applied to that text ({@link PrintedRelations.Side#answer}). */
     static final Printer PRINTER = (side, read, reads) -> {
         if (side.written() != null) {
             // a literal's print, written at the door: nothing is read
@@ -170,7 +170,7 @@ public final class UpstreamPrints {
                 return n;
             }
             if (p.form() == PureRelationTextWriter.Form.VALUE && p.written() == null
-                    && unrepeatable(p.relation(), lets)) {
+                    && unrepeatable(p.relation(), lets, typed)) {
                 return n;
             }
             Object answer = print(p, typed, lets, reads, printer);
@@ -302,12 +302,12 @@ public final class UpstreamPrints {
                 continue;
             }
             // lines are cut from a text: a tail that holds a step other than a replace is left as written
-            if (!p.tail().stream().allMatch(t -> t instanceof PureRelationText.Replace)) {
+            if (!p.tail().stream().allMatch(t -> t instanceof PrintTail.Replace)) {
                 continue;
             }
             List<String> goldenLines;
             List<String> printedLines;
-            List<PureRelationText.Replace> rs = p.tail().stream().map(t -> (PureRelationText.Replace) t).toList();
+            List<PrintTail.Replace> rs = p.tail().stream().map(t -> (PrintTail.Replace) t).toList();
             int joining = -1;
             for (int i = 0; i < rs.size(); i++) {
                 if (rs.get(i).target().equals("\n")) {
@@ -379,7 +379,6 @@ public final class UpstreamPrints {
         return k == cells.size() ? out : null;
     }
 
-    /** Whether every name {@code relation} reads is bound by one of {@code lets}: a lambda's parameter is not. */
     /** Whether {@code id} is a native whose every call answers anew: the clock's and the draws. */
     private static boolean answersAnew(com.legend.model.FunctionId id) {
         return com.legend.builtin.Pure.AT_DATE_NOW.contains(id) || com.legend.builtin.Pure.AT_DATE_TODAY.contains(id)
@@ -387,32 +386,79 @@ public final class UpstreamPrints {
                 || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(id);
     }
 
+    /** Whether {@code id} takes its answer by POSITION from a collection: the natives whose answer changes with the
+     *  order of the rows they read. */
+    private static boolean picksByPosition(com.legend.model.FunctionId id) {
+        return com.legend.builtin.Pure.AT_COLLECTION_AT.contains(id) || com.legend.builtin.Pure.AT_COLLECTION_FIRST.contains(id)
+                || com.legend.builtin.Pure.AT_COLLECTION_HEAD.contains(id) || com.legend.builtin.Pure.AT_COLLECTION_LAST.contains(id)
+                || com.legend.builtin.Pure.AT_COLLECTION_TAKE.contains(id) || com.legend.builtin.Pure.AT_COLLECTION_DROP.contains(id)
+                || com.legend.builtin.Pure.AT_COLLECTION_SLICE.contains(id)
+                || com.legend.builtin.Pure.AT_COLLECTION_LIMIT.contains(id);
+    }
+
+    /** Whether {@code n} is itself a call of a native that answers anew each time. */
+    private static boolean drawsAnew(TypedSpec n) {
+        return n instanceof TypedNativeCall c && answersAnew(c.callee().id());
+    }
+
     /** Whether a second reading of the value {@code e}, through the lets it reads, may answer another value than
-     *  the body's own run: it calls a native that answers anew each time ({@code now()}, {@code today()},
-     *  {@code random()}, {@code generateGuid()}), or it reads rows whose order the program does not define (an
-     *  {@code at(0)} of a store's or a frame's rows with no sort: {@link com.legend.compiler.spec.OrderView}'s
-     *  INCIDENTAL, the guard a printed relation is held to). A side is read as a query of its own, before the body
-     *  runs; the assert's statement reads once for all it compares. So such a value's print is left as written, the
-     *  database's (the independent review of the date slice and the independent audit of slice 2, 2026-11-26). */
-    private static boolean unrepeatable(TypedSpec e, List<TypedSpec> lets) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(List.of(e));
+     *  the body's own run. A side is read as a query of its own, before the body runs; the assert's statement reads
+     *  once for all it compares. So a value's print is left as written, the database's, where its operand
+     *  <ul>
+     *    <li>calls a native that answers anew each time ({@code now()}, {@code today()}, {@code random()},
+     *        {@code generateGuid()}) -- anywhere in it: in a lambda's body, and in the compiled body of a user's
+     *        function it calls, and of the functions that one calls
+     *        ({@link com.legend.compiler.spec.StatementEffects#reaches});</li>
+     *    <li>reads a derived property, whose body is not walked here and may call one;</li>
+     *    <li>takes a value BY POSITION ({@code at}, {@code first}, {@code head}, {@code last}, {@code take},
+     *        {@code drop}, {@code slice}, {@code limit}) from rows whose order the program does not define
+     *        ({@link com.legend.compiler.spec.OrderView}'s INCIDENTAL on the collection it reads: a store's or a
+     *        frame's rows with no sort, or past a grouping), the guard a printed relation is held to. A sorted
+     *        source, and pure values, are in their own order and are lifted; a pick inside a lambda's body reads the
+     *        lambda's own parameter and is not judged here.</li>
+     *  </ul>
+     *  (The independent review of the date slice, the independent audit of slice 2, the review of its repair and the
+     *  audit's re-check, R1: 2026-11-26.) */
+    private static boolean unrepeatable(TypedSpec e, List<TypedSpec> lets, com.legend.TypedQuery typed) {
+        record At(TypedSpec node, boolean inALambda) {
+        }
+        java.util.Map<com.legend.model.FunctionId, Boolean> called = new java.util.HashMap<>();
+        java.util.ArrayDeque<At> work = new java.util.ArrayDeque<>(List.of(new At(e, false)));
         Set<TypedSpec> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         while (!work.isEmpty()) {
-            TypedSpec n = com.legend.compiler.spec.typed.Lets.bound(work.pop(), lets);
+            At at = work.pop();
+            TypedSpec n = com.legend.compiler.spec.typed.Lets.bound(at.node(), lets);
             if (!seen.add(n)) {
                 continue;
             }
-            if (n instanceof TypedNativeCall c && answersAnew(c.callee().id())) {
+            if (drawsAnew(n)) {
                 return true;
             }
-            if (com.legend.compiler.spec.OrderView.of(n, lets) == com.legend.compiler.spec.OrderView.INCIDENTAL) {
+            if (n instanceof com.legend.compiler.spec.typed.TypedUserCall
+                    && com.legend.compiler.spec.StatementEffects.reaches(n, UpstreamPrints::drawsAnew, typed.specs(),
+                            called)) {
                 return true;
             }
-            work.addAll(n.children());
+            if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess read
+                    && read.source().info().type() instanceof com.legend.compiler.element.type.Type.ClassType owner
+                    && typed.context().findProperty(owner.fqn(), read.property()).orElse(null)
+                            instanceof com.legend.compiler.element.Property.Derived) {
+                return true;
+            }
+            if (n instanceof TypedNativeCall c && !at.inALambda() && picksByPosition(c.callee().id())
+                    && !c.args().isEmpty() && com.legend.compiler.spec.OrderView.of(c.args().get(0), lets)
+                            == com.legend.compiler.spec.OrderView.INCIDENTAL) {
+                return true;
+            }
+            boolean inside = at.inALambda() || n instanceof com.legend.compiler.spec.typed.TypedLambda;
+            for (TypedSpec k : n.children()) {
+                work.add(new At(k, inside));
+            }
         }
         return false;
     }
 
+    /** Whether every name {@code relation} reads is bound by one of {@code lets}: a lambda's parameter is not. */
     private static boolean readable(TypedSpec relation, List<TypedSpec> lets) {
         Set<String> bound = new java.util.HashSet<>();
         for (TypedSpec l : lets) {

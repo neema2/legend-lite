@@ -62,6 +62,32 @@ class PctPlanRoutePrintTest {
                 "|#TDS\n  i:Integer\n  1\n#->toString()->replace('\\n', ';')->startsWith('#TDS;')").rows().rows());
     }
 
+    /** A LITERAL'S PRINT WRITTEN AT THE DOOR RUNS NOTHING, SO NOTHING BEFORE IT MAY BE LEFT UNRUN THAT WOULD HAVE
+     *  RUN (the audit's re-check of slice 2, 2026-11-26, its N1): a body whose earlier statement raises answers the
+     *  same with the literal's print written at the door as with a computed value's print, which is run -- each body
+     *  twice, its last step a literal's print and the same value computed. */
+    @Test
+    void aBodysEarlierStatementAnswersAlike_whetherItsLastPrintIsWrittenOrRun() {
+        java.util.Map<String, String> outcomes = new java.util.LinkedHashMap<>();
+        for (String earlier : List.of("let y = 1 / 0;", "let y = [1, 2]->at(5);", "let y = 'x'->parseInteger();",
+                "let y = 2;")) {
+            for (String last : List.of("1.5->toString()", "(1.5 * 1.0)->toString()")) {
+                String outcome;
+                try {
+                    outcome = String.valueOf(PctPlanRoute.execute("", "|" + earlier + " " + last).rows().rows());
+                } catch (Exception | AssertionError e) {
+                    outcome = "RAISED " + e.getClass().getSimpleName();
+                }
+                outcomes.put(earlier + " " + last, outcome);
+            }
+        }
+        for (String earlier : List.of("let y = 1 / 0;", "let y = [1, 2]->at(5);", "let y = 'x'->parseInteger();",
+                "let y = 2;")) {
+            assertEquals(outcomes.get(earlier + " (1.5 * 1.0)->toString()"), outcomes.get(earlier + " 1.5->toString()"),
+                    earlier + ": " + outcomes);
+        }
+    }
+
     /** A DateTime that is no literal, printed at a last step at legend-pure's door (the edition program's step 8,
      *  2026-11-26): its seconds, the fraction without its trailing zeros (none: no point), and {@code +0000} -- the
      *  text the edge's SQL composition wrote ({@code edge.PureDateTimePrint}, deleted the same day; these answers

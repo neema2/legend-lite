@@ -35,8 +35,8 @@ class PrintTailTest {
     @Test
     void eachMemberIsLegendPuresJava() {
         // replace: every occurrence, left to right; an empty target inserts the replacement at every position
-        assertEquals("a,b,", new PureRelationText.Replace("\n", ",").applied("a\nb\n"));
-        assertEquals("xax", new PureRelationText.Replace("", "x").applied("a"));
+        assertEquals("a,b,", new PrintTail.Replace("\n", ",").applied("a\nb\n"));
+        assertEquals("xax", new PrintTail.Replace("", "x").applied("a"));
         // length: UTF-16 units (a character outside the basic plane counts two, as legend-pure's String.length does)
         assertEquals(3L, new PrintTail.Length().applied("a😀"));
         assertEquals(0L, new PrintTail.Length().applied(""));
@@ -70,7 +70,7 @@ class PrintTailTest {
         assertEquals(true, new PrintTail.StartsWith("").applied("abc"));
         assertEquals(true, new PrintTail.EndsWith("").applied("abc"));
         assertEquals(true, new PrintTail.Contains("").applied("abc"));
-        assertEquals("xaxbxcx", new PureRelationText.Replace("", "x").applied("abc"));
+        assertEquals("xaxbxcx", new PrintTail.Replace("", "x").applied("abc"));
         assertEquals("a", new PrintTail.Trim().applied("\u0000a\u001f"));
         // a no-break space is above U+0020: not stripped
         assertEquals("\u00a0a", new PrintTail.Trim().applied("\u00a0a"));
@@ -82,7 +82,7 @@ class PrintTailTest {
     /** A tail is applied in the program's order, and answers its last step's type. */
     @Test
     void aTailIsAppliedInOrderAndAnswersItsLastStepsType() {
-        List<PrintTail> tail = List.of(new PureRelationText.Replace("\n", ","), new PrintTail.Trim(),
+        List<PrintTail> tail = List.of(new PrintTail.Replace("\n", ","), new PrintTail.Trim(),
                 new PrintTail.Length());
         assertEquals(5L, PrintTail.applied(" a\nb\nc ", tail));
         assertEquals("Integer", PrintTail.answers(tail));
