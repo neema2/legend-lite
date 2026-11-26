@@ -505,8 +505,9 @@ on the delegations lite's answer is legend-engine's own manifest's, to the chara
 generated claims ledger (regenerated); the rest fixed the same day: the guard reads the hosts' doors too and names
 its limit (a class literal is not an access); every row's rule is tested on every overload it maps, in the place of
 the deleted test that compared a row's native's signature with its call's; `round` at a scale is run on H2; and
-`SqlTyping` types `ROUND_HALF_UP` as it types `ROUND` (untyped, a Float `round(x, 2)` was cast to DOUBLE a second
-time: the corpus's SQL size check caught the 14 characters).
+`SqlTyping` types `ROUND_HALF_UP` of a DOUBLE as a DOUBLE (untyped, a Float `round(x, 2)` was cast to DOUBLE a
+second time: the corpus's SQL size check caught the 14 characters; ClickHouse's form casts a double's result back so
+the fact holds on every dialect).
 
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
