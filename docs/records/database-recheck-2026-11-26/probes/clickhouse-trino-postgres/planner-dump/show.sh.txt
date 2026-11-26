@@ -1,0 +1,3 @@
+#!/bin/bash
+# show.sh DB INDEX
+awk -F'\t' -v db="$1" -v i="$2" '$1==db && $2==i {print "["$3"] " $5; print ""}' /tmp/claude-0/-home-user-legend-lite/37e604d0-f16d-5c80-a65e-84a7c2121e8e/scratchpad/ctp-dump/sql.tsv | sed 's/\\n/\n/g'

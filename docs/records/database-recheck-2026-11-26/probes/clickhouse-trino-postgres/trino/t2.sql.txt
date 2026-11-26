@@ -1,0 +1,21 @@
+SELECT date_diff('millisecond', TIMESTAMP '2015-07-07 13:00:00.0009', TIMESTAMP '2015-07-07 13:00:00.0011'), date_diff('millisecond', date_trunc('millisecond', TIMESTAMP '2015-07-07 13:00:00.0009'), date_trunc('millisecond', TIMESTAMP '2015-07-07 13:00:00.0011'))
+;;
+SELECT date_diff('millisecond', TIMESTAMP '1960-01-01 00:00:00.0011', TIMESTAMP '1960-01-01 00:00:00.0009'), date_diff('day', TIMESTAMP '2015-07-07 23:00:00', TIMESTAMP '2015-07-08 01:00:00'), date_diff('month', TIMESTAMP '2020-01-31 00:00:00', TIMESTAMP '2020-02-01 00:00:00')
+;;
+SELECT date_trunc('millisecond', TIMESTAMP '2015-07-07 13:00:00.123456789'), typeof(date_trunc('millisecond', TIMESTAMP '2015-07-07 13:00:00.123456789'))
+;;
+SELECT format('%s', 1), any_match(ARRAY[1,2], x -> x > 1), array_sort(ARRAY[3,1,2], (a,b) -> IF(a<b,1,IF(a=b,0,-1))), zip_with(ARRAY[1,2], ARRAY[3,4], (a,b)->a+b)
+;;
+SELECT typeof(x) FROM (VALUES (CAST(NULL AS BIGINT)), (1)) t(x)
+;;
+SELECT typeof(x), x FROM (VALUES (1.5E0), (2.0)) t(x)
+;;
+SELECT typeof(x), x FROM (VALUES (DOUBLE '1.5'), (2.1)) t(x)
+;;
+SELECT typeof(ARRAY[BIGINT '1', 2, 3])
+;;
+SELECT typeof(CAST(ARRAY[1,2] AS ARRAY(BIGINT)))
+;;
+SELECT x FROM UNNEST(ARRAY[1,2]) AS u(x) CROSS JOIN LATERAL (SELECT x + 1 AS y) AS l
+;;
+SELECT t.a, y FROM (VALUES 1, 2) t(a), LATERAL (SELECT max(b) y FROM (VALUES 1,2,3) s(b) WHERE s.b > t.a)

@@ -1,0 +1,9 @@
+import java.sql.*; import java.nio.file.*;
+public class Q { public static void main(String[] a) throws Exception {
+  try (Connection c = DriverManager.getConnection(a[0], "postgres", "")) {
+    for (String s : Files.readString(Path.of(a[1])).split("\n;;\n")) { if (s.isBlank()) continue;
+      System.out.println("--- " + s.strip().replace("\n"," ").substring(0, Math.min(150, s.strip().length())));
+      try (Statement st = c.createStatement()) { boolean r = st.execute(s);
+        if (r) { ResultSet rs = st.getResultSet(); int n = rs.getMetaData().getColumnCount(); int rows=0;
+          while (rs.next() && rows++ < 10) { StringBuilder b = new StringBuilder(); for (int i=1;i<=n;i++) b.append(i>1?" | ":"").append(rs.getString(i)); System.out.println(b); } }
+      } catch (SQLException e) { System.out.println("ERR " + e.getMessage().split("\n")[0]); } } } } }

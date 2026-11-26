@@ -1,0 +1,4 @@
+select version()
+;;
+select ARRAY(SELECT 1 WHERE false) IS NULL, ARRAY(SELECT 1 WHERE false)
+;;

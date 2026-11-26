@@ -1,0 +1,7 @@
+import sys
+for line in open(sys.argv[1],encoding='utf-8'):
+    p=line.rstrip('\n').split('\t')
+    if len(p)<5: continue
+    s=p[4]; parts=s.split('\\nUNION ALL\\n')
+    if len(parts)>1 and 'ORDER BY' not in parts[-1]:
+        print(p[2].ljust(6), p[3][:120])

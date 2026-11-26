@@ -1,0 +1,14 @@
+import java.sql.*; import java.nio.file.*; import java.util.*;
+public class Q { public static void main(String[] a) throws Exception {
+  Connection c = DriverManager.getConnection(a[0]);
+  String all = Files.readString(Path.of(a[1]));
+  for (String s : all.split("\n;;\n")) { s = s.strip(); if (s.isEmpty()) continue;
+    System.out.println(">> " + s.replace("\n"," "));
+    try (Statement st = c.createStatement()) {
+      if (st.execute(s)) { ResultSet r = st.getResultSet(); int n = r.getMetaData().getColumnCount(); int rows=0;
+        while (r.next() && rows++ < 12) { StringBuilder b = new StringBuilder("   ");
+          for (int i=1;i<=n;i++){ Object o=r.getObject(i); b.append(o instanceof Object[] oa?Arrays.deepToString(oa):(o instanceof java.sql.Array ar?Arrays.deepToString((Object[])ar.getArray()):String.valueOf(o))).append(i<n?" | ":""); }
+          System.out.println(b); } }
+      else System.out.println("   ok");
+    } catch (SQLException e) { System.out.println("   ERROR: " + e.getMessage().split("\n")[0].replaceAll("; SQL statement:.*","")); }
+  } } }

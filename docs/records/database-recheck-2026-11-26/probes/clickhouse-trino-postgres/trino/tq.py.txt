@@ -1,0 +1,14 @@
+import sys,json,urllib.request,time
+op=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+def run(sql):
+    r=op.open(urllib.request.Request('http://127.0.0.1:18080/v1/statement',data=sql.encode(),headers={'X-Trino-User':'probe','X-Trino-Catalog':'memory','X-Trino-Schema':'default'}))
+    d=json.load(r); rows=[];cols=None
+    while True:
+        if 'columns' in d: cols=[c['name']+':'+c['type'] for c in d['columns']]
+        rows+=d.get('data',[])
+        if 'error' in d: return 'ERR '+d['error']['message'][:250]
+        if 'nextUri' not in d: break
+        time.sleep(0.05); d=json.load(op.open(d['nextUri']))
+    return f'{cols} {rows[:8]}'
+for s in open(sys.argv[1]).read().split('\n;;\n'):
+    if s.strip(): print('---',s.strip()[:160].replace('\n',' ')); print(run(s))
