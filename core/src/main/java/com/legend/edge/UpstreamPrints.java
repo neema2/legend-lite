@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * THE LIFT: A RELATION'S PRINTED TEXT, LEGEND-PURE'S, READ BEFORE THE BODY (B3 step 2b of the compatibility program;
+ * THE LIFT: A PRINTED TEXT, LEGEND-PURE'S, READ BEFORE THE BODY (B3 step 2b of the compatibility program;
  * the user's rulings of 2026-11-24: B2's Q8 needs no plan fact -- "I thought we already have mechanism for this";
  * a print followed by {@code replace} is one printing step -- "do the replace in java too"; and option (B),
  * substitution before planning -- "Great let's do it!"). Upstream's test bodies compare a relation's own text --
@@ -23,8 +23,15 @@ import java.util.Set;
  * So a compatibility harness passes a typed body through {@link #read} once its setups have run and before it is
  * planned: each printed side's relation is read as a query of its own -- the lets before it and the relation -- through
  * lite's public test door on the body's own session ({@link Reads}), the rows printed by the
- * printer, the replaces applied in Java, and the text substituted for the side as a String literal; lite's judge then
- * compares at the assert's own place, by lite's rules. A side whose relation reads a name no earlier let binds (a
+ * printer, the print's tail applied in Java ({@link PrintTail}: the replaces, and since the edition program's step 8,
+ * 2026-11-26, the other calls of its closed set), and the answer substituted for the side as a literal -- a String, or
+ * the Integer or Boolean the tail's last step answers; lite's judge then compares at the assert's own place, by lite's
+ * rules. Since step 8 a Float's {@code toString} is read the same way where it is a LAST STEP: the side is an assert's
+ * own argument (with its tail), nowhere else -- a Float's text the program goes on computing with (joined, in a let, in
+ * a list, under a call outside the tail's set) is left to the database, as tenet 1 says (the user's amendment of
+ * 2026-11-25; the independent review of this slice, 2026-11-26: the first draft read a value side wherever it stood,
+ * which no ruling covers). A relation's printed side is read wherever it stands outside a lambda, as since step 2b.
+ * A side whose relation reads a name no earlier let binds (a
  * lambda's parameter) is left as written. A body that writes (its facts' effects) is left as written: its writes could
  * change what a read before it sees (the design review's gate, 2026-11-24).
  *
@@ -57,8 +64,9 @@ public final class UpstreamPrints {
         Printer NONE = (side, read, reads) -> null;
     }
 
-    /** The edge's printer: legend-pure's text of the rows the read answers, the replaces applied (B2b's S1,
-     *  {@link PureRelationTextWriter}: one writer per read, the database's typed cells in, legend-pure's text out). */
+    /** The edge's printer: legend-pure's text of the rows (or the value) the read answers, the tail applied (B2b's
+     *  S1, {@link PureRelationTextWriter}: one writer per read, the database's typed cells in; out, legend-pure's text
+     *  or what the tail's last step answers). */
     static final Printer PRINTER = (side, read, reads) -> {
         Object[] text = new Object[1];
         reads.read(read, new com.legend.result.Output.Rows(
@@ -66,10 +74,17 @@ public final class UpstreamPrints {
         return java.util.Objects.requireNonNull(text[0], "the printer wrote no text");
     };
 
-    /** {@code e} read as a printed side: a relation's print or, the harnesses being legend-pure's own runs of the test's
-     *  code, a value's ({@link PrintedRelations#side(TypedSpec, boolean)}). */
-    private static PrintedRelations.@com.legend.base.Nullable Side side(TypedSpec e) {
-        return PrintedRelations.side(e, true);
+    /** {@code e} read as a printed side: a relation's print or, where {@code lastStep} (the side is an assert's own
+     *  argument) and the harnesses being legend-pure's own runs of the test's code, a value's
+     *  ({@link PrintedRelations#side(TypedSpec, boolean)}). */
+    private static PrintedRelations.@com.legend.base.Nullable Side side(TypedSpec e, boolean lastStep) {
+        return PrintedRelations.side(e, lastStep);
+    }
+
+    /** Whether {@code n} is an assert: a call whose arguments are sides a judge compares. */
+    private static boolean isAssert(TypedSpec n) {
+        return n instanceof TypedNativeCall && com.legend.builtin.NativeFn.Verdict.of(
+                com.legend.compiler.spec.typed.Calls.calleeIdOf(n)).isPresent();
     }
 
     /** The answer a printed side's read gave, as the literal put in its place: the text, or the Integer or Boolean its
@@ -101,7 +116,7 @@ public final class UpstreamPrints {
         List<TypedSpec> lets = new ArrayList<>();
         boolean changed = false;
         for (TypedSpec statement : body) {
-            TypedSpec r = substituted(statement, typed, lets, reads, printer);
+            TypedSpec r = substituted(statement, false, typed, lets, reads, printer);
             changed |= r != statement;
             out.add(r);
             if (r instanceof TypedLet) {
@@ -111,12 +126,13 @@ public final class UpstreamPrints {
         return changed ? typed.withBody(out) : typed;
     }
 
-    /** Whether any statement of {@code body} holds a printed side. */
+    /** Whether any statement of {@code body} holds a printed side (a value's counted wherever it stands: the walk
+     *  that follows reads only the ones at an assert's argument). */
     static boolean anyPrinted(List<TypedSpec> body) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
             TypedSpec n = work.pop();
-            if (side(n) != null) {
+            if (side(n, true) != null) {
                 return true;
             }
             work.addAll(n.children());
@@ -124,11 +140,12 @@ public final class UpstreamPrints {
         return false;
     }
 
-    /** {@code n} with each printed side whose relation the lets before it can read replaced by its text; an
+    /** {@code n} with each printed side whose relation the lets before it can read replaced by its answer; an
      *  {@code assertEquals} of a golden text and a printed relation whose order the program does not define made
-     *  {@link #unordered}. */
-    private static TypedSpec substituted(TypedSpec n, com.legend.TypedQuery typed, List<TypedSpec> lets,
-            Reads reads, Printer printer) {
+     *  {@link #unordered}. {@code assertArgument}: {@code n} is an assert's own argument, where a value's print is a
+     *  last step. */
+    private static TypedSpec substituted(TypedSpec n, boolean assertArgument, com.legend.TypedQuery typed,
+            List<TypedSpec> lets, Reads reads, Printer printer) {
         // a lambda's body is its own scope (its parameters and lets may shadow the body's lets) and may never run (an
         // if's branch, assertError's): a print inside one is left as written (the review of step 2b's M1, 2026-11-24)
         if (n instanceof com.legend.compiler.spec.typed.TypedLambda) {
@@ -138,7 +155,7 @@ public final class UpstreamPrints {
         if (u != null) {
             return u;
         }
-        PrintedRelations.Side p = side(n);
+        PrintedRelations.Side p = side(n, assertArgument);
         if (p != null) {
             // a relation whose order the program does not define arrives in the database's order: its text is compared
             // line by line in any order where an assertEquals compares it with a golden (above), and left as written
@@ -152,8 +169,9 @@ public final class UpstreamPrints {
         List<TypedSpec> kids = n.children();
         List<TypedSpec> rebuilt = new ArrayList<>(kids.size());
         boolean changed = false;
+        boolean anAssert = isAssert(n);
         for (TypedSpec k : kids) {
-            TypedSpec r = substituted(k, typed, lets, reads, printer);
+            TypedSpec r = substituted(k, anAssert, typed, lets, reads, printer);
             changed |= r != k;
             rebuilt.add(r);
         }
@@ -265,8 +283,9 @@ public final class UpstreamPrints {
         }
         for (int side = 0; side < 2; side++) {
             // each side where it stands or through the let it is bound to (the review of step 2b, item 2)
+            // a relation's print alone: a value's has no row order
             PrintedRelations.Side p = side(
-                    com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets));
+                    com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets), false);
             String golden = UpstreamTestBodies.literalText(
                     com.legend.compiler.spec.typed.Lets.bound(call.args().get(1 - side), lets));
             if (p == null || golden == null || !readable(p.relation(), lets) || !incidental(p, lets)) {

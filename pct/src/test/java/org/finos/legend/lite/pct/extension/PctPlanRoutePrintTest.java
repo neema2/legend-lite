@@ -55,6 +55,9 @@ class PctPlanRoutePrintTest {
         PctPlanRoute.Answer length = PctPlanRoute.execute("", "|(1.0E-5 * 1.0)->toString()->length()");
         assertEquals(List.of(List.<Object>of(7L)), length.rows().rows());
         assertEquals("Integer", length.rows().columns().get(0).type());
+        // a database's own cast writes this value with an exponent (1e-05, 1.0E-5): true only of legend-pure's text
+        assertEquals(List.of(List.<Object>of(true)),
+                PctPlanRoute.execute("", "|(1.0E-5 * 1.0)->toString()->startsWith('0.0')").rows().rows());
         assertEquals(List.of(List.<Object>of(true)), PctPlanRoute.execute("",
                 "|#TDS\n  i:Integer\n  1\n#->toString()->replace('\\n', ';')->startsWith('#TDS;')").rows().rows());
     }

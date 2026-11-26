@@ -108,9 +108,12 @@ public final class PureRelationTextWriter implements ResultSink {
     /** The one value a {@link Form#VALUE} answer carries, printed: a {@code toString}'s operand is one value, so any
      *  other count is refused by name. */
     private String one(List<ExecutionPlan.Column> cols) {
-        if (cols.size() != 1 || rows.size() != 1 || rows.get(0).get(0) == null) {
+        if (cols.size() != 1 || rows.size() != 1) {
             throw new IllegalStateException("a value's toString prints one value; the answer holds " + rows.size()
                     + " row(s) of " + cols.size() + " column(s)");
+        }
+        if (rows.get(0).get(0) == null) {
+            throw new IllegalStateException("a value's toString prints one value; the answer is empty");
         }
         return PureValueText.value(rows.get(0).get(0), cols.get(0));
     }

@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class PrintTailTest {
 
     /** The members, exactly: {@code replace} since 2026-11-24 (the user: "also do the replace in java too"); the rest
-     *  proposed by the step 8 session and agreed in shape by the orchestrator, 2026-11-26. */
+     *  proposed by the step 8 session and agreed in shape by the orchestrator, 2026-11-26, who puts the set to the
+     *  user -- the user has asked for "a small set" in those words and has not yet ruled its members. */
     @Test
     void theClosedSetIsExactlyThese() {
         assertEquals(new TreeSet<>(List.of("Contains", "EndsWith", "IndexOf", "Length", "Replace", "StartsWith", "Trim")),

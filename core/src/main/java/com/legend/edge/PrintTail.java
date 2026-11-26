@@ -32,8 +32,9 @@ import java.util.List;
  *
  * <p>Java's answer is legend-pure's, which is not always lite's own SQL's for the same call: {@code length} counts
  * UTF-16 units where a database counts characters, and {@code trim} strips a line break at either end where lite's SQL
- * strips spaces alone (measured 2026-11-26, {@code PrintTailParityTest}). On the plain texts a printed table holds the
- * two agree, {@code trim} of a text that begins or ends with a line break aside.
+ * strips spaces alone (measured 2026-11-26 on DuckDB, H2 and SQLite, {@code PrintTailParityTest}). On the plain texts
+ * a printed table holds the two agree for every member but {@code trim}: a CSV text ends with a line break, which
+ * Java's {@code trim} strips, as legend-pure's does, and lite's SQL keeps.
  *
  * <p>A step answers a String, an Integer or a Boolean. Only a String can be read further, so a step that answers
  * another type is a tail's last (the typer already holds a program to that).

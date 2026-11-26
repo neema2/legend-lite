@@ -26,8 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * breaks. Where Java and lite's SQL part, Java's is legend-pure's own answer and {@code PrintTailTest} holds the case:
  * a character outside the basic plane (Java counts two, a database one), and {@code trim} of a text that begins or
  * ends with a line break or another character below a space -- legend-pure's {@code trim} is Java's
- * {@code String.trim}, which strips them, where lite's own SQL strips spaces alone (measured here 2026-11-26 on every
- * lane: {@code 'id,name\n1,A\n2,B\n'->trim()} keeps its last line break in lite's SQL). So {@code trim} is compared
+ * {@code String.trim}, which strips them, where lite's own SQL strips spaces alone (measured here 2026-11-26 on DuckDB,
+ * H2 and SQLite: {@code 'id,name\n1,A\n2,B\n'->trim()} keeps its last line break in lite's SQL). So {@code trim} is compared
  * on the texts whose ends are spaces or printable.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)

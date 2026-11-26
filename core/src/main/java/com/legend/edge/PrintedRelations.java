@@ -29,13 +29,15 @@ import java.util.List;
  * ({@link PureValueText#value}) with the same tail -- tenet 1 as the user amended it on 2026-11-25, a print at a last
  * step is Java's. (B2b S6a lifted it and was held, 2026-11-25: alone it left a print used further to the edge's SQL
  * passes, two printers at one door; the tail answers that for every function of the set.) At legend-engine's door a
- * value's print inside a store query is legend-engine's own answer, a row of its table, and is not lifted. Anything
- * else is not lifted: the
+ * value's print inside a store query is legend-engine's own answer, a row of its table, and is not lifted. (The tail
+ * after a RELATION's print is Java's at that door too: legend-engine has no SQL for a relation's text, so the print
+ * and everything after it run in its own Java, which is legend-pure's.) Anything else is not lifted: the
  * query is the door's as it was, and a print the door leaves is lite's own text, computed by the database
  * ({@code lowering.ProductRelationText}, B2b S5a and S5b; until S6 its Float and DateTime cells the edge's value texts,
  * the progress record's S5a window), and a TDS's {@code csv} the door does not lift lite's CSV, as {@code toCSV(t)}
  * writes it (the user's ruling of 2026-11-25, S405; refused by name from B2b S5c until then). It
- * computes no value and plans nothing; the run computes the rows and the printer spells them.
+ * computes no value and plans nothing; the run computes the rows, the printer spells them, and the tail's steps are
+ * applied to the printed text by the receiver ({@link PrintTail}).
  */
 public final class PrintedRelations {
 
@@ -115,8 +117,9 @@ public final class PrintedRelations {
     private record Printed(TypedSpec relation, PureRelationTextWriter.Form form) {
     }
 
-    /** {@code e} as a print of a relation the printer writes, or null. Only a relation whose columns the compiler
-     *  knows is lifted ({@link #knownColumns}); the lowering's own special shapes stay the run's. */
+    /** {@code e} as a print the printer writes, or null: a relation's, or with {@code values} a Float's
+     *  {@code toString}. Only a relation whose columns the compiler knows is lifted ({@link #knownColumns}); the
+     *  lowering's own special shapes stay the run's. */
     private static @com.legend.base.Nullable Printed printed(TypedSpec e, boolean values) {
         if (e instanceof TypedNativeCall c) {
             String name = c.callee().qualifiedName();
