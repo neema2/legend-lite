@@ -258,6 +258,40 @@ class PureMeaningEngineTest {
         assertTrue(sql.get(0).toLowerCase(java.util.Locale.ROOT).contains("substr('abcdef', 0, 3)"), sql.get(0));
     }
 
+    /** A legend-engine model whose function compares two types, reached by the request's query, is admitted on every
+     *  route of this door, as legend-engine admits it: lite's own strictness inside bodies is lite's door's alone (the
+     *  audit of the edition program's steps 4 and 5, 2026-11-26: the test-data routes typed their query without the
+     *  door's comparison setting, so their raw-SQL check, which types the bodies a query reaches, refused this model
+     *  under lite's rule). The door types every query through one admission now ({@code EngineComparisons.query};
+     *  {@code ArchitectureTest.legendEnginesDoorTypesAQueryThroughItsSetting}). */
+    @Test
+    void aBodyComparingAcrossTypesIsAdmittedOnEveryRoute_litesStrictnessIsLitesDoorsAlone() {
+        String loose = MODEL.replace("function t::position(",
+                "function t::loose(p: t::Person[1]): Boolean[1] { $p.name == $p.name->length() }\n"
+                        + "function t::position(");
+        String query = "|t::Person.all()->filter(p|t::loose($p))->project([p|$p.name], ['n'])";
+        Map<String, Object> model = new java.util.LinkedHashMap<>();
+        model.put("_type", "text");
+        model.put("code", loose);
+        String census = "{\"query\":" + PureV1Routes.grammarToJsonLambda(query, true).json()
+                + ",\"mapping\":\"t::M\",\"model\":" + Json.toCompact(model) + "}";
+        Map<String, String> routes = new java.util.LinkedHashMap<>();
+        routes.put("/api/pure/v1/execution/execute", body(loose, query + "->from(t::M, t::RT)"));
+        routes.put("/api/pure/v1/execution/generatePlan", body(loose, query + "->from(t::M, t::RT)"));
+        routes.put("/api/pure/v1/execution/testDataGeneration/generateSeedData", testDataBody(loose, query, false));
+        routes.put("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", census);
+        LiteV1Api.Runner plansOnly = (q, runtime, output) -> q.executionPlan(runtime, java.util.Set.of(),
+                PureText.PURE_V1);
+        routes.forEach((path, request) -> {
+            LiteV1Api.Answer a = PureV1Routes.route(path, null, request, plansOnly, LiteV1Api.Models.COMPILED);
+            assertFalse(String.valueOf(a.json()).contains("compares"), path + ": " + a.json());
+        });
+        // the same model at lite's own compile check: the comparison is its mistake there
+        assertTrue(com.legend.Compiler.compileErrors(loose).stream()
+                .anyMatch(m -> m.contains("== compares String with Integer")),
+                com.legend.Compiler.compileErrors(loose).toString());
+    }
+
     // ---- substr, the corrected substring and a literal-0 start (2026-11-20) ----------------------------------------
     // legend-engine sends substr, and substring under CORRECT_SQL_SUBSTRING_INDEXING, as the database's SUBSTRING over
     // start + 1 and end - start with no range check (processSubstr), so in range it agrees with legend-pure and out of

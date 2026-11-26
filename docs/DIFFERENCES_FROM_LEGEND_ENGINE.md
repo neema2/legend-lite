@@ -411,8 +411,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - **On DuckDB lite keeps Pure's `3.8` for now:** legend-engine's value there is the same number printed two ways
     (`3.8D` by legend-engine, `3.800D` by lite), and it rounds past the third fraction digit where lite does not.
     Not yet matched.
-  - On any other database such a request is refused by name (legend-engine writes another form on each: Postgres
-    keeps `3.8`, Snowflake and ClickHouse name a precision, Trino and BigQuery have none).
+  - On any other database lite keeps Pure's `3.8` too, and does not refuse the request (legend-engine writes
+    another form on each: Postgres keeps `3.8`, Snowflake and ClickHouse name a precision, Trino and BigQuery have
+    none). Not yet matched there.
 - **On lite's own route**, lite answers `3.8` on every database.
 - **Why:** Pure's `toDecimal` changes the type and keeps the number. Dropping or padding digits by the database's
   default is legend-engine's SQL, not Pure's meaning.
@@ -459,10 +460,15 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **lite** refuses to compile it and names the two types and the fix: write both sides in one type (an enumeration's
   own value, `toFloat()`, `toString()`). Two values are equal only when they have the same type and the same value.
   - The rule holds everywhere Pure is written: the query, a function, a derived property, a constraint, a mapping.
+    - One kind of function is not yet checked: one whose body is typed afresh for each call (generic over a
+      relation's columns, or taking a table with no declared columns). A comparison of two known different types
+      written inside it is not refused today. A gap, not a design.
+    - lite's own SDLC uses the same check, so a tree holding such a comparison in a function does not land there.
   - **A number literal is not a mistake:** written against a number of another type it reads as that type when it
     is exact there. `$x.qty > 0` over a Float is `> 0.0`; `$x.salary < 50000` over a Decimal is `< 50000D`. Only a
     literal that cannot be that type (`1.5` against an Integer), two literals (`1 == 1.0`) and a Decimal literal
-    (`1.5D`) are refused.
+    (`1.5D`) are refused. So is a computed value: `$x.ratio > 1 + 1` over a Float is still a mistake, because
+    `1 + 1` is no longer a literal.
   - A value whose type is known only when the query runs (`Any`, `Number`) is compared when it runs: equal means the
     same type and the same value.
 - **Why:** a comparison across types usually hides a mistake, and each database converts differently, so the same

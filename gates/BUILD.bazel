@@ -424,6 +424,8 @@ test_suite(
     name = "sdlc",
     tests = [
         "//sdlc-server:git_repository_test",
+        # the SDLC's compile check is lite's own (2026-11-26)
+        "//sdlc-server:core_grammar_test",
         "//sdlc-client:tests",
         "//depot-client:tests",
         # a class, an association or a data space made in a project: the library replayed against its cases (B4)

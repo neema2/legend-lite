@@ -421,7 +421,7 @@ public final class HostAnswers {
                 boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
         com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(model);
         // legend-engine's meaning at this door too, as at pure/v1's execute (B3 step 5a's review, M2, 2026-11-25)
-        com.legend.TypedQuery query = PureV1Routes.asLegendEngine(com.legend.Compiler.query(ctx, lambda));
+        com.legend.TypedQuery query = EngineComparisons.query(ctx, lambda);
         String runtime = runtimeOf(request, query);
         return new Hosted(query, runtime);
     }
