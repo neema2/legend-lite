@@ -13,7 +13,7 @@ corpus	DuckDB	meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational	
 corpus	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty	1	652	9603	1	0	0
 corpus	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty	3	1467	24741	3	0	2
 corpus	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty	1	543	8208	1	0	0
-corpus	DuckDB	meta::pure::lineage::scanColumns::test	0	0	0	0	0	2
+corpus	DuckDB	meta::pure::lineage::scanColumns::test	0	0	0	0	0	1
 corpus	DuckDB	meta::pure::lineage::scanRelations::test	0	0	0	0	0	0
 corpus	DuckDB	meta::pure::router::preeval::tests	0	0	0	0	0	1
 corpus	DuckDB	meta::pure::tds::tests::extensions	11	15970	299546	39	1470	0
@@ -63,7 +63,7 @@ corpus	DuckDB	meta::relational::tests::functions::fetchDbMetaData	4	6124	21020	0
 corpus	DuckDB	meta::relational::tests::functions::objectReferenceIn	7	7142	125156	19	20	0
 corpus	DuckDB	meta::relational::tests::functions::pureToSqlQuery	0	0	0	0	0	8
 corpus	DuckDB	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations	92	43537	604737	4	448	0
-corpus	DuckDB	meta::relational::tests::functions::sqlstring	0	0	0	0	0	28
+corpus	DuckDB	meta::relational::tests::functions::sqlstring	0	0	0	0	0	27
 corpus	DuckDB	meta::relational::tests::getter	2	380	6688	0	0	0
 corpus	DuckDB	meta::relational::tests::groupBy	46	14053	326338	15	480	1
 corpus	DuckDB	meta::relational::tests::groupBy::datePeriods	2	1583	102926	5	252	0
