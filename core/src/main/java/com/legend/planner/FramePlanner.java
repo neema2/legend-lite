@@ -129,7 +129,7 @@ public final class FramePlanner {
                     .prepareLegendQuery(ec, letPrefix, specs);
             var lqChain = ExecuteChainAssembly
                     .chain(lq, ec, letPrefix, specs, env.runtimeFqn(),
-                            env.queryLets());
+                            env.queryLets(), env.edition().stampsTestBodies());
             // the string entry's value is the plan style's (train 17 item 2, 2026-11-18): the edge writes legend-engine's
             // envelope -- a relation's and a class root's with the activity's SQL, rendered only when the edge's form
             // asks (activitySql) -- the product refuses each by name; any other root is the compiler's
@@ -170,7 +170,7 @@ public final class FramePlanner {
         }
         var assembled = ExecuteChainAssembly
                 .chain(prepared, ec, letPrefix, specs, env.runtimeFqn(),
-                        env.queryLets());
+                        env.queryLets(), env.edition().stampsTestBodies());
         return new FrameChain(ec, assembled.chain(), assembled.chain(), assembled.relationRooted(), false, env);
     }
 

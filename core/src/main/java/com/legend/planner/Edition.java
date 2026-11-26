@@ -27,6 +27,11 @@ public interface Edition {
      *  calls of a query-level {@code let}'s value, and of a last statement, that read no store. */
     boolean stampsOutsideStore();
 
+    /** Whether a TEST BODY's own code is stamped as outside any store query: everything in the body but the queries
+     *  its {@code execute()}s ran. legend-engine's own tests' door asks (the relational corpus: the test harness is
+     *  Pure's, the queries are legend-engine's); a door whose test bodies are one audience's throughout does not. */
+    boolean stampsTestBodies();
+
     /** Whether, for this audience, a class's constraints run outside any store query where a checked graph fetch
      *  evaluates them. Asked only of an edition that stamps. */
     boolean constraintsOutsideStore();

@@ -48,7 +48,12 @@ final class EngineTable implements EditionTable, Edition {
 
     /** legend-engine's door's edition: what the door's style hands the planner. As a table it answers nothing: the
      *  planner makes the table of a statement's database from it ({@link #table}). */
-    static final EngineTable DOOR = new EngineTable(false, null);
+    static final EngineTable DOOR = new EngineTable(false, null, false);
+
+    /** legend-engine's own tests' door's edition (the relational corpus): legend-engine's meaning inside the queries a
+     *  test's {@code execute()}s run, as at its API, and Pure's in the test's own code, which legend-pure runs --
+     *  every call of a test body outside those queries is stamped ({@link #stampsTestBodies}). */
+    static final EngineTable TESTS = new EngineTable(false, null, true);
 
     /** A row: the native whose rule lowers the call, and what a refusal calls the call. */
     private record Row(FunctionId as, String named) {
@@ -78,9 +83,13 @@ final class EngineTable implements EditionTable, Edition {
     /** The database this table's statement runs on; null where its planning names no single one. */
     private final @Nullable DatabaseType database;
 
-    private EngineTable(boolean table, @Nullable DatabaseType database) {
+    /** Whether a test body's own code is stamped: legend-engine's own tests' door's. */
+    private final boolean testBodies;
+
+    private EngineTable(boolean table, @Nullable DatabaseType database, boolean testBodies) {
         this.table = table;
         this.database = database;
+        this.testBodies = testBodies;
     }
 
     /** Each overload of {@code from} to the overload of {@code to} at the same place, named {@code name} and its
@@ -161,6 +170,11 @@ final class EngineTable implements EditionTable, Edition {
         return true;
     }
 
+    @Override
+    public boolean stampsTestBodies() {
+        return testBodies;
+    }
+
     /** legend-engine checks a class's constraints in its own Java, with Pure's meaning. */
     @Override
     public boolean constraintsOutsideStore() {
@@ -192,6 +206,6 @@ final class EngineTable implements EditionTable, Edition {
 
     @Override
     public EditionTable table(@Nullable DatabaseType onDatabase) {
-        return new EngineTable(true, onDatabase);
+        return new EngineTable(true, onDatabase, testBodies);
     }
 }

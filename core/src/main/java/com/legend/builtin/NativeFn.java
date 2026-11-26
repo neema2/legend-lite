@@ -912,6 +912,24 @@ public final class NativeFn {
             return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE || h == EXECUTE_LEGEND_QUERY;
         }
 
+        /** A call that hands legend-engine a QUERY, written as its first argument: to run ({@link #runsAFrame}), or
+         *  to give its SQL text or its plan ({@code toSQL}, {@code executionPlan}, and {@code toSQLString} with its
+         *  forms, {@link JavaRoutine}). In a test of legend-engine's the query is legend-engine's code and everything
+         *  around the call is the test's own (the edition program's step 3, 2026-11-26: the test body's stamp leaves
+         *  such a call alone, {@code UserCallInliner}'s stampAroundFrames). */
+        public static boolean handsEngineAQuery(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            if (runsAFrame(id)) {
+                return true;
+            }
+            Handle h = id == null ? null : BY_ID.get(id);
+            if (h == TO_SQL || h == EXECUTION_PLAN) {
+                return true;
+            }
+            JavaRoutine r = JavaRoutine.of(id).orElse(null);
+            return r == JavaRoutine.TO_SQL_STRING || r == JavaRoutine.TO_SQL_STRING_PRETTY
+                    || r == JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING;
+        }
+
         /** The ORCHESTRATION position of an execute call: its runtime
          * argument (the third), which the statement executor reads in its
          * SOURCE form — a let's name resolved through the query's lets,

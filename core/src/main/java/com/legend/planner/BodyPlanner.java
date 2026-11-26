@@ -199,9 +199,7 @@ public final class BodyPlanner {
                     Set<String>, TypedSpec> hook) {
         List<TypedSpec> single = new ArrayList<>(letPrefix);
         single.add(value);
-        var inliner = hook == null
-                ? new UserCallInliner(specs)
-                : new UserCallInliner(specs, hook);
+        var inliner = UserCallInliner.ofTestBody(specs, hook, env.edition().stampsTestBodies());
         List<TypedSpec> body = new ArrayList<>(
                 inliner.inlineBody(single));
         env.queryLets().putAll(inliner.queryLets());
@@ -214,7 +212,7 @@ public final class BodyPlanner {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch
                 .stage(b, stageEnv, PlanTextRoutines.of(specs, env)));
-        return resolvedToExecute(resolver(specs, env, com.legend.resolver.StampedCode.NONE), body, env);
+        return resolvedToExecute(resolver(specs, env, ProductStatements.sideStamp(env.edition(), body)), body, env);
     }
 
     /** Phase H for a body that EXECUTES on the env's session: resolved, then every store it touches checked

@@ -159,15 +159,57 @@ public final class UserCallInliner {
      */
     public UserCallInliner(SpecCompiler specs,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
-        this(specs, hook, false);
+        this(specs, hook, false, false);
     }
 
     private UserCallInliner(SpecCompiler specs,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook,
-            boolean verdictSource) {
+            boolean verdictSource, boolean testBody) {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.hook = hook;
         this.verdictSource = verdictSource;
+        this.testBody = testBody;
+        this.noting = hook instanceof ResultEnvelopeSplice.NotingHook n ? n : null;
+    }
+
+    /** An inliner for a TEST BODY's own code (the edition program's step 3, 2026-11-26): where the door's edition
+     *  stamps its test bodies ({@code stamped}; {@code planner.Edition.stampsTestBodies}), every statement it reduces
+     *  is stamped as outside any store query, all but the queries the test hands legend-engine
+     *  ({@link #stampAroundFrames}). With {@code stamped} false, an ordinary inliner with {@code hook}. */
+    public static UserCallInliner ofTestBody(SpecCompiler specs,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook,
+            boolean stamped) {
+        return new UserCallInliner(specs, hook, false, stamped);
+    }
+
+    /** Whether every statement this inliner reduces is a test body's own code, stamped ({@link #ofTestBody}). */
+    private final boolean testBody;
+
+    /** The hook, where it notes the code of the frames it places ({@link ResultEnvelopeSplice.NotingHook}): what
+     *  {@link #stampAroundFrames} leaves alone by identity, beside what it knows by shape. */
+    private final ResultEnvelopeSplice.@com.legend.base.Nullable NotingHook noting;
+
+    /** {@code n}, a test body's reduced statement, with every call of the test's own code stamped as outside any
+     *  store query: not the code of a query the test hands legend-engine -- a query under its execution context (a
+     *  {@code from}: a frame's query is wrapped in one, and a test's own {@code ->from(...)} is one), a reference to
+     *  a frame's CTE, a call that hands legend-engine a query and still stands (one that runs a frame, or asks for
+     *  the query's SQL text or its plan), and whatever the splice hook noted as a frame's code, by identity -- and
+     *  not a value an earlier {@code let}
+     *  bound, which was stamped where it was bound (a function value an earlier {@code let} holds is stamped here, a
+     *  copy of its own, because its code runs where it is applied). A node the walk leaves alone keeps its identity,
+     *  so a frame's query pasted twice is still one query. */
+    private TypedSpec stampAroundFrames(TypedSpec n, ResultEnvelopeSplice.@com.legend.base.Nullable NotingHook frames) {
+        if (frames != null && frames.isFrameCode(n) || n instanceof com.legend.compiler.spec.typed.TypedFrom
+                || n instanceof com.legend.compiler.spec.typed.TypedFrameRef
+                || n instanceof TypedNativeCall ec
+                        && com.legend.builtin.NativeFn.Handle.handsEngineAQuery(ec.callee().id())) {
+            return n;
+        }
+        if (reducedTerms.containsKey(n) && !holdsCode(n.info().type())) {
+            return n;
+        }
+        TypedSpec kids = n.mapChildren(k -> stampAroundFrames(k, frames));
+        return kids instanceof TypedNativeCall c ? c.stampedOutsideStore(true) : kids;
     }
 
     /** Inline every user call in a query body (statements = lets + result). */
@@ -183,7 +225,7 @@ public final class UserCallInliner {
     public static UserCallInliner forVerdictSource(SpecCompiler specs,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
-        return new UserCallInliner(specs, hook, true);
+        return new UserCallInliner(specs, hook, true, false);
     }
 
     public TypedSpec reduceVerdictSource(TypedSpec source, List<TypedSpec> letPrefix) {
@@ -222,6 +264,10 @@ public final class UserCallInliner {
      *  the value run here, the code it holds runs where it is applied, and the two cannot be told apart in one term. */
     private TypedSpec stampedIfStoreFree(boolean stamp, TypedSpec written, TypedSpec reduced,
             java.util.Set<String> fragments) {
+        if (testBody) {
+            // a test body's statement: stamped around its frames, whatever the query rule would say of it
+            return stampAroundFrames(reduced, noting);
+        }
         if (!stamp) {
             return reduced;
         }
@@ -326,9 +372,25 @@ public final class UserCallInliner {
      *  functions it calls stand in place. Asked for only by a compatibility door whose table's two columns differ
      *  ({@code planner.Edition.stampsOutsideStore}); the product never asks. A QUERY's statements only: a test
      *  body's statements read frames, whose spliced chains are store queries inside a statement that itself reads no
-     *  store, and need the frame-aware walk (the plan's step 3). */
+     *  store; an inliner made for a test body ({@link #ofTestBody}) stamps every statement around its frames
+     *  instead ({@link #stampAroundFrames}), whatever this flag says. */
     public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement,
             boolean stampStoreFree) {
+        return inlined(body, statement, stampStoreFree, 0);
+    }
+
+    /** {@link #inlineBody(List)} for the query a test's {@code execute()} runs, after the test body's own lets before
+     *  it ({@code testLets} of them, leading {@code body}): each such let is the test's own code, stamped as outside
+     *  any store query where it is bound (a call that runs a frame left alone), so the value the query reads of it
+     *  keeps the test's meaning inside the query -- legend-engine's tests compute it in Pure and hand the query the
+     *  value. The query's own statements after them are not stamped. Asked for by a door that stamps its test bodies
+     *  ({@code planner.Edition.stampsTestBodies}); zero lets is {@link #inlineBody(List)}. */
+    public List<TypedSpec> inlineFrameQuery(List<TypedSpec> body, int testLets) {
+        return inlined(body, null, false, testLets);
+    }
+
+    private List<TypedSpec> inlined(List<TypedSpec> body, @com.legend.base.Nullable Integer statement,
+            boolean stampStoreFree, int testLets) {
         com.legend.base.RunScope.planning("inline a body");
         // QUERY-level lets β-reduce exactly like callee lets — binders die
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
@@ -349,7 +411,9 @@ public final class UserCallInliner {
                     throw new NotImplementedException(
                             "only let statements may precede the query expression");
                 }
-                scope.put(let.name(), stampedIfStoreFree(stampStoreFree, let, reduce(let.value(), scope), fragments));
+                TypedSpec reduced = reduce(let.value(), scope);
+                scope.put(let.name(), i < testLets ? stampAroundFrames(reduced, noting)
+                        : stampedIfStoreFree(stampStoreFree, let, reduced, fragments));
             }
             // graph-tree args are NOT β-reduced (source spelling is the
             // serialize key) — the resolver reads consumed lets through this
