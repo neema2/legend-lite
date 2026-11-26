@@ -115,11 +115,11 @@ public final class StoreResolver {
     }
 
     /** THE STAMP ON THE MODEL'S AND THE MAPPINGS' CODE (the edition program's step 2, 2026-11-25): the code this
-     *  resolution stamps as outside any store query as it brings it into a statement ({@link OutsideStore};
+     *  resolution stamps as outside any store query as it brings it into a statement ({@link StampedCode};
      *  {@code TypedNativeCall.outsideStore}), for the lowering's edition table. The planner decides it per statement
      *  from its door's edition ({@code planner.Edition}); the product stamps none. Every resolver this one makes for a
      *  nested resolution is made with it. */
-    private final OutsideStore outside;
+    private final StampedCode outside;
 
     private GraphEmission.@com.legend.base.Nullable SerializeTypeConfig serializeTypeCfg;
     private boolean checkedEnvelope;   // graphFetchChecked defect gate
@@ -140,11 +140,11 @@ public final class StoreResolver {
     private final ModelContext ctx;
 
     public StoreResolver(ModelContext ctx, SpecCompiler specs) {
-        this(ctx, specs, OutsideStore.NONE);
+        this(ctx, specs, StampedCode.NONE);
     }
 
     /** {@link #StoreResolver(ModelContext, SpecCompiler)}, stamping the code {@code outside} names. */
-    public StoreResolver(ModelContext ctx, SpecCompiler specs, OutsideStore outside) {
+    public StoreResolver(ModelContext ctx, SpecCompiler specs, StampedCode outside) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.callees = new Callees(this.ctx);
         this.specs = Objects.requireNonNull(specs, "specs");

@@ -104,8 +104,8 @@ public final class ClassSources {
             constructedParameters = id -> List.of();
 
     /** The model's and the mappings' code stamped as outside any store query as it is brought into a statement (its
-     *  resolver's: {@link OutsideStore}). */
-    private final OutsideStore outside;
+     *  resolver's: {@link StampedCode}). */
+    private final StampedCode outside;
 
     /** The classes this resolution made through a model-to-model mapping (the stamp's: a qualified property a graph
      *  fetch reads off such a class is the audience's own Java's, as its transforms are). */
@@ -186,8 +186,8 @@ public final class ClassSources {
     private final StackBuilder stacks;
 
     /** {@code outside}: the code stamped as outside any store query as it is brought into a statement (its resolver's,
-     *  the planner's decision; {@code OutsideStore.NONE} for every road but a compatibility door's). */
-    public ClassSources(ModelContext ctx, SpecCompiler specs, OutsideStore outside) {
+     *  the planner's decision; {@code StampedCode.NONE} for every road but a compatibility door's). */
+    public ClassSources(ModelContext ctx, SpecCompiler specs, StampedCode outside) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.specs = Objects.requireNonNull(specs, "specs");
         this.outside = Objects.requireNonNull(outside, "outside");

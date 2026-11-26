@@ -44,7 +44,7 @@ final class SubQueryLift {
     static TypedSpec lift(TypedSpec n, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
             Map<String, TypedSpec> letBindings,
-            java.util.function.Predicate<TypedSpec> storeRooted, OutsideStore outside) {
+            java.util.function.Predicate<TypedSpec> storeRooted, StampedCode outside) {
         return walk(n, context, ctx, specs, letBindings, storeRooted, false, outside);
     }
 
@@ -56,7 +56,7 @@ final class SubQueryLift {
             ModelContext ctx, SpecCompiler specs,
             Map<String, TypedSpec> letBindings,
             java.util.function.Predicate<TypedSpec> storeRooted, boolean underLambda,
-            OutsideStore outside) {
+            StampedCode outside) {
         if (n instanceof com.legend.compiler.spec.typed.TypedFrom) {
             // a from() carries its OWN mapping/runtime context: its
             // subqueries lift when the resolver reaches it (the TypedFrom
@@ -205,7 +205,7 @@ final class SubQueryLift {
      *  its many-row relation identity: it is the for-each FROM root). */
     static TypedSpec resolveDatesRelation(TypedSpec datesArg,
             StoreResolver.Context context, ModelContext ctx,
-            SpecCompiler specs, Map<String, TypedSpec> letBindings, OutsideStore outside) {
+            SpecCompiler specs, Map<String, TypedSpec> letBindings, StampedCode outside) {
         if (!(datesArg instanceof TypedPropertyAccess pa)
                 || !(Type.asClassType(pa.source().info().type()) instanceof Type.ClassType ct)) {
             throw new com.legend.error.NotImplementedException(
@@ -253,7 +253,7 @@ final class SubQueryLift {
      * the same context (the scalar-read path's recursion). */
     private static TypedSpec resolveExistsRelation(TypedSpec chain,
             StoreResolver.Context context, ModelContext ctx, SpecCompiler specs,
-            Map<String, TypedSpec> letBindings, OutsideStore outside) {
+            Map<String, TypedSpec> letBindings, StampedCode outside) {
         Type ct = chain.info().type();
         var one = Multiplicity.Bounded.ONE;
         String v = "_ex";
@@ -288,7 +288,7 @@ final class SubQueryLift {
     private static TypedSpec resolveScalarRead(TypedSpec chain,
             TypedPropertyAccess pa, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
-            Map<String, TypedSpec> letBindings, OutsideStore outside) {
+            Map<String, TypedSpec> letBindings, StampedCode outside) {
         Type.ClassType ct = (Type.ClassType) chain.info().type();
         var one = Multiplicity.Bounded.ONE;
         var optional = Multiplicity.Bounded.ZERO_ONE;
