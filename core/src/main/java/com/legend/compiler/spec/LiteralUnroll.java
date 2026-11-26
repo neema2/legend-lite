@@ -457,8 +457,19 @@ final class LiteralUnroll {
             case TypedCBoolean b -> other instanceof TypedCBoolean;
             case TypedEnumValue v -> other instanceof TypedEnumValue;
             case TypedCInteger i -> other instanceof TypedCInteger;
-            default -> false;
+            default -> throw new IllegalStateException("a literal the compiler does not compare reached a fold: "
+                    + value);
         };
+    }
+
+    /** {@code t} as the number type it is (a Decimal of a declared precision is a Decimal), or null where it is no
+     *  one number type (Number, Any, anything else). */
+    private static Type.@com.legend.base.Nullable Primitive numberKind(Type t) {
+        if (t instanceof Type.PrecisionDecimal) {
+            return Type.Primitive.DECIMAL;
+        }
+        return t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT || t == Type.Primitive.DECIMAL
+                ? (Type.Primitive) t : null;
     }
 
     /** {@code value->in(list)} over a list of spelled scalars: folded where the value is of a kind the compiler may
@@ -470,6 +481,15 @@ final class LiteralUnroll {
      *  4 and 5 found {@code 1.0->in([0, 1])}, a call inlined, folded to false here). */
     private static TypedSpec inFold(TypedNativeCall c, TypedSpec value, TypedCollection list) {
         if (!comparedHere(value)) {
+            return c;
+        }
+        // a whole number against a list of another number type's literals is a comparison only by the literal rule
+        // (NumberLiterals), whose answer is by VALUE and the database's: left to it, as 1.0->in([0, 1]) is above
+        // (the re-check of this slice's audit, 2026-11-26: with whole numbers back in the fold, an inlined
+        // 1->in([0.0, 1.0]) folded to false where its mirror answers true)
+        Type.Primitive valueKind = numberKind(value.info().type());
+        Type.Primitive listKind = numberKind(list.info().type());
+        if (valueKind != null && listKind != null && valueKind != listKind) {
             return c;
         }
         return scalar(value).<TypedSpec>map(needle -> bool(list.elements().stream()
