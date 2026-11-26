@@ -94,13 +94,8 @@ class FixtureWriteCensusTest {
      *  E's side's one (CatalogModelTest) and main's twenty-five, joined. 925, 947 -> 950 (2026-11-14, merged main
      *  3a217086a (#81) into the separation stream, measured by the census's run on the merged tree): both sides' moves
      *  together. 948/950 -> 951 (2026-11-15, merged main cf865632c (#101) into claude/total-wall-e, measured by the
-     *  census's run on the merged tree): E's 948 and C4's three (950 - 947), joined. 951 -> 953 (2026-11-26, the SQLite
-     *  date-time text, the owner's ruling of that day, "Shouldn't we normalize to at least pretend it's a date?"): a
-     *  user's own table whose date-times are texts lite did not write (DateTimeInstantSideBySideTest, 2: one CREATE
-     *  and one INSERT of SQLite's own date-time texts in six shapes, the same instants in DuckDB's TIMESTAMP column
-     *  beside them) -- the case is that the dialect reads another writer's text into its one text of the instant, and
-     *  a plan's load would write that one text itself, so no model's rows can say it. */
-    private static final int CEILING = 953;
+     *  census's run on the merged tree): E's 948 and C4's three (950 - 947), joined. */
+    private static final int CEILING = 951;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -224,9 +219,6 @@ class FixtureWriteCensusTest {
             // through the product door needs a user's own table holding a zoned value, as a catalog source finds it:
             // one CREATE TABLE AS; aReadOnlySourcesZonedColumnAnswersItsUtcInstant; the ceiling's note)
             Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogModelTest.java", 3),
-            // 2026-11-26, the SQLite date-time text: a user's own table of date-time texts lite did not write (the
-            // ceiling's note)
-            Map.entry("core/src/test/java/com/legend/sql/dialect/DateTimeInstantSideBySideTest.java", 2),
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2FirstInGroupTest.java", 2),
             // 2026-11-12, the third re-audit's MUST-FIX 2(c): H2's keywords as columns on a bare session (the ceiling's
             // note)

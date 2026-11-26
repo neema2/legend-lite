@@ -28,9 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * <p>Each case is one expression run on SQLite and on DuckDB, side by side: the two answers are held equal, and equal
  * to the answer the instants give. The values are written, loaded and computed at different precisions: a table's
- * cells (a load), literals, a text read as a date-time and a table the dialect did not load (the two sources read
- * into the one text by SQL at run), and the dialect's own date arithmetic. A test of the dialect package, which names
- * the databases it compares (DatabaseOwners).
+ * cells (a load), literals, a text read as a date-time (the one source read into the one text by SQL at run), and the
+ * dialect's own date arithmetic. Not held here: a store's own column in a table the dialect did not load, which is
+ * compared as it is held ({@code SQLite.timestampLit}'s note). A test of the dialect package, which names the
+ * databases it compares (DatabaseOwners).
  */
 class DateTimeInstantSideBySideTest {
 
@@ -206,65 +207,6 @@ class DateTimeInstantSideBySideTest {
     void groupByIsByTheInstant() throws Exception {
         table(T + "->groupBy(~[TS], ~[n: r|$r.ID : y|$y->count()])->sort(~TS->ascending())->select(~[n])",
                 "1", "2", "2", "1");
-    }
-
-    // ---- a table lite did not load ---------------------------------------------------------------------------------
-
-    /** A table the test writes itself, as a user's own database holds one: on SQLite its date-times are SQLite's own
-     *  date-time texts written six ways (three zeros, no fraction, one digit, no seconds, a day alone, a 'T' and a
-     *  trailing zero), which the
-     *  dialect reads into the one text of each instant at each reference; on DuckDB the same instants in a TIMESTAMP
-     *  column. */
-    private static List<String> own(DatabaseType type, String query) throws Exception {
-        String model = """
-                ###Relational
-                Database s::DB ( Table OWN ( ID INTEGER PRIMARY KEY, TS TIMESTAMP ) )
-                ###Connection
-                RelationalDatabaseConnection s::Conn
-                {
-                    store: s::DB;
-                    %s
-                }
-                ###Runtime
-                Runtime s::RT { mappings: [ ]; connections: [ s::DB: [ c1: s::Conn ] ]; }
-                """.formatted(TestBackends.of(type).connectionBody());
-        try (Connection c = TestBackends.of(type).open(); java.sql.Statement st = c.createStatement()) {
-            st.execute("CREATE TABLE OWN (ID INTEGER PRIMARY KEY, TS " + (type == DatabaseType.SQLite ? "TEXT"
-                    : "TIMESTAMP") + ")");
-            st.execute("INSERT INTO OWN VALUES (1, '2014-01-01 00:00:00.000'), (2, '2014-01-01 00:00:00'),"
-                    + " (3, '2014-01-01 00:00:00.5'), (4, '2014-01-01 10:30'), (5, '2014-01-02'), (6, NULL),"
-                    + " (7, '2014-01-03T08:00:00.250')");
-            List<String> out = new ArrayList<>();
-            for (List<Object> row : Lean.run(model, query, "s::RT", c).rows()) {
-                out.add(String.valueOf(row.size() == 1 ? row.get(0) : row));
-            }
-            return out;
-        }
-    }
-
-    private static void own(String query, String... expected) throws Exception {
-        for (DatabaseType type : DATABASES) {
-            assertEquals(List.of(expected), own(type, query), type + ": " + query);
-        }
-    }
-
-    @Test
-    void aUsersOwnColumnIsReadIntoTheOneTextOfItsInstant() throws Exception {
-        String own = "|#>{s::DB.OWN}#";
-        own(own + "->filter(r|$r.TS == %2014-01-01T00:00:00)->select(~[ID])->sort(~ID->ascending())", "1", "2");
-        own(own + "->filter(r|$r.TS == %2014-01-01T00:00:00.500)->select(~[ID])", "3");
-        own(own + "->filter(r|$r.TS == %2014-01-01T10:30:00)->select(~[ID])", "4");
-        own(own + "->filter(r|$r.TS == %2014-01-02T00:00:00)->select(~[ID])", "5");
-        own(own + "->filter(r|$r.TS == %2014-01-03T08:00:00.25)->select(~[ID])", "7");
-        own(own + "->filter(r|$r.TS > %2014-01-01T00:00:00)->select(~[ID])->sort(~ID->ascending())",
-                "3", "4", "5", "7");
-        own(own + "->filter(r|$r.TS->isNotEmpty())->sort([~TS->ascending(), ~ID->descending()])->select(~[ID])",
-                "2", "1", "3", "4", "5", "7");
-        own(own + "->filter(r|$r.TS->isEmpty())->select(~[ID])", "6");
-        own(own + "->filter(r|$r.TS->isNotEmpty())->groupBy(~[TS], ~[n: r|$r.ID : y|$y->count()])"
-                + "->sort(~TS->ascending())->select(~[n])", "2", "1", "1", "1", "1");
-        // the cells are written one way, by the product's writer, whatever the table held
-        own(own + "->filter(r|$r.ID <= 2)->select(~[TS])->distinct()", "2014-01-01T00:00:00.000000000");
     }
 
     // ---- joins ----------------------------------------------------------------------------------------------------

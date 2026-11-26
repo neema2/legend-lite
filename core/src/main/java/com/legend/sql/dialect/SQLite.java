@@ -170,40 +170,6 @@ public class SQLite extends AnsiSqlRenderer {
         return bindPayload(writer, u).append(") AS legend_payload");
     }
 
-    /** {@inheritDoc} And a column the store declares a date-time: SQLite gives it no type, so its text is whatever
-     *  wrote the table -- this dialect's own loads the one text of each instant ({@link #timestampLit}), a user's own
-     *  table the digits of a second its writer chose -- and it is read into that one text at every reference
-     *  ({@link #storedRead}), so every clause compares one form. */
-    @Override
-    protected boolean readsStored(com.legend.sql.SqlDdl.ColumnType t) {
-        return storedInstant(t) || super.readsStored(t);
-    }
-
-    private static boolean storedInstant(com.legend.sql.SqlDdl.ColumnType t) {
-        return t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p
-                && (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP
-                        || p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP_NS);
-    }
-
-    /** {@inheritDoc} A stored date-time ({@link #readsStored}) as the one text of its instant: SQLite's own date-time
-     *  text -- {@code YYYY-MM-DD}, then {@code HH:MM}, its seconds and any digits of a second, each optional -- with
-     *  the time, minute or second it does not write taken from the midnight it would be (by its length) and its
-     *  fraction's trailing zeros dropped, and the 'T' SQLite also reads between day and time a space: the one
-     *  normalization of a text this dialect did not make. Only a text of that shape is touched (a four-digit year, and
-     *  from its twentieth character nothing but a point and digits, so its only 'T' is that one): the one text of an
-     *  instant is itself, and a text with an offset after it, or a year outside 0000 to 9999, is read as it is held,
-     *  as before. */
-    @Override
-    protected SqlWriter storedRead(SqlWriter writer, SqlExpr.StoredRead r) {
-        if (!storedInstant(r.stored())) {
-            return super.storedRead(writer, r);
-        }
-        return writer.append("(CASE WHEN ltrim(substr(").expr(r.column(), 0).append(", 20), '.0123456789') = '' AND"
-                + " substr(").expr(r.column(), 0).append(", 5, 1) = '-' THEN ").piece(shortest(w -> w.append("replace(")
-                        .expr(r.column(), 0).append(", 'T', ' ') || substr('0000-00-00 00:00:00.', length(")
-                        .expr(r.column(), 0).append(") + 1)"))).append(" ELSE ").expr(r.column(), 0).append(" END)");
-    }
-
     /** {@inheritDoc} 9: a date-time is its text, every digit kept (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
@@ -819,10 +785,25 @@ public class SQLite extends AnsiSqlRenderer {
      *
      * <p>The text is made at each SOURCE of a date-time, never at a comparison: a literal and a loaded cell here, when
      * the plan is made (the spelling of a constant: no SQL at run); this dialect's own date functions, which write a
-     * whole second already, or a fraction it trims ({@link #shortest}); a text read as a date-time and a store's own
-     * column by SQL at run ({@link #instantOf}, {@link #storedRead}): the two sources this dialect did not write. A
+     * whole second already, or a fraction it trims ({@link #shortest}); a parameter's bound text in its placeholder;
+     * a text read as a date-time by SQL at run ({@link #instantOf}): the one source this dialect did not write. A
      * value with no time of day (a day's ten characters, which a Date-typed slot may hold beside date-times) is no
      * date-time and stays as it is; every reader below reads both.
+     *
+     * <p>NOT covered, each said here so none is met by surprise:
+     * <ul>
+     *   <li>a year outside 0000 to 9999: its text is still the one text of its instant (equal to itself, whatever
+     *       digits it was written with), but texts of two year widths do not sort as their instants do, and SQLite's
+     *       date functions answer NULL for it, which the date arithmetic raises as before;</li>
+     *   <li>an offset from UTC: never held. A literal's is applied when the plan is made, a text's when it is read
+     *       ({@link #instantOf}: {@code Z}, {@code +HH:MM}, {@code +HHMM});</li>
+     *   <li>a STORE'S OWN date-time column, in a table this dialect did not load: SQLite gives a column no type, so
+     *       its text is whatever wrote it, and it is compared AS HELD, as before (the orchestrator's decision of
+     *       2026-11-26: every date-time lite writes is the one text -- a literal, a load, a function's result -- and
+     *       reading another writer's column into it at every reference costs every table lite loaded itself the
+     *       same SQL, the two told apart only by a fact the plan does not carry yet). A column whose texts are
+     *       SQLite's own {@code datetime()} form (a whole second, no fraction) is that one text already.</li>
+     * </ul>
      *
      * <p>{@code iso}'s 'T' is a space, an hour, minute or second it does not write {@code 00}, its fraction's trailing
      * zeros dropped; an offset from UTC it carries is applied (a date-time is held as its UTC wall time: the literal's
@@ -1473,8 +1454,8 @@ public class SQLite extends AnsiSqlRenderer {
                 // characters a value. Two readings are kept: a DAY's text (no time: no colon), which a Date-typed
                 // slot may hold beside date-times, is its midnight (as every database's date-time of a day is), and
                 // a nonzero digit past the ninth -- only a user's own text has one -- is refused, never compared.
-                // No longer read here: a text this dialect did not make and its column's read left as held (an
-                // offset after it, a year outside 0000 to 9999 in another spelling), which is compared as held
+                // No longer read here: a text this dialect did not make (a store's own column: timestampLit's note),
+                // which is compared as it is held, as the product compares it
                 String past = "substr(__i0.t, instr(__i0.t, '.') + 10)";
                 return writer.append("(SELECT CASE WHEN instr(__i0.t, ':') = 0 THEN __i0.t || ' 00:00:00' WHEN"
                         + " instr(__i0.t, '.') > 0 AND ltrim(" + past + ", '0123456789') = '' AND ltrim(" + past
@@ -1482,7 +1463,7 @@ public class SQLite extends AnsiSqlRenderer {
                         .expr(v, 0).append(" AS t) AS __i0)");
             }
             SqlWriter.Piece t = from == SqlType.Scalar.DATE ? w -> w.append("(").expr(v, 0).append(" || ' 00:00:00')")
-                    : padded(dateTimeText(w -> w.expr(v, 0)));
+                    : offsetWithColon(padded(dateTimeText(w -> w.expr(v, 0))));
             // a text that is not yet a date-time (a literal's written text, a day): its second by SQLite's reading
             // of it, its fraction the run of digits after the point (a zone after it is no digit of it), one with a
             // nonzero digit past its ninth refused, never cut; then the trailing zeros dropped (shortest)
@@ -2685,14 +2666,25 @@ public class SQLite extends AnsiSqlRenderer {
     /**
      * A date-time TEXT that is not this dialect's own -- a user's text cast to a date-time, a Variant's string, a
      * parsed text ({@code text}: its 'T' a space and its day's fields padded already) -- read into the one text of its
-     * instant ({@link #timestampLit}), by SQL at run: with a store's own column ({@link #storedRead}), the one kind of
-     * source that needs it. Its second by SQLite's own reading of the text (an offset it carries applied, as DuckDB's
-     * cast applies one) or, where that reads none (a year outside 0000 to 9999, an hour alone), its own day and time as
+     * instant ({@link #timestampLit}), by SQL at run: the one kind of source that needs it. Its second by SQLite's
+     * own reading of the text (an offset it carries applied, as DuckDB's cast applies one) or, where that reads none (a year outside 0000 to 9999, an hour alone), its own day and time as
      * written, an hour, minute or second it does not write {@code 00}; its fraction the run of digits after its point,
      * every one kept (S181 refuses no text the database parses) but its trailing zeros. A day alone is its midnight;
      * NULL stays NULL.
      */
     private static SqlWriter.Piece instantOf(SqlWriter.Piece text) {
+        return instantRead(offsetWithColon(text));
+    }
+
+    /** {@code text} with an offset written {@code +HHMM} (Pure's own print form of one, {@code +0000}) written
+     *  {@code +HH:MM}, the one form SQLite's date functions apply; any other text as it is. */
+    private static SqlWriter.Piece offsetWithColon(SqlWriter.Piece text) {
+        return w -> w.append("(SELECT CASE WHEN length(__oc.t) > 16 AND __oc.t GLOB '*[0-9][+-][0-9][0-9][0-9][0-9]' THEN"
+                + " substr(__oc.t, 1, length(__oc.t) - 2) || ':' || substr(__oc.t, -2) ELSE __oc.t END FROM (SELECT ")
+                .piece(text).append(" AS t) AS __oc)");
+    }
+
+    private static SqlWriter.Piece instantRead(SqlWriter.Piece text) {
         String p = "instr(__i0.t, ' ')";
         String f = "substr(__i0.t, instr(__i0.t, '.') + 1)";
         return w -> w.append("(SELECT ").piece(shortest(w2 -> w2.append("coalesce(strftime('%Y-%m-%d %H:%M:%S',"
