@@ -200,3 +200,32 @@ tests, the guards and a second full round.
   message, channel A's failure lines, the counts of executed expressions and the logged result rows are the same in
   all ten suites (only `generateGuid`'s fresh values differ). `212b167c` holds the step that makes the door's table
   decide which checks are written; PCT hands lite's edition, so this is the expected result.
+
+## Round 3 on `b4c9bf0a` (2026-11-26): the comparison setting, and the corpus as legend-engine's own tests
+
+`b4c9bf0a` holds the comparison setting in the type-checker (step 2b), the door's table deciding which checks are
+written, and the corpus planning under its own style. PCT still plans under the shared style with lite's edition, so
+the expected result on every database was "nothing differs".
+
+| Lane | PCT, against its last round | How it compared |
+|---|---|---|
+| Postgres, Trino | nothing differs | every channel B line with its message, channel A's failure lines and counts, the logged rows as multisets |
+| Databricks | nothing differs | whole logs, 0 differing lines on all ten suites after normalising ids and timings |
+| Snowflake | nothing differs | every per-test line of all ten suites; channel A's `test.xml` |
+| BigQuery | nothing differs | channel A verdicts, channel B's 1,249 lines; the 19 known failures (the untyped NULL) unchanged; six result lines of four `asOfJoin` tests list the same rows in another order (no outer ORDER BY: the database's own) |
+| SQLite, MongoDB | nothing differs | channel B line by line; channel A by counts |
+| MariaDB, MySQL, ClickHouse | nothing differs on MySQL and ClickHouse; MariaDB moves only by its known list shuffle | test by test |
+
+**The corpus, per assert** (a separate session, both lanes, against the base `212b167c`): all targets green with the
+re-blessed rosters; DuckDB 2281 pass, 276 fail, 7 skipped (base 2275, 282); H2 2140, 422, 7 (base 2134, 428). The
+same 13 assert rows move on each lane:
+- 10 belong to the six tests that now pass;
+- the three `testPlanForDateTimeConstantParameter` tests are identical to the base (failing at the same assert);
+- 3 are in tests whose verdict did not change, all inside a query the test hands legend-engine (`executionPlan`),
+  none in the test's own code: `testModelConnectionAgg` and `testModelConnectionMultipleAgg` (the SQL in their
+  message lost Pure's range check around `substr`; they fail before and after on a missing table), and
+  `testSubstringIndexingCorrectedByFeatureFlag` (its plan text now reads `substr(x, 4 + 1, 9 - 4)`, the corrected
+  form; it fails before and after on lite's `substr` spelling where legend-engine writes `substring(x, 5, 5)`).
+  legend-engine folds those two literals; lite's row does not. SQL text is not promised; noted, not changed.
+- The product SQL of four families a lane shrank (the `sqrt` and `rem` tests lost the checks legend-engine's SQL does
+  not write); their asserts did not move.
