@@ -15,6 +15,22 @@ targeted runs and lane rounds, without a review. Its findings, set out, with wha
 | 7 | Note | A value drawn afresh (`RANDOM`, `GUID`) in a conjunct that stays inside was drawn once a row before it and would be drawn once overall | a subquery with one is left as it was |
 | 8 | Tests | Untested: a LEFT lateral, a comparison that is no equality, and the bails | added: a LEFT lateral as a LEFT join with a `<` moved; the two new bails. Not added: a rendered statement run on H2 (the four PCT tests on H2's two channels are that) |
 
+**The fix measured on the real databases** (the MariaDB and MySQL lane, direct SQL, MariaDB 11.4.13 and MySQL
+8.4.11, both with `NO_BACKSLASH_ESCAPES`): both accept the atomic group. The count of matches and the matches
+themselves, the present form then the atomic form:
+
+| Pattern, text | Present form (`(?:`) | Atomic form (`(?>`) |
+|---|---|---|
+| `.{1,5}`, `'abc'` | 3: `abc`, `c`, `c` | 1: `abc` |
+| `.{1,5}`, `'abcdefghijklmnop'` | MariaDB 16 (`abcde`, `fghij`, `klmno`, then `p` thirteen times); **MySQL an error** at the fourteenth ("Timeout exceeded in regular expression match", 3699) | 4: `abcde`, `fghij`, `klmno`, `p` |
+| `.{1,1}`, either text | 3 and 16, right | the same |
+| `a+`, `'aaa'` | 3: `aaa`, `a`, `a` | 1: `aaa` |
+| `was`, the sentence | 2 | 2 |
+| `([a-z]+)([0-9]+)`, `'abc123def'` | 1: `abc123` | 1: `abc123` |
+
+So the atomic form is the scan's count and matches in every case on both databases, and the present form was
+wrong wherever a match can be cut into shorter ones; on MySQL a longer text would have raised, not answered wrongly.
+
 **Found sound by the reviewer:** for a filter-only subquery of plain-column projections, the uncorrelated conjuncts
 kept inside and the correlated ones in the ON is exact for CROSS to INNER and LEFT to LEFT, for any Boolean predicate;
 aggregates and windows are excluded; chains and inner laterals are handled bottom-up; the ON reads only aliases to
