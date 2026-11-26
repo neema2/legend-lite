@@ -1111,15 +1111,23 @@ class AssertBarTest {
         // a table's values counted (the audit of the next batch, 2026-11-26, S1): a table is a relation, which
         // upstream counts as ONE value, so lite refuses its size assert by name under every judge (register S137) --
         // assertNotSize too, since the same day: it had missed the rule, the host judge refused it as a table, the
-        // database judge counted its rows, and under both the judges disagreed. One row's cells are a list: counted
+        // database judge counted its rows, and under both the judges disagreed.
         String relation = "ModelException: assertSize over a relation counts the relation as ONE value";
         want.put("{|assertSize(" + grid + ", 4)}", relation);
         want.put("{|assertSize(" + grid + ", 2)}", relation);
         want.put("{|assertNotSize(" + grid + ", 2)}", relation.replace("assertSize", "assertNotSize"));
+        // ONE ROW's cells (an Integer and a String here: two values in Pure). A RECORDED DEFECT, measured 2026-11-26
+        // and owned by the equality program's later slices (the plan record's carried-forward table): the typer keeps
+        // a row's bare .values as the row itself, one value, so the host judge counts 1; the database judge asks the
+        // product's size of it, whose value is the row's cells as a mixed list under a to-one stamp, and the lowering
+        // refuses that by name. Never a count of 2 from one judge and 1 from the other
         String cells = grid.substring(0, grid.length() - ".values".length()) + ".values.rows->at(0).values";
-        want.put("{|assertSize(" + cells + ", 2)}", "pass");
-        want.put("{|assertSize(" + cells + ", 3)}", "AssertFailed");
-        want.put("{|assertNotSize(" + cells + ", 3)}", "pass");
+        String unlowered = "DialectCapability: a tagged list reached the renderer";
+        String everyDatabase = "|DuckDB/DATABASE=" + unlowered + "|DuckDB/BOTH=" + unlowered + "|H2/DATABASE=" + unlowered
+                + "|H2/BOTH=" + unlowered + "|SQLite/DATABASE=" + unlowered + "|SQLite/BOTH=" + unlowered;
+        want.put("{|assertSize(" + cells + ", 2)}", "AssertFailed: expected size: 2, actual size: 1" + everyDatabase);
+        want.put("{|assertSize(" + cells + ", 3)}", "AssertFailed" + everyDatabase);
+        want.put("{|assertNotSize(" + cells + ", 3)}", "pass" + everyDatabase);
         // the audit of 3f2fe452: a wider table's cells in the table's own order (a descending sort read descending); a
         // class reference against itself cast to Class<Any> one reference; a store-read Decimal carried as its text
         // against a Decimal literal refused by name, never its text joined against a number
