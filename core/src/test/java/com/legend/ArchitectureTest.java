@@ -1884,27 +1884,33 @@ final class ArchitectureTest {
             };
 
     /**
-     * NO RESULT WRITER, AND NOTHING OF THE RESULT LIBRARY OR OF EXEC, DEPENDS ON A PRINT'S TAIL (the edition program's
-     * step 8, 2026-11-26; the independent audit of its slice 2, S3, and the audit's re-check, R3). The calls a program
-     * makes over a printed text -- a replace, a length, an index, a true or false -- are computed by ONE class,
-     * {@code edge.PrintTail} (its closed set pinned by {@code PrintTailTest}; the edge's one registered class that
-     * computes a value, {@code JavaEvalLedgerTest}), and applied by the DOOR that lifted the print
-     * ({@code edge.PrintedRelations}: {@code Lifted.answer}, {@code Side.answer}) from the text a writer handed it. A
-     * writer that reached either class would be computing an answer the plan never typed: so no class that
-     * implements the result sink, in any package, and no class of the result library or of exec, depends on the
-     * tail's class, on a member of it, or on the door that applies it. A dependency rule over the compiled classes:
-     * it holds a writer however it would spell the call, and every writer there is or will be, where the source scan
-     * it replaces ({@code WriterCarriageGuardTest}, 2026-11-26, one day) read one word in a hand list of files.
+     * NO RESULT WRITER OR PRINTER, AND NOTHING OF THE RESULT LIBRARY OR OF EXEC, DEPENDS ON A PRINT'S TAIL (the edition
+     * program's step 8, 2026-11-26; the independent audit of its slice 2, S3, the audit's re-check, R3, and its
+     * review). The calls a program makes over a printed text -- a replace, a length, an index, a true or false -- are
+     * computed by ONE class, {@code edge.PrintTail} (its closed set pinned by {@code PrintTailTest}; the edge's one
+     * registered class that computes a value, {@code JavaEvalLedgerTest}), and applied by the DOOR that lifted the
+     * print ({@code edge.PrintedRelations}: {@code Lifted.answer}, {@code Side.answer}) from the text a writer handed
+     * it. A writer that reached either class would be computing an answer the plan never typed: so no class that
+     * implements the result sink, in any package, none of the edge's writers and printers by name (the files the
+     * source scan this replaces read: {@code WriterCarriageGuardTest}, 2026-11-26, one day), and no class of the
+     * result library or of exec, depends on the tail's class, on a member of it, or on the door that applies it.
+     *
+     * <p>What it holds and what it does not: a DIRECT dependency of the compiled class, however the call is spelled
+     * and for every sink there is or will be. It does not see a writer that reaches the tail through a helper class
+     * of its own, nor one that writes a text's length or a replace itself: the first is the reviewer's to see (the
+     * helper would be a new class of the edge), the second is the carriage guard's vocabulary.
      */
     @Test
     void noWriterDependsOnAPrintsTail() {
         noClasses()
             .that().implement(com.legend.result.ResultSink.class)
             .or().resideInAnyPackage("com.legend.result..", "com.legend.exec..")
+            .or().haveNameMatching("com\\.legend\\.edge\\.(PureV1Writer|EngineAnswers|Presenter|PureRelationText"
+                    + "|PureRelationTextWriter|PureValueText)(\\$.*)?")
             .should().dependOnClassesThat()
             .haveNameMatching("com\\.legend\\.edge\\.(PrintTail|PrintedRelations)(\\$.*)?")
             .as("a print's tail (edge.PrintTail) is applied by the door that lifted the print (edge.PrintedRelations),"
-                    + " never by a result writer, the result library or exec: a writer writes")
+                    + " never by a result writer or printer, the result library or exec: a writer writes")
             .check(CORE_AND_EDGE_CLASSES);
     }
 

@@ -74,9 +74,9 @@ class PctPlanRoutePrintTest {
             for (String last : List.of("1.5->toString()", "(1.5 * 1.0)->toString()")) {
                 String outcome;
                 try {
-                    outcome = String.valueOf(PctPlanRoute.execute("", "|" + earlier + " " + last).rows().rows());
+                    outcome = String.valueOf(PctPlanRoute.execute("", "|" + earlier + " " + last + ";").rows().rows());
                 } catch (Exception | AssertionError e) {
-                    outcome = "RAISED " + e.getClass().getSimpleName();
+                    outcome = "RAISED " + e.getClass().getSimpleName() + " " + e.getMessage();
                 }
                 outcomes.put(earlier + " " + last, outcome);
             }

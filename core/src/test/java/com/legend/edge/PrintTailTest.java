@@ -59,7 +59,8 @@ class PrintTailTest {
      *  2026-11-26, its list; each read against legend-pure 5.99.0's Java and run on the build's JDK): a character
      *  above U+FFFF, an empty needle, a control character at an end, a start outside the text. A database counts the
      *  first as one character, and lite's SQL strips spaces alone and answers -1 for a start past the end
-     *  ({@code PrintTailParityTest} holds what each lane's database answers beside these). */
+     *  (what each database answers beside these is recorded, one answer a case: {@code EdgeCasesGoldenTest}'s
+     *  {@code tail.*} cases). */
     @Test
     void whereADatabaseAnswersOtherwiseJavasIsLegendPures() {
         String astral = "a\uD83D\uDE00b";

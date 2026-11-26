@@ -218,7 +218,17 @@ class UpstreamPrintsTest {
                 // a draw inside a lambda is still a draw
                 "|assertEquals('0.5', ([1.0]->map(x|$x * random())->at(0))->toString());",
                 // a value taken by position from rows past a grouping: their order is the database's
-                "|" + grouped + " assertEquals('1.5', ($g->map(r|$r.n->toOne() * 1.5)->at(0))->toString());")) {
+                "|" + grouped + " assertEquals('1.5', ($g->map(r|$r.n->toOne() * 1.5)->at(0))->toString());",
+                // ...by a limit, a take or a slice, which the typer writes as nodes of their own (the review of the
+                // re-check's fixes, 2026-11-26: a list of natives never matched them)
+                "|" + grouped + " assertEquals('1.5', $g->map(r|$r.n->toOne() * 1.5)->limit(1)->toOne()->toString());",
+                "|" + grouped + " assertEquals('1.5', $g->map(r|$r.n->toOne() * 1.5)->take(1)->toOne()->toString());",
+                "|" + grouped + " assertEquals('1.5', $g->map(r|$r.n->toOne() * 1.5)->slice(0, 1)->toOne()->toString());",
+                // ...by a pick inside a lambda, which reads the same rows
+                "|" + grouped + " assertEquals('1.5', [1]->map(i|$g->map(r|$r.n->toOne() * 1.5)->at(0))->toOne()"
+                        + "->toString());",
+                // a Float's sum is its rows' order's
+                "|" + grouped + " assertEquals('4.5', $g->map(r|$r.n->toOne() * 1.5)->sum()->toString());")) {
             com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
             org.junit.jupiter.api.Assertions.assertSame(typed, UpstreamPrints.read(typed, false, never), body);
         }
@@ -236,13 +246,16 @@ class UpstreamPrintsTest {
                         + "function t::draw(): Float[1] { random() }\n"
                         + "function t::outer(): Float[1] { t::draw() * 1.0 }\n"
                         + "function t::mapped(): Float[1] { [1.0]->map(x|$x * random())->toOne() }\n"
+                        + "function t::head(xs: Float[*]): Float[1] { $xs->at(0) }\n"
                         + "Class t::Box { v: Float[1]; drawn() { $this.v * random() }: Float[1]; }\n",
                         com.legend.database.Databases.PLATFORM));
         for (String body : List.of(
                 "|assertEquals('0.5', t::outer()->toString());",
                 "|assertEquals('0.5', t::mapped()->toString());",
                 "|assertEquals('0.5', [1.0]->map(x|$x * t::outer())->toOne()->toString());",
-                "|let b = ^t::Box(v = 1.0); assertEquals('0.5', $b.drawn->toString());")) {
+                "|let b = ^t::Box(v = 1.0); assertEquals('0.5', $b.drawn->toString());",
+                // a pick of a function's own parameter: the rows it is given are not in sight in its body
+                "|assertEquals('1.0', t::head([1.0, 2.0])->toString());")) {
             com.legend.TypedQuery typed = com.legend.Compiler.query(behind, body);
             org.junit.jupiter.api.Assertions.assertSame(typed, UpstreamPrints.read(typed, false, never), body);
         }
@@ -270,6 +283,9 @@ class UpstreamPrintsTest {
                             com.legend.database.Databases.PLATFORM));
             for (String body : List.of(
                     "|assertEquals('0.0000002', t::twice(1.0E-7)->toString());",
+                    // a pick from sorted rows in a call's argument is this body's, read with its lets
+                    "|" + sorted + " assertEquals('0.0000004', t::twice($s->map(r|$r.id->toOne() * 1.0E-7)->at(0))"
+                            + "->toString());",
                     "|let b = ^t::Box(v = 1.0E-7); assertEquals('0.0000002', $b.twice->toString());")) {
                 com.legend.TypedQuery typed = com.legend.Compiler.query(pure, body);
                 com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);
@@ -284,6 +300,11 @@ class UpstreamPrintsTest {
                     "|assertEquals('0.30000000000000004', [0.1]->map(x|$x + 0.2)->toOne()->toString());",
                     "|assertEquals('0.0000001', [1.0E-7]->map(x|$x)->toOne()->toString());",
                     "|assertEquals('0.0000001', ([1.0E-7]->map(x|$x * 1.0)->at(0))->toString());",
+                    // a limit and a sum of values in the language's own order, and of sorted rows
+                    "|assertEquals('0.0000001', [1.0E-7, 2.0]->map(x|$x * 1.0)->limit(1)->toOne()->toString());",
+                    "|assertEquals('0.75', [0.5, 0.25]->sum()->toString());",
+                    "|" + sorted + " assertEquals('0.0000002', $s->map(r|$r.id->toOne() * 1.0E-7)->take(1)->toOne()"
+                            + "->toString());",
                     "|" + sorted + " assertEquals('0.0000002', ($s->map(r|$r.id->toOne() * 1.0E-7)->at(0))->toString());")) {
                 com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
                 com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);

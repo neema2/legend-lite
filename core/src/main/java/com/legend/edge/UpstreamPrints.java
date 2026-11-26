@@ -386,74 +386,122 @@ public final class UpstreamPrints {
                 || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(id);
     }
 
-    /** Whether {@code id} takes its answer by POSITION from a collection: the natives whose answer changes with the
-     *  order of the rows they read. */
-    private static boolean picksByPosition(com.legend.model.FunctionId id) {
-        return com.legend.builtin.Pure.AT_COLLECTION_AT.contains(id) || com.legend.builtin.Pure.AT_COLLECTION_FIRST.contains(id)
-                || com.legend.builtin.Pure.AT_COLLECTION_HEAD.contains(id) || com.legend.builtin.Pure.AT_COLLECTION_LAST.contains(id)
-                || com.legend.builtin.Pure.AT_COLLECTION_TAKE.contains(id) || com.legend.builtin.Pure.AT_COLLECTION_DROP.contains(id)
-                || com.legend.builtin.Pure.AT_COLLECTION_SLICE.contains(id)
-                || com.legend.builtin.Pure.AT_COLLECTION_LIMIT.contains(id);
-    }
-
     /** Whether {@code n} is itself a call of a native that answers anew each time. */
     private static boolean drawsAnew(TypedSpec n) {
         return n instanceof TypedNativeCall c && answersAnew(c.callee().id());
     }
 
+    /** Whether the native {@code c} answers the same whatever order its rows arrive in: the natives the order view
+     *  reads through (a map, a filter, a projection, a distinct, {@code toOne}), a sort, the natives that leave no
+     *  order (a grouping, a join, a union), and a count or an emptiness test -- but never a native that takes its
+     *  answer by position ({@code at}, {@code take}, {@code drop}, {@code slice}, {@code limit}), which the order
+     *  view reads through because it keeps the order it is given. */
+    private static boolean orderFree(TypedNativeCall c) {
+        com.legend.model.FunctionId id = c.callee().id();
+        String fqn = c.callee().qualifiedName();
+        // the order view's own names for them (the typer writes a limit, a drop and a slice as nodes of their own,
+        // readsByOrder's first three arms; named here so that the rule does not rest on that)
+        if (fqn.equals(com.legend.builtin.Pure.AT__T_MANY__INTEGER_1.qualifiedName())
+                || fqn.equals(com.legend.builtin.Pure.TAKE__T_MANY__INTEGER_1.qualifiedName())
+                || fqn.equals(com.legend.builtin.Pure.LIMIT__T_MANY__INTEGER_1.qualifiedName())
+                || fqn.equals(com.legend.builtin.Pure.LIMIT__RELATION_1__INTEGER_1.qualifiedName())
+                || fqn.equals(com.legend.builtin.Pure.LIMIT__TDS_1__INTEGER_0_1.qualifiedName())
+                || fqn.equals(com.legend.builtin.Pure.DROP__T_MANY__INTEGER_1.qualifiedName())
+                || fqn.equals(com.legend.builtin.Pure.DROP__RELATION_1__INTEGER_1.qualifiedName())
+                || fqn.equals(com.legend.builtin.Pure.SLICE__T_MANY__INTEGER_1__INTEGER_1.qualifiedName())
+                || fqn.equals(com.legend.builtin.Pure.SLICE__RELATION_1__INTEGER_1__INTEGER_1.qualifiedName())) {
+            return false;
+        }
+        return com.legend.compiler.spec.OrderView.ORDER_PRESERVING.contains(fqn)
+                || com.legend.compiler.spec.OrderView.SORT_FQNS.contains(fqn)
+                || com.legend.compiler.spec.OrderView.ORDER_DESTROYING.contains(fqn)
+                || com.legend.compiler.spec.OrderView.ORDER_COMBINING.contains(fqn)
+                || com.legend.builtin.Pure.AT_LEGEND_LITE_TRUST_ONE.contains(id)
+                || com.legend.builtin.Pure.AT_COLLECTION_SIZE.contains(id)
+                || com.legend.builtin.Pure.AT_COLLECTION_COUNT.contains(id)
+                || com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(id)
+                || com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(id);
+    }
+
+    /** Whether {@code rows} is many values, or a relation, in an order the program does not define
+     *  ({@link com.legend.compiler.spec.OrderView}'s INCIDENTAL: a store's or a frame's rows with no sort, rows past
+     *  a grouping, a join, a union or a pivot, and a name {@code lets} does not bind -- a lambda's or a function's
+     *  parameter, whose rows are not in sight). */
+    private static boolean inNoDefinedOrder(TypedSpec rows, List<TypedSpec> lets) {
+        return (rows.info().multiplicity().isMany()
+                || com.legend.compiler.element.type.Type.isRelation(rows.info().type()))
+                && com.legend.compiler.spec.OrderView.of(rows, lets) == com.legend.compiler.spec.OrderView.INCIDENTAL;
+    }
+
+    /** Whether {@code n}'s answer may change with the order its rows arrive in: a {@code limit}, a {@code drop} or
+     *  a {@code slice} of unordered rows ({@link #inNoDefinedOrder}), or a native call that reads unordered rows and is
+     *  not known to answer the same in any order ({@link #orderFree}) -- {@code at}, {@code first}, {@code last},
+     *  and a sum or an average too (a Float's sum is its rows' order's), and every native this door does not know. */
+    private static boolean readsByOrder(TypedSpec n, List<TypedSpec> lets) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedLimit l) {
+            return inNoDefinedOrder(l.source(), lets);
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedDrop d) {
+            return inNoDefinedOrder(d.source(), lets);
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedSlice sl) {
+            return inNoDefinedOrder(sl.source(), lets);
+        }
+        if (n instanceof TypedNativeCall c && !orderFree(c)) {
+            for (TypedSpec arg : c.args()) {
+                if (inNoDefinedOrder(arg, lets)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /** Whether a second reading of the value {@code e}, through the lets it reads, may answer another value than
      *  the body's own run. A side is read as a query of its own, before the body runs; the assert's statement reads
-     *  once for all it compares. So a value's print is left as written, the database's, where its operand
+     *  once for all it compares. So a value's print is left as written, the database's, where its operand, anywhere
+     *  in it -- in a lambda's body, and in the compiled body of a user's function or derived property it calls, and
+     *  of the functions that one calls ({@link com.legend.compiler.spec.StatementEffects#reaches}; a derived
+     *  property's read is typed as a call of its body) --
      *  <ul>
      *    <li>calls a native that answers anew each time ({@code now()}, {@code today()}, {@code random()},
-     *        {@code generateGuid()}) -- anywhere in it: in a lambda's body, and in the compiled body of a user's
-     *        function it calls, and of the functions that one calls
-     *        ({@link com.legend.compiler.spec.StatementEffects#reaches});</li>
-     *    <li>reads a derived property, whose body is not walked here and may call one;</li>
-     *    <li>takes a value BY POSITION ({@code at}, {@code first}, {@code head}, {@code last}, {@code take},
-     *        {@code drop}, {@code slice}, {@code limit}) from rows whose order the program does not define
-     *        ({@link com.legend.compiler.spec.OrderView}'s INCIDENTAL on the collection it reads: a store's or a
-     *        frame's rows with no sort, or past a grouping), the guard a printed relation is held to. A sorted
-     *        source, and pure values, are in their own order and are lifted; a pick inside a lambda's body reads the
-     *        lambda's own parameter and is not judged here.</li>
+     *        {@code generateGuid()});</li>
+     *    <li>reads rows BY THEIR ORDER where the program does not define it ({@link #readsByOrder}): the guard a
+     *        printed relation is held to. A sorted source, and pure values, are in their own order and are lifted;
+     *        so is a value that a map, a filter or a {@code toOne} takes from unordered rows.</li>
      *  </ul>
-     *  (The independent review of the date slice, the independent audit of slice 2, the review of its repair and the
-     *  audit's re-check, R1: 2026-11-26.) */
+     *  It errs to the database's side: a parameter's rows are never in sight, so a pick or a sum of a lambda's or a
+     *  called function's own parameter leaves the print as written whatever the caller passed; and a callee whose
+     *  body cannot be compiled is not in sight at all. (The independent review of the date slice, the independent
+     *  audit of slice 2, the review of its repair, the audit's re-check, R1, and its review: 2026-11-26.) */
     private static boolean unrepeatable(TypedSpec e, List<TypedSpec> lets, com.legend.TypedQuery typed) {
-        record At(TypedSpec node, boolean inALambda) {
-        }
         java.util.Map<com.legend.model.FunctionId, Boolean> called = new java.util.HashMap<>();
-        java.util.ArrayDeque<At> work = new java.util.ArrayDeque<>(List.of(new At(e, false)));
+        // a called body's own lets and parameters are not this body's: none bound there
+        java.util.function.Predicate<TypedSpec> inACalledBody = n -> drawsAnew(n) || readsByOrder(n, List.of());
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(List.of(e));
         Set<TypedSpec> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         while (!work.isEmpty()) {
-            At at = work.pop();
-            TypedSpec n = com.legend.compiler.spec.typed.Lets.bound(at.node(), lets);
+            TypedSpec n = com.legend.compiler.spec.typed.Lets.bound(work.pop(), lets);
             if (!seen.add(n)) {
                 continue;
             }
-            if (drawsAnew(n)) {
+            if (drawsAnew(n) || readsByOrder(n, lets)) {
                 return true;
             }
-            if (n instanceof com.legend.compiler.spec.typed.TypedUserCall
-                    && com.legend.compiler.spec.StatementEffects.reaches(n, UpstreamPrints::drawsAnew, typed.specs(),
-                            called)) {
-                return true;
+            if (n instanceof com.legend.compiler.spec.typed.TypedUserCall call) {
+                try {
+                    // the callee's body alone: the call's arguments are this body's, walked below with its lets
+                    if (com.legend.compiler.spec.StatementEffects.reaches(call.withChildren(List.of()), inACalledBody,
+                            typed.specs(), called)) {
+                        return true;
+                    }
+                } catch (RuntimeException notInSight) {
+                    // a body the compiler refuses (a wall, a construct not planned): what it reads is not known
+                    // here, so the print stays the run's, which meets the same refusal on its own road
+                    return true;
+                }
             }
-            if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess read
-                    && read.source().info().type() instanceof com.legend.compiler.element.type.Type.ClassType owner
-                    && typed.context().findProperty(owner.fqn(), read.property()).orElse(null)
-                            instanceof com.legend.compiler.element.Property.Derived) {
-                return true;
-            }
-            if (n instanceof TypedNativeCall c && !at.inALambda() && picksByPosition(c.callee().id())
-                    && !c.args().isEmpty() && com.legend.compiler.spec.OrderView.of(c.args().get(0), lets)
-                            == com.legend.compiler.spec.OrderView.INCIDENTAL) {
-                return true;
-            }
-            boolean inside = at.inALambda() || n instanceof com.legend.compiler.spec.typed.TypedLambda;
-            for (TypedSpec k : n.children()) {
-                work.add(new At(k, inside));
-            }
+            work.addAll(n.children());
         }
         return false;
     }

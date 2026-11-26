@@ -2042,6 +2042,8 @@ class JavaEvalLedgerTest {
                             // (the replaces alone at legend-engine's) and a Float's or a computed DateTime's last
                             // toString; it APPLIES the tail to the printed text for the door (answer(): PrintTail.java
                             // below, the registered class that computes) and writes a Float literal's print itself
+                            // (the literal's own double, or its negation where Pure wrote it under a unary minus: a
+                            // constant of the program's text, no row's value)
                             "PrintedRelations.java",
                             // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words
                             // that day, "maybe small set up string/count functions chained should all be in java", and

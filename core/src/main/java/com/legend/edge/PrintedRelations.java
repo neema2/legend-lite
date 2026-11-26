@@ -47,8 +47,8 @@ public final class PrintedRelations {
     }
 
     /** The lifted program: {@code relation} computes the rows (its last statement the printed relation, or under
-     *  {@link PureRelationTextWriter.Form#VALUE} the printed value), and {@code form} and {@code tail} are the print the
-     *  receiver performs on them and the steps it applies to the text. */
+     *  {@link PureRelationTextWriter.Form#VALUE} the printed value), {@code form} is the print the receiver performs
+     *  on them, and {@code tail} the steps the DOOR applies to the receiver's text ({@link #answer}). */
     public record Lifted(com.legend.TypedQuery relation, PureRelationTextWriter.Form form, List<PrintTail> tail,
             @com.legend.base.Nullable String written) {
         public Lifted {

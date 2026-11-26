@@ -40,8 +40,8 @@ import java.util.Map;
  *       test had accepted any of several): {@code tail.*}, the calls of a print's tail ({@code edge.PrintTail}) as
  *       each database's own SQL answers them over a text, on the inputs where Java -- legend-pure's answer,
  *       {@code PrintTailTest} -- and a database part (a character above U+FFFF, an empty target, a control character
- *       in {@code trim}, a start past an int) and two where they must not (a needle that a pattern would read
- *       specially); and {@code float.*}, a Float the DATABASE computes, printed at a last step: legend-pure's print
+ *       in {@code trim}, a start past an int) and some where they must not (an empty needle, an empty text, a needle
+ *       that a pattern would read specially); and {@code float.*}, a Float the DATABASE computes, printed at a last step: legend-pure's print
  *       in Java under the edge's legend-pure style, whose door lifts it, and the database's own text under
  *       legend-engine's -- a negative zero, the largest and the smallest doubles, the exponent-form boundaries, a
  *       whole value, an overflow and a division by zero as each database answers them.</li>
@@ -100,6 +100,14 @@ class EdgeCasesGoldenTest {
         CASES.put("float.overflow", "|(1.7976931348623157E308 * 10.0)->toString()");
         CASES.put("float.zeroByZero", "|(0.0 / 0.0)->toString()");
         CASES.put("float.negativeLiteral", "|(-1.3421e-8)->toString()");
+        // Java's own switch to and from the exponent form, a negative overflow, and a Float computed inside a
+        // relation's print and one a cell holds as a whole number (the review of the re-check's fixes)
+        CASES.put("float.1e7", "|(1.0E7 * 1.0)->toString()");
+        CASES.put("float.1e-3", "|(1.0E-3 * 1.0)->toString()");
+        CASES.put("float.negativeOverflow", "|(-1.7976931348623157E308 * 10.0)->toString()");
+        CASES.put("float.inARelation.computed",
+                "|#TDS\n  x:Float\n  0.1\n#->extend(~y: r|$r.x->toOne() * 3.0)->toString()");
+        CASES.put("float.inARelation.whole", "|#TDS\n  x:Float\n  1000000\n#->toString()");
     }
 
     private static final Map<String, PlanStyle> STYLES = new LinkedHashMap<>();
@@ -144,6 +152,10 @@ class EdgeCasesGoldenTest {
                             com.legend.result.Batcher.DEFAULT_CAPACITY);
                 } catch (java.sql.SQLException | IOException e) {
                     throw new IllegalStateException(e);
+                }
+                if (text.size() != 1) {
+                    // the harness's fault, never a recorded answer
+                    throw new AssertionError("a lifted print answers one text; got " + text + " for " + query);
                 }
                 return "VALUE\t" + lifted.answers() + ":" + lifted.answer(text.get(0)) + ";";
             }
