@@ -825,6 +825,11 @@ good with all your answers - bring back all the product SQL changes for equal wh
 
 Not covered by it: the corpus lane on macOS (no answer of the orchestrator's stood open there; still the user's).
 
+**The user, ~12:19:** "Yes 64 bit and yes Macos". The plain parses keep 64 bits and a double (register S424, ruled).
+The corpus lane on macOS gets a per-platform overlay of its recorded answers, as PCT's lanes have (the option the
+orchestrator recommended): started the same minute as its own session, on its own branch, merged into the pull
+request's branch when it reports, CI's macOS job the proof.
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
