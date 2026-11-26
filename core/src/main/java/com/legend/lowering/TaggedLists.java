@@ -835,6 +835,11 @@ final class TaggedLists {
         List<SqlSelect.SortKey> order = new ArrayList<>();
         if (tl.order() == SqlExpr.TaggedList.Order.COMPARABLE || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC) {
             order.add(new SqlSelect.SortKey(tl.comparableAt(p), !desc, null, null));
+            // equal numbers of two types: the number's type before the position, as the sort placed them
+            SqlExpr typeOrder = numberTypeOrder(tl, tl.tagAt(p));
+            if (typeOrder != null) {
+                order.add(new SqlSelect.SortKey(typeOrder, !desc, null, null));
+            }
         }
         order.add(new SqlSelect.SortKey(p, !desc, null, null));
         return new SqlSelect(out, false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null,
