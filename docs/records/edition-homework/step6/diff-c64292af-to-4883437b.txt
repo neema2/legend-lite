@@ -1,0 +1,37 @@
+Counter({'newly refused': 9})
+[newly refused] AssertBarTest:187 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(1D, 1)}
+   before: PASS 1 verdicts
+   after:  REFUSED ModelException: == compares Decimal with Integer: two values are equal only when they have the same type and the same value, so this comparison is a m
+[newly refused] AssertBarTest:188 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(1.5, 1.5D)}
+   before: PASS 1 verdicts
+   after:  REFUSED ModelException: == compares Float with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a mis
+[newly refused] AssertBarTest:189 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertNotEquals(3, 3D)}
+   before: FAIL Assert failed
+   after:  REFUSED ModelException: == compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+[newly refused] AssertBarTest:486 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEq(1, 1.50D)}
+   before: FAIL Assert failed
+   after:  REFUSED ModelException: eq compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+[newly refused] AssertBarTest:487 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEq(2, -2D)}
+   before: FAIL Assert failed
+   after:  REFUSED ModelException: eq compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+[newly refused] EqualityCompatEdgeTest:45 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: |assertEquals(1D, 1)
+   before: PASS 1 verdicts
+   after:  REFUSED ModelException: == compares Decimal with Integer: two values are equal only when they have the same type and the same value, so this comparison is a m
+[newly refused] NumberKindsEdgeTest:54 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(3, 3D)}
+   before: PASS 1 verdicts
+   after:  REFUSED ModelException: == compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+[newly refused] NumberKindsEdgeTest:55 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(1.0D, 1)}
+   before: PASS 1 verdicts
+   after:  REFUSED ModelException: == compares Decimal with Integer: two values are equal only when they have the same type and the same value, so this comparison is a m
+[newly refused] pure:meta::pure::functions::lang::tests::compare::testCompareDecimalAndLongTypes (12 cells: DuckDB/r/D,DuckDB/r/H,DuckDB/w/D,DuckDB/w/H,H2/r/D,H2/r/H,H2/w/D,H2/w/H,SQLite/r/D,SQLite/r/H,SQLite/w/D,SQLite/w/H)
+   body: {|assert((compare(9999999999999992d, 9999999999999992) == 0));\n     assert((compare(9999999999999992d, 9999999999999991) > 0));\n     assert((compare(9999999999999992d, 9999999999999993) < 0));}
+   before: PASS 3 verdicts
+   after:  REFUSED ModelException: compare compares Decimal with Integer: two values are equal only when they have the same type and the same value, so this comparison i

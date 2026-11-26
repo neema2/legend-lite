@@ -1,0 +1,34 @@
+1	AssertBarTest:104	== Decimal vs Integer	written=FAIL/REFUSED	{|range(1, 3)->forAll(i | assertEquals(1D, $i))}
+2	AssertBarTest:127	== Decimal vs Integer	written=FAIL	{|[1, 2]->forAll(i | assertEquals(1D, $i, 'mine'))}
+3	AssertBarTest:177	== Integer vs Float	written=FAIL	{|assertEquals(1, 1.0)}
+4	AssertBarTest:181	== Integer vs Float	written=FAIL	{|assertEquals([1, 2], [1.0, 2.0])}
+5	AssertBarTest:183	== Integer vs Float	written=FAIL	{|assertSameElements([2, 1], [2.0, 1.0])}
+6	AssertBarTest:187	== Decimal vs Integer	written=FAIL	{|assertEquals(1D, 1)}
+7	AssertBarTest:188	== Float vs Decimal	written=FAIL	{|assertEquals(1.5, 1.5D)}
+8	AssertBarTest:189	== Integer vs Decimal	written=PASS	{|assertNotEquals(3, 3D)}
+9	AssertBarTest:237	== StrictDate vs DateTime	written=FAIL	{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}
+10	AssertBarTest:484	eq Integer vs Decimal	written=FAIL	{|assertEq(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+11	AssertBarTest:485	eq Integer vs Decimal	written=FAIL	{|assertEq(2, p::Q.all()->filter(x | $x.id == 2)->toOne().e)}
+12	AssertBarTest:486	eq Integer vs Decimal	written=FAIL	{|assertEq(1, 1.50D)}
+13	AssertBarTest:487	eq Integer vs Decimal	written=FAIL	{|assertEq(2, -2D)}
+14	AssertBarTest:536	== Integer vs Float	written=PASS	{|assertEquals([1, 2]->filter(x | $x > 5), [1.5]->filter(x | $x > 5.0))}
+15	AssertBarTest:544	== Integer vs Decimal	written=FAIL	{|assertEquals(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+16	AssertBarTest:545	== Float vs Decimal	written=FAIL	{|assertEquals(2.5, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+17	AssertBarTest:625	== meta::pure::metamodel::variant::Variant vs Integer	written=FAIL	{|assertEquals('1'->fromJson(), 2)}
+18	AssertBarTest:628	eq Boolean vs Integer	written=FAIL	{|assertEq(true, 1)}
+19	AssertBarTest:629	== p::E vs String	written=FAIL	{|assertEquals(p::E.A, 'A')}
+20	AssertBarTest:1014	== meta::pure::metamodel::variant::Variant vs String	written=FAIL	{|assertEquals('"abc"'->fromJson(), 'abc')}
+21	AssertBarTest:1015	== meta::pure::metamodel::variant::Variant vs Integer	written=FAIL	{|assertEquals('1'->fromJson(), 1)}
+22	AssertBarTest:1023	== Integer vs meta::pure::metamodel::variant::Variant	written=FAIL	{|assertEquals(1, '1'->fromJson())}
+23	AssertBarTest:1026	eq Integer vs meta::pure::metamodel::variant::Variant	written=FAIL	{|assertEq(1, '1'->fromJson())}
+24	AssertBarTest:1027	== Integer vs meta::pure::metamodel::variant::Variant	written=PASS	{|assertNotEquals(1, '1'->fromJson())}
+25	AssertBarTest:1028	== Boolean vs meta::pure::metamodel::variant::Variant	written=PASS	{|assertNotEquals(true, 'true'->fromJson())}
+26	AssertBarTest:1045	== Boolean vs Integer	written=FAIL	{|assertEquals(true, 1)}
+27	AssertBarTest:1046	== String vs Integer	written=PASS	{|assertNotEquals('1', 1)}
+28	AssertBarTest:1048	== p::E vs String	written=PASS	{|assertNotEquals(p::E.A, 'A')}
+29	AssertBarTest:1049	eq p::E vs String	written=FAIL	{|assertEq(p::E.A, 'A')}
+30	AssertBarTest:1064	contains Integer vs meta::pure::metamodel::variant::Variant	written=PASS	{|assertNotContains([1, 2], '1'->fromJson())}
+31	NumberKindsEdgeTest:54	== Integer vs Decimal	written=FAIL	{|assertEquals(3, 3D)}
+32	NumberKindsEdgeTest:55	== Decimal vs Integer	written=FAIL	{|assertEquals(1.0D, 1)}
+33	EqualityCompatEdgeTest:45	== Decimal vs Integer	written=FAIL	|assertEquals(1D, 1)
+34	EqualityCompatEdgeTest:46	== Float vs Integer	written=FAIL	|assertEquals(1.0, 1)
