@@ -1,10 +1,11 @@
-# Step 8, slice 4: a DateTime's last-step print and its row at legend-engine's door (2026-11-26) -- BUILT, NOT LANDED
+# Step 8, slice 4: a DateTime's text at the compatibility doors (2026-11-26) -- BUILT, MEASURED, REVIEWED, RULED
 
-*Written by the step 8 session (`claude/edition-step8`), on top of the Float deletion slice's scratch line (base
-`claude/edit-ahead` at `b7c39067`). The measurement behind it is `moves-if-date-text-is-lites.md`. Nothing is
-deleted here: the SQL composition that prints a DateTime at the edge (`edge/PureDateTimePrint`, the date arm of
-`edge/PurePrintForms`) stays until the user rules on what its deletion does to a computed DateTime's text used
-further (the orchestrator's question to the user, 2026-11-26).*
+*Written by the step 8 session (`claude/edition-step8`). The measurement behind it is
+`moves-if-date-text-is-lites.md`. Built in two parts the same day: first the last-step print and a row for a computed
+DateTime (sections "What it is" to "What the review found", written before the user ruled); then, on the user's
+rulings of about 18:10 UTC, the row for a literal, the row on every database legend-engine has, and the deletion of
+the SQL composition (the section "The user's rulings, and what they changed", which is the slice as it stands). On
+`claude/next-batch-fixes` (`11af8dd97`) by the merge `32efeb0a0`. The register row is S429.*
 
 ## What it is
 
@@ -57,7 +58,8 @@ its own instant, where the assert's statement draws one for both its sides.
 
 ## What was measured
 
-MEASURED-SECTION
+The first part was not measured alone: the user's rulings arrived while its run was going, and the slice was
+measured whole, as it stands (the section "The user's rulings, and what they changed").
 
 ## What the review found (Opus, high effort, given the diff and the rules)
 
@@ -116,3 +118,77 @@ by some databases' SQL (no test, no pin).
   abstract `Date`, so `%2014-01-01T00:00:00.000+0000->adjust(1, DAYS)->toString()` is no DateTime's text and prints
   the database's plain cast at legend-pure's door (`2014-01-02 00:00:00` on DuckDB), where legend-pure prints
   `2014-01-02T00:00:00.000+0000`.
+
+## The user's rulings, and what they changed (2026-11-26, about 18:10 UTC, relayed by the orchestrator)
+
+1. **A DateTime literal at legend-engine's door: "match engine for engine".** The row answers a literal too.
+2. **A computed DateTime: "datetime for engine should use engines database form, datetime for pure is there a cheap
+   format in database we can use or no? If there is a cheap standard format we can use maybe we should use
+   everywhere for pure - if not go with lite in the middle".**
+   - Engine's door: the database's form on every database legend-engine has. Read in the pinned legend-engine 4.145.0
+     sources for the eight databases lite shares with it: NONE writes a DateTime's `toString` its own way. Each
+     extension has one `dynaFnToSql('toString', $allStates, ...)` for every type (`cast(%s as varchar)` on H2, DuckDB,
+     Postgres, Trino and Snowflake; `cast(%s as String)` on ClickHouse; `cast(%s as string)` on Databricks and
+     BigQuery), and `pureToSQLQuery.pure:10663` sends `toString` there whatever the operand's type. Each writes a
+     DateTime literal as a timestamp (its literal processor), never as the default quoted text. So the row answers on
+     the existing `PureText.ENGINE_DATABASES`, no new set: the question of `DialectBoundaryTest`'s count was withdrawn.
+   - Pure's door: no database writes legend-pure's text in one native call (it ends `+0000` and keeps the value's
+     precision, which no instant carries), so "lite in the middle": the SQL composition is deleted.
+
+**What changed in the code:**
+
+- `edge/EngineTable`: a DateTime's `toString` inside a store query, a literal's too, is `DATE_TIME_TEXT_BY_CAST` on
+  `ENGINE_DATABASES`. `PureText.ENGINE_DATE_TIME_CAST_READ` is gone; `PureText.legendEngineHas` is what a lane test
+  asks.
+- Deleted: `edge/PureDateTimePrint.java` (43 lines), the date arm of `edge/PurePrintForms` (the pass does
+  `TDSNull` alone now), and MongoDB's edge override of its date-time format. With its one overrider gone the
+  product's `MongoDb.dateTimeFormat` is no spelling hook: a private constant (`HookRulingTest.SPELLING_HOOKS` shrinks,
+  dated).
+- A literal's written text at legend-pure's doors is unchanged (`edge/EdgeDateTimeTexts`).
+
+**What it does to answers:**
+
+| Where | The text | Before | Now |
+|---|---|---|---|
+| legend-engine's door, inside a store query, the eight databases | a literal's `toString` | its written text and `+0000` | the database's cast, `2014-01-01 00:00:00` on DuckDB and H2 |
+| the same | a computed DateTime's `toString` | the edge's `+0000` text | the database's cast, `2014-01-01 10:20:30.25` |
+| legend-pure's doors | a literal's text | its written text and `+0000` | unchanged |
+| legend-pure's doors | a computed DateTime's `toString` at a last step the door can read as a computation | the edge's SQL text, `...30.25+0000` | the same text, written in Java |
+| legend-pure's doors, and legend-engine's outside a store query or off the eight databases | every other text of a computed DateTime (used further; `format`'s `%s` and `%r`; `toRepresentation`; joined; a table's text used further; a last step the door cannot read) | the edge's SQL text, `...30.25+0000` | lite's own, `...30.250000000Z` |
+| MongoDB's edge plans | every date-time text (a date cast to text, a date in a JSON text, `format`'s `%s`) | `...%L+0000` | lite's `...%L000Z` |
+
+**Measured, on the landing base** (every recording re-run, every moved line read):
+
+- **Moved, as ruled:** PCT's legend-engine lane, `testDateTimeToString`, `testDateTimeWithTimezoneToString` and
+  `testSimpleDateToString`, `LITE_FIXES` to `BOTH_FAIL` on DuckDB and on H2 (six lines, and the two summaries'
+  counts: `lite.PASS` 314 to 311 and 248 to 245). legend-engine itself fails the three.
+- **Nothing else moved:** no line of PCT's contract files (channel A and B, DuckDB and SQLite), of the corpus's
+  answers, of pure/v1 or of the edge cases. `testSimpleFormatDate` and `testFormatRepr` did not move on any lane: a
+  literal's written text inside `format`.
+- **No size pin moved for this slice:** the corpus's three lines are the Float slice's (`slice3`), nothing more.
+- **MongoDB** (`//pct:pct_mongodb`, run here before and after the deletion): grammar, relation, standard and
+  unclassified pass both times; essential fails both times on the same two tests, the base's
+  (`testArcCosineError`, `testArcSineError`: the orchestrator's to fix), 343 passing both times. The override's
+  deletion moved no MongoDB PCT test.
+- **Pass:** `//gates:pct_h2`, `//pct:pct_duckdb`, `//pct:pct_sqlite`, `//pct:pct_channel_b`, `//pct:pct_channel_b_h2`,
+  both corpus lanes, `//core:core_tests_integration`, `//spec:spec_tests`, the guards, the census, the docs checks,
+  the edge tests on three lanes.
+- **Not measured:** the cast's text of lite's timestamp beside legend-engine's on Postgres, Trino, Snowflake,
+  ClickHouse, Databricks and BigQuery (where lite's SQL type for a DateTime differs from legend-engine's, the text
+  may); the server and cloud lanes' PCT.
+
+**The second review** (Opus, high effort, the rulings' delta): one must-fix, that the engine lane's tables were not
+yet re-recorded (they are, above). Should-fix, done: stale comments in ten files; MongoDB's hook; the parity test
+pins lite's text itself; the register row and the differences page name every text of the table above, not
+`toString` alone. Checked by it and fine: the row's choice; a literal reaches the rule as a timestamp on each
+dialect; the claims about legend-engine's sources; no reader parses the edge's `+0000` text back.
+
+**The guards it moved, each with a dated note:** `SqlFnSortedTest` (`RTRIM` out of the functions both sides write:
+the deleted class was the edge's one writer), `EdgeSpellingHookTest` (MongoDB's override set loses
+`dateTimeFormat`), `HookRulingTest` (the spelling hooks 5 to 4), `JavaEvalLedgerTest` (the deleted file's entry),
+`ArchitectureTest.PLANNER_ENTRIES` (the row's rule). All shrinks but the last, a registered addition.
+
+**The register row** is S429, and section 24 of `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`; the draft above is
+superseded by them. **The parity test** (`PureRelationTextParityTest`) held the Java print equal to the SQL
+composition on DuckDB, H2 and SQLite while the SQL existed (run 2026-11-26, before the deletion); its texts stay
+pinned, and it pins lite's text of the same values where the print is not lifted.

@@ -1,9 +1,8 @@
-# Step 8, slice 3: the Float text SQL is deleted (2026-11-26) -- BUILT AND MEASURED, NOT LANDED
+# Step 8, slice 3: the Float text SQL is deleted (2026-11-26) -- BUILT, MEASURED, REVIEWED, RULED
 
-*Written by the step 8 session (`claude/edition-step8`). Built on `claude/edit-ahead` at `b7c39067` (merged into the
-step's branch as `9846cc91`, after slice 2 at `83263642`); the slice is `9846cc91..a25238ed` plus the review's fixes and this record. It
-lands after slice 2 has landed, as a clean merge onto the base the orchestrator names, and after the user has seen
-the register row below.*
+*Written by the step 8 session (`claude/edition-step8`). Built on `claude/edit-ahead` at `b7c39067` and measured
+there; then carried onto `claude/next-batch-fixes` (`11af8dd97`, which holds slice 2) by a merge (`32efeb0a0`) and
+measured again there with the date slice (the last section). The register row is S428.*
 
 ## What it is
 
@@ -195,3 +194,20 @@ this slice's (its lines are the base's, the same on both).
   `PureV1SqlTextTest.anOrdinaryRequestIsUntouchedAndASqlTextRequestAnswersLitesSql` (the orchestrator's).
 - The DATE's row and `TDSNull`'s row, pure/v1's last-step lift, `+` in the tail, and a last-step `format` lift are
   later slices.
+
+## The user's word on the pin, and the final measurement (2026-11-26, on the landing base)
+
+- **"step 8 yes"** (the user, about 18:10 UTC, relayed by the orchestrator, on the question "may the corpus's
+  plan-JSON pin rise by 234 characters per lane for this, the SQL unchanged?"). Re-pinned with
+  `bazel run //spec:update_lean_sql_corpus_duckdb` and `_h2`: six lines of
+  `spec/src/test/resources/rcorpus/lean-sql-baseline.tsv`, the plan column alone, the three families of the table
+  above on each lane (+39, +78, +117). The statements, their characters and their repeated characters did not move.
+- **Measured again on `claude/next-batch-fixes`** with the date slice on top (`slice4-date-time-lift-and-row.md`):
+  all five recordings re-run. No line of PCT's contract files, the corpus's answers, pure/v1 or the edge cases moved.
+  The engine lane's six lines that moved are the date slice's, ruled. Pass: `//gates:pct_h2` (H2's five PCT suites),
+  `//pct:pct_duckdb`, `//pct:pct_sqlite`, `//pct:pct_channel_b`, `//pct:pct_channel_b_h2`, both corpus lanes,
+  `//core:core_tests_integration`, `//spec:spec_tests`, the guards, the census, the docs checks, the edge tests on
+  three lanes, `//core:lean_sql_baseline_test`. The base's stale lines of the first measurement are gone on this base
+  (its recorded files are current), and so are the three tests that failed on `b7c39067` without this slice.
+- **The register row** is S428 in `docs/SEMANTICS_REGISTER.md`, and section 23 of
+  `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`; the drafts above are superseded by them.
