@@ -44,5 +44,14 @@ public enum NamedRule {
      *  exactly halfway going where that database sends it (away from zero on DuckDB and H2: 16.5 to 17). Not the
      *  product's {@code round}, which sends a half to the even neighbour on every database, as Pure does (16.5 to
      *  16). */
-    ROUND_AS_GIVEN
+    ROUND_AS_GIVEN,
+
+    /** A text read as an Integer by the target database's own cast ({@code CAST(s AS BIGINT)}), its refusal the
+     *  database's own conversion error. Not the product's {@code parseInteger}, which checks the text against Pure's
+     *  grammar first and raises lite's own error. */
+    TEXT_CAST_TO_INTEGER,
+
+    /** A text read as a Float by the target database's own cast ({@code CAST(s AS DOUBLE)}), its refusal the
+     *  database's own conversion error. Not the product's {@code parseFloat}, which checks the text first. */
+    TEXT_CAST_TO_FLOAT
 }

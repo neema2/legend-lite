@@ -38,7 +38,11 @@ import java.util.Set;
  *   <li>{@code round}: the database's own ROUND, which on DuckDB and H2 sends a half away from zero
  *       ({@code ROUND_AS_GIVEN}; legend-engine's {@code transformRoundForDuckDB} and H2's {@code round}
  *       write the bare function; the edition program's step 5, 2026-11-26, a delegation the user ruled matched,
- *       amendment 22). Pure's {@code round} sends a half to the even neighbour.</li>
+ *       amendment 22). Pure's {@code round} sends a half to the even neighbour;</li>
+ *   <li>{@code parseInteger} and {@code parseFloat}: the database's own cast of the text, its refusal the database's
+ *       own conversion error ({@code TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}; legend-engine's SQL casts,
+ *       ruled plain inside a store query: the edition design's S-2). Until 2026-11-26 a pass of the edge's dialect
+ *       unguarded them in every compatibility style, PCT's legend-pure run and a host-side {@code let} included.</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
@@ -65,8 +69,14 @@ final class EngineTable implements EditionTable, Edition {
      *  ({@link #stampsOutsideStore}). */
     static final EngineTable PCT = new EngineTable(false, null, false, false);
 
-    /** A row: the rule that lowers the call, and what a refusal calls the call. */
-    private record Row(NamedRule as, String named) {
+    /** A row: the rule that lowers the call, what a refusal calls the call, and whether the row answers on every
+     *  database (a rule that is legend-engine's on each by what it writes: the database's own cast) or only where
+     *  legend-engine's answer is checked ({@link PureText#engineAnswers}: a rule whose answer is the database's own
+     *  function's). */
+    private record Row(NamedRule as, String named, boolean onEveryDatabase) {
+        Row(NamedRule as, String named) {
+            this(as, named, false);
+        }
     }
 
     private static final FunctionId TO_ONE = FunctionId.of(Pure.TO_ONE__T_MANY);
@@ -81,6 +91,9 @@ final class EngineTable implements EditionTable, Edition {
         each(given, Pure.AT_STRING_SUBSTR, NamedRule.SUBSTR_AS_GIVEN, "substr/2", "substr/3");
         given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), new Row(NamedRule.SQL_POSITION, "indexOf/2"));
         each(given, Pure.AT_MATH_ROUND, NamedRule.ROUND_AS_GIVEN, "round/2", "round/2", "round/1");
+        // the plain parses answer on every database, as the edge's pass they replace did (2026-11-26)
+        given.put(Pure.AT_STRING_PARSE_INTEGER.get(0), new Row(NamedRule.TEXT_CAST_TO_INTEGER, "parseInteger/1", true));
+        given.put(Pure.AT_STRING_PARSE_FLOAT.get(0), new Row(NamedRule.TEXT_CAST_TO_FLOAT, "parseFloat/1", true));
         Map<FunctionId, Row> flagged = new java.util.LinkedHashMap<>();
         each(flagged, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTR_AS_GIVEN, "substring(corrected)/2",
                 "substring(corrected)/3");
@@ -135,7 +148,7 @@ final class EngineTable implements EditionTable, Edition {
         if (row == null) {
             return null;
         }
-        if (!PureText.engineAnswers(database)) {
+        if (!row.onEveryDatabase() && !PureText.engineAnswers(database)) {
             // never guessed: legend-engine's answer on another database is checked first (the database lanes)
             throw new NotImplementedException("legend-engine's answer for " + row.named()
                     + (call.pos() == null ? "" : " at " + call.pos().startLine() + ":" + call.pos().startColumn())
