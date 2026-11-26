@@ -632,6 +632,21 @@ old detector did not count it either).
    a column ("Could not convert string '<computed>' to INT64"), which the deleted pass used to hide. The ceiling
    moves up only with the user's word. Not yet run: the server and cloud lanes (PCT's legend-pure run could move on
    each).
+13. **Step 6, the rest of the one equality: its research is `edition-homework/r3/research-step6-equality.md`**
+   (2026-11-26; it checks the earlier design `b3-step5bc-design.md` against the code). Twelve decisions are listed
+   at its end. The ones that shape the step:
+   - **what "about 2,500 lines gone" means:** the database judge's own comparison layer is about 2,200 raw lines; the
+     product's `==` has to grow to carry what it does, so the net is about 0 to 1,000 lines fewer, and the host judge
+     stays (tenet 5). Recommended: restate the step's "done when" that way;
+   - **a value typed only at run time whose column fixes its type** (`$p.weight == 1` over a DOUBLE column): compare
+     at run time by the column's type (recommended), a compile error (needs column types in the type-checker), or a
+     recorded difference;
+   - **order against step 4:** the slices that fix the product's `==` can go first; the slice that makes asserts
+     plain comparisons needs step 4 or a small planning gate (recommended: the gate, so step 6 does not wait on
+     item 1);
+   - **size pins:** the product's `==` changes may grow SQL size pins, which only shrink.
+   A first slice needs no ruling and moves no verdict: `assertSize` and `assertEmpty` planned as the product's
+   `size()` and `isEmpty()`, and the two measuring classes of the retired byte channel deleted.
 11. **Step 5's rows that carry a decision** (from `r3/research-engine-rows.md`): `dateDiff` (legend-engine writes
    the database's own for every unit; only weeks were ruled); `splitPart` on DuckDB differs from Pure beyond the
    empty token; H2's `isNumeric` in legend-engine 4.145.0 is a regular expression, so register S370 is stale;
