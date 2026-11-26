@@ -1000,16 +1000,19 @@ class PureV1ApiTest {
 
     /** {@code model} with no connection's declared test data: a host's model, whose data the host holds itself. */
     /**
-     * pure/v1's execute halves for a host plan in the compatibility edge's style (the D part 1 audit's M2, 2026-11-15;
-     * the user's ruling of 2026-11-10: pure/v1 answers Pure's full sentence): a raise in the statement a host runs
-     * carries legend-pure's words, never the product's bare kind name, which a host -- with no error layer of its own --
-     * would show as it is.
+     * pure/v1's execute halves for a host plan in pure/v1's style (the D part 1 audit's M2, 2026-11-15; the user's
+     * ruling of 2026-11-10: pure/v1 answers Pure's full sentence): a raise in the statement a host runs carries
+     * legend-pure's words, never the product's bare kind name, which a host -- with no error layer of its own -- would
+     * show as it is. The raise is one legend-engine's SQL does not write plain (a date's absent part): a division by
+     * zero is the plain operation at this door since B7 (2026-11-17, "pure/v1 matches engine"), which the hosts' doors
+     * have handed since, and which these halves require since the edition program's step 2 (2026-11-26: until then
+     * this test handed legend-pure's door's style, which production did not).
      */
     @Test
     void m2_theHostsPureV1HalvesRaiseInPuresWords() {
         String hosted = withoutTestData(model);
         String raising = com.legend.edge.PureV1Routes.grammarToJsonLambda("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"
-                + "->extend(~r: x|$x.qty->toOne() / 0)->select(~r)->from(trades::h2::RT)", false).json();
+                + "->extend(~r: x|%2015->monthNumber())->select(~r)->from(trades::h2::RT)", false).json();
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + raising + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", hosted))
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
@@ -1018,7 +1021,7 @@ class PureV1ApiTest {
             assertEquals(200, a.status(), a.json());
             Json.Obj answer = Json.parseObject(a.json());
             String sql = answer.getString("sql");
-            assertFalse(sql.contains("DIVIDE_BY_ZERO"), "no bare kind name in pure/v1's statement: " + sql);
+            assertFalse(sql.contains("DATE_PART_ABSENT"), "no bare kind name in pure/v1's statement: " + sql);
             // the statement raises its site's bare token (phase D's Phase 2, raises as SITES, 2026-11-16); the site
             // carries its facts and no words, and legend-pure's words are the edge's table beside the plan, worded
             // from each site's record (stage B's B1, 2026-11-20; a fresh recorder until then, K10b)
@@ -1027,8 +1030,18 @@ class PureV1ApiTest {
             assertFalse(site.has("upstream"), "a plan's site carries no upstream words: " + a.json());
             Json.Obj words = (Json.Obj) answer.getArr("siteWords").items().get(0);
             assertEquals(site.getInt("n"), words.getInt("n"), a.json());
-            assertEquals("Division by zero", words.getString("words"), a.json());
+            assertEquals("Cannot get month for 2015", words.getString("words"), a.json());
         }
+    }
+
+    /** The hosts' plan halves refuse a style that is not pure/v1's: legend-engine's meaning at this door is that
+     *  style's edition's, and a caller that handed another would be answered lite's meaning in silence. */
+    @Test
+    void theHostsPlanHalvesRefuseAStyleThatIsNotPureV1s() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> com.legend.edge.HostAnswers.jsonPlan("{}", List.of(), com.legend.edge.PureText.UPSTREAM));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> com.legend.edge.HostAnswers.arrowPlan("{}", List.of(), com.legend.database.PlanStyle.PRODUCT));
     }
 
     private static String withoutTestData(String model) {
