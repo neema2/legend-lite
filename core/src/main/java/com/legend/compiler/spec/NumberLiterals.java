@@ -37,7 +37,9 @@ import java.util.List;
  *
  * <p>The literal is read by its WRITTEN digits: {@code 0.1} against a Decimal is the Decimal {@code 0.1}, never the
  * double nearest to it. Nothing is computed from a row's value; the compiler rewrites a constant token (the folds'
- * rule: constants and facts fixed by the types).
+ * rule: constants and facts fixed by the types). An Integer literal is not even rewritten: a database reads a whole
+ * number against a Float or a Decimal as that type, exactly, so the comparison stands as written and its SQL is
+ * unchanged; only a Float literal is replaced, by the Decimal or the Integer its digits write.
  */
 final class NumberLiterals {
 
@@ -65,6 +67,15 @@ final class NumberLiterals {
         if (read == null) {
             return null;
         }
+        if ((leftWritten ? crossing.left() : crossing.right()) == Type.Primitive.INTEGER) {
+            // a whole number against a Float or a Decimal: every database reads the Integer literal as the other
+            // side's type exactly (that it is exact there was just checked), so the comparison is the call as
+            // written and its SQL does not change (measured 2026-11-26: rewriting 100 as the Decimal 100 made each
+            // such comparison 22 characters longer, CAST(100 AS DECIMAL(3,0)), for the same answer)
+            return call;
+        }
+        // a Float literal against a Decimal or an Integer is rewritten: left as written the database would compare
+        // two doubles, which is not exact for every Decimal or every Integer past 2^53
         return call.withChildren(leftWritten ? List.of(read, r) : List.of(l, read));
     }
 

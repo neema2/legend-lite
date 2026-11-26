@@ -57,7 +57,8 @@ class NumberLiteralsTest {
 
     @Test
     @DisplayName("a whole number against a Float or a Decimal, a fraction against a Decimal, a whole Float against an"
-            + " Integer: the literal reads as the value's type, and nothing is marked")
+            + " Integer: the literal reads as the value's type, and nothing is marked; only a Float literal is"
+            + " rewritten")
     void aLiteralReadsAsTheValuesType() {
         for (String q : List.of("|let a = 1.5; $a > 0;", "|let a = 1.5; 0 < $a;", "|let a = 1.5; $a == -1;",
                 "|let a = 1.5D; $a < 50000;", "|let a = 1.5D; $a >= 2.375;", "|let a = 1.5D; $a != 0.1;",
@@ -65,16 +66,17 @@ class NumberLiteralsTest {
                 "|let a = 1.5; max($a, 0);")) {
             assertEquals(0, crossings(q), q);
         }
-        // the literal's own node carries the new type and the same number
+        // a whole number stays as written: every database reads it as the other side's type exactly, so the SQL of
+        // the comparison does not change
         TypedSpec zero = literals("|let a = 1.5; $a > 0;").get(1);
-        assertTrue(zero instanceof TypedCFloat f && f.value() == 0.0 && f.info().type() == Type.Primitive.FLOAT,
-                zero.toString());
-        TypedSpec minusOne = literals("|let a = 1.5; $a == -1;").get(1);
-        assertTrue(minusOne instanceof TypedCFloat f && f.value() == -1.0, minusOne.toString());
-        // read by its written digits: 0.1 against a Decimal is the Decimal 0.1, never the double nearest to it
+        assertTrue(zero instanceof TypedCInteger i && i.value().longValue() == 0L, zero.toString());
+        TypedSpec fiftyThousand = literals("|let a = 1.5D; $a < 50000;").get(1);
+        assertTrue(fiftyThousand instanceof TypedCInteger, fiftyThousand.toString());
+        // a Float literal is replaced, read by its written digits: 0.1 against a Decimal is the Decimal 0.1, never
+        // the double nearest to it; a whole Float against an Integer is the Integer
         TypedSpec tenth = literals("|let a = 1.5D; $a != 0.1;").get(1);
-        assertTrue(tenth instanceof TypedCDecimal d && d.value().compareTo(new java.math.BigDecimal("0.1")) == 0,
-                tenth.toString());
+        assertTrue(tenth instanceof TypedCDecimal d && d.value().compareTo(new java.math.BigDecimal("0.1")) == 0
+                && tenth.info().type() instanceof Type.PrecisionDecimal, tenth.toString());
         TypedSpec two = literals("|let a = 1; $a == 2.0;").get(1);
         assertTrue(two instanceof TypedCInteger i && i.value().longValue() == 2L, two.toString());
     }
