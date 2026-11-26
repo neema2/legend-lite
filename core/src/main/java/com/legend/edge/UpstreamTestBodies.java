@@ -24,7 +24,8 @@ import java.util.List;
  *   call. {@code assertEmpty($rel)} always fails upstream with {@code '%s is not empty'} printing the relation itself,
  *   a text lite does not spell: refused by name (the verdict is a failure either way). Until B3 the test planner asked
  *   the plan style's two-form {@code RelationCounting} for this (census C1, 2026-11-17); the product's form, which
- *   refuses the three over a relation, is now the planner's only one ({@code compiler.spec.RelationCountAsserts}).</li>
+ *   refuses them over a relation ({@code assertNotSize} too, since 2026-11-26), is now the planner's only one
+ *   ({@code compiler.spec.RelationCountAsserts}).</li>
  *   <li>S144 (the user's ruling of 2026-11-07, option 2; the plan of record of 2026-11-20: "lite stays strict JSON. The
  *   compatibility door cleans the two goldens' expected JSON literals ... before planning"): upstream's
  *   {@code assertJsonStringsEqual} parses both texts with json-simple 1.1.1, which reads an unterminated string at the
@@ -490,8 +491,8 @@ public final class UpstreamTestBodies {
         TypedSpec node = changed ? n.withChildren(rebuilt) : n;
         NativeFn.Verdict fn = NativeFn.Verdict.of(Calls.calleeIdOf(node)).orElse(null);
         if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall call
-                && (fn == NativeFn.Verdict.ASSERT_SIZE || fn == NativeFn.Verdict.ASSERT_EMPTY
-                        || fn == NativeFn.Verdict.ASSERT_NOT_EMPTY)
+                && (fn == NativeFn.Verdict.ASSERT_SIZE || fn == NativeFn.Verdict.ASSERT_NOT_SIZE
+                        || fn == NativeFn.Verdict.ASSERT_EMPTY || fn == NativeFn.Verdict.ASSERT_NOT_EMPTY)
                 && !call.args().isEmpty() && Type.isRelation(call.args().get(0).info().type())) {
             if (!com.legend.compiler.element.type.Multiplicity.Bounded.ONE.equals(call.args().get(0).info().multiplicity())) {
                 // upstream counts each relation the collection holds: one relation is one value; any other

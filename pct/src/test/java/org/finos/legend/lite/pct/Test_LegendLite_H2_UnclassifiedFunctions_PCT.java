@@ -21,7 +21,7 @@ import static org.finos.legend.engine.test.shared.framework.PureTestHelperFramew
  * ({@code LEGENDLITE_PCT_BACKEND=h2}, {@code //pct:pct_h2_unclassified}), and this class carries H2's OWN expected failures --
  * legend-engine's shape, as {@link Test_LegendLite_H2_RelationFunctions_PCT}: every expected failure named and pinned
  * by the text it fails with, and a pinned test that starts passing fails the run, so a fix is recorded by deleting its
- * row. Added 2026-11-26 (the user's question "Should we run full h2 pct like duck?"; not yet in any gate).
+ * row. Added 2026-11-26 (the user's question "Should we run full h2 pct like duck?"; in gate 7, `//gates:pct_h2`, since the same day).
  */
 public class Test_LegendLite_H2_UnclassifiedFunctions_PCT extends PCTReportConfiguration {
 

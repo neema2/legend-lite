@@ -179,6 +179,8 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 | The compile route at legend-engine's door refuses a model whose function calls a plan-text function (today it accepts the model and refuses the call) | **step 9**, with the plan-text classes' move | register S427's remaining difference |
 | The literal rule's edges the audit noted: a Float literal too large for a Decimal (`1e40`) and an Integer literal past 38 digits against a Decimal become a database's error, not a compile error; `max($x.i, 1.0)` keeps the Number overload | **step 6** (slice 6.1, one value within one type) | the audit of batch A, notes |
 | A Float's `toString` reached through a Number or an Any (a mixed selection's candidate) inside a store query at legend-engine's door: lite's text today, legend-engine's is the database's cast (the Float row reads the operand's declared type, Float alone) | **step 6** (slice 6.2, where the mixed path is reworked: the table asked inside it) | step 8's deletion slice, its review, 2026-11-26 |
+| One row's cells counted: `assertSize(<table>.rows->at(0).values, n)`. The typer keeps a row's bare `.values` as the row itself (one value), so the host judge counts 1 where Pure counts the cells; the database judge asks the product's `size`, whose value is the cells as a mixed list under a to-one stamp, and the lowering refuses it by name. **A move of the first slice** (measured at its base, `ae275024`, on DuckDB, H2 and SQLite): until it the database judge counted the side's rows itself and agreed with the host on 1, so all three judges gave one wrong verdict; since it the database judge and both-judges runs stop on the refusal. No test of PCT, the corpus or core holds the shape. A written `.values->size()` is right (the typer rewrites it to the column count). Held as it is by `AssertBarTest` | **step 6** (slice 6.2, where a list of values whose types are known at run time is typed as one; then both judges count the cells) | the audit of the next batch, S1, and the probes it asked for, 2026-11-26 |
+| A graph fetch inside a test body's `execute` is not planned ("class query under TypedGraphFetch is not resolvable"), under every judge | recorded, **not in Stage B** (the test body's planning, the product track) | the same probes |
 | H2's dialect: 135 PCT tests it does not write or writes wrongly | a task for the user (the product track), not a step of this plan | PCT on H2, 2026-11-26 |
 
 **Parked until step 5 is closed (not lost, not in flight):** the refusal of legend-engine's plan-text functions at its
@@ -769,10 +771,24 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   first). The lesson: a worker's label for WHY a database refuses is a claim about that database; it is probed on the
   database before it is repeated.
 - **Step 6 starts with the size assert alone.** `assertSize(c, n)` is planned as the Pure condition it means,
-  `size(c) == n`: typed by the typer over the sides as named values, lowered by the product over the columns that hold
-  them, each side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`,
-  `SidePlanner.over`, `Lowerer.over`). That is the whole new road on the one family where no rule of types is in
-  play. Two families the design had put beside it wait, each for a reason found on reading the code:
+  `size(c) == n`, over the sides as named values, lowered by the product over the columns that hold them, each
+  side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`, `SidePlanner.over`,
+  `Lowerer.over`). That is the whole new road on the one family where no rule of types is in play.
+  *How the condition is typed (corrected after the audit of the next batch, 2026-11-26, S1):* the two calls are built
+  by declaration over the sides the typer already typed as the assert's arguments, each the exact declared function
+  (`VerdictQueries.declared`), as the typer's own desugars build a call; only the `==` then passes through the door's
+  comparison setting (`SpecCompiler.comparedAsInAQuery`). They are not parsed and typed afresh: a node of the parsed
+  form is built by the parser and the normalizer alone (an architecture rule). So a rewrite the typer makes of a
+  WRITTEN `size` call is not made here; the one such rewrite, a table's cells (rows times columns), concerns a side
+  the judge refuses before it asks (a grid's envelope), held by `AssertBarTest`'s three new probes.
+  *One departure from the research (the same audit, S2):* the research kept a graph's size as a member of the judge's
+  own; the slice plans the product's `size` for a graph side too and deletes that member, because the product's count
+  of a graph is its root objects, which is what the host judge counts. `aGraphsSizeIsItsRootObjectsUnderEveryJudge`
+  holds it on a root with three children beside a root with none.
+  *Noted, not changed (N1):* the old member compared null-safely; the product's `==` does not, so a size that is NULL
+  (which Pure's `size` never is) fails `assertNotSize` under the database judge where the host passes it: the two
+  judges disagree there, which is what running both is for.
+  Two families the design had put beside it wait, each for a reason found on reading the code:
   - *emptiness* needs the side as a LIST bound once, and the product's `isEmpty` of a list is not written on every
     database the judge's `NOT EXISTS` runs on today (H2 holds a list as JSON): it goes with the slice that makes the
     product's list operations whole on every database (6.4), or two reads of the side, which would grow the SQL;
