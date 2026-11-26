@@ -94,9 +94,6 @@ public class Test_LegendLite_H2_StandardFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::math::tests::variance::testVarianceSample_Function_1__Boolean_1_", "collection reduction 'VAR_SAMP' reached a dialect without a list encoding"),
             one("meta::pure::functions::math::tests::variance::testVariance_Population_Function_1__Boolean_1_", "collection reduction 'VAR_POP' reached a dialect without a list encoding"),
             one("meta::pure::functions::math::tests::variance::testVariance_Sample_Function_1__Boolean_1_", "collection reduction 'VAR_SAMP' reached a dialect without a list encoding"),
-            // LITE ON H2 (a finding, 2026-11-26): the H2 dialect writes a function H2 does not have, so H2 answers 'not found' instead of lite refusing by name or spelling H2's own
-            one("meta::pure::functions::math::tests::maxBy::testSimpleGroupByMaxBy_Function_1__Boolean_1_", "Function \"ARG_MAX\" not found"),
-            one("meta::pure::functions::math::tests::minBy::testSimpleGroupByMinBy_Function_1__Boolean_1_", "Function \"ARG_MIN\" not found"),
             // H2 HAS NO SUCH FUNCTION: lite's H2 dialect refuses by name
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays_Function_1__Boolean_1_", "a time bucket reached H2, which has no time_bucket()"),
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours_Function_1__Boolean_1_", "a time bucket reached H2, which has no time_bucket()"),
@@ -124,7 +121,12 @@ public class Test_LegendLite_H2_StandardFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_UpTo62Bits_Function_1__Boolean_1_", "BIT_SHIFT_RIGHT reached a dialect without bit-op support"),
             one("meta::pure::functions::math::tests::bitXor::testBitXor_LargeNumbers_Function_1__Boolean_1_", "BIT_XOR reached a dialect without bit-op support"),
             one("meta::pure::functions::math::tests::bitXor::testBitXor_NegativeNumbers_Function_1__Boolean_1_", "BIT_XOR reached a dialect without bit-op support"),
-            one("meta::pure::functions::math::tests::bitXor::testBitXor_SmallNumbers_Function_1__Boolean_1_", "BIT_XOR reached a dialect without bit-op support")
+            one("meta::pure::functions::math::tests::bitXor::testBitXor_SmallNumbers_Function_1__Boolean_1_", "BIT_XOR reached a dialect without bit-op support"),
+            // ==== DEFECTS OF LITE'S H2 DIALECT, TO BE FIXED (not limits of H2; found 2026-11-26, each passes on DuckDB) ====
+            // (a) the dialect writes a DuckDB function H2 does not have, so H2 answers 'Function "X" not found': the fix is
+            // H2's own spelling, or a refusal by name (invariant 4). Delete the row with the fix.
+            one("meta::pure::functions::math::tests::maxBy::testSimpleGroupByMaxBy_Function_1__Boolean_1_", "Function \"ARG_MAX\" not found"),
+            one("meta::pure::functions::math::tests::minBy::testSimpleGroupByMinBy_Function_1__Boolean_1_", "Function \"ARG_MIN\" not found")
     );
 
     public static Test suite() {

@@ -86,13 +86,6 @@ public class Test_LegendLite_H2_EssentialFunctions_PCT extends PCTReportConfigur
             one("meta::pure::functions::collection::tests::put::testPut_emptyMap_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
             one("meta::pure::functions::collection::tests::putAll::testPutAll_emptyInputMap_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
             one("meta::pure::functions::collection::tests::putAll::testPutAll_emptyPutEntries_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
-            // LITE ON H2 (a finding, 2026-11-26): the H2 dialect writes a function H2 does not have, so H2 answers 'not found' instead of lite refusing by name or spelling H2's own
-            one("meta::pure::functions::collection::tests::put::testPut_addsEntry_Function_1__Boolean_1_", "Function \"MAP_CONCAT\" not found"),
-            one("meta::pure::functions::collection::tests::put::testPut_overridesEntry_Function_1__Boolean_1_", "Function \"MAP_CONCAT\" not found"),
-            one("meta::pure::functions::collection::tests::putAll::testPutAll_overridesExistingAndAddNew_Function_1__Boolean_1_", "Function \"MAP_CONCAT\" not found"),
-            one("meta::pure::functions::date::tests::testDateFromDay_Function_1__Boolean_1_", "Function \"MAKE_DATE\" not found"),
-            one("meta::pure::functions::math::tests::testCubeRoot_Function_1__Boolean_1_", "Function \"CBRT\" not found"),
-            one("meta::pure::functions::string::tests::reverse::testReverseString_Function_1__Boolean_1_", "Function \"REVERSE\" not found"),
             // H2 HAS NO SUCH FUNCTION: lite's H2 dialect refuses by name
             one("meta::pure::functions::date::tests::testDateFromSecond_Function_1__Boolean_1_", "a date-time constructor reached H2, which has no make_timestamp()"),
             one("meta::pure::functions::date::tests::testDateFromSubSecond_Function_1__Boolean_1_", "a date-time constructor reached H2, which has no make_timestamp()"),
@@ -116,11 +109,21 @@ public class Test_LegendLite_H2_EssentialFunctions_PCT extends PCTReportConfigur
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 36"),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"),
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123456780.0"),
-            // A WRONG ANSWER ON H2 (a finding, 2026-11-26: passes on DuckDB; a lite bug on H2, not H2's limit)
+            // as on DuckDB (pinned there by its actual, '@_o1'); H2 spells the identity text '@_"o1"'
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "expected: '// Warning: Good for gin -- Sad times no tonic'\nactual:   '@_\"o1\"'"),
+            // ==== DEFECTS OF LITE'S H2 DIALECT, TO BE FIXED (not limits of H2; found 2026-11-26, each passes on DuckDB) ====
+            // (a) the dialect writes a DuckDB function H2 does not have, so H2 answers 'Function "X" not found': the fix is
+            // H2's own spelling, or a refusal by name (invariant 4). Delete the row with the fix.
+            one("meta::pure::functions::collection::tests::put::testPut_addsEntry_Function_1__Boolean_1_", "Function \"MAP_CONCAT\" not found"),
+            one("meta::pure::functions::collection::tests::put::testPut_overridesEntry_Function_1__Boolean_1_", "Function \"MAP_CONCAT\" not found"),
+            one("meta::pure::functions::collection::tests::putAll::testPutAll_overridesExistingAndAddNew_Function_1__Boolean_1_", "Function \"MAP_CONCAT\" not found"),
+            one("meta::pure::functions::date::tests::testDateFromDay_Function_1__Boolean_1_", "Function \"MAKE_DATE\" not found"),
+            one("meta::pure::functions::math::tests::testCubeRoot_Function_1__Boolean_1_", "Function \"CBRT\" not found"),
+            one("meta::pure::functions::string::tests::reverse::testReverseString_Function_1__Boolean_1_", "Function \"REVERSE\" not found"),
+            // (b) a wrong answer, or SQL H2 cannot read: the value differs from Pure's. Delete the row with the fix.
             one("meta::pure::functions::math::tests::rem::testRemWithMixedIntegersAndFloats_Function_1__Boolean_1_", "expected: 2.5\nactual:   3.0"),
             one("meta::pure::functions::string::tests::format::testFormatBoolean_Function_1__Boolean_1_", "expected: 'the quick brown fox jumps over the lazy true'\nactual:   'the quick brown fox jumps over the lazy TRUE'"),
             one("meta::pure::functions::string::tests::parseDate::testParseDateWithTimezone_Function_1__Boolean_1_", "Cannot parse \"TIMESTAMP WITH TIME ZONE\" constant \"2014-02-27T10:01:35.231-0500\""),
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "expected: '// Warning: Good for gin -- Sad times no tonic'\nactual:   '@_\"o1\"'"),
             one("meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent_Function_1__Boolean_1_", "expected: '0.000000013421'\nactual:   '1.3421E-8'"),
             one("meta::pure::functions::string::tests::toString::testFloatToStringWithPositiveExponent_Function_1__Boolean_1_", "expected: '134210000.0'\nactual:   '1.3421E8'")
     );

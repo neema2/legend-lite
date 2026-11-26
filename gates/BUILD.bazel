@@ -263,16 +263,16 @@ test_suite(
     ],
 )
 
-# PCT on H2 (gate 7). With it, per push (CP-9, as above; H7): the ENGINE lane on H2, its essential, relation and
+# PCT on H2 (gate 7): the five suites since 2026-11-26 (the relation suite alone until then). With it, per push (CP-9, as above; H7): the ENGINE lane on H2, its essential, relation and
 # standard suites (the essential and standard added by the compatibility program's owner, 2026-11-19), here beside H2's
 # own PCT rather than in pct_duckdb, whose job they would lengthen
 test_suite(
     name = "pct_h2",
     tests = [
         "//pct:engine_lane_h2_test",
-        # the relation suite alone (2026-11-26: //pct:pct_h2 became the five suites; the other four join a gate only
-        # by the orchestrator's decision)
-        "//pct:pct_h2_relation",
+        # the five suites (2026-11-26, the user's question "Should we run full h2 pct like duck?" and the
+        # orchestrator's decision: Essential, Grammar, Standard and Unclassified joined Relation)
+        "//pct:pct_h2",
     ],
 )
 
