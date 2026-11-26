@@ -229,3 +229,22 @@ same 13 assert rows move on each lane:
   legend-engine folds those two literals; lite's row does not. SQL text is not promised; noted, not changed.
 - The product SQL of four families a lane shrank (the `sqrt` and `rem` tests lost the checks legend-engine's SQL does
   not write); their asserts did not move.
+
+## Round 4 on `1c56e18a` (2026-11-26): `chunk` with a written size writes a literal pattern
+
+The Relation suite on both channels, each lane against its round 3. The change was made for SQLite; the lanes found
+it gains the same ten tests on three more databases, each of which refused a composed pattern by name.
+
+| Lane | Result | The pattern as the database writes it |
+|---|---|---|
+| SQLite | ten tests from ERROR to PASS (channel B Relation 468 of 469; the one left is "SQLite has no users") | |
+| BigQuery | the same ten gained (467 of 469); its ten ledger rows removed in `1fed62d1`, confirmed by the lane | `REGEXP_EXTRACT_ALL(x, '.{1,1}')` |
+| MariaDB, MySQL | the same ten gained on each (467 of 469); their rows removed in `bb02921f`, being confirmed | `'.{1,1}'` inside the nth-match template |
+| ClickHouse | nothing differs | `extractAll(x, concat('(', '.{1,1}', ')'))` |
+| Postgres, Trino | nothing differs | `'(?p).{1,1}'`; `'.{1,1}'` |
+| Databricks | nothing differs | `'.{1,1}'` where it wrote `concat_ws('', '.{1,', CAST(1L AS STRING), '}')` |
+| Snowflake | nothing differs | `REGEXP_SUBSTR_ALL(x, '.{1,1}', 1, 1, 'ce', 0)` |
+| MongoDB | nothing differs (channel A; these tests pass before and after) | |
+
+The ten tests: the eight `testSimpleGroupBy_*`, `testOLAPAggStringWithPartitionAndUnboundedWindow`,
+`testJoinStrings_GroupBy_Unordered`. Forty PCT tests gained in all (ten on each of SQLite, BigQuery, MariaDB, MySQL).
