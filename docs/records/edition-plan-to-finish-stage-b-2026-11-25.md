@@ -712,6 +712,33 @@ old detector did not count it either).
 
 **Not yet ruled:** this plan as a whole (the user reads it once more first); that comparisons are decided at the type-checker and SQL differences at the lowering, where an earlier ruling said one place for compiler rules; what "keep going until done" does with a test whose answer moves (§4 proposes: gathered and brought at the end of each big step).
 
+## 7a. The user's rulings of 2026-11-26 (on the decisions gathered in 6b; the words are the user's)
+
+The orchestrator put each open decision to the user with its options (the message of 2026-11-26 ~11:10). The
+answers, in the user's order:
+
+| # | On | The user's words | What it settles |
+|---|---|---|---|
+| 1 | `acos`/`asin` raising costs SQL size (6b item 7) | "sql for acos/asin as long as it's only for these functions that sql gets bigger that's fine" | the size pins of these two functions' families may grow; the parked piece lands |
+| 2 | the plain parses as rows (item 12) | "yes for parse functions, which counter goes up though" | the ceiling of `InterimEdgeSitesTest` moves 4 to 5; the parked piece lands (the counter explained to the user) |
+| 3 | `isNumeric` on H2 (item 14) | "agree for h2" | the corpus size pin for H2's `isNumeric` family may grow by its 41 characters; the parked piece lands |
+| 4 | a whole number against a Float or Decimal (item 1) | "okay for float/decimal literal compare - don't understand the follow-ups though" | option (b): a number literal written against a value of another number type reads as that type when it is exact there. Step 4 is unblocked. The two follow-ups (item 2) explained again |
+| 5 | step 8 | "start 8 - I think we should also look at toString/toCSV in the middle - for example we saw toCSV->replace() and we should do that as one call at the end to replace newline in csv, so maybe small set up string/count functions chained should all be in java" | step 8 starts in its own session. New scope for it: at a compatibility door, a small closed set of string and count functions chained after a final `toString`/`toCSV` is computed in Java at the edge with the print, so the text is upstream's through the tail. The set is proposed by step 8's session and brought back |
+| 6 | `TDSNull`'s text | "tdsnull what are downsides if treat as table row? Seems like no brainer ?" | a row of legend-engine's table (the downside explained: its SQL stays; nothing moves) |
+| 7 | a Float's or a date's text inside a legend-engine store query | "agreed on float/date text for engine" | rows of legend-engine's table, not presentation |
+| 8 | step 6's "about 2,500 lines gone" | "fine to restate target, the real target is unified equals , deleting code is byproduct" | step 6's "done when": one equality, both judges agreeing; the lines are reported, not targeted |
+| 9 | a value typed only at run time whose column fixes its type | "runtime compare is fine" | compared at run time by the column's type |
+| 10 | step 6's order against step 4 | "is decision 2 made here now? Or still need gate" | answered: ruling 4 makes it; step 4 goes first, no gate |
+| 11 | size limits in step 6 | "size limits - what exactly will grow? Thought we decided on exactly everything that will print but teach me first" | not ruled: explained to the user; measured numbers come before any pin moves |
+| 12 | legend-engine's answers on the other databases | "Run all the round/substring stuff on all the warm lanes on parallel so we get answers for everything?" | every warm lane reads legend-engine's own SQL for each row on its database and runs it, so a row answers there instead of refusing |
+| 13 | `dateDiff` | "Yes all units" | the database's own `datediff` for every unit at legend-engine's door |
+| 14 | `splitPart` on DuckDB | "Yes match split fully" | the database's own `split_part`, in full |
+| 15 | `parseJSON` | "Parsejson okay" | its tolerance is legend-engine's own Java's: a row on the stamped side |
+| 16 | the corpus lane on macOS | "What does macos overlay mean" | not ruled: explained |
+| 17 | the two claim pins replaced | "Okay for substr functions" | confirmed |
+| 18 | landing on the program branch | "Landing whatever you think is right is fine" | the orchestrator moves `claude/compat-b3-nufdlk` at verified milestones; never `main` |
+| 19 | PCT on compiled legend-pure | "Defer pct compiled that's fine" | deferred to step 10 |
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
