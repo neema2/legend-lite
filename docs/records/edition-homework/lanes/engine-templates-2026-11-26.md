@@ -117,16 +117,67 @@ literal, and would need its own rule (the byte functions; a Decimal literal as t
 neither; the family's only member is MemSQL (SingleStore), another database. A request at legend-engine's door on
 either stays refused by name.
 
+## Databricks
+
+Path: `databricksExtension.pure` (DBX) over the defaults; no dialect translation. legend-engine opens its session
+with `ansi_mode=true` (`DatabricksManager.java:61`), and lite sends `SET ANSI_MODE = true` and UTC; every answer
+below is from a session with lite's two settings. With ANSI off (the warehouse's default) the seven raising cases
+answer NULL instead. A Float or Decimal literal is written as Pure's text, so `0.5` is a DECIMAL literal there.
+
+| Function | legend-engine writes | Answers on the battery | lite's row | Verdict |
+|---|---|---|---|---|
+| `substring` (2, 3 arguments) | `substring(%s, ...)` as given (DBX:161) | a start of 0 reads as 1; the third argument a length: (0,3) `abc`, (1,3) `abc`, (2,9) `bcdef` | `substr(s, a[, b])` | the same answers (Spark's aliases) |
+| the corrected `substring`, and `substr` | `substring(s, start+1, end-start)`, literals folded | (0,3) `abc`, (1,3) `bc`, (2,9) `cdef`; a negative length is `''` | `substr(s, a + 1, b - a)` | the same answers |
+| the String `indexOf` | `locate(t, s)` (DBX:127) | 2, 0 | `instr(s, t)` | the same answers |
+| `round` | `round(x, 0)`, `round(x, n)` (DBX:155) | a half away from zero on a double and a decimal | `CAST(ROUND(x) AS BIGINT)`, `ROUND(x, n)` | the same values (the one-argument type differs) |
+
+Without a row: `toDecimal` and one-argument `parseDecimal` are `cast(%s as decimal)` (DBX:165, 147), which is
+`decimal(10,0)` there: 3.8 is `4`, `'123.450021'` is `123`. `parseInteger` `cast(%s as bigint)` (DBX:149),
+`parseFloat` `cast(%s as double)` (DBX:148); `'abc'` raises `[CAST_INVALID_INPUT]`. `isNumeric` is
+`(lower(%s) = upper(%s))` (DBX:128). `dateDiff` is `dateDiffDatabricks` (DBX:529-558): **weeks are refused when the
+query is planned** ("The DurationUnit 'WEEKS' is not supported yet for date_diff"); days `datediff(b, a)`; hours and
+minutes the elapsed seconds divided and ROUNDED (10:59:59 to 11:00:01 is 0 hours, 0 minutes, 2 seconds). `splitPart`
+`split_part` with the index plus one (`('abc', '', 0)` is `'abc'`). `rem` and `mod` the same text as lite's; a zero
+divisor raises. `divide` `((1.0 * a) / b)` is a DECIMAL with six places over integers (`1/3` is `0.333333`), where
+lite's is a double. `sqrt(-1.0)` is NaN. `toString` `cast(%s as string)`: 1.0 is `'1.0'`.
+
+**So on Databricks:** the `substring`, `substr`, `indexOf` and `round` rows give legend-engine's answers; `toDecimal`
+would by the bare DECIMAL rule (scale 0, as H2's), and `isNumeric` by the no-cased-letter rule.
+
+## BigQuery
+
+Path: `bigQueryExtension.pure` (BQX) over the defaults; no dialect translation. An override in BQX replaces every
+arity of the default.
+
+| Function | legend-engine writes | Answers on the battery | lite's row | Verdict |
+|---|---|---|---|---|
+| `substring` (2, 3 arguments) | `substring(s, start[, end])` as given (BQX:99) | a start of 0 reads as 1: (0,3) `abc`, (1,3) `abc`, (2,9) `bcdef` | `SUBSTR(s, start[, end])` | the same answers on all 12 |
+| the corrected `substring`, and `substr` | `substring(s, start+1, end-start)` | (0,3) `abc`, (1,3) `bc`; an end below the start raises "Third argument in SUBSTR() cannot be negative" | `SUBSTR(s, (start + 1), (end - start))` | the same answers, the two errors included |
+| the String `indexOf` | `strpos(%s, %s)` (BQX:81) | 2, 0 | `STRPOS(s, t)` | the same text |
+| `round` (1 argument) | `round(%s, 0)` (BQX:94) | a half away from zero on FLOAT64 and NUMERIC | `CAST(ROUND(x) AS INT64)` | the same values (the type differs) |
+| `round` (2 arguments) | **cannot be rendered:** its one template takes one argument, and legend-pure's `format` raises "Unused format args" | none: legend-engine fails when it plans | `ROUND(x, 2)` | lite answers where legend-engine refuses |
+
+Without a row: `toDecimal`, `isNumeric` and `dateDiff` have **no template** on BigQuery (an unsupported-api error).
+One-argument `parseDecimal` `cast(%s as decimal)` keeps the value (`123.450021`, NUMERIC). `parseInteger`
+`cast(%s as int64)`, `parseFloat` `cast(%s as float64)`. `splitPart`'s default `split_part` **does not exist** on
+BigQuery: legend-engine's SQL is refused by the database. `rem` and `mod` are `mod`, which has no FLOAT64 signature
+(7.5 mod 5 raises). `toString` `cast(%s as string)`: 1.0 is `'1'`. A division by zero and `sqrt(-1)` raise.
+
+**So on BigQuery:** the `substring`, `substr`, `indexOf` rows and the one-argument `round` give legend-engine's
+answers; the two-argument `round` has no legend-engine answer to give.
+
 ## What the table can take from this (per row and database)
 
-| Row | H2 | DuckDB | Snowflake | Postgres | Trino | ClickHouse |
-|---|---|---|---|---|---|---|
-| `substring` as given | yes | yes | same answers | same answers | same answers | differs on multi-byte text |
-| corrected `substring`, `substr` | yes | yes | same | same | same | differs on multi-byte text |
-| String `indexOf` | yes | yes | same | same | same | differs on multi-byte text |
-| `round` | yes | yes | same values | differs on a Float | same values | differs on a Decimal literal |
-| `toDecimal` | bare DECIMAL | bare DECIMAL | `to_decimal(x, 38, 19)` | unconstrained `decimal` | none | `toDecimal128(x, 10)` |
-| `isNumeric` | a pattern | `lower = upper` | none | none | none | none |
-| plain parses | `integer`, `float` | `BIGINT`, `float` (single) | `integer` (38 digits), `float` | `integer`, `float` | `integer`, `double` | `Int32`, `Float32` |
+| Row | H2 | DuckDB | Snowflake | Postgres | Trino | ClickHouse | Databricks | BigQuery |
+|---|---|---|---|---|---|---|---|---|
+| `substring` as given | yes | yes | same answers | same answers | same answers | differs on multi-byte text | same answers | same answers |
+| corrected `substring`, `substr` | yes | yes | same | same | same | differs on multi-byte text | same | same |
+| String `indexOf` | yes | yes | same | same | same | differs on multi-byte text | same | same |
+| `round` | yes | yes | same values | differs on a Float | same values | differs on a Decimal literal | same values | one argument the same; two has no legend-engine answer |
+| `toDecimal` | bare DECIMAL | bare DECIMAL | `to_decimal(x, 38, 19)` | unconstrained `decimal` | none | `toDecimal128(x, 10)` | bare DECIMAL (scale 0) | none |
+| `isNumeric` | a pattern | `lower = upper` | none | none | none | none | `lower = upper` | none |
+| plain parses | `integer`, `float` | `BIGINT`, `float` (single) | `integer` (38 digits), `float` | `integer`, `float` | `integer`, `double` | `Int32`, `Float32` | `bigint`, `double` | `int64`, `float64` |
+| `dateDiff` | its own `datediff` | its own `datediff` | its own `datediff` | field arithmetic, broken on some types | `date_diff` | `datediff` | its own form; weeks refused | none |
+| `splitPart` | its own Java | `split_part` | `split_part` | `split_part` | `split_part` | `splitByString` | `split_part` | `split_part`, which the database lacks |
 
-Databricks and BigQuery: reports not yet in.
+MariaDB, MySQL, SQLite and MongoDB have no legend-engine database to match.
