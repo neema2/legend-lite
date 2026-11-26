@@ -1810,15 +1810,21 @@ final class Scalars {
         // chunk(s, n): fixed-size chunking IS the regex '.{1,n}' swept
         // globally (chunk.pure spec: 'abcdefghijklmnop'->chunk(5) =
         // abcde|fghij|klmno|p; a short string is one chunk) — the
-        // pattern composes in SQL so a computed n works too.
+        // pattern composes in SQL so a computed n works too. A WRITTEN size is a
+        // constant, so its pattern is one too (the edition program's step 1,
+        // 2026-11-26, the user's ruling of 2026-11-25 on the Pure-mode gaps: a
+        // database whose regular-expression functions take a literal pattern
+        // alone, SQLite's, then runs chunk(1); leaner SQL everywhere)
         for (com.legend.model.FunctionId f : Pure.AT_STRING_CHUNK) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(
                     SqlFn.REGEXP_EXTRACT_ALL, args.get(0),
-                    SqlExpr.Call.of(SqlFn.CONCAT,
-                            new SqlExpr.StringLit(".{1,"),
-                            new SqlExpr.Cast(args.get(1),
-                                    com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR),
-                            new SqlExpr.StringLit("}"))));
+                    args.get(1) instanceof SqlExpr.IntLit size
+                            ? new SqlExpr.StringLit(".{1," + size.value() + "}")
+                            : SqlExpr.Call.of(SqlFn.CONCAT,
+                                    new SqlExpr.StringLit(".{1,"),
+                                    new SqlExpr.Cast(args.get(1),
+                                            com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR),
+                                    new SqlExpr.StringLit("}"))));
         }
         for (com.legend.model.FunctionId f : Pure.AT_STRING_REGEXP_LIKE) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MATCHES, List.of(

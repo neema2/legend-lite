@@ -79,16 +79,6 @@ sqlite	Grammar	meta::pure::functions::math::tests::minus::testLargeMinus	DataErr
 sqlite	Grammar	meta::pure::functions::math::tests::plus::testLargePlus	DataError: an integer past 64 bits has no SQLite value
 sqlite	Grammar	meta::pure::functions::math::tests::times::testLargeTimes	DataError: an integer past 64 bits has no SQLite value
 # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
-sqlite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
 # SQLite has no users
 sqlite	Relation	meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId	DialectCapability: CURRENT_USER_FN reached SQLite: SQLite has no users
 sqlite	Unclassified	meta::pure::functions::runtime::currentUserId::testCurrentUserId	DialectCapability: CURRENT_USER_FN reached SQLite: SQLite has no users
