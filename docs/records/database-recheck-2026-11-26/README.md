@@ -104,6 +104,10 @@ hyperbolic functions are wrong in the sixth digit and Postgres has no Float `mod
   (confirmed on the account by the lane the same day: `|[1, 'a', true]->sort()` is refused, "ORDER BY does not
   support expressions of type STRUCT<...>"; a list of Numbers alone sorts correctly). The fix: order by the struct's
   fields.
+- **MySQL and MariaDB compare text ignoring trailing spaces** (measured on the lane, 2026-11-26): lite's own session
+  collation, `utf8mb4_bin`, is PAD SPACE on both, so `$x.s == 'a '` is true where `s` holds `'a'`; a filter, `in`,
+  `removeDuplicates`, `distinct`, `startsWith` and `endsWith` answer wrongly the same way. On MySQL lite's setting
+  replaces a server default that is right. `START_HERE.md`, D1 (e).
 - **H2:** `CARDINALITY(NULL)` in the subquery form above crashes ("Unexpected code path"): write
   `COALESCE(CARDINALITY(..), 0)`.
 

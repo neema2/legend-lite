@@ -1,0 +1,135 @@
+package probe;
+
+import org.eclipse.collections.api.factory.Lists;
+import org.eclipse.collections.api.list.ListIterable;
+import org.eclipse.collections.impl.tuple.Tuples;
+import org.finos.legend.pure.m3.execution.FunctionExecution;
+import org.finos.legend.pure.m3.navigation.Instance;
+import org.finos.legend.pure.m3.navigation.ProcessorSupport;
+import org.finos.legend.pure.m3.serialization.filesystem.repository.CodeRepository;
+import org.finos.legend.pure.m3.serialization.filesystem.repository.CodeRepositoryProviderHelper;
+import org.finos.legend.pure.m3.serialization.filesystem.repository.CodeRepositorySet;
+import org.finos.legend.pure.m3.serialization.filesystem.usercodestorage.classpath.ClassLoaderCodeStorage;
+import org.finos.legend.pure.m3.serialization.filesystem.usercodestorage.composite.CompositeCodeStorage;
+import org.finos.legend.pure.m3.serialization.runtime.Message;
+import org.finos.legend.pure.m3.serialization.runtime.PureRuntime;
+import org.finos.legend.pure.m3.serialization.runtime.PureRuntimeBuilder;
+import org.finos.legend.pure.m4.coreinstance.CoreInstance;
+import org.finos.legend.pure.m4.coreinstance.primitive.PrimitiveCoreInstance;
+import org.finos.legend.pure.runtime.java.compiled.execution.CompiledExecutionSupport;
+import org.finos.legend.pure.runtime.java.compiled.execution.FunctionExecutionCompiled;
+import org.finos.legend.pure.runtime.java.compiled.execution.FunctionExecutionCompiledBuilder;
+import org.finos.legend.pure.runtime.java.interpreted.FunctionExecutionInterpreted;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+/**
+ * A local measurement, never committed (step 6 probe, 2026-11-26; after
+ * docs/execution-plan-boundary-2026-10-05/probes/engine-reference/PureEval.java): legend-pure 5.99.0's INTERPRETED or
+ * COMPILED runtime over each expression, compiled as its own function in its own source, run, and its result's values
+ * printed with their types (interpreted: each value's classifier; compiled: each value's Java class).
+ * Args: interpreted|compiled, repos (comma list; the subset is closed under dependencies), model.pure, exprs.tsv.
+ */
+public final class PureModes {
+    public static void main(String[] args) throws Exception {
+        String mode = args[0];
+        long t0 = System.currentTimeMillis();
+        CodeRepositorySet all = CodeRepositorySet.newBuilder().withCodeRepositories(
+                CodeRepositoryProviderHelper.findCodeRepositories().reject(r -> "core_legend_lite_pct".equals(r.getName()))).build();
+        CodeRepositorySet set = all.subset(args[1].split(","));
+        System.out.println("[setup] mode=" + mode + " repositories=" + set.getRepositoryNames().toSortedList());
+        Message message = new Message("");
+        FunctionExecution fe = "interpreted".equals(mode) ? new FunctionExecutionInterpreted() : new FunctionExecutionCompiledBuilder().build();
+        PureRuntime runtime = new PureRuntimeBuilder(new CompositeCodeStorage(new ClassLoaderCodeStorage(set.getRepositories())))
+                .withMessage(message).build();
+        fe.init(runtime, message);
+        runtime.loadAndCompileCore(message);
+        runtime.loadAndCompileSystem(message);
+        System.out.println("[setup] loaded in " + (System.currentTimeMillis() - t0) + " ms");
+        runtime.createInMemoryAndCompile(Tuples.pair("probe_model.pure", Files.readString(Path.of(args[2]))));
+        System.out.println("[setup] model compiled");
+        ProcessorSupport ps = runtime.getProcessorSupport();
+        List<String> lines = Files.readAllLines(Path.of(args[3]));
+        for (String line : lines) {
+            if (line.isBlank() || line.startsWith("#")) continue;
+            int tab = line.indexOf('\t');
+            String id = line.substring(0, tab);
+            String expr = line.substring(tab + 1);
+            System.out.println("\n[" + id + "] expr=" + expr);
+            String raw = "function probe::raw_" + id + "():Any[*]\n{\n  " + expr + "\n}\n";
+            if (!compileSource(runtime, "probe_raw_" + id + ".pure", raw, id, "raw")) continue;
+            CoreInstance f = runtime.getFunction("probe::raw_" + id + "():Any[*]");
+            try {
+                if (fe instanceof FunctionExecutionCompiled fec) {
+                    Method m = FunctionExecutionCompiled.class.getDeclaredMethod("executeFunction", CoreInstance.class, ListIterable.class, CompiledExecutionSupport.class);
+                    m.setAccessible(true);
+                    CompiledExecutionSupport es = fec.getExecutionSupport();
+                    Object r;
+                    try {
+                        r = m.invoke(fec, f, Lists.immutable.empty(), es);
+                    } finally {
+                        es.executionEnd(null);
+                    }
+                    if (r instanceof Iterable<?> it) {
+                        int i = 0;
+                        StringBuilder sb = new StringBuilder();
+                        for (Object o : it) {
+                            sb.append(i++ == 0 ? "" : ", ").append(o).append(" <").append(o == null ? "null" : o.getClass().getSimpleName()).append('>');
+                        }
+                        System.out.println("[" + id + "] compiled result (" + r.getClass().getSimpleName() + ", size " + i + ") = [" + sb + "]");
+                    } else {
+                        System.out.println("[" + id + "] compiled result = " + r + " <" + (r == null ? "null" : r.getClass().getSimpleName()) + ">");
+                    }
+                } else {
+                    CoreInstance r = fe.start(f, Lists.immutable.empty());
+                    ListIterable<? extends CoreInstance> values = Instance.getValueForMetaPropertyToManyResolved(r, "values", ps);
+                    StringBuilder sb = new StringBuilder();
+                    int i = 0;
+                    for (CoreInstance v : values) {
+                        String javaValue = (v instanceof PrimitiveCoreInstance<?> p) ? " java=" + p.getValue().getClass().getSimpleName() + ":" + p.getValue() : "";
+                        sb.append(i++ == 0 ? "" : ", ").append(v.getName()).append(" <").append(ps.getClassifier(v).getName()).append(javaValue).append('>');
+                    }
+                    System.out.println("[" + id + "] interpreted result (size " + i + ") = [" + sb + "]");
+                }
+            } catch (Throwable t) {
+                Throwable c = (t instanceof InvocationTargetException ite) ? ite.getCause() : t;
+                System.out.println("[" + id + "] EXECUTION ERROR: " + oneLine(c));
+                Throwable cc = c.getCause();
+                int d = 0;
+                while (cc != null && d++ < 4) {
+                    System.out.println("[" + id + "]   cause: " + oneLine(cc));
+                    cc = cc.getCause();
+                }
+            }
+        }
+        System.out.println("\n[setup] done in " + (System.currentTimeMillis() - t0) + " ms");
+        System.exit(0);
+    }
+
+    private static boolean compileSource(PureRuntime runtime, String sourceId, String text, String id, String what) {
+        try {
+            runtime.createInMemorySource(sourceId, text);
+            runtime.compile();
+            return true;
+        } catch (Throwable t) {
+            System.out.println("[" + id + "] COMPILE ERROR (" + what + "): " + oneLine(t));
+            try {
+                runtime.delete(sourceId);
+                runtime.compile();
+            } catch (Throwable t2) {
+                System.out.println("[" + id + "]   (cleanup failed: " + oneLine(t2) + ")");
+            }
+            return false;
+        }
+    }
+
+    private static String oneLine(Throwable t) {
+        String s = t.getClass().getSimpleName() + ": " + t.getMessage();
+        s = s.replace('\n', ' ');
+        return s.length() > 1200 ? s.substring(0, 1200) + "..." : s;
+    }
+}

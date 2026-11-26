@@ -1,0 +1,64 @@
+
+[S9a] query=|#>{p::DB.T}#->extend(~[eqIF:r|$r.I == $r.F, ltIF:r|$r.I < $r.F, leIF:r|$r.I <= $r.F, eqDI:r|$r.D == $r.I, eqI1F:r|$r.I == 1.0, ltI1D:r|$r.I < 1D])->select(~[ID, eqIF, ltIF, leIF, eqDI, eqI1F, ltI1D])->from(p::H2RT)
+[S9a] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"},{"enumMapping":{},"name":"eqIF","relationalType":"BIT","type":"Boolean"},{"enumMapping":{},"name":"ltIF","relationalType":"BIT","type":"Boolean"},{"enumMapping":{},"name":"leIF","relationalType":"BIT","type":"Boolean"},{"enumMapping":{},"name":"eqDI","relationalType":"BIT","type":"Boolean"},{"enumMapping":{},"name":"eqI1F","relationalType":"BIT","type":"Boolean"},{"enumMapping":{},"name":"ltI1D","relationalType":"BIT","type":"Boolean"}]}
+[S9a] sql=select "t_0".ID as "ID", "t_0".I is not distinct from "t_0".F as "eqIF", "t_0".I is not null and "t_0".F is not null and "t_0".I < "t_0".F as "ltIF", "t_0".I is not null and "t_0".F is not null and "t_0".I <= "t_0".F as "leIF", "t_0".D is not distinct from "t_0".I as "eqDI", "t_0".I = cast(1.0 as float) as "eqI1F", "t_0".I is not null and "t_0".I < cast(1 as Decimal(32,16)) as "ltI1D" from T as "t_0"
+[S9a] execute DEFAULT result="result" : {"columns" : ["ID","eqIF","ltIF","leIF","eqDI","eqI1F","ltI1D"], "rows" : [{"values": [1,true,false,true,true,true,false]},{"values": [2,true,false,true,true,false,true]},{"values": [3,false,true,true,false,false,false]},{"values": [4,true,false,true,true,false,false]},{"values": [5,false,true,true,false,true,false]}]}}
+
+[S9b] query=|#>{p::DB.T}#->extend(~[mxIF:r|max($r.I->toOne(), $r.F->toOne()), mnIF:r|min($r.I->toOne(), $r.F->toOne())])->select(~[ID, mxIF, mnIF])->from(p::H2RT)
+[S9b] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"},{"enumMapping":{},"name":"mxIF","relationalType":"FLOAT","type":"Number"},{"enumMapping":{},"name":"mnIF","relationalType":"FLOAT","type":"Number"}]}
+[S9b] sql=select "t_0".ID as "ID", case when "t_0".I < "t_0".F then "t_0".F else "t_0".I end as "mxIF", case when "t_0".F < "t_0".I then "t_0".F else "t_0".I end as "mnIF" from T as "t_0"
+[S9b] execute DEFAULT result="result" : {"columns" : ["ID","mxIF","mnIF"], "rows" : [{"values": [1,1.0,1.0]},{"values": [2,0.0,0.0]},{"values": [3,2.5,2.0]},{"values": [4,3.0,3.0]},{"values": [5,1.5,1.0]}]}}
+
+[S11] query=|#>{p::DB.T}#->filter(r|p::amongFloats($r.I->toOne()))->select(~[ID])->from(p::H2RT)
+[S11] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S11] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I in (cast(0.0 as float), cast(1.0 as float))
+[S11] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [2]},{"values": [5]}]}}
+
+[S11b] query=|#>{p::DB.T}#->filter(r|p::amongWholes($r.F->toOne()))->select(~[ID])->from(p::H2RT)
+[S11b] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S11b] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".F in (0, 1)
+[S11b] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [2]}]}}
+
+[S12] query=|#>{p::DB.T}#->filter(r|p::same($r.I->toOne(), $r.F->toOne()))->select(~[ID])->from(p::H2RT)
+[S12] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S12] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I is not distinct from "t_0".F
+[S12] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]},{"values": [2]},{"values": [4]}]}}
+
+[S13] query=|#>{p::DB.T}#->filter(r|p::less($r.I->toOne(), $r.F->toOne()))->select(~[ID])->from(p::H2RT)
+[S13] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S13] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".I < "t_0".F
+[S13] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [3]},{"values": [5]}]}}
+
+[S14] query=|#>{p::DB.T}#->extend(~cmp:r|compare($r.I->toOne(), $r.F->toOne()))->select(~[ID, cmp])->from(p::H2RT)
+[S14] refused: Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:26 column:5), "No SQL translation exists for the PURE function 'compare_T_1__T_1__Integer_1_'. 
+If you would like to add a SQL translation for the function then follow the step-by-step guide on the PURE wiki."
+
+[S16] query=|#>{p::DB.T}#->filter(r|$r.F->in([0, 1]) && $r.D->in([1, 3]))->select(~[ID])->from(p::H2RT)
+[S16] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"}]}
+[S16] sql=select "t_0".ID as "ID" from T as "t_0" where "t_0".F in (0, 1) and "t_0".D in (1, 3)
+[S16] execute DEFAULT result="result" : {"columns" : ["ID"], "rows" : [{"values": [1]}]}}
+
+[S17] query=|#>{p::DB.T}#->sort(~I->ascending())->select(~[ID, I, F])->from(p::H2RT)
+[S17] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"ID","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"},{"enumMapping":{},"name":"I","relationalType":"INTEGER","type":"meta::pure::precisePrimitives::Int"},{"enumMapping":{},"name":"F","relationalType":"FLOAT","type":"meta::pure::precisePrimitives::Float4"}]}
+[S17] sql=select "t_0".ID as "ID", "t_0".I as "I", "t_0".F as "F" from T as "t_0" order by "I" asc
+[S17] execute DEFAULT result="result" : {"columns" : ["ID","I","F"], "rows" : [{"values": [2,0,0.0]},{"values": [1,1,1.0]},{"values": [5,1,1.5]},{"values": [3,2,2.5]},{"values": [4,3,3.0]}]}}
+
+[K5] query=|p::Row.all()->filter(r|$r.i < $r.f)->project([r|$r.id, r|$r.i == $r.f, r|max($r.i, $r.f)], ['id', 'eq', 'mx'])->from(p::M, p::H2RT)
+[K5] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"id","relationalType":"INTEGER","type":"Integer"},{"enumMapping":{},"name":"eq","relationalType":"BIT","type":"Boolean"},{"enumMapping":{},"name":"mx","relationalType":"FLOAT","type":"Number"}]}
+[K5] sql=select "root".ID as "id", "root".I = "root".F as "eq", case when "root".I < "root".F then "root".F else "root".I end as "mx" from T as "root" where "root".I < "root".F
+[K5] execute DEFAULT result="result" : {"columns" : ["id","eq","mx"], "rows" : [{"values": [3,false,2.5]},{"values": [5,false,1.5]}]}}
+
+[K6] query=|p::Row.all()->filter(r|p::same($r.i, $r.f))->project([r|$r.id], ['id'])->from(p::M, p::H2RT)
+[K6] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"id","relationalType":"INTEGER","type":"Integer"}]}
+[K6] sql=select "root".ID as "id" from T as "root" where "root".I is not distinct from "root".F
+[K6] execute DEFAULT result="result" : {"columns" : ["id"], "rows" : [{"values": [1]},{"values": [2]},{"values": [4]}]}}
+
+[K7] query=|p::Row.all()->filter(r|p::amongFloats($r.i))->project([r|$r.id], ['id'])->from(p::M, p::H2RT)
+[K7] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"id","relationalType":"INTEGER","type":"Integer"}]}
+[K7] sql=select "root".ID as "id" from T as "root" where "root".I in (cast(0.0 as float), cast(1.0 as float))
+[K7] execute DEFAULT result="result" : {"columns" : ["id"], "rows" : [{"values": [1]},{"values": [2]},{"values": [5]}]}}
+
+[K8] query=|p::Row.all()->filter(r|p::less($r.i, $r.f))->project([r|$r.id], ['id'])->from(p::M, p::H2RT)
+[K8] root node=RelationalTdsInstantiationExecutionNode (_type relationalTdsInstantiation) resultType={"_type":"tds","tdsColumns":[{"enumMapping":{},"name":"id","relationalType":"INTEGER","type":"Integer"}]}
+[K8] sql=select "root".ID as "id" from T as "root" where "root".I < "root".F
+[K8] execute DEFAULT result="result" : {"columns" : ["id"], "rows" : [{"values": [3]},{"values": [5]}]}}
