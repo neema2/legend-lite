@@ -12,15 +12,15 @@ import java.util.Map;
 /**
  * {@link WindowReadThroughAList}'s shapes on SQLite, whose list operations are correlated subqueries over
  * {@code json_each}: PCT's rows where the window is computed over its partition (it answered each row's own name
- * before 2026-11-19). The chunked form is refused by name before any window is read: chunk's pattern is built from its
- * size, and SQLite compiles a literal pattern only (a loud refusal, kept: the compatibility program's owner,
- * 2026-11-19).
+ * before 2026-11-19). The chunked form answers too since 2026-11-26: {@code chunk} with a written size writes a
+ * literal pattern (the edition program's step 1, the user's ruling of 2026-11-25 on the Pure-mode gaps). Until then it
+ * was refused by name before any window was read, its pattern built from its size, which SQLite does not compile; a
+ * computed size is refused still.
  */
 class WindowReadThroughAListSQLiteTest {
 
     @Test
     void answered() throws Exception {
-        WindowReadThroughAList.answered(TestBackends.of(DatabaseType.SQLite), Map.of(WindowReadThroughAList.CHUNKED,
-                "a regexp_extract_all pattern that is not a literal reached SQLite"));
+        WindowReadThroughAList.answered(TestBackends.of(DatabaseType.SQLite), Map.of());
     }
 }

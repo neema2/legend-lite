@@ -97,7 +97,11 @@ class SqlFnSortedTest {
             "MONTHNAME", "NEGATE", "NOT", "NOT_EQUAL", "NOW", "NULL_SAFE_EQUAL", "NULL_SAFE_NOT_EQUAL", "OR",
             "PARSE_DATE", "PARSE_INT", "PI", "PLUS", "POW", "PURE_SPLIT_PART", "RADIANS", "RANDOM", "RANGE_FN",
             "REGEXP_EXTRACT", "REGEXP_EXTRACT_ALL", "REGEXP_FULL_MATCH", "REGEXP_REPLACE", "REM", "REPEAT_STR",
-            "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP", "RPAD", "RTRIM",
+            "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP",
+            // ROUND_RAW (2026-11-26, the edition program's step 5): the database's own ROUND, written by the lowering's
+            // named rule for it (DecimalKindRules.roundAsGiven, which a door's table names) -- product code alone
+            // writes it, so PRODUCT, by the user's standing rule of 2026-11-23 (dated here and reported)
+            "ROUND_RAW", "RPAD", "RTRIM",
             "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1",
             "SHA256", "SIGN", "SIN", "SINH", "SPLIT", "SPLIT_PART", "SQRT", "STARTS_WITH", "STRFTIME", "STRPOS",
             "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "SUBSTRING_AS_GIVEN", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",

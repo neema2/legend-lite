@@ -1387,6 +1387,14 @@ final class ArchitectureTest {
             // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the
             // statement's EXISTS sites
             "lowering.ExistsSites#alias()", "com.legend.edge.EdgeLoweringForms",
+            // the rules an edition's table may name (2026-11-26, the edition program's step 5): legend-engine's
+            // door's table reads each constant it maps a call to -- data, a name of a rule the lowering holds
+            // (lowering.NamedRules); anEditionsTableAloneNamesARule keeps every other namer out
+            "lowering.NamedRule#ROUND_AS_GIVEN", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#SQL_POSITION", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#SUBSTRING_AS_GIVEN", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#SUBSTR_AS_GIVEN", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#TRUST_ONE", "com.legend.edge.EngineTable",
             // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
             "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
