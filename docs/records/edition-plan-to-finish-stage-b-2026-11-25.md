@@ -291,10 +291,10 @@ In each, legend-engine's own Java runs the code and raises as Pure does, so this
 measured against the engine runner yet. A cast that can never succeed and a slice are their own nodes and carry no
 stamp: they stay plain at that door wherever they are written, as before.
 
-`acos`/`asin` out of range (ruled 2026-11-25 to raise as legend-pure does) is drafted on `claude/edit-next` with
-in-domain functions per dialect, so the product's check is the one check in the SQL. It waits on the corpus's door:
-legend-engine's own tests (`testFilterUsingArcCosFunction`, `...ArcSin...`) expect the database's answer inside the
-query, so the raise must be plain there, which needs the corpus's edition and its stamping (below).
+`acos`/`asin` out of range (ruled 2026-11-25 to raise as legend-pure does) is built on `claude/edit-next` with
+in-domain functions per dialect, so the product's check is the one check in the SQL. It waited on the corpus's door
+(legend-engine's own tests, `testFilterUsingArcCosFunction` and `...ArcSin...`, expect the database's answer inside
+the query), which exists now. It waits on the user for one thing: its SQL size pins grow (section 6b, item 7).
 
 **Step 2b, the comparison setting in the type-checker (2026-11-26).** A door now hands the query its comparison
 setting when it types it (`TypedQuery.comparing`; `compiler/spec/CrossTypeRule`), and the type-checker asks the
@@ -440,6 +440,14 @@ old detector did not count it either).
    door; whether `TDSNull` is meaning or format; whether legend-engine's door's text is a table row; whether the
    corpus's SQL size pins may grow). Its own session can start when these are ruled.
 6. **The pull request** (#141, draft): whether this session should watch it and act on CI failures.
+7. **`acos`/`asin` raising costs SQL size** (ruled 2026-11-25 to raise as compiled Pure does; built and parked on
+   `claude/edit-next`, measured 2026-11-26). The two PCT error tests pass with it on DuckDB (both channels). The
+   check and its message (`Unable to compute acos of 2.0`, the value written by the database) make the product's SQL
+   for these two functions longer on most databases, and the size pins are shrink-only: on DuckDB 354 to 438
+   characters for the family, on BigQuery 131 to 538, on Databricks 111 to 574, on ClickHouse 1389 to 2330; the plan
+   for a query using one about doubles (the raise's record travels in it). It shrinks on H2, SQLite and Snowflake
+   (their own domain guards leave). 41 pins grow, 10 shrink. The same question as `substring`'s range check, which the
+   user answered "Okay let's raise the lean sql" (2026-11-20): may these pins be raised for this ruled check?
 
 ## 7. The user's words on this plan (2026-11-25, late night)
 
