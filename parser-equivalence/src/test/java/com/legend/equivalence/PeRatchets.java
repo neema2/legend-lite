@@ -204,11 +204,12 @@ public final class PeRatchets {
             "own_corpus.matched 3346/3346 -> 3347 (2026-11-25, B3 step 5a and its client fix (96f0d33c) merged into"
                     + " claude/compat-b2-nufdlk, measured by //parser-equivalence:update_ratchets on the merged tree: both"
                     + " sides' models together; UP)",
-            "own_corpus.matched 3347 -> 3355 (2026-11-26, the edition program's steps 1 to 5 on"
+            "own_corpus.matched 3347 -> 3359 (2026-11-26, the edition program's steps 1 to 5 on"
                     + " claude/modest-galileo-h6swr4, measured by //:update_generated on the batch's tree: the new tests'"
-                    + " models match the reference grammar -- the last three are steps 4 and 5's, NumberLiteralsTest's,"
-                    + " CrossTypeRuleTest's and EngineTablePlacementTest's; a floor rising, the user's standing word of"
-                    + " 2026-11-24 (\"parser bumps are always okay\"); UP)");
+                    + " models match the reference grammar -- the last seven are steps 4 and 5's, NumberLiteralsTest's,"
+                    + " CrossTypeRuleTest's and EngineTablePlacementTest's, then the four functions of"
+                    + " LiteralRuleAnswersTest, a test the batch's audit asked for; a floor rising, the user's standing"
+                    + " word of 2026-11-24 (\"parser bumps are always okay\"); UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
