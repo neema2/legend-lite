@@ -93,16 +93,18 @@ public final class ProductStatements {
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
             Set<Feature> features, ProgramFrames frames, com.legend.database.PlanStyle style) {
-        return prepare(query, statements, runtime, mark, features, frames, Map.of(), style);
+        return prepare(query, statements, runtime, mark, features, frames, Map.of(), false, style);
     }
 
     /** {@link #prepare} for a frame's own query, run under {@code runtimeRenames}: the table renames of the runtime
-     *  the frame runs on (a frame let's eager run and its CTE, as the walk runs them in the frame's environment). */
+     *  the frame runs on (a frame let's eager run and its CTE, as the walk runs them in the frame's environment). The
+     *  statement is the query an {@code execute()} ran, never a test body's own code: a door that stamps its test
+     *  bodies stamps it as a query ({@code Edition.stampsTestBodies}). */
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
             Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames,
             com.legend.database.PlanStyle style) {
-        return prepare(query, statements, runtime, mark, features, frames, runtimeRenames, false, style);
+        return prepared(query, statements, runtime, mark, features, frames, runtimeRenames, false, true, style);
     }
 
     /** {@link #prepare}; {@code frameAnswered}: the statement is a TEST program's answer, and its root, an
@@ -113,6 +115,16 @@ public final class ProductStatements {
             @Nullable String runtime, @Nullable Integer mark,
             Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames, boolean frameAnswered,
             com.legend.database.PlanStyle style) {
+        return prepared(query, statements, runtime, mark, features, frames, runtimeRenames, frameAnswered, false,
+                style);
+    }
+
+    /** {@link #prepare}; {@code frame}: the statement is a frame's own query (above), not a statement of the query or
+     *  test body the door received. */
+    private static Statement prepared(TypedQuery query, List<TypedSpec> statements,
+            @Nullable String runtime, @Nullable Integer mark,
+            Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames, boolean frameAnswered,
+            boolean frame, com.legend.database.PlanStyle style) {
         ModelContext ctx = query.context();
         SpecCompiler specs = query.specs();
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
@@ -131,7 +143,7 @@ public final class ProductStatements {
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
         // the stamp: asked for by a door whose table's two columns differ, never the product
         Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered,
-                edition.stampsOutsideStore());
+                edition.stampsOutsideStore(), !frame && edition.stampsTestBodies());
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
@@ -157,13 +169,7 @@ public final class ProductStatements {
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
                 PlanTextRoutines.of(specs, env)));
         // the stamp on the model's and the mappings' code: the door's edition says which its audience's own Java runs
-        com.legend.resolver.StampedCode outside = !edition.stampsOutsideStore()
-                ? com.legend.resolver.StampedCode.NONE
-                : new com.legend.resolver.StampedCode(edition.constraintsOutsideStore(),
-                        edition.transformsOutsideStore(
-                                reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedGraphFetch),
-                                reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom f
-                                        && !f.context().chainMappings().isEmpty())));
+        com.legend.resolver.StampedCode outside = stampedCode(edition, body);
         body = BodyPlanner.resolver(specs, env, outside).resolve(body, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by name),
         // then every store the statement touches must be bound to it (C3b)
@@ -178,6 +184,29 @@ public final class ProductStatements {
                 frames.renames(), env.tableReplace(), lets, specs);
         PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
         return new Statement(BodyPlanner.prepare(body, widened), temporal, inlined.reads(), stores);
+    }
+
+    /** The model's and the mappings' code that {@code edition}'s audience's own Java runs where {@code body} reaches
+     *  it, for the resolver to stamp as it brings it in ({@code resolver.StampedCode}; the edition program's step 2):
+     *  none where the edition stamps nothing. Read off the body: whether it fetches a graph, and whether it reads
+     *  through a chain of mappings. */
+    private static com.legend.resolver.StampedCode stampedCode(Edition edition, List<TypedSpec> body) {
+        if (!edition.stampsOutsideStore()) {
+            return com.legend.resolver.StampedCode.NONE;
+        }
+        return new com.legend.resolver.StampedCode(edition.constraintsOutsideStore(),
+                edition.transformsOutsideStore(
+                        reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedGraphFetch),
+                        reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom f
+                                && !f.context().chainMappings().isEmpty())));
+    }
+
+    /** {@link #stampedCode} for a JUDGED SIDE of a test body ({@code BodyPlanner.stagedSide}): a side is the test's
+     *  code around its frames, so its mapping code is stamped as a statement's is where the door's edition stamps
+     *  test bodies ({@code Edition.stampsTestBodies}), and not at all otherwise (as before the edition program's
+     *  step 3). */
+    static com.legend.resolver.StampedCode sideStamp(Edition edition, List<TypedSpec> body) {
+        return edition.stampsTestBodies() ? stampedCode(edition, body) : com.legend.resolver.StampedCode.NONE;
     }
 
     /** Whether any node of {@code body} is one {@code what} names. */
@@ -219,20 +248,27 @@ public final class ProductStatements {
     /** {@code statements} inlined with the splice hook {@code first} records into; inlined again, its frames read as
      *  their CTE, where it pastes one more than once (M3g, B10). */
     private static Inlined inline(SpecCompiler specs, List<TypedSpec> statements, @Nullable Integer mark,
-            ProgramFrames.Recorder first, boolean frameAnswered, boolean stamp) {
+            ProgramFrames.Recorder first, boolean frameAnswered, boolean stamp, boolean testBody) {
         ProgramFrames.Recorder recorder = first;
-        UserCallInliner inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
+        UserCallInliner inliner = UserCallInliner.ofTestBody(specs, hook(recorder, testBody), testBody);
         List<TypedSpec> body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark, stamp), recorder,
                 frameAnswered);
         ProgramFrames.Recorder again = recorder.again(body);
         if (again != null) {
             recorder = again;
-            inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
+            inliner = UserCallInliner.ofTestBody(specs, hook(recorder, testBody), testBody);
             body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark, stamp), recorder,
                     frameAnswered);
         }
         return new Inlined(body, Collections.unmodifiableMap(new LinkedHashMap<>(inliner.queryLets())),
                 recorder.reads());
+    }
+
+    /** The splice hook over {@code recorder}: where the statement is a test body's whose own code the door's edition
+     *  stamps ({@code testBody}), the hook that notes the frames' code, so the inliner stamps around it. */
+    private static java.util.function.BiFunction<TypedSpec, Set<String>, TypedSpec> hook(ProgramFrames.Recorder recorder,
+            boolean testBody) {
+        return ResultEnvelopeSplice.hook(testBody, recorder);
     }
 
     /** {@code body} with its last statement, an {@code execute(...)} of a relation-rooted query at its root, read as

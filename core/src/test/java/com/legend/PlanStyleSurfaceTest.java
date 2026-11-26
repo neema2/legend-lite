@@ -80,7 +80,12 @@ class PlanStyleSurfaceTest {
             // the product's style (PlanStyle.PRODUCT) and the edge's two (PureText.UPSTREAM, PureText.PURE_V1)
             Map.entry("com.legend.database.PlanStyle$1", ALL),
             Map.entry("com.legend.edge.PureText$1", ALL),
-            Map.entry("com.legend.edge.PureText$2", ALL));
+            Map.entry("com.legend.edge.PureText$2", ALL),
+            // 2026-11-26 (the edition program's step 3): legend-engine's own tests' style (PureText.ENGINE_TESTS, the
+            // relational corpus's door) -- UPSTREAM in every method but twoForm's edition, which is legend-engine's
+            // tests' (the queries a test's execute()s run are legend-engine's, the test's own code Pure's). A third
+            // style because the corpus and PCT are two audiences that shared UPSTREAM until now
+            Map.entry("com.legend.edge.PureText$3", ALL));
             // (the edge's recorder of one planning call's raise-site words, K10b of 2026-11-17: deleted, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
 
     private static String signature(Method m) {

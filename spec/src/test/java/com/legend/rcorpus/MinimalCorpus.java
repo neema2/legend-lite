@@ -610,8 +610,10 @@ public final class MinimalCorpus {
                     com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
                             Corpus.RELATIONAL.getParent().getParent());
                     return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
-                            // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                            .withStyle(com.legend.edge.PureText.UPSTREAM);
+                            // legend-engine's texts, spelled by the edge (phase D's D1.0); legend-engine's own
+                            // tests' style since the edition program's step 3 (2026-11-26): the queries a test's
+                            // execute()s run get legend-engine's meaning, the test's own code Pure's
+                            .withStyle(com.legend.edge.PureText.ENGINE_TESTS);
                 }
 
                 @Override

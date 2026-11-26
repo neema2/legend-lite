@@ -129,7 +129,7 @@ class LeanSqlCorpusTest {
         // The product's own leanness is core's baseline (LeanSqlBaseline, the product's style)
         return new com.legend.ExecuteOptions(com.legend.testexecutionplan.NoEdge.NONE,
                 com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()),
-                java.util.Set.of()).withJudgeMode(mode).withStyle(com.legend.edge.PureText.UPSTREAM);
+                java.util.Set.of()).withJudgeMode(mode).withStyle(com.legend.edge.PureText.ENGINE_TESTS);
     }
 
     @Test

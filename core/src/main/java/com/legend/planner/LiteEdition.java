@@ -27,6 +27,11 @@ public final class LiteEdition implements Edition {
     }
 
     @Override
+    public boolean stampsTestBodies() {
+        return false;
+    }
+
+    @Override
     public boolean constraintsOutsideStore() {
         return false;
     }

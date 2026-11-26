@@ -48,7 +48,7 @@ public final class PureText {
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}): a plan in legend-pure's words,
      *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
     public static boolean isEdgeStyle(PlanStyle style) {
-        return style == UPSTREAM || style == PURE_V1;
+        return style == UPSTREAM || style == PURE_V1 || style == ENGINE_TESTS;
     }
 
     public static final PlanStyle UPSTREAM = new PlanStyle() {
@@ -232,6 +232,59 @@ public final class PureText {
             if (kind == com.legend.planner.Edition.class) {
                 java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
                 return kind.cast(EngineTable.DOOR);
+            }
+            return UPSTREAM.twoForm(kind, productForm);
+        }
+    };
+
+    /** LEGEND-ENGINE'S OWN TESTS' STYLE (the relational corpus; the edition program's step 3, 2026-11-26;
+     *  docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.3): {@link #UPSTREAM} in every dialect,
+     *  facet and form, and the planner is handed legend-engine's tests' edition ({@link EngineTable#TESTS}). A test of
+     *  legend-engine's is Pure code that legend-pure runs, around queries it hands to {@code execute()}, which
+     *  legend-engine runs: the queries get legend-engine's meaning, as at its API, and every call of the test's own
+     *  code is stamped and keeps Pure's. Until this step the corpus planned under {@link #UPSTREAM}, lite's meaning on
+     *  both sides. PCT keeps {@link #UPSTREAM}: legend-pure's own tests, one audience throughout. */
+    public static final PlanStyle ENGINE_TESTS = new PlanStyle() {
+        @Override
+        public SqlDialect dialect(DatabaseType type) {
+            return UPSTREAM.dialect(type);
+        }
+
+        @Override
+        public boolean judgesEngineText() {
+            return UPSTREAM.judgesEngineText();
+        }
+
+        @Override
+        public @com.legend.base.Nullable TraceCell traceCell() {
+            return UPSTREAM.traceCell();
+        }
+
+        @Override
+        public String graphKeyDate(String written) {
+            return UPSTREAM.graphKeyDate(written);
+        }
+
+        @Override
+        public String graphKeyString(String value) {
+            return UPSTREAM.graphKeyString(value);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind) {
+            return UPSTREAM.facet(kind);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            return UPSTREAM.facet(kind, refusal);
+        }
+
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            if (kind == com.legend.planner.Edition.class) {
+                java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
+                return kind.cast(EngineTable.TESTS);
             }
             return UPSTREAM.twoForm(kind, productForm);
         }

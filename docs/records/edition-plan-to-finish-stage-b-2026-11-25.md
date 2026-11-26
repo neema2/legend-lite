@@ -330,7 +330,10 @@ query a compile error:
 - **1** is DataCube's own code: its Oversample wrote `rank <= count * (100 - n) / n`, an Integer against a Float. It
   writes `rank * n <= count * (100 - n)` now, in whole numbers and exact, and reads that form back
   (`datacube/src/row-sample.ts`). No DataCube test planned an oversample, which is why its lanes were green.
-Pushed as `593aca57`, not run here; the measuring session runs the python and DataCube lanes on it.
+Pushed as `593aca57`. The measuring session ran it: the python group 17 of 17 targets (the three that failed pass:
+`edge_test` 24 tests, `engine_test` 358, `notebook_test` 32), and the DataCube and wasm group 228 of 228, with
+`typecheck_test` and `flow_sheet_test`. The oversample plans through the compiler now and keeps the same rows (with
+n = 25 and one row of interest: rank * 25 <= 75, the three rows the division kept).
 
 **The independent audit of step 2b and the plain raises (2026-11-26, `r3/audit-step2b-3raise.md`):** no blocker, no
 major finding; the product road and the SQL inside a store query at legend-engine's door are as before. Fixed from
@@ -341,7 +344,47 @@ them yet, which asks the model whether two classes are related (a broken supercl
 whether it reads bodies and none does; the door guard files the setting as a callback, not an option; stale comments
 and an unused helper left; tests added for each.
 
-**Still open from the work list:** the corpus door's edition and its stamping, which needs the frame-aware walk; a runtime's own model-chain connection is not counted as "chained" (the
+**Step 3, legend-engine's own tests' door: the corpus (2026-11-26).** The relational corpus is legend-engine's test
+suite: each test is Pure code, which legend-pure runs, around queries it hands to legend-engine (`execute(|...)`,
+`toSQLString(|...)`, `executionPlan(|...)`, a `->from(...)`). Until now the corpus planned under the same style as
+PCT, with lite's meaning on both sides. It has its own style now (`PureText.ENGINE_TESTS`), whose edition is
+legend-engine's table with the test's own code stamped (`EngineTable.TESTS`, `Edition.stampsTestBodies`):
+- **The queries get legend-engine's meaning** (the table's rows, the plain operations), as at its API.
+- **The test's own code keeps Pure's.** Every call of a test statement is stamped as outside any store query, except
+  what is a query's: anything under an execution context (a `from`; a frame's query is wrapped in one), a reference to
+  a frame's CTE, and a call that hands legend-engine a query. A value the test computes in a `let` and a query then
+  reads is stamped where it is bound, so the query reads the value with Pure's meaning
+  (`UserCallInliner.ofTestBody`, `stampAroundFrames`, `inlineFrameQuery`).
+- **The judges' sides** are the test's own code too, and are stamped the same way, with the mapping code
+  legend-engine's own Java runs (`ProductStatements.sideStamp`).
+
+*Measured first, with no stamping at all* (a separate session, both lanes, on `212b167c`): nothing newly failed, and
+nine tests newly passed on each lane. Three of the nine passed for the wrong reason: a test's own
+`$planAsString->indexOf(...) != -1` was answered by the database's position function, which is 0 on a miss, so the
+assert could not fail. That is what the stamp is for.
+
+*With the stamp* (this session, both lanes): **six tests gained on each lane, none lost.**
+- Inside the query, `substring` is the database's own, as legend-engine sends it; lite's version raised Pure's range
+  error: `testFilterUsingSubstringFunction`, `testFilterUsingParseIntegerFunction`,
+  `testFilterUsingParseDecimalFunction`.
+- The SQL text of a query with `substring` has no range check, as legend-engine's has none:
+  `testToSQLStringSubstrFoldsLiteralIndexes`, `testToSQLStringSubstrWithComputedIndex`,
+  `testToSQLStringSubstringIsUncorrectedByDefault`.
+- The three that passed for the wrong reason without the stamp (`testPlanForDateTimeConstantParameter` with a GMT, an
+  EST and no time zone) fail again, as before the step and rightly: the text they search is lite's plan text, which
+  writes a timestamp `TIMESTAMP '2019-04-08T18:00:00'` where legend-engine writes `TIMESTAMP'2019-04-08 18:00:00'`
+  (upstream's SQL text is never promised, CP-4).
+
+*Limits, each to close or to record:*
+- A `let` written INSIDE an executed query's lambda that reads no store is legend-engine's own Java's (as at pure/v1),
+  and is not stamped yet: it gets the database's meaning.
+- An assert over every element of a list (`forAll`, the unrolled elements) reduces each element with an ordinary
+  inliner: the test's own code there is not stamped.
+- PCT's legend-engine run still plans under pure/v1's style.
+- The lowering asks the table for the statement's database; every corpus statement named a checked one (no refusal on
+  either lane).
+
+**Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
 ## 7. The user's words on this plan (2026-11-25, late night)
