@@ -82,8 +82,7 @@ final class PureValueText {
         if (c.type().equals("Float")) {
             return asFloat(v, c);
         }
-        if (c.type().equals("DateTime") && v instanceof PureDateLiteral d
-                && d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
+        if (c.type().equals("DateTime") && v instanceof PureDateLiteral d && hasTime(d)) {
             return dateTime(d);
         }
         throw refused("value toString", v, c);
@@ -143,7 +142,7 @@ final class PureValueText {
      * independent re-review of 2026-11-24; recorded in docs/records/compat-b2-progress.md for B2b's register rows).
      */
     static String tdsDate(PureDateLiteral d) {
-        if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
+        if (!hasTime(d)) {
             return d.canonicalText();
         }
         String nine = d.toNineDigits();
@@ -155,6 +154,11 @@ final class PureValueText {
             end--;
         }
         return nine.substring(0, point) + "." + digits.substring(0, 3) + finer.substring(0, end) + "+0000";
+    }
+
+    /** Whether {@code d} carries a time of day (a day alone, a month or a year does not). */
+    private static boolean hasTime(PureDateLiteral d) {
+        return d.precision().atLeast(PureDateLiteral.Precision.HOUR);
     }
 
     static NotImplementedException refused(String what, Object v, ExecutionPlan.Column c) {

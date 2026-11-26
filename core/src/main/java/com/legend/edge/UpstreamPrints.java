@@ -133,7 +133,7 @@ public final class UpstreamPrints {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
             TypedSpec n = work.pop();
-            if (side(n, true) != null) {
+            if (side(n, true, List.of()) != null) {
                 return true;
             }
             work.addAll(n.children());
