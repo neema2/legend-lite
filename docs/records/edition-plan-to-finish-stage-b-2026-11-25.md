@@ -867,6 +867,41 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   user: record it as SQLite's own answer, or pay that SQL in the product.
   **Not in this slice:** an instance's Decimal or date-time key (section 5b, slice 6.4).
 
+**2026-11-26, evening: slice 6.1 verified and on the pull request (`17482a28`, pushed 21:25 UTC).** After the next
+batch landed (20:22): the batch's full run (148 of 151, one skipped; the two failures two guards, fixed: the writers
+of `IN`, and a class comparison written as a switch); an outside re-check of the first audit's fixes (no blocker; three
+new items fixed the same hour: a bare `=` where a value may be NULL, a whole number against Float literals folded
+where the previous batch left it to the database, an error lost where an answer was given by the types alone); the
+final code re-recorded (no size row moved by those fixes) and run (guards, PCT on DuckDB and H2, both corpora: 27 of
+27); six database lanes a second time on the final code (nothing moved). The landing page:
+`edition-homework/landing-step-6-1-2026-11-26.md`. CI and the fixed pre-push set are running on the pushed commit.
+
+**Written ahead for slice 6.2, on `claude/step-6-2` (not built, not run):** numbers of different types in a mixed
+list answer false (the refusal deleted; register S127 amended, put to the user); a value typed only at run time
+compares by the type its upcast or its column gives it; BigQuery orders a mixed list's rank field by field (it
+orders no STRUCT). **Found while writing it:** the count of a table's cells in `assertSize` cannot be fixed where the
+map said (the assert's size builder): the typed form of a table's cells is the table's rows themselves
+(`Typer.tdsValuesRead`, the 2026-08-24 carrier decision), so nothing after the typer can tell them apart. To probe.
+
+**The outside audit of step 9's slice 2** (`audits/audit-step9-slice2-2026-11-26.md`): no blocker, four should-fix
+(who may mint an edge style; who may subclass the edge's two opened dialects; the harness's owner entry too wide, the
+orchestrator's own ruling corrected; a guard's walk loosened more than needed) and four smaller ones, all sent back
+with a ruling each. One removal found: the shipped server's hidden `-Dlegend.exec.engineScanOrder=true` no longer
+adds the corpus's scan order to pure/v1 queries on DuckDB (told to the user).
+
+**SQLite's one date-time text form: the design changed by measurement.** The session built the nine-digit form (all
+lanes green) and found 22 size rows up for the form itself (every whole-second literal ten characters longer). It
+builds instead ONE CANONICAL text per instant: `YYYY-MM-DD HH:MM:SS`, then a point and digits only where the fraction
+is not zero, no trailing zero: the text DuckDB's cast prints. Text order and equality are the instant's. Approved by
+the orchestrator. Left out of the slice, for the user: a user's OWN stored column (SQLite has no date type) is still
+compared as held; normalizing it on every read costs SQL on tables lite loaded itself, and the lean fix (the plan
+knows which tables it loads) is outside the dialect.
+
+**Put to the user this evening, not yet answered:** (a) crossing numbers in a mixed list answer false at
+legend-pure's door too (S127 amended); (b) `max`/`min` follow the ruled order of types, not Pure's first-of-tie; (c)
+`<` between values typed only at run time is by value, then by type; (d) the host judge's comparison file's size pin
+for the tie-break; (e) a user's own SQLite date-time column: as held and recorded, or normalized at each read.
+
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
 1. **A number literal against a number column** (step 4's design question, and the equality rule's cost to a user
