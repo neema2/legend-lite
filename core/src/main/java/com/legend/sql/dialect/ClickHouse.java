@@ -1931,6 +1931,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> parseInteger(writer, c.args().get(0));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());

@@ -1395,6 +1395,8 @@ final class ArchitectureTest {
             "lowering.NamedRule#SQL_POSITION", "com.legend.edge.EngineTable",
             "lowering.NamedRule#SUBSTRING_AS_GIVEN", "com.legend.edge.EngineTable",
             "lowering.NamedRule#SUBSTR_AS_GIVEN", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#TEXT_CAST_TO_FLOAT", "com.legend.edge.EngineTable",
+            "lowering.NamedRule#TEXT_CAST_TO_INTEGER", "com.legend.edge.EngineTable",
             "lowering.NamedRule#TRUST_ONE", "com.legend.edge.EngineTable",
             // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)

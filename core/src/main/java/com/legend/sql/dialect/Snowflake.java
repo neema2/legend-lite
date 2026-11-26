@@ -1530,6 +1530,7 @@ public class Snowflake extends AnsiSqlRenderer {
                     w -> w.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ").append(stringLit("^[+-]?[0-9]+$"))
                             .append(")"),
                     w -> w.append("CAST(").expr(a.get(0), 0).append(" AS BIGINT)"));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // an ISO text with an offset is its UTC instant (a TIMESTAMP_NTZ cast drops the offset, measured)
             case PARSE_DATE -> writer.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(").expr(a.get(0), 0)
                     .append(")) AS TIMESTAMP_NTZ)");

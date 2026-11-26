@@ -390,11 +390,31 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Which meaning you get depends on the door,** as in item 1.
 - **You write**, in a query sent to the database: `$t.price->toDecimal()` over the value `3.8`.
 - **legend-engine** casts to the database's DECIMAL with no precision written, and each database gives that its own
-  size: `3.800` on DuckDB (three places), `4` on H2 (no fraction digit).
+  size: three fraction digits on DuckDB (the database holds `3.800`), none on H2 (`4`; legend-engine's own H2 test
+  record says "expected: 3.8D, actual: 4D").
+  - On DuckDB that type holds 15 digits before the point, so a value of 10^15 or more raises there.
 - **At legend-engine's door, lite answers legend-engine's** on DuckDB and H2, with no setting. In a host-side `let`
-  it keeps Pure's meaning; on any other database such a request is refused by name until read there.
+  it keeps Pure's meaning; on any other database such a request is refused by name (legend-engine writes another
+  form on each: Postgres keeps `3.8`, Snowflake and ClickHouse name a precision, Trino has none).
 - **On lite's own route**, lite answers `3.8` on every database.
+- **Why:** Pure's `toDecimal` changes the type and keeps the number. Dropping or padding digits by the database's
+  default is legend-engine's SQL, not Pure's meaning.
 - **Register:** S423.
+
+### 20. A text parsed to a number keeps Pure's width (the edition program, 2026-11-26)
+- **You write**, in a query sent to the database: `$t.text->parseInteger()` or `$t.text->parseFloat()`.
+- **legend-engine** casts the text to the type its SQL names for each database:
+  - a 32-bit `integer` on H2, Postgres, Trino and ClickHouse, so `'3000000000'` raises there;
+  - a single-precision `float` on DuckDB and ClickHouse, so `'3.14'` becomes `3.140000104904175` once it meets a
+    double, and `'16777217'` becomes `16777216`.
+- **lite** casts to Pure's Integer and Float on every database: 64 bits and a double. `'3000000000'` parses, and
+  `'3.14'` is the double `3.14`.
+- **The same in both:** inside a store query at legend-engine's door there is no grammar check, and a text that is no
+  number is refused by the database's own conversion error. In a host-side `let`, and on lite's own route, lite checks
+  the text first and raises its own error.
+- **Why:** Pure's `parseInteger` and `parseFloat` have no 32-bit or single-precision limit. The narrower types are
+  legend-engine's choice of SQL type, not Pure's meaning.
+- **Register:** S424.
 
 ## Gaps lite has today (not differences by design)
 

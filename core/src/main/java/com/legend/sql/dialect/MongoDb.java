@@ -1067,6 +1067,7 @@ public class MongoDb extends AnsiSqlRenderer {
             // ---- numbers
             case PARSE_INT -> guardedParse(writer, a.get(0), "^[+-]?[0-9]+$", "{\"$toLong\": " + G0 + "}",
                     com.legend.sql.RaiseKind.TEXT_NOT_INTEGER);
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case SQRT -> writer.append("{\"$sqrt\": ").piece(unfolded(a.get(0))).append("}");
             case CBRT -> cubeRoot(writer, a);
             case EXP -> MongoJson.op1(writer, "$exp", a.get(0));

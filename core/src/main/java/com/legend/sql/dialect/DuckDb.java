@@ -582,6 +582,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
                     w -> w.append("regexp_full_match(").expr(c.args().get(0), 0).append(", '[+-]?[0-9]+')"),
                     w -> castAs(w, c.args().get(0), "BIGINT"));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened

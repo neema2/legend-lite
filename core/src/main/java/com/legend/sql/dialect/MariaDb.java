@@ -1985,6 +1985,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
             case BIT_NOT -> writer.append("CAST(~ ").expr(a.get(0), 7).append(" AS SIGNED)");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads

@@ -21,6 +21,13 @@ public enum SqlFn {
     // spell its golden 'integer' while execution casts BIGINT (the
     // per-dynafunction origin tag audit 19 F3 called for)
     PARSE_INT,
+    /** CAST_INT(text), CAST_FLOAT(text): the database's OWN cast of a text to its 64-bit integer and to its double
+     *  (the edition program's step 5, 2026-11-26): every dialect writes its plain CAST, with no grammar check before
+     *  it, so a text the database cannot convert is the database's own conversion error. Not {@link #PARSE_INT} nor
+     *  a user's cast to a Float, which the product checks against Pure's grammar and raises as its own. Written by
+     *  two of the lowering's named rules ({@code NamedRule.TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}), which
+     *  an edition's table alone names. */
+    CAST_INT, CAST_FLOAT,
     // Strings
     CONCAT, LENGTH, UPPER, LOWER, GREATEST, LEAST,
     // joinStrings over a literal element list in VALUE (map) position:

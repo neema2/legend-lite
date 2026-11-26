@@ -1473,18 +1473,27 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** The {@code ROUND_RAW} and {@code DECIMAL_RAW} arm of a dialect's {@code call}: the database's own functions
      *  as given (an edition's table's rules, NamedRule.ROUND_AS_GIVEN and CAST_TO_BARE_DECIMAL) -- its plain ROUND
      *  by the name this dialect spells it, and a cast to its DECIMAL with no precision written where
-     *  {@code bareDecimal} names one; null where legend-engine's answer is not read on this database, refused by
-     *  name. */
+     *  {@code bareDecimal} names one; null where that default is not measured on this database, refused by name. */
     protected final SqlWriter asGiven(SqlWriter writer, SqlExpr.Call c, String round,
             @com.legend.base.Nullable String bareDecimal) {
         if (c.fn() == com.legend.sql.SqlFn.ROUND_RAW) {
             return writer.function(round, c.args());
         }
         if (bareDecimal == null) {
-            throw new com.legend.sql.DialectCapability("the database's own DECIMAL with no precision written"
-                    + " (DECIMAL_RAW) reached " + getClass().getSimpleName() + ", where legend-engine's is not read");
+            throw new com.legend.sql.DialectCapability("a cast to the database's own DECIMAL with no precision"
+                    + " written (DECIMAL_RAW) is not written on " + getClass().getSimpleName()
+                    + ": its default precision is not measured there");
         }
         return castAs(writer, c.args().get(0), bareDecimal);
+    }
+
+    /** The {@code CAST_INT} and {@code CAST_FLOAT} arm of every dialect's {@code call}: the database's own cast of a
+     *  text, as given (an edition's table's rules, NamedRule.TEXT_CAST_TO_INTEGER and TEXT_CAST_TO_FLOAT) -- this
+     *  dialect's plain cast to its 64-bit integer or its double, which no parse guard reads. */
+    protected final SqlWriter rawCast(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return writer.expr(new SqlExpr.Cast(c.args().get(0), c.fn() == com.legend.sql.SqlFn.CAST_INT
+                ? com.legend.sql.SqlType.Scalar.BIGINT : com.legend.sql.SqlType.Scalar.DOUBLE,
+                SqlExpr.Reason.DIALECT), parentPrec);
     }
 
     /** {@code CAST(x AS type)}, the type as the calling dialect spells it. */

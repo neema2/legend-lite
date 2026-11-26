@@ -34,31 +34,12 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
     /** The edge's first pass, as a list a dialect returns, a Float literal under {@code toString} written by
      *  {@code floatLiteral}. */
     static java.util.List<com.legend.sql.SqlRewriter> passes(FloatLiteral floatLiteral) {
-        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new UnguardedParses());
+        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
     }
 
-    /**
-     * F31 (approved by the orchestrator, 2026-11-17): in an edge plan a parse is upstream's -- the plain CAST, its
-     * refusal the database's own conversion error (DATABASE_ERROR, the database's text), as legend-engine's SQL casts:
-     * {@code parseInteger} a cast to BIGINT, {@code parseFloat} a cast to DOUBLE, never the product's grammar guard and
-     * its TEXT_NOT_INTEGER or TEXT_NOT_FLOAT (which the product keeps). A cast of the dialect's own reason, which no
-     * parse guard reads. (F38, not here: upstream's H2 casts parseInteger AS INTEGER, lite's edge BIGINT.)
-     */
-    private static final class UnguardedParses extends com.legend.sql.SqlRewriter {
-        @Override
-        protected SqlExpr expr(SqlExpr e) {
-            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.PARSE_INT) {
-                return new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.BIGINT, SqlExpr.Reason.DIALECT);
-            }
-            if (e instanceof SqlExpr.Cast c && c.reason() == SqlExpr.Reason.USER
-                    && c.target() == com.legend.sql.SqlType.Scalar.DOUBLE
-                    && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
-                    && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR) {
-                return new SqlExpr.Cast(c.value(), com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
-            }
-            return e;
-        }
-    }
+    // (F31's pass, the unguarded parses: a parse written as upstream's plain cast in every edge plan. Gone 2026-11-26,
+    // the edition program's step 5: the plain cast is a row of legend-engine's table, EngineTable -- inside a store
+    // query alone -- and PCT's legend-pure run and a host-side let keep the product's checked parse.)
 
     /** The edge's pass after {@link PurePrintForms}: a {@link SqlFn#CELL_TEXT} no join read (a TDS cell's
      *  {@code toString}), legend-engine's {@code TDSNull} where the cell is empty (D1.3, 2026-11-15: until then the

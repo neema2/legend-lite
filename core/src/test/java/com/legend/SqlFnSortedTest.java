@@ -69,7 +69,12 @@ class SqlFnSortedTest {
     static final Set<String> PRODUCT = Set.of(
             "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
-            "BIT_XOR", "BOOL_TO_TEXT", "CBRT", "CEILING", "CELL_TEXT", "CHR", "COALESCE", "CONCAT", "CONCAT_JOIN",
+            "BIT_XOR", "BOOL_TO_TEXT",
+            // CAST_INT, CAST_FLOAT (2026-11-26, the edition program's step 5): the database's own cast of a text, written
+            // by the lowering's named rules for the plain parses (NamedRules, which a door's table names) -- product
+            // code alone writes them: PRODUCT, by the user's standing rule of 2026-11-23 (dated here and reported)
+            "CAST_FLOAT", "CAST_INT",
+            "CBRT", "CEILING", "CELL_TEXT", "CHR", "COALESCE", "CONCAT", "CONCAT_JOIN",
             "CONCAT_WS", "COS", "COSH", "COT", "CURRENT_USER_FN", "DATETIME_CANON_TEXT", "DATETIME_TO_TEXT",
             "DATE_AT_TIME", "DATE_DIFF", "DATE_TRUNC", "DATE_TRUNC_DAY", "DAYNAME", "DECIMAL_TO_TEXT",
             "DECODE_BASE64", "DEGREES", "DIVIDE", "ENCODE_BASE64", "ENDS_WITH", "EPOCH_MS", "EPOCH_NS",

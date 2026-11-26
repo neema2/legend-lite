@@ -49,5 +49,14 @@ public enum NamedRule {
     /** A value read as the target database's DECIMAL with no precision written ({@code SqlFn.DECIMAL_RAW}): the
      *  database's own default precision and scale -- three places on DuckDB, none on H2, where 3.8 is 4. Not the
      *  product's {@code toDecimal}, which keeps the value's own digits. */
-    CAST_TO_BARE_DECIMAL
+    CAST_TO_BARE_DECIMAL,
+
+    /** A text read as an Integer by the target database's own cast ({@code SqlFn.CAST_INT}), its refusal the
+     *  database's own conversion error. Not the product's {@code parseInteger}, which checks the text against Pure's
+     *  grammar first and raises lite's own error. */
+    TEXT_CAST_TO_INTEGER,
+
+    /** A text read as a Float by the target database's own cast ({@code SqlFn.CAST_FLOAT}), its refusal the
+     *  database's own conversion error. Not the product's {@code parseFloat}, which checks the text first. */
+    TEXT_CAST_TO_FLOAT
 }

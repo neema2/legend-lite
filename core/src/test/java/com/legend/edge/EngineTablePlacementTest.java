@@ -346,6 +346,7 @@ class EngineTablePlacementTest {
                 "$r.NAME->toOne()->substr(1)", "$r.NAME->toOne()->substr(1, 3)", "$r.NAME->toOne()->indexOf('o')",
                 "($r.ID->toOne() / 3)->round()", "($r.ID->toOne() / 3)->round(1)",
                 "$r.ID->toOne()->toDecimal()->round(1)", "($r.ID->toOne() / 3)->toDecimal()",
+                "$r.NAME->toOne()->parseInteger()", "$r.NAME->toOne()->parseFloat()",
                 "[]->cast(@Integer)->toOne()")) {
             String store = "|" + TABLE + "->extend(~a: r|" + call + ")->from(t::RT)";
             assertNotEquals(asWritten(store), engines(store), store);
@@ -367,6 +368,24 @@ class EngineTablePlacementTest {
                 Compiler.compileModel(UNCHECKED),
                 "|" + TABLE + "->extend(~a: r|($r.ID->toOne() / 3)->round())->from(t::RT)", "t::RT"));
         assertTrue(refused.getMessage().contains("legend-engine's answer for round/1"), refused.getMessage());
+    }
+
+    /** The plain parses are rows that answer on every database (register S424; 2026-11-26): inside a store query the
+     *  database's own cast, with no check of the text; in a host-side let, which legend-engine's own Java computes,
+     *  the checked parse; and on a database whose other rows are not yet checked, the cast all the same -- the cast
+     *  is legend-engine's on each by what it writes. */
+    @Test
+    void thePlainParsesAreTheDatabasesOwnCastInsideAStoreQuery_onEveryDatabase() {
+        ModelContext unchecked = Compiler.compileModel(UNCHECKED);
+        for (String parse : List.of("parseInteger()", "parseFloat()")) {
+            String store = "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->" + parse + ")->from(t::RT)";
+            assertNotEquals(asWritten(store), engines(store), store);
+            assertFalse(engines(store).contains("LG#"), engines(store));
+            assertTrue(asWritten(store).contains("LG#"), asWritten(store));
+            String host = "{|let x = '12'->" + parse + "; " + TABLE + "->filter(r|$r.ID > $x)->from(t::RT);}";
+            assertEquals(asWritten(host), engines(host), host);
+            assertFalse(engines(unchecked, store, "t::RT").contains("LG#"), store);
+        }
     }
 
     /** A check legend-engine's SQL does not write (a zero divisor's) is written where legend-engine's own Java runs the
