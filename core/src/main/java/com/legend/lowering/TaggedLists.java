@@ -315,6 +315,39 @@ final class TaggedLists {
     }
 
     /**
+     * The positions a list holds, any ORDERING of them undone. A root returns its rows in the list's order by its
+     * own ORDER BY (an unnest promises none), never in the positions array's order, so the ordered copy a sort or a
+     * reverse built need not be written for it: the positions the sort read are the same members (slice 6.2,
+     * measured 2026-11-26: a sorted mixed list returned as the answer carried its sort twice, once to order the
+     * positions and once to order the rows). Only the two shapes this class builds are read back ({@link #sort},
+     * {@link #reverse}), each checked in full; any other positions are returned as they are.
+     */
+    private static SqlExpr members(SqlExpr positions) {
+        if (positions instanceof SqlExpr.Call c && c.fn() == SqlFn.LIST_REVERSE && c.args().size() == 1) {
+            return members(c.args().get(0));
+        }
+        if (!(positions instanceof SqlExpr.ScalarSubquery q) || !(q.subquery() instanceof SqlSelect listed)
+                || listed.projections().size() != 1 || listed.where() != null
+                || !(listed.projections().get(0).expr() instanceof SqlExpr.OrderedListAgg agg)
+                || !(agg.value() instanceof SqlExpr.Column listedPosition) || !listedPosition.name().equals("p")) {
+            return positions;
+        }
+        // sort's own selects, down to SELECT UNNEST(positions) AS p; the windowed form has one select between
+        SqlSource from = listed.from();
+        for (int depth = 0; depth < 2 && from instanceof SqlSource.Subselect sub
+                && sub.inner() instanceof SqlSelect inner && inner.where() == null; depth++) {
+            if (inner.from() instanceof SqlSource.Dual && inner.projections().size() == 1
+                    && "p".equals(inner.projections().get(0).alias())
+                    && inner.projections().get(0).expr() instanceof SqlExpr.Call unnest
+                    && unnest.fn() == SqlFn.UNNEST && unnest.args().size() == 1) {
+                return members(unnest.args().get(0));
+            }
+            from = inner.from();
+        }
+        return positions;
+    }
+
+    /**
      * The tie-break of EQUAL NUMBERS OF DIFFERENT TYPES in a mixed list's order (the equality rule's run-time
      * reading, the user's ruling of 2026-11-25: among equal magnitudes Integer, then Float, then Decimal; slice 6.2
      * of the edition program's step 6): {@code 3} and {@code 3.0} are two values, so a sort puts them in one order
@@ -851,8 +884,10 @@ final class TaggedLists {
                     null, List.of(new SqlSelect.SortKey(cell.apply(SqlExpr.TaggedList.ROW_POSITION), true, null,
                             null)), null, null, List.of());
         }
+        // the positions as MEMBERS: the rows are ordered below by the list's order, so a sort's or a reverse's ordered
+        // copy of them is not written (members)
         SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(
-                SqlExpr.Call.of(SqlFn.UNNEST, tl.positions()), "__p",
+                SqlExpr.Call.of(SqlFn.UNNEST, members(tl.positions())), "__p",
                 new OutputCol("__p", SqlType.Scalar.INTEGER, false))),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
         SqlExpr p = SqlExpr.Column.of(alias, "__p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
