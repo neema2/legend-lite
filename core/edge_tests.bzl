@@ -93,9 +93,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/InCollectionSpliceRefusalTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureComparisonsTest.java",
-    "src/test/java/com/legend/edge/PureMeaningCheckTest.java",
-    "src/test/java/com/legend/edge/EngineTableShadowTest.java",
-    "src/test/java/com/legend/edge/PureMeaningRewriteTest.java",
+    "src/test/java/com/legend/edge/EngineTablePlacementTest.java",
     "src/test/java/com/legend/edge/PureMeaningEngineTest.java",
     # the edge's words of a raise site from its record (stage B's B1, 2026-11-20)
     "src/test/java/com/legend/edge/PureMessagesWordedTest.java",

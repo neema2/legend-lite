@@ -386,9 +386,10 @@ public final class Pure {
 
         // -- INTERNAL DESUGAR IR (invention audit 2026-08-14, per-name
         // verified against both upstream repos): emitted by lite's
-        // normalizer/lowering -- or, for substringAsGiven alone, by the
-        // legend-engine door's engine rewrite (A3, 2026-11-19, its one
-        // producer: native-claims.tsv's row names it) -- no upstream
+        // normalizer/lowering -- or, for substringAsGiven and
+        // substrAsGiven, named by legend-engine's door's edition table
+        // alone (A3, 2026-11-19; the table since 2026-11-25:
+        // native-claims.tsv's rows name it) -- no upstream
         // counterpart — legacy-mapping
         // semantics, declared-type shims, and arity-disambiguating
         // renames of engine dynaFns (parseDate etc. with a format
@@ -467,7 +468,8 @@ public final class Pure {
          *  databases that read it otherwise); this one is {@code SqlFn.SUBSTRING_AS_GIVEN}, which every dialect
          *  writes as its plain SUBSTRING and no pass rewrites. It is legend-engine's answer by definition (its
          *  {@code processSubstring} writes the dynaFunction with Pure's arguments as given, uncorrected), so the
-         *  legend-engine door's {@code engine} rewrite is its one producer: no frontend writes it, and a user cannot
+         *  legend-engine door's edition table alone names it (a rewrite of the typed query until 2026-11-25): no
+         *  frontend writes it, and a user cannot
          *  name it (a user-callable function whose answer is each database's own reading would make lite's programs
          *  answer differently per database). docs/records/compat-homework/A3-engine-rewrite-design.md. */
         public static final String SUBSTRING_AS_GIVEN = PKG + "substringAsGiven";
@@ -478,8 +480,8 @@ public final class Pure {
          *  processSubstr ({@code pureToSQLQuery.pure:4654-4690}), which it sends for Pure's {@code substr} and for
          *  {@code substring} under {@code CORRECT_SQL_SUBSTRING_INDEXING}. In range that is Pure's answer; out of range
          *  it is the database's own cut-short reading, where Pure's {@code substr} raises (S383). Written as
-         *  {@code SqlFn.SUBSTRING_AS_GIVEN}, as {@link #SUBSTRING_AS_GIVEN} is, so no pass rewrites it. Its one producer
-         *  is the legend-engine door's {@code engine} rewrite, and a user cannot name it, for
+         *  {@code SqlFn.SUBSTRING_AS_GIVEN}, as {@link #SUBSTRING_AS_GIVEN} is, so no pass rewrites it. The legend-engine
+         *  door's edition table alone names it, and a user cannot name it, for
          *  {@link #SUBSTRING_AS_GIVEN}'s reason. docs/records/compat-homework/A3-engine-rewrite-design.md §9. */
         public static final String SUBSTR_AS_GIVEN = PKG + "substrAsGiven";
         /** SQL's POSITION, by name (A3, as {@link #SQL_SUBSTRING}): {@code sqlPosition(s, t)} is where {@code t}

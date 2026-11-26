@@ -30,12 +30,12 @@ public final class PureText {
     private static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
 
     /** THE DATABASES ON WHICH LEGEND-ENGINE'S {@code substring}, {@code indexOf} AND {@code substr} ARE CHECKED (A3: the
-     *  door's rewrite, {@link PureMeaningRewrite}; the user's ruling of 2026-11-20 ~07:55, "Delete the settings, make
+     *  door's table, {@link EngineTable}; the user's ruling of 2026-11-20 ~07:55, "Delete the settings, make
      *  engine only mode for engine for everything", claude/compat-program 25ede64f §1). legend-engine sends those calls
      *  to the database as written, and the database's own functions decide, so its answer is checked per database:
      *  H2 and DuckDB, by the batteries (pct/batteries/agreement_engine_*.tsv, each answer legend-engine's but the
      *  3-argument {@code indexOf}, which legend-engine refuses: E-R2). On any other database a query holding such a
-     *  call is refused by name until it is checked (stage B's warm sessions); the rewrite names no database. */
+     *  call is refused by name until it is checked (the database lanes); the table's rows name no database. */
     private static final java.util.Set<DatabaseType> CHECKED = java.util.Set.of(DatabaseType.H2, DatabaseType.DuckDB);
 
     /** Whether legend-engine's answer for the door's rewritten calls is checked on {@code target} ({@link #CHECKED});
@@ -178,14 +178,11 @@ public final class PureText {
                     com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,
                     com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, com.legend.sql.RaiseKind.TEXT_NOT_DATE));
 
-    /** THE STAMP'S PROBE (the edition program's step 2a; temporary, never landed): {@code -Dlegend.probe.stamp=true}
-     *  hands pure/v1 legend-engine's table ({@link EngineTable}) and skips the A3 rewrite
-     *  ({@link PureV1Routes#checkMeaning}). */
-    static final boolean STAMP_PROBE = Boolean.getBoolean("legend.probe.stamp");
-
     /** THE PURE/V1 ROUTE'S STYLE (B7, the user's ruling of 2026-11-17: pure/v1 matches legend-engine): {@link #UPSTREAM}
      *  in every dialect and facet, but a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain
-     *  operation, the database's own error passing through. Handed by the pure/v1 routes alone ({@link PureV1Routes},
+     *  operation, the database's own error passing through, and the lowering is handed legend-engine's table
+     *  ({@link EngineTable}; the edition program's step 2, 2026-11-25: the table and the planner's stamp took the place
+     *  of the door's rewrite of the typed query). Handed by the pure/v1 routes alone ({@link PureV1Routes},
      *  {@link EdgeServer#runner}); PCT and the corpus keep {@link #UPSTREAM}. */
     public static final PlanStyle PURE_V1 = new PlanStyle() {
         @Override
@@ -227,17 +224,16 @@ public final class PureText {
             return UPSTREAM.facet(kind, refusal);
         }
 
-        /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its plain raises alone (B7; the lowering's
-         *  two-form choices since the audit's K5, 2026-11-17). */
+        /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its plain raises (B7; the lowering's
+         *  two-form choices since the audit's K5, 2026-11-17) and in its edition table, legend-engine's. */
         @Override
         public <F> F twoForm(Class<F> kind, F productForm) {
             if (kind == com.legend.lowering.LoweringForms.class) {
                 java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
                 return kind.cast(EdgeLoweringForms.PURE_V1);
             }
-            if (kind == com.legend.lowering.EditionTable.class && STAMP_PROBE) {
-                // THE STAMP'S PROBE (the edition program's step 2a; temporary, never landed): legend-engine's table in
-                // place of the A3 rewrite, so A3's own tests and pure/v1's answers judge the stamp
+            if (kind == com.legend.lowering.EditionTable.class) {
+                java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
                 return kind.cast(EngineTable.INSTANCE);
             }
             return UPSTREAM.twoForm(kind, productForm);

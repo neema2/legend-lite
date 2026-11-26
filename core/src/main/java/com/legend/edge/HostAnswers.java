@@ -420,7 +420,7 @@ public final class HostAnswers {
         com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
         String runtime = runtimeOf(request, query);
         // legend-engine's meaning at this door too, as at pure/v1's execute (B3 step 5a's review, M2, 2026-11-25)
-        return new Hosted(PureV1Routes.checkMeaning(query, ctx, runtime, null), runtime);
+        return new Hosted(PureV1Routes.asLegendEngine(query), runtime);
     }
 
     /** The TDS builder (moved from server.LiteV1Api, the P2 checkpoint audit's S5, 2026-11-16: legend-engine's

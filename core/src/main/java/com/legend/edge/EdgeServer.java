@@ -27,7 +27,7 @@ public final class EdgeServer {
     static final String QUERY_STORE = "/api/pure/v1/query";
 
     /** legend-engine's API, mounted beside lite's own routes. Its routes answer legend-engine's meaning, with no setting
-     *  (the user's ruling of 2026-11-20 ~07:55: {@link PureV1Routes#checkMeaning}). */
+     *  (the user's ruling of 2026-11-20 ~07:55: {@link PureV1Routes#asLegendEngine}). */
     public static final LegendHttpServer.Mount UPSTREAM = context -> List.of(
             pureV1(runner(context.sources())),
             engineShaped(LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(),

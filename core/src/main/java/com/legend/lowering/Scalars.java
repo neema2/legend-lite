@@ -1502,14 +1502,14 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SQL_POSITION) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.STRPOS, args));
         }
-        // THE DATABASE'S OWN SUBSTRING, OVER THE ARGUMENTS AS GIVEN (A3, the engine rewrite's operation, 2026-11-19):
+        // THE DATABASE'S OWN SUBSTRING, OVER THE ARGUMENTS AS GIVEN (A3, 2026-11-19; a row of legend-engine's edition table):
         // substringAsGiven is the one call no pass rewrites (SqlFn.SUBSTRING_AS_GIVEN; SubstringClamp matches SUBSTRING
         // alone), so the database's SUBSTRING answers the arguments as they are -- legend-engine's answer by definition
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, args));
         }
-        // THE DATABASE'S OWN SUBSTRING OVER PURE'S INDEXES, CORRECTED AS LEGEND-ENGINE CORRECTS THEM (A3, the engine
-        // rewrite's substitute for substr and the corrected substring, 2026-11-20; the user's word ~07:45, "Okay 1"):
+        // THE DATABASE'S OWN SUBSTRING OVER PURE'S INDEXES, CORRECTED AS LEGEND-ENGINE CORRECTS THEM (A3, legend-engine's
+        // edition table's row for substr and the corrected substring, 2026-11-20; the user's word ~07:45, "Okay 1"):
         // substrAsGiven(s, start[, end]) is SUBSTRING_AS_GIVEN over start + 1 and end - start, legend-engine's
         // processSubstr, with no range check; the positions are SQL arithmetic the database computes, a literal index
         // included (no fold here), and no pass rewrites the call

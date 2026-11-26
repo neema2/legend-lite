@@ -408,18 +408,16 @@ public final class TestDataRoutes {
 
     /** The seed of the request's query, lowered on its runtime through its mapping, whatever mappings the runtime
      *  declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function with the given
-     *  mapping). The seed's query is the one whose meaning chooses the keys, so each call the detector flags in it is
-     *  rewritten to legend-engine's meaning before it is lowered, or the request is refused by name
-     *  ({@link PureV1Routes#checkMeaning}; the user's ruling of 2026-11-20 ~07:55). The routes' other queries choose no
-     *  row by a call's value: generateTestData_WithSeed's rows are the identifiers'. */
+     *  mapping). The seed's query is the one whose meaning chooses the keys, so it is planned as every query of this
+     *  door is, with legend-engine's meaning, or refused by name ({@link PureV1Routes#asLegendEngine}, in the door's
+     *  style; the user's ruling of 2026-11-20 ~07:55). The routes' other queries choose no row by a call's value:
+     *  generateTestData_WithSeed's rows are the identifiers'. */
     private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot) {
         return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> {
             com.legend.TypedQuery typed = com.legend.Compiler.query(ctx,
                     TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery));
-            // (the stamp's probe, temporary: the seed planned in the door's style, the table in the rewrite's place)
-            return com.legend.planner.ProductStatements.lowerTestDataSeed(
-                    PureV1Routes.checkMeaning(typed, ctx, r.runtime(), r.mapping()), r.runtime(),
-                    PureText.STAMP_PROBE ? PureText.PURE_V1 : com.legend.database.PlanStyle.PRODUCT);
+            return com.legend.planner.ProductStatements.lowerTestDataSeed(PureV1Routes.asLegendEngine(typed),
+                    r.runtime(), PureText.PURE_V1);
         });
     }
 

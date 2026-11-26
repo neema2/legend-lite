@@ -20,8 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * {@code generateTestData_WithSeed} ON A DATABASE WHERE LEGEND-ENGINE'S ANSWER IS NOT YET CHECKED (the reviewer's should
  * on 67fa4df51; the door's rule since the user's ruling of 2026-11-20 ~07:55). That route's rows are the identifiers'
- * a request names, so no call in its query chooses one, and the door does not refuse a flagged call there (the seed
- * routes, whose rows a call does choose, rewrite their seed or refuse by name: {@code PureMeaningCheckTest}). Run on the
+ * a request names, so no call in its query chooses one, and the door does not refuse there (the route plans no seed;
+ * the seed routes, whose rows a call does choose, plan theirs with legend-engine's meaning or refuse by name:
+ * {@code PureMeaningEngineTest}). Run on the
  * embedded Postgres 16, a database not yet checked, as an unprivileged user ({@code --run_under}, docs/CLOUD_SESSIONS.md):
  * the same request with a flagged call answers the same CSV as without it, byte for byte, and names the identifiers'
  * row. The table is one every Postgres database holds, {@code information_schema.schemata}, so the test writes nothing:

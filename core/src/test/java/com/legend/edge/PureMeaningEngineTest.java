@@ -14,26 +14,27 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * LEGEND-ENGINE'S MEANING THROUGH EACH ROUTE THAT RUNS A QUERY, RUN (A3's engine rewrite; the user's ruling of
- * 2026-11-20 ~07:55, "Delete the settings, make engine only mode for engine for everything", claude/compat-program
- * 25ede64f §1: the door always rewrites, with no setting). Each request is planned and run by the edge's own runner on
- * the connection's declared test data (H2): the answer is legend-engine's (the database's own SUBSTRING and position
- * over the arguments as given, or over legend-engine's corrected positions for {@code substr}), and the runner is handed
- * the rewritten query (the natives found by FunctionId, no Pure {@code substring}, {@code substr} or 2-argument
- * {@code indexOf} left in it). On a database where legend-engine's answer is not yet checked, the request is refused by
- * name; a statement that is not store-bound keeps legend-pure's meaning, as legend-engine computes it on the host.
+ * LEGEND-ENGINE'S MEANING THROUGH EACH ROUTE THAT RUNS A QUERY, RUN (the user's ruling of 2026-11-20 ~07:55, "Delete the
+ * settings, make engine only mode for engine for everything", claude/compat-program 25ede64f §1: the door always answers
+ * legend-engine's meaning, with no setting). Each request is planned and run by the edge's own runner on the
+ * connection's declared test data (H2): the answer is legend-engine's (the database's own SUBSTRING and position over
+ * the arguments as given, or over legend-engine's corrected positions for {@code substr}). On a database where
+ * legend-engine's answer is not yet checked, the request is refused by name while it is planned, before anything is
+ * sent; a statement that is not store-bound keeps legend-pure's meaning, as legend-engine computes it on the host.
+ * Where each call is placed is {@code EngineTablePlacementTest}'s; since the edition program's step 2 (2026-11-25) the
+ * lowering's table decides it ({@link EngineTable}), and the query the runner is handed is the query as written.
  */
 class PureMeaningEngineTest {
 
-    /** {@link PureMeaningCheckTest#MODEL} with four rows declared on its H2 connection: 'abcdef' (SQL's
+    /** {@link EngineTablePlacementTest#MODEL} with four rows declared on its H2 connection: 'abcdef' (SQL's
      *  {@code substring(1, 3)} is 'abc', Pure's 'bc'), 'xoxo' (SQL's {@code indexOf('o')} is 2, Pure's 1), 'abc' and
      *  'ab' (past the end of (1, 3) and (0, 3)). */
-    static final String MODEL = PureMeaningCheckTest.MODEL.replace("specification: LocalH2 { };",
+    static final String MODEL = EngineTablePlacementTest.MODEL.replace("specification: LocalH2 { };",
             "specification: LocalH2 { testDataSetupCSV: 'default\\nPERSON\\nID,NAME,CODE\\n1,abcdef,a\\n2,xoxo,b\\n3,abc,c\\n4,ab,d\\n'; };");
 
     private static final LiteV1Api.Runner EDGE = EdgeServer.runner(null);
 
-    /** The edge's runner, recording each query it is handed: what the route planned and ran. */
+    /** The edge's runner, counting the queries it is handed. */
     private static final class Recording implements LiteV1Api.Runner {
         final java.util.List<com.legend.TypedQuery> handed = new java.util.ArrayList<>();
 
@@ -45,31 +46,14 @@ class PureMeaningEngineTest {
         }
     }
 
-    /** The natives the query's typed body calls, by FunctionId: the rewritten calls are the core's, and no String
-     *  {@code substring} or 2-argument {@code indexOf} is left. */
-    private static void assertRewritten(com.legend.TypedQuery q) {
-        java.util.List<com.legend.model.FunctionId> ids = new java.util.ArrayList<>();
-        for (com.legend.compiler.spec.typed.TypedSpec s : q.body()) {
-            natives(s, ids);
-        }
-        assertTrue(ids.stream().anyMatch(id -> com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN.contains(id)
-                || com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN.contains(id)), ids.toString());
-        assertTrue(ids.stream().noneMatch(com.legend.builtin.Pure.AT_STRING_SUBSTRING::contains), ids.toString());
-        assertTrue(ids.stream().noneMatch(com.legend.builtin.Pure.AT_STRING_SUBSTR::contains), ids.toString());
-        assertTrue(ids.stream().noneMatch(com.legend.model.FunctionId.of(
-                com.legend.builtin.Pure.INDEX_OF__STRING_1__STRING_1)::equals), ids.toString());
-    }
+    /** A runner that plans as the edge's does ({@link EdgeServer#runner}: planned in the door's style, then run) and
+     *  must never get as far as running: a refusal is raised while the request is planned, before anything is sent. */
+    private static final LiteV1Api.Runner PLANS_AND_NEVER_RUNS = (query, runtime, output) -> {
+        query.executionPlan(runtime, java.util.Set.of(), PureText.PURE_V1);
+        throw new AssertionError("a refused request is never run");
+    };
 
-    private static void natives(com.legend.compiler.spec.typed.TypedSpec n, java.util.List<com.legend.model.FunctionId> ids) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc) {
-            ids.add(nc.callee().id());
-        }
-        for (com.legend.compiler.spec.typed.TypedSpec c : n.children()) {
-            natives(c, ids);
-        }
-    }
-
-    private static final String QUERY = "|" + PureMeaningCheckTest.TABLE + "->sort(~ID->ascending())"
+    private static final String QUERY = "|" + EngineTablePlacementTest.TABLE + "->sort(~ID->ascending())"
             + "->extend(~[a: r|$r.NAME->toOne()->substring(1, 3), b: r|$r.NAME->toOne()->indexOf('o')])"
             + "->select(~[a, b])->from(t::RT)";
 
@@ -95,59 +79,58 @@ class PureMeaningEngineTest {
     }
 
     /** The model on a database where a start of 0 differs (its plan read, never run here). */
-    private static final String ZERO_START = PureMeaningCheckTest.MODEL.replace(
+    private static final String ZERO_START = EngineTablePlacementTest.MODEL.replace(
             "type: H2; specification: LocalH2 { }; auth: DefaultH2;", "type: DuckDB; specification: DuckDB { }; auth: Test;");
 
-    /** Lite's own plan of {@code query} as written, legend-pure's meaning: what the door's rewrite is not. */
+    /** Lite's own plan of {@code query} as written, legend-pure's meaning, in legend-pure's door's style: what this
+     *  door's plan is not. */
     private static String puresPlan(String model, String query) {
         return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query)
-                .plan("t::RT", PureText.PURE_V1).sql().toLowerCase(java.util.Locale.ROOT);
+                .plan("t::RT", PureText.UPSTREAM).sql().toLowerCase(java.util.Locale.ROOT);
     }
 
     @Test
-    void executeAnswersLegendEnginesMeaning_runningTheRewrittenQuery() {
+    void executeAnswersLegendEnginesMeaning() {
         Recording run = new Recording();
         LiteV1Api.Answer a = execute(QUERY, run);
         assertEquals(200, a.status(), a.json());
         assertTrue(a.json().contains("[\"abc\",0]") && a.json().contains("[\"xox\",2]"), a.json());
         assertEquals(1, run.handed.size());
-        assertRewritten(run.handed.get(0));
     }
 
     @Test
-    void executeAsArrowAnswersLegendEnginesMeaning_runningTheRewrittenQuery() {
+    void executeAsArrowAnswersLegendEnginesMeaning() {
         Recording run = new Recording();
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
                 body(QUERY), run, LiteV1Api.Models.COMPILED);
         assertEquals(200, a.status(), a.json());
         assertEquals("FormatNotSet", a.headers().get("x-legend-response-format"));
         assertEquals(1, run.handed.size());
-        assertRewritten(run.handed.get(0));
     }
 
+    /** generatePlan plans legend-engine's meaning: its SQL is not lite's own plan of the query as written. */
     @Test
-    void generatePlanPlansTheRewrittenQuery() {
+    void generatePlanPlansLegendEnginesMeaning() {
         LiteV1Api.Answer a = route("/api/pure/v1/execution/generatePlan", null, body(QUERY));
         assertEquals(200, a.status(), a.json());
         assertTrue(a.json().contains("rootExecutionNode"), a.json());
+        String sql = planSql(MODEL, QUERY).toLowerCase(java.util.Locale.ROOT);
+        assertTrue(sql.contains("substr(\"t0\".name, 1, 3)") && sql.contains("locate('o', \"t0\".name)"), sql);
+        assertFalse(puresPlan(MODEL, QUERY).contains("substr(\"t0\".name, 1, 3)"));
     }
 
     /** A graph fetch's qualified property: legend-engine computes it in the database (asked of legend-engine 4.145.0,
-     *  E-M1: {@code deskPart()} answers SQL's 'Cre' on H2 and DuckDB), and the detector flags it. The store resolver
-     *  reaches a graph tree's properties after the body exists (the inliner does not), so it is refused by name, as an
-     *  M2M chain's transforms are, never answered with another meaning. */
+     *  E-M1: {@code deskPart()}, a {@code substring}, answers SQL's 'Cre' on H2 and DuckDB). The lowering asks the table
+     *  for a graph tree's properties as for any call, so it answers the database's meaning: for 'abcdef',
+     *  {@code substring(1, 2)} is 'ab' (legend-pure's 'b') and {@code indexOf('c')} is 3 (legend-pure's 2). Until the
+     *  edition program's step 2 the door refused this by name (its rewrite could not reach a graph tree's properties). */
     @Test
-    void aGraphFetchsQualifiedPropertyIsRefusedByName() {
+    void aGraphFetchsQualifiedProperty_legendEnginesAnswer() {
         String graph = "|t::Person.all()->filter(p|$p.name == 'abcdef')->graphFetch(#{t::Person{name,initials,firstC}}#)"
                 + "->serialize(#{t::Person{name,initials,firstC}}#)->from(t::M, t::RT)";
-        LiteV1Api.Runner never = (query, runtime, output) -> {
-            throw new AssertionError("a refused request is never run");
-        };
-        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(graph), never,
-                LiteV1Api.Models.COMPILED);
-        assertEquals(500, a.status(), a.json());
-        assertTrue(a.json().contains("t::Person$prop$initials") && a.json().contains("cannot be rewritten at this door"),
-                a.json());
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body(graph));
+        assertEquals(200, a.status(), a.json());
+        assertTrue(a.json().contains("\"initials()\":\"ab\"") && a.json().contains("\"firstC()\":3"), a.json());
     }
 
     // ---- the class shapes lite serves (the compat owner's ~22:37, the reviewer's a9e827e2e): each asserts
@@ -259,13 +242,13 @@ class PureMeaningEngineTest {
         assertTrue(a.json().contains("abcdef"), a.json());
     }
 
-    /** The seed rewritten on the second database (the reviewer's E-S2): a 3-argument {@code substring} with a literal
+    /** The seed on the second database (the reviewer's E-S2): a 3-argument {@code substring} with a literal
      *  start of 0, which that database's literal-0 exemption never covered. The test asserts the SQL of the seed
      *  statement the route hands its runner, planned there, never run: it holds the database's own
-     *  {@code substr('abcdef', 0, 3)} (whose answer is 'ab', as legend-engine's would be). A seed lowered unrewritten
-     *  (plant W2') plans lite's own range-checked call instead. */
+     *  {@code substr('abcdef', 0, 3)} (whose answer is 'ab', as legend-engine's would be). A seed lowered in the
+     *  product's style (plant W2') plans lite's own range-checked call instead. */
     @Test
-    void theSeedIsRewritten_whereAStartOfZeroDiffers() {
+    void theSeedIsLegendEngines_whereAStartOfZeroDiffers() {
         String seeded = "|t::Person.all()->filter(p|$p.name == 'abcdef'->substring(0, 3))->project([p|$p.name], ['n'])";
         java.util.List<String> sql = new java.util.ArrayList<>();
         LiteV1Api.Runner planOnly = (query, runtime, output) -> sql.add(query.plan(runtime, PureText.PURE_V1).sql());
@@ -290,17 +273,15 @@ class PureMeaningEngineTest {
             + "{\"values\": [\"bc\"]},{\"values\": [\"b\"]}";
 
     private static String cut(String call) {
-        return "|" + PureMeaningCheckTest.TABLE + "->sort(~ID->ascending())->extend(~a: r|$r.NAME->toOne()->" + call
+        return "|" + EngineTablePlacementTest.TABLE + "->sort(~ID->ascending())->extend(~a: r|$r.NAME->toOne()->" + call
                 + ")->select(~[a])->from(t::RT)";
     }
 
-    /** legend-engine's answer for every row, run with the rewritten query. */
+    /** legend-engine's answer for every row. */
     private static void legendEngines(String query, String rows) {
-        Recording run = new Recording();
-        LiteV1Api.Answer a = execute(query, run);
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body(query));
         assertEquals(200, a.status(), a.json());
         assertTrue(a.json().contains(rows), a.json());
-        assertRewritten(run.handed.get(0));
     }
 
     @Test
@@ -313,10 +294,10 @@ class PureMeaningEngineTest {
         legendEngines(cut("substring(1, 3)") + CORRECTED, PAST_THE_END);
     }
 
-    /** The reviewer's M-a1: a literal-0 start is rewritten too, in both forms; 'ab'->substring(0, 3) is 'ab', legend-engine's
+    /** The reviewer's M-a1: a literal-0 start is legend-engine's too, in both forms; 'ab'->substring(0, 3) is 'ab', legend-engine's
      *  answer ('abcdef'->substring(0, 9) is 'abcdef' in legend-engine's SQL), where lite's own raises. */
     @Test
-    void aLiteralZeroStartPastTheEnd_isRewritten() {
+    void aLiteralZeroStartPastTheEnd_legendEnginesAnswer() {
         legendEngines(cut("substring(0, 3)"), "{\"values\": [\"abc\"]},{\"values\": [\"xox\"]},"
                 + "{\"values\": [\"abc\"]},{\"values\": [\"ab\"]}");
         legendEngines(cut("substring(0)"), "{\"values\": [\"abcdef\"]},{\"values\": [\"xoxo\"]},"
@@ -345,37 +326,27 @@ class PureMeaningEngineTest {
 
     // ---- toOne of an operand that is always empty (register S384) ---------------------------------------------------
 
-    private static final String TO_ONE_OF_EMPTY = "|" + PureMeaningCheckTest.TABLE + "->sort(~ID->ascending())->limit(1)"
+    private static final String TO_ONE_OF_EMPTY = "|" + EngineTablePlacementTest.TABLE + "->sort(~ID->ascending())->limit(1)"
             + "->extend(~o: r|[]->cast(@Integer)->toOne())->select(~[o])->from(t::RT)";
 
     /** legend-engine's null (asked of legend-engine 4.145.0 on H2 and DuckDB: {@code select null as "o"}, the oracle's
-     *  {@code raise.toOneOfEmpty}), run with the rewritten query: trustOne, the core's toOne with no check, in toOne's
-     *  place. Lite's own plan of the query as written raises legend-pure's size error. */
+     *  {@code raise.toOneOfEmpty}): the table's row lowers it with no check (trustOne's rule, legend-engine's
+     *  processNoOp). Lite's own plan of the query as written raises legend-pure's size error. */
     @Test
     void aToOneOfEmpty_legendEnginesNull() {
-        Recording run = new Recording();
-        LiteV1Api.Answer a = execute(TO_ONE_OF_EMPTY, run);
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body(TO_ONE_OF_EMPTY));
         assertEquals(200, a.status(), a.json());
         assertTrue(a.json().contains("\"rows\" : [{\"values\": [null]}]"), a.json());
-        java.util.List<com.legend.model.FunctionId> ids = new java.util.ArrayList<>();
-        for (com.legend.compiler.spec.typed.TypedSpec s : run.handed.get(0).body()) {
-            natives(s, ids);
-        }
-        assertTrue(ids.stream().anyMatch(com.legend.builtin.Pure.AT_LEGEND_LITE_TRUST_ONE::contains), ids.toString());
-        assertTrue(ids.stream().noneMatch(com.legend.model.FunctionId.of(com.legend.builtin.Pure.TO_ONE__T_MANY)::equals),
-                ids.toString());
         // lite's own plan raises at a planned site (its marker, LG#n)
         assertTrue(puresPlan(MODEL, TO_ONE_OF_EMPTY).contains("lg#"), puresPlan(MODEL, TO_ONE_OF_EMPTY));
     }
 
-    /** On a database where legend-engine's answer is not yet checked, refused by name, as every flagged call is. */
+    /** On a database where legend-engine's answer is not yet checked, refused by name, as every call a row answers is. */
     @Test
     void aToOneOfEmpty_onADatabaseNotYetChecked_isRefusedByName() {
-        LiteV1Api.Runner never = (query, runtime, output) -> {
-            throw new AssertionError("a refused request is never run");
-        };
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null,
-                body(PureMeaningCheckTest.UNCHECKED, TO_ONE_OF_EMPTY), never, LiteV1Api.Models.COMPILED);
+                body(EngineTablePlacementTest.UNCHECKED, TO_ONE_OF_EMPTY), PLANS_AND_NEVER_RUNS,
+                LiteV1Api.Models.COMPILED);
         assertEquals(500, a.status(), a.json());
         assertTrue(a.json().contains("toOne(empty)") && a.json().contains("is not yet checked on Postgres"), a.json());
     }
@@ -383,30 +354,90 @@ class PureMeaningEngineTest {
     // ---- a statement that is not store-bound keeps legend-pure's meaning ---------------------------------------------
 
     /** legend-engine computes a store-free let on the host, before the query, with legend-pure's meaning (H16's probe),
-     *  so the door rewrites nothing in it: 'xabc'->substring(1, 4) is legend-pure's 'abc' (SQL's would be 'xab'), and
+     *  so no row of the table applies in it: 'xabc'->substring(1, 4) is legend-pure's 'abc' (SQL's would be 'xab'), and
      *  'ab'->substring(1, 3) raises, as legend-pure's does (S383). */
     @Test
     void aStatementThatIsNotStoreBound_keepsLegendPuresMeaning_S383Included() {
         LiteV1Api.Answer pure = route("/api/pure/v1/execution/execute", null, body("{|let x = 'xabc'->substring(1, 4); "
-                + PureMeaningCheckTest.TABLE + "->filter(r|$r.NAME == $x)->select(~[NAME])->from(t::RT);}"));
+                + EngineTablePlacementTest.TABLE + "->filter(r|$r.NAME == $x)->select(~[NAME])->from(t::RT);}"));
         assertEquals(200, pure.status(), pure.json());
         assertTrue(pure.json().contains("\"rows\" : [{\"values\": [\"abc\"]}]"), pure.json());
         LiteV1Api.Answer raised = route("/api/pure/v1/execution/execute", null, body("{|let x = 'ab'->substring(1, 3); "
-                + PureMeaningCheckTest.TABLE + "->filter(r|$r.NAME == $x)->select(~[NAME])->from(t::RT);}"));
+                + EngineTablePlacementTest.TABLE + "->filter(r|$r.NAME == $x)->select(~[NAME])->from(t::RT);}"));
         assertEquals(500, raised.status(), raised.json());
         assertTrue(raised.json().contains("out of bounds"), raised.json());
     }
 
     // ---- refused by name -------------------------------------------------------------------------------------------
 
+    /** In legend-engine's envelope, naming the call and the database, never the query's text. */
     @Test
     void aDatabaseNotYetCheckedIsRefusedByName_beforeItRuns() {
-        LiteV1Api.Runner never = (query, runtime, output) -> {
-            throw new AssertionError("a refused request is never run");
-        };
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null,
-                body(PureMeaningCheckTest.UNCHECKED, QUERY), never, LiteV1Api.Models.COMPILED);
+                body(EngineTablePlacementTest.UNCHECKED, QUERY), PLANS_AND_NEVER_RUNS, LiteV1Api.Models.COMPILED);
         assertEquals(500, a.status(), a.json());
-        assertTrue(a.json().contains("is not yet checked on Postgres"), a.json());
+        Json.Obj o = Json.parseObject(a.json());
+        assertEquals("COMPILATION", o.getString("errorType"));
+        String message = o.getString("message");
+        assertTrue(message.contains("legend-engine's answer for substring/3 at 1:")
+                && message.contains("is not yet checked on Postgres"), message);
+        assertFalse(message.contains("NAME"), message);
+    }
+
+    /** A refused request sends nothing to the database, on every route whose answer a call a row answers chooses: the
+     *  refusal is raised while the request is planned (the seed routes plan their seed themselves; execute's runner
+     *  plans before it runs). The runner is the routes' one way to a session. */
+    @Test
+    void aRefusedRequestRunsNoStatement_onEveryRouteWhoseAnswerTheCallChooses() {
+        java.util.concurrent.atomic.AtomicInteger runs = new java.util.concurrent.atomic.AtomicInteger();
+        LiteV1Api.Runner counting = (query, runtime, output) -> {
+            query.executionPlan(runtime, java.util.Set.of(), PureText.PURE_V1);
+            runs.incrementAndGet();
+        };
+        String testData = testDataBody(EngineTablePlacementTest.UNCHECKED,
+                "|t::Person.all()->filter(p|$p.name == 'abcdef'->substring(1, 3))->project([p|$p.name], ['n'])", false);
+        Map<String, String> routes = new java.util.LinkedHashMap<>();
+        routes.put("/api/pure/v1/execution/execute", body(EngineTablePlacementTest.UNCHECKED, QUERY));
+        routes.put("/api/pure/v1/execution/generatePlan", body(EngineTablePlacementTest.UNCHECKED, QUERY));
+        routes.put("/api/pure/v1/execution/testDataGeneration/generateSeedData", testData);
+        routes.put("/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed", testData);
+        for (Map.Entry<String, String> route : routes.entrySet()) {
+            for (String format : java.util.Arrays.asList(null, "serializationFormat=ARROW_IPC")) {
+                LiteV1Api.Answer a = PureV1Routes.route(route.getKey(), format, route.getValue(), counting,
+                        LiteV1Api.Models.COMPILED);
+                assertEquals(500, a.status(), route.getKey() + " " + a.json());
+                assertTrue(a.json().contains("is not yet checked on Postgres"), route.getKey() + " " + a.json());
+            }
+        }
+        assertEquals(0, runs.get(), "a refused request reached a run");
+        // the partner: the same counting runner IS reached by a query no row answers, so the zero above is the refusal's
+        PureV1Routes.route("/api/pure/v1/execution/execute", null, body(EngineTablePlacementTest.UNCHECKED,
+                "|" + EngineTablePlacementTest.TABLE + "->select(~[NAME])->from(t::RT)"), counting,
+                LiteV1Api.Models.COMPILED);
+        assertEquals(1, runs.get(), "a query no row answers runs");
+    }
+
+    /** The routes that run no query plan nothing: compile types every body (the constraint and the functions call
+     *  substring) on a database not yet checked, and is answered as before. */
+    @Test
+    void theRoutesThatRunNoQueryAreNotRefused() {
+        Map<String, Object> model = new java.util.LinkedHashMap<>();
+        model.put("_type", "text");
+        model.put("code", EngineTablePlacementTest.UNCHECKED);
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/compilation/compile", null, Json.toCompact(model),
+                PLANS_AND_NEVER_RUNS, LiteV1Api.Models.COMPILED);
+        assertEquals(200, a.status(), a.json());
+    }
+
+    /** A function value read out of a collection: the lowering asks the table for its body as for any call, so it is
+     *  answered (until the edition program's step 2 the door refused it by name: its rewrite could not follow it). */
+    @Test
+    void aFunctionValueReadOutOfACollection_legendEnginesAnswer() {
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body("|" + EngineTablePlacementTest.TABLE
+                + "->sort(~ID->ascending())->extend(~i: r|[{s: String[1]|$s->indexOf('o')}]->at(0)->eval($r.NAME->toOne()))"
+                + "->select(~[i])->from(t::RT)"));
+        assertEquals(200, a.status(), a.json());
+        // 'abcdef', 'xoxo', 'abc', 'ab': the database's 1-based position, 0 on a miss
+        assertTrue(a.json().contains("{\"values\": [0]},{\"values\": [2]},{\"values\": [0]},{\"values\": [0]}"), a.json());
     }
 }
