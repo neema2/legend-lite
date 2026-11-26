@@ -1386,21 +1386,6 @@ public sealed interface SqlExpr
                     case COMPARABLE_THEN_TYPE_DESC -> COMPARABLE_THEN_TYPE;
                 };
             }
-
-            /** Whether the rows are returned by the comparable (a sorted list), either way. */
-            public boolean byComparable() {
-                return this != POSITION && this != POSITION_DESC;
-            }
-
-            /** Whether the order runs downwards (a reversed list). */
-            public boolean descending() {
-                return this == POSITION_DESC || this == COMPARABLE_DESC || this == COMPARABLE_THEN_TYPE_DESC;
-            }
-
-            /** Whether equal numbers of two types are ordered by their type before their position. */
-            public boolean thenByType() {
-                return this == COMPARABLE_THEN_TYPE || this == COMPARABLE_THEN_TYPE_DESC;
-            }
         }
 
         /** The same list in another order. */
