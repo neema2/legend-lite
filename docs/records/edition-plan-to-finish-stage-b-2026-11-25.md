@@ -695,6 +695,34 @@ equality; three that were refused are planned (two fold to a constant); none tha
 for `acos`/`asin`, which is not equality. The first build of the rule had made ten queries 22 characters longer each
 (`CAST(100 AS DECIMAL(3,0))` for `100`); the rule now leaves a whole-number literal as written.
 
+**2026-11-26, afternoon.**
+
+- **The batch of steps 4 and 5 is verified piece by piece and lands as one push.** Every moved pin, roster, golden and
+  ledger has its dated reason on one page: `edition-homework/landing-steps-4-5-2026-11-26.md`. One build break came
+  from changing the compile check's entries without building the edge's tests (`ReferenceIntegrityTest`,
+  `PlannerSurfaceTest`): found by a measuring session in ten minutes, fixed in two test files. The lesson stands: a
+  signature change is built against EVERY test library before it is called done, and a builder session does that
+  while the working tree goes on.
+- **PCT on H2 is all five suites** (branch `claude/pct-h2-full`, session `session_0195rQEizYjy8rVS8hbgqhKy`): 1,249
+  tests, 1,020 pass, 229 pinned by message (212 new). 189 of the new pins are H2's limits or the platform's own
+  (no list type 128, no such function 38, no map type 3, DATEADD's INT count 6, the same failures as DuckDB's lane
+  13, a spelling 1); **23 are defects of lite's H2 dialect** that pass on DuckDB (14 write a function H2 does not
+  have and are not refused by name; 9 are wrong answers or SQL H2 cannot read: `rem` of mixed numbers, `format` of a
+  Boolean, a Float's exponent text, an offset without its colon, `regexpReplace` first-match and its `g` flag,
+  `rpad` with a pad of several characters, `ascii('')`). Put to the user as a task of its own (the product track),
+  each pinned in a block titled as a defect. The four suites join the H2 gate: about 3 minutes on CI's H2 lane.
+- **Step 6 starts with the size assert alone.** `assertSize(c, n)` is planned as the Pure condition it means,
+  `size(c) == n`: typed by the typer over the sides as named values, lowered by the product over the columns that hold
+  them, each side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`,
+  `SidePlanner.over`, `Lowerer.over`). That is the whole new road on the one family where no rule of types is in
+  play. Two families the design had put beside it wait, each for a reason found on reading the code:
+  - *emptiness* needs the side as a LIST bound once, and the product's `isEmpty` of a list is not written on every
+    database the judge's `NOT EXISTS` runs on today (H2 holds a list as JSON): it goes with the slice that makes the
+    product's list operations whole on every database (6.4), or two reads of the side, which would grow the SQL;
+  - *tolerance* compares numbers of different types by the assert's own meaning (its parameters are `Number`), so
+    its condition is typed over values whose type is known at run time: slice 6.2's work, not a plain comparison of
+    two typed sides, which lite's rule would refuse.
+
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
 1. **A number literal against a number column** (step 4's design question, and the equality rule's cost to a user
