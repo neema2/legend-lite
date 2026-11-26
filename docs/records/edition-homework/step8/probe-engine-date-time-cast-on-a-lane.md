@@ -4,6 +4,11 @@
 audit of slices 3 and 4, its S2). Nothing here is committed by a lane: the two edits are temporary, in the lane's own
 Bazel tree.*
 
+**NOT VERIFIED (the work was paused, 2026-11-26): do not send this to a lane yet.** The first local try never
+selected the probe class (its name did not end in `Test`; renamed since), and the command below has not been run
+again: whether `--test_arg=--select-class=...` reaches the runner on a lane's target is not known. It is ready when it
+prints its `PROBE CASE` lines on DuckDB, H2 and SQLite in the step 8 session's own container.
+
 ## The question
 
 Inside a store query at legend-engine's door a DateTime's `toString` is `NamedRule.DATE_TIME_TEXT_BY_CAST`, the
@@ -34,13 +39,19 @@ the quoted text), a column is the column.
 
 1. Copy the probe class into the lane's tree (it is in this record's folder as
    `probe-engine-date-time-cast-on-a-lane.java.txt`):
-   `cp docs/records/edition-homework/step8/probe-engine-date-time-cast-on-a-lane.java.txt pct/src/test/java/org/finos/legend/lite/pct/extension/EngineDateTimeCastProbe.java`
+   `cp docs/records/edition-homework/step8/probe-engine-date-time-cast-on-a-lane.java.txt pct/src/test/java/org/finos/legend/lite/pct/extension/EngineDateTimeCastProbeTest.java`
+   (the name must end in `Test`: the runner selects no other class)
 2. Print the SQL: in `pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoute.java`, after the line
    `com.legend.result.Collector.Collected c = collector.collected();` add
    `if (System.getProperty("probe") != null) { System.err.println("PROBE SQL " + statements(plan)); }`
 3. Run it on the lane's essential suite target, at legend-engine's audience:
-   `bazel test //pct:pct_<name>_essential --test_arg=--select-class=org.finos.legend.lite.pct.extension.EngineDateTimeCastProbe --test_filter=EngineDateTimeCastProbe --jvmopt=-Dpct.audience=engine --jvmopt=-Dprobe=1 --test_output=all --cache_test_results=no`
-4. Report every `PROBE` line of the test's log (`PROBE CASE`, `PROBE SQL`, `PROBE ANSWER` or `PROBE RAISED`), then
+   `bazel test //pct:pct_<name>_essential --test_arg=--select-class=org.finos.legend.lite.pct.extension.EngineDateTimeCastProbeTest --jvmopt=-Dpct.audience=engine --jvmopt=-Dprobe=1 --test_output=all --cache_test_results=no`
+   The lane's essential suite runs with it (a JUnit 3 suite cannot be filtered out) and the target FAILS: the suite's
+   own expectations are legend-pure's, and the run is at legend-engine's audience. Neither matters here. `--jvmopt`
+   discards Bazel's analysis cache once.
+4. Report the probe's lines of the test's log: each `PROBE CASE` line, the `PROBE SQL` line that follows it and its
+   `PROBE ANSWER` or `PROBE RAISED` line (`grep -A2 'PROBE CASE' test.log`; the suite's own cases print `PROBE SQL`
+   lines too, which are not the probe's), then
    `git checkout -- pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoute.java` and delete the probe
    class.
 

@@ -48,10 +48,10 @@ duckdb	upstream	float.1e-3	VALUE String:0.001;
 duckdb	upstream	float.negativeOverflow	VALUE String:-∞;
 duckdb	upstream	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
 duckdb	upstream	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
-duckdb	upstream	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
-duckdb	upstream	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
-duckdb	upstream	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
-duckdb	upstream	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+duckdb	upstream	float.format.r	VALUE String:0.333333;
+duckdb	upstream	float.format.s.small	VALUE String:0.0;
+duckdb	upstream	float.format.s.1e-5	VALUE String:0.00001;
+duckdb	upstream	float.format.f	VALUE String:0.333333;
 duckdb	upstream	float.toRepresentation	VALUE String:0.30000000000000004;
 duckdb	upstream	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
 duckdb	upstream	float.format.r.heldWhole	RELATION String:1000000.0;
@@ -107,10 +107,10 @@ duckdb	pure_v1	float.1e-3	VALUE String:0.001;
 duckdb	pure_v1	float.negativeOverflow	VALUE String:-Infinity;
 duckdb	pure_v1	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
 duckdb	pure_v1	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
-duckdb	pure_v1	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
-duckdb	pure_v1	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
-duckdb	pure_v1	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
-duckdb	pure_v1	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+duckdb	pure_v1	float.format.r	VALUE String:0.333333;
+duckdb	pure_v1	float.format.s.small	VALUE String:0.0;
+duckdb	pure_v1	float.format.s.1e-5	VALUE String:0.00001;
+duckdb	pure_v1	float.format.f	VALUE String:0.333333;
 duckdb	pure_v1	float.toRepresentation	VALUE String:0.3;
 duckdb	pure_v1	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
 duckdb	pure_v1	float.format.r.heldWhole	RELATION String:1000000.0;
@@ -166,10 +166,10 @@ h2	upstream	float.1e-3	VALUE String:0.001;
 h2	upstream	float.negativeOverflow	VALUE String:-∞;
 h2	upstream	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
 h2	upstream	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
-h2	upstream	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
-h2	upstream	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
-h2	upstream	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
-h2	upstream	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+h2	upstream	float.format.r	VALUE String:0.333333;
+h2	upstream	float.format.s.small	VALUE String:0.0;
+h2	upstream	float.format.s.1e-5	VALUE String:0.00001;
+h2	upstream	float.format.f	VALUE String:0.333333;
 h2	upstream	float.toRepresentation	VALUE String:0.30000000000000004;
 h2	upstream	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
 h2	upstream	float.format.r.heldWhole	RELATION String:1000000.0;
@@ -225,10 +225,10 @@ h2	pure_v1	float.1e-3	VALUE String:0.001;
 h2	pure_v1	float.negativeOverflow	VALUE String:-Infinity;
 h2	pure_v1	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
 h2	pure_v1	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
-h2	pure_v1	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
-h2	pure_v1	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
-h2	pure_v1	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
-h2	pure_v1	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+h2	pure_v1	float.format.r	VALUE String:0.333333;
+h2	pure_v1	float.format.s.small	VALUE String:0.0;
+h2	pure_v1	float.format.s.1e-5	VALUE String:0.00001;
+h2	pure_v1	float.format.f	VALUE String:0.333333;
 h2	pure_v1	float.toRepresentation	VALUE String:0.3;
 h2	pure_v1	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
 h2	pure_v1	float.format.r.heldWhole	RELATION String:1000000.0;
@@ -284,10 +284,10 @@ sqlite	upstream	float.1e-3	VALUE String:0.001;
 sqlite	upstream	float.negativeOverflow	VALUE String:-∞;
 sqlite	upstream	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
 sqlite	upstream	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
-sqlite	upstream	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
-sqlite	upstream	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
-sqlite	upstream	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
-sqlite	upstream	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+sqlite	upstream	float.format.r	VALUE String:0.333333;
+sqlite	upstream	float.format.s.small	VALUE String:0.0;
+sqlite	upstream	float.format.s.1e-5	VALUE String:0.00001;
+sqlite	upstream	float.format.f	VALUE String:0.333333;
 sqlite	upstream	float.toRepresentation	VALUE String:0.30000000000000004;
 sqlite	upstream	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
 sqlite	upstream	float.format.r.heldWhole	RELATION String:1000000.0;
@@ -343,10 +343,10 @@ sqlite	pure_v1	float.1e-3	VALUE String:0.001;
 sqlite	pure_v1	float.negativeOverflow	VALUE String:-Infinity;
 sqlite	pure_v1	float.inARelation.computed	VALUE String:#TDS\n   x,y\n   0.1,0.30000000000000004\n#;
 sqlite	pure_v1	float.inARelation.whole	VALUE String:#TDS\n   x\n   1000000.0\n#;
-sqlite	pure_v1	float.format.r	THREW ParseException: [1:20] expected ']' to close collection literal
-sqlite	pure_v1	float.format.s.small	THREW ParseException: [1:23] expected ']' to close collection literal
-sqlite	pure_v1	float.format.s.1e-5	THREW ParseException: [1:23] expected ']' to close collection literal
-sqlite	pure_v1	float.format.f	THREW ParseException: [1:20] expected ']' to close collection literal
+sqlite	pure_v1	float.format.r	VALUE String:0.333333;
+sqlite	pure_v1	float.format.s.small	VALUE String:0.0;
+sqlite	pure_v1	float.format.s.1e-5	VALUE String:0.00001;
+sqlite	pure_v1	float.format.f	VALUE String:0.333333;
 sqlite	pure_v1	float.toRepresentation	VALUE String:0.3;
 sqlite	pure_v1	float.inATableTextUsedFurther	VALUE String:#TDS\n   x\n   0.00001\n#;;
 sqlite	pure_v1	float.format.r.heldWhole	RELATION String:1000000.0;

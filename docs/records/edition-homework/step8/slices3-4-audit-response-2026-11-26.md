@@ -73,16 +73,14 @@ each database was not measured (no recorded test has one).
    a store query, held as run text by PCT's legend-engine lane and the corpus. A lane twin of
    `EngineDateTimeTextTest` for a Float is not added here.
 
-## Drafts for the user: one table
+## Drafts for the user: one table (NOT WRITTEN: the work was paused here, 2026-11-26)
 
-Each line is an answer that moved with slices 3 and 4 and has no words in its row, or a product behaviour the tail's
-parity tests found that has no row. "Base" is the tree before step 8's deletions (`4d44bf54`); its Float and
-DateTime texts are READ from the deleted code by the outside audit, not run here. "New" is RECORDED on DuckDB
-(`edge_cases_answers.tsv`; H2's and SQLite's lines are beside it). legend-engine's column is its SQL template, read
-in the pinned 4.145.0 sources.
+The table the orchestrator asked for (the expression, legend-pure's answer and legend-engine's where the door is
+legend-engine's, the base's answer, the new answer, the row) is not written. Its material, and what remains, is in
+`STATE-when-paused-2026-11-26.md` beside this record.
 
-RECORDED_TABLE
+## Measured (NOT DONE for this record's changes)
 
-## Measured
-
-MEASURED
+The fast set passed on these changes (`//core:guardrails`, `//core:guardrails_edge`, `//core:census`,
+`//core:core_edge_tests`, `//pct:pct_route_print_test`). The five recordings and the pre-push set were stopped when
+the work was paused: see the state note.

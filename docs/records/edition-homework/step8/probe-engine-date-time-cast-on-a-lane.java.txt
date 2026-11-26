@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** A DateTime's toString at legend-engine's door on this lane's database: the SQL lite sends and the text it answers. */
-class EngineDateTimeCastProbe {
+class EngineDateTimeCastProbeTest {
 
     @Test
     void probe() {
