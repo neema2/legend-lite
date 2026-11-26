@@ -48,8 +48,11 @@ class NamedRulesFloatTextTest {
     void theRuleCastsItsOperandAsItIs_aFiniteLiteralByItsDigits() {
         SqlExpr column = SqlExpr.Column.of("t", "QTY", SqlType.Scalar.BIGINT, true,
                 com.legend.sql.OutputCol.Origin.PHYSICAL);
-        for (SqlExpr asItIs : new SqlExpr[] {column, new SqlExpr.FloatLit(Double.NaN),
-                new SqlExpr.FloatLit(Double.POSITIVE_INFINITY), new SqlExpr.FloatLit(Double.NEGATIVE_INFINITY)}) {
+        // (a literal that is no finite value exists only as a double's: the numeric a bare one would be has none)
+        com.legend.sql.TypeFact aDouble = com.legend.sql.SqlTyping.typed(SqlType.Scalar.DOUBLE);
+        for (SqlExpr asItIs : new SqlExpr[] {column, new SqlExpr.FloatLit(Double.NaN, aDouble),
+                new SqlExpr.FloatLit(Double.POSITIVE_INFINITY, aDouble),
+                new SqlExpr.FloatLit(Double.NEGATIVE_INFINITY, aDouble)}) {
             SqlExpr cast = new SqlExpr.Cast(asItIs, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
             assertEquals(cast, NamedRules.floatTextByCast(asItIs, false));
             assertEquals(cast, NamedRules.floatTextByCast(asItIs, true));

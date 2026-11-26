@@ -61,7 +61,48 @@ needs an exception, and Snowflake's and BigQuery's SQL gets shorter, not longer.
 
 ## What was measured
 
-MEASURED-SECTION
+On the scratch checkpoint `a25238ed` (the base `b7c39067`), 2026-11-26. Every recorded answer file was re-recorded
+(`//pct:update_edge_contract`, `//spec:update_edge_corpus`, `//core:update_edge_pure_v1`, `//core:update_edge_cases`,
+`//pct:update_engine_lane`), the diff read line by line and the files restored; then the lanes were run.
+
+**Answers: no Float text line moved, anywhere.**
+
+- pure/v1's answers and the edge cases: no line moved.
+- PCT's contract files, the corpus's host answers and the engine lane: the lines that moved are the base's, not this
+  slice's. The base's recorded files are behind its own code: `testArcCosineError` and `testArcSineError` (four
+  PCT files), the `dateDiff` SQL texts and `testToSQLStringSplitPart` (the corpus's two files), `testDateDiffWeeks`,
+  `testSplitPartEmptyToken`, `testDecimalToDecimal` and `testDoubleToDecimal` (the engine lane). The three tests
+  that hold the row did not move: the engine lane's `testFloatToStringWithNegativeExponent` (DuckDB) and
+  `testFloatToStringWithPositiveExponent` (H2), and the corpus's validation showcase.
+- Pass: `//pct:pct_duckdb` (5 suites), `//pct:pct_h2`, `//pct:pct_sqlite` (5 suites), `//pct:pct_channel_b`'s
+  legend-pure lanes (essential, grammar, standard, relation, unclassified, H2's relation) and its lite lanes
+  (standard, relation, unclassified), both corpus verdicts (`//spec:corpus_duckdb_verdict`, `//spec:corpus_h2_verdict`),
+  `//core:core_tests_integration`, `//spec:spec_tests`, the two PCT route tests.
+
+**Six targets fail, and fail on the base without this slice** (run on `9846cc91` the same hour, the two logs
+compared line by line): `//core:lean_sql_baseline_test`, `//pct:pct_channel_b_lite_essential` (its judge characters
+ratchet, 904295 against 904191), `//pct:pct_channel_b_lite_grammar` (two ledger lines), `//spec:lean_sql_corpus_duckdb`,
+`//spec:lean_sql_corpus_h2` and `//spec:update_rcorpus_duckdb_0_test` (the roster's `testToSQLStringSplitPart`). Four
+of the six fail with the very same lines on both.
+
+**A SIZE PIN THIS SLICE GROWS (stopped here, reported; the user's word is needed).** The two corpus size tests each
+show three more lines with the slice than on the base, all of one kind, "plan JSON chars":
+
+| Family (its largest case) | DuckDB | H2 | Growth |
+|---|---|---|---|
+| `meta::pure::tds::tests::extensions` (`columnValueDifferenceTest`) | 299546 to 299585 | 312811 to 312850 | +39 |
+| `...aggregationAware::testRewrite::objectGroupBy` | 133221 to 133299 | 140832 to 140910 | +78 |
+| `...validation::showcase::standalone` (`validateAllConstraints`) | 243214 to 243331 | 249280 to 249397 | +117 |
+
+The SQL's own characters (`chars`, `repeated chars`) did not move for these families on either lane: the statements
+are the same text. What grew is the plan's JSON spelling of the tree (`executionplan.MirJson`), by 39 characters for
+each Float `toString` inside a store query (one, two and three of them): before, the plan's tree held the product's
+node (`{"fn":"FLOAT_TO_TEXT","args":[x]}`) and the edge's dialect re-spelled it as the cast when it wrote the SQL;
+now the tree holds the cast itself (`{"value":x,"target":...,"reason":"user"}`), which is what the SQL always was.
+A cast has no shorter spelling in a plan. Total: 234 characters on each lane, of about 676 thousand in these three
+families. Not measured: the same pin on `//core:lean_sql_baseline_test` (channel A's product plans) shows no line of
+this slice's (its lines are the base's, the same on both).
+
 
 ## The difference it makes, with no recorded test on it
 
@@ -88,8 +129,9 @@ MEASURED-SECTION
    - the `toString` of a Float reached through a Number or an Any (a mixed selection's candidate,
      `Scalars.pureToString` to `MixedEncoding.perCandidate`): the row reads the operand's declared type, Float
      alone. legend-engine writes `cast(%s as varchar)` for it too, so this one IS a new difference from
-     legend-engine inside the ruling's words; covering it means asking the table inside the mixed path. Left open
-     for the orchestrator and the user, recorded in the row.
+     legend-engine inside the ruling's words; covering it means asking the table inside the mixed path. The
+     orchestrator, 2026-11-26: recorded as open and not built in this slice; the mixed path is reworked in step 6
+     (run-time types), which owns it (the plan record's carried-forward list).
 4. **SQLite's `toRepresentation(1.0e20)`** was `9223372036854775807.0` at the edge (the deleted composition cast a
    whole value through a 64-bit integer). It is `100000000000000000000.0` on every lane now, pinned by
    `PureOnlyTextTest.aFloatsRepresentationUsedFurtherAtTheEdgeIsLitesOwnText`.
@@ -98,7 +140,7 @@ MEASURED-SECTION
 
 | # | Kind | The difference | Lite's answer | Evidence |
 |---|---|---|---|---|
-| S(next) | outcome (a Float's text used further at a compatibility door; RULED by the user 2026-11-26, "yes that's right but remember we have a list of chained functions that are okay after that you came up with", under tenet 1 as amended 2026-11-25) | legend-pure writes a Float's `toString`, `format`'s `%s`, `%f` and `%r` and `toRepresentation` by its own print wherever the call stands: every digit, never an exponent (`CompiledSupport`, `DecimalFormat("0.0")` with up to 340 fraction digits). | At legend-pure's door (PCT's legend-pure run, the corpus's test code outside `execute()`), a Float's `toString` at a LAST STEP (a query's last statement, or an assert's own argument, with a tail of `replace`, `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf` over literals) is legend-pure's, written in Java from the double the database computed. A Float's text the program goes on computing with is lite's own, written by the database: six decimals, trailing zeros trimmed, a whole value keeping one. So `format('%r', [1.0/3.0]) + ';'` is `0.333333;` where legend-pure writes `0.3333333333333333;`, and `[(0.1 + 0.2)->toString()]` holds `0.3` where legend-pure's holds `0.30000000000000004`. Inside a store query at legend-engine's door a Float's `toString` is the database's cast, a row of legend-engine's table (the user, 2026-11-26: "agreed on float/date text for engine"), unchanged on every database legend-engine has (H2, DuckDB, Postgres, Trino, Snowflake, ClickHouse, Databricks, BigQuery). Three texts there that were the cast too are lite's own now: on a database legend-engine does not have (SQLite, MariaDB, MySQL, MongoDB), where there is no legend-engine answer to match; `format`'s `%s` and `%f` of a Float, which legend-engine has no SQL for; and the `toString` of a Float reached through a Number or an Any, where legend-engine writes the same cast and the row, which reads the operand's declared type, does not answer (open: no test holds it). Outside a store query at legend-engine's door (pure/v1, code that is legend-engine's own Java) a Float's `toString` is lite's own text, where legend-engine writes legend-pure's print; it is always used further there, pure/v1 answering no scalar today. | Measured 2026-11-26 (`docs/records/edition-homework/step8/moves-if-float-text-used-further-is-lites.md` and `slice3-float-text-deletion.md`): no recorded answer of PCT (both channels; DuckDB, H2, SQLite), the corpus (DuckDB, H2), pure/v1 or the edge cases moves. The examples are worked from the two texts' rules, not run. The server and cloud lanes are not measured. |
+| S(next) | outcome (a Float's text used further at a compatibility door; RULED by the user 2026-11-26, "yes that's right but remember we have a list of chained functions that are okay after that you came up with", under tenet 1 as amended 2026-11-25) | legend-pure writes a Float's `toString`, `format`'s `%s`, `%f` and `%r` and `toRepresentation` by its own print wherever the call stands: every digit, never an exponent (`CompiledSupport`, `DecimalFormat("0.0")` with up to 340 fraction digits). | At legend-pure's door (PCT's legend-pure run, the corpus's test code outside `execute()`), a Float's `toString` at a LAST STEP (a query's last statement, or an assert's own argument, with a tail of `replace`, `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf` over literals) is legend-pure's, written in Java from the double the database computed. A Float's text the program goes on computing with is lite's own, written by the database: six decimals, trailing zeros trimmed, a whole value keeping one. So `format('%r', [1.0/3.0]) + ';'` is `0.333333;` where legend-pure writes `0.3333333333333333;`, and `[(0.1 + 0.2)->toString()]` holds `0.3` where legend-pure's holds `0.30000000000000004`. Inside a store query at legend-engine's door a Float's `toString` is the database's cast, a row of legend-engine's table (the user, 2026-11-26: "agreed on float/date text for engine"), unchanged on every database legend-engine has (H2, DuckDB, Postgres, Trino, Snowflake, ClickHouse, Databricks, BigQuery). Three texts there that were the cast too are lite's own now: on a database legend-engine does not have (SQLite, MariaDB, MySQL, MongoDB), where there is no legend-engine answer to match; `format`'s `%s` and `%f` of a Float, which legend-engine has no SQL for; and the `toString` of a Float reached through a Number or an Any, where legend-engine writes the same cast and the row, which reads the operand's declared type, does not answer: lite's text there, legend-engine's the cast, owned by the edition program's step 6 (run-time types), which reworks the mixed path (no test holds it). Outside a store query at legend-engine's door (pure/v1, code that is legend-engine's own Java) a Float's `toString` is lite's own text, where legend-engine writes legend-pure's print; it is always used further there, pure/v1 answering no scalar today. | Measured 2026-11-26 (`docs/records/edition-homework/step8/moves-if-float-text-used-further-is-lites.md` and `slice3-float-text-deletion.md`): no recorded answer of PCT (both channels; DuckDB, H2, SQLite), the corpus (DuckDB, H2), pure/v1 or the edge cases moves. The examples are worked from the two texts' rules, not run. The server and cloud lanes are not measured. |
 
 ## The line for `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md` (a new numbered section when the slice lands)
 
