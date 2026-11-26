@@ -2035,7 +2035,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case COT -> writer.append("(1 / tan(").expr(a.get(0), 0).append("))");
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
-            case ROUND_RAW -> writer.function("round", c.args());
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "round", null);
 
             // exp and log are approximations here (exp(1) is 2.718281828460626, log(e()) 0.9999999987491066, measured);
             // pow and log2 are exact, DuckDB's bits

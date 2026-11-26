@@ -153,6 +153,13 @@ public enum SqlFn {
      *  every database, nor {@link #ROUND_HALF_UP}, half away from zero on every database. Written by one of the
      *  lowering's named rules ({@code NamedRule.ROUND_AS_GIVEN}), which an edition's table alone names. */
     ROUND_RAW,
+    /** DECIMAL_RAW(x): the database's OWN cast of a value to its DECIMAL with no precision written (the edition
+     *  program's step 5, 2026-11-26): whatever precision and scale that database gives a bare DECIMAL -- three
+     *  places on DuckDB, none on H2, where 3.8 is 4 (measured,
+     *  docs/records/edition-homework/r3/measured-step5-facts.md A1, B6). No type is stated for it: it differs by
+     *  database. Written by one of the lowering's named rules ({@code NamedRule.CAST_TO_BARE_DECIMAL}), which an
+     *  edition's table alone names; a dialect whose database's answer is not read refuses it by name. */
+    DECIMAL_RAW,
     ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,

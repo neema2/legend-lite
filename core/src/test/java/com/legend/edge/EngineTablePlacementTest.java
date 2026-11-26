@@ -345,7 +345,8 @@ class EngineTablePlacementTest {
         for (String call : List.of("$r.NAME->toOne()->substring(1)", "$r.NAME->toOne()->substring(1, 3)",
                 "$r.NAME->toOne()->substr(1)", "$r.NAME->toOne()->substr(1, 3)", "$r.NAME->toOne()->indexOf('o')",
                 "($r.ID->toOne() / 3)->round()", "($r.ID->toOne() / 3)->round(1)",
-                "$r.ID->toOne()->toDecimal()->round(1)", "[]->cast(@Integer)->toOne()")) {
+                "$r.ID->toOne()->toDecimal()->round(1)", "($r.ID->toOne() / 3)->toDecimal()",
+                "[]->cast(@Integer)->toOne()")) {
             String store = "|" + TABLE + "->extend(~a: r|" + call + ")->from(t::RT)";
             assertNotEquals(asWritten(store), engines(store), store);
         }

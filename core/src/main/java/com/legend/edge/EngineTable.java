@@ -38,7 +38,10 @@ import java.util.Set;
  *   <li>{@code round}: the database's own ROUND, which on DuckDB and H2 sends a half away from zero
  *       ({@code ROUND_AS_GIVEN}; legend-engine's {@code transformRoundForDuckDB} and H2's {@code round}
  *       write the bare function; the edition program's step 5, 2026-11-26, a delegation the user ruled matched,
- *       amendment 22). Pure's {@code round} sends a half to the even neighbour.</li>
+ *       amendment 22). Pure's {@code round} sends a half to the even neighbour;</li>
+ *   <li>{@code toDecimal}: the database's own DECIMAL with no precision written ({@code CAST_TO_BARE_DECIMAL};
+ *       legend-engine's {@code cast(%s as decimal)} on DuckDB and through its Postgres model on H2): three places
+ *       on DuckDB, none on H2, where {@code toDecimal(3.8)} is 4 (register S423; ruled matched, amendment 22).</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
@@ -81,6 +84,7 @@ final class EngineTable implements EditionTable, Edition {
         each(given, Pure.AT_STRING_SUBSTR, NamedRule.SUBSTR_AS_GIVEN, "substr/2", "substr/3");
         given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), new Row(NamedRule.SQL_POSITION, "indexOf/2"));
         each(given, Pure.AT_MATH_ROUND, NamedRule.ROUND_AS_GIVEN, "round/2", "round/2", "round/1");
+        each(given, Pure.AT_MATH_TO_DECIMAL, NamedRule.CAST_TO_BARE_DECIMAL, "toDecimal/1");
         Map<FunctionId, Row> flagged = new java.util.LinkedHashMap<>();
         each(flagged, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTR_AS_GIVEN, "substring(corrected)/2",
                 "substring(corrected)/3");

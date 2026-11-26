@@ -101,7 +101,11 @@ class SqlFnSortedTest {
             // ROUND_RAW (2026-11-26, the edition program's step 5): the database's own ROUND, written by the lowering's
             // named rule for it (DecimalKindRules.roundAsGiven, which a door's table names) -- product code alone
             // writes it, so PRODUCT, by the user's standing rule of 2026-11-23 (dated here and reported)
-            "ROUND_RAW", "RPAD", "RTRIM",
+            "ROUND_RAW",
+            // DECIMAL_RAW (2026-11-26, step 5): the database's own DECIMAL with no precision written, written by the
+            // lowering's named rule for toDecimal (NamedRules, which a door's table names) -- product code alone
+            // writes it: PRODUCT, by the same standing rule
+            "DECIMAL_RAW", "RPAD", "RTRIM",
             "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1",
             "SHA256", "SIGN", "SIN", "SINH", "SPLIT", "SPLIT_PART", "SQRT", "STARTS_WITH", "STRFTIME", "STRPOS",
             "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "SUBSTRING_AS_GIVEN", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",

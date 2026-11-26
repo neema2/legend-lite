@@ -44,5 +44,10 @@ public enum NamedRule {
      *  exactly halfway going where that database sends it (away from zero on DuckDB and H2: 16.5 to 17). Not the
      *  product's {@code round}, which sends a half to the even neighbour on every database, as Pure does (16.5 to
      *  16). */
-    ROUND_AS_GIVEN
+    ROUND_AS_GIVEN,
+
+    /** A value read as the target database's DECIMAL with no precision written ({@code SqlFn.DECIMAL_RAW}): the
+     *  database's own default precision and scale -- three places on DuckDB, none on H2, where 3.8 is 4. Not the
+     *  product's {@code toDecimal}, which keeps the value's own digits. */
+    CAST_TO_BARE_DECIMAL
 }

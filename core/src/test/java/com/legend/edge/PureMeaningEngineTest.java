@@ -343,6 +343,18 @@ class PureMeaningEngineTest {
                 "{\"values\": [0.13]},{\"values\": [0.25]},{\"values\": [0.38]},{\"values\": [0.5]}");
     }
 
+    // ---- toDecimal: the database's own DECIMAL with no precision written (register S423) ---------------------------
+
+    /** {@code toDecimal} inside a query sent to the database is the database's bare DECIMAL, which holds no fraction
+     *  digit on this database: 1.8, 2.8, 3.8 and 4.8 are 2, 3, 4 and 5 (legend-engine's manifest for it records
+     *  {@code toDecimal(3.8)} as 4), where Pure's answer keeps the digits. */
+    @Test
+    void toDecimalIsTheDatabasesBareDecimal_legendEnginesAnswer() {
+        legendEngines("|" + EngineTablePlacementTest.TABLE + "->extend(~a: r|($r.ID->toOne() + 0.8)->toDecimal())"
+                + "->select(~[a])->from(t::RT)",
+                "{\"values\": [2]},{\"values\": [3]},{\"values\": [4]},{\"values\": [5]}");
+    }
+
     // ---- toOne of an operand that is always empty (register S384) ---------------------------------------------------
 
     private static final String TO_ONE_OF_EMPTY = "|" + EngineTablePlacementTest.TABLE + "->sort(~ID->ascending())->limit(1)"

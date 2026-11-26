@@ -386,6 +386,16 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   and `testNegativeFloatRoundHalfEvenUp`).
 - **Register:** S422.
 
+### 19. `toDecimal` keeps the value's digits, as Pure does (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write**, in a query sent to the database: `$t.price->toDecimal()` over the value `3.8`.
+- **legend-engine** casts to the database's DECIMAL with no precision written, and each database gives that its own
+  size: `3.800` on DuckDB (three places), `4` on H2 (no fraction digit).
+- **At legend-engine's door, lite answers legend-engine's** on DuckDB and H2, with no setting. In a host-side `let`
+  it keeps Pure's meaning; on any other database such a request is refused by name until read there.
+- **On lite's own route**, lite answers `3.8` on every database.
+- **Register:** S423.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,

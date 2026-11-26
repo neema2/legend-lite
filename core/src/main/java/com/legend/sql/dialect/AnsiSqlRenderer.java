@@ -1470,6 +1470,23 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append("CAST(").append(fn).append("(").expr(a.get(0), 0).append(") AS BIGINT)");
     }
 
+    /** The {@code ROUND_RAW} and {@code DECIMAL_RAW} arm of a dialect's {@code call}: the database's own functions
+     *  as given (an edition's table's rules, NamedRule.ROUND_AS_GIVEN and CAST_TO_BARE_DECIMAL) -- its plain ROUND
+     *  by the name this dialect spells it, and a cast to its DECIMAL with no precision written where
+     *  {@code bareDecimal} names one; null where legend-engine's answer is not read on this database, refused by
+     *  name. */
+    protected final SqlWriter asGiven(SqlWriter writer, SqlExpr.Call c, String round,
+            @com.legend.base.Nullable String bareDecimal) {
+        if (c.fn() == com.legend.sql.SqlFn.ROUND_RAW) {
+            return writer.function(round, c.args());
+        }
+        if (bareDecimal == null) {
+            throw new com.legend.sql.DialectCapability("the database's own DECIMAL with no precision written"
+                    + " (DECIMAL_RAW) reached " + getClass().getSimpleName() + ", where legend-engine's is not read");
+        }
+        return castAs(writer, c.args().get(0), bareDecimal);
+    }
+
     /** {@code CAST(x AS type)}, the type as the calling dialect spells it. */
     protected final SqlWriter castAs(SqlWriter writer, SqlExpr x, String type) {
         return writer.append("CAST(").expr(x, 0).append(" AS ").append(type).append(")");

@@ -907,7 +907,7 @@ public class Postgres extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP; Postgres rounds double precision
             // half-EVEN and numeric half away from zero (POSTGRES_BACKEND.md §4.3),
             // and has no round(double, int) at all
-            case ROUND_HALF_UP, ROUND_RAW -> rounds(writer, c);
+            case ROUND_HALF_UP, ROUND_RAW, DECIMAL_RAW -> rounds(writer, c);
             // the engine's out-of-domain answer is NaN; Postgres raises
             case ACOS, ASIN -> acos(writer, c);
 
@@ -1126,10 +1126,10 @@ public class Postgres extends AnsiSqlRenderer {
                 .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE PRECISION))");
     }
 
-    /** The {@code ROUND_HALF_UP} and {@code ROUND_RAW} arm of {@link #call}: Pure's HALF_UP rounding, or the
-     *  database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN). */
+    /** The {@code ROUND_HALF_UP}, {@code ROUND_RAW} and {@code DECIMAL_RAW} arm of {@link #call}: Pure's HALF_UP
+     *  rounding, or the database's own function as given (an edition's table's rules; the base's {@code asGiven}). */
     private SqlWriter rounds(SqlWriter writer, SqlExpr.Call c) {
-        return c.fn() == SqlFn.ROUND_RAW ? writer.function("round", c.args()) : roundHalfUp(writer, c);
+        return c.fn() == SqlFn.ROUND_HALF_UP ? roundHalfUp(writer, c) : asGiven(writer, c, "round", null);
     }
 
     /** Pure's HALF_UP rounding: round over NUMERIC (half away from zero), a double cast back. */
