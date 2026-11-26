@@ -127,8 +127,9 @@ final class Overloads {
         // yet, so the call keeps its signature typing (the engine types
         // a closure body by signatures too; it pastes nothing)
         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
-            // a function's body typed into the call: the database's comparisons, never marked (B3 step 5)
-            return t.markingCrossings(false, () -> inlineNormalized(af, a, env));
+            // a function's body typed into the call: a body the query reaches, for the comparison setting (the edition
+            // program's step 2b, 2026-11-26; until then never read, B3 step 5)
+            return t.comparing(Typer.Compared.BODY, () -> inlineNormalized(af, a, env));
         }
         TypedSpec shadow = derivedShadow(af, a, env);
         if (shadow != null) {
@@ -136,17 +137,11 @@ final class Overloads {
         }
         TypedSpec call = rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()),
                 env);
-        // the one equality (B3 step 5, the user's ruling of 2026-11-24): a comparison across types, written in the body a
-        // door receives, is typed as the marker around the call -- refused by lite's planner, rewritten by a
-        // compatibility door (EqualityClasses); typed anywhere else (a function's body, a planning-time frame, a
-        // mapping's operation) it is the call, the database's comparison
-        if (!t.marksCrossings()) {
-            return call;
-        }
-        return EqualityClasses.crossing(a.chosen(), a.args(), ctx)
-                .<TypedSpec>map(c -> new com.legend.compiler.spec.typed.TypedCrossTypeComparison(call, c.kind(),
-                        c.operator(), c.left(), c.right(), af.pos()))
-                .orElse(call);
+        // the one equality (B3 step 5, the user's ruling of 2026-11-24): a comparison across types is what the door's
+        // comparison setting says it is (CrossTypeRule; the edition program's step 2b, 2026-11-26) -- lite's the marker
+        // its planner refuses, a compatibility door's the database's comparison or Pure's answer; in code the setting
+        // does not read (an island's translation, a planning-time frame, a mapping's operation) it is the call
+        return t.compared(call, a.chosen(), a.args(), af.pos());
     }
 
     /** Leg 6a — the receiver's OWN qualified property SHADOWS an
@@ -382,10 +377,10 @@ final class Overloads {
             subst.put(chosen.parameters().get(i).name(), arg);
             if (!(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
                 typedArgs.put(arg, typedArg);
-            } else if (CrossTypeComparisons.holds(typedArg)) {
-                // an argument written in the body a door receives keeps its comparisons across types (a marker is typed
-                // only there): the body is typed unmarked, its argument as the caller typed it (B3 step 5a's review,
-                // M1, 2026-11-25)
+            } else if (t.holdsAQueryAnswer(typedArg)) {
+                // an argument written in the body a door receives keeps the setting's answers for the query: the body
+                // is typed as a body, its argument as the caller typed it (B3 step 5a's review, M1, 2026-11-25; by the
+                // answers' identity since the edition program's step 2b, when a door's answer stopped being a marker)
                 typedArgs.put(arg, typedArg);
             }
         }

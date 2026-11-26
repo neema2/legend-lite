@@ -68,7 +68,10 @@ class JudgeJsonTest {
                 "|assertJsonStringsEqual('[1 2]\"', '[1, 2]')",
                 "|assertJsonStringsEqual('[1]' + '\"x', '[1]')")) {
             com.legend.TypedQuery q = com.legend.Compiler.query(ctx, body);
-            org.junit.jupiter.api.Assertions.assertSame(q, com.legend.edge.UpstreamTestBodies.admitted(q), body);
+            // the admitted query is typed under its audience's comparison setting, so it is another query: its body
+            // is the given query's, statement for statement (the edition program's step 2b, 2026-11-26)
+            org.junit.jupiter.api.Assertions.assertEquals(q.body(),
+                    com.legend.edge.UpstreamTestBodies.admitted(q).body(), body);
         }
     }
 }

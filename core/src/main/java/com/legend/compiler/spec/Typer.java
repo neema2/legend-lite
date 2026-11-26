@@ -134,9 +134,10 @@ final class Typer {
         }
     }
 
-    Typer(ModelContext ctx, InferenceKernel kernel) {
+    Typer(ModelContext ctx, InferenceKernel kernel, CrossTypeRule crossTypes) {
         this.ctx = ctx;
         this.kernel = kernel;
+        this.crossTypes = crossTypes;
         this.annotations = new TypeAnnotations(ctx);
         this.desugars = new TdsDesugars(this);
         this.overloads = new Overloads(this, ctx, kernel);
@@ -148,14 +149,35 @@ final class Typer {
             java.util.function.Supplier<R> body) {
         java.util.List<String> rigid = new ArrayList<>(fn.typeParameters());
         rigid.addAll(fn.multiplicityParameters());
-        // a function's body is no body a door receives: its comparisons across types are the calls (B3 step 5)
-        return markingCrossings(false, () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
+        // a function's body is a body the query reaches: its comparisons across types are the door's setting's for a
+        // body (the edition program's step 2b, 2026-11-26; until then never read, B3 step 5)
+        return comparing(Compared.BODY, () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
                 body)));
     }
 
-    /** Whether a comparison across types is typed as the marker here: in the query or test body a door receives
-     *  ({@code SpecCompiler.typeQueryBodyMarked}), not in a function's body (B3 step 5). */
-    private boolean marking;
+    /** Whose code is being typed, as the comparison setting reads it ({@link CrossTypeRule}). */
+    enum Compared {
+        /** Code the setting is never asked about: an island's translation (its own language's rule), and whatever a
+         *  planner types on its own account (a planning-time frame, a mapping's operation: {@code typeExpression},
+         *  {@code typeQueryBody}). A comparison across types here is the call. */
+        UNREAD,
+        /** The query or test body a door receives ({@code SpecCompiler.typeQueryBodyMarked}). */
+        QUERY,
+        /** A body the query reaches: a function's, typed on demand or into its call. */
+        BODY
+    }
+
+    /** The door's comparison setting for everything this typer types. */
+    private final CrossTypeRule crossTypes;
+
+    /** Whose code is being typed now. */
+    private Compared compared = Compared.UNREAD;
+
+    /** The setting's answers for the comparisons across types written in the query, by identity: an argument that
+     *  holds one keeps the query's typing when a function's body is typed into its call
+     *  ({@link #holdsAQueryAnswer}). */
+    private final java.util.Set<TypedSpec> queryAnswers =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     /** The nodes an island's translation wrote into a statement of the query ({@code TsIslands.lifted}): typed by the
      *  island's own language's rule, its comparisons never marked, as the island arm types an island where it stands
@@ -169,19 +191,55 @@ final class Typer {
         islandOutput.add(node);
     }
 
-    boolean marksCrossings() {
-        return marking;
-    }
-
-    /** {@code body} typed with comparisons across types marked ({@code on}) or not. */
-    <R> R markingCrossings(boolean on, java.util.function.Supplier<R> body) {
-        boolean was = marking;
-        marking = on;
+    /** {@code body} typed as {@code whose} code, for the comparison setting. */
+    <R> R comparing(Compared whose, java.util.function.Supplier<R> body) {
+        Compared was = compared;
+        compared = whose;
         try {
             return body.get();
         } finally {
-            marking = was;
+            compared = was;
         }
+    }
+
+    /** {@code call}, the application of {@code chosen} to {@code args} as typed: itself, unless it is a comparison
+     *  across types (the one equality, B3 step 5; {@link EqualityClasses}) in code the door's setting reads -- then the
+     *  setting's answer for it. */
+    TypedSpec compared(TypedSpec call, com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
+        if (compared == Compared.UNREAD) {
+            return call;
+        }
+        java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);
+        if (crossing.isEmpty()) {
+            return call;
+        }
+        EqualityClasses.Crossing c = crossing.get();
+        com.legend.compiler.spec.typed.TypedCrossTypeComparison written =
+                new com.legend.compiler.spec.typed.TypedCrossTypeComparison(call, c.kind(), c.operator(), c.left(),
+                        c.right(), pos);
+        if (compared == Compared.BODY) {
+            return crossTypes.inBody(written);
+        }
+        TypedSpec answer = crossTypes.inQuery(written);
+        queryAnswers.add(answer);
+        return answer;
+    }
+
+    /** Whether {@code n} holds the setting's answer for a comparison across types written in the query. */
+    boolean holdsAQueryAnswer(TypedSpec n) {
+        if (queryAnswers.isEmpty()) {
+            return false;
+        }
+        if (queryAnswers.contains(n)) {
+            return true;
+        }
+        for (TypedSpec k : n.children()) {
+            if (holdsAQueryAnswer(k)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The model snapshot &mdash; the checkers' lookup surface. */
@@ -215,9 +273,9 @@ final class Typer {
         if (pre != null) {
             return pre;
         }
-        // an island's translation compares by the island's language's rule (B3 step 5): typed unmarked
-        if (marking && !islandOutput.isEmpty() && islandOutput.contains(vs)) {
-            return markingCrossings(false, () -> synth(vs, env));
+        // an island's translation compares by the island's language's rule (B3 step 5): never the setting's
+        if (compared != Compared.UNREAD && !islandOutput.isEmpty() && islandOutput.contains(vs)) {
+            return comparing(Compared.UNREAD, () -> synth(vs, env));
         }
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as
@@ -253,7 +311,7 @@ final class Typer {
             // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
             // an island compares by its own language's rule (SQL's, Cypher's: 100 against a Float column is a valid
             // comparison there), so its comparisons are the database's, never marked (B3 step 5, 2026-11-25)
-            case com.legend.protocol.spec.SqlIsland si -> markingCrossings(false,
+            case com.legend.protocol.spec.SqlIsland si -> comparing(Compared.UNREAD,
                     () -> synth(SqlIslands.desugar(si, this, ctx, env), env));
             case com.legend.protocol.spec.GqlIsland gi ->
                     throw new com.legend.error.NotImplementedException(

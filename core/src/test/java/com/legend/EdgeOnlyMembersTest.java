@@ -116,6 +116,11 @@ class EdgeOnlyMembersTest {
                     "2026-11-25: the marker's first type, as legend-pure's door names it in a refusal (B3 step 5)"),
             Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#right()",
                     "2026-11-25: the marker's second type, as legend-pure's door names it in a refusal (B3 step 5)"),
+            // 2026-11-26 (the edition program's step 2b: the comparison setting in the type-checker): the door hands
+            // the type-checker its setting for the query here; lite's own road never asks (lite's setting is the spec
+            // compiler's own), so only the compatibility doors call it
+            Map.entry("com.legend.TypedQuery#comparing(com.legend.compiler.spec.CrossTypeRule)",
+                    "2026-11-26: a door's comparison setting for the query it admits (the edition program's step 2b)"),
             Map.entry("com.legend.builtin.Pure#AT_ASSERTS_ASSERT_SAME_ELEMENTS",
                     "2026-11-25: the catalog's assertSameElements overloads, the door's order-free rewrite's typed call (B3 step 4)"),
             // (EnvelopeParts#relation/#objects, RelationParts#names/#typeNames/#cells: moved 2026-11-18 to

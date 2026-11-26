@@ -2131,9 +2131,11 @@ class JavaEvalLedgerTest {
                             // literal separator, nothing computed
                             "UpstreamPrints.java",
                             // the one equality's doors (B3 step 5, the user's ruling of 2026-11-24, "Love it"): each
-                            // comparison across types the typer marked, rewritten -- legend-engine's to the call itself (the
-                            // database's comparison), legend-pure's to Pure's answer by the types alone (false; -1; the
-                            // comparison itself for an ordering) -- a typed tree rewritten, nothing computed
+                            // comparison across types answered -- legend-engine's the call itself (the database's
+                            // comparison), legend-pure's Pure's answer by the types alone (false; -1; the comparison
+                            // itself for an ordering) -- typed code for typed code, nothing computed. Each is its door's
+                            // comparison setting, asked by the type-checker where it types the comparison (the edition
+                            // program's step 2b, 2026-11-26; until then a rewrite of the typed query's markers)
                             "EngineComparisons.java",
                             "PureComparisons.java",
                             // an engine-text assert's comparison, the edge's own record in the plan (census C3,

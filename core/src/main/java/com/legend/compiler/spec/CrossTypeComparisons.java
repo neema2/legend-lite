@@ -11,12 +11,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * THE ONE EQUALITY AT THE PLANNER AND AT THE DOORS (B3 step 5; the user's ruling of 2026-11-24, "Love it"). Lite's
- * planner refuses a comparison across types ({@link TypedCrossTypeComparison}, the typer's marker) by name before it
- * plans anything, naming the fix; a compatibility door rewrites each marker first (the edge's EngineComparisons and
- * PureComparisons) -- legend-engine's to the database's comparison, legend-pure's to Pure's answer -- and lists what it
- * loosened ({@link #in}). The core
- * never chooses between the two: it refuses whatever marker reaches it.
+ * THE ONE EQUALITY AT THE PLANNER (B3 step 5; the user's ruling of 2026-11-24, "Love it"). Lite's planner refuses a
+ * comparison across types ({@link TypedCrossTypeComparison}, the marker lite's comparison setting leaves in the query,
+ * {@link LiteCrossTypeRule}) by name before it plans anything, naming the fix. A compatibility door's setting answers
+ * the comparison where it is typed and leaves no marker ({@link CrossTypeRule}; the edition program's step 2b,
+ * 2026-11-26: until then a door rewrote the markers after typing). The core never chooses between audiences: it
+ * refuses whatever marker reaches it. {@link #in} lists the markers a typed body holds.
  */
 public final class CrossTypeComparisons {
 

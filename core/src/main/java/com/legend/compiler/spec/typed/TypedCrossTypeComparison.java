@@ -12,10 +12,11 @@ import java.util.List;
  * A COMPARISON ACROSS TYPES (B3 step 5, the one equality; the user's ruling of 2026-11-24, "Love it"): two values are
  * equal only when they have the same type and the same value, so a comparison whose two sides' types are known and
  * differ ({@code 1 == 1.0}, an enumeration against a String, a day against a date-time) is a mistake the compiler
- * catches. The typer types such a call, written in the query or test body a door receives, as this marker around the
- * call it typed -- never a warning mode. Lite's planner refuses the marker by name before anything is planned
- * ({@code compiler.spec.CrossTypeComparisons.refuse}); a compatibility door rewrites it first -- legend-engine's to the
- * database's comparison (the call itself), legend-pure's to Pure's answer -- and lists what it loosened.
+ * catches. The typer hands such a call, as this record around the call it typed, to the door's comparison setting
+ * ({@code compiler.spec.CrossTypeRule}; the edition program's step 2b, 2026-11-26) -- never a warning mode. Lite's
+ * setting leaves the record in the query as a marker, which lite's planner refuses by name before anything is planned
+ * ({@code compiler.spec.CrossTypeComparisons.refuse}); a compatibility door's answers it there -- legend-engine's the
+ * database's comparison (the call itself), legend-pure's Pure's answer.
  *
  * @param comparison the call as the typer typed it ({@code equal}, {@code in}, {@code <}, ...)
  * @param kind       which comparison it is
