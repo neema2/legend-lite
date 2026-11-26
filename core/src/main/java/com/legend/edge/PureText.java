@@ -45,7 +45,7 @@ public final class PureText {
     }
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
-    /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}): a plan in legend-pure's words,
+    /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS}): a plan in legend-pure's words,
      *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
     public static boolean isEdgeStyle(PlanStyle style) {
         return style == UPSTREAM || style == PURE_V1 || style == ENGINE_TESTS;
@@ -136,8 +136,8 @@ public final class PureText {
                 return kind.cast((com.legend.planner.RoutedQueries) AggAwareActivities::routingActivity);
             }
             if (kind == com.legend.planner.Edition.class) {
-                // the door's edition (the edition program's step 2): PCT's and the corpus's doors hand none yet, the
-                // product's as it is
+                // the door's edition (the edition program's step 2): PCT's door, legend-pure's own tests', hands none
+                // yet, the product's as it is (the corpus has its own style since step 3, ENGINE_TESTS)
                 return productForm;
             }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
@@ -184,7 +184,7 @@ public final class PureText {
      *  operation, the database's own error passing through, and the planner is handed legend-engine's edition
      *  ({@link EngineTable#DOOR}; the edition program's step 2, 2026-11-25: its table and the planner's stamp took the
      *  place of the door's rewrite of the typed query). Handed by the pure/v1 routes alone ({@link PureV1Routes},
-     *  {@link EdgeServer#runner}); PCT and the corpus keep {@link #UPSTREAM}. */
+     *  {@link EdgeServer#runner}); PCT keeps {@link #UPSTREAM}, the corpus plans under {@link #ENGINE_TESTS}. */
     public static final PlanStyle PURE_V1 = new PlanStyle() {
         @Override
         public SqlDialect dialect(DatabaseType type) {

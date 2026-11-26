@@ -14,7 +14,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * LEGEND-ENGINE'S OWN TESTS' STYLE ({@link PureText#ENGINE_TESTS}; the edition program's step 3, 2026-11-26): a test
@@ -49,6 +51,9 @@ class EngineTestsStyleTest {
 
     private static final String NAMES = "x::Firm.all()->project([f|$f.name], ['name'])";
 
+    /** The mark every raise lite writes carries in its SQL text. */
+    private static final String RAISE = "LG#";
+
     /** {@code body}'s plan under {@code style}, as text: the body admitted as legend-engine's runners read it. */
     private static String planned(String body, PlanStyle style) {
         TypedQuery typed = UpstreamTestBodies.admitted(Compiler.query(Compiler.compileModel(MODEL), body));
@@ -62,12 +67,36 @@ class EngineTestsStyleTest {
         String body = "{| let r = " + executed("x::Firm.all()->filter(f|$f.name->substring(1, 3) == 'cm')"
                 + "->project([f|$f.name], ['name'])") + ";\n$r.values->filter(x|$x.name == 'Acme');}";
         assertNotEquals(planned(body, PureText.UPSTREAM), planned(body, PureText.ENGINE_TESTS));
+        // lite's substring writes Pure's range check, a raise; legend-engine's is the database's own, with none
+        assertTrue(planned(body, PureText.UPSTREAM).contains(RAISE), "lite's edition checks the range");
+        assertFalse(planned(body, PureText.ENGINE_TESTS).contains(RAISE), "legend-engine's writes no check");
     }
 
     @Test
     @DisplayName("the same call in the test's own code, over a frame's rows, is Pure's: the plan is lite's edition's")
     void theTestsOwnCodeIsPures() {
         String body = "{| let r = " + executed(NAMES) + ";\n$r.values->filter(x|$x.name->substring(1, 3) == 'cm');}";
+        assertEquals(planned(body, PureText.UPSTREAM), planned(body, PureText.ENGINE_TESTS));
+    }
+
+    @Test
+    @DisplayName("a query the test binds to a let and then hands to execute() is still legend-engine's (the"
+            + " independent audit of 2026-11-26, finding 1: the corpus writes most of its queries this way)")
+    void aQueryBoundByALetIsLegendEngines() {
+        String query = "x::Firm.all()->filter(f|$f.name->substring(1, 3) == 'cm')->project([f|$f.name], ['name'])";
+        String bound = "{| let q = {|" + query + "};\nlet r = meta::pure::router::execute($q, x::M,"
+                + " x::RT.runtimeValue, []);\n$r.values->filter(x|$x.name == 'Acme');}";
+        assertTrue(planned(bound, PureText.UPSTREAM).contains(RAISE), "lite's edition checks the range");
+        assertFalse(planned(bound, PureText.ENGINE_TESTS).contains(RAISE), "legend-engine's writes no check");
+    }
+
+    @Test
+    @DisplayName("a let INSIDE the executed query that reads no store is legend-engine's own Java's, Pure's meaning,"
+            + " as at its API")
+    void aQuerysOwnStoreFreeLetIsPures() {
+        String body = "{| let r = meta::pure::router::execute(|let cut = 'Acme'->substring(1, 3);"
+                + " x::Firm.all()->filter(f|$f.name == $cut)->project([f|$f.name], ['name']);, x::M,"
+                + " x::RT.runtimeValue, []);\n$r.values->filter(x|$x.name == 'Acme');}";
         assertEquals(planned(body, PureText.UPSTREAM), planned(body, PureText.ENGINE_TESTS));
     }
 

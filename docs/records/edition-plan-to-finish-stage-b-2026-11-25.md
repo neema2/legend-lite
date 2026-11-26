@@ -375,14 +375,39 @@ assert could not fail. That is what the stamp is for.
   writes a timestamp `TIMESTAMP '2019-04-08T18:00:00'` where legend-engine writes `TIMESTAMP'2019-04-08 18:00:00'`
   (upstream's SQL text is never promised, CP-4).
 
-*Limits, each to close or to record:*
-- A `let` written INSIDE an executed query's lambda that reads no store is legend-engine's own Java's (as at pure/v1),
-  and is not stamped yet: it gets the database's meaning.
+*The independent audit of the step (`r3/audit-step3-tests-door.md`), before anything was pushed:* the product road
+and the other doors are untouched (no counterexample). At the tests' door it found three faults, fixed with tests:
+- **A query written as a `let` and then handed to legend-engine** (`let q = {|...}; execute($q, ...)`, about 427
+  such lambdas in the corpus) was stamped where the `let` bound it, so it got Pure's meaning. A function value a
+  `let` binds is left alone now: handed to legend-engine it is the query's; applied by the test's own code it is
+  stamped there. The measured lanes could not see the fault (the tests it touches fail before and after).
+- **The stamp told a frame's code by the identity of its nodes,** and nodes are shared (an untouched subtree, a
+  compiled function's body), so a helper used in both a query and the test's own code could be left unstamped in the
+  test. The stamp reads shape alone now (a query under its execution context, a frame reference, a call that hands
+  legend-engine a query).
+- **A slice with inverted bounds and a cast that can never succeed are not calls and carry no stamp,** so the test's
+  own became the plain operation. At the tests' door their checks stay written on both sides, as before the step.
+Also taken from it: a `let` INSIDE the executed query that reads no store follows the query rule, as at pure/v1
+(legend-engine's own Java's, Pure's meaning).
+
+*Limits that remain, each to close or to record:*
 - An assert over every element of a list (`forAll`, the unrolled elements) reduces each element with an ordinary
   inliner: the test's own code there is not stamped.
+- The values a test passes to `executeLegendQuery` as variables, and the arguments of a helper that builds a query
+  lambda, reach the query unstamped.
+- A judged side that reads two frames of different shapes (a graph fetch and a TDS over one model-to-model chain)
+  decides once which mapping code is legend-engine's own Java's.
+- The table is made for the lane's database (every corpus statement plans under the lane's runtime), not for the
+  runtime an `execute()` names; a corpus lane on a database where legend-engine's answer is not checked (Postgres)
+  refuses every query a row answers.
+- A test's function value that is computed some way other than by writing the lambda is left unstamped whole (at
+  pure/v1 it is refused by name).
 - PCT's legend-engine run still plans under pure/v1's style.
-- The lowering asks the table for the statement's database; every corpus statement named a checked one (no refusal on
-  either lane).
+
+*Answers that move at this door, for the user:* inside the queries the corpus's tests hand legend-engine,
+`substring`, `substr`, the two-argument `indexOf`, `toOne` of an always-empty operand and the checks legend-engine's
+SQL does not write are legend-engine's now (they were lite's). Six tests a lane gain from it and none is lost; no
+register row changes (the rows on these functions already say what legend-engine does and what lite does).
 
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).

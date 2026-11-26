@@ -529,7 +529,7 @@ public final class ExecuteChainAssembly {
         List<TypedSpec> qb = new ArrayList<>(letPrefix);
         qb.addAll(p.lam().body());
         var inliner = new UserCallInliner(specs);
-        TypedSpec chain = inliner.inlineFrameQuery(qb, stampTestLets ? letPrefix.size() : 0).get(0);
+        TypedSpec chain = inliner.inlineFrameQuery(qb, stampTestLets ? letPrefix.size() : 0, stampTestLets).get(0);
         queryLetsSink.putAll(inliner.queryLets());
         if (!containsTypedFrom(chain)) {
             if (p.mref() == null) {
