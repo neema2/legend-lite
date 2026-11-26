@@ -499,10 +499,12 @@ public final class VerdictQueries {
     /** {@code collection->size()}: {@code assertSize}'s count as the PRODUCT counts it, the platform's own
      *  {@code size} applied to the side as it is typed (the equality program's first slice, 2026-11-26: an assert is
      *  the Pure condition it means, planned by the product's own road; until then the database judge counted the
-     *  side's rows itself). */
+     *  side's rows itself). The call is built BY DECLARATION over the side the typer already typed as the assert's
+     *  argument, as the typer's own desugars build one ({@code TdsDesugars}): the exact declared function, never an
+     *  overload picked by its arity. A rewrite the typer makes of a WRITTEN {@code size} call (a grid's cells,
+     *  rows times columns) is not made here; the judge refuses such a side before it asks (a grid's envelope read). */
     public static TypedSpec sizeOf(TypedSpec collection, SpecCompiler specs) {
-        return platform(native1(specs.ctx(), com.legend.builtin.Pure.SIZE__ANY_MANY.qualifiedName(), collection,
-                Type.Primitive.INTEGER));
+        return declared(specs, com.legend.builtin.Pure.SIZE__ANY_MANY, List.of(collection), Type.Primitive.INTEGER);
     }
 
     /** {@code $a == $e} ({@code want}) or {@code !($a == $e)}: the condition an assert of two values means, over its
@@ -510,20 +512,23 @@ public final class VerdictQueries {
      *  the door's comparison setting as one written in a query is ({@link SpecCompiler#comparedAsInAQuery}): two
      *  sides of different types are lite's comparison across types, which its planner refuses by name. */
     public static TypedSpec sameValue(ExprType expected, ExprType actual, boolean want, SpecCompiler specs) {
-        TypedSpec same = specs.comparedAsInAQuery((TypedNativeCall) platform(native2(specs.ctx(),
-                com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName(),
-                new com.legend.compiler.spec.typed.TypedVariable(ACTUAL, actual),
-                new com.legend.compiler.spec.typed.TypedVariable(EXPECTED, expected), Type.Primitive.BOOLEAN)));
-        return want ? same : platform(native1(specs.ctx(), com.legend.builtin.Pure.NOT__BOOLEAN_1.qualifiedName(),
-                same, Type.Primitive.BOOLEAN));
+        TypedSpec same = specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY,
+                List.of(new com.legend.compiler.spec.typed.TypedVariable(ACTUAL, actual),
+                        new com.legend.compiler.spec.typed.TypedVariable(EXPECTED, expected)),
+                Type.Primitive.BOOLEAN));
+        return want ? same : declared(specs, com.legend.builtin.Pure.NOT__BOOLEAN_1, List.of(same),
+                Type.Primitive.BOOLEAN);
     }
 
-    /** A call of a function the platform declares: never absent (NO FALLBACKS, invariant 4). */
-    private static TypedSpec platform(@com.legend.base.Nullable TypedSpec call) {
-        if (call == null) {
-            throw new IllegalStateException("the platform declares no such function: an assert's condition needs it");
-        }
-        return call;
+    /** A call of exactly {@code declaration}, a function the platform declares, by its identity: never absent, never
+     *  another overload of its name (NO FALLBACKS, invariant 4; the audit of 2026-11-26, S1). */
+    private static TypedNativeCall declared(SpecCompiler specs, com.legend.model.Function declaration,
+            List<TypedSpec> args, Type out) {
+        com.legend.model.FunctionId id = com.legend.model.FunctionId.of(declaration);
+        var function = specs.ctx().findFunction(declaration.qualifiedName()).stream()
+                .filter(f -> f.id().equals(id)).findFirst().orElseThrow(() -> new IllegalStateException(
+                        "the platform declares no " + id + ": an assert's condition needs it"));
+        return new TypedNativeCall(function, args, scalar(out));
     }
 
     private static @com.legend.base.Nullable TypedSpec minus(com.legend.compiler.element.ModelContext ctx,
