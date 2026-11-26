@@ -393,7 +393,9 @@ class SqlFnSortedTest {
                     "com.legend.sql.DecodeShapes", "com.legend.sql.dialect.AsOfAsPick",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FrameGuard",
                     "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("PARSE_INT", Set.of("com.legend.lowering.Scalars")),
+            // (PARSE_INT: both sides' no more, 2026-11-26, a shrink -- the edition program's step 5: the edge's pass that
+            // read it to write the plain cast, PurePrintForms' UnguardedParses, is deleted; the plain parses are rows of
+            // legend-engine's door's table, written by lowering.NamedRules as CAST_INT)
             Map.entry("REGEXP_REPLACE", Set.of(
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.LetBinding",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
