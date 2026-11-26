@@ -155,16 +155,30 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 
 | Step | Built | Closed | What remains to close it |
 |---|---|---|---|
-| 1 | all (PCT on compiled legend-pure deferred to step 10 by the user) | no | `acos`/`asin` lands with the batch of steps 4 and 5; the program branch moves |
-| 2 | all, a full round passed | no | the program branch moves |
-| 3 | all, a full round passed | no | the program branch moves |
-| 4 | all, in the batch | no | the batch lands (CI green), the program branch moves |
-| 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | no | the batch lands. Its leftover rows are deferred by the user's word of 2026-11-26 (section 5b); its finish line is met but for one recorded difference (PCT's legend-engine run on DuckDB: `testBigFloatAbs`, register S120); the Float, date and `TDSNull` text rows are step 8's |
-| 6 | the research, the measurement, the first slice (`assertSize`, on a scratch branch) | no | slices 6.1 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
-| 8 | slices 1 and 2 on its branch | no | its deletion slice; its landing |
-| 9 | nothing (its first session never started; restarted 2026-11-26 15:01) | no | slice 1, then the later slices after steps 6 and 8 |
-| 10 | nothing | no | after 6, 8 and 9 |
+| 1 | all (PCT on compiled legend-pure deferred to step 10 by the user) | **yes, 2026-11-26** | nothing |
+| 2 | all | **yes, 2026-11-26** | nothing |
+| 3 | all | **yes, 2026-11-26** | nothing |
+| 4 | all | **yes, 2026-11-26** | nothing (its recorded gap, bodies typed into their call, is step 6's: section 5b) |
+| 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | **yes, 2026-11-26** | nothing in it. Its leftover rows are deferred by the user's word (section 5b); the Float, date and `TDSNull` text rows are step 8's. One recorded difference at its finish line (PCT's legend-engine run on DuckDB: `testBigFloatAbs`, register S120) |
+| 6 | the first slice (`assertSize`, in the next batch); slice 6.1 built and measured on a scratch branch, the fold rule ruled by the user | no | the next batch lands; then 6.1 with the fold rule; then slices 6.2 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
+| 8 | slices 1 and 2 (2 is in the next batch); the Float deletion slice and the date-time slices built, the user's rulings given | no | its slices land; the `TDSNull` row |
+| 9 | slice 1 (in the next batch); slice 2 built | no | slice 2 lands; the later slices after steps 6 and 8 |
+| 10 | nothing | no | after 6, 8 and 9. Its first item: no line of the edge names a database (section 5b) |
 | 11 | nothing | no | the user's word |
+
+**How steps 1 to 5 closed (2026-11-26, 18:22 UTC).** Their code is batch A, `ae275024`: the program branch
+`claude/compat-b3-nufdlk` was fast-forwarded to it. Verified before: the fixed pre-push set, the local gate with its
+root-only targets run unprivileged, the shrink-only check of the guard pins, ten SQL databases' lanes, and an
+independent audit whose findings were fixed. CI on the pull request (#141) at that commit: 53 of 55 jobs green, none
+red. The two that did not run are macOS jobs that never got a runner (`macos / pct_duckdb`, cancelled in the queue
+after 75 minutes; `macos / edge_net`, still queued): both lanes are green on Linux and Windows, macOS's other
+thirteen jobs are green (its corpus lane with the new overlay among them), and both run again on macOS with the next
+batch's push. Every test whose answer moved and every pin was brought to the user (`edition-homework/
+landing-steps-4-5-2026-11-26.md`; the rulings in section 7a).
+**One thing batch A got wrong, found after:** MongoDB's lane was not re-run on its last commit, and the two `acos`
+and `asin` error tests fail there (the server's optimizer evaluates the operator over a literal before the
+statement's guard). Fixed in the next batch (`MongoDb.java`, the operand read through the row), verified on the lane
+345 of 345.
 
 ### 5b. Carried forward (so nothing deferred is forgotten; each line names the step that owns it)
 
@@ -183,6 +197,7 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 | A date function's result is declared the abstract `Date` (`adjust`, and the others), so its `toString` is not a DateTime's text: at legend-pure's door on DuckDB `%2014-01-01T00:00:00.000+0000->adjust(1, DAYS)->toString()` prints the database's plain cast, `2014-01-02 00:00:00`, where legend-pure prints `2014-01-02T00:00:00.000+0000` (run 2026-11-26 through PCT's route; no recorded test holds it; the same family as the differences page's "33 differ only by an abstract Date's text") | **step 6** (slice 6.2: a value whose type is known only at run time carries its type, so its text is its type's) | step 8's date probe, 2026-11-26 |
 | A list of mixed types written leanly: (a) where the list is a literal, the compiler knows each element's type, so membership of a value of one type is `value IN (the elements of that type)` on every database, a fact fixed by the types and no value compared in Java (`1->in([1, 2, 5, 2, 'a', true])` is `1 IN (1, 2, 5, 2)`; today 220 characters on DuckDB, 286 on Snowflake, about 3,000 on H2); (b) where it is computed, the carrier uses what each database has: H2 its ARRAY type (today JSON and a CASE per element), BigQuery one `ARRAY<STRUCT<...>>` (today one single-type array per type, each operation a correlated `UNNEST ... WITH OFFSET`) | **step 6** (the fold-rule slice for (a); slices 6.2 and 6.4 for (b)) | the user, 2026-11-26, on the fold rule's measured SQL: "H2 has array type, and bigquery has array and struct - array on bigquery has to be single type" |
 | **Every database where the SQL blows up, looked at again** (the user, 2026-11-26, with the fold rule's ruling): the version lite runs against the latest released, and each "this database cannot" of lite's dialects against the database's own documentation and the database itself, "don't trust our docs". Measured over PCT's channel A, the same 2,300 statements: DuckDB 529 thousand characters, Databricks 655, Snowflake 845, Trino 918, BigQuery 934, Postgres 941, SQLite 1,543, MariaDB 1,613, ClickHouse 1,785, MySQL 2,074 (H2 457 over fewer statements). Known already: ClickHouse writes its SETTINGS clause, about 350 characters, on every statement; H2's dialect carries a list as JSON though H2 has ARRAY; BigQuery's a mixed list as one array per type though it has STRUCT | research now (read-only, beside the landing track); each fix a slice of its own, measured, the product's SQL going down | the user's ruling 1 of about 18:10 UTC |
+| **No line outside a dialect names a database to decide anything** (the user, 2026-11-26: "Why is anywhere allowed to name database anywhere except dialect? Why did we allow anywhere outside dialect"). The edge's `PureText` names databases on six lines, four of them added in step 5 by a pin moved up (the sets of databases a row of legend-engine's table answers on), against the guard's own rule ("the fix is a dialect method, never a pin bump"). They move to the edge's own dialect object for each database, which a row asks; `DialectBoundaryTest`'s count for the file goes to zero. What stays, as defaults and not behaviour: `Databases` (the platform's default database, the replay referee's) and legend-engine's test database | **step 10**, its first item (steps 8 and 9 have the file open until their slices land); brought to the user as a before and after, with what it means for step 10's deletion of the edge's dialect subclasses | the user's question, about 18:19 UTC |
 | H2's dialect: 135 PCT tests it does not write or writes wrongly | a task for the user (the product track), not a step of this plan | PCT on H2, 2026-11-26 |
 
 **Parked until step 5 is closed (not lost, not in flight):** the refusal of legend-engine's plan-text functions at its
