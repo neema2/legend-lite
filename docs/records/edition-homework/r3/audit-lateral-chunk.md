@@ -31,6 +31,15 @@ themselves, the present form then the atomic form:
 So the atomic form is the scan's count and matches in every case on both databases, and the present form was
 wrong wherever a match can be cut into shorter ones; on MySQL a longer text would have raised, not answered wrongly.
 
+**And through lite, on the pushed fix** (`e52e5892`; the same lane, an uncommitted probe removed afterwards):
+`'abcdefghijklmnop'->chunk(5)` answers `abcde`, `fghij`, `klmno`, `p` and `'abc'->chunk(5)` answers `abc`, on MariaDB
+11.4.13 and on MySQL 8.4.11: Pure's. The lane's round on that commit: channel A, all 15 suites of MariaDB, MySQL and
+ClickHouse pass with the same counts; channel B, MySQL and ClickHouse pass all five suites and match their ledgers,
+every test's verdict and message as before; MariaDB differs only by its known shuffle (rotated lists, not this
+program's); every channel B test on MariaDB and MySQL that reads `regexp_extract_all` passes (68, none moved). One
+observation on size, not on the answer: on MariaDB and MySQL a single `chunk` writes its extract-all subquery four
+times in one statement (the NULL test, the re-pack and the two outer reads).
+
 **Found sound by the reviewer:** for a filter-only subquery of plain-column projections, the uncorrelated conjuncts
 kept inside and the correlated ones in the ON is exact for CROSS to INNER and LEFT to LEFT, for any Boolean predicate;
 aggregates and windows are excluded; chains and inner laterals are handled bottom-up; the ON reads only aliases to

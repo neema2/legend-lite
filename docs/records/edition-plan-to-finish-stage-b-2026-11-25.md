@@ -587,6 +587,20 @@ credentials, the rest are being attributed against the merge-base before anythin
   body before that read, so H2, which prints no relation itself, refused it. The guard now plans the body the run
   plans.
 
+**The independent audit of H2's lateral pass and of `chunk` (2026-11-26, `r3/audit-lateral-chunk.md`): one blocker,
+found after both had landed.** `chunk` above size 1 answered wrongly on MariaDB and MySQL since its written size
+became a literal pattern: their `regexp_extract_all` counted matches by asking whether the text splits into k of
+them, which overcounts where a match can be cut into shorter ones (`'abc'->chunk(5)` gave `abc`, `c`, `c`); until
+that change both databases refused `chunk` by name. Fixed in the emulation: each earlier match is an atomic group, so
+the count is the scan's. Measured by the lane on MariaDB 11.4 and MySQL 8.4, by direct SQL and through lite: Pure's
+answers; its round on the fix moved nothing. Also from the audit: the literal pattern is written for sizes 1 to 1000
+alone; the lateral pass leaves a subquery holding a column with no table, raw SQL or a value drawn afresh, and
+counts a row's position and a star as reads; a LEFT lateral and the new bails are tested. Open product gaps of
+`chunk` it listed, from before this program: a size below 1 does not raise as Pure does, `.` skips a newline, and
+the engines count code points where Pure counts UTF-16 units. **The lesson, kept:** a change that lets something new
+reach a dialect's emulation gets its independent review before it is pushed; every lane's tests passed while the
+answer was wrong on inputs they do not hold.
+
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
