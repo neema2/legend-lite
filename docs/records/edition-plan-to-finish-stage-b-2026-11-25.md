@@ -796,6 +796,34 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   - *tolerance* compares numbers of different types by the assert's own meaning (its parameters are `Number`), so
     its condition is typed over values whose type is known at run time: slice 6.2's work, not a plain comparison of
     two typed sides, which lite's rule would refuse.
+- **Slice 6.1, one value within one type, built and measured on a scratch branch (2026-11-26, `claude/edit-ahead` at
+  `b64dc639`; not landed, it follows the next batch).** Four parts:
+  1. *The fold rule* (awaiting the user's ruling): the inliner's fold answers an equality, an `in` and a `contains`
+     of constant Strings, Booleans and enumeration values only; numbers and dates are the database's to compare, so
+     `%2020-01-01T10:00:00 == %2020-01-01T10:00:00.000` and `1.0D == 1.00D` are the database's `true`.
+  2. *A list written in the query needs no list in the SQL* (the user, on the fold rule's measured SQL: "H2 has array
+     type, and bigquery has array and struct"): membership of a value in a written mixed list is `value IN (the
+     elements of its type)`; two written lists compare position by position. Measured over PCT's channel A on eleven
+     databases: with it the fold rule's total is BELOW today's on ten (H2 492,904 to 457,463 characters; BigQuery
+     973,275 to 934,386; SQLite 1,562,673 to 1,543,087; DuckDB 529,909 to 529,252; Snowflake 846,314 to 844,951) and
+     above on ClickHouse alone (1,774,195 to 1,785,425: every statement there carries its SETTINGS clause, about 350
+     characters, so each constant that becomes a statement costs that).
+  3. *Inside a mixed list a value is compared by what it denotes:* Decimals of two scales by their number (S139),
+     date-times at two written precisions by their instant (S399), in membership, equality of two lists and
+     `removeDuplicates`; date-times of one instant tie in a mixed list's order. The written digits stay as the
+     value's presentation (the result decoder reads them).
+  4. *The literal rule's two edges:* a number no Decimal holds (past 38 digits) is not read as one.
+  **Measured at `b64dc639` against the commit before parts 3 and 4:** builds; every named test class passes; the
+  product's SQL sizes are identical on eleven databases, statement for statement; no PCT outcome differs (DuckDB both
+  styles, SQLite, H2). **Answers that move, all inside rulings S139 and S399:** `[1.5D, 'a'] == [1.50D, 'a']`,
+  `[%2014-01-01T00:00:00.000, 1]->contains(%2014-01-01T00:00:00)` and `[%...00.000, 1] == [%...00, 1]` false to
+  true; `[1.0D, 1.00D, 'a']->removeDuplicates()` three elements to two.
+  **One database answers differently, found by this measurement:** on SQLite a date-time is its text, so the
+  product's `==`, `in` and `contains` compare two date-times written at different precisions as different
+  (`...00:00:00.000` is not `...00:00:00`), where DuckDB and H2 compare the instant. It is so today for a column
+  against a literal too; the database judge normalizes each value in SQL (about 300 characters a value). Put to the
+  user: record it as SQLite's own answer, or pay that SQL in the product.
+  **Not in this slice:** an instance's Decimal or date-time key (section 5b, slice 6.4).
 
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
