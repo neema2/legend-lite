@@ -53,6 +53,13 @@ class RelationCountAssertsEdgeTest {
                 () -> run("|assertSize(" + TWO_ROWS + ", 2)"));
         // (item 3, 2026-11-21: the catalog's words on every route, Q15 = A; the count upstream's, one value)
         assertTrue(size.getMessage().contains("expected size: 2, actual size: 1"), size.getMessage());
+        // assertNotSize, the mirror (legend-pure's assertNotSize.pure: assertNotEq($size, $collection->size(), ...) over
+        // collection:Any[*]; held to the rule since 2026-11-26): the relation is one value, so it holds for every size
+        // but 1, whatever rows the relation has
+        assertTrue(run("|assertNotSize(" + TWO_ROWS + ", 2)").passed());
+        com.legend.error.AssertFailed notSize = assertThrows(com.legend.error.AssertFailed.class,
+                () -> run("|assertNotSize(" + TWO_ROWS + ", 1)"));
+        assertTrue(notSize.getMessage().contains("size should not equal: 1"), notSize.getMessage());
         // upstream fails it with '%s is not empty' printing the relation itself, a text lite does not spell: refused
         ModelException empty = assertThrows(ModelException.class, () -> run("|assertEmpty(" + TWO_ROWS + ")"));
         assertTrue(empty.getMessage().contains("which lite does not spell"), empty.getMessage());
