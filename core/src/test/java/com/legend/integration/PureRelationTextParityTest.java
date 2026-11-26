@@ -134,14 +134,16 @@ class PureRelationTextParityTest {
         texts.put("%2014-01-01T10:20:30+0000" + hours, "2014-01-01T11:20:30+0000");
         texts.put("%2014-01-01T10:20:30.123456+0000" + hours, "2014-01-01T11:20:30.123456+0000");
         texts.put("%2014-01-01T23:00:00.000+0000" + hours, "2014-01-02T00:00:00+0000");
-        try (Connection c = backend.open()) {
+        try (Connection c = backend.open(PureText.UPSTREAM)) {
             for (var e : texts.entrySet()) {
                 String query = "|" + e.getKey() + "->toString()";
                 assertEquals(e.getValue(), lifted(model, query, c), backend.name() + " the Java print: " + query);
-                // not lifted, the edge's plan writes the product's text of the instant
-                assertEquals(Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, c,
+                // not lifted, the edge's plan writes the product's text of the instant (each style on a session of
+                // its own: the product's and the edge's sessions are opened differently on one lane)
+                assertEquals(Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, backend,
                                 com.legend.database.PlanStyle.PRODUCT).rows().get(0).get(0),
-                        Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, c, PureText.UPSTREAM).rows().get(0).get(0),
+                        Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, backend, PureText.UPSTREAM).rows().get(0)
+                                .get(0),
                         backend.name() + " used further: " + query);
             }
         }

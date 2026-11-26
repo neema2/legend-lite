@@ -403,10 +403,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("RTRIM", Set.of(
-                    "com.legend.lowering.DateCtorRule", "com.legend.lowering.LiteralSpelling",
-                    "com.legend.lowering.Scalars", "com.legend.lowering.SnapshotEnvelope",
-                    "com.legend.sql.dialect.DateTimeCanonText")),
+            // (RTRIM: both sides' no more, 2026-11-26, a shrink -- edge.PureDateTimePrint, the edge's one class that
+            // wrote it (the trailing zeros of a DateTime's fraction, legend-pure's print composed in SQL), is deleted:
+            // the edition program's step 8, the user's ruling of that day, "go with lite in the middle")
             Map.entry("STRFTIME", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.Fold",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
