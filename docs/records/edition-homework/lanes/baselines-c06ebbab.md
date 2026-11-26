@@ -169,3 +169,23 @@ its two `testFlatten_LateralJoin_Nested*` improvements are new with this branch 
 
 **What follows:** (1) the three stale Relation ledger blocks shrink in the step that lands this branch's work, with a
 dated note; (2) the unordered window is posted as a defect on `main`, to fix outside this program.
+
+## Round 2 (2026-11-26): steps 2 and 3 at `29f58b21`, against the baselines above
+
+The claim measured: legend-engine's door changed (the table and the stamp in the old rewrite's place) and PCT's and
+the corpus's doors still hand the product's own edition, so no PCT answer moves on any database.
+
+| Lane | Verdict | How it compared |
+|---|---|---|
+| SQLite, MongoDB | nothing differs | channel B line by line (verdict and message of every test); channel A by counts (all pass in both) |
+| BigQuery | nothing differs | channel A every testcase verdict; channel B all 1,249 lines with their messages; the whole logs equal but for the heap line. The 19 known failures (the untyped NULL, on `main`) are the same tests with the same messages |
+| Snowflake | nothing differs | every per-test line of all ten suites, timings stripped |
+| Databricks | nothing differs | every junit outcome and message and every channel B line against its round 1 candidate (`2cd0b2f9`); whole logs equal after normalising ids and timings |
+| MariaDB, MySQL, ClickHouse | nothing differs on MySQL and ClickHouse; MariaDB moves only by its known list shuffle | test by test. ClickHouse channel A: four echoed results list the same rows in another order (unordered relations; the tests pass either way). MariaDB channel B: Essential 21 unledgered failures (30 at the baseline), Grammar the same 4, Relation one of the two sort tests seen on `main`, a different one on a rerun: all rotated lists, the window with no order |
+| Postgres, Trino | (running when this was written) | it is measuring `c06ebbab` first, its stored logs being older |
+
+The three stale Relation ledger blocks (MySQL 21, ClickHouse 5, MariaDB 2 "PASSES, ledgered as failing") are unchanged
+and still to shrink.
+
+The audit's fixes came after `29f58b21`; they change legend-engine's door alone, and are checked here by the edge
+tests, the guards and a second full round.
