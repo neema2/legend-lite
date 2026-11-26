@@ -22822,3 +22822,10 @@ Checked on the commit that holds it: the guards (`//core:guardrails`, `//core:gu
 `//spec:spec_tests`, the generated-file tests, `//parser-equivalence:parser_parity`, the corpus's SQL size pins
 (`//spec:lean_sql_corpus_duckdb`, `//spec:lean_sql_corpus_h2`) and both corpus lanes (`//spec:corpus_duckdb`,
 `//spec:corpus_h2`); PCT on DuckDB, both channels, on the step before it (`d585e5b8`, 25 targets).
+
+**Added the same day: SQLite's `chunk` (the user's ruling of 2026-11-25 on the Pure-mode gaps).** `chunk` with a
+written size writes a literal pattern. Ledgers moved: channel B's `ledger.tsv` loses ten SQLite Relation rows (the
+tests pass); the edge golden `edge/channel_b_sqlite_relation_outcomes.tsv` is re-recorded, the same ten rows from
+ERROR to PASS (`bazel run //pct:update_edge_contract`), no other golden row. Checked: the guards and census, core's
+sql and lowering suites and edge tests, `//core:lean_sql_baseline_test` (no pin moved), PCT's Relation suite on
+DuckDB and SQLite on both channels, the ledger test and every edge golden.

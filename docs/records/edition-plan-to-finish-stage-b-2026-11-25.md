@@ -409,6 +409,15 @@ Also taken from it: a `let` INSIDE the executed query that reads no store follow
 SQL does not write are legend-engine's now (they were lite's). Six tests a lane gain from it and none is lost; no
 register row changes (the rows on these functions already say what legend-engine does and what lite does).
 
+**Step 1's leftover, SQLite's `chunk` (2026-11-26).** `chunk` with a written size writes a literal pattern
+(`'.{1,5}'`), where it composed the pattern in SQL for every size; a computed size still does. SQLite's
+regular-expression functions take a literal pattern alone, so PCT's own checking code (`...->chunk(1)->sort()->
+joinStrings('')`) runs there now: ten tests of the Relation suite pass on SQLite's channel B (the eight
+`testSimpleGroupBy_*`, `testOLAPAggStringWithPartitionAndUnboundedWindow`, `testJoinStrings_GroupBy_Unordered`).
+Their ten rows left channel B's ledger and the edge outcomes file was re-recorded (ten rows from error to pass, no
+other row of any file). The SQL is shorter on every database; no size pin moved. Checked: 49 of 50 targets on the
+change (the fiftieth was the outcomes file), then the goldens again.
+
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
