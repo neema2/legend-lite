@@ -70,7 +70,10 @@ and the user's word on the register row.
   corpus's, `//spec:spec_tests`, both corpus lanes, PCT on DuckDB, H2 and SQLite, channel B on DuckDB and H2, the
   legend-engine lane's pins, the whole edge net). One failed and is fixed: the generated list of the classes that
   name each native (`native-claims.tsv`) gained `PrintTail` on eight string natives, regenerated.
-- The local gate: see the commit.
+- The local gate (`--lockfile_mode=error //gates:local`) on `d4071d5`: 555 of 571 pass. The 15 that fail are the 14
+  that fail only because the container runs as root (the thirteen Postgres-backed core targets and
+  `//datacube:verify_app_test`), and `//tools/guards:shrink_only_check`, which could not read the history in a shallow
+  clone and passes once `origin/main` is fetched in full (45 pins in 19 files, none grown).
 
 ## The independent review (Opus, high effort, given the diff and the rules)
 
