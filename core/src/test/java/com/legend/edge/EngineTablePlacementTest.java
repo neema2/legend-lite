@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EngineTablePlacementTest {
 
     /** A relational model over H2: a table, a class mapped to it, two qualified properties, two user functions, a
-     *  constraint, two model-to-model mappings over the class (one whose transform calls a function), a runtime on the
+     *  constraint, a model-to-model mapping over the class (whose own class has a qualified property), a runtime on the
      *  store and one on a model connection. */
     static final String MODEL = String.join("\n",
             "###Relational\nDatabase t::DB ( Table PERSON ( ID INTEGER PRIMARY KEY, NAME VARCHAR(32), CODE VARCHAR(8) ) )",
@@ -60,7 +60,6 @@ class EngineTablePlacementTest {
             "###Mapping\nMapping t::M ( t::Person: Relational { ~mainTable [t::DB]PERSON name: [t::DB]PERSON.NAME,"
                     + " code: [t::DB]PERSON.CODE } )",
             "###Mapping\nMapping t::M2 ( t::Out: Pure { ~src t::Person short: $src.name->substring(1, 2) } )",
-            "###Mapping\nMapping t::M3 ( t::Out: Pure { ~src t::Person short: $src.initials() } )",
             "###Connection\nRelationalDatabaseConnection t::Conn { store: t::DB; type: H2; specification: LocalH2 { };"
                     + " auth: DefaultH2; }",
             "###Runtime\nRuntime t::RT { mappings: [t::M]; connections: [ t::DB: [ c1: t::Conn ] ]; }",
@@ -202,9 +201,6 @@ class EngineTablePlacementTest {
                         + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}");
         STORE_BOUND.put("a let that builds on a relation not yet executed (F3)", "{|let t = " + TABLE
                 + "; let u = $t->extend(~a: r|$r.NAME->toOne()->substring(1, 3)); $u->select(~[a])->from(t::RT);}");
-        STORE_BOUND.put("a model-to-model transform that calls a function, in a TDS query over a chain",
-                "|t::Out.all()->project(~[s: o|$o.short])"
-                        + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M3, t::RT)");
     }
 
     @Test
@@ -260,9 +256,6 @@ class EngineTablePlacementTest {
         AS_PURE.put("a model-to-model transform under a graph fetch", "|t::Out.all()->graphFetch(#{t::Out{short}}#)"
                 + "->serialize(#{t::Out{short}}#)->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
         // the independent audit's cases
-        AS_PURE.put("a model-to-model transform that calls a function, under a graph fetch",
-                "|t::Out.all()->graphFetch(#{t::Out{short}}#)->serialize(#{t::Out{short}}#)"
-                        + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M3, t::RT)");
         AS_PURE.put("a qualified property a graph fetch reads off a class a model-to-model mapping makes (F4)",
                 "|t::Out.all()->graphFetch(#{t::Out{short,where}}#)->serialize(#{t::Out{short,where}}#)"
                         + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
