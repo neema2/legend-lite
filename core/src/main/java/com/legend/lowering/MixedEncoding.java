@@ -328,10 +328,14 @@ final class MixedEncoding {
         } else {
             return null;
         }
-        // a date's precision, its tie-break after the instant (O2's D1, 2026-11-13): legend-pure's
-        // DateFunctions.compare compares component by component, and where one date lacks the other's finer
-        // component they are ordered coarser FIRST -- %2025-02-10 before %2025-02-10T00:00:00, which share an instant
-        SqlExpr p = group == 1 ? new SqlExpr.IntLit(precisionOf(t, e).ordinal()) : new SqlExpr.NullLit();
+        // a date's TYPE, its tie-break after the instant (O2's D1, 2026-11-13): a year, a year and month, a day and a
+        // date-time are four types, and where two of them share an instant the coarser is ordered FIRST --
+        // %2025-02-10 before %2025-02-10T00:00:00 (legend-pure's DateFunctions.compare, component by component). A
+        // date-time is ONE type whatever precision it was written at (the equality rule, register S399; the edition
+        // program's step 6, slice 6.1, 2026-11-26): two date-times at one instant are equal, so they tie here and
+        // keep the list's own order (until then the written precision ordered them, an hour before a second)
+        SqlExpr p = group == 1 ? new SqlExpr.IntLit(Math.min(precisionOf(t, e).ordinal(),
+                PureDateLiteral.Precision.HOUR.ordinal())) : new SqlExpr.NullLit();
         return new SqlExpr.StructLit(List.of(
                 new SqlExpr.StructLit.Field("g", new SqlExpr.IntLit(group)),
                 new SqlExpr.StructLit.Field("n", n != null ? n : new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE),
