@@ -250,25 +250,18 @@ public final class ProductStatements {
     private static Inlined inline(SpecCompiler specs, List<TypedSpec> statements, @Nullable Integer mark,
             ProgramFrames.Recorder first, boolean frameAnswered, boolean stamp, boolean testBody) {
         ProgramFrames.Recorder recorder = first;
-        UserCallInliner inliner = UserCallInliner.ofTestBody(specs, hook(recorder, testBody), testBody);
+        UserCallInliner inliner = UserCallInliner.ofTestBody(specs, ResultEnvelopeSplice.hook(recorder), testBody);
         List<TypedSpec> body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark, stamp), recorder,
                 frameAnswered);
         ProgramFrames.Recorder again = recorder.again(body);
         if (again != null) {
             recorder = again;
-            inliner = UserCallInliner.ofTestBody(specs, hook(recorder, testBody), testBody);
+            inliner = UserCallInliner.ofTestBody(specs, ResultEnvelopeSplice.hook(recorder), testBody);
             body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark, stamp), recorder,
                     frameAnswered);
         }
         return new Inlined(body, Collections.unmodifiableMap(new LinkedHashMap<>(inliner.queryLets())),
                 recorder.reads());
-    }
-
-    /** The splice hook over {@code recorder}: where the statement is a test body's whose own code the door's edition
-     *  stamps ({@code testBody}), the hook that notes the frames' code, so the inliner stamps around it. */
-    private static java.util.function.BiFunction<TypedSpec, Set<String>, TypedSpec> hook(ProgramFrames.Recorder recorder,
-            boolean testBody) {
-        return ResultEnvelopeSplice.hook(testBody, recorder);
     }
 
     /** {@code body} with its last statement, an {@code execute(...)} of a relation-rooted query at its root, read as

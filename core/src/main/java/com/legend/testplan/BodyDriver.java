@@ -480,9 +480,7 @@ public final class BodyDriver {
     static java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> spliceHook(
             java.util.Map<String, ExecFrame> allFrames,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
-        // a judged side is a test body's own code: where the door's edition stamps it, the hook notes the frames' code
-        // and the side's inliner stamps around it (the edition program's step 3)
-        return com.legend.compiler.spec.ResultEnvelopeSplice.hook(env.plan().edition().stampsTestBodies(),
+        return com.legend.compiler.spec.ResultEnvelopeSplice.hook(
                 new com.legend.compiler.spec.ResultEnvelopeSplice.Frames() {
             @Override
             public com.legend.compiler.spec.ResultEnvelopeSplice

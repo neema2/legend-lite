@@ -133,14 +133,21 @@ final class EngineTable implements EditionTable, Edition {
     /** legend-engine's SQL writes no check for the kinds of its census class A ({@link PureText#ENGINE_UNCHECKED}):
      *  inside a store query the database decides. Outside one (the planner's stamp) legend-engine's own Java computes
      *  the call and raises as Pure does, so the check is written. A check that is no call's own (a cast that can never
-     *  succeed, a slice) carries no stamp and is read as inside a store query. */
+     *  succeed, a slice) carries no stamp. */
     @Override
     public boolean checks(com.legend.sql.RaiseKind kind, @Nullable TypedNativeCall call) {
         if (!table) {
             throw new IllegalStateException("legend-engine's edition was asked about a check: the planner makes the"
                     + " table of a statement's database from it (Edition.table)");
         }
-        return call != null && call.outsideStore() || !PureText.ENGINE_UNCHECKED.contains(kind);
+        if (call == null) {
+            // no call's own: at legend-engine's API it is read as inside a store query (B7). At its tests' door the
+            // node cannot say which side it is on, and the test's own code must raise as Pure does, so the check is
+            // written on both sides, as it was before that door had a table (the independent audit of 2026-11-26,
+            // finding 3)
+            return testBodies || !PureText.ENGINE_UNCHECKED.contains(kind);
+        }
+        return call.outsideStore() || !PureText.ENGINE_UNCHECKED.contains(kind);
     }
 
     private static @Nullable Row row(TypedNativeCall call, Set<Feature> features) {

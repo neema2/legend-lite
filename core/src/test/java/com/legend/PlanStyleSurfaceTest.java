@@ -77,7 +77,8 @@ class PlanStyleSurfaceTest {
 
     /** Each implementer of PlanStyle -> the style methods it declares. */
     static final Map<String, Set<String>> OVERRIDERS = Map.ofEntries(
-            // the product's style (PlanStyle.PRODUCT) and the edge's two (PureText.UPSTREAM, PureText.PURE_V1)
+            // the product's style (PlanStyle.PRODUCT) and the edge's (PureText.UPSTREAM, PureText.PURE_V1, and
+            // PureText.ENGINE_TESTS below)
             Map.entry("com.legend.database.PlanStyle$1", ALL),
             Map.entry("com.legend.edge.PureText$1", ALL),
             Map.entry("com.legend.edge.PureText$2", ALL),
