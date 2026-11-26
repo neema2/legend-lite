@@ -62,10 +62,11 @@ class CodeShapeGuardrailTest {
             "ProgramState.catalogRegistered", "ProgramState.registration",
             // (2026-11-11, the JSON pass: "DataSources.home", the one body's data: tables' home database, left with the
             // tables themselves -- a payload is its statement's own, bound or inline, and the rewrite holds no state)
-            // 2026-11-09 (the user's question "why do we have any callbacks?"): the service test's answer is a receiver
-            // told the answer's shape before its columns (Output.Rows), where the run called a factory of the runner's
-            // until then; it holds the writer it made for that shape, set once, read by each row after
-            "ServiceTestRunner.writer",
+            // GONE DOWN (2026-11-26, the edition program's step 9, slice 1: test machinery moved unchanged out of core/src/main to
+            // the testonly //core:edge_harness and //core:edge_service_tests, core/src/edge_harness, so out of this
+            // scan): the eight rows ServiceTestRunner.writer, ServiceTestRunner.execution, Appeals.deciding,
+            // Appeals.wrote, Appeals.wroteAfterHold, TdsObjectsWriter.columns, TdsObjectsWriter.toOne and
+            // TdsObjectsWriter.rows
             // 2026-11-01, the test-is-the-product plan's M5 audit: until then a field whose TYPE carried an annotation
             // (@Nullable, Outer.@Nullable Inner, Object @Nullable []) was outside this scan; the scan learned them and
             // found these, each listed with what it is. LAZY, set once from the instance's own inputs and read back
@@ -115,14 +116,8 @@ class CodeShapeGuardrailTest {
             // (RootLoops.rejected, a segment's run holding the database's rejection of one of its fused statements,
             // 2026-11-19: removed 2026-11-20, the user's "Yes remove mutable next" -- the rejection is handed to the
             // judging step as its argument, RootLoops.Run.judgeRejected; a down move)
-            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run): one body's
-            // held appeals, one instance per body -- deciding, latched when the run is over, sends the appeals' own
-            // reports straight to the caller's listener
-            "Appeals.deciding",
-            // 2026-11-07, the P1 milestone audit's 2: whether a write of the body's ran (wrote) and ran after the first
-            // held appeal (wroteAfterHold) -- told by the runner's sink at each writing step, read when the appeals are
-            // decided: an appeal whose rows a write moved, or a failed run's rollback undid, is refused by name
-            "Appeals.wrote", "Appeals.wroteAfterHold",
+            // (Appeals.deciding of 2026-11-07, P1.2, and Appeals.wrote, Appeals.wroteAfterHold of the P1 milestone
+            // audit's 2: gone with their file to the edge's test harness, 2026-11-26, the edition program's step 9, slice 1)
             // 2026-11-08, the plan-as-data design's step 0: a body's verdict ids -- one counter per body, the last id
             // given; planning state, never read at run
             "VerdictIds.last",
@@ -240,17 +235,15 @@ class CodeShapeGuardrailTest {
             "PureV1Writer.order", "PureV1Writer.rows",
             // 2026-11-12 (C1's second half, the C checkpoint's code audit SHOULD-FIX 4): the execution the run names
             // before its columns (ResultSink.execution) -- the sink protocol's state, scoped to one result's stream as
-            // the columns are; the service runner's receiver holds it until its shape makes the writer it hands it to.
-            // The same day (the exec-id item, C4): the engine's writers are MADE for their execution (the door's id,
-            // Output.writerFor), PureV1Writer's final and ArrowWriter's gone, so they left this list
-            "ServiceTestRunner.execution",
+            // the columns are. The same day (the exec-id item, C4): the engine's writers are MADE for their execution
+            // (the door's id, Output.writerFor), PureV1Writer's final and ArrowWriter's gone, so they left this list
+            // (ServiceTestRunner.execution, the service runner's receiver holding it until its shape makes its writer:
+            // gone with its file to the edge's test harness, 2026-11-26, the edition program's step 9, slice 1)
             // the collector's, the same day (C4: PCT's plan route writes a collected relation later, through a writer
             // whose activity names the execution the run named to the collector)
             "Collector.execution",
-            // legend-engine's PURE_TDSOBJECT writer (the doors, door 1, 2026-10-29): the same cursor shape -- its
-            // columns as announced, whether the one value column is to-one, the row count for the comma and the
-            // to-one refusal
-            "TdsObjectsWriter.columns", "TdsObjectsWriter.toOne", "TdsObjectsWriter.rows",
+            // (TdsObjectsWriter.columns, .toOne, .rows -- legend-engine's PURE_TDSOBJECT writer's cursor, the doors'
+            // door 1, 2026-10-29: gone with its file to the edge's test harness, 2026-11-26, the edition program's step 9, slice 1)
             // legend-pure's text of a relation, a run's receiver (stage B's B2, B2b S1, 2026-11-24): the columns as
             // announced and whether the result has ended -- the same one-answer cursor shape, scoped to one run
             "PureRelationTextWriter.columns", "PureRelationTextWriter.ended",

@@ -106,6 +106,9 @@ legend_java_library(
         "//core",
         # the edge's dialects (phase D's D1.0): both channels spell their plans as legend-pure does
         "//core:edge",
+        # the edge's test harness (2026-11-26, the edition program's step 9, slice 1: out of //core:edge): channel B's
+        # recorder (CompatEdge) and run hook (AppealRun), and the plan's codec for the edge's records
+        "//core:edge_harness",
         "//core:test_backends",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
