@@ -21,7 +21,7 @@ import static org.finos.legend.engine.test.shared.framework.PureTestHelperFramew
  * ({@code LEGENDLITE_PCT_BACKEND=h2}, {@code //pct:pct_h2_essential}), and this class carries H2's OWN expected failures --
  * legend-engine's shape, as {@link Test_LegendLite_H2_RelationFunctions_PCT}: every expected failure named and pinned
  * by the text it fails with, and a pinned test that starts passing fails the run, so a fix is recorded by deleting its
- * row. Added 2026-11-26 (the user's question "Should we run full h2 pct like duck?"; not yet in any gate).
+ * row. Added 2026-11-26 (the user's question "Should we run full h2 pct like duck?"; in gate 7, `//gates:pct_h2`, since the same day).
  */
 public class Test_LegendLite_H2_EssentialFunctions_PCT extends PCTReportConfiguration {
 
@@ -132,9 +132,10 @@ public class Test_LegendLite_H2_EssentialFunctions_PCT extends PCTReportConfigur
             // (b) a wrong answer, or SQL H2 cannot read: the value differs from Pure's. Delete the row with the fix.
             one("meta::pure::functions::math::tests::rem::testRemWithMixedIntegersAndFloats_Function_1__Boolean_1_", "expected: 2.5\nactual:   3.0"),
             one("meta::pure::functions::string::tests::format::testFormatBoolean_Function_1__Boolean_1_", "expected: 'the quick brown fox jumps over the lazy true'\nactual:   'the quick brown fox jumps over the lazy TRUE'"),
-            one("meta::pure::functions::string::tests::parseDate::testParseDateWithTimezone_Function_1__Boolean_1_", "Cannot parse \"TIMESTAMP WITH TIME ZONE\" constant \"2014-02-27T10:01:35.231-0500\""),
-            one("meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent_Function_1__Boolean_1_", "expected: '0.000000013421'\nactual:   '1.3421E-8'"),
-            one("meta::pure::functions::string::tests::toString::testFloatToStringWithPositiveExponent_Function_1__Boolean_1_", "expected: '134210000.0'\nactual:   '1.3421E8'")
+            one("meta::pure::functions::string::tests::parseDate::testParseDateWithTimezone_Function_1__Boolean_1_", "Cannot parse \"TIMESTAMP WITH TIME ZONE\" constant \"2014-02-27T10:01:35.231-0500\"")
+            // (a Float's toString in exponent form, two tests, pass since 2026-11-26: at legend-pure's doors a Float's
+            // text at a last step is written by Java at the edge from the typed value, step 8's second slice, where
+            // H2's own cast wrote 1.3421E-8; the audit of the next batch found the two pins stale)
     );
 
     public static Test suite() {
