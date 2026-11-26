@@ -16,9 +16,10 @@ import java.util.regex.Pattern;
  * declare.
  *
  * <p>Which text crosses is decided by the database its connection DECLARES (decision D2, the dialect program's Phase
- * 1c; {@code SqlDialect.raw}): only text written for {@link #ENGINE_TEXT}, and only through the edge's dialects that
- * translate it ({@link PureText.DuckDb}, {@link PureText.Postgres}; the product runs every raw statement as written since Phase
- * 6's B4 (ii), 2026-11-17, as legend-engine does). Text
+ * 1c; {@code SqlDialect.raw}): only text written for {@link #ENGINE_TEXT}, and only through the tests' harness's dialects that
+ * translate it ({@link HarnessText.DuckDb}, {@link HarnessText.Postgres}; the product runs every raw statement as written since Phase
+ * 6's B4 (ii), 2026-11-17, as legend-engine does, and so do the edge's own dialects since 2026-11-26, the edition
+ * program's step 9, slice 2: a test body's text sent to another database than it was written for is the tests'). Text
  * written for any other database runs as written, and SQL a dialect rendered never passes through here. Java-generated
  * engine text (Ddl's H2 spelling) still crosses when a body sends it through {@code executeInDb} on an H2 connection.
  * RawSqlLedgerTest pins the caller set shrink-only.
@@ -104,8 +105,8 @@ public final class RawSqlBoundary {
 
     /** One statement of the engine's H2 text in the flavor DuckDB and Postgres share (the dialect program's owner guard,
      *  2026-10-15: what differs between them is theirs, passed in): {@code columnTypes} spells a column definition's
-     *  type part, after FLOAT, BIT and CLOB are read as H2 means them ({@link PureText.DuckDb} as they are,
-     *  {@link PureText.Postgres} its own); {@code bareName} is a bare column name as the target folds it. */
+     *  type part, after FLOAT, BIT and CLOB are read as H2 means them ({@link HarnessText.DuckDb} as they are,
+     *  {@link HarnessText.Postgres} its own); {@code bareName} is a bare column name as the target folds it. */
     public static String translated(String sql, UnaryOperator<String> columnTypes, UnaryOperator<String> bareName) {
         String out = CURRENT_TS.matcher(sql).replaceAll("CURRENT_TIMESTAMP");
         out = H2_VERSION_FN.matcher(out).replaceAll("'" + H2_DIALECT_VERSION + "'");

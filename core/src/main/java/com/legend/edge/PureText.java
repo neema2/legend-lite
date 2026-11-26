@@ -84,7 +84,14 @@ public final class PureText {
      *  {@link #ENGINE_PCT}): a plan in legend-pure's words,
      *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
     public static boolean isEdgeStyle(PlanStyle style) {
-        return style == UPSTREAM || style == PURE_V1 || style == ENGINE_TESTS || style == ENGINE_PCT;
+        return style == UPSTREAM || style == PURE_V1 || style == ENGINE_TESTS || style == ENGINE_PCT
+                || style instanceof OfTheEdge;
+    }
+
+    /** A style made of one of the edge's by {@link #withDialects}: the edge's too ({@link #isEdgeStyle}), known by
+     *  this marker where the four above are known by name (2026-11-26, the edition program's step 9, slice 2: the
+     *  tests' harness plans in an edge style whose DuckDB and Postgres are its own, and is no fifth name here). */
+    interface OfTheEdge extends PlanStyle {
     }
 
     public static final PlanStyle UPSTREAM = new PlanStyle() {
@@ -372,6 +379,58 @@ public final class PureText {
         };
     }
 
+    /** {@code base}, one of the edge's styles, in every facet, form and edition, its dialect of each database
+     *  {@code dialects}' (2026-11-26, the edition program's step 9, slice 2). For the tests' harness alone, in this
+     *  package: the corpus's dialect hooks (legend-engine's H2 text translated for another database, its scan order
+     *  made explicit) are test machinery, so the harness hands the planner subclasses of the dialects below that add
+     *  them, and no style of this class reaches them. */
+    static PlanStyle withDialects(PlanStyle base, java.util.function.Function<DatabaseType, SqlDialect> dialects) {
+        if (!isEdgeStyle(base)) {
+            throw new IllegalArgumentException("the harness's dialects are handed over one of the edge's styles");
+        }
+        return new OfTheEdge() {
+            @Override
+            public SqlDialect dialect(DatabaseType type) {
+                return dialects.apply(type);
+            }
+
+            @Override
+            public boolean judgesEngineText() {
+                return base.judgesEngineText();
+            }
+
+            @Override
+            public @com.legend.base.Nullable TraceCell traceCell() {
+                return base.traceCell();
+            }
+
+            @Override
+            public String graphKeyDate(String written) {
+                return base.graphKeyDate(written);
+            }
+
+            @Override
+            public String graphKeyString(String value) {
+                return base.graphKeyString(value);
+            }
+
+            @Override
+            public <F> F facet(Class<F> kind) {
+                return base.facet(kind);
+            }
+
+            @Override
+            public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+                return base.facet(kind, refusal);
+            }
+
+            @Override
+            public <F> F twoForm(Class<F> kind, F productForm) {
+                return base.twoForm(kind, productForm);
+            }
+        };
+    }
+
     /** Refuses a style that is not pure/v1's ({@link #PURE_V1}): legend-engine's door's own plannings answer
      *  legend-engine's meaning, which is that style's edition's, so a caller that hands another would be answered
      *  lite's meaning in silence. */
@@ -407,26 +466,9 @@ public final class PureText {
         };
     }
 
-    /** DuckDB, spelled as upstream spells it. */
-    public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
-
-        /** legend-engine's H2 text (its connection declares {@link RawSqlBoundary#ENGINE_TEXT}, as legend-engine's test
-         *  corpus's executeInDb calls do) translated for DuckDB ({@link RawSqlBoundary#translated}: keyword column names
-         *  quoted, H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens); the product runs a raw statement
-         *  as written (Phase 6's B4 (ii), 2026-11-17). */
-        @Override
-        public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
-            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
-                    ? RawSqlBoundary.translated(statement, types -> types, bare -> bare) : statement;
-        }
-
-        /** legend-engine's scan order made explicit for its corpus's replay (StableScanOrder, behind the corpus lanes'
-         *  {@code legend.exec.engineScanOrder}; moved here from the product's dialect, W6, 2026-11-16). */
-        @Override
-        protected java.util.List<com.legend.sql.SqlRewriter> scanOrderPasses() {
-            return Boolean.getBoolean("legend.exec.engineScanOrder") ? java.util.List.of(new StableScanOrder())
-                    : java.util.List.of();
-        }
+    /** DuckDB, spelled as upstream spells it. Open to the tests' harness's subclass alone ({@code HarnessText.DuckDb},
+     *  which adds the corpus's hooks; 2026-11-26, the edition program's step 9, slice 2). */
+    public static class DuckDb extends com.legend.sql.dialect.DuckDb {
 
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
@@ -465,22 +507,9 @@ public final class PureText {
         }
     }
 
-    /** Postgres, spelled as upstream spells it. */
-    public static final class Postgres extends com.legend.sql.dialect.Postgres {
-
-        /** legend-engine's H2 text translated in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
-         *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the
-         *  smallest integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name
-         *  and spells a store's (decision D8); the product runs a raw statement as written (Phase 6's B4 (ii)). */
-        @Override
-        public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
-            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
-                    ? RawSqlBoundary.translated(statement,
-                            types -> types.replaceAll("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)", "DOUBLE PRECISION")
-                                    .replaceAll("(?i)\\bTINYINT\\b", "SMALLINT"),
-                            bare -> bare.toLowerCase(java.util.Locale.ROOT))
-                    : statement;
-        }
+    /** Postgres, spelled as upstream spells it. Open to the tests' harness's subclass alone
+     *  ({@code HarnessText.Postgres}; 2026-11-26, the edition program's step 9, slice 2). */
+    public static class Postgres extends com.legend.sql.dialect.Postgres {
 
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override

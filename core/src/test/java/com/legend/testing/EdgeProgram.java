@@ -51,9 +51,12 @@ public final class EdgeProgram {
     }
 
     /** {@code options} if they plan in upstream's style, else refused by name: a body the edge's door admitted is
-     *  upstream's reading, never planned by the product's rules (the review of B3 step 2's M1, 2026-11-24). */
+     *  upstream's reading, never planned by the product's rules (the review of B3 step 2's M1, 2026-11-24). Upstream's
+     *  style in the tests' harness's dialects is upstream's style too ({@code edge.HarnessText.UPSTREAM}, 2026-11-26,
+     *  the edition program's step 9, slice 2: a test that sends legend-engine's H2 text to DuckDB plans in it). */
     private static ExecuteOptions upstream(ExecuteOptions options) {
-        if (options.planning().style() != com.legend.edge.PureText.UPSTREAM) {
+        if (options.planning().style() != com.legend.edge.PureText.UPSTREAM
+                && options.planning().style() != com.legend.edge.HarnessText.UPSTREAM) {
             throw new IllegalArgumentException("the edge's door admits a body for upstream's reading; its options plan"
                     + " in " + options.planning().style() + ", not upstream's style (EdgeProgram.compat or upstream)");
         }

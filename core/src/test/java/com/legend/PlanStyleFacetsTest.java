@@ -27,7 +27,12 @@ class PlanStyleFacetsTest {
             com.legend.edge.PureText.ENGINE_TESTS,
             // PCT's legend-engine run's style (the same step's remainder, the same day): pure/v1's in every method but
             // its edition, under which nothing is stamped -- a PCT case is sent to the database whole
-            com.legend.edge.PureText.ENGINE_PCT);
+            com.legend.edge.PureText.ENGINE_PCT,
+            // the edge's style in the tests' harness's dialects (2026-11-26, the edition program's step 9, slice 2, the
+            // orchestrator's ruling): the class PureText.withDialects makes, which the harness hands the planner where
+            // the corpus's two dialect hooks moved from the edge's DuckDB and Postgres to the harness's subclasses of
+            // them. Test tooling (core/src/edge_harness): no style of the product's or the edge's own was added
+            com.legend.edge.HarnessText.UPSTREAM);
             // (the edge's recorder of one planning call's raise sites' words, K10b of 2026-11-17: deleted 2026-11-20
             // with stage B's B1)
 

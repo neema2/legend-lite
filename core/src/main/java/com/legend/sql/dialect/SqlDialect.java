@@ -362,8 +362,8 @@ public interface SqlDialect {
      * orchestrator under the user's "match engine": legend-engine sends executeInDb's text untranslated -- legend-pure
      * 5.99.0's interpreted ExecuteInDb.java:127 takes the text and :191 runs statement.execute(sql); legend-engine
      * 4.145.0's relationalExtension.pure:31-33 hands it there). {@code writtenFor} is the database its connection
-     * declares; the compatibility edge's dialects translate legend-engine's H2 text for DuckDB and Postgres
-     * ({@code edge.PureText.DuckDb}, {@code edge.PureText.Postgres}), the product never.
+     * declares; the tests' harness's dialects translate legend-engine's H2 text for DuckDB and Postgres
+     * ({@code edge.HarnessText.DuckDb}, {@code edge.HarnessText.Postgres}), the product and the edge never.
      */
     default String raw(String statement, @com.legend.base.Nullable String writtenFor) {
         return statement;

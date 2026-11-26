@@ -89,7 +89,18 @@ class PlanStyleSurfaceTest {
             // The same day, later: the class is PureText.withEdition's, a base style with another edition -- the
             // corpus's (UPSTREAM with legend-engine's tests' edition) and PCT's legend-engine run's
             // (PureText.ENGINE_PCT: PURE_V1 with the edition under which nothing is stamped); one class, two styles
-            Map.entry("com.legend.edge.PureText$3", ALL));
+            Map.entry("com.legend.edge.PureText$3", ALL),
+            // 2026-11-26 (the edition program's step 9, slice 2, the orchestrator's ruling): the class
+            // PureText.withDialects makes -- one of the edge's styles in every method but dialect, which is the tests'
+            // harness's (HarnessText, core/src/edge_harness). It exists for the move of the corpus's two dialect hooks
+            // from the edge's DuckDB and Postgres to the harness's subclasses of them; the factory is package-private,
+            // so only the harness makes one, and no style the product or a door hands the planner gained a row
+            Map.entry("com.legend.edge.PureText$4", ALL),
+            // 2026-11-26 (the same slice, the orchestrator's ruling): the package-private marker PureText.isEdgeStyle
+            // reads to know a style withDialects made (the factory's class above implements it). An interface that
+            // extends PlanStyle and declares NO style method, so its set is empty; it came with the move of the two
+            // dialect subclasses to the harness, and nothing in the product gained a row
+            Map.entry("com.legend.edge.PureText$OfTheEdge", Set.of()));
             // (the edge's recorder of one planning call's raise-site words, K10b of 2026-11-17: deleted, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
 
     private static String signature(Method m) {

@@ -72,7 +72,10 @@ class RawSqlLedgerTest {
             // 2026-11-17 (Phase 6's B4 (ii), the orchestrator's ruling (a)): the product runs a raw statement as written,
             // as legend-engine does; the translation is the edge's, its DuckDB and Postgres dialects' raw arms
             // (edge.PureText.DuckDb, PureText.Postgres) -- the same two translations, one file
-            "PureText.java", 2);
+            // 2026-11-26 (the edition program's step 9, slice 2): the two raw arms moved to the tests' harness's DuckDB
+            // and Postgres (HarnessText, core/src/edge_harness, read below since) -- the same two translations, one
+            // file; the edge's own dialects run a raw statement as written, as the product's do
+            "HarnessText.java", 2);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)translated");
@@ -80,7 +83,8 @@ class RawSqlLedgerTest {
     @Test
     void rawSqlTranslationCallersAreLedgered() throws IOException {
         Map<String, Integer> found = new TreeMap<>();
-        for (String root : new String[] {"core/src/main/java", "core/src/main/duckdb", "core/src/test/java"}) {
+        for (String root : new String[] {"core/src/main/java", "core/src/main/duckdb", "core/src/edge_harness/java",
+                "core/src/test/java"}) {
             try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
