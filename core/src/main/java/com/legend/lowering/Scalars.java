@@ -1975,7 +1975,10 @@ final class Scalars {
             String label = fn == SqlFn.ACOS ? "acos" : "asin";
             for (com.legend.model.FunctionId f : trig.getKey()) {
                 RULES.put(f, (StyledRule) (n, args, styled) -> {
-                    SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
+                    // the argument as it is: abs and the comparison with 1 read an Integer, a Decimal and a Float alike,
+                    // so no cast is written (the local gate's cast census, 2026-11-26: a cast to DOUBLE here was eight
+                    // more operator casts on every database, for the same answer)
+                    SqlExpr x = args.get(0);
                     SqlExpr.RaiseText words = new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
                             List.of(new SqlExpr.StringLit(label), args.get(0)));
                     // checked, the function alone (its argument is within the domain); plain, the function with its
