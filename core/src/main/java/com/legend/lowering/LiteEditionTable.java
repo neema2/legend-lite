@@ -24,4 +24,10 @@ public final class LiteEditionTable implements EditionTable {
     public @com.legend.base.Nullable FunctionId lowersAs(TypedNativeCall call, Set<Feature> features) {
         return null;
     }
+
+    /** The product writes every check of its own. */
+    @Override
+    public boolean checks(com.legend.sql.RaiseKind kind, @com.legend.base.Nullable TypedNativeCall call) {
+        return true;
+    }
 }

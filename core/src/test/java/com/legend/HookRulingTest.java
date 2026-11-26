@@ -316,9 +316,9 @@ class HookRulingTest {
         assertEquals(null, PlanStyle.PRODUCT.traceCell(), "the product writes the id alone");
         assertEquals(new PlanStyle.TraceCell("-- \"executionTraceID\" : \"", "\""),
                 com.legend.edge.PureText.UPSTREAM.traceCell());
-        // the raises a plan writes plain (B7, 2026-11-17; the two-form LoweringForms since the audit's K5): the
-        // product's none, PCT's and the corpus's none (legend-pure's guarded words), the pure/v1 route's legend-engine's
-        // census class A
+        // the raises a plan writes plain (B7, 2026-11-17; the door's edition's table since the edition program's
+        // step 3, 2026-11-26, the two-form LoweringForms until then): the product's none, PCT's and the corpus's none
+        // (legend-pure's guarded words), the pure/v1 route's legend-engine's census class A, inside a store query
         java.util.Set<com.legend.sql.RaiseKind> classA = java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO,
                 com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE,
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED,
@@ -826,15 +826,15 @@ class HookRulingTest {
         return new ClassFileImporter().importJars(jars.toArray(new java.util.jar.JarFile[0]));
     }
 
-    /** The raises {@code style}'s lowering forms write plain ({@code LoweringForms#raise}), asked kind by kind. */
+    /** The checks {@code style}'s edition's table does not write inside a store query (the call's check with no
+     *  stamp; {@code lowering.EditionTable#checks}; the edition program's step 3, 2026-11-26: until then the two-form
+     *  {@code LoweringForms#raise}), asked kind by kind. */
     private static java.util.Set<com.legend.sql.RaiseKind> plainOf(PlanStyle style) {
-        com.legend.lowering.LoweringForms forms = style.twoForm(com.legend.lowering.LoweringForms.class,
-                com.legend.lowering.ProductLoweringForms.INSTANCE);
-        com.legend.sql.SqlExpr checked = new com.legend.sql.SqlExpr.StringLit("checked");
-        com.legend.sql.SqlExpr plain = new com.legend.sql.SqlExpr.StringLit("plain");
+        com.legend.lowering.EditionTable table = style.twoForm(com.legend.planner.Edition.class,
+                com.legend.planner.LiteEdition.INSTANCE).table(null);
         java.util.Set<com.legend.sql.RaiseKind> out = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
         for (com.legend.sql.RaiseKind k : com.legend.sql.RaiseKind.values()) {
-            if (forms.raise(k, () -> checked, plain) == plain) {
+            if (!table.checks(k, null)) {
                 out.add(k);
             }
         }

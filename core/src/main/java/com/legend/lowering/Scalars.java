@@ -432,22 +432,23 @@ final class Scalars {
                     SqlExpr shifted = SqlExpr.Call.of(fn,
                             new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR),
                             args.get(1));
-                    // the style's form (the audit's K5, 2026-11-17): the product's bound, or the database's own shift
-                    // where the style writes it plain (B7)
-                    return styled.forms().raise(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, () -> {
-                        SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
-                                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
-                        if (args.get(1) instanceof SqlExpr.IntLit sh) {
-                            return sh.value() < 0 || sh.value() > 62 ? boundError : shifted;
-                        }
-                        // non-literal shift: bound guards AT RUNTIME in SQL
-                        // (deep-audit H4 — the laundering pct remap is deleted)
-                        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                                SqlExpr.Call.of(SqlFn.AND,
-                                        SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), new SqlExpr.IntLit(0)),
-                                        SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(1), new SqlExpr.IntLit(62))),
-                                shifted)), boundError, SqlExpr.Reason.OPERATOR);
-                    }, shifted);
+                    // the product's bound, or the database's own shift where the door's table writes no check for it
+                    // (EditionTable.checks; B7)
+                    if (!styled.edition().checks(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, n)) {
+                        return shifted;
+                    }
+                    SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
+                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
+                    if (args.get(1) instanceof SqlExpr.IntLit sh) {
+                        return sh.value() < 0 || sh.value() > 62 ? boundError : shifted;
+                    }
+                    // non-literal shift: bound guards AT RUNTIME in SQL
+                    // (deep-audit H4 — the laundering pct remap is deleted)
+                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.AND,
+                                    SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                                    SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(1), new SqlExpr.IntLit(62))),
+                            shifted)), boundError, SqlExpr.Reason.OPERATOR);
                 });
             }
         }
@@ -474,7 +475,7 @@ final class Scalars {
                 }
                 // a zero divisor raises DIVIDE_BY_ZERO, the dividend its operand (legend-pure's sentence, 'Cannot
                 // divide 5 by zero', the edge's: D1.1)
-                return guarded(
+                return guarded(n,
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of(args.get(0))),
                         new SqlExpr.Call(SqlFn.REM, args), styled);
@@ -1974,7 +1975,7 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_MATH_SQRT) {
             RULES.put(f, (StyledRule) (n, args, styled) -> {
                 SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
-                return guarded(
+                return guarded(n,
                         SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
                         // the value, the edge's sentence's operand, printed there as Pure prints a Float (D1.1)
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(args.get(0))),
@@ -2596,7 +2597,7 @@ final class Scalars {
         // truncates; 2026-10-17, the IQ island's scale)
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_QUOTIENT) {
             // a zero divisor raises as rem's does (DIVIDE_BY_ZERO, the dividend its operand): DuckDB's // gives NULL
-            RULES.put(f, (StyledRule) (n, args, styled) -> guarded(
+            RULES.put(f, (StyledRule) (n, args, styled) -> guarded(n,
                     SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
                     new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of(args.get(0))),
                     SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1)), styled));
@@ -3144,17 +3145,19 @@ final class Scalars {
         for (int i = 1; i < out.size(); i++) {
             cond = SqlExpr.Call.of(SqlFn.OR, cond, out.get(i));
         }
-        return guarded(cond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SUBSTRING_OUT_OF_RANGE,
+        return guarded(n, cond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SUBSTRING_OUT_OF_RANGE,
                 List.of(start, end, length)), value, styled);
     }
 
-    /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
-    /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} under the plan style ({@link LoweringForms#raise}, the audit's K5; B7,
-     *  2026-11-17): a kind the style writes plain is the operation alone, the database's own error passing through. */
-    static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value, Styled styled) {
-        return styled.forms().raise(msg.kind(), () -> guarded(cond, msg, value), value);
+    /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} where the door's table writes the check
+     *  ({@link EditionTable#checks}; the edition program's step 3, 2026-11-26: until then the two-form
+     *  {@code LoweringForms.raise}, which knew the kind and not the call): a check the audience does not write is the
+     *  operation alone, the database's own error passing through. {@code n}: the call the check belongs to. */
+    static SqlExpr guarded(TypedNativeCall n, SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value, Styled styled) {
+        return styled.edition().checks(msg.kind(), n) ? guarded(cond, msg, value) : value;
     }
 
+    /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
     static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 SqlExpr.Call.of(SqlFn.ERROR, msg))), value, SqlExpr.Reason.RAISE);

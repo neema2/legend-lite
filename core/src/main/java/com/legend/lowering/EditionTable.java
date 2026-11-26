@@ -15,6 +15,8 @@ import java.util.Set;
  * PRODUCT NATIVE whose rule lowers the call ({@code substring} as {@code substringAsGiven}): data, never code, and never
  * SQL -- the rule it names is the product's, written where every rule is ({@link Scalars}), named by what it is and not
  * by who wants it. The product's own table ({@link LiteEditionTable}) has no row: lite means what its own rules say.
+ * Beside the rows, the table says which of the product's checks its audience writes ({@link #checks}: the product
+ * writes every one).
  *
  * <p>The lowering asks at the one place it picks a scalar native's rule ({@link Scalars#lower}); everything that
  * becomes SQL passes there, a function's body and a mapping's code included, because by then they are one tree.
@@ -35,4 +37,13 @@ public interface EditionTable {
      *  @param call     the call, typed: its resolved native, its stamp, its operands' types
      *  @param features legend-engine's feature flags the statement runs under (a flag may choose the row) */
     @com.legend.base.Nullable FunctionId lowersAs(TypedNativeCall call, Set<Feature> features);
+
+    /** Whether a check the product writes is written for this audience: true, the guarded operation, which raises
+     *  lite's error of {@code kind}; false, the operation alone, the database's own answer or error passing through
+     *  (legend-engine's SQL writes no check for some kinds: its door's table says which).
+     *
+     *  @param kind the raise the check would make
+     *  @param call the call the check belongs to, whose stamp may decide it (a call outside any store query is the
+     *              audience's own Java's, which checks); null where the check is no call's own (a cast, a slice) */
+    boolean checks(com.legend.sql.RaiseKind kind, @com.legend.base.Nullable TypedNativeCall call);
 }

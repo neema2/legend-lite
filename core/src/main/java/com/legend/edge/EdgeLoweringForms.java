@@ -3,12 +3,9 @@
 
 package com.legend.edge;
 
-import com.legend.sql.RaiseKind;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
 
-import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * THE EDGE'S FORMS OF THE LOWERING'S TWO-FORM CHOICES ({@link com.legend.lowering.LoweringForms}, the audit's K5,
@@ -21,24 +18,15 @@ import java.util.function.Supplier;
  * <p>legend-engine's statement shape for its SQL text ({@code EngineShape}, J40) went with that text (A2 of the
  * compatibility program, 2026-11-19, CP-4): the edge's SQL text is lite's own statement.
  */
-record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.LoweringForms {
+final class EdgeLoweringForms implements com.legend.lowering.LoweringForms {
 
-    /** PCT's and the corpus's style ({@link PureText#UPSTREAM}): every check written, views flat, wire casts written. */
-    static final EdgeLoweringForms PCT = new EdgeLoweringForms(Set.of());
+    /** The compatibility doors' forms, PCT's, the corpus's and pure/v1's alike: which checks a door's audience writes
+     *  is its edition's table's since the edition program's step 3 (2026-11-26; until then a set of raise kinds here
+     *  set pure/v1's apart). */
+    static final EdgeLoweringForms INSTANCE = new EdgeLoweringForms();
 
-    /** The pure/v1 route's style ({@link PureText#PURE_V1}): legend-engine's unchecked raises plain. */
-    static final EdgeLoweringForms PURE_V1 = new EdgeLoweringForms(PureText.ENGINE_UNCHECKED);
-
-    EdgeLoweringForms {
-        plain = plain.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
+    private EdgeLoweringForms() {
     }
-
-    @Override
-    public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plainOperation) {
-        return plain.contains(kind) ? plainOperation : checked.get();
-    }
-
-
 
     /** legend-engine's protocol connection segment for its test database (H2's, as the goldens pin it), which its
      *  object references carry whatever the database (moved from model.AsorRef, the audit's J12, 2026-11-17). */

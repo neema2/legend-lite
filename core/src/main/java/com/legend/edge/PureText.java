@@ -112,7 +112,7 @@ public final class PureText {
             }
             if (kind == com.legend.lowering.LoweringForms.class) {
                 // the lowering's two-form choices (the audit's K5, 2026-11-17): legend-pure's guarded words
-                return kind.cast(EdgeLoweringForms.PCT);
+                return kind.cast(EdgeLoweringForms.INSTANCE);
             }
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
@@ -224,14 +224,11 @@ public final class PureText {
             return UPSTREAM.facet(kind, refusal);
         }
 
-        /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its plain raises (B7; the lowering's
-         *  two-form choices since the audit's K5, 2026-11-17) and in its edition, legend-engine's. */
+        /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its edition, legend-engine's, whose table
+         *  also says which checks legend-engine's SQL does not write (B7's plain raises; until the edition program's
+         *  step 3 a lowering form of this style's own). */
         @Override
         public <F> F twoForm(Class<F> kind, F productForm) {
-            if (kind == com.legend.lowering.LoweringForms.class) {
-                java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
-                return kind.cast(EdgeLoweringForms.PURE_V1);
-            }
             if (kind == com.legend.planner.Edition.class) {
                 java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
                 return kind.cast(EngineTable.DOOR);

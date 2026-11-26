@@ -24,7 +24,7 @@ final class ListRules {
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_RANGE) {
             rules.put(f, (Scalars.StyledRule) (n, args, styled) -> args.size() < 3
                     ? new SqlExpr.Call(SqlFn.RANGE_FN, args)
-                    : Scalars.guarded(SqlExpr.Call.of(SqlFn.EQUAL, args.get(2), new SqlExpr.IntLit(0)),
+                    : Scalars.guarded(n, SqlExpr.Call.of(SqlFn.EQUAL, args.get(2), new SqlExpr.IntLit(0)),
                             new SqlExpr.RaiseText(com.legend.sql.RaiseKind.RANGE_STEP_ZERO, java.util.List.of()),
                             new SqlExpr.Call(SqlFn.RANGE_FN, args), styled));
         }

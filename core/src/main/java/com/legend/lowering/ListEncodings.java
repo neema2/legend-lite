@@ -255,18 +255,21 @@ final class ListEncodings {
      * inclusive array_slice; NEGATIVE bounds clamp to the list head
      * (PCT — DuckDB reads a negative bound FROM THE END), and inverted
      * bounds RAISE real pure's message, in the database. */
-    static SqlExpr slice(SqlExpr src, SqlExpr start, SqlExpr stop, LoweringForms forms) {
+    static SqlExpr slice(SqlExpr src, SqlExpr start, SqlExpr stop, EditionTable edition) {
         SqlExpr lo = clamp0(start);
         SqlExpr hi = clamp0(stop);
         SqlExpr sliced = SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
                 onePlus(lo), hi);
-        // the style's form (the audit's K5, 2026-11-17): the product's guard, or the database's own slice of inverted
-        // bounds where the style writes it plain (B7)
-        return forms.raise(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, () -> new SqlExpr.Case(List.of(
+        // the product's guard, or the database's own slice of inverted bounds where the door's table writes no check
+        // for it (EditionTable.checks; B7). A slice is its own node, no call: it carries no stamp
+        if (!edition.checks(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, null)) {
+            return sliced;
+        }
+        return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
                 SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
                         com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, List.of(lo, hi))))),
-                sliced, SqlExpr.Reason.CARRIER), sliced);
+                sliced, SqlExpr.Reason.CARRIER);
     }
 
     /**

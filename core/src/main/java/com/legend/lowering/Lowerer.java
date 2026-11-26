@@ -255,9 +255,9 @@ public final class Lowerer {
     /** The plan style's text facets and plain raises (the separation census's B8 and B7, 2026-11-17): the texts only
      *  legend-pure writes ({@link PureOnlyTexts}), asked only when a native's rule meets one, with that call's own
      *  refusal; a DateTime's text in a message and a list's text, the style's forms of the two-form {@link DateTimeTexts}
-     *  and {@link ListTexts}; and THE RAISES THE STYLE WRITES
-     *  PLAIN ({@link LoweringForms#raise}, the audit's K5): a check of a kind there is the operation alone, the database's own error
-     *  passing through (the edge's pure/v1 style, legend-engine's census class A). A Lowerer no planner handed a style
+     *  and {@link ListTexts}; and THE DOOR'S EDITION'S TABLE ({@link EditionTable}): the rows, and the checks its
+     *  audience does not write, where a check is the operation alone, the database's own error passing through (the
+     *  edge's pure/v1 style, legend-engine's census class A, inside a store query). A Lowerer no planner handed a style
      *  has none and refuses by name when a rule asks (the audit's K6, 2026-11-17: no implicit "no edge" default, G7);
      *  the product's is {@link Styled#PRODUCT}, chosen explicitly. */
     private @com.legend.base.Nullable Styled styled;
@@ -1803,7 +1803,7 @@ public final class Lowerer {
                     new TypedLambda(a.reduce().parameters(),
                             List.of(rc.source()), a.reduce().info()),
                     a.order()));
-            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire(), styled().forms());
+            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire(), styled().edition());
         }
         // A CONDITION OVER REDUCERS (y|if($y->count() < 21, |[], |$y->average()): a figure given once its window holds
         // enough values, the DataCube timeseries library's ramp, 2026-10-26) -- each reducer the aggregate it is
@@ -1954,7 +1954,7 @@ public final class Lowerer {
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
             value = CastPolicy.castByPolicy(value,
-                    valueCast.source().info().type(), valueCast.target(), valueCast.wire(), styled().forms());
+                    valueCast.source().info().type(), valueCast.target(), valueCast.wire(), styled().edition());
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) (engine testGroupByIsDistinct)
         if (fn == SqlAgg.Fn.IS_DISTINCT_MARK) {
@@ -4137,7 +4137,7 @@ public final class Lowerer {
                             PureSql.asList(scalar(s.source(), columns),
                                     !CollectionLanes.c1Literal(s.source())),
                             scalar(s.start(), columns),
-                            scalar(s.stop(), columns), styled().forms());
+                            scalar(s.stop(), columns), styled().edition());
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !Type.relationValued(d.source().info()) -> {
                 SqlExpr src = PureSql.asList(scalar(d.source(), columns),
@@ -4530,7 +4530,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), styled().forms());
+        return CastPolicy.lower(c, value, Stamps.isMany(c), styled().edition());
     }
 
     /**
