@@ -88,17 +88,11 @@ final class LiteralUnroll {
             case TypedCFloat f -> Optional.of(new Scalar(Type.Primitive.FLOAT.qualifiedName(), f.value()));
             case TypedEnumValue ev -> Optional.of(new Scalar(ev.enumFqn(), ev.enumFqn() + "." + ev.value()));
             case com.legend.compiler.spec.typed.TypedCDate d when d.info().type() instanceof Type.Primitive p ->
-                    // a key the folds compare (W8, 2026-11-16: no print form's zone). A DATE-TIME is its INSTANT,
-                    // whatever precision it was written at (the equality rule: "a date-time by its instant"; the
-                    // user's ruling S399; the edition program's step 6, slice 6.1, 2026-11-26): until then the
-                    // literal's body, so .000 against none, .5 against .500 and an hour against its :00:00 folded to
-                    // false, where the database, comparing two TIMESTAMPs, answers true. A day, a year and a
-                    // year-month keep their body: each is a value of its own type
-                    Optional.of(new Scalar(p.qualifiedName(), p == Type.Primitive.DATE_TIME
-                            ? d.value().toInstantFloor().toString() : d.value().canonicalText()));
+                    // the literal body, a key for the structural folds (W8, 2026-11-16: no print form's zone); never
+                    // compared as a value (comparedHere)
+                    Optional.of(new Scalar(p.qualifiedName(), d.value().canonicalText()));
             case com.legend.compiler.spec.typed.TypedCDecimal d when d.info().type() instanceof Type.Primitive p ->
-                    // a Decimal is its NUMBER, not its written scale (S139): BigDecimal's own equals reads the scale
-                    Optional.of(new Scalar(p.qualifiedName(), d.value().stripTrailingZeros()));
+                    Optional.of(new Scalar(p.qualifiedName(), d.value()));
             case com.legend.compiler.spec.typed.TypedCTime d when d.info().type() instanceof Type.Primitive p ->
                     Optional.of(new Scalar(p.qualifiedName(), String.valueOf(d.value())));
             case com.legend.compiler.spec.typed.TypedCLatestDate d when d.info().type() instanceof Type.Primitive p ->
@@ -427,35 +421,40 @@ final class LiteralUnroll {
             return bool(false);
         }
         return literal(a.get(0)).flatMap(l -> literal(a.get(1))
-                .filter(r -> l instanceof Scalar && r instanceof Scalar && l.cls().equals(r.cls()))
+                .filter(r -> l instanceof Scalar && r instanceof Scalar && l.cls().equals(r.cls())
+                        && comparedHere(a.get(0)))
                 .<TypedSpec>map(r -> bool(((Scalar) l).value().equals(((Scalar) r).value()))))
                 .orElse(c);
     }
 
-    /** {@code value->in(list)} over a list of spelled scalars. A value of one number type against a list of another's
-     *  literals is a comparison only by the literal rule (NumberLiterals: a whole number written against a Float reads
-     *  as that Float, and is left as written), so its answer is by VALUE and the database's -- never this fold's, which
-     *  compares two spelled values as two kinds (2026-11-26, the audit of the edition program's steps 4 and 5:
-     *  {@code 1.0->in([0, 1])}, a call inlined, was folded to false). A list of mixed kinds is another matter: its
-     *  values carry their types, two kinds are never equal, and the fold answers. */
+    /**
+     * Whether the compiler may compare {@code spelled}'s VALUE with another's: a String, a Boolean, an enumeration's
+     * value. THE FOLD RULE (the rules of record, row 1; docs/records/edition-design-v3-2026-11-25.md section 4: "the
+     * only computation before the database is folding constant String and Boolean expressions ... Everything else
+     * goes to the database: numbers, number and date text, list operations over values, indexOf, contains over
+     * values, dates"; the user, 2026-11-26: "Why are we adding any logic to constant folding? I thought we were
+     * taking it all out except string and boolean const"). A number, a Decimal, a date and a time are compared by the
+     * database alone, which knows what each denotes: two date-times by their instant whatever precision they were
+     * written at (S399), two Decimals by their number whatever their scale (S139) -- the folds had compared two
+     * spelled date-times by their written text and answered false where the database answers true. The comparison
+     * part of the folds' cut-back (the edition program's step 10), taken with the one equality (step 6).
+     */
+    private static boolean comparedHere(TypedSpec spelled) {
+        return spelled instanceof TypedCString || spelled instanceof TypedCBoolean || spelled instanceof TypedEnumValue;
+    }
+
+    /** {@code value->in(list)} over a list of spelled scalars: folded where the value is of a kind the compiler may
+     *  compare ({@link #comparedHere}: a String, a Boolean, an enumeration's value) -- against a list of mixed kinds
+     *  too, whose other kinds are never equal to it. A number, a Decimal or a date goes to the database: by the fold
+     *  rule, and because the answer is the database's (a whole number written against a Float reads as that Float,
+     *  NumberLiterals; the audit of the edition program's steps 4 and 5 found {@code 1.0->in([0, 1])}, a call
+     *  inlined, folded to false here). */
     private static TypedSpec inFold(TypedNativeCall c, TypedSpec value, TypedCollection list) {
-        Type.Primitive valueKind = numberKind(value.info().type());
-        Type.Primitive listKind = numberKind(list.info().type());
-        if (valueKind != null && listKind != null && valueKind != listKind) {
+        if (!comparedHere(value)) {
             return c;
         }
         return scalar(value).<TypedSpec>map(needle -> bool(list.elements().stream()
                 .anyMatch(e -> !neverEqual(value, e) && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
-    }
-
-    /** {@code t} as the number type it is (a Decimal of a declared precision is a Decimal), or null where it is no
-     *  one number type (Number, Any, anything else). */
-    private static Type.@com.legend.base.Nullable Primitive numberKind(Type t) {
-        if (t instanceof Type.PrecisionDecimal) {
-            return Type.Primitive.DECIMAL;
-        }
-        return t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT || t == Type.Primitive.DECIMAL
-                ? (Type.Primitive) t : null;
     }
 
     /** Whether two spelled scalars are of two kinds one of which is an enumeration: never equal (the user, 2026-10-30,
@@ -505,7 +504,7 @@ final class LiteralUnroll {
         if (is(c, Pure.AT_COLLECTION_CONTAINS, Pure.AT_STRING_CONTAINS)
                 && c.callee().qualifiedName().equals("meta::pure::functions::collection::contains")
                 && a.size() == 2 && literalStructure(a.get(0))) {
-            Optional<Literal> needle = literal(a.get(1)).filter(l -> l instanceof Scalar);
+            Optional<Literal> needle = literal(a.get(1)).filter(l -> l instanceof Scalar && comparedHere(a.get(1)));
             if (needle.isPresent()) {
                 Scalar n = (Scalar) needle.get();
                 boolean allScalar = elements(a.get(0)).stream()

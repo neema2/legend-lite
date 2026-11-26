@@ -19,9 +19,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * ONE VALUE WITHIN ONE TYPE (the equality rule, AGENTS.md: "a value is what it denotes, not how it was written"; the
  * edition program's step 6, slice 6.1, 2026-11-26): two date-times at one instant are equal whatever precision each
  * was written at (the user's ruling S399), and two Decimals of one number whatever their written scale (S139) -- in
- * the product's own {@code ==}, {@code in} and {@code contains}, and whoever answers: the database, or the
- * compiler's fold of two spelled values, which until this slice keyed a date-time by its written text and so
- * answered false where the database answers true.
+ * the product's own {@code ==}, {@code in} and {@code contains}. The DATABASE answers each: until this slice the
+ * compiler's fold answered a comparison of two spelled date-times itself, by their written text, and said false
+ * where the database says true. By the fold rule the compiler compares constant Strings, Booleans and enumeration
+ * values alone ({@code LiteralUnroll.comparedHere}); numbers, Decimals and dates go to the database.
  */
 class OneValueWithinOneTypeTest {
 
