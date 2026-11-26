@@ -608,6 +608,37 @@ class HookRulingTest {
         assertFalse(overriders.isEmpty());
     }
 
+    /** THE EDGE'S TWO OPEN DIALECTS ARE THE HARNESS'S TO SUBCLASS, AND NO OTHER'S (2026-11-26, the edition program's
+     *  step 9, slice 2; the outside audit's finding 2): {@code PureText.DuckDb} and {@code PureText.Postgres} lost
+     *  {@code final} so the tests' harness's dialects can add the corpus's two hooks over them. Their constructors are
+     *  the package's, and every class of the product's and the edge's jars below either is a member of
+     *  {@code HarnessText}, of the harness's jar -- a shipped class extending one (the hooks back in the product) fails
+     *  here, where {@link #onlyTheEdgeOverridesASpellingHook} would pass it for its package. */
+    @Test
+    void theEdgesOpenDialectsAreSubclassedByTheHarnessAlone() throws ClassNotFoundException {
+        List<String> opened = List.of("com.legend.edge.PureText$DuckDb", "com.legend.edge.PureText$Postgres");
+        Map<String, String> subclasses = new java.util.TreeMap<>();
+        for (JavaClass c : classes("legend.product.jars", "legend.edge.jars")) {
+            for (String open : opened) {
+                if (!c.getName().equals(open) && c.isAssignableTo(open)) {
+                    String jar = c.getSource().map(x -> x.getUri().toString()).orElse("?");
+                    jar = jar.contains("!") ? jar.substring(0, jar.indexOf('!')) : jar;
+                    subclasses.put(c.getName(), open + " in " + jar.substring(jar.lastIndexOf('/') + 1));
+                }
+            }
+        }
+        assertEquals(Map.of(
+                "com.legend.edge.HarnessText$DuckDb", "com.legend.edge.PureText$DuckDb in libedge_harness.jar",
+                "com.legend.edge.HarnessText$Postgres", "com.legend.edge.PureText$Postgres in libedge_harness.jar"),
+                subclasses, "a subclass of the edge's DuckDB or Postgres outside the tests' harness");
+        for (String open : opened) {
+            for (java.lang.reflect.Constructor<?> k : Class.forName(open).getDeclaredConstructors()) {
+                assertEquals(0, k.getModifiers() & (Modifier.PUBLIC | Modifier.PROTECTED),
+                        open + "'s constructor is its package's");
+            }
+        }
+    }
+
     /** Where a planned raise stands in a statement: the projection, a CASE's ELSE branch, an operand of AND (the review
      *  of dd5deb781f, 2026-11-18, SHOULD: the projection alone was pinned). A raise the renderer builds itself -- the
      *  guarded parseFloat's, written through raiseAs -- has no reference to swap in; named, not pinned. */

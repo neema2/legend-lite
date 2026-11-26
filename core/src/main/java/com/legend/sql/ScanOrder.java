@@ -15,7 +15,7 @@ import java.util.List;
  *       when the test forgot to sort — a FEATURE of the assert
  *       surface, always on (positional reads over an unordered
  *       relation are otherwise semantically undefined);</li>
- *   <li>ENGINE-CORPUS-COMPAT ({@code StableScanOrder}, flag-gated):
+ *   <li>ENGINE-CORPUS-COMPAT ({@code StableScanOrder}, the tests' harness's, flag-gated):
  *       the engine's own tests rely on H2's implicit scan order —
  *       replaying them on DuckDB opts the HOST-channel statements in.
  *       The platform default stays order-honest.</li>

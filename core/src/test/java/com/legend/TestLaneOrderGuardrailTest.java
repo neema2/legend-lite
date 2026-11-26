@@ -80,7 +80,10 @@ class TestLaneOrderGuardrailTest {
         // order is compatibility; the product's DuckDb asks the edge for its scan-order passes and has none)
         // 2026-11-26 (the edition program's step 9, slice 2): the tests' harness's DuckDB installs it (HarnessText.DuckDb,
         // core/src/edge_harness, the file read below), so no product source installs the pass or names the switch --
-        // until then the edge's DuckDB did, in PureText.java
+        // until then the edge's DuckDB did, in PureText.java. This guard reads the product's sources and that one file;
+        // every OTHER place a pass could be installed or the switch read (the harness's other files, core's, spec's
+        // and pct's tests) is held to that one site by the census, which reads those roots:
+        // HarnessDisciplineTest.theCorpussScanOrderIsInstalledInOnePlace (the outside audit's nit 7)
         assertEquals(new TreeSet<>(List.<String>of()),
                 filesMatching(PASS_INSTALL), "StableScanOrder is installed in the product's sources");
         assertEquals(new TreeSet<>(List.<String>of()),

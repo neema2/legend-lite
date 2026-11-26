@@ -90,17 +90,16 @@ class PlanStyleSurfaceTest {
             // corpus's (UPSTREAM with legend-engine's tests' edition) and PCT's legend-engine run's
             // (PureText.ENGINE_PCT: PURE_V1 with the edition under which nothing is stamped); one class, two styles
             Map.entry("com.legend.edge.PureText$3", ALL),
-            // 2026-11-26 (the edition program's step 9, slice 2, the orchestrator's ruling): the class
-            // PureText.withDialects makes -- one of the edge's styles in every method but dialect, which is the tests'
+            // 2026-11-26 (the edition program's step 9, slice 2, the orchestrator's rulings): the class
+            // PureText.withDialects makes -- UPSTREAM or ENGINE_TESTS in every method but dialect, which is the tests'
             // harness's (HarnessText, core/src/edge_harness). It exists for the move of the corpus's two dialect hooks
-            // from the edge's DuckDB and Postgres to the harness's subclasses of them; the factory is package-private,
-            // so only the harness makes one, and no style the product or a door hands the planner gained a row
-            Map.entry("com.legend.edge.PureText$4", ALL),
-            // 2026-11-26 (the same slice, the orchestrator's ruling): the package-private marker PureText.isEdgeStyle
-            // reads to know a style withDialects made (the factory's class above implements it). An interface that
-            // extends PlanStyle and declares NO style method, so its set is empty; it came with the move of the two
-            // dialect subclasses to the harness, and nothing in the product gained a row
-            Map.entry("com.legend.edge.PureText$OfTheEdge", Set.of()));
+            // from the edge's DuckDB and Postgres to the harness's subclasses of them. A private final class since the
+            // outside audit of the slice the same day (finding 1; until then an anonymous class, PureText$4, and a
+            // package-private marker interface, PureText$OfTheEdge, two rows): nothing outside PureText can make or
+            // implement one, and the factory's one caller is the harness, held by
+            // onlyTheHarnessMakesAStyleWithItsDialects below. The shipped edge jar gained this class and the factory;
+            // no style the product or a door hands the planner gained a row
+            Map.entry("com.legend.edge.PureText$Redialected", ALL));
             // (the edge's recorder of one planning call's raise-site words, K10b of 2026-11-17: deleted, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
 
     private static String signature(Method m) {
@@ -263,6 +262,41 @@ class PlanStyleSurfaceTest {
         Set<String> surface = OpenClassMembersTest.membersOf(PlanStyle.class);
         assertEquals(new TreeSet<>(STYLE_SURFACE), new TreeSet<>(surface), "PlanStyle's nested types, fields or its"
                 + " PRODUCT's anonymous class changed: pin it with its ruling");
+    }
+
+    /** THE HARNESS'S STYLES ARE THE HARNESS'S ALONE (2026-11-26, the edition program's step 9, slice 2; the outside
+     *  audit's finding 1): {@code PureText.withDialects} makes one of the edge's styles with another dialect of each
+     *  database, and is package-private in a package two jars share (the shipped edge's and the tests' harness's), so
+     *  the language admits every edge class. Its callers and its references, over the product's, the edge's and the
+     *  authored door's jars, are exactly the harness's registry; and the class it makes is constructed in that one
+     *  method. A shipped class handing the planner such a style (the corpus's dialect hooks back on a product road)
+     *  fails here. */
+    @Test
+    void onlyTheHarnessMakesAStyleWithItsDialects() {
+        Set<String> callers = new TreeSet<>();
+        Set<String> makers = new TreeSet<>();
+        for (JavaClass c : classes("legend.product.jars", "legend.edge.jars", "legend.authored.jars")) {
+            List<com.tngtech.archunit.core.domain.JavaAccess<?>> accesses = new ArrayList<>();
+            accesses.addAll(c.getMethodCallsFromSelf());
+            accesses.addAll(c.getMethodReferencesFromSelf());
+            accesses.addAll(c.getConstructorCallsFromSelf());
+            accesses.addAll(c.getConstructorReferencesFromSelf());
+            for (com.tngtech.archunit.core.domain.JavaAccess<?> a : accesses) {
+                String owner = a.getTargetOwner().getName();
+                if (owner.equals("com.legend.edge.PureText") && a.getName().equals("withDialects")) {
+                    callers.add(c.getName());
+                }
+                if (owner.equals("com.legend.edge.PureText$Redialected") && a.getName().equals("<init>")) {
+                    makers.add(a.getOrigin().getFullName());
+                }
+            }
+        }
+        assertEquals(Set.of("com.legend.edge.HarnessText"), callers,
+                "PureText.withDialects is the tests' harness's alone: a caller in a shipped jar puts the harness's"
+                + " dialects on a product road");
+        assertEquals(1, makers.size(), "the factory's class is made in one place: " + makers);
+        assertEquals(true, makers.iterator().next().startsWith("com.legend.edge.PureText.withDialects("),
+                "the factory's class is made by the factory: " + makers);
     }
 
     @Test

@@ -323,4 +323,57 @@ class HarnessDisciplineTest {
                 + " fact, and listed here with its reason (Charter C2.3);"
                 + " a removed site shrinks the list");
     }
+
+    /** THE CORPUS'S SCAN ORDER HAS ONE INSTALL SITE, OUTSIDE THE PRODUCT (2026-11-26, the edition program's step 9,
+     *  slice 2; the outside audit's nit 7). The pass that makes legend-engine's implicit scan order explicit
+     *  ({@code StableScanOrder}) left the product's sources for the tests' harness with that slice, so
+     *  {@code TestLaneOrderGuardrailTest} -- which reads the product's sources -- now pins "none" there and the one
+     *  file by name. This reads everywhere else test code lives (the harness, core's tests, spec's and pct's), code
+     *  only: the pass is installed and its switch read in the harness's dialect file and nowhere else, and the switch
+     *  is set in code by the corpus's two command-line runners alone (the lanes set it by build flag,
+     *  spec/corpus.bzl). A second install in a test would put the order on a road no lane asked it for. */
+    @Test
+    void theCorpussScanOrderIsInstalledInOnePlace() throws IOException {
+        Pattern install = Pattern.compile("new (?:com\\.legend\\.edge\\.)?StableScanOrder\\(");
+        Pattern read = Pattern.compile("get(?:Boolean|Property)\\(");
+        Pattern set = Pattern.compile("setProperty\\(");
+        String theSwitch = "\"legend.exec.engineScanOrder\"";
+        Map<String, Integer> installs = new TreeMap<>();
+        Map<String, Integer> reads = new TreeMap<>();
+        Map<String, Integer> sets = new TreeMap<>();
+        for (String root : new String[] {"core/src/edge_harness/java", "core/src/test/java", "spec/src", "pct/src"}) {
+            int scanned = 0;
+            for (Path f : SourceFiles.under(root)) {
+                if (!f.toString().endsWith(".java")) {
+                    continue;
+                }
+                scanned++;
+                // code and string literals apart, line by line (the leak ratchet's lexer: a linear scan): an install
+                // or a call is CODE, the switch's name a whole LITERAL on the same line -- a guard that holds the
+                // install's shape as a string installs nothing, and a comment naming the switch reads nothing
+                DialectLeakRatchetTest.Lines lines = DialectLeakRatchetTest.lex(Files.readString(f));
+                String rel = SourceFiles.path(f);
+                for (int i = 0; i < lines.code().size(); i++) {
+                    String code = lines.code().get(i);
+                    boolean named = lines.strings().get(i).contains(theSwitch);
+                    if (install.matcher(code).find()) {
+                        installs.merge(rel, 1, Integer::sum);
+                    }
+                    if (named && read.matcher(code).find()) {
+                        reads.merge(rel, 1, Integer::sum);
+                    }
+                    if (named && set.matcher(code).find()) {
+                        sets.merge(rel, 1, Integer::sum);
+                    }
+                }
+            }
+            assertEquals(true, scanned > 0, root + " is a declared source root of the census: it read no file");
+        }
+        String harness = "core/src/edge_harness/java/com/legend/edge/HarnessText.java";
+        assertEquals(Map.of(harness, 1), installs, "StableScanOrder is installed outside the harness's dialect file");
+        assertEquals(Map.of(harness, 1), reads, "the scan-order switch is read outside the harness's dialect file");
+        assertEquals(Map.of("spec/src/test/java/com/legend/rcorpus/CorpusOn.java", 1,
+                "spec/src/test/java/com/legend/rcorpus/CorpusOne.java", 1), sets,
+                "the scan-order switch is set in code outside the corpus's two command-line runners");
+    }
 }

@@ -86,7 +86,12 @@ class DialectOwnerExclusivityTest {
         Map<String, Integer> crossings = new TreeMap<>();
         // the tests too (2026-10-16, the dialect program's Phase 6): the test backends, and every test named for a
         // database, are owners there
-        for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.get(1), "core/src/test/java", "pct/src/test/java",
+        // + the edge's test harness's sources (2026-11-26, the edition program's step 9, slice 2; found fixing the
+        // outside audit's finding 3): two owners live there now -- RawSqlBoundary, which this scan held to H2 while it
+        // sat under core/src/main/java, and HarnessText, an owner of DuckDB and Postgres -- and an owner outside the
+        // scanned roots is held to nothing
+        for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.get(1), "core/src/edge_harness/java",
+                "core/src/test/java", "pct/src/test/java",
                 "spec/src/test/java", "parser-equivalence/src", "warehouse/src/main/java", "warehouse/src/test/java",
                 "wasm/src/main/java/planner", "native/src/main/java", "testing/src/main/java")) {
             String rel = SourceFiles.path(f);
@@ -310,6 +315,11 @@ class DialectOwnerExclusivityTest {
         // (the file's path since 2026-11-26, the edition program's step 9, slice 2: the edge's test harness)
         assertEquals(Set.of("H2"), DatabaseOwners.of("core/src/edge_harness/java/com/legend/edge/RawSqlBoundary.java", "")
                 .databases());
+        // the harness's two dialects' file owns exactly the two (2026-11-26, the same slice; the outside audit's
+        // finding 3: not every database, as the edge's whole registry does)
+        DatabaseOwners.Owner harness = DatabaseOwners.of("core/src/edge_harness/java/com/legend/edge/HarnessText.java", "");
+        assertEquals(DatabaseOwners.Kind.DIALECT, harness.kind());
+        assertEquals(Set.of("DuckDB", "Postgres"), harness.databases());
         assertEquals(DatabaseOwners.Kind.VOCABULARY,
                 DatabaseOwners.of("core/src/main/java/com/legend/parser/section/ConnectionSectionGrammar.java", "")
                         .kind());

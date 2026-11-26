@@ -237,7 +237,7 @@ class EdgeSpellingHookTest {
     @Test
     void theEdgesDialectsOverrideSpellingOnly() {
         List<String> decisions = new java.util.ArrayList<>();
-        for (Class<?> c : PureText.class.getDeclaredClasses()) {
+        for (Class<?> c : dialectsOf(PureText.class)) {
             // a listed in-query variant (row 22) is the edge's by ruling, not a mode
             decisionsOverridden(c).stream().filter(d -> !ROW_22.contains(d.substring(d.indexOf('.') + 1)))
                     .forEach(decisions::add);
@@ -257,9 +257,33 @@ class EdgeSpellingHookTest {
     void theEdgesDialectsOverrideOnlyThePinnedArms() {
         assertEquals(OVERRIDES, armsOf(PureText.class),
                 "the edge's overridden arms (PureText): an arm moves here only with its D step");
-        assertEquals(List.of(), Arrays.stream(PureText.class.getDeclaredClasses())
+        assertEquals(List.of(), dialectsOf(PureText.class).stream()
                 .filter(c -> c.getDeclaredFields().length > 0).map(Class::getSimpleName).toList(),
                 "an edge dialect holds no state of its own");
+        // every OTHER member type of PureText, exactly (2026-11-26, the edition program's step 9, slice 2; the outside
+        // audit's finding 4): the walks above read dialect classes alone since that slice, so a member type that is no
+        // dialect is pinned here by name -- the one style class PureText.withDialects makes -- and a new one (a pass, a
+        // facet, a helper nested in the registry) fails until it is listed with its reason, as it did before
+        assertEquals(Set.of("Redialected"), otherMembersOf(PureText.class),
+                "PureText's member types that are no dialect: a new one is listed here with its reason");
+    }
+
+    /** The harness's dialect of each database IS the edge's dialect of it, or a direct subclass (2026-11-26, the outside
+     *  audit's nit 8): the pins below read the harness's classes by name, and this reads what its registry hands out,
+     *  so a slip such as DuckDB answered with the harness's Postgres fails. */
+    @Test
+    void theHarnessesDialectOfEachDatabaseIsTheEdgesOrItsDirectSubclass() {
+        Set<String> own = new TreeSet<>();
+        for (com.legend.model.ConnectionDefinition.DatabaseType type : com.legend.database.Databases.implemented()) {
+            Class<?> edges = PureText.dialect(type).getClass();
+            Class<?> harnesss = com.legend.edge.HarnessText.dialect(type).getClass();
+            if (harnesss != edges) {
+                assertEquals(edges, harnesss.getSuperclass(), "the harness's dialect of " + type);
+                assertEquals(com.legend.edge.HarnessText.class, harnesss.getEnclosingClass(), "its home, " + type);
+                own.add(type.name());
+            }
+        }
+        assertEquals(Set.of("DuckDB", "Postgres"), own, "the databases the harness has its own dialect of");
     }
 
     /** The tests' harness's dialects, checked as the edge's are (2026-11-26, the edition program's step 9, slice 2): the
@@ -268,6 +292,8 @@ class EdgeSpellingHookTest {
     void theHarnessesDialectsOverrideOnlyThePinnedArms() {
         assertEquals(HARNESS_OVERRIDES, armsOf(com.legend.edge.HarnessText.class),
                 "the harness's overridden arms (HarnessText): the corpus's two hooks and no other");
+        assertEquals(Set.of(), otherMembersOf(com.legend.edge.HarnessText.class),
+                "HarnessText's member types are its two dialects");
         List<String> decisions = new java.util.ArrayList<>();
         for (Class<?> c : com.legend.edge.HarnessText.class.getDeclaredClasses()) {
             decisions.addAll(decisionsOverridden(c));
@@ -281,15 +307,28 @@ class EdgeSpellingHookTest {
                 "a harness dialect holds no state of its own");
     }
 
+    /** The dialect classes {@code holder} declares. */
+    private static List<Class<?>> dialectsOf(Class<?> holder) {
+        return Arrays.stream(holder.getDeclaredClasses())
+                .filter(com.legend.sql.dialect.SqlDialect.class::isAssignableFrom).toList();
+    }
+
+    /** The member types of {@code holder} that are no dialect, by simple name: each pinned by its caller. */
+    private static Set<String> otherMembersOf(Class<?> holder) {
+        Set<String> out = new TreeSet<>();
+        Arrays.stream(holder.getDeclaredClasses())
+                .filter(c -> !com.legend.sql.dialect.SqlDialect.class.isAssignableFrom(c))
+                .forEach(c -> out.add(c.getSimpleName()));
+        return out;
+    }
+
     /** Each dialect class {@code holder} declares, with the methods it declares. Dialect classes alone (2026-11-26, the
-     *  edition program's step 9, slice 2, the orchestrator's ruling): a nested type of PureText that is no dialect --
-     *  the edge-style marker {@code OfTheEdge} -- is not what the rule pins. */
+     *  edition program's step 9, slice 2, the orchestrator's ruling): a member type of PureText that is no dialect --
+     *  the style class its {@code withDialects} makes -- is not an arm's holder; the callers pin those member types
+     *  exactly ({@link #otherMembersOf}), so the filter passes nothing unnamed. */
     private static Map<String, Set<String>> armsOf(Class<?> holder) {
         Map<String, Set<String>> found = new TreeMap<>();
-        for (Class<?> c : holder.getDeclaredClasses()) {
-            if (!com.legend.sql.dialect.SqlDialect.class.isAssignableFrom(c)) {
-                continue;
-            }
+        for (Class<?> c : dialectsOf(holder)) {
             Set<String> arms = new TreeSet<>();
             Arrays.stream(c.getDeclaredMethods()).filter(m -> !m.isSynthetic()).forEach(m -> arms.add(m.getName()));
             found.put(c.getSimpleName(), arms);

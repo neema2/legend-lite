@@ -81,17 +81,12 @@ public final class PureText {
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS},
-     *  {@link #ENGINE_PCT}): a plan in legend-pure's words,
-     *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
+     *  {@link #ENGINE_PCT}, or one of those with the tests' harness's dialects, {@link #withDialects}'s): a plan in
+     *  legend-pure's words, which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17,
+     *  2026-11-18). */
     public static boolean isEdgeStyle(PlanStyle style) {
         return style == UPSTREAM || style == PURE_V1 || style == ENGINE_TESTS || style == ENGINE_PCT
-                || style instanceof OfTheEdge;
-    }
-
-    /** A style made of one of the edge's by {@link #withDialects}: the edge's too ({@link #isEdgeStyle}), known by
-     *  this marker where the four above are known by name (2026-11-26, the edition program's step 9, slice 2: the
-     *  tests' harness plans in an edge style whose DuckDB and Postgres are its own, and is no fifth name here). */
-    interface OfTheEdge extends PlanStyle {
+                || style instanceof Redialected;
     }
 
     public static final PlanStyle UPSTREAM = new PlanStyle() {
@@ -379,56 +374,74 @@ public final class PureText {
         };
     }
 
-    /** {@code base}, one of the edge's styles, in every facet, form and edition, its dialect of each database
-     *  {@code dialects}' (2026-11-26, the edition program's step 9, slice 2). For the tests' harness alone, in this
-     *  package: the corpus's dialect hooks (legend-engine's H2 text translated for another database, its scan order
-     *  made explicit) are test machinery, so the harness hands the planner subclasses of the dialects below that add
-     *  them, and no style of this class reaches them. */
+    /** {@code base} -- {@link #UPSTREAM} or {@link #ENGINE_TESTS}, the two the tests' harness plans in -- in every
+     *  facet, form and edition, its dialect of each database {@code dialects}' (2026-11-26, the edition program's step
+     *  9, slice 2). For the tests' harness alone: the corpus's dialect hooks (legend-engine's H2 text translated for
+     *  another database, its scan order made explicit) are test machinery, so the harness hands the planner subclasses
+     *  of the dialects below that add them, and no style of this class reaches them. Its one caller is
+     *  {@code HarnessText}, held by {@code PlanStyleSurfaceTest.onlyTheHarnessMakesAStyleWithItsDialects} (the outside
+     *  audit's finding 1: package-private alone admits every class of this package, the shipped ones too). */
     static PlanStyle withDialects(PlanStyle base, java.util.function.Function<DatabaseType, SqlDialect> dialects) {
-        if (!isEdgeStyle(base)) {
-            throw new IllegalArgumentException("the harness's dialects are handed over one of the edge's styles");
+        if (base != UPSTREAM && base != ENGINE_TESTS) {
+            throw new IllegalArgumentException("the harness's dialects are handed over UPSTREAM or ENGINE_TESTS");
         }
-        return new OfTheEdge() {
-            @Override
-            public SqlDialect dialect(DatabaseType type) {
-                return dialects.apply(type);
-            }
+        return new Redialected(base, java.util.Objects.requireNonNull(dialects, "the harness's dialects"));
+    }
 
-            @Override
-            public boolean judgesEngineText() {
-                return base.judgesEngineText();
-            }
+    /** What {@link #withDialects} makes, and the edge's too ({@link #isEdgeStyle} knows it by this class where the
+     *  four constants are known by name). Private and final, made in that one method: no class outside this one can
+     *  make or implement one (the outside audit's finding 1, 2026-11-26: until then a package-private marker
+     *  interface, which any class of the package could have implemented). */
+    private static final class Redialected implements PlanStyle {
 
-            @Override
-            public @com.legend.base.Nullable TraceCell traceCell() {
-                return base.traceCell();
-            }
+        private final PlanStyle base;
 
-            @Override
-            public String graphKeyDate(String written) {
-                return base.graphKeyDate(written);
-            }
+        private final java.util.function.Function<DatabaseType, SqlDialect> dialects;
 
-            @Override
-            public String graphKeyString(String value) {
-                return base.graphKeyString(value);
-            }
+        private Redialected(PlanStyle base, java.util.function.Function<DatabaseType, SqlDialect> dialects) {
+            this.base = base;
+            this.dialects = dialects;
+        }
 
-            @Override
-            public <F> F facet(Class<F> kind) {
-                return base.facet(kind);
-            }
+        @Override
+        public SqlDialect dialect(DatabaseType type) {
+            return dialects.apply(type);
+        }
 
-            @Override
-            public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
-                return base.facet(kind, refusal);
-            }
+        @Override
+        public boolean judgesEngineText() {
+            return base.judgesEngineText();
+        }
 
-            @Override
-            public <F> F twoForm(Class<F> kind, F productForm) {
-                return base.twoForm(kind, productForm);
-            }
-        };
+        @Override
+        public @com.legend.base.Nullable TraceCell traceCell() {
+            return base.traceCell();
+        }
+
+        @Override
+        public String graphKeyDate(String written) {
+            return base.graphKeyDate(written);
+        }
+
+        @Override
+        public String graphKeyString(String value) {
+            return base.graphKeyString(value);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind) {
+            return base.facet(kind);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            return base.facet(kind, refusal);
+        }
+
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            return base.twoForm(kind, productForm);
+        }
     }
 
     /** Refuses a style that is not pure/v1's ({@link #PURE_V1}): legend-engine's door's own plannings answer
@@ -467,8 +480,13 @@ public final class PureText {
     }
 
     /** DuckDB, spelled as upstream spells it. Open to the tests' harness's subclass alone ({@code HarnessText.DuckDb},
-     *  which adds the corpus's hooks; 2026-11-26, the edition program's step 9, slice 2). */
+     *  which adds the corpus's hooks; 2026-11-26, the edition program's step 9, slice 2): its constructor is this
+     *  package's, and {@code HookRulingTest.theEdgesOpenDialectsAreSubclassedByTheHarnessAlone} holds the rest. */
     public static class DuckDb extends com.legend.sql.dialect.DuckDb {
+
+        /** This package's alone: {@link PureText#dialect} and the harness's subclass make one. */
+        DuckDb() {
+        }
 
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
@@ -508,8 +526,12 @@ public final class PureText {
     }
 
     /** Postgres, spelled as upstream spells it. Open to the tests' harness's subclass alone
-     *  ({@code HarnessText.Postgres}; 2026-11-26, the edition program's step 9, slice 2). */
+     *  ({@code HarnessText.Postgres}; 2026-11-26, the edition program's step 9, slice 2), as {@link DuckDb} is. */
     public static class Postgres extends com.legend.sql.dialect.Postgres {
+
+        /** This package's alone: {@link PureText#dialect} and the harness's subclass make one. */
+        Postgres() {
+        }
 
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override

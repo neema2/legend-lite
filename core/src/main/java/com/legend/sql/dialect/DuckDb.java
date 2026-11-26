@@ -795,7 +795,7 @@ public class DuckDb extends AnsiSqlRenderer {
         // a chain of levels laid out again, each value once at its lowest level: two words' identical windows one
         // (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers(java.util.function.UnaryOperator.identity()));
-        // the scan-order passes the compatibility edge supplies (legend-engine's corpus replay; W6, 2026-11-16): none in
+        // the scan-order passes the tests' harness supplies (legend-engine's corpus replay; W6, 2026-11-16): none in
         // the product, which carries no order it did not ask for
         ps.addAll(scanOrderPasses());
         // last of this dialect's passes (StoredReads follows), on the statement root only: a stored Variant

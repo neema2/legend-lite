@@ -117,7 +117,14 @@ final class DatabaseOwners {
     private static final Map<String, Set<String>> NAMED_BY_ROLE = Map.of(
             // moved to the edge with the translation (Phase 6's B4 (ii), 2026-11-17), and to the edge's test harness
             // with it (2026-11-26, the edition program's step 9, slice 2)
-            HARNESS + "edge/RawSqlBoundary.java", Set.of("H2"));
+            HARNESS + "edge/RawSqlBoundary.java", Set.of("H2"),
+            // 2026-11-26 (the edition program's step 9, slice 2, the orchestrator's rulings): the tests' harness's
+            // dialect registry, home of its two dialects -- the edge's DuckDB and Postgres with the corpus's two hooks,
+            // moved here from the edge's own. It owns exactly those two databases: first ruled into EVERY beside
+            // PureText, then corrected the same day by the outside audit's finding 3 (PureText is a whole registry,
+            // this file names two databases; a third named here is a leak). The product's owner set is unchanged, and
+            // PureText names no more databases than before
+            HARNESS + "edge/HarnessText.java", Set.of("DuckDB", "Postgres"));
 
     /** The input languages (D11): each file and the database whose SQL it reads. 2026-10-18, the dialect program's
      *  D11: Postgres's rules that were the translator's (SqlToPure's) are its own files' (operators, casts, functions,
@@ -169,12 +176,6 @@ final class DatabaseOwners {
             // upstream's spellings (a declared type to the edge's subclass of its product dialect), its test, and the
             // test class planted for the rule that a dialect is the product's or the edge's
             MAIN + "edge/PureText.java",
-            // 2026-11-26 (the edition program's step 9, slice 2, the orchestrator's ruling): the harness's dialect
-            // registry, PureText's counterpart for the tests (a declared type to the harness's subclass of the edge's
-            // DuckDB or Postgres, the edge's own for any other) -- test tooling under core/src/edge_harness. It is the
-            // move of those two subclasses' hooks from the edge to the harness: the product's owner set is unchanged,
-            // and PureText names no more databases than before
-            HARNESS + "edge/HarnessText.java",
             TEST + "integration/EdgeSpellingHookTest.java",
             TEST + "planner/PlantedDialect.java",
             // 2026-11-12 (phase D's guards): the test classes planted for the dialect-blind rule and the edge's
@@ -272,7 +273,9 @@ final class DatabaseOwners {
                 // 2026-11-17 (Phase 6's B4 (ii)): legend-engine's H2 text translation, moved from sql/dialect to the edge,
                 // owning the language it reads as it did there; 2026-11-26 (the edition program's step 9, slice 2):
                 // moved to the edge's test harness, the same owner
-                || rel.matches(MAIN + "edge/EngineStyle\\w+\\.java") || rel.equals(HARNESS + "edge/RawSqlBoundary.java")) {
+                || rel.matches(MAIN + "edge/EngineStyle\\w+\\.java") || rel.equals(HARNESS + "edge/RawSqlBoundary.java")
+                // 2026-11-26 (the same slice): the harness's two dialects' file, an owner of the two it names
+                || rel.equals(HARNESS + "edge/HarnessText.java")) {
             Set<String> own = ownAndParent(rel, source);
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);

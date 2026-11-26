@@ -16,7 +16,7 @@ import com.legend.model.RelationalDataType;
  * ({@code com.legend.sql}) stays standalone and never sees the store model.
  * Model-derived DDL is spelled correctly for its
  * TARGET the first time (F7.4, audit S4): the type switch carries both
- * flavors, and the {@code edge.RawSqlBoundary} translator serves
+ * flavors, and the tests' harness's {@code edge.RawSqlBoundary} translator serves
  * HAND-WRITTEN corpus text only — text whose origin really is another
  * dialect.
  *

@@ -1988,7 +1988,7 @@ public final class Lowerer {
         // product emits none (user ruling 2026-09-20: product SQL carries no
         // ordering it did not ask for). The engine's H2 insertion order the
         // corpus goldens captured is the TEST LANE's to reproduce
-        // (StableScanOrder, switched on by the corpus runner only).
+        // (the tests' harness's StableScanOrder, switched on by the corpus runner only).
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate.
         if (fn == SqlAgg.Fn.STRING_AGG && extra.size() == 3) {
