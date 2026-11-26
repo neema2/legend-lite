@@ -287,8 +287,11 @@ public final class Equality {
 
     static List<Typed> sorted(List<Typed> values) {
         List<Typed> out = new ArrayList<>(values);
+        // equal values of two types (3 and 3.0) in one place on both sides, whatever order each was written in: the
+        // kind breaks the tie (two lists are matched element by element after this sort, and 3 is not 3.0)
         out.sort(java.util.Comparator.comparingInt((Typed t) -> typeRank(t.value()))
-                .thenComparing(t -> withinRank(t.value())));
+                .thenComparing(t -> withinRank(t.value()))
+                .thenComparingInt(t -> java.util.Optional.ofNullable(effectiveKind(t)).map(Enum::ordinal).orElse(-1)));
         return out;
     }
 

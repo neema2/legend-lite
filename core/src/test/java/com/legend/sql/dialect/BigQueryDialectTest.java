@@ -91,6 +91,21 @@ class BigQueryDialectTest {
         assertFalse(sql.contains("(SELECT"), sql);
     }
 
+    /** BigQuery orders no STRUCT ("ORDER BY does not support expressions of type STRUCT", measured on the account,
+     *  2026-11-26: a mixed list's sort, whose key is the rank across kinds): a struct key is written as its fields in
+     *  order, each with its NULLs last; a scalar key as before. */
+    @Test
+    void anOrderedListsStructKeyIsWrittenFieldByField() {
+        SqlType.Struct rank = new SqlType.Struct(List.of(new SqlType.Struct.Field("g", SqlType.Scalar.BIGINT),
+                new SqlType.Struct.Field("n", SqlType.Scalar.DOUBLE)));
+        SqlExpr key = SqlExpr.Column.of("t", "k", rank, true, OutputCol.Origin.PHYSICAL);
+        String sql = render(new SqlExpr.OrderedListAgg(X, key), null);
+        assertTrue(sql.contains("ARRAY_AGG(`t`.`x` ORDER BY ((`t`.`k`).`g`) IS NULL ASC, (`t`.`k`).`g` ASC,"
+                + " ((`t`.`k`).`n`) IS NULL ASC, (`t`.`k`).`n` ASC)"), sql);
+        String scalar = render(new SqlExpr.OrderedListAgg(X, X), null);
+        assertTrue(scalar.contains("ARRAY_AGG(`t`.`x` ORDER BY (`t`.`x`) IS NULL ASC, `t`.`x` ASC)"), scalar);
+    }
+
     /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError); a DATETIME
      *  through text, since an IF of a DATETIME with an ERROR branch fails before it raises. */
     @Test

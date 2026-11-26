@@ -41,9 +41,8 @@ final class MixedEncoding {
             return guardedRanks(new SqlExpr.ArrayLit(vals), computedIntegers);
         }
 
-        /** The selection: the candidate at the FIRST position of {@code winner} in the comparables (Pure's max and
-         *  min keep the first of equal elements), carried as a tagged value with the winner on the comparable
-         *  channel. */
+        /** The selection: the candidate at the FIRST position of {@code winner} in the comparables, carried as a
+         *  tagged value with the winner on the comparable channel. */
         SqlExpr tagged(SqlExpr winner) {
             return taggedAt(SqlExpr.Call.of(SqlFn.LIST_POSITION, valList(), winner), winner);
         }
@@ -53,6 +52,57 @@ final class MixedEncoding {
         SqlExpr taggedAt(SqlExpr position, SqlExpr winner) {
             return new SqlExpr.Tagged(position, winner, candidates);
         }
+
+        /**
+         * The selection where several elements hold the winning value: the one {@code pick} names. The elements are
+         * written in the query, so which is FIRST in a search is a matter of the order they are searched in, and that
+         * order is fixed when the query is planned by facts the types state (an element's type, its place in the
+         * list): the comparables and the candidates are written in that order and the first position of the winner
+         * is taken, with no SQL added. Where the order is the written one the SQL is {@link #tagged(SqlExpr)}'s.
+         */
+        SqlExpr tagged(SqlExpr winner, TiePick pick) {
+            List<Integer> order = new ArrayList<>(vals.size());
+            for (int i = 0; i < vals.size(); i++) {
+                order.add(i);
+            }
+            switch (pick) {
+                case FIRST_WRITTEN -> { }
+                case LAST_WRITTEN -> java.util.Collections.reverse(order);
+                case LEAST_TYPE -> order.sort(java.util.Comparator.comparingInt(i -> typePlace(candidates.get(i))));
+                case GREATEST_TYPE -> order.sort(java.util.Comparator.comparingInt(i -> -typePlace(candidates.get(i))));
+            }
+            List<SqlExpr> searched = new ArrayList<>(vals.size());
+            List<SqlExpr.Tagged.Candidate> picked = new ArrayList<>(vals.size());
+            for (int i : order) {
+                searched.add(vals.get(i));
+                picked.add(candidates.get(i));
+            }
+            return new MixedElems(searched, picked, computedIntegers).tagged(winner);
+        }
+
+        /** A candidate's place among equal values of different types: a number's by its type (Integer, Float,
+         *  Decimal); any other kind 0, so its elements keep the written order (a stable sort). */
+        private static int typePlace(SqlExpr.Tagged.Candidate candidate) {
+            return Math.max(0, numberTypePlace(candidate.kind()));
+        }
+    }
+
+    /** Which element a selection keeps where several hold the winning value ({@link MixedElems#tagged(SqlExpr,
+     *  TiePick)}): lite's own rule is by the order of types ({@link #LEAST_TYPE} for a least element, {@link
+     *  #GREATEST_TYPE} for a greatest: among equal numbers Integer, Float, Decimal); legend-pure's and legend-engine's
+     *  is by the fold their {@code max} and {@code min} are written as (run on all three upstream runtimes,
+     *  2026-11-26, docs/records/edition-homework/upstream-step6/answers.md): over a LIST the later element of a tie
+     *  ({@link #LAST_WRITTEN}), of TWO ARGUMENTS the left one ({@link #FIRST_WRITTEN}). */
+    enum TiePick { FIRST_WRITTEN, LAST_WRITTEN, LEAST_TYPE, GREATEST_TYPE }
+
+    /** A number kind's place among equal magnitudes (Integer, Float, Decimal); -1 for a kind that is no number. */
+    static int numberTypePlace(String kind) {
+        return switch (family(kind)) {
+            case "Integer" -> 0;
+            case "Float" -> 1;
+            case "Decimal" -> 2;
+            default -> -1;
+        };
     }
 
     /** The written subsecond digits a kind {@code DateTime(n)} carries; null for every other kind. */
@@ -450,6 +500,55 @@ final class MixedEncoding {
                     && !(cd.value() instanceof PureDateLiteral.DateWithSubsecond) ? "Date" : null;
         }
         return enumerationOf(t);
+    }
+
+    /**
+     * The kind of a value compared with a tagged value or list, where its static type may name none: its static kind
+     * ({@link #kindOf}); the kind of what an UPCAST asserts over (a widening cast is the value as it is,
+     * {@code CastPolicy}: {@code 1->cast(@Number)} is the Integer); and, for a value typed Number, Any or the abstract
+     * Date that is a relation's COLUMN, the kind the column's own SQL type names -- a column holds one type, so the
+     * column fixes it (the user's ruling of 2026-11-25, "runtime compare is fine": a value typed only at run time
+     * whose column fixes its type is compared by the column's type; slice 6.2 of the edition program's step 6).
+     * Null for any other shape of such a type (a CASE, a COALESCE, arithmetic, a parameter): there the SQL type is a
+     * PROMOTION of the branches' types or unknown, never the value's own, and the caller refuses by name.
+     */
+    static @com.legend.base.Nullable String kindOfValue(TypedSpec spec, SqlExpr value) {
+        String fixed = kindOf(spec);
+        if (fixed != null) {
+            return fixed;
+        }
+        Type t = spec.info().type();
+        boolean open = t == Type.Primitive.NUMBER || t == Type.Primitive.DATE
+                || t instanceof Type.ClassType ct && PlatformTypes.isAny(ct);
+        if (!open) {
+            return null;
+        }
+        if (spec instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire()
+                && c.target().equals(t) && (CastPolicy.isWidening(c.source().info().type(), t)
+                        || t instanceof Type.ClassType)) {
+            return kindOfValue(c.source(), value);
+        }
+        if (value instanceof SqlExpr.Column column && column.type() instanceof com.legend.sql.TypeFact.Typed typed) {
+            return kindName(Type.kindOfSqlType(typed.type()));
+        }
+        return null;
+    }
+
+    /** The tagged kind a primitive names, of the seven a channel carries; null for any other. */
+    private static @com.legend.base.Nullable String kindName(@com.legend.base.Nullable Type kind) {
+        if (!(kind instanceof Type.Primitive p)) {
+            return null;
+        }
+        return switch (p) {
+            case INTEGER -> "Integer";
+            case FLOAT -> "Float";
+            case DECIMAL -> "Decimal";
+            case STRING -> "String";
+            case BOOLEAN -> "Boolean";
+            case STRICT_DATE -> "StrictDate";
+            case DATE_TIME -> "DateTime";
+            case BYTE, STRICT_TIME, NUMBER, DATE, LATEST_DATE -> null;
+        };
     }
 
     /** The abstract Enum declaration ({@link #enumerationOf}). */

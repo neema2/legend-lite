@@ -1262,80 +1262,10 @@ final class Scalars {
         // A TO-ONE argument (sum(7), average of one value) is the IDENTITY —
         // the list encodings choke on scalars.
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_DATE_MIN, Pure.AT_MATH_MIN, Pure.AT_COLLECTION_MIN)) {
-            RULES.put(f, (n, args) -> {
-                MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
-                if (mx != null) {
-                    refuseRealTies(n.args().get(0), "least element", true);
-                    return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
-                }
-                // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
-                SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
-                if (mixedList != null && !isToOne(n.args().get(0))) {
-                    refuseRealTies(n.args().get(0), "least element");
-                    return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx"));
-                }
-                if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
-                    // a TO-ONE collection is its own extreme — but a
-                    // SINGLETON LIST LITERAL is a list; its reduction is
-                    // the element (the minus rule's convention)
-                    return isToOne(n.args().get(0))
-                            ? args.get(0)
-                            : Comparators.select(args.get(0), cmp, false);
-                }
-                if (args.size() > 1) {
-                    MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
-                    if (ma != null) {
-                        refuseRealTies(n.args(), "least element", true);
-                    }
-                    return ma != null
-                            ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
-                            : new SqlExpr.Call(SqlFn.LEAST, args);
-                }
-                SqlExpr fused = reducedOverRelation(args.get(0), SqlAgg.Fn.MIN);
-                if (fused != null) {
-                    return fused;
-                }
-                return isToOne(n.args().get(0))
-                        ? args.get(0)
-                        : SqlExpr.Call.of(SqlFn.LIST_MIN, emptyConformed(args.get(0), n.args().get(0)));
-            });
+            RULES.put(f, (n, args) -> leastOf(n, args, false));
         }
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_DATE_MAX, Pure.AT_MATH_MAX, Pure.AT_COLLECTION_MAX)) {
-            RULES.put(f, (n, args) -> {
-                MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
-                if (mx != null) {
-                    refuseRealTies(n.args().get(0), "greatest element", true);
-                    return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
-                }
-                // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
-                SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
-                if (mixedList != null && !isToOne(n.args().get(0))) {
-                    refuseRealTies(n.args().get(0), "greatest element");
-                    return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx"));
-                }
-                if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
-                    // (same singleton-list-literal guard as min)
-                    return isToOne(n.args().get(0))
-                            ? args.get(0)
-                            : Comparators.select(args.get(0), cmp, true);
-                }
-                if (args.size() > 1) {
-                    MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
-                    if (ma != null) {
-                        refuseRealTies(n.args(), "greatest element", true);
-                    }
-                    return ma != null
-                            ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
-                            : new SqlExpr.Call(SqlFn.GREATEST, args);
-                }
-                SqlExpr fused = reducedOverRelation(args.get(0), SqlAgg.Fn.MAX);
-                if (fused != null) {
-                    return fused;
-                }
-                return isToOne(n.args().get(0))
-                        ? args.get(0)
-                        : SqlExpr.Call.of(SqlFn.LIST_MAX, emptyConformed(args.get(0), n.args().get(0)));
-            });
+            RULES.put(f, (n, args) -> greatestOf(n, args, false));
         }
         // THE SINGLETON-LIST-LITERAL RULE (burn slice 2 closed the CLASS,
         // not the instance): a TO-ONE argument is its own reduction, but a
@@ -1361,40 +1291,10 @@ final class Scalars {
         // like min/max/sum, a to-one argument is the identity and a list reduces
         // with the list encoding — SQL's variadic GREATEST/LEAST never applies.
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_GREATEST) {
-            RULES.put(f, (n, args) -> {
-                MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
-                if (mx != null) {
-                    refuseRealTies(n.args().get(0), "greatest element", true);
-                    return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
-                }
-                // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
-                SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
-                if (mixedList != null && !isToOne(n.args().get(0))) {
-                    refuseRealTies(n.args().get(0), "greatest element");
-                    return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx"));
-                }
-                return isToOne(n.args().get(0))
-                        ? args.get(0)
-                        : SqlExpr.Call.of(SqlFn.LIST_MAX, emptyConformed(args.get(0), n.args().get(0)));
-            });
+            RULES.put(f, (n, args) -> greatestElement(n, args, false));
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_LEAST) {
-            RULES.put(f, (n, args) -> {
-                MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
-                if (mx != null) {
-                    refuseRealTies(n.args().get(0), "least element", true);
-                    return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
-                }
-                // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
-                SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
-                if (mixedList != null && !isToOne(n.args().get(0))) {
-                    refuseRealTies(n.args().get(0), "least element");
-                    return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx"));
-                }
-                return isToOne(n.args().get(0))
-                        ? args.get(0)
-                        : SqlExpr.Call.of(SqlFn.LIST_MIN, emptyConformed(args.get(0), n.args().get(0)));
-            });
+            RULES.put(f, (n, args) -> leastElement(n, args, false));
         }
         for (com.legend.model.FunctionId f : Pure.AT_MATH_MODE) {
             RULES.put(f, (n, args) -> {
@@ -2336,7 +2236,8 @@ final class Scalars {
                 if (mixedColl != null) {
                     return args.get(1) instanceof SqlExpr.Tagged needleT
                             ? TaggedLists.containsElement(mixedColl, needleT)
-                            : TaggedLists.contains(mixedColl, MixedEncoding.kindOf(n.args().get(1)), args.get(1),
+                            : TaggedLists.contains(mixedColl,
+                                    MixedEncoding.kindOfValue(n.args().get(1), args.get(1)), args.get(1),
                                     n.args().get(1).info().type());
                 }
                 // A heterogeneous (Any) list is variant-wrapped — wrap the
@@ -2723,7 +2624,7 @@ final class Scalars {
             if (tl != null) {
                 return raw instanceof SqlExpr.Tagged needleT
                         ? TaggedLists.containsElement(tl, needleT)
-                        : TaggedLists.contains(tl, MixedEncoding.kindOf(n.args().get(0)), raw,
+                        : TaggedLists.contains(tl, MixedEncoding.kindOfValue(n.args().get(0), raw), raw,
                                 n.args().get(0).info().type());
             }
             SqlExpr needle = collVariant
@@ -3855,10 +3756,10 @@ final class Scalars {
             return TaggedLists.sameElement(x, y);
         }
         if (a instanceof SqlExpr.Tagged x) {
-            return TaggedLists.sameElement(x, MixedEncoding.kindOf(s1), b, s1.info().type());
+            return TaggedLists.sameElement(x, MixedEncoding.kindOfValue(s1, b), b, s1.info().type());
         }
         if (b instanceof SqlExpr.Tagged y) {
-            return TaggedLists.sameElement(y, MixedEncoding.kindOf(s0), a, s0.info().type());
+            return TaggedLists.sameElement(y, MixedEncoding.kindOfValue(s0, a), a, s0.info().type());
         }
         SqlExpr.TaggedList la = asTaggedList(s0, a);
         SqlExpr.TaggedList lb = asTaggedList(s1, b);
@@ -4087,34 +3988,206 @@ final class Scalars {
         RULES.seal();
     }
 
-    /** A mixed list's extreme, refused by name where two of its elements of different kinds may compare EQUAL (a
-     *  tie the database orders as it likes, so the extreme could answer either kind): ONE rule for numbers, dates and
-     *  enumerations on both routes (the PR1 re-review's B4, 2026-11-16; docs/records/pr1-rulings-2026-11-15.md, R3).
-     *  Within a family holding two kinds, literal elements are known at planning: refused only on a real tie (1 and
-     *  1.0; %2025-02-10 and %2025-02-10T00:00:00; two enumerations' values of one name). A computed element of such a
-     *  family is not known here: answered, a tie it makes at run time a known limit until the run-time kind carrier
-     *  (O2 step 3) answers it as legend-pure does.
-     *  Two literal numbers the DOUBLE rank holds as one value are refused too (B2: the rank would order them wrongly). */
-    private static void refuseRealTies(TypedSpec arg, String what) {
-        refuseRealTies(arg, what, false);
+    /** {@link NamedRule#SORT_TIES_AS_WRITTEN}: a mixed list's plain sort with equal numbers of different types in
+     *  the written order; any other sort by its own rule. */
+    static SqlExpr sortTiesAsWritten(TypedNativeCall n, List<SqlExpr> args) {
+        if (n.args().size() == 1 && !Stamps.atMostOne(n.args().get(0))) {
+            SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
+            if (mixed != null) {
+                return TaggedLists.sort(mixed, "_tls", TaggedLists.Ties.AS_WRITTEN);
+            }
+        }
+        return ownRule(n).apply(n, args);
     }
 
-    /** {@code firstOfATie}: the route picks the FIRST element of the winning rank (the mixed-elements route's
-     *  LIST_POSITION), which is Pure's own rule for a tie of numbers ({@code [3.0, 3]->max()} is the Float), so a number
-     *  tie answers right there and is not refused; dates still are (Pure orders a StrictDate before a DateTime at one
-     *  instant, the rank holds them equal). */
-    private static void refuseRealTies(TypedSpec arg, String what, boolean firstOfATie) {
+    /** {@link NamedRule#EXTREME_KEEPS_THE_FOLDS_TIE}: the call's own extreme with a tie kept as upstream's fold
+     *  keeps it. */
+    static SqlExpr extremeKeepingTheFoldsTie(TypedNativeCall n, List<SqlExpr> args) {
+        com.legend.model.FunctionId id = n.callee().id();
+        if (Pure.AT_COLLECTION_GREATEST.contains(id)) {
+            return greatestElement(n, args, true);
+        }
+        if (Pure.AT_COLLECTION_LEAST.contains(id)) {
+            return leastElement(n, args, true);
+        }
+        if (com.legend.model.FunctionId.all(Pure.AT_DATE_MIN, Pure.AT_MATH_MIN, Pure.AT_COLLECTION_MIN).contains(id)) {
+            return leastOf(n, args, true);
+        }
+        if (com.legend.model.FunctionId.all(Pure.AT_DATE_MAX, Pure.AT_MATH_MAX, Pure.AT_COLLECTION_MAX).contains(id)) {
+            return greatestOf(n, args, true);
+        }
+        throw new IllegalStateException("no extreme's rule for " + id + ": an edition's row named one");
+    }
+
+    /** Whether upstream writes {@code n}'s {@code min} as a FOLD over the list (the Number and the date overloads:
+     *  {@code fold({n, m | min($n, $m)}, at(0))}, which keeps the LATER element of a tie) and not as the generic
+     *  {@code sort()->first()} (the FIRST written, the sort being stable): read in the pinned sources and run on all
+     *  three upstream runtimes, 2026-11-26 ({@code [3, 3.0]->min()} is the Float, {@code [3, 3.0]->least()} and
+     *  {@code [3, 3.0, 'a']->min()} the Integer; docs/records/edition-homework/upstream-step6/answers.md, group E).
+     *  Their {@code max} keeps the last written either way. */
+    private static boolean aFold(TypedNativeCall n) {
+        return !Pure.AT_COLLECTION_MIN.contains(n.callee().id());
+    }
+
+    /** The product's own rule for {@code n}, which a named rule falls back to for the calls it does not rewrite. */
+    private static Rule ownRule(TypedNativeCall n) {
+        Rule rule = RULES.get(n.callee().id());
+        if (rule == null) {
+            throw new IllegalStateException("no rule for " + n.callee().id() + ": an edition's row named one");
+        }
+        return rule;
+    }
+
+    /** min: the least of a list, of several arguments, or by a comparator. {@code upstreamTies}: on a tie keep upstream's
+     *  element (MixedEncoding.TiePick), not lite's. */
+    static SqlExpr leastOf(TypedNativeCall n, List<SqlExpr> args, boolean upstreamTies) {
+        MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
+        if (mx != null) {
+            refuseRealTies(n.args().get(0), "least element");
+            return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()),
+                    !upstreamTies ? MixedEncoding.TiePick.LEAST_TYPE
+                            : aFold(n) ? MixedEncoding.TiePick.LAST_WRITTEN : MixedEncoding.TiePick.FIRST_WRITTEN);
+        }
+        // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
+        SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
+        if (mixedList != null && !isToOne(n.args().get(0))) {
+            refuseRealTies(n.args().get(0), "least element");
+            return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx",
+                    !upstreamTies ? TaggedLists.Ties.BY_TYPE
+                            : aFold(n) ? TaggedLists.Ties.LAST_WRITTEN_FIRST : TaggedLists.Ties.AS_WRITTEN));
+        }
+        if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
+            // a TO-ONE collection is its own extreme — but a
+            // SINGLETON LIST LITERAL is a list; its reduction is
+            // the element (the minus rule's convention)
+            return isToOne(n.args().get(0))
+                    ? args.get(0)
+                    : Comparators.select(args.get(0), cmp, false);
+        }
+        if (args.size() > 1) {
+            MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
+            if (ma != null) {
+                refuseRealTies(n.args(), "least element");
+            }
+            return ma != null
+                    ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()),
+                            upstreamTies ? MixedEncoding.TiePick.FIRST_WRITTEN : MixedEncoding.TiePick.LEAST_TYPE)
+                    : new SqlExpr.Call(SqlFn.LEAST, args);
+        }
+        SqlExpr fused = reducedOverRelation(args.get(0), SqlAgg.Fn.MIN);
+        if (fused != null) {
+            return fused;
+        }
+        return isToOne(n.args().get(0))
+                ? args.get(0)
+                : SqlExpr.Call.of(SqlFn.LIST_MIN, emptyConformed(args.get(0), n.args().get(0)));
+    
+    }
+
+    /** max: the greatest of a list, of several arguments, or by a comparator. {@code upstreamTies}: on a tie keep upstream's
+     *  element (MixedEncoding.TiePick), not lite's. */
+    static SqlExpr greatestOf(TypedNativeCall n, List<SqlExpr> args, boolean upstreamTies) {
+        MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
+        if (mx != null) {
+            refuseRealTies(n.args().get(0), "greatest element");
+            return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()),
+                    upstreamTies ? MixedEncoding.TiePick.LAST_WRITTEN : MixedEncoding.TiePick.GREATEST_TYPE);
+        }
+        // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
+        SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
+        if (mixedList != null && !isToOne(n.args().get(0))) {
+            refuseRealTies(n.args().get(0), "greatest element");
+            return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx",
+                    upstreamTies ? TaggedLists.Ties.AS_WRITTEN : TaggedLists.Ties.BY_TYPE));
+        }
+        if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
+            // (same singleton-list-literal guard as min)
+            return isToOne(n.args().get(0))
+                    ? args.get(0)
+                    : Comparators.select(args.get(0), cmp, true);
+        }
+        if (args.size() > 1) {
+            MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
+            if (ma != null) {
+                refuseRealTies(n.args(), "greatest element");
+            }
+            return ma != null
+                    ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()),
+                            upstreamTies ? MixedEncoding.TiePick.FIRST_WRITTEN : MixedEncoding.TiePick.GREATEST_TYPE)
+                    : new SqlExpr.Call(SqlFn.GREATEST, args);
+        }
+        SqlExpr fused = reducedOverRelation(args.get(0), SqlAgg.Fn.MAX);
+        if (fused != null) {
+            return fused;
+        }
+        return isToOne(n.args().get(0))
+                ? args.get(0)
+                : SqlExpr.Call.of(SqlFn.LIST_MAX, emptyConformed(args.get(0), n.args().get(0)));
+    
+    }
+
+    /** greatest: the greatest element of ONE collection. {@code upstreamTies}: on a tie keep upstream's
+     *  element (MixedEncoding.TiePick), not lite's. */
+    static SqlExpr greatestElement(TypedNativeCall n, List<SqlExpr> args, boolean upstreamTies) {
+        MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
+        if (mx != null) {
+            refuseRealTies(n.args().get(0), "greatest element");
+            return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()),
+                    upstreamTies ? MixedEncoding.TiePick.LAST_WRITTEN : MixedEncoding.TiePick.GREATEST_TYPE);
+        }
+        // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
+        SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
+        if (mixedList != null && !isToOne(n.args().get(0))) {
+            refuseRealTies(n.args().get(0), "greatest element");
+            return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx",
+                    upstreamTies ? TaggedLists.Ties.AS_WRITTEN : TaggedLists.Ties.BY_TYPE));
+        }
+        return isToOne(n.args().get(0))
+                ? args.get(0)
+                : SqlExpr.Call.of(SqlFn.LIST_MAX, emptyConformed(args.get(0), n.args().get(0)));
+    
+    }
+
+    /** least: the least element of ONE collection. {@code upstreamTies}: on a tie keep upstream's
+     *  element (MixedEncoding.TiePick), not lite's. */
+    static SqlExpr leastElement(TypedNativeCall n, List<SqlExpr> args, boolean upstreamTies) {
+        MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
+        if (mx != null) {
+            refuseRealTies(n.args().get(0), "least element");
+            return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()),
+                    upstreamTies ? MixedEncoding.TiePick.FIRST_WRITTEN : MixedEncoding.TiePick.LEAST_TYPE);
+        }
+        // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
+        SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
+        if (mixedList != null && !isToOne(n.args().get(0))) {
+            refuseRealTies(n.args().get(0), "least element");
+            return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx",
+                    upstreamTies ? TaggedLists.Ties.AS_WRITTEN : TaggedLists.Ties.BY_TYPE));
+        }
+        return isToOne(n.args().get(0))
+                ? args.get(0)
+                : SqlExpr.Call.of(SqlFn.LIST_MIN, emptyConformed(args.get(0), n.args().get(0)));
+    
+    }
+
+    /** A mixed list's extreme, refused by name where two of its DATES or ENUMERATION VALUES of different kinds may
+     *  compare EQUAL (a tie the database orders as it likes, so the extreme could answer either kind): one rule on
+     *  both routes (the PR1 re-review's B4, 2026-11-16; docs/records/pr1-rulings-2026-11-15.md, R3). Within a family
+     *  holding two kinds, literal elements are known at planning: refused only on a real tie (%2025-02-10 and
+     *  %2025-02-10T00:00:00; two enumerations' values of one name). A computed element of such a family is not known
+     *  here: answered.
+     *  A tie of two NUMBERS of different types is no longer refused: the tie has a rule (slice 6.2 of the edition
+     *  program's step 6, the user's rulings of 2026-11-26: lite's by the order of types, upstream's by its fold;
+     *  MixedEncoding.TiePick, TaggedLists.Ties).
+     *  Two literal numbers the DOUBLE rank holds as one value are still refused (B2: the rank would order them
+     *  wrongly). */
+    private static void refuseRealTies(TypedSpec arg, String what) {
         if (arg instanceof TypedCollection c) {
-            refuseRealTies(c.elements(), what, firstOfATie);
+            refuseRealTies(c.elements(), what);
         }
     }
 
-
     private static void refuseRealTies(List<TypedSpec> elements, String what) {
-        refuseRealTies(elements, what, false);
-    }
-
-    private static void refuseRealTies(List<TypedSpec> elements, String what, boolean firstOfATie) {
         // family -> (kind -> the literal values of that kind); a computed element is a null value
         java.util.Map<String, java.util.Map<String, List<Object>>> families = new java.util.TreeMap<>();
         java.util.Map<Double, java.math.BigDecimal> byDouble = new java.util.HashMap<>();
@@ -4151,7 +4224,7 @@ final class Scalars {
         }
         for (var family : families.entrySet()) {
             java.util.Map<String, List<Object>> kinds = family.getValue();
-            if (kinds.size() < 2 || firstOfATie && family.getKey().equals("number")) {
+            if (kinds.size() < 2 || family.getKey().equals("number")) {
                 continue;
             }
             java.util.Map<Object, String> seen = new java.util.HashMap<>();

@@ -79,5 +79,21 @@ public enum NamedRule {
      *  ({@code SqlFn.SPLIT_PART}): an empty part is a part, the separator is a whole text, an index past the parts is
      *  the empty text. Not the product's {@code splitPart}, Pure's (empty parts dropped, an index past them an
      *  error). */
-    SPLIT_PART_AS_GIVEN
+    SPLIT_PART_AS_GIVEN,
+
+    /** A sort with no key and no comparator whose EQUAL NUMBERS OF DIFFERENT TYPES keep the order they were written
+     *  in (a stable sort that compares {@code 3} and {@code 3.0} as equal): {@code [3.0, 3, 1]->sort()} is
+     *  {@code [1, 3.0, 3]}. Not the product's {@code sort}, which orders equal numbers by their type (Integer, Float,
+     *  Decimal). Every other sort is written by its own rule. */
+    SORT_TIES_AS_WRITTEN,
+
+    /** {@code max}, {@code min}, {@code greatest} and {@code least} keeping, where several elements hold the winning
+     *  value, the element the function's own Pure body keeps. A Number or a date list's {@code max} and {@code min}
+     *  are a left fold: the LAST written of a tie ({@code [3, 3.0]->max()} and {@code [3, 3.0]->min()} are the Float),
+     *  of several ARGUMENTS the first ({@code max(3, 3.0)} is the Integer). The generic {@code max} and {@code min},
+     *  and {@code greatest} and {@code least}, which call them, are an end of a stable sort: the greatest the LAST
+     *  written of a tie, the least the FIRST ({@code [3, 3.0]->least()} is the Integer). Not the product's, which
+     *  keeps the element whose type orders it so (the greatest of equal numbers the Decimal, then the Float; the
+     *  least the Integer). */
+    EXTREME_KEEPS_THE_FOLDS_TIE
 }

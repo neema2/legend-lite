@@ -334,20 +334,80 @@ class TaggedListTest {
     }
 
     @Test
-    void numbersOfDifferentKindsAreRefusedWherePureEquatesTheirTexts() throws Exception {
-        // the L2 audit's finding 4: compiled legend-pure's eq(Number, Number) compares the texts, so 3 == 3D and
-        // 1.5 == 1.5D are true there; lite refuses those pairs by name until it lowers the rule (a static false
-        // stood); the pairs whose texts never agree keep their false
+    void numbersOfDifferentTypesAreNeverEqualInAMixedList() throws Exception {
+        // the equality rule (the user, 2026-11-24): two values are equal only when they have the same type and the
+        // same value, so an Integer, a Float and a Decimal in a mixed list never equal one another, whatever their
+        // digits. (Compiled legend-pure compares two numbers of different kinds by their texts, so 3 == 3D and
+        // 1.5 == 1.5D are true there: lite refused those pairs by name until slice 6.2; they answer false now, a
+        // recorded difference.)
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(false, value(c, "|[1, 'a']->contains(1.0)"));
             assertEquals(false, value(c, "|[1, 'a']->contains(1.5D)"));
             assertEquals(false, value(c, "|[1, 'a'] == [1.0, 'a']"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[3, 'a']->contains(3D)")).getMessage().contains("Integer"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[3, 'a'] == [3D, 'a']")).getMessage().contains("Decimal"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[1.5, 'a']->contains(1.5D)")).getMessage().contains("Float"));
+            assertEquals(false, value(c, "|[3, 'a']->contains(3D)"));
+            assertEquals(false, value(c, "|[3, 'a'] == [3D, 'a']"));
+            assertEquals(false, value(c, "|[1.5, 'a']->contains(1.5D)"));
+            // the shape no longer decides (the audit of slice 6.1, S5: one was refused, the other false)
+            assertEquals(false, value(c, "|2->in([2D, 'a'])"));
+            assertEquals(false, value(c, "|2->in([1, 2D, 'a'])"));
+            // and the same type still compares by its value
+            assertEquals(true, value(c, "|[3D, 'a']->contains(3.0D)"));
+        }
+    }
+
+    @Test
+    void aValueTypedOnlyAtRunTimeComparesByTheTypeItHolds() throws Exception {
+        // slice 6.2: a value whose static type names no kind (Number, Any, the abstract Date) was refused against a
+        // mixed list ("whose kind only its runtime value names"); it compares by the type it holds where that is
+        // known -- an upcast is the value as it is, so its kind is the kind of what was cast
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(true, value(c, "|[1, 'a']->contains(1->cast(@Number))"));
+            assertEquals(false, value(c, "|[1.0, 'a']->contains(1->cast(@Number))"));
+            assertEquals(true, value(c, "|1.5->cast(@Number)->in([1.5, 'a'])"));
+            assertEquals(false, value(c, "|1.5->cast(@Number)->in([1.5D, 'a'])"));
+            assertEquals(true, value(c, "|[%2014-01-01, 'a']->contains(%2014-01-01->cast(@Date))"));
+            assertEquals(false, value(c, "|[%2014-01-01T00:00:00, 'a']->contains(%2014-01-01->cast(@Date))"));
+            assertEquals(true, value(c, "|['a', 1]->contains('a'->cast(@Any))"));
+            assertEquals(false, value(c, "|['1', 2]->contains(1->cast(@Any))"));
+            // over a row: the upcast of a column is the column's value, compared by the database (no list in the SQL)
+            String upcast = "|#TDS\n a\n 1\n 2\n#->extend(~hit: x | [1, 'a']->contains($x.a->cast(@Number)))->select(~hit)";
+            assertEquals(List.of(true, false), values(c, upcast));
+            assertEquals("SELECT coalesce(_tds0.a = 1, FALSE) AS hit", query(upcast).plan("s::RT").sql().split("\\s+FROM\\s+")[0]);
+            // a value whose SQL type is a PROMOTION of what it may hold is still refused by name, never guessed: a
+            // CASE of an Integer and a Float is a DOUBLE; a relation re-typed to a Number column reads it as a DOUBLE
+            for (String promoted : List.of(
+                    "|#TDS\n a\n 1\n 2\n#->extend(~hit: x | [1, 'a']->contains(if($x.a > 1, |1, |1.5)))->select(~hit)",
+                    "|#TDS\n a\n 1\n 2\n#->cast(@meta::pure::metamodel::relation::Relation<(a:Number)>)"
+                            + "->extend(~hit: x | $x.a->toOne()->in([1, 'a']))->select(~hit)")) {
+                assertTrue(assertThrows(com.legend.error.NotImplementedException.class, () -> values(c, promoted))
+                        .getMessage().contains("whose kind only its runtime value names"), promoted);
+            }
+        }
+    }
+
+    @Test
+    void equalNumbersOfDifferentTypesSortInOneOrder() throws Exception {
+        // slice 6.2 (the user's ruling of 2026-11-25): 3 and 3.0 are two values of two types, so a sort orders them
+        // one way whatever order they were written in -- by value, then Integer, Float, Decimal (until then a tie
+        // kept the list's order: [3.0, 3, 1]->sort() answered [1, 3.0, 3])
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals("[1, 3, 3.0]", String.valueOf(values(c, "|[3, 3.0, 1]->sort()")));
+            assertEquals("[1, 3, 3.0]", String.valueOf(values(c, "|[3.0, 3, 1]->sort()")));
+            assertEquals("[3, 3.0, a]", String.valueOf(values(c, "|[3.0, 'a', 3]->sort()")));
+            // one number type: the order by value alone, as before
+            assertEquals("[1, 2, 3]", String.valueOf(values(c, "|[3, 1, 2]->sort()")));
+            assertEquals("[1.5, 2.5]", String.valueOf(values(c, "|[2.5, 1.5]->sort()")));
+            // and reversed: the whole order the other way
+            assertEquals("[3.0, 3, 1]", String.valueOf(values(c, "|[3, 3.0, 1]->sort()->reverse()")));
+            // the sorted list read further, not returned: the positions themselves are placed so
+            assertEquals("3,3.0,5", String.valueOf(value(c,
+                    "|[3.0, 3, 5]->sort()->map(x | $x->toString())->joinStrings(',')")));
+            // returned as the answer, the list is ordered once: by the comparable, the type, the position -- the
+            // sort's own ordered copy of the positions is not written (it was written and then ordered again)
+            String sql = query("|[3.0, 3, 1]->sort()").plan("s::RT").sql();
+            assertTrue(sql.contains("SELECT UNNEST([1, 2, 3]) AS __p"), sql);
+            assertTrue(sql.contains("CASE WHEN t0.__p = 1 THEN 1 ELSE 0 END"), sql);
+            assertFalse(sql.contains("ROW_NUMBER()"), sql);
         }
     }
 
