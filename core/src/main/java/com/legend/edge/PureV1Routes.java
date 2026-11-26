@@ -31,7 +31,7 @@ import static com.legend.edge.ExecuteInputs.runtimeOf;
  * legend-engine's {@code pure/v1} API, served EXACTLY, at the edge (phase D's D1.0b, the orchestrator's ruling of
  * 2026-11-12: "move pure/v1's upstream routes, TestDataRoutes and the server's composition root to the edge"):
  * upstream's paths, request and answer shapes, and its texts -- each call planned through the edge's dialects
- * ({@link PureText#UPSTREAM}, so its SQL and its values' texts are upstream's) and run by the {@link Runner} its host
+ * ({@link PureText#PURE_V1}: its values' texts are upstream's, and its meaning legend-engine's) and run by the {@link Runner} its host
  * hands it ({@link EdgeServer}'s, the edge's dialects too). Until 2026-11-12 these routes were
  * {@code server.LiteV1Api}'s, beside lite's own; lite's own routes ({@code /api/lite/v1}, the hosts' plan halves) stay
  * the product's there (G5: the edge depends on the product, never the reverse). Each call is a pure function of its

@@ -103,9 +103,13 @@ public final class ClassSources {
     private java.util.function.Function<String, List<com.legend.plan.LazyRows.Parameter>>
             constructedParameters = id -> List.of();
 
-    /** Whether a model-to-model mapping's transforms are stamped as outside any store query as they are composed
-     *  (its resolver's: {@code StoreResolver.transformsOutsideStore}). */
-    private final boolean transformsOutsideStore;
+    /** The model's and the mappings' code stamped as outside any store query as it is brought into a statement (its
+     *  resolver's: {@link OutsideStore}). */
+    private final OutsideStore outside;
+
+    /** The classes this resolution made through a model-to-model mapping (the stamp's: a qualified property a graph
+     *  fetch reads off such a class is the audience's own Java's, as its transforms are). */
+    private final java.util.Set<String> composedClasses = new java.util.HashSet<>();
 
     void setConstructedRows(
             java.util.function.Function<String, Map<String, List<List<String>>>> rows,
@@ -181,12 +185,12 @@ public final class ClassSources {
      * binding's source from its arms. */
     private final StackBuilder stacks;
 
-    /** {@code transformsOutsideStore}: a model-to-model mapping's transforms are stamped as outside any store query
-     *  as they are composed (its resolver's, the planner's decision; false for every road but a compatibility door's). */
-    public ClassSources(ModelContext ctx, SpecCompiler specs, boolean transformsOutsideStore) {
+    /** {@code outside}: the code stamped as outside any store query as it is brought into a statement (its resolver's,
+     *  the planner's decision; {@code OutsideStore.NONE} for every road but a compatibility door's). */
+    public ClassSources(ModelContext ctx, SpecCompiler specs, OutsideStore outside) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.specs = Objects.requireNonNull(specs, "specs");
-        this.transformsOutsideStore = transformsOutsideStore;
+        this.outside = Objects.requireNonNull(outside, "outside");
         this.stacks = new StackBuilder(ctx, this);
     }
 
@@ -196,8 +200,22 @@ public final class ClassSources {
     }
 
     /** The compiled body of a SYNTHESIZED function (unique FQN — derived
-     * property bodies for graph-leaf inlining, task #78). */
+     * property bodies for graph-leaf inlining, task #78). Where this resolution stamps a model-to-model mapping's
+     * transforms and has made a class through one, the body is stamped too: a graph fetch over such a mapping reads
+     * its tree's qualified properties off the objects the mapping made, in the audience's own Java. */
     CompiledFunction compileSynthFn(String fqn) {
+        CompiledFunction cf = compiled(fqn);
+        return outside.transforms() && !composedClasses.isEmpty() ? stamped(cf) : cf;
+    }
+
+    /** The compiled body of a class constraint's function, for a checked graph fetch: stamped where this resolution
+     *  stamps constraints. */
+    CompiledFunction compileConstraintFn(String fqn) {
+        CompiledFunction cf = compiled(fqn);
+        return outside.constraints() ? stamped(cf) : cf;
+    }
+
+    private CompiledFunction compiled(String fqn) {
         List<TypedFunction> fns = ctx.findFunction(fqn);
         if (fns.size() != 1) {
             throw new IllegalStateException("resolver bug: synthesized"
@@ -205,6 +223,23 @@ public final class ClassSources {
                     + " overloads; synthesized FQNs are unique");
         }
         return specs.compile(fns.get(0));
+    }
+
+    private CompiledFunction stamped(CompiledFunction cf) {
+        return new CompiledFunction(cf.signature(), cf.body().stream().map(this::outsideStore).toList());
+    }
+
+    /** {@code n} with every native call in it stamped as outside any store query, the code of each function it calls
+     *  included: a call to a function is expanded here (the planner's own inliner), so that the calls of its body are
+     *  stamped with it and no later expansion brings them in unstamped. */
+    private TypedSpec outsideStore(TypedSpec n) {
+        if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
+            TypedSpec expanded = new com.legend.compiler.spec.UserCallInliner(specs)
+                    .inlineBody(new ArrayList<>(List.of(n))).get(0);
+            return TypedNativeCall.allStampedOutsideStore(expanded);
+        }
+        TypedSpec kids = n.mapChildren(this::outsideStore);
+        return kids instanceof TypedNativeCall c ? c.stampedOutsideStore(true) : kids;
     }
 
 
@@ -775,14 +810,14 @@ public final class ClassSources {
             // substitute every $src.prop read with the upstream's binding —
             // the composed table sits over the upstream's own pipeline.
             if (Type.asClassType(pipeline.info().type()) instanceof Type.ClassType src) {
-                if (transformsOutsideStore) {
+                composedClasses.add(classFqn);
+                if (outside.transforms()) {
                     // the stamp (the edition program's step 2): the transforms are the user's Pure -- the filters on
-                    // the source extent and each property's expression -- stamped here, where they are still the
-                    // mapping's own code, before they are substituted into the source's rows
-                    return composeModelToModel(mappingFqn, classFqn, binding,
-                            TypedNativeCall.allStampedOutsideStore(pipeline), mapper,
-                            (TypedNewInstance) TypedNativeCall.allStampedOutsideStore(ctor), src, upstreamMapping,
-                            contextKey);
+                    // the source extent and each property's expression, with the code of the functions they call --
+                    // stamped here, where they are still the mapping's own code, before they are substituted into
+                    // the source's rows
+                    return composeModelToModel(mappingFqn, classFqn, binding, outsideStore(pipeline), mapper,
+                            (TypedNewInstance) outsideStore(ctor), src, upstreamMapping, contextKey);
                 }
                 return composeModelToModel(mappingFqn, classFqn, binding,
                         pipeline, mapper, ctor, src, upstreamMapping, contextKey);
@@ -920,7 +955,7 @@ public final class ClassSources {
         // across instances — no corpus shape does; a cycle dies by stack,
         // loudly, not silently.
         if (anchoredInFlow(pipeline)) {
-            var nested = new StoreResolver(ctx, specs, transformsOutsideStore)
+            var nested = new StoreResolver(ctx, specs, outside)
                     .resolve(java.util.List.of(pipeline), null, mappingFqn);
             pipeline = nested.get(0);
         }

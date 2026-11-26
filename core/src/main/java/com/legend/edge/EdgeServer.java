@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * THE SHIPPED SERVER'S COMPOSITION ROOT (phase D's D1.0b, the orchestrator's ruling of 2026-11-12): lite's own server
  * ({@link LegendHttpServer}, its own routes) with legend-engine's API mounted beside them, for upstream's clients --
- * the pure/v1 routes ({@link PureV1Routes}, planned and run through the edge's dialects, {@link PureText#UPSTREAM}),
+ * the pure/v1 routes ({@link PureV1Routes}, planned and run through the edge's dialects in pure/v1's style, {@link PureText#PURE_V1}),
  * the saved-query store under legend-engine's path (an adapter over the product's store, the same one lite's own
  * {@code /api/lite/v1/queries} reaches), and its current user. The product server runs alone without any of it (G5:
  * the edge depends on the product, never the reverse).

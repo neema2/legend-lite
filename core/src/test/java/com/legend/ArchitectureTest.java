@@ -1506,9 +1506,10 @@ final class ArchitectureTest {
             "planner.BodyPlanner#featuresOf(com.legend.planner.PlanEnv, java.util.List)", "com.legend.edge.EnginePlans",
             // (planner.BodyPlanner#pushDownEnums left 2026-11-18, J40: the edge's, EnginePlans.pushDownEnums, over featuresOf)
             // (2026-11-26, the edition program's step 2: the statement resolver's one factory takes a third parameter,
-            // whether a model-to-model mapping's transforms are stamped as outside any store query; the edge's plan
-            // text passes false. The same entry and caller, re-keyed by its signature)
-            "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, boolean)",
+            // the model's and the mappings' code it stamps as outside any store query; the edge's plan text passes
+            // none. The same entry and caller, re-keyed by its signature)
+            "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, "
+                    + "com.legend.resolver.OutsideStore)",
             "com.legend.edge.EnginePlans",
             "planner.PlanEnv#ctx()",
             "com.legend.edge.EngineAllocations com.legend.edge.EnginePlans com.legend.edge.PlanEnvelope",
