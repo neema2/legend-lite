@@ -28,3 +28,13 @@ the first run clones the pinned upstream `.pure` files into `<out dir>/upstream`
 - `helpers.py`, `report.py`: the census and the summary.
 
 Compare two commits by running each into its own `<out dir>` and diffing `results.tsv` (sorted).
+
+## The product's SQL between two commits
+
+`tools/equality-measure/sql-changes.sh <commit A> <commit B> <out dir>` (the tree clean; it checks each commit out
+detached, lays this harness over it from `BASE`, runs `bazel run //core:sql_dump`, and returns the tree). The dump
+plans every query of `core/src/test/resources/lean-sql/` by the product's one entry (`TypedQuery.executionPlan`, lite's
+own door): `channel_a.jsonl` on DuckDB, H2 and SQLite, `core.jsonl` on each query's captured runtime. `sql_diff.py`
+writes `sql-changes-<A>-<B>.md`: (i) SQL text differs, (ii) refused before and planned now, (iii) planned before and
+refused now, each grouped by cause (acos/asin set apart), the queries whose change differs in kind across databases,
+and the totals. `--dirs <dump A> <dump B> <out>` diffs two dumps already taken.

@@ -3829,7 +3829,7 @@ product_tests_closure(
 legend_java_binary(
     name = "equality_measure",
     testonly = True,
-    srcs = glob(["src/test/java/com/legend/equalitymeasure/*.java"]),
+    srcs = ["src/test/java/com/legend/equalitymeasure/EqualityMeasure.java"],
     jvm_flags = ["-Xmx3g"],
     main_class = "com.legend.equalitymeasure.EqualityMeasure",
     tags = ["manual"],
@@ -3837,5 +3837,24 @@ legend_java_binary(
     deps = [
         ":core",
         ":test_backends",
+    ],
+)
+
+# THE PRODUCT'S SQL, DUMPED (the equality program, tools/equality-measure/README.md): every query of the lean-SQL sets
+# planned by the product's one planning entry, its SQL text or its refusal, for tools/equality-measure/sql-changes.sh.
+# Manual: bazel run //core:sql_dump -- <lean-sql dir> <out dir>
+legend_java_binary(
+    name = "sql_dump",
+    testonly = True,
+    srcs = ["src/test/java/com/legend/equalitymeasure/SqlDump.java"],
+    jvm_flags = ["-Xmx3g"],
+    main_class = "com.legend.equalitymeasure.SqlDump",
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":lean_sql_baseline_lib",
+        ":test_backends",
+        "//json",
     ],
 )
