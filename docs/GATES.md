@@ -22840,3 +22840,12 @@ loses its four lateral expected failures; `ledger.tsv` loses the four H2 lateral
 ERROR to PASS and to their RELATION answers (`bazel run //pct:update_edge_contract`), no other golden line;
 `SqlFnSortedTest`'s pinned writers of `AND` gain the pass (it joins again, by `AND`, the conjuncts it split a
 lateral's filter into: a shape rearranged, nothing computed).
+
+**Added the same day: three recorded sets the pull request's CI found stale.** (1) The edge golden net's corpus files
+(`spec/src/test/resources/edge/corpus_duckdb_host_judge-host.tsv`, `corpus_h2_host_judge-host.tsv`), re-recorded for
+the corpus as legend-engine's own tests (`bazel run //spec:update_edge_corpus`): 13 assert lines a lane, the six gained
+tests' asserts to PASS and three plan-text failures' messages. (2) The legend-engine lane's pins (`pct/engine_lane/`,
+`bazel run //pct:update_engine_lane`): nine error tests and H2's four lateral tests from BOTH_FAIL to LITE_FIXES (the
+nine because a PCT case is planned as host-side code since the stamp; the lane's own edition is next). (3)
+`Test_LegendLite_Postgres_StandardFunctions_PCT`'s `testFloatStdDev` row holds on x86-64 alone: Postgres built for
+arm64 (the macOS lane) answers `3.14`.

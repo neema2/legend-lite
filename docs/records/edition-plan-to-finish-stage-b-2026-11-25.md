@@ -440,6 +440,32 @@ files were re-recorded (those four tests from H2's error to their answers, no ot
 tests (`CorrelatedFiltersAsJoinsTest`: the join it makes, a filter of the subquery's own kept inside, an inner column
 read by the name it is projected under, every other shape returned untouched, the pass's place among H2's).
 
+**The pull request's first CI reading (2026-11-26, #141 on `593aca57` and `2e56223f`), and what it found that the
+local runs had not.** The local runs were the targets each change touches, so three sets of recorded files that only
+the CI lanes (and a full round) compare were stale:
+- **The corpus's recorded answers at the edge** (`spec/src/test/resources/edge/corpus_*_host_judge-host.tsv`): not
+  re-recorded when the corpus got its own style. Re-recorded: the same 13 assert lines on DuckDB and on H2, the ones
+  that step's per-assert comparison listed (the six gained tests' asserts pass; three plan-text tests that still fail
+  carry legend-engine's unchecked `substr` in their message). No other line.
+- **The legend-engine lane's scoreboards** (`pct/engine_lane/`: PCT run as legend-engine's audience, classified
+  against legend-engine's own manifests). Re-recorded: nine error tests (five on DuckDB, four on H2: `testRemError`,
+  `testSquareRootError`, `testRangeStepError`, the two shifts past 62 bits) and H2's four lateral tests move from
+  "both fail" to "lite passes". The lateral four are the fix above. The nine are a side effect of the stamp: a PCT
+  case reads no store, so at legend-engine's door it is planned as code legend-engine's own Java runs, and lite's
+  checks are written. That is not how legend-engine's own PCT runs a case (its adapter sends the whole case to the
+  database), so PCT's legend-engine run gets its own edition next, and these nine are expected to return to "both
+  fail" with it. No test moved to "lite is behind".
+- **Postgres's standard deviation on macOS.** The expected failure recorded for `testFloatStdDev` (register S421)
+  failed on the macOS lane: Postgres built for arm64 answers `3.14` itself; the low digit is the x86-64 build's. The
+  row is channel A's x86-64 lanes' alone now, and the register and the differences page say so.
+
+**Not this branch's, found by the same reading:** the corpus lane on macOS fails five trigonometry tests in the last
+digit (`acos`, `asin`, `atan2`, `tan`: DuckDB takes them from the operating system's maths library). `main` passes
+on macOS only because the job reuses Linux's cached result; the pull request's job really ran on macOS. PCT's
+recorded answers have per-platform overlays for exactly this; the corpus has none. Filed as a suggested task, not
+fixed here. And `//datacube:live_channel_test` failed once on macOS (one case of 52, a timing-sensitive page test);
+unconfirmed, watched on the next run.
+
 **Still open from the work list:** a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
@@ -484,6 +510,10 @@ old detector did not count it either).
    methods one to three lines over the 250-line limit (H2's and Postgres's `call`); the two new SQL functions sorted
    in `SqlFnSortedTest`; channel B's product-style essential lane; each database lane's confirmation that its two
    rows leave.
+8. **The corpus lane on macOS** (not this branch's; a suggested task is filed): five trigonometry tests differ from
+   Linux in the last digit whenever the lane really runs on macOS. The choices are a per-platform overlay for the
+   corpus's recorded files, as PCT's have (new pinned files), a tolerance in those five comparisons, or not running
+   the corpus lanes on macOS. Until one is chosen the pull request's macOS corpus job can be red for this alone.
 
 ## 7. The user's words on this plan (2026-11-25, late night)
 
