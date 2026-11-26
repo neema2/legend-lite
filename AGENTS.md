@@ -183,7 +183,15 @@
 >    until the edition's guards land, phase E1]`
 >
 > Two readings were ruled the same minute. **Folds:** the compiler may fold
-> constants and facts fixed by the types, never row data. **Error records:** a
+> constants and facts fixed by the types, never row data. *Made precise by the
+> fold rule (the user, 2026-11-26: "Yes apply fold rule", then "Whole numbers
+> fine"):* the compiler compares two written values only of a kind whose
+> written token IS the value -- a String, a Boolean, an enumeration's value, a
+> whole number. A Float, a Decimal and a date are compared by the database,
+> which knows what each denotes (a Decimal by its number, a date-time by its
+> instant). Whole numbers stay because a function that recurses over a written
+> list ends at a guard like `size() == 0`, which the compiler must answer to
+> stop (`compiler.spec.LiteralUnroll.comparedHere`). **Error records:** a
 > raised error's record is lite's typed output, so compatibility may word
 > upstream's sentence in Java from it (tenet 3).
 >

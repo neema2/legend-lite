@@ -1073,6 +1073,14 @@ it's a date? Or no? Is it not just a cheap string format? / 7 what is the edges 
 | 6 | SQLite's date-times compared as text | not recorded as SQLite's own answer: normalized. The plan put to the user: every date-time SQLite holds is written in one fixed text form at its source (a literal by the dialect, free; a load; a function's result), so the plain comparison is the instant's with no SQL at the comparison. The form and its measured cost come back before it is built (step 6.1's SQLite part) |
 | 7 | `DialectBoundaryTest`'s count of the edge's lines naming a database, 6 to 7 for the date row | explained, not ruled. With ruling 4 it may not be needed: where legend-engine's source writes the plain cast on a database, the row answers by the existing set of legend-engine's databases. Step 8 reads the source first |
 
+**The fold rule, made precise (the user, 2026-11-26, about 19:55 UTC): "Whole numbers fine".** Put to them after the
+independent audit of the step 6.1 batch: with every number out of the fold, a function that recurses over a written
+list no longer ended at its guard (`$l->size() == 0`) and five corpus tests failed on DuckDB (`toPostgresModel`). So
+the compiler compares two written values only of a kind whose written token is the value: a String, a Boolean, an
+enumeration's value, a whole number. A Float, a Decimal and a date go to the database. Measured with it: 14
+constants a database become statements (39 with every number out), and the product's SQL is smaller than today on
+ten of eleven databases (ClickHouse 1,232 characters more, 0.07%).
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
