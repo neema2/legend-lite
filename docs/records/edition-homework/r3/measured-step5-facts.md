@@ -89,4 +89,35 @@ ED = `extensionDefaults.pure`, H2E = `h2Extension2_1_214.pure`.
 
 ## D. What legend-engine answers (the engine runner)
 
-*Part 2 of the report, to follow.*
+**Instrument.** `bazel run //tools/engine-runner:testable` (legend-engine 4.145.0): Service test suites over one
+model (a Relational class on table `T(K, S)`, the mapping `num: isNumeric([m::DB]T.S)`, a Relational data seed, a
+connection of type H2), each suite on its own seeded H2. One trap: a service query with a `let` is written
+`{|let ...; <query>;};` with the inner `;`.
+
+11. **Code outside any store query runs in legend-engine's own Java, with Pure's meaning.**
+    - `{|let x = 16.5->round(); let y = 'abcdef'->substring(1, 3); let z = 'abc'->indexOf('b');
+      m::Row.all()->filter(r|$r.k == 'r01')->project([r|$r.k, r|$x, r|$y, r|$z], ['k','x','y','z']);}` passes against
+      `x = 16`, `y = 'bc'`, `z = 1`: Pure's.
+    - The same three expressions written inside the projection answer `17`, `'abc'`, `2`: the database's.
+    - `{|let w = 5->rem(0); ...}` raises in a Java plan node: `java.lang.RuntimeException: Cannot divide by zero at
+      org.finos.legend.engine.plan.dependencies.util.Library.rem(Library.java:631)`.
+    - **So the stamp's premise holds, asked of legend-engine itself:** a call outside any store query takes Pure's
+      meaning and raises Pure's error; the same call inside the store query takes the database's (`round` half away
+      from zero, `substring` and `indexOf` with no index adjustment).
+12. **`isNumeric` as a `###Relational` dynaFunction on H2**, through the engine: `'123'` true, `'12.5'` true, `'-3'`
+    true, `'+3'` false, `'1e5'` false, `'abc'` false, `'1,000'` false, `'１２'` false: the regular expression of C9,
+    not `lower = upper` (which is true of `'+3'`, `'1,000'` and `'１２'`). The CSV seed stored the empty and the
+    leading-blank rows with their quote characters, so those two were tested by direct SQL (C9) alone. The engine's
+    SQL text was not captured: the runner does not print it.
+
+## What surprised the measuring session, by weight
+
+1. H2 2.5.252 raises on `acos`/`asin` out of range where legend-engine's 2.1.214 answers NaN: H2's version changes
+   this answer.
+2. H2's `DATEDIFF(WEEK)` follows the JVM's locale; only the tests' en_US pin makes it Pure's.
+3. H2's `MOD` casts the dividend to the divisor's type: a Float `rem` with an Integer divisor is 3, not 2.5.
+4. DuckDB's `date_diff('week')` is elapsed days over 7, not week boundaries.
+5. legend-engine's one-argument `parseDecimal` is `decimal(5,2)` on H2 and `decimal(18,3)` on DuckDB.
+6. Bare DECIMAL is scale 0 on H2 and scale 3 on DuckDB: `toDecimal(3.8)` is 4 and 3.800.
+7. DuckDB's `split_part` with an empty separator splits into characters, where Pure's `split` drops empty tokens and
+   reads a multi-character token as a set of characters.

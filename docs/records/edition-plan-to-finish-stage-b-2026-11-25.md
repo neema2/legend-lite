@@ -583,8 +583,10 @@ old detector did not count it either).
 2. **Step 4's other places** once 1 is ruled: the `CreateClass` tool copies a request's comparison into the model it
    generates (refuse at the request, or leave to the compile error); `$v != TDSNull` in a function (leave the SQL
    null out of the rule, or write `isEmpty()`).
-3. **Answers that moved at legend-engine's door** (pure/v1), all toward what legend-engine's own Java does, none
-   asked of the engine runner yet: an operation its SQL does not check now raises Pure's error when it is outside any
+3. **Answers that moved at legend-engine's door** (pure/v1), all toward what legend-engine's own Java does. **Asked
+   of the engine runner since (2026-11-26, `r3/measured-step5-facts.md`, D11): confirmed** -- a host-side `let`'s
+   `round`, `substring` and `indexOf` answer Pure's (16, `'bc'`, 1) and its `rem(0)` raises in legend-engine's Java,
+   while the same calls inside the store query answer the database's (17, `'abc'`, 2). The moves: an operation its SQL does not check now raises Pure's error when it is outside any
    store query (a host-side `let`, a query that reads no store, a model-to-model transform under a graph fetch, a
    checked constraint). And the four kinds answered since step 2 that the old rewrite refused (register S130).
 4. **The corpus as legend-engine's own tests** (six tests gained on each lane, none lost): the limits listed in 6a.
