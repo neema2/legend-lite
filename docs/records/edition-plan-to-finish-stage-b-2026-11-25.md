@@ -204,6 +204,51 @@ ClickHouse is running. Found: the Postgres test above; Snowflake's exact Float t
 NULL in the harness's batch union, suggested to the user as a separate task. The lanes' credential script is
 `tools/cloud-lane-credentials.sh`; the way of working is `AGENTS.md`, "The fast setup".
 
+**Steps 2 and 3, the table and the stamp in the old rewrite's place (2026-11-26, on the session branch; not yet
+landed).** legend-engine's door no longer rewrites the typed query. The old rewrite and its detector
+(`edge/PureMeaningRewrite`, `edge/PureMeaningCheck`) are deleted, and with them the temporary switch.
+
+What was built to get there, after the wider run's work list above was read test by test (most of the 21 were tests
+that inspected the rewritten tree, or expected a refusal before planning; three were real):
+- **The table takes the whole call and knows its database.** `EditionTable.lowersAs(call, features)`; the planner
+  binds the table to the statement's database (`PlanEnv.styled()`, `EditionTable.on`), so the lowering still names no
+  database. `EngineTable` has four rows (`substring`, `substr`, the two-argument `indexOf`, and `toOne` of an operand
+  that is always empty) and refuses by name, while the statement is planned, a call a row answers on a database where
+  legend-engine's answer is not yet checked.
+- **A statement's own feature flags reach its lowering.** A `withFeatureFlags` call in a product query was read
+  through by the resolver before the lowering saw it, so its flags never arrived. `ProductStatements.prepare` now
+  reads them from the statements as written. (This is also a product fix: a flag written in a query is honoured, and
+  one nothing consumes is refused by name as the lowering always meant to.)
+- **The seed is planned in the door's style** (`ProductStatements.lowerTestDataSeed(query, runtime, style)`).
+- **A model-to-model mapping's transforms are stamped where the resolver composes them.** legend-engine runs them in
+  its own Java under a graph fetch and over a model connection, and pushes them into the SQL in a TDS query over a
+  chain. The table states that rule (`EditionTable.transformsOutsideStore(fetchesAGraph, chained)`), the planner asks
+  it per statement, and the resolver stamps the transforms (`StoreResolver.withTransformsOutsideStore`,
+  `ClassSources.build`). The rule is the old detector's, statement-wide, unchanged.
+
+**What changes for a caller of legend-engine's door.** Nothing the old rewrite answered changes: while both stood,
+the two were planned side by side over the old rewrite's own test queries (29 of them at the end) and wrote the same
+statement for each. Three kinds of code the old rewrite **refused by name are answered now**, because everything that
+becomes SQL passes the lowering. Each is to be confirmed with the user:
+1. a graph fetch's computed (qualified) property: the database's meaning, as legend-engine computes it (asked of
+   legend-engine 4.145.0, E-M1);
+2. a model-to-model mapping's transforms in a TDS query over a chain to a store: the database's meaning, as
+   legend-engine pushes them into the source query (read in `chain.pure:111-116`; not yet asked of the engine runner);
+3. a function value read out of a collection and applied in a store query: the database's meaning, by the one rule
+   (legend-engine's own answer not asked).
+A refusal on a database not yet checked now names the first call it meets, not every call of the query.
+
+**The tests.** `PureMeaningCheckTest`, `PureMeaningRewriteTest` and the side-by-side test are replaced by
+`EngineTablePlacementTest`: each case plans in the door's style and is read against the same query planned with the
+product's table (the same statement means no row applied). `PureMeaningEngineTest` keeps every route's answers and
+gains the three newly answered cases and the refusals. `EngineSubstitutesTest` keeps the natives' dialect, answer and
+internal-name tests; the deleted substitutes' tests went with them.
+
+**Still open from the work list:** the stamp does not yet reach the raise choice (a host-side `let` that divides by
+zero is the plain operation at pure/v1, where legend-engine's Java raises; this is older than this step); the corpus
+door's stamping needs the frame-aware walk; a runtime's own model-chain connection is not counted as "chained" (the
+old detector did not count it either).
+
 ## 7. The user's words on this plan (2026-11-25, late night)
 
 1. On the `substring` rewrite: "Substring you can leave until 16 yes" (amendment 24). Then, on the stamp: "why cant we stamp the substring if database or not when we know it and then use that at the right time? dont we need something like this to do corpus blended pure and engine?" The stamp is §2.3; if step 2 proves it, the old rewrite goes in step 3, and if not, amendment 24 stands.
