@@ -117,8 +117,6 @@ final class EngineTable implements EditionTable, Edition {
         given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1),
                 List.of(new Row(NamedRule.SQL_POSITION, "indexOf/2")));
         each(given, Pure.AT_MATH_ROUND, NamedRule.ROUND_AS_GIVEN, "round/2", "round/2", "round/1");
-        given.put(Pure.AT_MATH_TO_DECIMAL.get(0), List.of(
-                new Row(NamedRule.CAST_TO_BARE_DECIMAL, "toDecimal/1", PureText.ENGINE_BARE_DECIMAL_READ)));
         // isNumeric: the regular expression legend-engine's dialect translation writes (toPostgresModel.pure:367,
         // through sqlDialectDefaults.pure:894-897, 966-970: a plain decimal's text), or its lower(s) = upper(s)
         // (duckdbExtension.pure:238); read and run 2026-11-26 (docs/records/edition-homework/r3/
@@ -142,8 +140,13 @@ final class EngineTable implements EditionTable, Edition {
         // template on each, read by the lanes); on a database it does not have (SQLite, MariaDB, MySQL, MongoDB) no
         // row -- the call's own checked parse, because a cast there can answer a value for a text that is no number
         // (SQLite's CAST('abc' AS INTEGER) is 0; the independent review of 2026-11-26)
+        // toDecimal: the bare DECIMAL where its row answers, and the call's own rule everywhere else, never refused
+        // (on DuckDB legend-engine writes the same cast, but its adapter spells the value another way: PureText's
+        // ENGINE_BARE_DECIMAL_READ; a refusal there failed two PCT tests legend-engine passes, measured 2026-11-26)
         WHERE_WRITTEN = Map.of(Pure.AT_STRING_SPLIT_PART.get(0),
                 new Row(NamedRule.SPLIT_PART_AS_GIVEN, "splitPart/3", PureText.ENGINE_SPLIT_PART_READ),
+                Pure.AT_MATH_TO_DECIMAL.get(0),
+                new Row(NamedRule.CAST_TO_BARE_DECIMAL, "toDecimal/1", PureText.ENGINE_BARE_DECIMAL_READ),
                 Pure.AT_STRING_PARSE_INTEGER.get(0),
                 new Row(NamedRule.TEXT_CAST_TO_INTEGER, "parseInteger/1", PureText.ENGINE_DATABASES),
                 Pure.AT_STRING_PARSE_FLOAT.get(0),
