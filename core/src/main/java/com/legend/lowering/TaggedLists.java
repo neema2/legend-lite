@@ -87,8 +87,12 @@ final class TaggedLists {
         if (ea == null || eb == null) {
             return null;
         }
+        // an answer by the types alone (the lengths, a position's two kinds) writes no element: taken only where no
+        // element can raise, or its error would be lost -- else the lists compare as arrays, every element evaluated
+        // (the re-check of this slice's audit, 2026-11-26: [$p.name->toOne(), 1] == ['x', 'y'])
+        boolean quiet = raiseNothing(ea) && raiseNothing(eb);
         if (ea.size() != eb.size()) {
-            return new SqlExpr.BoolLit(false);
+            return quiet ? new SqlExpr.BoolLit(false) : null;
         }
         boolean differ = false;
         List<SqlExpr> same = new ArrayList<>(ea.size());
@@ -104,10 +108,10 @@ final class TaggedLists {
             // for an element empty at run, and a NOT over it dropped the row)
             same.add(neverNull(x.value()) && neverNull(y.value())
                     ? SqlExpr.Call.of(SqlFn.EQUAL, x.value(), y.value())
-                    : SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.IS_DISTINCT_FROM, x.value(), y.value())));
+                    : SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, x.value(), y.value()));
         }
         if (differ || same.isEmpty()) {
-            return new SqlExpr.BoolLit(false);
+            return quiet ? new SqlExpr.BoolLit(false) : null;
         }
         SqlExpr all = same.get(0);
         for (int i = 1; i < same.size(); i++) {
@@ -116,9 +120,31 @@ final class TaggedLists {
         return all;
     }
 
-    /** Whether the SQL type of {@code e} says it is never NULL (a literal's). */
+    /** Whether {@code e} is a value WRITTEN in the query, which is never NULL: a literal, under the casts, the
+     *  grouping and the sign the lowering wraps one in. Read off the node, never off its type's nullable label, which
+     *  repeats the Pure multiplicity: a {@code [1]} property mapped to a nullable column says "never NULL" and may
+     *  hold one (the re-check of this slice's audit, 2026-11-26). */
     private static boolean neverNull(SqlExpr e) {
-        return e.type() instanceof com.legend.sql.TypeFact.Typed t && !t.nullable();
+        return switch (e) {
+            case SqlExpr.Cast c -> neverNull(c.value());
+            case SqlExpr.Group g -> neverNull(g.inner());
+            case SqlExpr.Call c when c.fn() == SqlFn.NEGATE && c.args().size() == 1 -> neverNull(c.args().get(0));
+            case SqlExpr.StringLit s -> true;
+            case SqlExpr.IntLit i -> true;
+            case SqlExpr.FloatLit f -> true;
+            case SqlExpr.DecimalLit d -> true;
+            case SqlExpr.BoolLit b -> true;
+            case SqlExpr.DateLit d -> true;
+            case SqlExpr.TimestampLit t -> true;
+            case SqlExpr.TimeLit t -> true;
+            default -> false;
+        };
+    }
+
+    /** Whether no element of a written list can raise ({@link SqlExpr#raisesNothing}): only then may an answer be
+     *  given without writing the elements. */
+    private static boolean raiseNothing(List<SqlExpr.Tagged.Candidate> elements) {
+        return elements.stream().allMatch(c -> SqlExpr.raisesNothing(c.value()));
     }
 
     /**
@@ -544,7 +570,9 @@ final class TaggedLists {
             return new SqlExpr.BoolLit(false);
         }
         List<SqlExpr.Tagged.Candidate> written = tl.literalElements();
-        if (written != null) {
+        // (an element of another type is not written at all, so the plain form is taken only where no element can
+        // raise: its error would be lost; the re-check of this slice's audit, 2026-11-26)
+        if (written != null && raiseNothing(written)) {
             // A LIST WRITTEN IN THE QUERY needs no list at all (the user, 2026-11-26, on the measured SQL of the fold
             // rule): each element's kind is the compiler's, and only an element of the needle's kind can equal it
             // (the equality rule), so membership is the plain IN over those elements, as a list of one type writes
