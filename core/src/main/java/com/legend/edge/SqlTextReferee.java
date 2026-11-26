@@ -13,8 +13,8 @@ import java.util.List;
  * The SQL-text arm's referee residue (J33, 2026-11-18): the reads it mints over a Result (its first statement, the
  * formatting-stripped text, the activities), the referee's fixed parameter bindings, and the golden texts' shapes
  * (the chained-plan warning, the population statement, a text differing from its golden). Moved unchanged from
- * {@code compiler/spec/VerdictQueries} and {@code testexecutionplan/Verdicts}: only {@link SqlTextRuns} and
- * {@link SqlTextVerdicts} call them, so they are the edge's.
+ * {@code compiler/spec/VerdictQueries} and {@code testexecutionplan/Verdicts}: only {@code SqlTextRuns} (the edge
+ * harness's) and {@link SqlTextVerdicts} call them, so they are the edge's.
  */
 public final class SqlTextReferee {
 

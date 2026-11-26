@@ -329,6 +329,7 @@ public final class SpecCompiler {
      *  one type, else the setting's answer -- lite's the marker its planner refuses. The one way a call built after
      *  the typer meets the setting; {@link #typeQueryBodyMarked} is the body's. */
     public TypedSpec comparedAsInAQuery(com.legend.compiler.spec.typed.TypedNativeCall call) {
+        com.legend.base.RunScope.planning("type a spec");
         return typer.comparing(Typer.Compared.QUERY, () -> typer.compared(call, call.callee(), call.args(), call.pos()));
     }
 

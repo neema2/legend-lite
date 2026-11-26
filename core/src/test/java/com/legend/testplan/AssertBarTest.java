@@ -1108,6 +1108,12 @@ class AssertBarTest {
                 + " p::RT.runtimeValue, []).values";
         want.put("{|assertEquals([1, '1', 2, '2'], " + grid + ")}", "pass");
         want.put("{|assertEquals([1, '1', 2, '3'], " + grid + ")}", "AssertFailed");
+        // a table's values counted (the audit of the next batch, 2026-11-26, S1): its cells, row-major, two rows of two
+        // columns -- one count under every judge, or the database judge's refusal by name (a grid's envelope has no
+        // typed size), never the rows alone
+        want.put("{|assertSize(" + grid + ", 4)}", "pass");
+        want.put("{|assertSize(" + grid + ", 2)}", "AssertFailed");
+        want.put("{|assertNotSize(" + grid + ", 2)}", "pass");
         // the audit of 3f2fe452: a wider table's cells in the table's own order (a descending sort read descending); a
         // class reference against itself cast to Class<Any> one reference; a store-read Decimal carried as its text
         // against a Decimal literal refused by name, never its text joined against a number
@@ -1317,6 +1323,60 @@ class AssertBarTest {
         assertTrue(outcomes.size() == 1 && outcomes.iterator().next().startsWith("DataError: ")
                         && outcomes.iterator().next().contains("33803336-12-17"),
                 "one outcome under every judge, on every run: " + outcomes.stream().map(AssertBarTest::oneLine).toList());
+    }
+
+    /** A graph's size is its ROOT objects, whatever each root holds (the audit of the next batch, 2026-11-26, S2: since
+     *  the equality program's first slice the database judge asks the product's own {@code size} of a graph side, where
+     *  it had counted the graph's JSON documents itself; the host judge counts the root objects it decoded). A root with
+     *  three children and a root with none are two objects under every judge, on every database. */
+    private static final String ROOTS_WITH_MANY = """
+            ###Pure
+            Class p::A { id: Integer[1]; bs: p::B[*]; }
+            Class p::B { id: Integer[1]; }
+            ###Relational
+            Database p::DB ( Table TA (ID INTEGER PRIMARY KEY) Table TB (ID INTEGER PRIMARY KEY, AID INTEGER)
+                Join AB(TA.ID = TB.AID) )
+            ###Mapping
+            Mapping p::M ( p::A: Relational { ~mainTable [p::DB] TA id: TA.ID, bs: [p::DB]@AB }
+                p::B: Relational { ~mainTable [p::DB] TB id: TB.ID } )
+            ###Connection
+            RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+                specification: LocalH2 { testDataSetupCSV: 'default\\nTA\\nID\\n1\\n2\\n-----\\ndefault\\nTB\\nID,AID\\n1,1\\n2,1\\n3,1\\n'; };
+                auth: DefaultH2; }
+            ###Runtime
+            Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+            """;
+
+    @Test
+    void aGraphsSizeIsItsRootObjectsUnderEveryJudge() throws Exception {
+        String roots = "execute(|p::A.all()->graphFetch(#{p::A{id, bs{id}}}#), p::M, p::RT.runtimeValue, []).values";
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertSize(" + roots + ", 2)}", "pass");
+        want.put("{|assertSize(" + roots + ", 3)}", "AssertFailed");
+        want.put("{|assertNotSize(" + roots + ", 3)}", "pass");
+        want.put("{|assertNotSize(" + roots + ", 2)}", "AssertFailed");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(ROOTS_WITH_MANY.formatted(database), e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!got.startsWith(e.getValue())) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "a graph's size, its root objects:\n  " + String.join("\n  ", wrong));
     }
 
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
