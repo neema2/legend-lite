@@ -446,7 +446,7 @@ class Planes(Served):
         with mock.patch('legend_lite.engine.NativePlanner', Counting):
             self.server = WebServer(Engine(self.frames))
         status, _, body = self.post('/plan-and-run.json', json.dumps({
-            'lambda': json.dumps(ll.parse('|' + self.table.accessor + GROUP)), 'model': self.table.model,
+            'lambda': _json.dumps(ll.parse('|' + self.table.accessor + GROUP)), 'model': self.table.model,
             'runtime': self.table.runtime}))
         self.assertEqual(status, 200, body[:300])
         self.assertEqual(asked, [self.table.runtime])
@@ -459,7 +459,7 @@ class QueryRunRoute(Served):
     legend.type and the answer's shape the stream's legend.shape, as the server's Arrow answer carries them."""
 
     def ask(self, **asked):
-        status, headers, body = self.post('/api/lite/v1/query/run', json.dumps(asked))
+        status, headers, body = self.post('/api/lite/v1/query/run', _json.dumps(asked))
         return status, headers, body
 
     def frame_query(self, steps=GROUP):
@@ -579,7 +579,7 @@ class PlanAndRunRoutes(Served):
 
     def plan_and_run(self, steps, model=None):
         return self.post('/plan-and-run.json', json.dumps({
-            'lambda': json.dumps(ll.parse('|' + self.table.accessor + steps)),
+            'lambda': _json.dumps(ll.parse('|' + self.table.accessor + steps)),
             'model': self.table.model if model is None else model,
             'runtime': self.table.runtime,
         }))
@@ -655,7 +655,7 @@ class PlanAndRunRoutes(Served):
     def test_the_dry_run_plans_what_plan_and_run_plans_over_the_model_held(self):
         # one planner function for both (the page's check compiles what its run sends): the same query's plan, the same
         # text -- a later edit that splits them fails here, not in review
-        lam = json.dumps(ll.parse('|' + self.table.accessor + GROUP))
+        lam = _json.dumps(ll.parse('|' + self.table.accessor + GROUP))
         asked = {'lambda': lam, 'model': self.table.model, 'runtime': self.table.runtime}
         status, headers, body = self.post('/plan.json', sent('/plan.json', asked))
         self.assertEqual((status, headers['Content-Type']), (200, 'application/json'), body)

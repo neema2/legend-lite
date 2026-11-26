@@ -18,7 +18,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 import legend_lite as ll
-from legend_lite import edge
+from legend_lite import _json, edge
 from legend_lite._edge_seam import NO_EDGE_ROUTES, EdgeRoutes
 from legend_lite.engine import Engine, WebServer
 
@@ -107,7 +107,7 @@ class EdgeServed(test_engine.Served):
         self.server = WebServer(edge.engine(self.frames))
 
     def execute_input(self, tree, model=None):
-        return json.dumps({
+        return _json.dumps({
             'clientVersion': 'vX_X_X',
             'function': tree,
             'model': {'_type': 'text', 'code': self.table.model if model is None else model},

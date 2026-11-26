@@ -781,7 +781,7 @@ class Document(Paged):
         # when grouped, anything else its unique value), declared as told; refused in DataCube's and the compiler's
         # words -- a column it does not have, a multiplicity, a name the grid has already, a kind DataCube has not
         self.assertEqual(derived[0]['kind'], 'measure')
-        grid.calculate('loss', '$x.pnl->toOne() < 0', kind='dimension')
+        grid.calculate('loss', '$x.pnl->toOne() < 0.0', kind='dimension')
         self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['derived'][-1]['kind'], 'dimension')
         with self.assertRaisesRegex(ValueError, "a column's kind is 'dimension' or 'measure', not 'sum'"):
             grid.calculate('odd', '$x.pnl', kind='sum')
@@ -4224,7 +4224,7 @@ class Flows(Paged):
         # its column hidden from the box after it; its False the rest; a condition that is no Boolean refused
         page, flow, source, _big = self.flowed()
         kept = flow.grid(input=source)
-        kept.custom_filter("$x.notional->toOne() > 90 && $x.region == 'EMEA'")
+        kept.custom_filter("$x.notional->toOne() > 90.0 && $x.region == 'EMEA'")
         after = flow.grid(input=kept)
         self.assertEqual(list(after.to_pandas()['notional']), [100.0])
         self.assertNotIn('CustomFilter', after.to_pandas().columns, 'its condition hidden from the box after it')
@@ -4245,7 +4245,7 @@ class Flows(Paged):
         page, flow, source, _big = self.flowed()
         rules = flow.grid(pd.DataFrame({
             'Column': ['region', 'region', 'notional'],
-            'Condition': ["$x.region == 'EMEA' && $x.desk == 'FX'", "$x.region == 'EMEA'", '$x.notional->toOne() > 200'],
+            'Condition': ["$x.region == 'EMEA' && $x.desk == 'FX'", "$x.region == 'EMEA'", '$x.notional->toOne() > 200.0'],
             'Value': ['Europe FX', 'Europe', '200'],
         }), name='rules')
         box = flow.grid(input=source)
@@ -4260,7 +4260,7 @@ class Flows(Paged):
         self.assertEqual(list(rows['region']), ['R', 'R', 'EMEA'])
         self.assertEqual(list(rows['notional']), [250.0, 75.5, 100.0])
         # values as expressions, each Pure over $x
-        box.dynamic_replace([{'column': 'notional', 'condition': '$x.notional->toOne() < 90', 'value': '$x.notional->toOne() * 2.0'}],
+        box.dynamic_replace([{'column': 'notional', 'condition': '$x.notional->toOne() < 90.0', 'value': '$x.notional->toOne() * 2.0'}],
                             expressions=True)
         self.assertEqual(sorted(flow.grid(input=box).to_pandas()['notional']), [100.0, 151.0, 250.0])
         with self.assertRaisesRegex(ValueError, r"rule 1's value \"many\" is no Float, as 'notional' is"):
