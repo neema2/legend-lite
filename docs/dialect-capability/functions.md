@@ -201,6 +201,7 @@ Database types planned with it: H2.
 | `LIST_REVERSE` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 4 |
 | `TYPEOF` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `ROUND_HALF_UP` | spelled | `ROUND` |  | 1 |
+| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
 | `ERROR` | emulated | `errorArm` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -400,7 +401,8 @@ Database types planned with it: Postgres.
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
 | `LIST_REVERSE` | emulated | `overElements, held: …__o__o DESC` | `via Postgres.listCall` | 4 |
 | `TYPEOF` | refused | `collections over the jsonb carrier are leg P4 reached Postgres:` |  | 0 |
-| `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
+| `ROUND_HALF_UP` | emulated | `rounds` |  | 1 |
+| `ROUND_RAW` | emulated | `rounds` |  | 0 |
 | `ERROR` | emulated | `raise` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -601,6 +603,7 @@ Database types planned with it: Snowflake.
 | `LIST_REVERSE` | spelled | `array_reverse` |  | 4 |
 | `TYPEOF` | emulated | `TYPEOF(TO_VARIANT(…))` | `via Snowflake.list` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
+| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
 | `ERROR` | emulated | `raise` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -801,6 +804,7 @@ Database types planned with it: Trino.
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
 | `TYPEOF` | spelled | `typeof` | `via Trino.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
+| `ROUND_RAW` | spelled | `round` |  | 0 |
 | `ERROR` | emulated | `error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1000,7 +1004,8 @@ Database types planned with it: BigQuery.
 | `PARSE_DATE` | emulated | `DATETIME(CAST(… AS TIMESTAMP))` |  | 4 |
 | `LIST_REVERSE` | spelled | `ARRAY_REVERSE` |  | 4 |
 | `TYPEOF` | refused | `its type names are BigQuery's reached BigQuery:` |  | 0 |
-| `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
+| `ROUND_HALF_UP` | emulated | `rounds` |  | 1 |
+| `ROUND_RAW` | emulated | `rounds` |  | 0 |
 | `ERROR` | emulated | `raiseEnvelope: ERROR` |  | 70 |
 | `FLOOR_RAW` | spelled | `FLOOR` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1201,6 +1206,7 @@ Database types planned with it: Databricks.
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
 | `TYPEOF` | spelled | `typeof` | `via Databricks.listCall` | 0 |
 | `ROUND_HALF_UP` | spelled | `ROUND` |  | 1 |
+| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
 | `ERROR` | emulated | `raiseEnvelope: raise_error` |  | 70 |
 | `FLOOR_RAW` | emulated | `(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1401,6 +1407,7 @@ Database types planned with it: DuckDB.
 | `LIST_REVERSE` | spelled | `list_reverse` | `via DuckDb.listCall` | 4 |
 | `TYPEOF` | spelled | `typeof` | `via DuckDb.listCall` | 0 |
 | `ROUND_HALF_UP` | spelled | `ROUND` |  | 1 |
+| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
 | `ERROR` | emulated | `raiseEnvelope: error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1601,6 +1608,7 @@ Database types planned with it: ClickHouse.
 | `LIST_REVERSE` | spelled | `arrayReverse` |  | 4 |
 | `TYPEOF` | emulated | `replaceRegexpOne(toTypeName(…), '^Nullable\((.*)\)$', '\1')` | `via ClickHouse.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
+| `ROUND_RAW` | spelled | `round` |  | 0 |
 | `ERROR` | emulated | `error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -1801,6 +1809,7 @@ Database types planned with it: SQLite.
 | `LIST_REVERSE` | emulated | `unlessNull, jsonOf, listElement, elements: …(SELECT json_group_array(… ORDER BY DESC) FROM …__e__o)` | `via SQLite.lists` | 4 |
 | `TYPEOF` | refused | `its type names are SQLite's storage classes reached SQLite:` | `via SQLite.lists` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
+| `ROUND_RAW` | spelled | `round` |  | 0 |
 | `ERROR` | emulated | `raise` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -2001,6 +2010,7 @@ Database types planned with it: MariaDB.
 | `LIST_REVERSE` | emulated | `unlessNull, arrayAgg, jsonOf, listElement, elements: …coalesce((SELECT … DESC FROM …__e__o), JSON_ARRAY())` | `via MariaDb.lists` | 4 |
 | `TYPEOF` | refused | `its type names are DuckDB's reached :` | `via MariaDb.lists` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
+| `ROUND_RAW` | spelled | `ROUND` |  | 0 |
 | `ERROR` | emulated | `raise, typeOf` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
@@ -2201,6 +2211,7 @@ Database types planned with it: MySQL.
 | `LIST_REVERSE` | emulated | `unlessNull, arrayAgg, jsonOf, listElement, elements: …coalesce((SELECT … DESC FROM …__e__o), JSON_ARRAY())` | `as MariaDb, via MariaDb.lists` | 4 |
 | `TYPEOF` | refused | `its type names are DuckDB's reached :` | `as MariaDb, via MariaDb.lists` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` | `as MariaDb` | 1 |
+| `ROUND_RAW` | spelled | `ROUND` | `as MariaDb` | 0 |
 | `ERROR` | emulated | `raise, typeOf` | `as MariaDb` | 70 |
 | `FLOOR_RAW` | spelled | `floor` | `as MariaDb` | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
@@ -2401,6 +2412,7 @@ Database types planned with it: MongoDB.
 | `LIST_REVERSE` | emulated | `op1: $reverseArray` | `via MongoDb.listCall` | 0 |
 | `TYPEOF` | emulated | `op1: $type` | `via MongoDb.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 0 |
+| `ROUND_RAW` | refused | `the database's own ROUND over the arguments as given (ROUND_RAW): MongoDB has no SQL ROUND of its own to answer as` |  | 0 |
 | `ERROR` | emulated | `raise` |  | 0 |
 | `FLOOR_RAW` | emulated | `op1: $floor` |  | 0 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |

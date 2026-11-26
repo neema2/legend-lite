@@ -179,6 +179,7 @@ H2	H2	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 H2	H2	call	LIST_REVERSE	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	4
 H2	H2	call	TYPEOF	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
 H2	H2	call	ROUND_HALF_UP	spelled	ROUND		1
+H2	H2	call	ROUND_RAW	spelled	ROUND		0
 H2	H2	call	ERROR	emulated	errorArm		70
 H2	H2	call	FLOOR_RAW	spelled	floor		55
 H2	H2	call	TO_VARIANT	emulated	variantConstruct		8
@@ -411,7 +412,8 @@ Postgres	Postgres	call	STRPTIME	refused	to_timestamp(text, fmt) is lenient and z
 Postgres	Postgres	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 Postgres	Postgres	call	LIST_REVERSE	emulated	overElements, held: …__o__o DESC	via Postgres.listCall	4
 Postgres	Postgres	call	TYPEOF	refused	collections over the jsonb carrier are leg P4 reached Postgres:		0
-Postgres	Postgres	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+Postgres	Postgres	call	ROUND_HALF_UP	emulated	rounds		1
+Postgres	Postgres	call	ROUND_RAW	emulated	rounds		0
 Postgres	Postgres	call	ERROR	emulated	raise		70
 Postgres	Postgres	call	FLOOR_RAW	spelled	floor		55
 Postgres	Postgres	call	TO_VARIANT	emulated	variantConstruct		8
@@ -645,6 +647,7 @@ Snowflake	Snowflake	call	PARSE_DATE	emulated	CAST(CONVERT_TIMEZONE('UTC', TO_TIM
 Snowflake	Snowflake	call	LIST_REVERSE	spelled	array_reverse		4
 Snowflake	Snowflake	call	TYPEOF	emulated	TYPEOF(TO_VARIANT(…))	via Snowflake.list	0
 Snowflake	Snowflake	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+Snowflake	Snowflake	call	ROUND_RAW	spelled	ROUND		0
 Snowflake	Snowflake	call	ERROR	emulated	raise		70
 Snowflake	Snowflake	call	FLOOR_RAW	spelled	floor		55
 Snowflake	Snowflake	call	TO_VARIANT	emulated	variantConstruct		8
@@ -878,6 +881,7 @@ Trino	Trino	call	PARSE_DATE	emulated	CAST(… AS TIMESTAMP(9))		4
 Trino	Trino	call	LIST_REVERSE	spelled	reverse		4
 Trino	Trino	call	TYPEOF	spelled	typeof	via Trino.listCall	0
 Trino	Trino	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+Trino	Trino	call	ROUND_RAW	spelled	round		0
 Trino	Trino	call	ERROR	emulated	error		70
 Trino	Trino	call	FLOOR_RAW	spelled	floor		55
 Trino	Trino	call	TO_VARIANT	emulated	variantConstruct		8
@@ -1110,7 +1114,8 @@ BigQuery	BigQuery	call	STRPTIME	emulated	strptime		0
 BigQuery	BigQuery	call	PARSE_DATE	emulated	DATETIME(CAST(… AS TIMESTAMP))		4
 BigQuery	BigQuery	call	LIST_REVERSE	spelled	ARRAY_REVERSE		4
 BigQuery	BigQuery	call	TYPEOF	refused	its type names are BigQuery's reached BigQuery:		0
-BigQuery	BigQuery	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+BigQuery	BigQuery	call	ROUND_HALF_UP	emulated	rounds		1
+BigQuery	BigQuery	call	ROUND_RAW	emulated	rounds		0
 BigQuery	BigQuery	call	ERROR	emulated	raiseEnvelope: ERROR		70
 BigQuery	BigQuery	call	FLOOR_RAW	spelled	FLOOR		55
 BigQuery	BigQuery	call	TO_VARIANT	emulated	variantConstruct		8
@@ -1344,6 +1349,7 @@ Databricks	Databricks	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 Databricks	Databricks	call	LIST_REVERSE	spelled	reverse		4
 Databricks	Databricks	call	TYPEOF	spelled	typeof	via Databricks.listCall	0
 Databricks	Databricks	call	ROUND_HALF_UP	spelled	ROUND		1
+Databricks	Databricks	call	ROUND_RAW	spelled	ROUND		0
 Databricks	Databricks	call	ERROR	emulated	raiseEnvelope: raise_error		70
 Databricks	Databricks	call	FLOOR_RAW	emulated	(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)		55
 Databricks	Databricks	call	TO_VARIANT	emulated	variantConstruct		8
@@ -1577,6 +1583,7 @@ DuckDb	DuckDB	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 DuckDb	DuckDB	call	LIST_REVERSE	spelled	list_reverse	via DuckDb.listCall	4
 DuckDb	DuckDB	call	TYPEOF	spelled	typeof	via DuckDb.listCall	0
 DuckDb	DuckDB	call	ROUND_HALF_UP	spelled	ROUND		1
+DuckDb	DuckDB	call	ROUND_RAW	spelled	ROUND		0
 DuckDb	DuckDB	call	ERROR	emulated	raiseEnvelope: error		70
 DuckDb	DuckDB	call	FLOOR_RAW	spelled	floor		55
 DuckDb	DuckDB	call	TO_VARIANT	emulated	variantConstruct		8
@@ -1810,6 +1817,7 @@ ClickHouse	ClickHouse	call	PARSE_DATE	emulated	parseDateTime64BestEffort(…, 6,
 ClickHouse	ClickHouse	call	LIST_REVERSE	spelled	arrayReverse		4
 ClickHouse	ClickHouse	call	TYPEOF	emulated	replaceRegexpOne(toTypeName(…), '^Nullable\((.*)\)$', '\1')	via ClickHouse.listCall	0
 ClickHouse	ClickHouse	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+ClickHouse	ClickHouse	call	ROUND_RAW	spelled	round		0
 ClickHouse	ClickHouse	call	ERROR	emulated	error		70
 ClickHouse	ClickHouse	call	FLOOR_RAW	spelled	floor		55
 ClickHouse	ClickHouse	call	TO_VARIANT	emulated	variantConstruct		8
@@ -2043,6 +2051,7 @@ SQLite	SQLite	call	PARSE_DATE	emulated	parsedDate		4
 SQLite	SQLite	call	LIST_REVERSE	emulated	unlessNull, jsonOf, listElement, elements: …(SELECT json_group_array(… ORDER BY DESC) FROM …__e__o)	via SQLite.lists	4
 SQLite	SQLite	call	TYPEOF	refused	its type names are SQLite's storage classes reached SQLite:	via SQLite.lists	0
 SQLite	SQLite	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+SQLite	SQLite	call	ROUND_RAW	spelled	round		0
 SQLite	SQLite	call	ERROR	emulated	raise		70
 SQLite	SQLite	call	FLOOR_RAW	spelled	floor		55
 SQLite	SQLite	call	TO_VARIANT	emulated	variantConstruct		8
@@ -2276,6 +2285,7 @@ MariaDb	MariaDB	call	PARSE_DATE	emulated	parsedDate		4
 MariaDb	MariaDB	call	LIST_REVERSE	emulated	unlessNull, arrayAgg, jsonOf, listElement, elements: …coalesce((SELECT … DESC FROM …__e__o), JSON_ARRAY())	via MariaDb.lists	4
 MariaDb	MariaDB	call	TYPEOF	refused	its type names are DuckDB's reached :	via MariaDb.lists	0
 MariaDb	MariaDB	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+MariaDb	MariaDB	call	ROUND_RAW	spelled	ROUND		0
 MariaDb	MariaDB	call	ERROR	emulated	raise, typeOf		70
 MariaDb	MariaDB	call	FLOOR_RAW	spelled	floor		55
 MariaDb	MariaDB	call	TO_VARIANT	emulated	variantConstruct		8
@@ -2509,6 +2519,7 @@ MySql	MySQL	call	PARSE_DATE	emulated	parsedDate	as MariaDb	4
 MySql	MySQL	call	LIST_REVERSE	emulated	unlessNull, arrayAgg, jsonOf, listElement, elements: …coalesce((SELECT … DESC FROM …__e__o), JSON_ARRAY())	as MariaDb, via MariaDb.lists	4
 MySql	MySQL	call	TYPEOF	refused	its type names are DuckDB's reached :	as MariaDb, via MariaDb.lists	0
 MySql	MySQL	call	ROUND_HALF_UP	emulated	roundHalfUp	as MariaDb	1
+MySql	MySQL	call	ROUND_RAW	spelled	ROUND	as MariaDb	0
 MySql	MySQL	call	ERROR	emulated	raise, typeOf	as MariaDb	70
 MySql	MySQL	call	FLOOR_RAW	spelled	floor	as MariaDb	55
 MySql	MySQL	call	TO_VARIANT	emulated	variantConstruct	as MariaDb	8
@@ -2742,6 +2753,7 @@ MongoDb	MongoDB	call	PARSE_DATE	emulated	{"$dateFromString": {"dateString": …}
 MongoDb	MongoDB	call	LIST_REVERSE	emulated	op1: $reverseArray	via MongoDb.listCall	0
 MongoDb	MongoDB	call	TYPEOF	emulated	op1: $type	via MongoDb.listCall	0
 MongoDb	MongoDB	call	ROUND_HALF_UP	emulated	roundHalfUp		0
+MongoDb	MongoDB	call	ROUND_RAW	refused	the database's own ROUND over the arguments as given (ROUND_RAW): MongoDB has no SQL ROUND of its own to answer as		0
 MongoDb	MongoDB	call	ERROR	emulated	raise		0
 MongoDb	MongoDB	call	FLOOR_RAW	emulated	op1: $floor		0
 MongoDb	MongoDB	call	TO_VARIANT	emulated	variantConstruct		0
