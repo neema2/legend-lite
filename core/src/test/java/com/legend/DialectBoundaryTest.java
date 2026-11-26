@@ -113,7 +113,11 @@ class DialectBoundaryTest {
             // (ENGINE_IS_NUMERIC_BY_PATTERN, ENGINE_BARE_DECIMAL_READ, ENGINE_IS_NUMERIC_BY_CASE,
             // ENGINE_SPLIT_PART_READ) alias: data a row looks up, never a comparison, so the table itself
             // (EngineTable) names no database. Reported to the user with the step
-            "PureText.java", 4);
+            // 4 -> 6 (2026-11-26, the same step, the independent review's S2): ENGINE_DATABASES, the eight databases
+            // legend-engine has, on two lines -- where the plain parses' rows answer, so a database legend-engine does
+            // not have (SQLite, MariaDB, MySQL, MongoDB) keeps the checked parse instead of a cast that answers a
+            // value for a text that is no number
+            "PureText.java", 6);
 
     /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
      *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a

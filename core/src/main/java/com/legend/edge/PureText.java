@@ -38,12 +38,6 @@ public final class PureText {
      *  call is refused by name until it is checked (the database lanes); the table's rows name no database. */
     private static final java.util.Set<DatabaseType> CHECKED = java.util.Set.of(DatabaseType.H2, DatabaseType.DuckDB);
 
-    /** Whether legend-engine's answer for the door's rewritten calls is checked on {@code target} ({@link #CHECKED});
-     *  false for any other target, or none. */
-    static boolean engineAnswers(@com.legend.base.Nullable DatabaseType target) {
-        return target != null && CHECKED.contains(target);
-    }
-
     // ---- where each row of legend-engine's door's table answers (EngineTable's rows read these; the table names no
     //      database) -- a set grows only when a lane has read legend-engine's SQL for the function on the database and
     //      run it beside lite's rule (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md)
@@ -51,6 +45,14 @@ public final class PureText {
     /** The databases whose own {@code substring}, position, {@code round} and date difference are read as
      *  legend-engine's answer for the row that writes them: {@link #CHECKED}. */
     static final java.util.Set<DatabaseType> ENGINE_FUNCTIONS_READ = CHECKED;
+
+    /** The databases legend-engine 4.145.0 has that lite has too, each lane's reading of its extension
+     *  (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md): where a row that is legend-engine's by
+     *  what it writes (the plain parses' cast) answers. Not SQLite, MariaDB, MySQL or MongoDB: legend-engine has no
+     *  such database. */
+    static final java.util.Set<DatabaseType> ENGINE_DATABASES = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(DatabaseType.H2, DatabaseType.DuckDB, DatabaseType.Postgres, DatabaseType.Trino,
+                    DatabaseType.Snowflake, DatabaseType.ClickHouse, DatabaseType.Databricks, DatabaseType.BigQuery));
 
     private static final java.util.Set<DatabaseType> ON_H2 = java.util.Set.of(DatabaseType.H2);
     private static final java.util.Set<DatabaseType> ON_DUCKDB = java.util.Set.of(DatabaseType.DuckDB);

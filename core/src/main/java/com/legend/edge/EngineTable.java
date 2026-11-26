@@ -44,8 +44,9 @@ import java.util.Set;
  *       no fraction digit on H2, where {@code toDecimal(3.8)} is 4 (register S423; ruled matched, amendment 22).</li>
  *   <li>{@code parseInteger} and {@code parseFloat}: the database's own cast of the text, its refusal the database's
  *       own conversion error ({@code TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}; legend-engine's SQL casts,
- *       ruled plain inside a store query: the edition design's S-2). Until 2026-11-26 a pass of the edge's dialect
- *       unguarded them in every compatibility style, PCT's legend-pure run and a host-side {@code let} included.</li>
+ *       ruled plain inside a store query: the edition design's S-2), on every database legend-engine has. Until
+ *       2026-11-26 a pass of the edge's dialect unguarded them in every compatibility style and on every database,
+ *       PCT's legend-pure run and a host-side {@code let} included.</li>
  *   <li>{@code dateDiff}: the database's own date difference for every unit ({@code DATE_DIFF_AS_GIVEN}), where
  *       Pure counts weeks by Sunday boundaries and hours, minutes and seconds as elapsed whole units (register
  *       S425);</li>
@@ -59,10 +60,11 @@ import java.util.Set;
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
  * connection ({@link #transformsOutsideStore}).
  *
- * <p>legend-engine's answer for a row is the database's own function's, so it is checked per database
- * ({@link PureText#engineAnswers}). On a database where it is not yet checked, a call a row would answer is refused by
- * name, never answered with a guess (the user's ruling of 2026-11-20 ~07:55). The refusal is raised while the statement
- * is planned, before anything is sent.
+ * <p>legend-engine's answer for a row is the database's own function's, so each row carries the databases it answers
+ * on ({@link PureText}'s sets: where a lane has read legend-engine's SQL and run it beside the rule). On any other
+ * database a call a row would answer is refused by name, never answered with a guess (the user's ruling of 2026-11-20
+ * ~07:55), while the statement is planned, before anything is sent. A call legend-engine writes as the database's own
+ * function on some databases only ({@link #WHERE_WRITTEN}) is a row there and the call's own rule everywhere else.
  */
 final class EngineTable implements EditionTable, Edition {
 
@@ -82,15 +84,14 @@ final class EngineTable implements EditionTable, Edition {
 
     /** A row: the rule that lowers the call, what a refusal calls the call, and the databases the row answers on --
      *  those where the rule gives legend-engine's own answer, read from its SQL and run on the database (a set of the
-     *  edge's database owner, {@link PureText}: this table names no database); null for a rule that is
-     *  legend-engine's on every database by what it writes (the database's own cast). */
-    private record Row(NamedRule as, String named, @Nullable Set<DatabaseType> on) {
+     *  edge's database owner, {@link PureText}: this table names no database). */
+    private record Row(NamedRule as, String named, Set<DatabaseType> on) {
         Row(NamedRule as, String named) {
             this(as, named, PureText.ENGINE_FUNCTIONS_READ);
         }
 
         boolean answersOn(@Nullable DatabaseType database) {
-            return on == null || database != null && on.contains(database);
+            return database != null && on.contains(database);
         }
     }
 
@@ -106,7 +107,7 @@ final class EngineTable implements EditionTable, Edition {
      *  database: the call keeps its own rule there, as before the row, and is never refused. For a call legend-engine
      *  answers elsewhere by a function of its own Java, whose meaning is Pure's or near it ({@code splitPart} on H2:
      *  {@code legend_h2_extension_split_part}, Apache's {@code StringUtils.split}, which drops empty parts as Pure
-     *  does). */
+     *  does), or has no database for at all (the plain parses). */
     private static final Map<FunctionId, Row> WHERE_WRITTEN;
 
     static {
@@ -118,11 +119,6 @@ final class EngineTable implements EditionTable, Edition {
         each(given, Pure.AT_MATH_ROUND, NamedRule.ROUND_AS_GIVEN, "round/2", "round/2", "round/1");
         given.put(Pure.AT_MATH_TO_DECIMAL.get(0), List.of(
                 new Row(NamedRule.CAST_TO_BARE_DECIMAL, "toDecimal/1", PureText.ENGINE_BARE_DECIMAL_READ)));
-        // the plain parses answer on every database, as the edge's pass they replace did (2026-11-26)
-        given.put(Pure.AT_STRING_PARSE_INTEGER.get(0),
-                List.of(new Row(NamedRule.TEXT_CAST_TO_INTEGER, "parseInteger/1", null)));
-        given.put(Pure.AT_STRING_PARSE_FLOAT.get(0),
-                List.of(new Row(NamedRule.TEXT_CAST_TO_FLOAT, "parseFloat/1", null)));
         // isNumeric: the regular expression legend-engine's dialect translation writes (toPostgresModel.pure:367,
         // through sqlDialectDefaults.pure:894-897, 966-970: a plain decimal's text), or its lower(s) = upper(s)
         // (duckdbExtension.pure:238); read and run 2026-11-26 (docs/records/edition-homework/r3/
@@ -142,8 +138,16 @@ final class EngineTable implements EditionTable, Edition {
         CORRECTED = java.util.Collections.unmodifiableMap(flagged);
         // splitPart: the database's own split_part over the index plus one (pureToSQLQuery.pure:3197-3204,
         // duckdbExtension.pure:276; ruled 2026-11-26, "Yes match split fully"; register S426)
+        // the plain parses: the database's own cast wherever legend-engine has a database and so writes one (its
+        // template on each, read by the lanes); on a database it does not have (SQLite, MariaDB, MySQL, MongoDB) no
+        // row -- the call's own checked parse, because a cast there can answer a value for a text that is no number
+        // (SQLite's CAST('abc' AS INTEGER) is 0; the independent review of 2026-11-26)
         WHERE_WRITTEN = Map.of(Pure.AT_STRING_SPLIT_PART.get(0),
-                new Row(NamedRule.SPLIT_PART_AS_GIVEN, "splitPart/3", PureText.ENGINE_SPLIT_PART_READ));
+                new Row(NamedRule.SPLIT_PART_AS_GIVEN, "splitPart/3", PureText.ENGINE_SPLIT_PART_READ),
+                Pure.AT_STRING_PARSE_INTEGER.get(0),
+                new Row(NamedRule.TEXT_CAST_TO_INTEGER, "parseInteger/1", PureText.ENGINE_DATABASES),
+                Pure.AT_STRING_PARSE_FLOAT.get(0),
+                new Row(NamedRule.TEXT_CAST_TO_FLOAT, "parseFloat/1", PureText.ENGINE_DATABASES));
     }
 
     /** Whether this is a statement's table (made by {@link #table}); the door's edition is not. */

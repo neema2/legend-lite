@@ -85,6 +85,9 @@ class NumberLiteralsTest {
     void whatTheRuleDoesNotReach() {
         for (String q : List.of("|let a = 1; $a == 1.5;", "|let a = 1; $a->in([0.5, 1.0]);",
                 "|let a = 1.5; $a == 9007199254740993;", "|let a = 1.5; $a == 1D;", "|1 == 1.0", "|1->in([1.0, 2.0])",
+                // two literals, one of them a Decimal literal: still two literals (the step 6 measurement's finding,
+                // 2026-11-26: until then the Decimal literal was read as a value, and 1D == 1 answered true)
+                "|1D == 1", "|1.5 == 1.5D", "|1 == -1D", "|[1D, 2D]->contains(1)", "|1->in([1D, 2D])",
                 "|let a = 1.5; let b = 1; $a == $b;", "|let a = 1.5; let b = 1; $a > $b + 1;")) {
             assertEquals(1, crossings(q), q);
         }

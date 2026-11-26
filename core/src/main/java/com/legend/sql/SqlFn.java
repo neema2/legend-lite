@@ -259,8 +259,8 @@ public enum SqlFn {
      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
      *  SubselectPrune). */
     public static final java.util.Set<SqlFn> RAISING = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(ERROR,
-            PARSE_INT, PARSE_DATE, ACOS, ASIN, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
-            MAKE_TIMESTAMP));
+            PARSE_INT, CAST_INT, CAST_FLOAT, PARSE_DATE, ACOS, ASIN, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ADD_INTERVAL,
+            ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE, MAKE_TIMESTAMP));
 
     /** The functions that may leave an argument unevaluated on SOME dialect: AND, OR and COALESCE (SQL promises no
      *  order of evaluation), and every function a dialect renders with a branch -- a CASE, ClickHouse's

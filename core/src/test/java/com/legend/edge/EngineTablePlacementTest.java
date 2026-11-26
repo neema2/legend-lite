@@ -401,12 +401,12 @@ class EngineTablePlacementTest {
         assertTrue(refused.getMessage().contains("legend-engine's answer for round/1"), refused.getMessage());
     }
 
-    /** The plain parses are rows that answer on every database (register S424; 2026-11-26): inside a store query the
-     *  database's own cast, with no check of the text; in a host-side let, which legend-engine's own Java computes,
-     *  the checked parse; and on a database whose other rows are not yet checked, the cast all the same -- the cast
-     *  is legend-engine's on each by what it writes. */
+    /** The plain parses are rows wherever legend-engine has a database (register S424; 2026-11-26): inside a store
+     *  query the database's own cast, with no check of the text; in a host-side let, which legend-engine's own Java
+     *  computes, the checked parse; and on a database whose other rows are not yet checked, the cast all the same --
+     *  the cast is legend-engine's on each by what it writes. */
     @Test
-    void thePlainParsesAreTheDatabasesOwnCastInsideAStoreQuery_onEveryDatabase() {
+    void thePlainParsesAreTheDatabasesOwnCastInsideAStoreQuery_whereverLegendEngineHasADatabase() {
         ModelContext unchecked = Compiler.compileModel(UNCHECKED);
         for (String parse : List.of("parseInteger()", "parseFloat()")) {
             String store = "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->" + parse + ")->from(t::RT)";

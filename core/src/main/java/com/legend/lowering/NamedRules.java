@@ -19,7 +19,7 @@ final class NamedRules {
     }
 
     /** A plain decimal number's text, the pattern {@link NamedRule#TEXT_IS_PLAIN_DECIMAL} matches in full. */
-    private static final String PLAIN_DECIMAL = "[-]?[0-9]+(\\.[0-9]+)?";
+    private static final String PLAIN_DECIMAL = "[-]?[0-9]+([.][0-9]+)?";
 
     /** {@code call} written by {@code rule} over its lowered arguments. */
     static SqlExpr lower(NamedRule rule, TypedNativeCall call, List<SqlExpr> args) {

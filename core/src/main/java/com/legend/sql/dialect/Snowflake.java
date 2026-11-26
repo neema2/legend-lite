@@ -1648,7 +1648,8 @@ public class Snowflake extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         String f = c.fn() == SqlFn.ACOS ? "ACOS" : "ASIN";
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN " + f + "(")
-                .expr(a.get(0), 0).append(") ELSE CAST('NaN' AS DOUBLE) END)");
+                .expr(a.get(0), 0).append(") WHEN (").expr(a.get(0), 0)
+                .append(") IS NOT NULL THEN CAST('NaN' AS DOUBLE) END)");
     }
 
     /** The {@code ROUND_HALF_UP} arm of {@link #call}. */

@@ -59,9 +59,11 @@ final class NumberLiterals {
         TypedSpec r = call.args().get(1);
         boolean leftWritten = written(l);
         if (leftWritten == written(r)) {
-            // two literals, or none: nothing gives one side the other's type
+            // two literals (a Decimal literal is one: 1D == 1), or none: nothing gives one side the other's type
             return null;
         }
+        // read where every literal of the side is an Integer or a Float literal, exact in the other type; a Decimal
+        // literal is never reread (as() answers null for it)
         TypedSpec read = leftWritten ? as(l, (Type.Primitive) crossing.right())
                 : as(r, (Type.Primitive) crossing.left());
         if (read == null) {
@@ -74,31 +76,44 @@ final class NumberLiterals {
         return t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT || t == Type.Primitive.DECIMAL;
     }
 
-    /** Whether {@code side} is written as number literals alone: one, signed or not, or a collection of them. */
+    /** Whether {@code side} is written as number literals alone, of any number type: one, signed or not, or a
+     *  collection of them. */
     private static boolean written(TypedSpec side) {
         if (side instanceof TypedCollection c) {
-            return !c.elements().isEmpty() && c.elements().stream().allMatch(e -> digits(e) != null);
+            return !c.elements().isEmpty() && c.elements().stream().allMatch(NumberLiterals::literal);
         }
-        return digits(side) != null;
+        return literal(side);
     }
 
-    /** {@code side} read as {@code target}, or null where one of its literals is not exact there. */
+    private static boolean literal(TypedSpec side) {
+        TypedSpec unsigned = side instanceof TypedNativeCall minus && minus.args().size() == 1
+                && UNARY_MINUS.contains(minus.callee().id()) ? minus.args().get(0) : side;
+        return unsigned instanceof TypedCInteger || unsigned instanceof TypedCFloat || unsigned instanceof TypedCDecimal;
+    }
+
+    /** {@code side} read as {@code target}, or null where one of its literals is not exact there or is a Decimal
+     *  literal. */
     private static @Nullable TypedSpec as(TypedSpec side, Type.Primitive target) {
-        if (side instanceof TypedCollection c) {
-            List<TypedSpec> elements = new ArrayList<>(c.elements().size());
-            Type element = null;
-            for (TypedSpec e : c.elements()) {
-                TypedSpec read = literal(e, target);
-                if (read == null) {
-                    return null;
-                }
-                // Decimals of different scales are one type to the rule; the collection's is the widest scale's
-                element = element == null ? read.info().type() : wider(element, read.info().type());
-                elements.add(read);
-            }
-            return c.withChildren(elements).withInfo(new ExprType(element, c.info().multiplicity()));
+        if (!(side instanceof TypedCollection c)) {
+            return literal(side, target);
         }
-        return literal(side, target);
+        List<TypedSpec> elements = new ArrayList<>(c.elements().size());
+        for (TypedSpec e : c.elements()) {
+            TypedSpec read = literal(e, target);
+            if (read == null) {
+                return null;
+            }
+            elements.add(read);
+        }
+        if (elements.isEmpty()) {
+            return null;
+        }
+        // Decimals of different scales are one type to the rule; the collection's is the widest scale's
+        Type element = elements.get(0).info().type();
+        for (TypedSpec e : elements) {
+            element = wider(element, e.info().type());
+        }
+        return c.withChildren(elements).withInfo(new ExprType(element, c.info().multiplicity()));
     }
 
     private static Type wider(Type a, Type b) {

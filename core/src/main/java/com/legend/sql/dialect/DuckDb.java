@@ -738,7 +738,7 @@ public class DuckDb extends AnsiSqlRenderer {
     /** The {@code ACOS} and {@code ASIN} arms of {@link #call}: NaN outside the domain, as the engine's H2. */
     private SqlWriter domainGuarded(SqlWriter writer, String fn, List<SqlExpr> a) {
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn).append("(")
-                .expr(a.get(0), 0).append(") ELSE 'NaN'::DOUBLE END)");
+                .expr(a.get(0), 0).append(") WHEN (").expr(a.get(0), 0).append(") IS NOT NULL THEN 'NaN'::DOUBLE END)");
     }
 
     /** len(DOUBLE): the corpus spells length() over numeric-typed expressions (engine H2 coerces); DuckDB has no

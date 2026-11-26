@@ -658,6 +658,25 @@ measuring.**
   the scalar value lift, because alone the tail reaches no test today's rule misses (measured: all 41 corpus cases
   are `toCSV->replace`, already lifted).
 
+**2026-11-26 ~12:15: what the checks found in the hour after the push, each fixed in the next commit.**
+
+- **Step 4's core did not build** (two measuring sessions, at once): the build's null-safety check refused
+  `NumberLiterals` (a collection's element type could be null to its eyes). The orchestrator's own compile check had
+  run plain `javac`, which does not run that check. Fixed; **a lesson:** a compile check outside Bazel says nothing
+  about the build's own checks.
+- **The literal rule read two literals when one was a Decimal literal** (the step 6 measurement's second run):
+  `1D == 1` answered true, because a Decimal literal was not counted as a literal. Fixed: two literals of different
+  number types are a compile error whatever their types; tests added. That second run otherwise: 15 bodies newly
+  answered, none newly refused, no crash; the judges' disagreements unchanged.
+- **The independent review of the batch** (`edition-homework/r3/audit-step5-batch.md`): two blockers, both fixed --
+  a product test still expected `acos(2.0)` to be NaN; and the two new cast functions were not in the set of
+  functions that can raise, so a failing parse in an unread column could have been pruned away and rows returned
+  where the database should have refused. Also fixed from it: the parse rows answer only on the eight databases
+  legend-engine has (on SQLite, MariaDB, MySQL and MongoDB a cast answers a value for a text that is no number, so
+  those keep the checked parse); a NULL argument of `acos`/`asin` at legend-engine's door stays NULL on DuckDB,
+  Postgres and Snowflake (it answered NaN); three records said more than was measured.
+- **`toDecimal` on DuckDB pulled back** (PCT's legend-engine lane, regenerated): see the ruling row above.
+
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
 1. **A number literal against a number column** (step 4's design question, and the equality rule's cost to a user
@@ -792,6 +811,19 @@ answers, in the user's order:
 | 17 | the two claim pins replaced | "Okay for substr functions" | confirmed |
 | 18 | landing on the program branch | "Landing whatever you think is right is fine" | the orchestrator moves `claude/compat-b3-nufdlk` at verified milestones; never `main` |
 | 19 | PCT on compiled legend-pure | "Defer pct compiled that's fine" | deferred to step 10 |
+
+**The user, later the same day (2026-11-26 ~12:13), on the orchestrator's status and its open points:** "Okay I'm
+good with all your answers - bring back all the product SQL changes for equal when you have them".
+
+| On | What it settles |
+|---|---|
+| the plain parses' width (register S424) | Pure's width stays: 64 bits and a double, where legend-engine's SQL names a narrower type |
+| `toDecimal` on DuckDB | the row answers on H2 alone until the door spells a Decimal as legend-engine's does (step 8) |
+| step 8's decisions (the first slice parked; a last-step print Java's, a print used further lite's own text; the print tail built with the scalar value lift) | stand |
+| the guard moves reported | stand |
+| **a new deliverable** | every change the one equality makes to the PRODUCT's SQL (step 4's literal rule and strict bodies, then step 6's run-time types) is gathered, the SQL before and after for each changed query with its size, and brought to the user before any size pin moves for it |
+
+Not covered by it: the corpus lane on macOS (no answer of the orchestrator's stood open there; still the user's).
 
 ## 8. Decisions still to come
 

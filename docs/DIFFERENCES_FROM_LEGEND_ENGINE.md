@@ -95,12 +95,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 | `1->bitShiftRight(63)` (DuckDB) | `0` | Pure's error | `if($n > 62, \|0, \|$x->bitShiftRight($n))`; `-1` for a negative `$x` |
 | `sqrt(-2.0)` (H2, through the legend-engine server) | `null` | Pure's error | `if($x < 0, \|[], \|sqrt($x))` |
 | `x / 0` (DuckDB, through the legend-engine server) | `null` | Pure's error | `if($d == 0, \|[], \|$x / $d)` |
-| `acos(2.0)`, `asin(2.0)` (any value outside -1 to 1) | `null` (the database's NaN) | Pure's error, `Unable to compute acos of 2.0` | `if(abs($x) > 1, \|[], \|acos($x))` |
+| `acos(2.0)`, `asin(2.0)` (any value outside -1 to 1; H2) | `null` (the database's NaN) | Pure's error, `Unable to compute acos of 2.0` | `if(abs($x) > 1, \|[], \|acos($x))` |
 
 - **The rewrites are per database.** On H2, `x / 0` already raises under legend-engine, so the guard would be wrong
   there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
 - **Why:** Pure defines these operations to raise. PCT, legend-pure's own suite, expects the error for the first five
-  rows.
+  rows and the last.
 - **For `x / 0`** PCT has no test, and legend-pure 5.99.0 raises for every zero divisor. Compiled legend-pure, the
   mode legend-engine runs Pure in and the one compatibility follows (S127), raises "Cannot divide 0 by zero"
   (`CompiledSupport.java:1481-1486`). The interpreter has no check of its own and fails on Java's arithmetic instead:
@@ -418,8 +418,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **lite** casts to Pure's Integer and Float on every database: 64 bits and a double. `'3000000000'` parses, and
   `'3.14'` is the double `3.14`.
 - **The same in both:** inside a store query at legend-engine's door there is no grammar check, and a text that is no
-  number is refused by the database's own conversion error. In a host-side `let`, and on lite's own route, lite checks
-  the text first and raises its own error.
+  number is refused by the database's own conversion error. In a host-side `let`, on lite's own route, and on a
+  database legend-engine does not have (SQLite, MariaDB, MySQL, MongoDB), lite checks the text first and raises its
+  own error.
 - **Why:** Pure's `parseInteger` and `parseFloat` have no 32-bit or single-precision limit. The narrower types are
   legend-engine's choice of SQL type, not Pure's meaning.
 - **Register:** S424.

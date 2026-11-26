@@ -1827,7 +1827,8 @@ public class Postgres extends AnsiSqlRenderer {
             return writer.function(f, a);
         }
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(f)
-                .append("(").expr(a.get(0), 0).append(") ELSE CAST('NaN' AS DOUBLE PRECISION) END)");
+                .append("(").expr(a.get(0), 0).append(") WHEN (").expr(a.get(0), 0)
+                .append(") IS NOT NULL THEN CAST('NaN' AS DOUBLE PRECISION) END)");
     }
 
     /** The {@code REGEXP_EXTRACT} arm of {@link #call}. */
