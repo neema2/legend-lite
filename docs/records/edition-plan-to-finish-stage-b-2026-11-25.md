@@ -142,6 +142,35 @@ before.
 | 10 | **Clean up and lock.** The folds cut back to the rule (measured first, the list ruled); the old switch machinery deleted (`PlanStyle`, the feature flags in the lowering, `LoweringForms`, the edge's dialect subclasses); the guards on; legend-engine's meaning refused by name on databases where it was not checked; DataCube's legend-engine workarounds; `EngineWhereZones` | the build fails if audience knowledge returns to the product |
 | 11 | **Land.** Full rounds on every gate, an independent audit, one pull request to `main` | the user's word |
 
+### 5a. The closing table (added 2026-11-26, after the user's "Why are we not closing out our work?")
+
+**Closed means:** the step's "done when" is met; its code is on the program branch `claude/compat-b3-nufdlk`; CI is
+green on it; and every test whose answer moved and every new difference from legend-engine has been brought to the
+user. "Built" is not closed. The orchestrator reports from this table and keeps it current.
+
+**The rule that goes with it (the user, 2026-11-26: "I really want us to focus on getting B completely done"):** one
+batch is verified and landed before the next is started; nothing is added to a batch under verification; no side
+work (a new lane, a new suite, a finding outside the step) starts while a step is open, it is written down as a task
+for later. The parallel sessions the plan names (steps 8 and 9) go on, and land the same way.
+
+| Step | Built | Closed | What remains to close it |
+|---|---|---|---|
+| 1 | all (PCT on compiled legend-pure deferred to step 10 by the user) | no | `acos`/`asin` lands with the batch of steps 4 and 5; the program branch moves |
+| 2 | all, a full round passed | no | the program branch moves |
+| 3 | all, a full round passed | no | the program branch moves |
+| 4 | all, in the batch | no | the batch lands (CI green), the program branch moves |
+| 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | no | the batch lands; then `parseDecimal` per database, `parseJSON`, an enumeration by name, counts over a key, `rem`: each built, or deferred by the user's word; the Float, date and `TDSNull` text rows are step 8's |
+| 6 | the research, the measurement, the first slice (`assertSize`, on a scratch branch) | no | slices 6.1 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
+| 8 | slices 1 and 2 on its branch | no | its deletion slice; its landing |
+| 9 | nothing (its first session never started; restarted 2026-11-26 15:01) | no | slice 1, then the later slices after steps 6 and 8 |
+| 10 | nothing | no | after 6, 8 and 9 |
+| 11 | nothing | no | the user's word |
+
+**Parked until step 5 is closed (not lost, not in flight):** the refusal of legend-engine's plan-text functions at its
+door (built on `claude/edit-ahead`, `973eaca4`; one existing test, `PureV1SqlTextTest`'s DDL case, pins the old
+answer and moves with it); PCT's four more suites on H2 (`claude/pct-h2-full`, green on its own); the H2 dialect's
+135 gaps (a task for the user).
+
 **Size, an estimate from the pieces, not measured:** about six weeks one after another; about three and a half with steps 8 and 9 in their own sessions.
 
 **If step 2 fails:** (a) the stamp does not hold: today's `substring` rewrite stays on pure/v1, as the user ruled before (amendment 24), and the corpus keeps one table per test body; (b) the comparison setting moves tests: each is read before anything else is built on it.
