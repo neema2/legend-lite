@@ -100,8 +100,10 @@ hyperbolic functions are wrong in the sixth digit and Postgres has no Float `mod
   upgrade the guarded raises it protects stop being protected, silently.
 - **MariaDB returns a list of literal rows in no promised order** (37 statements are a `UNION ALL` with no `ORDER BY`):
   the likely cause of its lane's run-to-run list-order failures. Not reproduced here; it does not explain every one.
-- **BigQuery: a mixed list's sort orders by a STRUCT**, which its documentation says is not orderable. Seen in a plan
-  outside the measured set; not checked on the account.
+- **BigQuery refuses a sort of a list of mixed kinds:** lite orders by a STRUCT, which BigQuery does not order
+  (confirmed on the account by the lane the same day: `|[1, 'a', true]->sort()` is refused, "ORDER BY does not
+  support expressions of type STRUCT<...>"; a list of Numbers alone sorts correctly). The fix: order by the struct's
+  fields.
 - **H2:** `CARDINALITY(NULL)` in the subquery form above crashes ("Unexpected code path"): write
   `COALESCE(CARDINALITY(..), 0)`.
 
