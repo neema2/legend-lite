@@ -32,7 +32,12 @@ public class Test_LegendLite_H2_EssentialFunctions_PCT extends PCTReportConfigur
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     // First measured 2026-11-26 (H2 2.5.252; 345 tests, 84 pinned), from what H2 answered: nothing burned down.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // H2 HAS NO LIST TYPE: the list functions, unnest, fold and the list predicates have no encoding on this dialect, refused by name (as on the relation suite)
+            // LITE'S H2 DIALECT DOES NOT WRITE THESE LIST OPERATIONS (not 'H2 has no list type': corrected 2026-11-26, measured on
+            // H2 2.5.252). H2 has arrays -- ARRAY[...], CARDINALITY, a[i], ARRAY_CONTAINS, ARRAY_SLICE, ||, and ARRAY_AGG(x ORDER BY x),
+            // MAX, MEDIAN, MODE, STDDEV_SAMP, PERCENTILE_CONT, CORR over FROM UNNEST(ARRAY[...]) [WITH ORDINALITY] answer Pure's values --
+            // but lite's H2 dialect carries a list as JSON and refuses these by name (H2.listCall). What H2 truly lacks: LATERAL, a
+            // correlated UNNEST, lambdas over an array, a map type; a comparator or fold lambda, a list of class instances and a list of
+            // mixed types need more than an array (the split per test: docs/records/h2-pct-full-2026-11-26.md)
             one("meta::pure::functions::collection::tests::add::testAddWithOffset_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::collection::tests::add::testAdd_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::collection::tests::at::testAtError_Function_1__Boolean_1_", "LIST_FILTER reached a dialect without a list encoding"),
@@ -82,24 +87,28 @@ public class Test_LegendLite_H2_EssentialFunctions_PCT extends PCTReportConfigur
             one("meta::pure::functions::string::tests::split::testSplitWithNoSplit_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::string::tests::split::testSplit_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::string::tests::toString::testPairCollectionToString_Function_1__Boolean_1_", "collection reduction 'STRING_AGG' reached a dialect without a list encoding"),
-            // H2 HAS NO MAP TYPE: an empty map is refused by name
-            one("meta::pure::functions::collection::tests::put::testPut_emptyMap_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
-            one("meta::pure::functions::collection::tests::putAll::testPutAll_emptyInputMap_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
-            one("meta::pure::functions::collection::tests::putAll::testPutAll_emptyPutEntries_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
-            // H2 HAS NO SUCH FUNCTION: lite's H2 dialect refuses by name
+            // LITE'S H2 DIALECT DOES NOT WRITE H2'S OWN FORM (B: H2 answers Pure's value, measured 2026-11-26 on H2 2.5.252; not a
+            // limit of H2): bit operations (BITAND, BITOR, BITXOR, BITNOT, LSHIFT, RSHIFT), a date-time from its parts (a DATEADD chain
+            // from DATE '1970-01-01'), '%.Nf' (TO_CHAR(x, 'FM9999990.00')), a time bucket (DATEADD of FLOOR(DATEDIFF / n) * n from the
+            // epoch, weeks from 1969-12-29), and a count past 32 bits (DATE + n * INTERVAL '1' DAY, DATEADD(YEAR, n / 12, ..) for months)
             one("meta::pure::functions::date::tests::testDateFromSecond_Function_1__Boolean_1_", "a date-time constructor reached H2, which has no make_timestamp()"),
             one("meta::pure::functions::date::tests::testDateFromSubSecond_Function_1__Boolean_1_", "a date-time constructor reached H2, which has no make_timestamp()"),
-            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "minimal-fraction date format reached a dialect without a trim-zeros token"),
             one("meta::pure::functions::string::tests::format::testFormatFloatWithRounding_Function_1__Boolean_1_", "format specifier '%.' reached H2, which has no printf — only %d / %s concatenate"),
             one("meta::pure::functions::string::tests::format::testFormatFloatWithTruncation_Function_1__Boolean_1_", "format specifier '%.' reached H2, which has no printf — only %d / %s concatenate"),
             one("meta::pure::functions::string::tests::format::testFormatFloatWithZeroPadding_Function_1__Boolean_1_", "format specifier '%.' reached H2, which has no printf — only %d / %s concatenate"),
-            // H2'S OWN LIMIT: DATEADD's count is an INT, so a count past 32 bits is refused by H2 (DuckDB and Postgres refuse it too)
             one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "Invalid value \"12345678912\" for parameter \"DATEADD count\""),
             one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "Invalid value \"12345678912\" for parameter \"DATEADD count\""),
             one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "Invalid value \"12345678912\" for parameter \"DATEADD count\""),
             one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "Invalid value \"9600000000\" for parameter \"DATEADD count\""),
             one("meta::pure::functions::date::tests::testAdjustBySecondsBigNumber_Function_1__Boolean_1_", "Invalid value \"12345678912\" for parameter \"DATEADD count\""),
             one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "Invalid value \"12345678912\" for parameter \"DATEADD count\""),
+            // NOT SETTLED (C, 2026-11-26): H2 has no MAP type (a map as JSON: JSON_OBJECT() answers {}, but H2 has no JSON merge for
+            // put/putAll); a signed 64-bit hashCode (H2 has HASH and ORA_HASH, not Pure's); the minimal-fraction date token (FORMATDATETIME
+            // answered the other patterns of testFormatDate, not probed for this one). Lite refuses each by name
+            one("meta::pure::functions::collection::tests::put::testPut_emptyMap_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
+            one("meta::pure::functions::collection::tests::putAll::testPutAll_emptyInputMap_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
+            one("meta::pure::functions::collection::tests::putAll::testPutAll_emptyPutEntries_Function_1__Boolean_1_", "an empty map reached H2, which has no map type"),
+            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "minimal-fraction date format reached a dialect without a trim-zeros token"),
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): error positions, lowering, instance identity, a Float past 2^53
             one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::date::tests::testDayOfMonthError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 36"),

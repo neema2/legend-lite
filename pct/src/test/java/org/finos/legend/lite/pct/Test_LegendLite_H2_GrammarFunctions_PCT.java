@@ -32,7 +32,12 @@ public class Test_LegendLite_H2_GrammarFunctions_PCT extends PCTReportConfigurat
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     // First measured 2026-11-26 (H2 2.5.252; 137 tests, 18 pinned), from what H2 answered: nothing burned down.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // H2 HAS NO LIST TYPE: the list functions, unnest, fold and the list predicates have no encoding on this dialect, refused by name (as on the relation suite)
+            // LITE'S H2 DIALECT DOES NOT WRITE THESE LIST OPERATIONS (not 'H2 has no list type': corrected 2026-11-26, measured on
+            // H2 2.5.252). H2 has arrays -- ARRAY[...], CARDINALITY, a[i], ARRAY_CONTAINS, ARRAY_SLICE, ||, and ARRAY_AGG(x ORDER BY x),
+            // MAX, MEDIAN, MODE, STDDEV_SAMP, PERCENTILE_CONT, CORR over FROM UNNEST(ARRAY[...]) [WITH ORDINALITY] answer Pure's values --
+            // but lite's H2 dialect carries a list as JSON and refuses these by name (H2.listCall). What H2 truly lacks: LATERAL, a
+            // correlated UNNEST, lambdas over an array, a map type; a comparator or fold lambda, a list of class instances and a list of
+            // mixed types need more than an array (the split per test: docs/records/h2-pct-full-2026-11-26.md)
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "LIST_TRANSFORM reached a dialect without a list encoding"),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualVarIdentity_Function_1__Boolean_1_", "LIST_TRANSFORM reached a dialect without a list encoding"),
             one("meta::pure::functions::collection::tests::map::testMapInstance_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),

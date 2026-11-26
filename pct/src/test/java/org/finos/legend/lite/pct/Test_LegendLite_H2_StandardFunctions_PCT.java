@@ -32,7 +32,12 @@ public class Test_LegendLite_H2_StandardFunctions_PCT extends PCTReportConfigura
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     // First measured 2026-11-26 (H2 2.5.252; 205 tests, 90 pinned), from what H2 answered: nothing burned down.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // H2 HAS NO LIST TYPE: the list functions, unnest, fold and the list predicates have no encoding on this dialect, refused by name (as on the relation suite)
+            // LITE'S H2 DIALECT DOES NOT WRITE THESE LIST OPERATIONS (not 'H2 has no list type': corrected 2026-11-26, measured on
+            // H2 2.5.252). H2 has arrays -- ARRAY[...], CARDINALITY, a[i], ARRAY_CONTAINS, ARRAY_SLICE, ||, and ARRAY_AGG(x ORDER BY x),
+            // MAX, MEDIAN, MODE, STDDEV_SAMP, PERCENTILE_CONT, CORR over FROM UNNEST(ARRAY[...]) [WITH ORDINALITY] answer Pure's values --
+            // but lite's H2 dialect carries a list as JSON and refuses these by name (H2.listCall). What H2 truly lacks: LATERAL, a
+            // correlated UNNEST, lambdas over an array, a map type; a comparator or fold lambda, a list of class instances and a list of
+            // mixed types need more than an array (the split per test: docs/records/h2-pct-full-2026-11-26.md)
             one("meta::pure::functions::collection::tests::greatest::testGreatest_Boolean_Function_1__Boolean_1_", "LIST_MAX reached a dialect without a list encoding"),
             one("meta::pure::functions::collection::tests::greatest::testGreatest_DateTime_Function_1__Boolean_1_", "LIST_MAX reached a dialect without a list encoding"),
             one("meta::pure::functions::collection::tests::greatest::testGreatest_Date_Function_1__Boolean_1_", "LIST_POSITION reached a dialect without a list encoding"),
@@ -94,7 +99,10 @@ public class Test_LegendLite_H2_StandardFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::math::tests::variance::testVarianceSample_Function_1__Boolean_1_", "collection reduction 'VAR_SAMP' reached a dialect without a list encoding"),
             one("meta::pure::functions::math::tests::variance::testVariance_Population_Function_1__Boolean_1_", "collection reduction 'VAR_POP' reached a dialect without a list encoding"),
             one("meta::pure::functions::math::tests::variance::testVariance_Sample_Function_1__Boolean_1_", "collection reduction 'VAR_SAMP' reached a dialect without a list encoding"),
-            // H2 HAS NO SUCH FUNCTION: lite's H2 dialect refuses by name
+            // LITE'S H2 DIALECT DOES NOT WRITE H2'S OWN FORM (B: H2 answers Pure's value, measured 2026-11-26 on H2 2.5.252; not a
+            // limit of H2): bit operations (BITAND, BITOR, BITXOR, BITNOT, LSHIFT, RSHIFT), a date-time from its parts (a DATEADD chain
+            // from DATE '1970-01-01'), '%.Nf' (TO_CHAR(x, 'FM9999990.00')), a time bucket (DATEADD of FLOOR(DATEDIFF / n) * n from the
+            // epoch, weeks from 1969-12-29), and a count past 32 bits (DATE + n * INTERVAL '1' DAY, DATEADD(YEAR, n / 12, ..) for months)
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays_Function_1__Boolean_1_", "a time bucket reached H2, which has no time_bucket()"),
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours_Function_1__Boolean_1_", "a time bucket reached H2, which has no time_bucket()"),
             one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes_Function_1__Boolean_1_", "a time bucket reached H2, which has no time_bucket()"),
@@ -106,8 +114,6 @@ public class Test_LegendLite_H2_StandardFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketMonths_Function_1__Boolean_1_", "a time bucket reached H2, which has no time_bucket()"),
             one("meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketWeeks_Function_1__Boolean_1_", "a time bucket reached H2, which has no time_bucket()"),
             one("meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketYears_Function_1__Boolean_1_", "a time bucket reached H2, which has no time_bucket()"),
-            one("meta::pure::functions::hashCode::tests::testHashCode_Function_1__Boolean_1_", "signed 64-bit hashCode reached a dialect without a spelling"),
-            one("meta::pure::functions::math::hashCode::tests::testHashCodeAggregate_Function_1__Boolean_1_", "signed 64-bit hashCode reached a dialect without a spelling"),
             one("meta::pure::functions::math::tests::bitAnd::testBitAnd_LargeNumbers_Function_1__Boolean_1_", "BIT_AND reached a dialect without bit-op support"),
             one("meta::pure::functions::math::tests::bitAnd::testBitAnd_NegativeNumbers_Function_1__Boolean_1_", "BIT_AND reached a dialect without bit-op support"),
             one("meta::pure::functions::math::tests::bitAnd::testBitAnd_SmallNumbers_Function_1__Boolean_1_", "BIT_AND reached a dialect without bit-op support"),
@@ -122,6 +128,11 @@ public class Test_LegendLite_H2_StandardFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::math::tests::bitXor::testBitXor_LargeNumbers_Function_1__Boolean_1_", "BIT_XOR reached a dialect without bit-op support"),
             one("meta::pure::functions::math::tests::bitXor::testBitXor_NegativeNumbers_Function_1__Boolean_1_", "BIT_XOR reached a dialect without bit-op support"),
             one("meta::pure::functions::math::tests::bitXor::testBitXor_SmallNumbers_Function_1__Boolean_1_", "BIT_XOR reached a dialect without bit-op support"),
+            // NOT SETTLED (C, 2026-11-26): H2 has no MAP type (a map as JSON: JSON_OBJECT() answers {}, but H2 has no JSON merge for
+            // put/putAll); a signed 64-bit hashCode (H2 has HASH and ORA_HASH, not Pure's); the minimal-fraction date token (FORMATDATETIME
+            // answered the other patterns of testFormatDate, not probed for this one). Lite refuses each by name
+            one("meta::pure::functions::hashCode::tests::testHashCode_Function_1__Boolean_1_", "signed 64-bit hashCode reached a dialect without a spelling"),
+            one("meta::pure::functions::math::hashCode::tests::testHashCodeAggregate_Function_1__Boolean_1_", "signed 64-bit hashCode reached a dialect without a spelling"),
             // ==== DEFECTS OF LITE'S H2 DIALECT, TO BE FIXED (not limits of H2; found 2026-11-26, each passes on DuckDB) ====
             // (a) the dialect writes a DuckDB function H2 does not have, so H2 answers 'Function "X" not found': the fix is
             // H2's own spelling, or a refusal by name (invariant 4). Delete the row with the fix.
