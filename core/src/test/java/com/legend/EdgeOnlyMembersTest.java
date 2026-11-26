@@ -119,6 +119,10 @@ class EdgeOnlyMembersTest {
             // 2026-11-26 (the edition program's step 2b: the comparison setting in the type-checker): the door hands
             // the type-checker its setting for the query here; lite's own road never asks (lite's setting is the spec
             // compiler's own), so only the compatibility doors call it
+            Map.entry("com.legend.compiler.spec.CrossTypeComparisons#in(java.util.List)",
+                    "2026-11-26: the markers a typed body holds, read by legend-pure's door to refuse by name the one"
+                            + " comparison its setting cannot answer yet, once the query is typed (the independent"
+                            + " audit of step 2b, finding 1); the product's planner refuses a marker through refuse()"),
             Map.entry("com.legend.TypedQuery#comparing(com.legend.compiler.spec.CrossTypeRule)",
                     "2026-11-26: a door's comparison setting for the query it admits (the edition program's step 2b)"),
             Map.entry("com.legend.builtin.Pure#AT_ASSERTS_ASSERT_SAME_ELEMENTS",
