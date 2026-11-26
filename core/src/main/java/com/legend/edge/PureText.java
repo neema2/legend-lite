@@ -45,10 +45,11 @@ public final class PureText {
     }
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
-    /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS}): a plan in legend-pure's words,
+    /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS},
+     *  {@link #ENGINE_PCT}): a plan in legend-pure's words,
      *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
     public static boolean isEdgeStyle(PlanStyle style) {
-        return style == UPSTREAM || style == PURE_V1 || style == ENGINE_TESTS;
+        return style == UPSTREAM || style == PURE_V1 || style == ENGINE_TESTS || style == ENGINE_PCT;
     }
 
     public static final PlanStyle UPSTREAM = new PlanStyle() {
@@ -244,51 +245,64 @@ public final class PureText {
      *  legend-engine runs: the queries get legend-engine's meaning, as at its API, and every call of the test's own
      *  code is stamped and keeps Pure's. Until this step the corpus planned under {@link #UPSTREAM}, lite's meaning on
      *  both sides. PCT keeps {@link #UPSTREAM}: legend-pure's own tests, one audience throughout. */
-    public static final PlanStyle ENGINE_TESTS = new PlanStyle() {
-        @Override
-        public SqlDialect dialect(DatabaseType type) {
-            return UPSTREAM.dialect(type);
-        }
+    public static final PlanStyle ENGINE_TESTS = withEdition(UPSTREAM, EngineTable.TESTS);
 
-        @Override
-        public boolean judgesEngineText() {
-            return UPSTREAM.judgesEngineText();
-        }
+    /** PCT'S LEGEND-ENGINE RUN'S STYLE (the edition program's step 3's remainder, 2026-11-26): {@link #PURE_V1} in
+     *  every dialect, facet and form, and the planner is handed PCT's legend-engine run's edition
+     *  ({@link EngineTable#PCT}). A PCT case reaches lite as the one expression legend-engine's own PCT adapter sends
+     *  to the database, so all of it is a store query's code: nothing is stamped, and every row of legend-engine's
+     *  table answers. At legend-engine's API ({@link #PURE_V1}) a statement that reads no store is its own Java's. */
+    public static final PlanStyle ENGINE_PCT = withEdition(PURE_V1, EngineTable.PCT);
 
-        @Override
-        public @com.legend.base.Nullable TraceCell traceCell() {
-            return UPSTREAM.traceCell();
-        }
-
-        @Override
-        public String graphKeyDate(String written) {
-            return UPSTREAM.graphKeyDate(written);
-        }
-
-        @Override
-        public String graphKeyString(String value) {
-            return UPSTREAM.graphKeyString(value);
-        }
-
-        @Override
-        public <F> F facet(Class<F> kind) {
-            return UPSTREAM.facet(kind);
-        }
-
-        @Override
-        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
-            return UPSTREAM.facet(kind, refusal);
-        }
-
-        @Override
-        public <F> F twoForm(Class<F> kind, F productForm) {
-            if (kind == com.legend.planner.Edition.class) {
-                java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
-                return kind.cast(EngineTable.TESTS);
+    /** {@code base} in every dialect, facet and form, with the planner handed {@code edition} in the place of the
+     *  base's own. */
+    private static PlanStyle withEdition(PlanStyle base, EngineTable edition) {
+        return new PlanStyle() {
+            @Override
+            public SqlDialect dialect(DatabaseType type) {
+                return base.dialect(type);
             }
-            return UPSTREAM.twoForm(kind, productForm);
-        }
-    };
+
+            @Override
+            public boolean judgesEngineText() {
+                return base.judgesEngineText();
+            }
+
+            @Override
+            public @com.legend.base.Nullable TraceCell traceCell() {
+                return base.traceCell();
+            }
+
+            @Override
+            public String graphKeyDate(String written) {
+                return base.graphKeyDate(written);
+            }
+
+            @Override
+            public String graphKeyString(String value) {
+                return base.graphKeyString(value);
+            }
+
+            @Override
+            public <F> F facet(Class<F> kind) {
+                return base.facet(kind);
+            }
+
+            @Override
+            public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+                return base.facet(kind, refusal);
+            }
+
+            @Override
+            public <F> F twoForm(Class<F> kind, F productForm) {
+                if (kind == com.legend.planner.Edition.class) {
+                    java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
+                    return kind.cast(edition);
+                }
+                return base.twoForm(kind, productForm);
+            }
+        };
+    }
 
     /** Refuses a style that is not pure/v1's ({@link #PURE_V1}): legend-engine's door's own plannings answer
      *  legend-engine's meaning, which is that style's edition's, so a caller that hands another would be answered

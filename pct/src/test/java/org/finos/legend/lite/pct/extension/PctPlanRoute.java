@@ -90,11 +90,13 @@ final class PctPlanRoute {
         }
 
         /** The style the audience's cases are planned in: the edge's UPSTREAM text for legend-pure's, the pure/v1
-         *  route's for legend-engine's, the product's under lite's own rules. */
+         *  route's with PCT's legend-engine run's edition for legend-engine's (a case is the one expression its own
+         *  PCT adapter sends to the database, so every row of legend-engine's table answers it: the edition
+         *  program's step 3, 2026-11-26), the product's under lite's own rules. */
         com.legend.database.PlanStyle style() {
             return switch (this) {
                 case LEGEND_PURE -> com.legend.edge.PureText.UPSTREAM;
-                case LEGEND_ENGINE -> com.legend.edge.PureText.PURE_V1;
+                case LEGEND_ENGINE -> com.legend.edge.PureText.ENGINE_PCT;
                 case LITE -> com.legend.database.PlanStyle.PRODUCT;
             };
         }

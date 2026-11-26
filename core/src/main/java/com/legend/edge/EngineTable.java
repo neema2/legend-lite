@@ -53,12 +53,17 @@ final class EngineTable implements EditionTable, Edition {
 
     /** legend-engine's door's edition: what the door's style hands the planner. As a table it answers nothing: the
      *  planner makes the table of a statement's database from it ({@link #table}). */
-    static final EngineTable DOOR = new EngineTable(false, null, false);
+    static final EngineTable DOOR = new EngineTable(false, null, true, false);
 
     /** legend-engine's own tests' door's edition (the relational corpus): legend-engine's meaning inside the queries a
      *  test's {@code execute()}s run, as at its API, and Pure's in the test's own code, which legend-pure runs --
      *  every call of a test body outside those queries is stamped ({@link #stampsTestBodies}). */
-    static final EngineTable TESTS = new EngineTable(false, null, true);
+    static final EngineTable TESTS = new EngineTable(false, null, true, true);
+
+    /** PCT's legend-engine run's edition: a PCT case reaches lite as the one expression legend-engine's own PCT adapter
+     *  sends to the database, so all of it is a store query's code -- nothing is stamped, and every row answers
+     *  ({@link #stampsOutsideStore}). */
+    static final EngineTable PCT = new EngineTable(false, null, false, false);
 
     /** A row: the rule that lowers the call, and what a refusal calls the call. */
     private record Row(NamedRule as, String named) {
@@ -89,12 +94,17 @@ final class EngineTable implements EditionTable, Edition {
     /** The database this table's statement runs on; null where its planning names no single one. */
     private final @Nullable DatabaseType database;
 
+    /** Whether code outside any store query is stamped (legend-engine's own Java runs it, with Pure's meaning): at
+     *  its API and in its own tests; not in its PCT run, where every case is sent to the database whole. */
+    private final boolean stamps;
+
     /** Whether a test body's own code is stamped: legend-engine's own tests' door's. */
     private final boolean testBodies;
 
-    private EngineTable(boolean table, @Nullable DatabaseType database, boolean testBodies) {
+    private EngineTable(boolean table, @Nullable DatabaseType database, boolean stamps, boolean testBodies) {
         this.table = table;
         this.database = database;
+        this.stamps = stamps;
         this.testBodies = testBodies;
     }
 
@@ -179,7 +189,7 @@ final class EngineTable implements EditionTable, Edition {
 
     @Override
     public boolean stampsOutsideStore() {
-        return true;
+        return stamps;
     }
 
     @Override
@@ -218,6 +228,6 @@ final class EngineTable implements EditionTable, Edition {
 
     @Override
     public EditionTable table(@Nullable DatabaseType onDatabase) {
-        return new EngineTable(true, onDatabase, testBodies);
+        return new EngineTable(true, onDatabase, stamps, testBodies);
     }
 }
