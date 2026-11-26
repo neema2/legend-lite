@@ -330,7 +330,10 @@ query a compile error:
 - **1** is DataCube's own code: its Oversample wrote `rank <= count * (100 - n) / n`, an Integer against a Float. It
   writes `rank * n <= count * (100 - n)` now, in whole numbers and exact, and reads that form back
   (`datacube/src/row-sample.ts`). No DataCube test planned an oversample, which is why its lanes were green.
-Pushed as `593aca57`, not run here; the measuring session runs the python and DataCube lanes on it.
+Pushed as `593aca57`. The measuring session ran it: the python group 17 of 17 targets (the three that failed pass:
+`edge_test` 24 tests, `engine_test` 358, `notebook_test` 32), and the DataCube and wasm group 228 of 228, with
+`typecheck_test` and `flow_sheet_test`. The oversample plans through the compiler now and keeps the same rows (with
+n = 25 and one row of interest: rank * 25 <= 75, the three rows the division kept).
 
 **The independent audit of step 2b and the plain raises (2026-11-26, `r3/audit-step2b-3raise.md`):** no blocker, no
 major finding; the product road and the SQL inside a store query at legend-engine's door are as before. Fixed from
