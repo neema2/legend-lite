@@ -79,5 +79,18 @@ public enum NamedRule {
      *  ({@code SqlFn.SPLIT_PART}): an empty part is a part, the separator is a whole text, an index past the parts is
      *  the empty text. Not the product's {@code splitPart}, Pure's (empty parts dropped, an index past them an
      *  error). */
-    SPLIT_PART_AS_GIVEN
+    SPLIT_PART_AS_GIVEN,
+
+    /** A sort with no key and no comparator whose EQUAL NUMBERS OF DIFFERENT TYPES keep the order they were written
+     *  in (a stable sort that compares {@code 3} and {@code 3.0} as equal): {@code [3.0, 3, 1]->sort()} is
+     *  {@code [1, 3.0, 3]}. Not the product's {@code sort}, which orders equal numbers by their type (Integer, Float,
+     *  Decimal). Every other sort is written by its own rule. */
+    SORT_TIES_AS_WRITTEN,
+
+    /** {@code max}, {@code min}, {@code greatest} and {@code least} keeping, where several elements hold the winning
+     *  value, the element a left fold keeps: over a LIST the last written of them ({@code [3, 3.0]->max()} is the
+     *  Float, {@code [3.0, 3]->max()} the Integer), of several ARGUMENTS the first ({@code max(3, 3.0)} is the
+     *  Integer). Not the product's, which keeps the element whose type orders it so (the greatest of equal numbers
+     *  the Decimal, then the Float; the least the Integer). */
+    EXTREME_KEEPS_THE_FOLDS_TIE
 }

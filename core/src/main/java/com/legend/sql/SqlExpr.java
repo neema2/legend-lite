@@ -1368,7 +1368,12 @@ public sealed interface SqlExpr
          *  (a list as built, kept by a dedup or a filter), by comparable (a sort; ties by position, a stable sort's),
          *  each either way (a reverse). */
         public enum Order {
-            POSITION, POSITION_DESC, COMPARABLE, COMPARABLE_DESC;
+            POSITION, POSITION_DESC, COMPARABLE, COMPARABLE_DESC,
+            /** By comparable, then by the number's TYPE where two equal numbers are of two types (Integer, Float,
+             *  Decimal), then by position: lite's own order of a mixed list (the equality rule's run-time reading;
+             *  the edition program's step 6, slice 6.2). {@link #COMPARABLE} keeps equal numbers in the written
+             *  order, as a stable sort does. */
+            COMPARABLE_THEN_TYPE, COMPARABLE_THEN_TYPE_DESC;
 
             /** The order of the list reversed. */
             public Order reversed() {
@@ -1377,7 +1382,24 @@ public sealed interface SqlExpr
                     case POSITION_DESC -> POSITION;
                     case COMPARABLE -> COMPARABLE_DESC;
                     case COMPARABLE_DESC -> COMPARABLE;
+                    case COMPARABLE_THEN_TYPE -> COMPARABLE_THEN_TYPE_DESC;
+                    case COMPARABLE_THEN_TYPE_DESC -> COMPARABLE_THEN_TYPE;
                 };
+            }
+
+            /** Whether the rows are returned by the comparable (a sorted list), either way. */
+            public boolean byComparable() {
+                return this != POSITION && this != POSITION_DESC;
+            }
+
+            /** Whether the order runs downwards (a reversed list). */
+            public boolean descending() {
+                return this == POSITION_DESC || this == COMPARABLE_DESC || this == COMPARABLE_THEN_TYPE_DESC;
+            }
+
+            /** Whether equal numbers of two types are ordered by their type before their position. */
+            public boolean thenByType() {
+                return this == COMPARABLE_THEN_TYPE || this == COMPARABLE_THEN_TYPE_DESC;
             }
         }
 

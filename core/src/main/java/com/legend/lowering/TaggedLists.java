@@ -294,24 +294,46 @@ final class TaggedLists {
      * spelling carrier's own shape (its ids ordered by its comparables), the identity now a position.
      */
     static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias) {
+        return sort(tl, alias, Ties.BY_TYPE);
+    }
+
+    /**
+     * How a sort places EQUAL NUMBERS OF DIFFERENT TYPES (3 and 3.0; a list of one number type has no such pair and
+     * is written the same under each):
+     * {@link #BY_TYPE} lite's own rule, Integer, Float, Decimal, then the written order (the user's rulings of
+     * 2026-11-25 and 2026-11-26: "I agree with the framing" -- lite's rule in lite's mode);
+     * {@link #AS_WRITTEN} the written order, a stable sort's, which is legend-pure's and legend-engine's sort (run on
+     * all three upstream runtimes, 2026-11-26: {@code [3.0, 3, 1]->sort()} is {@code [1, 3.0, 3]});
+     * {@link #LAST_WRITTEN_FIRST} the written order reversed, so the FIRST of a sorted list is the last written of
+     * its least elements: upstream's {@code min} over a list keeps the later element of a tie ({@code min.pure}'s
+     * fold), as its {@code max} does, which is the LAST of an {@link #AS_WRITTEN} sort.
+     */
+    enum Ties { BY_TYPE, AS_WRITTEN, LAST_WRITTEN_FIRST }
+
+    /** {@link #sort(SqlExpr.TaggedList, String)} with equal numbers of different types placed by {@code ties}. */
+    static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias, Ties ties) {
         refuseInexactRanks(tl);
         if (tl.rows() != null) {
-            return sortRows(tl, alias);
+            return sortRows(tl, alias, ties);
         }
         SqlSelect inner = positionRows(tl.positions());
         SqlExpr p = SqlExpr.Column.of(alias, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
         SqlExpr typeOrder = numberTypeOrderAt(tl, p);
         if (typeOrder != null) {
-            // equal numbers of two types in the list: each position's PLACE by the comparable, then the number's
-            // type, then the position (a row number over the three), and the positions listed by their place
+            // equal numbers of two types in the list: each position's PLACE by the comparable, then by what the
+            // ties rule says (the number's type and the position; the position alone, either way), a row number
+            // over them, and the positions listed by their place -- an ordered aggregate over the comparable alone
+            // promises no order among equals
+            List<SqlSelect.SortKey> keys = new ArrayList<>(3);
+            keys.add(new SqlSelect.SortKey(tl.comparableAt(p), true, SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+            if (ties == Ties.BY_TYPE) {
+                keys.add(new SqlSelect.SortKey(typeOrder, true, null, null));
+            }
+            keys.add(new SqlSelect.SortKey(p, ties != Ties.LAST_WRITTEN_FIRST, null, null));
             String placed = alias + "o";
             SqlSelect places = new SqlSelect(List.of(new SqlSelect.Projection(p, "p", null),
                     new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
-                            List.of()), List.of(), List.of(
-                                    new SqlSelect.SortKey(tl.comparableAt(p), true,
-                                            SqlSelect.SortKey.NullOrder.NULLS_LAST, null),
-                                    new SqlSelect.SortKey(typeOrder, true, null, null),
-                                    new SqlSelect.SortKey(p, true, null, null)), null), "r", null)),
+                            List.of()), List.of(), keys, null), "r", null)),
                     false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
                     null, null, List.of());
             SqlSelect listed = new SqlSelect(List.of(new SqlSelect.Projection(positionsBy(
@@ -320,8 +342,8 @@ final class TaggedLists {
                     "s", null)),
                     false, new SqlSource.Subselect(places, placed, null), null, List.of(), null, null, List.of(),
                     null, null, List.of());
-            return tl.withPositions(new SqlExpr.ScalarSubquery(listed))
-                    .withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
+            return tl.withPositions(new SqlExpr.ScalarSubquery(listed)).withOrder(ties == Ties.BY_TYPE
+                    ? SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE : SqlExpr.TaggedList.Order.COMPARABLE);
         }
         SqlSelect outer = new SqlSelect(List.of(new SqlSelect.Projection(
                 positionsBy(p, tl.comparableAt(p)), "s", null)),
@@ -375,7 +397,7 @@ final class TaggedLists {
         List<SqlExpr.Case.When> later = new ArrayList<>();
         java.util.Set<Integer> places = new java.util.HashSet<>();
         for (int k = 0; k < tl.channels().size(); k++) {
-            int place = numberTypePlace(tl.channels().get(k).kind());
+            int place = MixedEncoding.numberTypePlace(tl.channels().get(k).kind());
             if (place < 0) {
                 continue;
             }
@@ -404,7 +426,7 @@ final class TaggedLists {
         java.util.Set<Integer> places = new java.util.HashSet<>();
         for (int i = 0; i < written.elements().size(); i++) {
             int channel = (int) ((SqlExpr.IntLit) written.elements().get(i)).value() - 1;
-            int place = numberTypePlace(tl.channels().get(channel).kind());
+            int place = MixedEncoding.numberTypePlace(tl.channels().get(channel).kind());
             if (place < 0) {
                 continue;
             }
@@ -427,15 +449,6 @@ final class TaggedLists {
         return new SqlExpr.Case(later, new SqlExpr.IntLit(0), SqlExpr.Reason.CARRIER);
     }
 
-    /** A number kind's place among equal magnitudes (Integer, Float, Decimal); -1 for a kind that is no number. */
-    private static int numberTypePlace(String kind) {
-        return switch (MixedEncoding.family(kind)) {
-            case "Integer" -> 0;
-            case "Float" -> 1;
-            case "Decimal" -> 2;
-            default -> -1;
-        };
-    }
 
     /**
      * A list over its rows sorted (a relation's cells, {@code $t.rows.values->sort()}): its CELLS renumbered by the
@@ -540,7 +553,7 @@ final class TaggedLists {
         return null;
     }
 
-    private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias) {
+    private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias, Ties ties) {
         SqlSelect cells = cellsOf(tl);
         var c = SqlExpr.Column.lookup(alias, cells.outputs());
         // the comparable's columns in the cells' order: __cmp, or a rank across kinds' __cmp_<field> columns
@@ -553,11 +566,12 @@ final class TaggedLists {
             }
         }
         // equal numbers of two types: the number's type before the position (numberTypeOrder), read off the cell's tag
-        SqlExpr typeOrder = numberTypeOrder(tl, c.apply(SqlExpr.TaggedList.ROW_TAG));
+        SqlExpr typeOrder = ties == Ties.BY_TYPE ? numberTypeOrder(tl, c.apply(SqlExpr.TaggedList.ROW_TAG)) : null;
         if (typeOrder != null) {
             keys.add(new SqlSelect.SortKey(typeOrder, true, null, null));
         }
-        keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_POSITION), true, null, null));
+        keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_POSITION), ties != Ties.LAST_WRITTEN_FIRST,
+                null, null));
         List<SqlSelect.Projection> renumbered = new ArrayList<>(cells.outputs().size());
         for (OutputCol o : cells.outputs()) {
             renumbered.add(o.name().equals(SqlExpr.TaggedList.ROW_POSITION)
@@ -919,13 +933,12 @@ final class TaggedLists {
         }
         // the rows in the list's own order (an unnest promises none: round 18's BigQuery and MySQL): by position, or by
         // comparable with the position after it (a stable sort's ties), either way
-        boolean desc = tl.order() == SqlExpr.TaggedList.Order.POSITION_DESC
-                || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC;
+        boolean desc = tl.order().descending();
         List<SqlSelect.SortKey> order = new ArrayList<>();
-        if (tl.order() == SqlExpr.TaggedList.Order.COMPARABLE || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC) {
+        if (tl.order().byComparable()) {
             order.add(new SqlSelect.SortKey(tl.comparableAt(p), !desc, null, null));
-            // equal numbers of two types: the number's type before the position, as the sort placed them
-            SqlExpr typeOrder = numberTypeOrderAt(tl, p);
+            // equal numbers of two types, where the sort placed them by type: the type before the position
+            SqlExpr typeOrder = tl.order().thenByType() ? numberTypeOrderAt(tl, p) : null;
             if (typeOrder != null) {
                 order.add(new SqlSelect.SortKey(typeOrder, !desc, null, null));
             }
