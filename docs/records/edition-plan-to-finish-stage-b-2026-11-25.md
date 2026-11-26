@@ -160,11 +160,26 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 | 3 | all | **yes, 2026-11-26** | nothing |
 | 4 | all | **yes, 2026-11-26** | nothing (its recorded gap, bodies typed into their call, is step 6's: section 5b) |
 | 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | **yes, 2026-11-26** | nothing in it. Its leftover rows are deferred by the user's word (section 5b); the Float, date and `TDSNull` text rows are step 8's. One recorded difference at its finish line (PCT's legend-engine run on DuckDB: `testBigFloatAbs`, register S120) |
-| 6 | the first slice (`assertSize`: **landed 2026-11-26**, `4d44bf54`); slice 6.1 built, measured and audited on `claude/batch-6-1`, the fold rule ruled by the user ("Whole numbers fine") | no | 6.1 lands (its full run, then the pull request's CI); then slices 6.2 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
+| 6 | the first slice (`assertSize`: **landed 2026-11-26**, `4d44bf54`); slice 6.1 (**landed 2026-11-26, 22:34 UTC**, `9adb84bf`: one value within one type, a written list with no list in the SQL, the fold rule); slice 6.2 about two thirds built and tested on `claude/step-6-2` | no | 6.2 finished (the user's answers on the run-time rule's decisions, the host judge's tie-break, the full run, lanes, audit); then 6.3 to 6.6 in order, each landed before the next; SQLite's date-time text before 6.5; the product SQL changes brought to the user per slice |
 | 8 | slices 1 and 2 (**landed 2026-11-26**, `4d44bf54`; slice 2's own independent audit found no blocker and seven should-fix items, which its session is repairing on its branch); the Float deletion slice and the date-time slices built, the user's rulings given | no | slice 2's repairs and each later slice audited from outside, then landed; the `TDSNull` row; two register rows put to the user (`trim`; `length` and `indexOf` over characters past U+FFFF) |
 | 9 | slice 1 (**landed 2026-11-26**, `4d44bf54`); slice 2 built | no | slice 2 audited from outside, then landed; the later slices after steps 6 and 8 |
 | 10 | nothing | no | after 6, 8 and 9. Its first item: no line of the edge names a database (section 5b) |
 | 11 | nothing | no | the user's word |
+
+**How slice 6.1 landed (2026-11-26, 22:34 UTC).** `9adb84bf`; the program branch fast-forwarded to it. Verified
+before: the fixed pre-push set on the pushed commit (149 of 151 and one skipped; the one failure, the parser ledger's
+history line written by hand instead of through its generator, fixed in the last commit and re-run), six database
+lanes on the final code (nothing moved), an outside audit and an outside re-check of its fixes (no blocker left). CI
+on the pull request at that commit: **every job green, 56 of 56** (the macOS DataCube test that failed on the batch
+before passed). The landing page: `edition-homework/landing-step-6-1-2026-11-26.md`.
+
+**Focus (the user, 2026-11-26, about 22:20 UTC: "Let's just focus on step 6 right now ... I would stop everything
+else for right now so we can fully focus our attention on getting 6 done").** Steps 8 and 9 are PAUSED at clean
+checkpoints, each with a state note on its branch: step 8 at `26b10c300` on `claude/edition-step8`
+(`docs/records/edition-homework/step8/STATE-when-paused-2026-11-26.md`; its fixes for both audits build and pass its
+fast set, not measured), step 9 at `99dd3da5f` on `claude/edition-step9-slice2-clean`
+(`docs/records/edition-homework/step9/slice2-state-2026-11-26.md`; slice 2 finished and verified, its eight audit
+items done). Nothing of theirs merges until resumed. Kept, as step 6's own: SQLite's date-time text and the lanes.
 
 **How the next batch landed (2026-11-26, 20:22 UTC).** `4d44bf54`: step 6's first slice (`assertSize` as the
 product's own count, `assertNotSize` with it), step 8's slices 1 and 2, step 9's slice 1, and the fixes the lanes and
