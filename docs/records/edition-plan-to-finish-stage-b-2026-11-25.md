@@ -677,6 +677,24 @@ measuring.**
   Postgres and Snowflake (it answered NaN); three records said more than was measured.
 - **`toDecimal` on DuckDB pulled back** (PCT's legend-engine lane, regenerated): see the ruling row above.
 
+**2026-11-26 ~12:40: who is doing what (the sessions the orchestrator started today; each reports by message).**
+
+| Work | Session | Branch | State |
+|---|---|---|---|
+| Design, code, the narrow loop; the batch's regeneration and pre-push set | the orchestrator | `claude/edit-ahead` (edit tree, scratch), `claude/build-tree` (regenerated files, scratch), `claude/modest-galileo-h6swr4` (the pull request's, #141) | steps 4 and 5 in verification |
+| Step 4's measurement: lite's own code under strict bodies (core, stress, timeseries, DataCube, wasm, python) | `session_0195rQEkqKvFbL1ncs3DMFdw` | measure only | its own tests pass (14 of 14); the wide lanes running |
+| Step 6.0: the equality measurement and the product SQL change list (`tools/equality-measure/`; one command per pair of commits) | `session_0195rQEmtbQHaPU6nxVzr6b1` | `claude/step6-equality-measure` (merged into the edit tree) | four runs delivered; now the fastest builder for narrow checks |
+| Step 8: presentation at the edge | `session_0195rQEm7Fs6u58NaDY4RToB` | `claude/edition-step8` | first slice parked; measuring which answers move when a print used further is lite's own text |
+| Step 9, slice 1: 15 harness classes out of the product (`edition-homework/r3/research-step9-inventory.md`) | `session_0195rQEkrmV5QVzoXb9upZBB` | its own, from `9c751659` | started |
+| The corpus lane on macOS: a per-platform overlay | `session_0195rQEnbpNHDwoxFUbVt29b` | its own, from `9c751659` | facts confirmed (five DuckDB trigonometry tests, one unit in the last digit); building |
+| The database lanes (measure only) | Postgres and Trino `session_0195rQEnn8FAUPKYnpH5gmBg`; MariaDB, MySQL, ClickHouse `session_0195rQEjDbpHcLjorPDXJjG6`; Databricks `session_0195rQEijYc25F3cgFg1TxX2`; BigQuery `session_0195rQEo31vtHdx1NMEUJvJr`; Snowflake (its id is in the lanes' records) | none | idle, warm; next: a round once the batch is on the pull request's branch |
+
+**The product's SQL under step 4** (the user's deliverable, first instalment; `edition-homework/step6/sql-changes-9c751659-19ad03b4.md`):
+of 2,451 expression queries (on DuckDB, H2 and SQLite) and 3,527 model queries, no existing query's SQL changes for
+equality; three that were refused are planned (two fold to a constant); none that was planned is refused; 13 change
+for `acos`/`asin`, which is not equality. The first build of the rule had made ten queries 22 characters longer each
+(`CAST(100 AS DECIMAL(3,0))` for `100`); the rule now leaves a whole-number literal as written.
+
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
 1. **A number literal against a number column** (step 4's design question, and the equality rule's cost to a user
