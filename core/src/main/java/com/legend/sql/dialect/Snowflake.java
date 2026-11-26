@@ -1520,7 +1520,7 @@ public class Snowflake extends AnsiSqlRenderer {
             // in binary, as DuckDB's round (Snowflake's ROUND(FLOAT) rounds the decimal text: 2.675 is 2.68)
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
             // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
-            case ROUND_AS_GIVEN -> writer.function("ROUND", c.args());
+            case ROUND_RAW -> writer.function("ROUND", c.args());
             // DuckDB's // truncates toward zero; x // 0 is NULL (DIV0NULL answers 0, measured)
             case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");

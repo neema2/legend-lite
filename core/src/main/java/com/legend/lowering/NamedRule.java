@@ -39,7 +39,7 @@ public enum NamedRule {
      *  {@code meta::legend::lite::trustOne}). */
     TRUST_ONE,
 
-    /** The target database's own ROUND over the arguments as given ({@code SqlFn.ROUND_AS_GIVEN}, which every dialect
+    /** The target database's own ROUND over the arguments as given ({@code SqlFn.ROUND_RAW}, which every dialect
      *  writes as its plain ROUND): {@code round(x)} as an Integer, {@code round(x, n)} at {@code n} places, a value
      *  exactly halfway going where that database sends it (away from zero on DuckDB and H2: 16.5 to 17). Not the
      *  product's {@code round}, which sends a half to the even neighbour on every database, as Pure does (16.5 to

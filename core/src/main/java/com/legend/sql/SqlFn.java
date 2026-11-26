@@ -147,12 +147,12 @@ public enum SqlFn {
     SAME_IN_ANY_ORDER,
     STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
     ROUND_HALF_UP,
-    /** ROUND_AS_GIVEN(x[, places]): the database's OWN ROUND over the arguments as given (the edition program's step
+    /** ROUND_RAW(x[, places]): the database's OWN ROUND over the arguments as given (the edition program's step
      *  5, 2026-11-26): every relational dialect writes it as its plain ROUND, whatever that database's ROUND does with
      *  a value exactly halfway (away from zero on DuckDB and H2). It is not {@link #ROUND}, Pure's half to even on
      *  every database, nor {@link #ROUND_HALF_UP}, half away from zero on every database. Written by one of the
      *  lowering's named rules ({@code NamedRule.ROUND_AS_GIVEN}), which an edition's table alone names. */
-    ROUND_AS_GIVEN,
+    ROUND_RAW,
     ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,

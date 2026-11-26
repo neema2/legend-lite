@@ -505,7 +505,7 @@ on the delegations lite's answer is legend-engine's own manifest's, to the chara
 generated claims ledger (regenerated); the rest fixed the same day: the guard reads the hosts' doors too and names
 its limit (a class literal is not an access); every row's rule is tested on every overload it maps, in the place of
 the deleted test that compared a row's native's signature with its call's; `round` at a scale is run on H2; and
-the row's rule writes a SQL function of its own, `ROUND_AS_GIVEN`, the database's own ROUND, in the place of
+the row's rule writes a SQL function of its own, `ROUND_RAW`, the database's own ROUND, in the place of
 `ROUND_HALF_UP` (the audit's finding 4, and the corpus's SQL size check, which caught 14 characters a plan: untyped,
 a Float `round(x, 2)` was cast to DOUBLE a second time. Typing `ROUND_HALF_UP` itself was tried and backed out: it
 made twelve of the product's plans for a decimal `divide` larger. The database's own ROUND is also what

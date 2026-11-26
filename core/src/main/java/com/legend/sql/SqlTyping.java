@@ -598,7 +598,7 @@ public final class SqlTyping {
             // ARITHMETIC family — probed rules split to arithType
             // (method-size guard; receipts on each arm there)
             case PLUS, MINUS, TIMES, REM, MOD, NEGATE, ABS,
-                    INT_DIVIDE, ROUND, ROUND_AS_GIVEN, CEILING, FLOOR, SIGN ->
+                    INT_DIVIDE, ROUND, ROUND_RAW, CEILING, FLOOR, SIGN ->
                     arithType(fn, a);
             // error() RAISES — it yields no value and conforms to every
             // slot (§4bZ-U leg 3: the fourth TypeFact variant, replacing
@@ -900,7 +900,7 @@ public final class SqlTyping {
             }
             // the database's own ROUND of a DOUBLE is a DOUBLE (probed where a table names it: DuckDB and H2); of any
             // other operand it is that database's own kind: no fact
-            case ROUND_AS_GIVEN -> {
+            case ROUND_RAW -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }
