@@ -1,0 +1,74 @@
+[setup] mode=compiled repositories=[core_functions_json, core_functions_relation, core_functions_standard, core_functions_unclassified, core_functions_variant, platform, platform_dsl_tds, platform_precise_primitives]
+[setup] loaded in 102168 ms
+[setup] model compiled
+
+[E1] expr=[3, 3.0]->least()
+[E1] compiled result (ImmutableSingletonList, size 1) = [3 <Long>]
+
+[E2] expr=[3.0, 3]->least()
+[E2] compiled result (ImmutableSingletonList, size 1) = [3.0 <Double>]
+
+[E3] expr=[3, 3.0]->greatest()
+[E3] compiled result (ImmutableSingletonList, size 1) = [3.0 <Double>]
+
+[E4] expr=[3.0, 3]->greatest()
+[E4] compiled result (ImmutableSingletonList, size 1) = [3 <Long>]
+
+[E5] expr=[3, 3.0, 'a']->min()
+[E5] compiled result (ImmutableSingletonList, size 1) = [3 <Long>]
+
+[E6] expr=[3.0, 3, 'a']->min()
+[E6] compiled result (ImmutableSingletonList, size 1) = [3.0 <Double>]
+
+[E7] expr=[3, 3.0, 'a']->max()
+[E7] compiled result (ImmutableSingletonList, size 1) = [a <String>]
+
+[E8] expr=[3.0, 3, 'a']->max()
+[E8] compiled result (ImmutableSingletonList, size 1) = [a <String>]
+
+[E9] expr=[3, 3.0]->min()
+[E9] compiled result (ImmutableSingletonList, size 1) = [3.0 <Double>]
+
+[E10] expr=[3.0, 3]->max()
+[E10] compiled result (ImmutableSingletonList, size 1) = [3 <Long>]
+
+[E11a] expr=[%2014-01-01, %2014-01-01T00:00:00]->max()
+[E11a] compiled result (ImmutableSingletonList, size 1) = [2014-01-01T00:00:00+0000 <DateWithSecond>]
+
+[E11b] expr=[%2014-01-01T00:00:00, %2014-01-01]->max()
+[E11b] compiled result (ImmutableSingletonList, size 1) = [2014-01-01T00:00:00+0000 <DateWithSecond>]
+
+[E11c] expr=[%2014-01-01, %2014-01-01T00:00:00]->min()
+[E11c] compiled result (ImmutableSingletonList, size 1) = [2014-01-01 <StrictDate>]
+
+[E11d] expr=[%2014-01-01T00:00:00, %2014-01-01]->min()
+[E11d] compiled result (ImmutableSingletonList, size 1) = [2014-01-01 <StrictDate>]
+
+[E11e] expr=max(%2014-01-01, %2014-01-01T00:00:00)
+[E11e] compiled result (ImmutableSingletonList, size 1) = [2014-01-01T00:00:00+0000 <DateWithSecond>]
+
+[E11f] expr=max(%2014-01-01T00:00:00, %2014-01-01)
+[E11f] compiled result (ImmutableSingletonList, size 1) = [2014-01-01T00:00:00+0000 <DateWithSecond>]
+
+[E11g] expr=min(%2014-01-01, %2014-01-01T00:00:00)
+[E11g] compiled result (ImmutableSingletonList, size 1) = [2014-01-01 <StrictDate>]
+
+[E11h] expr=[%2014-01-01T00:00:00, %2014-01-01]->sort()
+[E11h] compiled result (FastList, size 2) = [2014-01-01 <StrictDate>, 2014-01-01T00:00:00+0000 <DateWithSecond>]
+
+[E11i] expr=compare(%2014-01-01, %2014-01-01T00:00:00)
+[E11i] compiled result (ImmutableSingletonList, size 1) = [-1 <Long>]
+
+[E11j] expr=%2014-01-01 < %2014-01-01T00:00:00
+[E11j] compiled result (ImmutableSingletonList, size 1) = [true <Boolean>]
+
+[E11k] expr=%2014-01-01T00:00:00 < %2014-01-01
+[E11k] compiled result (ImmutableSingletonList, size 1) = [false <Boolean>]
+
+[E11l] expr=[%2014-01-01, %2014-01-01T00:00:00]->least()
+[E11l] compiled result (ImmutableSingletonList, size 1) = [2014-01-01 <StrictDate>]
+
+[E11m] expr=[%2014-01-01T00:00:00, %2014-01-01]->greatest()
+[E11m] compiled result (ImmutableSingletonList, size 1) = [2014-01-01T00:00:00+0000 <DateWithSecond>]
+
+[setup] done in 129090 ms

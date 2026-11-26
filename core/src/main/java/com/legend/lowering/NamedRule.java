@@ -88,9 +88,12 @@ public enum NamedRule {
     SORT_TIES_AS_WRITTEN,
 
     /** {@code max}, {@code min}, {@code greatest} and {@code least} keeping, where several elements hold the winning
-     *  value, the element a left fold keeps: over a LIST the last written of them ({@code [3, 3.0]->max()} is the
-     *  Float, {@code [3.0, 3]->max()} the Integer), of several ARGUMENTS the first ({@code max(3, 3.0)} is the
-     *  Integer). Not the product's, which keeps the element whose type orders it so (the greatest of equal numbers
-     *  the Decimal, then the Float; the least the Integer). */
+     *  value, the element the function's own Pure body keeps. A Number or a date list's {@code max} and {@code min}
+     *  are a left fold: the LAST written of a tie ({@code [3, 3.0]->max()} and {@code [3, 3.0]->min()} are the Float),
+     *  of several ARGUMENTS the first ({@code max(3, 3.0)} is the Integer). The generic {@code max} and {@code min},
+     *  and {@code greatest} and {@code least}, which call them, are an end of a stable sort: the greatest the LAST
+     *  written of a tie, the least the FIRST ({@code [3, 3.0]->least()} is the Integer). Not the product's, which
+     *  keeps the element whose type orders it so (the greatest of equal numbers the Decimal, then the Float; the
+     *  least the Integer). */
     EXTREME_KEEPS_THE_FOLDS_TIE
 }

@@ -331,3 +331,90 @@ In a store query the very same expressions that are `false` store-less (`1->in([
 6. The earlier record `core/src/test/resources/upstream-api/s127-number-equality.txt` is confirmed: engine `1 == 1.0`
    true, CompiledSupport false, interpreted false; what it did not show is that the engine's `true` is the Java `==`
    of two primitive literals only (C10b, A3, D7, D8 are false in the engine).
+
+## Group E: least/greatest, a min/max over a list that is not all numbers, dates (2026-11-26, second run)
+
+These were RUN with the same two probes on the classpaths already on disk, using plain `java` and no Bazel (every jar
+was checked present). The files are `groupE/exprs.tsv` and `groupE/queries.tsv`, with raw output in
+`groupE/raw-interpreted.txt`, `groupE/raw-compiled.txt` and `groupE/raw-engine.txt`. The plans are in `groupE/plans/`.
+Every legend-engine row ran as a store-less `PureExpressionPlatformExecutionNode` (`"_type":"platform"`). The table
+shows the function that node's `pure.fControl` names and the generated Java.
+
+| expr | interpreted | compiled | legend-engine store-less (fControl; gen) |
+|---|---|---|---|
+| E1 `[3, 3.0]->least()` | Integer 3 | Long 3 | Long 3 (`least_X_$1_MANY$__X_1_`; `Library.first(Library.sort(Arrays.<Number>asList(3L, 3.0)))`) |
+| E2 `[3.0, 3]->least()` | Float 3.0 | Double 3.0 | Double 3.0 (`least_X_$1_MANY$__X_1_`; `first(sort(3.0, 3L))`) |
+| E3 `[3, 3.0]->greatest()` | Float 3.0 | Double 3.0 | Double 3.0 (`greatest_X_$1_MANY$__X_1_`; `sort(..).get(size - 1)`) |
+| E4 `[3.0, 3]->greatest()` | Integer 3 | Long 3 | Long 3 |
+| E5 `[3, 3.0, 'a']->min()` | Integer 3 | Long 3 | Long 3 (root `toOne_T_MANY__T_1_`, the generic body inlined: `Library.toOne(Library.first(Library.sort(Arrays.<Object>asList(3L, 3.0, "a"))))`) |
+| E6 `[3.0, 3, 'a']->min()` | Float 3.0 | Double 3.0 | Double 3.0 |
+| E7 `[3, 3.0, 'a']->max()` | String 'a' | String 'a' | String 'a' (`Library.toOne(sort(3L, 3.0, "a").get(size - 1))`) |
+| E8 `[3.0, 3, 'a']->max()` | String 'a' | String 'a' | String 'a' |
+| E9 `[3, 3.0]->min()` (control, B3) | Float 3.0 | Double 3.0 | Double 3.0 (`min_Number_$1_MANY$__Number_1_`; `stream().reduce(Library::min)`) |
+| E10 `[3.0, 3]->max()` (control, B2) | Integer 3 | Long 3 | Long 3 (`max_Number_$1_MANY$__Number_1_`; `reduce(Library::max)`) |
+| E11a `[%2014-01-01, %2014-01-01T00:00:00]->max()` | DateTime 2014-01-01T00:00:00+0000 | DateWithSecond (DateTime) | the DateTime (`max_Date_MANY__Date_$0_1$_`; the compiled Pure fold `Functions__meta_pure_functions_date.max_Date_MANY__Date_$0_1$_`) |
+| E11b `[%2014-01-01T00:00:00, %2014-01-01]->max()` | DateTime | DateTime | DateTime |
+| E11c `[%2014-01-01, %2014-01-01T00:00:00]->min()` | StrictDate 2014-01-01 | StrictDate | StrictDate (`min_Date_MANY__Date_$0_1$_`) |
+| E11d `[%2014-01-01T00:00:00, %2014-01-01]->min()` | StrictDate | StrictDate | StrictDate |
+| E11e `max(%2014-01-01, %2014-01-01T00:00:00)` | DateTime | DateTime | DateTime (the body inlined: `Library.lessThan(day, dateTime) ? dateTime : day`) |
+| E11f `max(%2014-01-01T00:00:00, %2014-01-01)` (extra) | DateTime | DateTime | DateTime |
+| E11g `min(%2014-01-01, %2014-01-01T00:00:00)` (extra) | StrictDate | StrictDate | StrictDate |
+| E11h `[%2014-01-01T00:00:00, %2014-01-01]->sort()` (extra) | [StrictDate, DateTime] | [StrictDate, DateTime] | [StrictDate, DateTime] |
+| E11i `compare(%2014-01-01, %2014-01-01T00:00:00)` (extra) | -1 | -1 | -1 (`Library.compareInt`) |
+| E11j `%2014-01-01 < %2014-01-01T00:00:00` (extra) | true | true | true |
+| E11k `%2014-01-01T00:00:00 < %2014-01-01` (extra) | false | false | false |
+| E11l `[%2014-01-01, %2014-01-01T00:00:00]->least()` (extra) | StrictDate | StrictDate | StrictDate (`least`; `first(sort(..))`) |
+| E11m `[%2014-01-01T00:00:00, %2014-01-01]->greatest()` (extra) | DateTime | DateTime | DateTime |
+
+legend-engine prints a date's Java class as its own `PureDate`. Its type is read from the printed text: `2014-01-01`
+is a day and `2014-01-01T00:00:00` a date-time, the same values the two legend-pure modes print with their types.
+
+**All three runtimes agree on every row of group E. Nothing was refused.**
+- **The Number overload keeps the LAST tie; the generic overload keeps the FIRST written.**
+  - Over a list typed Number, `min`/`max` pick the Number overload, a fold that keeps the LAST tied element. E9 gives
+    the Float 3.0 from `[3, 3.0]`; E10 gives the Integer 3 from `[3.0, 3]`.
+  - `least`/`greatest` call the generic `min<X>`/`max<X>`, which are `sort()->first()` / `sort()->last()`. A stable
+    sort keeps a tie in the order written, so `least` gives the FIRST written (E1 Integer 3, E2 Float 3.0) and
+    `greatest` gives the LAST written (E3 Float 3.0, E4 Integer 3).
+  - So `[3, 3.0]->min()` is the Float 3.0 while `[3, 3.0]->least()` is the Integer 3, in all three runtimes.
+- **A list that is not all numbers takes the generic overload.**
+  - Its element type is Any, so the Number overload does not apply. legend-engine's plan shows the generic body
+    inlined. For legend-pure I infer the overload from the signatures and the matching answers; it was not printed.
+  - The list sorts numbers before strings, so `min` is the first-written of the tied numbers (E5 Integer 3, E6
+    Float 3.0) and `max` is the String 'a' (E7, E8).
+- **The dates are not a tie at all.**
+  - `compare(%2014-01-01, %2014-01-01T00:00:00)` is -1 in every runtime.
+  - The day starts at the same instant as the midnight date-time but ends later, so it is the SMALLER one
+    (legend-pure's `lessThan.pure:177-198`, quoted below).
+  - So `max` of the pair is always the DateTime and `min` always the StrictDate, whatever the order (E11a-g). Each
+    keeps its own type.
+
+### The bodies, read
+All paths below are under `LE/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-standard/legend-engine-pure-functions-standard-pure/src/main/resources/core_functions_standard/`.
+Each of the six files is byte-identical to the copy inside the pinned jar
+`legend-engine-pure-functions-standard-pure-4.145.0.jar` (checked with `unzip -p | diff`).
+
+- **`collection/min.pure`**
+  - `:17-25` `meta::pure::functions::collection::min<X>(values : X[1..*]):X[1] { $values->sort()->first()->toOne(); }`, doc: "min returns smallest value from the list by type order".
+  - `:27-35` `min<X>(values : X[*]):X[0..1] { $values->sort()->first(); }`.
+  - `:37-45` `min<T>(col:T[1..*], comp:...) { $col->tail()->fold({v, m | if($comp->eval($v, $m) < 0, | $v, | $m)}, $col->at(0)) }`. With a comparator, a tie keeps the accumulator, which is the FIRST element.
+- **`collection/max.pure`**
+  - `:17-25` `max<X>(values : X[1..*]):X[1] { $values->sort()->last()->toOne(); }`.
+  - `:27-35` `max<X>(values : X[*]):X[0..1] { $values->sort()->last(); }`.
+  - `:37-45` `max<T>(col, comp) { $col->tail()->fold({v, m | if($comp->eval($v, $m) > 0, | $v, | $m)}, $col->at(0)) }`.
+- **`collection/least.pure`**
+  - `:17-25` `least<X>(values : X[*]):X[0..1] { min($values); }`.
+  - `:27-35` `least<X>(values : X[1..*]):X[1] { min($values); }`. Inside a generic function `$values` is `X`, so this calls the generic `min<X>`.
+- **`collection/greatest.pure`**
+  - `:17-25` `greatest<X>(values : X[1..*]):X[1] { max($values); }`.
+  - `:27-35` `greatest<X>(values : X[*]):X[0..1] { max($values); }`.
+- **For comparison, the Number overloads** (`math/aggregator/max.pure:27-30, 52-60`; `min.pure:27-30, 52-60`; quoted in group B): `max(left:Number[1], right:Number[1]) { if($left < $right, | $right, | $left) }` and `max(numbers:Number[1..*]) { $numbers->fold({n, m | max($n, $m)}, $numbers->at(0)) }`. A tie returns `n`, the later element.
+- **`date/aggregator/max.pure`**
+  - `:17-20` `max(left:Date[1], right:Date[1]):Date[1] { if($left < $right, | $right, | $left) }`. `:22-25` is the StrictDate form and `:27-30` the DateTime form, with the same body.
+  - `:37-39` `max(dates:Date[*]):Date[0..1] { $dates->fold({n, m | max($n, $m->toOne())}, $dates->first()) }` and `:47-49` `max(dates:Date[1..*]):Date[1] { $dates->fold({n, m | max($n, $m)}, $dates->at(0)) }`.
+  - The StrictDate (`:57-59`, `:67-69`) and DateTime (`:77-79`, `:87-89`) list forms are the same fold. Their doc strings say "returns smallest" although they are `max`.
+- **`date/aggregator/min.pure`**
+  - `:17-30` `min(left, right) { if($right < $left, | $right, | $left) }` for Date, StrictDate and DateTime.
+  - `:37-39`, `:47-49`, `:57-59`, `:67-69`, `:77-79`, `:87-89` are the list folds `{n, m | min($n, $m)}`.
+  - Like the Number folds, a true tie in these date folds would keep the LATER element. The E11 pair is not a tie.
+- **legend-pure's date ordering** (`LP/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/boolean/inequality/lessThan.pure:177-198`): "it is true when `left` starts strictly before the start of `right`, or when they start at the same time and `left` ends strictly after the end of `right`" ... `%2015 < %2015-01-01 // true, both start together but %2015 ends later`. The body is `compare($left, $right) < 0`.
