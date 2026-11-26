@@ -18,13 +18,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * ExecuteInDbDuckDbTest's cases on the compatibility edge's road (F's census line A5, 2026-11-17: split out so the
  * product's test names no edge class; Phase 6's B4 (ii)): the engine's H2 text translated for the DuckDB session
- * ({@code PureText.DuckDb.raw}: keyword column quoting, H2's FLOAT as DOUBLE), DuckDB's own text as written.
+ * ({@code HarnessText.DuckDb.raw}: keyword column quoting, H2's FLOAT as DOUBLE), DuckDB's own text as written. The
+ * translation is the tests' harness's since 2026-11-26 (the edition program's step 9, slice 2), so the road is the
+ * edge's style in the harness's dialects ({@code HarnessText.UPSTREAM}).
  */
 class ExecuteInDbDuckDbEdgeTest {
 
-    /** The compatibility edge's road. */
+    /** The compatibility edge's road, in the tests' harness's dialects. */
     private static final com.legend.ExecuteOptions EDGE =
-            com.legend.ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM);
+            com.legend.ExecuteOptions.NONE.withStyle(com.legend.edge.HarnessText.UPSTREAM);
 
     private Connection conn;
 
