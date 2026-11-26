@@ -13,8 +13,8 @@ package com.legend.resolver;
  *                    of the functions they call), and the qualified properties a graph fetch reads off a class such a
  *                    mapping makes
  */
-public record OutsideStore(boolean constraints, boolean transforms) {
+public record StampedCode(boolean constraints, boolean transforms) {
 
     /** Nothing stamped: the product's, and every road that plans for no door's edition. */
-    public static final OutsideStore NONE = new OutsideStore(false, false);
+    public static final StampedCode NONE = new StampedCode(false, false);
 }

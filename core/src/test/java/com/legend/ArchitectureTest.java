@@ -1509,7 +1509,7 @@ final class ArchitectureTest {
             // the model's and the mappings' code it stamps as outside any store query; the edge's plan text passes
             // none. The same entry and caller, re-keyed by its signature)
             "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, "
-                    + "com.legend.resolver.OutsideStore)",
+                    + "com.legend.resolver.StampedCode)",
             "com.legend.edge.EnginePlans",
             "planner.PlanEnv#ctx()",
             "com.legend.edge.EngineAllocations com.legend.edge.EnginePlans com.legend.edge.PlanEnvelope",

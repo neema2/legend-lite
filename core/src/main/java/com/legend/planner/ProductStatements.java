@@ -157,9 +157,9 @@ public final class ProductStatements {
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
                 PlanTextRoutines.of(specs, env)));
         // the stamp on the model's and the mappings' code: the door's edition says which its audience's own Java runs
-        com.legend.resolver.OutsideStore outside = !edition.stampsOutsideStore()
-                ? com.legend.resolver.OutsideStore.NONE
-                : new com.legend.resolver.OutsideStore(edition.constraintsOutsideStore(),
+        com.legend.resolver.StampedCode outside = !edition.stampsOutsideStore()
+                ? com.legend.resolver.StampedCode.NONE
+                : new com.legend.resolver.StampedCode(edition.constraintsOutsideStore(),
                         edition.transformsOutsideStore(
                                 reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedGraphFetch),
                                 reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom f
