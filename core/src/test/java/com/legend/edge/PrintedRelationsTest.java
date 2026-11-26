@@ -104,6 +104,30 @@ class PrintedRelationsTest {
         assertNull(PrintedRelations.lift(typed("|'a'->toString()->length()"), true));
     }
 
+    /** A DateTime's print (the edition program's step 8, 2026-11-26): at legend-pure's doors the toString of a
+     *  DateTime that is no literal is lifted, the program that remains computing the instant. A literal's is not,
+     *  where it stands or through the let it is bound to: legend-pure prints it at its written precision, which the
+     *  lowering writes as a constant. A value whose declared type is the abstract Date is not a DateTime. */
+    @Test
+    void aDateTimesToStringIsLiftedUnlessItIsALiteral() {
+        String computed = "%2014-01-01T10:20:30.250+0000->adjust(1, meta::pure::functions::date::DurationUnit.HOURS)"
+                + "->cast(@DateTime)";
+        PrintedRelations.Lifted lifted = PrintedRelations.lift(typed("|" + computed + "->toString()->length()"), true);
+        assertNotNull(lifted);
+        assertEquals(PureRelationTextWriter.Form.VALUE, lifted.form());
+        assertEquals(List.of(new PrintTail.Length()), lifted.tail());
+        assertEquals(typed("|" + computed).resultType(), lifted.relation().resultType());
+        // through a let that binds a computed value: lifted; through one that binds a literal: not
+        assertNotNull(PrintedRelations.lift(typed("{|let d = " + computed + "; $d->toString();}"), true));
+        assertNull(PrintedRelations.lift(typed("{|let d = %2014-01-01T00:00:00.000+0000; $d->toString();}"), true));
+        assertNull(PrintedRelations.lift(typed("|%2014-01-01T00:00:00.000+0000->toString()"), true));
+        // legend-engine's door's rule lifts no value; the abstract Date and a StrictDate are not lifted
+        assertNull(PrintedRelations.lift(typed("|" + computed + "->toString()")));
+        assertNull(PrintedRelations.lift(typed("|%2014-01-01T10:20:30+0000->adjust(1,"
+                + " meta::pure::functions::date::DurationUnit.HOURS)->toString()"), true));
+        assertNull(PrintedRelations.lift(typed("|%2014-01-01->toString()"), true));
+    }
+
     /** A relation's column named csv is that column's cells, never the TDS's csv (the review of d6e94cdfe, 2026-11-25:
      *  the TDS class's csv is String[1], a column read [*]; PlatformTypes.isTdsCsvRead): not lifted. */
     @Test

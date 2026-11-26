@@ -62,6 +62,31 @@ class PctPlanRoutePrintTest {
                 "|#TDS\n  i:Integer\n  1\n#->toString()->replace('\\n', ';')->startsWith('#TDS;')").rows().rows());
     }
 
+    /** A DateTime that is no literal, printed at a last step at legend-pure's door (the edition program's step 8,
+     *  2026-11-26): its seconds, the fraction without its trailing zeros (none: no point), and {@code +0000} -- the
+     *  text the edge's SQL composition wrote until then ({@code edge.PureDateTimePrint}; these answers were first
+     *  run against that SQL, then against the Java print that replaced it, {@code edge.PureValueText}). A literal is
+     *  its written text, at its written precision, as legend-pure prints it. */
+    @Test
+    void aFinalDateTimeToStringThatIsNoLiteralIsItsSecondsAndTrimmedFraction() throws Exception {
+        java.util.Map<String, String> answers = new java.util.LinkedHashMap<>();
+        answers.put("|%2014-01-01T00:00:00.000+0000->toString()", "2014-01-01T00:00:00.000+0000");
+        answers.put("|%2014-01-01T00:00:00.000+0000->adjust(1, meta::pure::functions::date::DurationUnit.DAYS)->cast(@DateTime)"
+                + "->toString()", "2014-01-02T00:00:00+0000");
+        answers.put("|%2014-01-01T10:20:30.250+0000->adjust(1, meta::pure::functions::date::DurationUnit.HOURS)->cast(@DateTime)"
+                + "->toString()", "2014-01-01T11:20:30.25+0000");
+        answers.put("|%2014-01-01T10:20:30.123456+0000->adjust(2, meta::pure::functions::date::DurationUnit.SECONDS)->cast(@DateTime)"
+                + "->toString()", "2014-01-01T10:20:32.123456+0000");
+        answers.put("|%2014-01-01T10:20:30.123+0000->adjust(1, meta::pure::functions::date::DurationUnit.DAYS)->cast(@DateTime)"
+                + "->toString()->length()", "28");
+        answers.put("{|let d = %2014-01-01T00:00:00.000+0000; $d->toString();}", "2014-01-01T00:00:00.000+0000");
+        java.util.Map<String, String> got = new java.util.LinkedHashMap<>();
+        for (String query : answers.keySet()) {
+            got.put(query, String.valueOf(PctPlanRoute.execute("", query).rows().rows().get(0).get(0)));
+        }
+        assertEquals(answers, got);
+    }
+
     /** A MIXED SELECTION IN A COLUMN (the review of 6fc717f9f, 2026-11-24, asked whether the door lifts a print the
      *  edge's SQL text answered): a relation whose column holds a mixed max is refused by name on both roads today --
      *  the lifted print (the relation run alone) and a print the door does not lift (the edge's SQL text, here a

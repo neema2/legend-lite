@@ -249,6 +249,29 @@ class PureRelationTextTest {
         assertThrows(com.legend.error.NotImplementedException.class, integer::end);
     }
 
+    /** A DateTime the database computed, printed at a last step (the edition program's step 8, 2026-11-26): its
+     *  seconds, the fraction without its trailing zeros (none: no point), and {@code +0000}, the text the edge's SQL
+     *  composition wrote until then. A day alone is no DateTime's value: refused by name. */
+    @Test
+    void aComputedDateTimeIsItsSecondsAndTrimmedFraction() {
+        ExecutionPlan.Column at = new ExecutionPlan.Column("value", "DateTime", new ExecutionPlan.Multiplicity(1, 1),
+                "TIMESTAMP", null, null);
+        java.util.Map<String, String> texts = new java.util.LinkedHashMap<>();
+        texts.put("2014-01-02T00:00:00.000000000", "2014-01-02T00:00:00+0000");
+        texts.put("2014-01-01T11:20:30.250000000", "2014-01-01T11:20:30.25+0000");
+        texts.put("2014-01-01T10:20:32.123456000", "2014-01-01T10:20:32.123456+0000");
+        texts.put("2014-01-01T10:20:32.000000001", "2014-01-01T10:20:32.000000001+0000");
+        texts.put("2014-01-01T10:20:30", "2014-01-01T10:20:30+0000");
+        texts.put("2014-01-01T10:20", "2014-01-01T10:20:00+0000");
+        for (var e : texts.entrySet()) {
+            assertEquals(e.getValue(), PureValueText.value(com.legend.values.PureDateLiteral.parse(e.getKey()), at),
+                    e.getKey());
+        }
+        assertThrows(com.legend.error.NotImplementedException.class,
+                () -> PureValueText.value(com.legend.values.PureDateLiteral.parse("2014-01-01"), at));
+        assertThrows(com.legend.error.NotImplementedException.class, () -> PureValueText.value("2014-01-01", at));
+    }
+
     /** A batch of one row of one cell. */
     private static com.legend.result.Batch one(ExecutionPlan.Column column, Object cell) {
         com.legend.result.Batch.Builder b = com.legend.result.Batch.builder(List.of(column), 1);

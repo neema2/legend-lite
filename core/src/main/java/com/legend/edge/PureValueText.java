@@ -82,7 +82,26 @@ final class PureValueText {
         if (c.type().equals("Float")) {
             return asFloat(v, c);
         }
+        if (c.type().equals("DateTime") && v instanceof PureDateLiteral d
+                && d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
+            return dateTime(d);
+        }
         throw refused("value toString", v, c);
+    }
+
+    /** A DateTime the database computed, as the edge prints one that is no literal: its seconds, the fraction without
+     *  its trailing zeros (none: no point), and {@code +0000} -- the text the edge's SQL composition wrote until the
+     *  edition program's step 8, 2026-11-26 ({@code PureDateTimePrint}; held equal to it by PCT's route test before
+     *  that SQL was deleted). legend-pure prints a DateTime at the precision its VALUE carries, which an instant from
+     *  a database does not: this is the nearest rule, the one the SQL had. */
+    static String dateTime(PureDateLiteral d) {
+        String nine = d.toNineDigits();
+        int point = nine.length() - 10;
+        int end = nine.length();
+        while (end > point + 1 && nine.charAt(end - 1) == '0') {
+            end--;
+        }
+        return nine.substring(0, end == point + 1 ? point : end) + "+0000";
     }
 
     /** {@code v} under a Float type, as the double it is declared (an integer or a decimal the database held it in). */

@@ -84,8 +84,14 @@ public final class PrintedRelations {
      *  a call outside the closed set, or one of it with an argument that is no literal, ends the tail, and what is
      *  beneath must be a print -- a relation's, or with {@code values} (legend-pure's doors) a value's -- else null. */
     public static @com.legend.base.Nullable Side side(TypedSpec e, boolean values) {
+        return side(e, values, List.of());
+    }
+
+    /** {@link #side(TypedSpec, boolean)} where {@code e} stands after {@code lets}, the statements before it: a value
+     *  that is a literal through the let it is bound to is a literal ({@link #printed}). */
+    public static @com.legend.base.Nullable Side side(TypedSpec e, boolean values, List<TypedSpec> lets) {
         List<PrintTail> tail = new ArrayList<>();
-        Printed printed = printed(PrintTail.beneath(e, tail), values);
+        Printed printed = printed(PrintTail.beneath(e, tail), values, lets);
         return printed == null ? null : new Side(printed.relation(), printed.form(), tail);
     }
 
@@ -101,7 +107,7 @@ public final class PrintedRelations {
         if (body.isEmpty()) {
             return null;
         }
-        Side side = side(body.get(body.size() - 1), values);
+        Side side = side(body.get(body.size() - 1), values, body.subList(0, body.size() - 1));
         if (side == null) {
             return null;
         }
@@ -117,17 +123,29 @@ public final class PrintedRelations {
     private record Printed(TypedSpec relation, PureRelationTextWriter.Form form) {
     }
 
-    /** {@code e} as a print the printer writes, or null: a relation's, or with {@code values} a Float's
-     *  {@code toString}. Only a relation whose columns the compiler knows is lifted ({@link #knownColumns}); the
-     *  lowering's own special shapes stay the run's. */
-    private static @com.legend.base.Nullable Printed printed(TypedSpec e, boolean values) {
+    /** {@code e} as a print the printer writes, or null: a relation's, or with {@code values} the {@code toString}
+     *  of a Float or of a DateTime that is no literal. Only a relation whose columns the compiler knows is lifted
+     *  ({@link #knownColumns}); the lowering's own special shapes stay the run's. */
+    private static @com.legend.base.Nullable Printed printed(TypedSpec e, boolean values, List<TypedSpec> lets) {
         if (e instanceof TypedNativeCall c) {
             String name = c.callee().qualifiedName();
             // a value's toString at legend-pure's doors (the edition program's step 8, 2026-11-26): a Float's, printed
             // by legend-pure's rule in Java from the double the database computed (PureValueText.value)
-            if (values && name.equals(PlatformTypes.TO_STRING) && c.args().size() == 1
-                    && c.args().get(0).info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-                return new Printed(c.args().get(0), PureRelationTextWriter.Form.VALUE);
+            if (values && name.equals(PlatformTypes.TO_STRING) && c.args().size() == 1) {
+                TypedSpec operand = c.args().get(0);
+                com.legend.compiler.element.type.Type type = operand.info().type();
+                if (type == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+                    return new Printed(operand, PureRelationTextWriter.Form.VALUE);
+                }
+                // a DateTime's too, from the instant the database computed. Not a literal's, where it stands or
+                // through the let it is bound to: legend-pure prints a literal at its WRITTEN precision
+                // (%2014-01-01T00:00:00.00 prints '.00'), which no instant carries, so its text stays the constant
+                // the lowering writes (edge.EdgeDateTimeTexts)
+                if (type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
+                        && !(com.legend.compiler.spec.typed.Lets.bound(operand, lets)
+                                instanceof com.legend.compiler.spec.typed.TypedCDate)) {
+                    return new Printed(operand, PureRelationTextWriter.Form.VALUE);
+                }
             }
             if (c.args().isEmpty() || !knownColumns(c.args().get(0))) {
                 return null;

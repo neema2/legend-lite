@@ -77,8 +77,9 @@ public final class UpstreamPrints {
     /** {@code e} read as a printed side: a relation's print or, where {@code lastStep} (the side is an assert's own
      *  argument) and the harnesses being legend-pure's own runs of the test's code, a value's
      *  ({@link PrintedRelations#side(TypedSpec, boolean)}). */
-    private static PrintedRelations.@com.legend.base.Nullable Side side(TypedSpec e, boolean lastStep) {
-        return PrintedRelations.side(e, lastStep);
+    private static PrintedRelations.@com.legend.base.Nullable Side side(TypedSpec e, boolean lastStep,
+            List<TypedSpec> lets) {
+        return PrintedRelations.side(e, lastStep, lets);
     }
 
     /** Whether {@code n} is an assert: a call whose arguments are sides a judge compares. */
@@ -155,7 +156,7 @@ public final class UpstreamPrints {
         if (u != null) {
             return u;
         }
-        PrintedRelations.Side p = side(n, assertArgument);
+        PrintedRelations.Side p = side(n, assertArgument, lets);
         if (p != null) {
             // a relation whose order the program does not define arrives in the database's order: its text is compared
             // line by line in any order where an assertEquals compares it with a golden (above), and left as written
@@ -285,7 +286,7 @@ public final class UpstreamPrints {
             // each side where it stands or through the let it is bound to (the review of step 2b, item 2)
             // a relation's print alone: a value's has no row order
             PrintedRelations.Side p = side(
-                    com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets), false);
+                    com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets), false, lets);
             String golden = UpstreamTestBodies.literalText(
                     com.legend.compiler.spec.typed.Lets.bound(call.args().get(1 - side), lets));
             if (p == null || golden == null || !readable(p.relation(), lets) || !incidental(p, lets)) {
