@@ -355,6 +355,23 @@ class TaggedListTest {
         }
     }
 
+    @Test
+    void aValueTypedOnlyAtRunTimeComparesByTheTypeItHolds() throws Exception {
+        // slice 6.2: a value whose static type names no kind (Number, Any, the abstract Date) was refused against a
+        // mixed list ("whose kind only its runtime value names"); it compares by the type it holds where that is
+        // known -- an upcast is the value as it is, so its kind is the kind of what was cast
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(true, value(c, "|[1, 'a']->contains(1->cast(@Number))"));
+            assertEquals(false, value(c, "|[1.0, 'a']->contains(1->cast(@Number))"));
+            assertEquals(true, value(c, "|1.5->cast(@Number)->in([1.5, 'a'])"));
+            assertEquals(false, value(c, "|1.5->cast(@Number)->in([1.5D, 'a'])"));
+            assertEquals(true, value(c, "|[%2014-01-01, 'a']->contains(%2014-01-01->cast(@Date))"));
+            assertEquals(false, value(c, "|[%2014-01-01T00:00:00, 'a']->contains(%2014-01-01->cast(@Date))"));
+            assertEquals(true, value(c, "|['a', 1]->contains('a'->cast(@Any))"));
+            assertEquals(false, value(c, "|['1', 2]->contains(1->cast(@Any))"));
+        }
+    }
+
     /** A failing multiset over a raw grid fails under each judge, the database judge deciding it (2026-11-04, the core
      *  program: a keyed verdict step; until then the database judge refused the body and, under BOTH, the host decided
      *  alone). A raw grid's order is incidental, so each comparison is a multiset. The words agree where the canon's

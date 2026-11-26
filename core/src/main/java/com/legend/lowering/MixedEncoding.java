@@ -452,6 +452,55 @@ final class MixedEncoding {
         return enumerationOf(t);
     }
 
+    /**
+     * The kind of a value compared with a tagged value or list, where its static type may name none: its static kind
+     * ({@link #kindOf}); the kind of what an UPCAST asserts over (a widening cast is the value as it is,
+     * {@code CastPolicy}: {@code 1->cast(@Number)} is the Integer); and, for a value typed Number, Any or the abstract
+     * Date that is a relation's COLUMN, the kind the column's own SQL type names -- a column holds one type, so the
+     * column fixes it (the user's ruling of 2026-11-25, "runtime compare is fine": a value typed only at run time
+     * whose column fixes its type is compared by the column's type; slice 6.2 of the edition program's step 6).
+     * Null for any other shape of such a type (a CASE, a COALESCE, arithmetic, a parameter): there the SQL type is a
+     * PROMOTION of the branches' types or unknown, never the value's own, and the caller refuses by name.
+     */
+    static @com.legend.base.Nullable String kindOfValue(TypedSpec spec, SqlExpr value) {
+        String fixed = kindOf(spec);
+        if (fixed != null) {
+            return fixed;
+        }
+        Type t = spec.info().type();
+        boolean open = t == Type.Primitive.NUMBER || t == Type.Primitive.DATE
+                || t instanceof Type.ClassType ct && PlatformTypes.isAny(ct);
+        if (!open) {
+            return null;
+        }
+        if (spec instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire()
+                && c.target().equals(t) && (CastPolicy.isWidening(c.source().info().type(), t)
+                        || t instanceof Type.ClassType)) {
+            return kindOfValue(c.source(), value);
+        }
+        if (value instanceof SqlExpr.Column column && column.type() instanceof com.legend.sql.TypeFact.Typed typed) {
+            return kindName(Type.kindOfSqlType(typed.type()));
+        }
+        return null;
+    }
+
+    /** The tagged kind a primitive names, of the seven a channel carries; null for any other. */
+    private static @com.legend.base.Nullable String kindName(@com.legend.base.Nullable Type kind) {
+        if (!(kind instanceof Type.Primitive p)) {
+            return null;
+        }
+        return switch (p) {
+            case INTEGER -> "Integer";
+            case FLOAT -> "Float";
+            case DECIMAL -> "Decimal";
+            case STRING -> "String";
+            case BOOLEAN -> "Boolean";
+            case STRICT_DATE -> "StrictDate";
+            case DATE_TIME -> "DateTime";
+            case BYTE, STRICT_TIME, NUMBER, DATE, LATEST_DATE -> null;
+        };
+    }
+
     /** The abstract Enum declaration ({@link #enumerationOf}). */
     private static final String ABSTRACT_ENUM = "meta::pure::metamodel::type::Enum";
 
