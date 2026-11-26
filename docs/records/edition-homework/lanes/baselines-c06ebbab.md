@@ -189,3 +189,14 @@ and still to shrink.
 
 The audit's fixes came after `29f58b21`; they change legend-engine's door alone, and are checked here by the edge
 tests, the guards and a second full round.
+
+## Postgres and Trino, rounds 3 and 4 (2026-11-26)
+
+- **Round 3, `d9c16617`** (the Postgres Standard targets only): channel B passes with the new ledger row for
+  `testFloatStdDev` (register S421); channel A's row did not match, because channel A's message has a newline after
+  the expected value where channel B's has a comma. The row was rewritten in the runner's own spelling.
+- **Round 4, `212b167c`** (both databases, both channels, against round 2 at `29f58b21`): all four targets pass.
+  Postgres Standard on channel A is 205 of 205 with the new row. Nothing else moved: every channel B line with its
+  message, channel A's failure lines, the counts of executed expressions and the logged result rows are the same in
+  all ten suites (only `generateGuid`'s fresh values differ). `212b167c` holds the step that makes the door's table
+  decide which checks are written; PCT hands lite's edition, so this is the expected result.
