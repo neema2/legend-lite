@@ -14,7 +14,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * LEGEND-ENGINE'S OWN TESTS' STYLE ({@link PureText#ENGINE_TESTS}; the edition program's step 3, 2026-11-26): a test
@@ -49,6 +51,9 @@ class EngineTestsStyleTest {
 
     private static final String NAMES = "x::Firm.all()->project([f|$f.name], ['name'])";
 
+    /** The mark every raise lite writes carries in its SQL text. */
+    private static final String RAISE = "LG#";
+
     /** {@code body}'s plan under {@code style}, as text: the body admitted as legend-engine's runners read it. */
     private static String planned(String body, PlanStyle style) {
         TypedQuery typed = UpstreamTestBodies.admitted(Compiler.query(Compiler.compileModel(MODEL), body));
@@ -62,6 +67,9 @@ class EngineTestsStyleTest {
         String body = "{| let r = " + executed("x::Firm.all()->filter(f|$f.name->substring(1, 3) == 'cm')"
                 + "->project([f|$f.name], ['name'])") + ";\n$r.values->filter(x|$x.name == 'Acme');}";
         assertNotEquals(planned(body, PureText.UPSTREAM), planned(body, PureText.ENGINE_TESTS));
+        // lite's substring writes Pure's range check, a raise; legend-engine's is the database's own, with none
+        assertTrue(planned(body, PureText.UPSTREAM).contains(RAISE), "lite's edition checks the range");
+        assertFalse(planned(body, PureText.ENGINE_TESTS).contains(RAISE), "legend-engine's writes no check");
     }
 
     @Test
@@ -76,12 +84,10 @@ class EngineTestsStyleTest {
             + " independent audit of 2026-11-26, finding 1: the corpus writes most of its queries this way)")
     void aQueryBoundByALetIsLegendEngines() {
         String query = "x::Firm.all()->filter(f|$f.name->substring(1, 3) == 'cm')->project([f|$f.name], ['name'])";
-        String inline = "{| let r = " + executed(query) + ";\n$r.values->filter(x|$x.name == 'Acme');}";
         String bound = "{| let q = {|" + query + "};\nlet r = meta::pure::router::execute($q, x::M,"
                 + " x::RT.runtimeValue, []);\n$r.values->filter(x|$x.name == 'Acme');}";
-        assertNotEquals(planned(bound, PureText.UPSTREAM), planned(bound, PureText.ENGINE_TESTS));
-        // and it is the same plan as the query written in place
-        assertEquals(planned(inline, PureText.ENGINE_TESTS), planned(bound, PureText.ENGINE_TESTS));
+        assertTrue(planned(bound, PureText.UPSTREAM).contains(RAISE), "lite's edition checks the range");
+        assertFalse(planned(bound, PureText.ENGINE_TESTS).contains(RAISE), "legend-engine's writes no check");
     }
 
     @Test
