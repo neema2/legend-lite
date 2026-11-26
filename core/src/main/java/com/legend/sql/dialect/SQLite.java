@@ -1475,6 +1475,16 @@ public class SQLite extends AnsiSqlRenderer {
                     + " instr(__i0.t, '.') > 0 THEN substr(" + f + ", 1, length(" + f + ") - length(ltrim(" + f
                     + ", '0123456789'))) ELSE '' END AS d FROM (SELECT ").piece(t).append(" AS t) AS __i0) AS __it)");
         }
+        if ((target == SqlType.Scalar.TIMESTAMP || target == SqlType.Scalar.TIMESTAMPTZ)
+                && c.reason() == SqlExpr.Reason.USER && v instanceof SqlExpr.StringLit written) {
+            // a constant text the PROGRAM wrote, read as a date-time (a parse of a zoned text: the lowering's cast):
+            // spelled when the plan is made, where it is in a shape the statement would read. A loaded cell's cast
+            // (DECLARED) is the database's to read, as ruled (2026-11-10: Java parses no cell)
+            String constant = constantInstant(written.value(), true, true);
+            if (constant != null) {
+                return writer.append(constant);
+            }
+        }
         if (target == SqlType.Scalar.DATE && judged(c)) {
             // a judged day: SQLite's date() of its text, or, for a year outside 0000 to 9999 where date() answers NULL,
             // the text's own day (the precision audit's H2, 2026-11-22)
@@ -1616,7 +1626,7 @@ public class SQLite extends AnsiSqlRenderer {
             case TIMESTAMPTZ -> from == SqlType.Scalar.DATE
                     ? w -> w.append("(").piece(value).append(" || ' 00:00:00')")
                     : from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
-                            ? instantOf(w -> w.append("(SELECT ").piece(utcOf(w2 -> w2.append("__u.t")))
+                            ? instantRead(w -> w.append("(SELECT ").piece(utcOf(w2 -> w2.append("__u.t")))
                                     .append(" FROM (SELECT ").piece(padded(dateTimeText(value)))
                                     .append(" AS t) AS __u)"))
                     : value;
@@ -2696,41 +2706,57 @@ public class SQLite extends AnsiSqlRenderer {
                 .append(" AS t) AS __i0) AS __it)");
     }
 
-    /** A date or date-time written in full ISO shape (its spaces trimmed, a 'T' or a space between day and time): what
-     *  {@link #parsedDate} answers for it when it is a real day and time, else no match. */
+    /** A date or date-time a program wrote as a constant text (its spaces trimmed, a 'T' or a space between day and
+     *  time), in the shapes the statement's own reading takes: a day whose fields may be unpadded ({@link #padded}),
+     *  then optionally its time, and after a time an offset from UTC as {@link #utcOf} reads one ({@code Z},
+     *  {@code +HH:MM}, {@code +HHMM}). */
     private static final java.util.regex.Pattern PARSED_LITERAL = java.util.regex.Pattern.compile(
-            "(\\d{4})-(\\d{2})-(\\d{2})(?:[ T](\\d{2})(?::(\\d{2})(?::(\\d{2})(?:\\.\\d{1,9})?)?)?)?");
+            "(\\d{1,4})-(\\d{1,2})-(\\d{1,2})(?:[ T](\\d{2})(?::(\\d{2})(?::(\\d{2})(\\.\\d{1,9})?)?)?"
+                    + "(Z|[+-]\\d{2}:?\\d{2})?)?");
 
-    /** The text {@link #parsedDate} answers for the CONSTANT text {@code text}, spelled when the plan is made (a
-     *  constant's spelling, as a date-time literal's is: no SQL at run), or null where the database must read it: a
-     *  text in any other shape (unpadded fields, an offset, more digits), or one that is no real day or time, which
-     *  the statement reads and raises on as it does a row's. A day is its ten characters; a day and time the one text
-     *  of its instant ({@link #timestampLit}). */
-    private @com.legend.base.Nullable String parsedLiteral(String text) {
+    /** The text this dialect holds for the CONSTANT text {@code text} read as a date or date-time, spelled when the
+     *  plan is made (a constant's spelling, as a date-time literal's is: no SQL at run), or null where the database
+     *  must read it: a text in any other shape, or one that is no real day, time or offset, which the statement reads
+     *  and raises on as it does a row's. A day is its ten characters ({@code midnight}: its midnight, a cast to a
+     *  date-time's); a day and time the one text of its instant ({@link #timestampLit}, an offset applied).
+     *  {@code zoned}: whether an offset may follow (a parse's text has none: the lowering reads a zoned one through
+     *  a cast). */
+    private @com.legend.base.Nullable String constantInstant(String text, boolean zoned, boolean midnight) {
         // the statement's trim() strips spaces alone (a tab or a line end is no part of a date, and raises there)
-        String t = text.replaceAll("^ +| +$", "");
-        java.util.regex.Matcher m = PARSED_LITERAL.matcher(t);
-        if (!m.matches()) {
+        java.util.regex.Matcher m = PARSED_LITERAL.matcher(text.replaceAll("^ +| +$", ""));
+        if (!m.matches() || (m.group(8) != null && !zoned)) {
             return null;
         }
+        String offset = m.group(8);
         try {
             java.time.LocalDate.of(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)),
                     Integer.parseInt(m.group(3)));
             java.time.LocalTime.of(m.group(4) == null ? 0 : Integer.parseInt(m.group(4)),
                     m.group(5) == null ? 0 : Integer.parseInt(m.group(5)),
                     m.group(6) == null ? 0 : Integer.parseInt(m.group(6)));
+            if (offset != null && !offset.equals("Z")) {
+                java.time.LocalTime.of(Integer.parseInt(offset.substring(1, 3)),
+                        Integer.parseInt(offset.substring(offset.length() - 2)));
+            }
         } catch (java.time.DateTimeException notADate) {
             return null;
         }
-        return m.group(4) == null ? dateLit(t) : timestampLit(t);
+        String day = String.format(Locale.ROOT, "%04d-%02d-%02d", Integer.parseInt(m.group(1)),
+                Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
+        if (m.group(4) == null) {
+            return midnight ? timestampLit(day) : dateLit(day);
+        }
+        return timestampLit(day + "T" + m.group(4) + (m.group(5) == null ? "" : ":" + m.group(5))
+                + (m.group(6) == null ? "" : ":" + m.group(6)) + (m.group(7) == null ? "" : m.group(7))
+                + (offset == null ? "" : offset));
     }
 
     /** Pure's parseDate of a text: its date's fields padded ({@link #padded}); a day alone stays its day (the cast
      *  around it decides what it is), a text with a time of day is read into the one text of its instant
      *  ({@link #instantOf}); a text that is no date raises. A constant text in full ISO shape is spelled when the
-     *  plan is made ({@link #parsedLiteral}). */
+     *  plan is made ({@link #constantInstant}). */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
-        String constant = x instanceof SqlExpr.StringLit lit ? parsedLiteral(lit.value()) : null;
+        String constant = x instanceof SqlExpr.StringLit lit ? constantInstant(lit.value(), false, false) : null;
         if (constant != null) {
             return w -> w.append(constant);
         }
@@ -3576,20 +3602,26 @@ public class SQLite extends AnsiSqlRenderer {
 
     /** {@inheritDoc} A Date's or a DateTime's text as the one text of its instant ({@link #timestampLit}): the runner
      *  binds a date-time's with nine digits of a second, always ({@code 'uuuu-MM-dd HH:mm:ss.SSSSSSSSS'}), so the
-     *  statement drops the trailing zeros and, where none is left, the point -- read from the text's twentieth
-     *  character, so a day's text ({@code 'uuuu-MM-dd'}), which has none there, is itself. The value is the
-     *  database's to read, never spelled by the runner for one database (exec names none). */
+     *  statement drops the trailing zeros and, where none is left, the point ({@link #shortest}: a DateTime's value is
+     *  a date-time, which exec holds it to, so the point is there). A Date's value may be a day, whose text
+     *  ({@code 'uuuu-MM-dd'}) has no point: its zeros are dropped from the twentieth character on, where a day has
+     *  none. The placeholder keeps its cast to the declared type's SQL type (D1), and the value is the database's to
+     *  read, never spelled by the runner for one database (exec names none). */
     @Override
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
         com.legend.sql.DeclaredKind declared = p.declared();
         ParameterType type = declared == null ? null : parameterType(declared);
         RenderedStatement.AsText asText = type == null ? null : type.asText();
-        if (type == null || asText == null) {
+        if (declared == null || type == null || asText == null) {
             return super.placeholder(writer, p);
         }
-        // bound as its text, which is its type here: no cast names one
-        return writer.append("(substr(").bind(textBind(p, asText)).append(", 1, 19) || rtrim(rtrim(substr(")
-                .bind(textBind(p, asText)).append(", 20), '0'), '.'))");
+        SqlWriter.Piece text = w -> w.append("CAST(").bind(textBind(p, asText)).append(" AS " + type.name() + ")");
+        return switch (declared) {
+            case DATE_TIME -> writer.piece(shortest(text));
+            case DATE -> writer.append("(substr(").piece(text).append(", 1, 19) || rtrim(rtrim(substr(").piece(text)
+                    .append(", 20), '0'), '.'))");
+            case FLOAT, DECIMAL, NUMBER -> throw new IllegalStateException("a " + declared + " parameter bound as text");
+        };
     }
 
     // ==================================================================
