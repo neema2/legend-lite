@@ -25,8 +25,9 @@ import java.util.List;
  * each for that rule: {@code toUpper}/{@code toLower} (the JVM's default locale), {@code ltrim}/{@code rtrim}
  * (commons-lang's set of characters, not {@code trim}'s), {@code substring} (raises out of range), {@code split}
  * (a {@code StringTokenizer}, and it answers a list), {@code reverseString}, {@code size}, {@code toOne}, and the
- * functions legend-engine defines in Pure ({@code lpad}, {@code rpad}, {@code repeatString}). The set's members are
- * pinned ({@code PrintTailTest}): one is added with a dated note or not at all.
+ * functions legend-engine defines in Pure ({@code lpad}, {@code rpad}, {@code repeatString}). The user ruled the
+ * set's seven members and the guard exception they need on 2026-11-26: "yes should add guard". They are pinned
+ * ({@code PrintTailTest}): one is added with the user's word or not at all.
  *
  * <p>{@code replace} is {@link PureRelationText.Replace}, the set's first member.
  *

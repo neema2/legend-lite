@@ -180,7 +180,8 @@ class WriterCarriageGuardTest {
                     Map.entry("atLeast", 1),
                     Map.entry("doubleValue", 5))),
             // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words that day, "maybe
-            // small set up string/count functions chained should all be in java"): indexOf's start read as an int, as
+            // small set up string/count functions chained should all be in java", and on the set and its guard
+            // exception, ~13:57, "yes should add guard"): indexOf's start read as an int, as
             // legend-pure's own Java reads it (CompiledSupport.indexOf: from.intValue()) -- the program's literal, not
             // a value the database computed
             Map.entry("PrintTail.java", Map.of("intValue", 1)),

@@ -2042,9 +2042,9 @@ class JavaEvalLedgerTest {
                             // (replace, length, trim, startsWith, endsWith, contains, indexOf), each legend-pure's own
                             // Java for it, applied to the text the edge's printer wrote -- upstream's text, which no
                             // database holds. It COMPUTES values in Java (a length, an index, a Boolean), the one
-                            // class of the edge that does, and only over that text. The set's members were proposed
-                            // by the step 8 session and agreed in shape by the orchestrator, who puts them to the
-                            // user; pinned by edge.PrintTailTest
+                            // class of the edge that does, and only over that text. The set's members and this
+                            // exception were ruled by the user, 2026-11-26 ~13:57: "yes should add guard"; pinned by
+                            // edge.PrintTailTest
                             "PrintTail.java",
                             // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
                             // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds

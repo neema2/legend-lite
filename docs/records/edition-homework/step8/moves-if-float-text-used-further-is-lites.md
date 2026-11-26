@@ -85,3 +85,13 @@ With the lift and the row in place: `FLOAT_SHORTEST_TEXT`, `sql/dialect/FloatSho
 arms in twelve dialects, the hooks `spellsFloatShortestText` and `readsLongTextOnce`, Snowflake's own spelling and
 BigQuery's override (slice 1's list, parked, plus `FLOOR_RAW`); and at the edge the Float half of `PurePrintForms`
 with `FloatLiteral` and the twelve `floatToText` overrides, unless the row reuses them.
+
+## The register row, drafted (unnumbered; it lands with the deletion slice)
+
+**The user's ruling (2026-11-26, about 13:57, relayed by the orchestrator):** "yes that's right but remember we have
+a list of chained functions that are okay after that you came up with". So the row says the exception plainly: a
+print followed only by the tail's functions is still a last step, Java's, with upstream's text.
+
+| # | Kind | The difference | Lite's answer | Evidence |
+|---|---|---|---|---|
+| S(next) | outcome (a Float's text used further at legend-pure's door; RULED by the user 2026-11-26, "yes that's right but remember we have a list of chained functions that are okay after that you came up with", under tenet 1 as amended 2026-11-25) | legend-pure writes a Float's `toString`, `format`'s `%s`, `%f` and `%r` and `toRepresentation` by its own print wherever the call stands: every digit, never an exponent (`CompiledSupport`, `DecimalFormat("0.0")` with up to 340 fraction digits). | At legend-pure's door (PCT's legend-pure run, the corpus's test code outside `execute()`), a Float's text at a LAST STEP (a query's last statement, or an assert's own argument, with a tail of `replace`, `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf` over literals) is legend-pure's, written in Java from the double the database computed. A Float's text the program goes on computing with is lite's own, written by the database: six decimals, trailing zeros trimmed, a whole value keeping one. So `format('%r', [1.0/3.0]) + ';'` is `0.333333;` where legend-pure writes `0.3333333333333333;`, and `[(0.1 + 0.2)->toString()]` holds `0.3` where legend-pure's holds `0.30000000000000004`. Inside a store query at legend-engine's door a Float's text is the database's cast, a row of legend-engine's table, unchanged. | Measured 2026-11-26 (`docs/records/edition-homework/step8/moves-if-float-text-used-further-is-lites.md`): no recorded answer of PCT (both channels; DuckDB, H2, SQLite), the corpus (DuckDB, H2), pure/v1 or the edge cases moves, given the last-step lift and the row. The two examples are worked from the rules, not run. The server and cloud lanes are not measured. |

@@ -1,4 +1,4 @@
-# Step 8: the print tail, a proposal (2026-11-26; the orchestrator agreed its shape the same day, the set goes to the user)
+# Step 8: the print tail, a proposal (2026-11-26; ruled by the user the same day, section 9)
 
 *Written by the step 8 session for the orchestrator. The user's words (2026-11-26): "start 8 - I think we should
 also look at toString/toCSV in the middle - for example we saw toCSV->replace() and we should do that as one call
@@ -129,3 +129,10 @@ either. `length` and the two `indexOf` forms are the set's only members that ans
 - A last-step `format` or `toRepresentation` may be lifted with no further ruling, provided its answer at a last step
   is the same text as today's; every test whose answer moves is listed for the user. Start with what moves nothing.
 - A print used further is lite's own text (tenet 1 as amended): the answers that would move are measured first.
+
+## 9. The user's ruling (2026-11-26, about 13:57, relayed by the orchestrator)
+
+On the set's seven members (`replace`, `length`, `trim`, `startsWith`, `endsWith`, `contains`, `indexOf`), put to
+them as needing a guard exception because Java computes a length, an index or a true/false over text the edge
+printed: **"yes should add guard"**. `+` with literal Strings stays out until its typed shape is read. Built as
+`slice2-value-lift-and-tail.md` records.

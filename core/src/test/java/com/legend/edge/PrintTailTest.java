@@ -16,13 +16,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * user's words that day, "maybe small set up string/count functions chained should all be in java"). A member is a
  * function of the text alone whose Java here is legend-pure's own Java for it (legend-pure 5.99.0, read 2026-11-26:
  * {@code CompiledSupport} lines 1531-1569, {@code CoreHelper} lines 1209-1234), with no error case and nothing that
- * depends on the machine. The set moves only with a dated note here that names who agreed it.
+ * depends on the machine. The set moves only with the user's word, in a dated note here.
  */
 class PrintTailTest {
 
     /** The members, exactly: {@code replace} since 2026-11-24 (the user: "also do the replace in java too"); the rest
-     *  proposed by the step 8 session and agreed in shape by the orchestrator, 2026-11-26, who puts the set to the
-     *  user -- the user has asked for "a small set" in those words and has not yet ruled its members. */
+     *  ruled by the user on 2026-11-26 (~13:57), put to them as these seven with the guard exception they need (Java
+     *  computes a length, an index or a true/false over text the edge printed): "yes should add guard". {@code +}
+     *  with literal Strings is not a member. */
     @Test
     void theClosedSetIsExactlyThese() {
         assertEquals(new TreeSet<>(List.of("Contains", "EndsWith", "IndexOf", "Length", "Replace", "StartsWith", "Trim")),

@@ -88,6 +88,8 @@ A temporary probe (never committed) ran on the base and on the change:
 - **SQLite answers `toRepresentation(1.0e20)` as `9223372036854775807.0`** at the edge, before this slice and after
   it: the composition's whole-value branch casts through a 64-bit integer there. legend-pure prints
   `100000000000000000000.0`. The new test does not pin SQLite's answer for it.
+  A defect of the SQL composition itself (the orchestrator, 2026-11-26): the slice that deletes the composition
+  removes it, and pins the right answer there with a test.
 - Outside the two windows the text is each database's own exponent form (`1e-20` on DuckDB, `1.0E-20` on H2,
   `1.0e-20` on SQLite), where legend-pure prints plain digits. Known since the node was written; the new test pins
   each lane's as measured.
