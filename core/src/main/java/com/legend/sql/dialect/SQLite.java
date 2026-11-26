@@ -797,8 +797,8 @@ public class SQLite extends AnsiSqlRenderer {
 
     /** The ISO shapes a date-time literal arrives in: a day, then optionally its hour, minute, second and up to nine
      *  digits of a second ({@code keptFraction} has refused more: S181), then optionally {@code Z} or an offset from
-     *  UTC ({@code +HH}, {@code +HH:MM}, {@code +HHMM}: a test-data cell's, a TDS cell's); the year as it is written
-     *  (Pure's spelling, or Java's signed one for a year past four digits). */
+     *  UTC ({@code +HH}, {@code +HH:MM}, {@code +HHMM}: a test-data cell's, a TDS cell's); the year however it is
+     *  written (Pure's spelling, or Java's signed one for a year past four digits), respelled one way. */
     private static final java.util.regex.Pattern DATE_TIME_LITERAL = java.util.regex.Pattern.compile(
             "([+-]?\\d+)-(\\d{2})-(\\d{2})(?:[ T](\\d{2})(?::(\\d{2})(?::(\\d{2})(?:\\.(\\d{0,9}))?)?)?"
                     + "(Z|[+-]\\d{2}(?::?\\d{2})?)?)?");
@@ -837,24 +837,39 @@ public class SQLite extends AnsiSqlRenderer {
                     + " HH[:MM[:SS[.fffffffff]]] and an offset): SQLite holds a date-time as one text per instant, and"
                     + " this literal has none");
         }
-        String day = m.group(1) + "-" + m.group(2) + "-" + m.group(3);
         String time = (m.group(4) == null ? "00" : m.group(4)) + ":" + (m.group(5) == null ? "00" : m.group(5)) + ":"
                 + (m.group(6) == null ? "00" : m.group(6));
         String offset = m.group(8);
         int seconds = offset == null || offset.equals("Z") ? 0 : (offset.charAt(0) == '-' ? -1 : 1)
                 * (Integer.parseInt(offset.substring(1, 3)) * 3600
                         + (offset.length() > 3 ? Integer.parseInt(offset.substring(offset.length() - 2)) * 60 : 0));
+        int year;
+        try {
+            year = Integer.parseInt(m.group(1));
+        } catch (NumberFormatException pastAnInteger) {
+            throw new DialectCapability("the date-time literal '" + iso + "' has a year past an Integer: no Pure date"
+                    + " has one");
+        }
+        String monthDay = "-" + m.group(2) + "-" + m.group(3);
         if (seconds != 0) {
-            // the wall time at UTC, its year spelled as a literal's is: four digits within 0000 to 9999, else Pure's
-            java.time.LocalDateTime utc = java.time.LocalDateTime.of(Integer.parseInt(m.group(1)),
-                    Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), Integer.parseInt(time.substring(0, 2)),
-                    Integer.parseInt(time.substring(3, 5)), Integer.parseInt(time.substring(6, 8)))
-                    .minusSeconds(seconds);
-            int year = utc.getYear();
-            day = (year >= 0 && year <= 9999 ? String.format(Locale.ROOT, "%04d", year) : Integer.toString(year))
-                    + String.format(Locale.ROOT, "-%02d-%02d", utc.getMonthValue(), utc.getDayOfMonth());
+            // the wall time at UTC
+            java.time.LocalDateTime utc;
+            try {
+                utc = java.time.LocalDateTime.of(year, Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)),
+                        Integer.parseInt(time.substring(0, 2)), Integer.parseInt(time.substring(3, 5)),
+                        Integer.parseInt(time.substring(6, 8))).minusSeconds(seconds);
+            } catch (java.time.DateTimeException notADateTime) {
+                throw new DialectCapability("the date-time literal '" + iso + "' carries an offset from UTC and is no"
+                        + " real day and time (" + notADateTime.getMessage() + "): its UTC time cannot be spelled");
+            }
+            year = utc.getYear();
+            monthDay = String.format(Locale.ROOT, "-%02d-%02d", utc.getMonthValue(), utc.getDayOfMonth());
             time = String.format(Locale.ROOT, "%02d:%02d:%02d", utc.getHour(), utc.getMinute(), utc.getSecond());
         }
+        // the year in one spelling, however the literal wrote it: four digits within 0000 to 9999, else Pure's (its
+        // digits, a minus before a year before 0000, never a plus)
+        String day = (year >= 0 && year <= 9999 ? String.format(Locale.ROOT, "%04d", year) : Integer.toString(year))
+                + monthDay;
         String fraction = m.group(7) == null ? "" : m.group(7).replaceFirst("0+$", "");
         return "'" + day + " " + time + (fraction.isEmpty() ? "" : "." + fraction) + "'";
     }
@@ -1455,11 +1470,13 @@ public class SQLite extends AnsiSqlRenderer {
             if (from == SqlType.Scalar.TIMESTAMP) {
                 // a value this dialect types a date-time is that one text already (2026-11-26: every source writes
                 // it), so it is compared as it is held -- until then read through the whole arm below, about 600
-                // characters a value. Two readings are kept, each as before: a DAY's text, which a Date-typed slot
-                // may hold beside date-times, is its midnight (as every database's date-time of a day is), and a
-                // nonzero digit past the ninth -- only a user's own text has one -- is refused, never compared
+                // characters a value. Two readings are kept: a DAY's text (no time: no colon), which a Date-typed
+                // slot may hold beside date-times, is its midnight (as every database's date-time of a day is), and
+                // a nonzero digit past the ninth -- only a user's own text has one -- is refused, never compared.
+                // No longer read here: a text this dialect did not make and its column's read left as held (an
+                // offset after it, a year outside 0000 to 9999 in another spelling), which is compared as held
                 String past = "substr(__i0.t, instr(__i0.t, '.') + 10)";
-                return writer.append("(SELECT CASE WHEN instr(__i0.t, ' ') = 0 THEN __i0.t || ' 00:00:00' WHEN"
+                return writer.append("(SELECT CASE WHEN instr(__i0.t, ':') = 0 THEN __i0.t || ' 00:00:00' WHEN"
                         + " instr(__i0.t, '.') > 0 AND ltrim(" + past + ", '0123456789') = '' AND ltrim(" + past
                         + ", '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE __i0.t END FROM (SELECT ")
                         .expr(v, 0).append(" AS t) AS __i0)");
@@ -2687,7 +2704,7 @@ public class SQLite extends AnsiSqlRenderer {
                 .append(" AS t) AS __i0) AS __it)");
     }
 
-    /** A date or date-time written in full ISO shape (trimmed, its 'T' or a space between day and time): what
+    /** A date or date-time written in full ISO shape (its spaces trimmed, a 'T' or a space between day and time): what
      *  {@link #parsedDate} answers for it when it is a real day and time, else no match. */
     private static final java.util.regex.Pattern PARSED_LITERAL = java.util.regex.Pattern.compile(
             "(\\d{4})-(\\d{2})-(\\d{2})(?:[ T](\\d{2})(?::(\\d{2})(?::(\\d{2})(?:\\.\\d{1,9})?)?)?)?");
@@ -2698,7 +2715,8 @@ public class SQLite extends AnsiSqlRenderer {
      *  the statement reads and raises on as it does a row's. A day is its ten characters; a day and time the one text
      *  of its instant ({@link #timestampLit}). */
     private @com.legend.base.Nullable String parsedLiteral(String text) {
-        String t = text.trim();
+        // the statement's trim() strips spaces alone (a tab or a line end is no part of a date, and raises there)
+        String t = text.replaceAll("^ +| +$", "");
         java.util.regex.Matcher m = PARSED_LITERAL.matcher(t);
         if (!m.matches()) {
             return null;
@@ -2891,8 +2909,9 @@ public class SQLite extends AnsiSqlRenderer {
 
     /** A date plus an interval. Whole years and months by the date functions' modifiers, a month past the month's end
      *  clamped ({@code 'floor'}, SQLite 3.46: 2020-01-31 + 1 month is 2020-02-29, as DuckDB's); a date plus days is a
-     *  date; anything finer in microseconds. A date-time keeps its fraction's digits through whole units (the date
-     *  functions move its second; a day's text has none, and becomes its midnight). */
+     *  date; anything finer in seconds, and below a second in microseconds. A date-time keeps its fraction's digits
+     *  through whole units and whole seconds (the date functions move its second; a day's text has none, and becomes
+     *  its midnight). */
     private SqlWriter.Piece addInterval(List<SqlExpr> a, SqlExpr.Call c) {
         com.legend.sql.DatePart unit = part(a.get(0));
         SqlExpr n = a.get(1);
@@ -3005,22 +3024,24 @@ public class SQLite extends AnsiSqlRenderer {
     }
 
     /** DuckDB's time_bucket with the base's origins (1970-01-01; weeks the Monday 1969-12-29): fixed units binned in
-     *  seconds, a unit finer than a second in microseconds, floored; months and years by the month index since
-     *  1970-01, floored to the bucket's size. */
+     *  seconds where the size is a positive constant, else and for a unit finer than a second in microseconds,
+     *  floored; months and years by the month index since 1970-01, floored to the bucket's size. */
     private static SqlWriter.Piece timeBucket(List<SqlExpr> a) {
         com.legend.sql.DatePart unit = part(a.get(0));
         SqlExpr n = a.get(1);
         SqlExpr t = a.get(2);
         Long micros = intervalMicros(unit);
-        if (micros != null && micros % 1000000L == 0) {
+        if (micros != null && micros % 1000000L == 0 && n instanceof SqlExpr.IntLit size && size.value() > 0) {
             // a bucket of whole seconds starts on a whole second: binned in seconds (the floor of a floor: the
             // fraction decides nothing), the start written by datetime -- until 2026-11-26 in microseconds, the value
-            // written twelve times
+            // written twelve times. For a size written as a positive constant, where the two floors are one; any
+            // other size keeps the microseconds below
             long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400L : 0L;
-            SqlWriter.Piece size = w -> w.append("(").expr(n, 6).append(" * " + micros / 1000000L + ")");
+            // the size is a constant: its seconds are spelled, not multiplied at run
+            long width = Math.multiplyExact(size.value(), micros / 1000000L);
             SqlWriter.Piece m = w -> w.append("(").piece(seconds(t)).append(" - (" + origin + "))");
-            return w -> w.append("datetime(((").piece(m).append(" - (((").piece(m).append(") % ").piece(size)
-                    .append(" + ").piece(size).append(") % ").piece(size).append(")) + (" + origin + ")), 'unixepoch')");
+            return w -> w.append("datetime(((").piece(m).append(" - (((").piece(m).append(") % " + width + " + " + width
+                    + ") % " + width + ")) + (" + origin + ")), 'unixepoch')");
         }
         if (micros != null) {
             long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
