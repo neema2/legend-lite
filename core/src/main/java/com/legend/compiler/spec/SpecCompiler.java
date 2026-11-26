@@ -323,6 +323,15 @@ public final class SpecCompiler {
         return typer.typeBody(expr, env, Expected.infer());
     }
 
+    /** {@code call}, a comparison a planner built over typed sides (an assert as the condition it means, over its
+     *  sides as named values; the equality program's first slice, 2026-11-26), answered by the door's comparison
+     *  setting as a comparison written in a query is ({@link CrossTypeRule#inQuery}): itself where its sides are of
+     *  one type, else the setting's answer -- lite's the marker its planner refuses. The one way a call built after
+     *  the typer meets the setting; {@link #typeQueryBodyMarked} is the body's. */
+    public TypedSpec comparedAsInAQuery(com.legend.compiler.spec.typed.TypedNativeCall call) {
+        return typer.comparing(Typer.Compared.QUERY, () -> typer.compared(call, call.callee(), call.args(), call.pos()));
+    }
+
     /** A lambda parameter's declared type and multiplicity, as {@link #typeQueryBody} puts it in scope. */
     public com.legend.compiler.element.type.ExprType declaredParameterType(com.legend.protocol.spec.Variable parameter) {
         com.legend.base.RunScope.planning("type a spec");

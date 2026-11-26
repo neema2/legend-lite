@@ -491,6 +491,41 @@ public final class VerdictQueries {
         return null;
     }
 
+    /** The name an assert's EXPECTED side stands under in the condition it means ({@link #sameValue}). */
+    public static final String EXPECTED = "e";
+    /** The name an assert's ACTUAL side stands under. */
+    public static final String ACTUAL = "a";
+
+    /** {@code collection->size()}: {@code assertSize}'s count as the PRODUCT counts it, the platform's own
+     *  {@code size} applied to the side as it is typed (the equality program's first slice, 2026-11-26: an assert is
+     *  the Pure condition it means, planned by the product's own road; until then the database judge counted the
+     *  side's rows itself). */
+    public static TypedSpec sizeOf(TypedSpec collection, SpecCompiler specs) {
+        return platform(native1(specs.ctx(), com.legend.builtin.Pure.SIZE__ANY_MANY.qualifiedName(), collection,
+                Type.Primitive.INTEGER));
+    }
+
+    /** {@code $a == $e} ({@code want}) or {@code !($a == $e)}: the condition an assert of two values means, over its
+     *  sides as the named values {@link #EXPECTED} and {@link #ACTUAL} of the types given, the comparison answered by
+     *  the door's comparison setting as one written in a query is ({@link SpecCompiler#comparedAsInAQuery}): two
+     *  sides of different types are lite's comparison across types, which its planner refuses by name. */
+    public static TypedSpec sameValue(ExprType expected, ExprType actual, boolean want, SpecCompiler specs) {
+        TypedSpec same = specs.comparedAsInAQuery((TypedNativeCall) platform(native2(specs.ctx(),
+                com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName(),
+                new com.legend.compiler.spec.typed.TypedVariable(ACTUAL, actual),
+                new com.legend.compiler.spec.typed.TypedVariable(EXPECTED, expected), Type.Primitive.BOOLEAN)));
+        return want ? same : platform(native1(specs.ctx(), com.legend.builtin.Pure.NOT__BOOLEAN_1.qualifiedName(),
+                same, Type.Primitive.BOOLEAN));
+    }
+
+    /** A call of a function the platform declares: never absent (NO FALLBACKS, invariant 4). */
+    private static TypedSpec platform(@com.legend.base.Nullable TypedSpec call) {
+        if (call == null) {
+            throw new IllegalStateException("the platform declares no such function: an assert's condition needs it");
+        }
+        return call;
+    }
+
     private static @com.legend.base.Nullable TypedSpec minus(com.legend.compiler.element.ModelContext ctx,
             TypedSpec l, TypedSpec r) {
         var fn = ctx.findFunction(com.legend.compiler.element.type.PlatformTypes.MINUS).stream()

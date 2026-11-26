@@ -477,6 +477,34 @@ class PureMeaningEngineTest {
         assertFalse(message.contains("NAME"), message);
     }
 
+    /** A user's call of one of legend-engine's plan-text functions is refused by name at legend-engine's door, in its
+     *  compile error's envelope, as legend-engine refuses it when it compiles the request (the user's ruling of
+     *  2026-11-26; S427): in a store query's filter, bound by a let before the query, and through a model's own
+     *  function. Nothing is run. */
+    @Test
+    void aUsersPlanTextCallIsRefusedByName_asLegendEngineRefusesIt() {
+        String sql = "meta::relational::functions::sqlstring::toSQLString(|t::Person.all()->project([p|$p.name], ['n']),"
+                + " t::M, meta::relational::runtime::DatabaseType.H2, [])";
+        String wrapped = MODEL.replace("function t::position(", "function t::sqlText(): String[1] { " + sql + " }\n"
+                + "function t::position(");
+        Map<String, String> requests = new java.util.LinkedHashMap<>();
+        requests.put("in a filter", body("|t::Person.all()->filter(p|$p.name == " + sql
+                + ")->project([p|$p.name], ['n'])->from(t::M, t::RT)"));
+        requests.put("bound by a let", body("|let s = " + sql + "; t::Person.all()->filter(p|$p.name == $s)"
+                + "->project([p|$p.name], ['n'])->from(t::M, t::RT);"));
+        requests.put("through a model's function", body(wrapped, "|t::Person.all()->filter(p|$p.name == t::sqlText())"
+                + "->project([p|$p.name], ['n'])->from(t::M, t::RT)"));
+        requests.forEach((where, request) -> {
+            LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, request,
+                    PLANS_AND_NEVER_RUNS, LiteV1Api.Models.COMPILED);
+            assertEquals(500, a.status(), where + ": " + a.json());
+            Json.Obj o = Json.parseObject(a.json());
+            assertEquals("COMPILATION", o.getString("errorType"), where);
+            assertTrue(o.getString("message").contains("legend-engine's plan-text functions")
+                    && o.getString("message").contains("are not a user's to call"), where + ": " + a.json());
+        });
+    }
+
     /** A refused request sends nothing to the database, on every route whose answer a call a row answers chooses: the
      *  refusal is raised while the request is planned (the seed routes plan their seed themselves; execute's runner
      *  plans before it runs). The runner is the routes' one way to a session. */

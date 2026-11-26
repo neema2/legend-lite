@@ -30,8 +30,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>{@code ordinary}: the net's own {@code tds} request, a plain relation query, which reaches neither hook. Its
  *   execute answer and its plan are BYTE-IDENTICAL to the net's lines, recorded before A2 (the net's
  *   {@code edge/pure_v1_answers.tsv}, current at main {@code b75d6c73a});</li>
- *   <li>{@code ddl}: a DDL native's text (the upstream plan facet): exactly what the edge's H2 dialect writes for the
- *   table ({@code PureText.dialect}), lite's own DDL;</li>
+ *   <li>{@code ddl}: a DDL native's text (the upstream plan facet): REFUSED BY NAME since 2026-11-26 (the user's
+ *   ruling, "I'm good with refusing those engine functions in the user/product path"; register S427). Asked of
+ *   legend-engine 4.145.0 itself, a query that calls {@code createTableStatement}, {@code dropTableStatement},
+ *   {@code createSchemaStatement} or {@code dropSchemaStatement} fails when it is compiled ("Function does not
+ *   exist"), as its other plan-text functions do: they are its own tests' and its own Java's. Until then this route
+ *   answered the edge's H2 dialect's DDL;</li>
  *   <li>{@code activitySql}: an execute's activity SQL read back (the activity-text two-form): lite's H2 SQL of the
  *   inner query.</li>
  * </ul>
@@ -177,17 +181,13 @@ class PureV1SqlTextTest {
         for (String k : java.util.List.of("plan.ddl", "plan.activitySql")) {
             assertEquals(golden.get(k), answers.get(k), k);
         }
-        // the DDL asked for is exactly the edge's H2 dialect's, the SQL lite runs on this route
-        var ctx = com.legend.Compiler.compileModel(model("ddl"));
-        var table = ctx.findTableDefinition("trades::h2::DB", "TRADES_SCHEMA.TRADES").orElseThrow();
-        // the database the model's connection declares (read, never named here: the dialect owners name databases)
-        var declared = ctx.findConnection("trades::h2::Conn").orElseThrow().databaseType();
-        String lite = com.legend.edge.PureText.dialect(declared)
-                .render(com.legend.setup.Ddl.createTable(table, "TRADES_SCHEMA"));
+        // the DDL asked for is refused by name, in legend-engine's compile-error envelope, as legend-engine refuses it
         String plan = answers.get("plan.ddl");
-        String value = Json.parseObject(plan.substring(plan.indexOf('\t') + 1)).getObj("rootExecutionNode")
-                .getObj("values").getString("value");
-        assertEquals(lite, value, "the DDL native's text");
+        assertTrue(plan.startsWith("500\t"), plan);
+        Json.Obj refusal = Json.parseObject(plan.substring(plan.indexOf('\t') + 1));
+        assertEquals("COMPILATION", refusal.getString("errorType"), plan);
+        assertTrue(refusal.getString("message").contains("legend-engine's plan-text functions")
+                && refusal.getString("message").contains("the DDL text generators"), plan);
         // the activity's SQL is lite's H2 text of the inner query, never legend-engine's ("root" aliases, lower case)
         String sql = answers.get("plan.activitySql");
         assertTrue(sql.contains("'SELECT \\\"t0\\\".\\\"YEAR\\\" AS \\\"year\\\"\\nFROM TRADES_SCHEMA.TRADES AS \\\"t0\\\"\\nLIMIT 1'"),

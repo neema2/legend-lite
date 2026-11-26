@@ -1027,15 +1027,6 @@ public final class VerdictSql {
 
     private static final String K = "__k";
 
-    /** A typed rows CTE's count ({@link #K}): its rows. */
-    private static SqlQuery counted(String cte, SqlQuery rows) {
-        OutputCol kOut = new OutputCol(K, SqlType.Scalar.BIGINT, false);
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
-                List.of(SqlExpr.Column.of(cte, rows.outputs(), RN)), false, List.of()), K, kOut)), false,
-                new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
-                null, List.of(), null, null, List.of(), null, null, List.of(kOut));
-    }
-
     /** {@code assert} / {@code assertFalse}'s TYPED member (item 3's S4): the condition's one Boolean as the side's plan
      *  types it, the verdict its {@code IS NOT DISTINCT FROM} the wanted truth; no value rides the failure (its record
      *  is fixed at planning). Null where the side has no typed value column. */
@@ -1050,46 +1041,53 @@ public final class VerdictSql {
                         new SqlExpr.BoolLit(wantTrue)), List.of());
     }
 
-    /** {@code assertSize}'s TYPED member (item 3's S4): {@code countRows}' count (its {@code __rn}s) against the size
-     *  side's one Integer; {@code wantSize} false, {@code assertNotSize}. Each rides the failure: the size, then the
-     *  count. Null where the size side has no typed value column. */
-    public static @com.legend.base.Nullable TypedRow typedSize(SqlQuery countRows, SqlQuery nWrapped,
-            boolean wantSize) {
-        SqlQuery nRows = valueRows(nWrapped);
-        if (nRows == null) {
-            return null;
+    /** One side of an assert planned as the condition it means ({@link #typedOverValues}): the name it stands under
+     *  in the condition, the column its ONE value rides the failure under, its plan, and its Pure type. */
+    public record ValueSide(String name, String column, SqlQuery wrapped, Type kind) {
+        /** An assert's two sides of one type, named as its condition names them
+         *  ({@code compiler.spec.VerdictQueries.EXPECTED}, {@code ACTUAL}), each under its failure column. */
+        public static List<ValueSide> pair(SqlQuery expected, SqlQuery actual, Type kind) {
+            return List.of(
+                    new ValueSide(com.legend.compiler.spec.VerdictQueries.EXPECTED, TYPED_EXPECTED, expected, kind),
+                    new ValueSide(com.legend.compiler.spec.VerdictQueries.ACTUAL, TYPED_ACTUAL, actual, kind));
         }
-        SqlQuery counted = counted("__a", countRows);
-        SqlQuery size = single("__n", nRows);
-        SqlExpr wanted = new SqlExpr.Cast(SqlExpr.Column.of("n", size.outputs(), SINGLE), SqlType.Scalar.BIGINT,
-                SqlExpr.Reason.JUDGE);
-        SqlExpr count = SqlExpr.Column.of("k", counted.outputs(), K);
-        SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, wanted);
-        return typedRow(List.of(new SqlWith.Cte("__a", countRows), new SqlWith.Cte("__n", nRows)),
-                cross(new SqlSource.Subselect(counted, "k", null), new SqlSource.Subselect(size, "n", null)),
-                wantSize ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
-                        new Valued(TYPED_EXPECTED, wanted, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false),
-                        new Valued(TYPED_ACTUAL, count, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false)));
     }
 
-    /** {@code assertSize} / {@code assertNotSize} over a graph side, TYPED (item 3's S4, the last families): the
-     *  graph's count of root objects against the size side's one Integer, both riding the failure, as
-     *  {@link #typedSize}'s. Null where the size side has no typed value column. */
-    public static @com.legend.base.Nullable TypedRow typedSizeOfGraph(SqlQuery graphPlan, SqlQuery nWrapped,
-            boolean wantSize) {
-        SqlQuery nRows = valueRows(nWrapped);
-        if (nRows == null) {
-            return null;
+    /**
+     * AN ASSERT AS THE PRODUCT'S OWN CONDITION OVER ITS SIDES' VALUES (the equality program's first slice, 2026-11-26;
+     * docs/records/edition-homework/r3/research-step6-equality.md section 4): each side's ONE value read once
+     * ({@link #single}) and bound to a column; the verdict {@code holds} over those columns by the sides' names,
+     * which the caller has the PRODUCT lower from the Pure condition the assert means
+     * ({@code planner.SidePlanner.over}), so no comparison written here is the judge's own; each value rides the
+     * failure under its side's column, so the values compared are the values recorded. {@code assertSize}'s member
+     * since that day ({@code size(c) == n}: the product's count and the product's {@code ==}; until then
+     * {@code typedSize} and {@code typedSizeOfGraph}, the judge's own count of a side's rows or of a graph's root
+     * objects and its own IS NOT DISTINCT FROM). Null where a side has no typed value column.
+     */
+    public static @com.legend.base.Nullable TypedRow typedOverValues(List<ValueSide> sides,
+            java.util.function.Function<java.util.Map<String, SqlExpr>, SqlExpr> holds) {
+        List<SqlWith.Cte> ctes = new ArrayList<>();
+        java.util.Map<String, SqlExpr> bound = new java.util.LinkedHashMap<>();
+        List<Valued> values = new ArrayList<>();
+        SqlSource from = null;
+        for (int i = 0; i < sides.size(); i++) {
+            ValueSide side = sides.get(i);
+            SqlQuery rows = valueRows(side.wrapped());
+            if (rows == null) {
+                return null;
+            }
+            SqlQuery one = single("__v" + i, rows);
+            ctes.add(new SqlWith.Cte("__v" + i, rows));
+            SqlSource read = new SqlSource.Subselect(one, "v" + i, null);
+            from = from == null ? read : cross(from, read);
+            SqlExpr value = SqlExpr.Column.of("v" + i, one.outputs(), SINGLE);
+            bound.put(side.name(), value);
+            values.add(new Valued(side.column(), value, one.outputs().get(0).type(), side.kind(), false));
         }
-        SqlQuery size = single("__n", nRows);
-        SqlExpr wanted = new SqlExpr.Cast(SqlExpr.Column.of("n", size.outputs(), SINGLE), SqlType.Scalar.BIGINT,
-                SqlExpr.Reason.JUDGE);
-        SqlExpr count = graphCount(graphPlan);
-        SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, wanted);
-        return typedRow(List.of(new SqlWith.Cte("__n", nRows)), new SqlSource.Subselect(size, "n", null),
-                wantSize ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
-                        new Valued(TYPED_EXPECTED, wanted, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false),
-                        new Valued(TYPED_ACTUAL, count, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false)));
+        if (from == null) {
+            throw new IllegalArgumentException("a condition over no side");
+        }
+        return typedRow(ctes, from, holds.apply(java.util.Collections.unmodifiableMap(bound)), values);
     }
 
     /** {@code assertEmpty} over a graph side, TYPED (item 3's S4, the last families): its count of root objects zero;
@@ -2340,29 +2338,6 @@ public final class VerdictSql {
         return grid ? gridRowCanons(wrapped)
                 : canonRows(new Side(wrapped, canonColumn, many, false, false));
     }
-
-    /** A side's rows for COUNTING only (size / emptiness): no canon needed —
-     * a collection of instances the canon declines still has a row count;
-     * NULL values are dropped as everywhere (pure has no null value). */
-    public static SqlQuery countRows(SqlQuery plan) {
-        SqlExpr where = null;
-        if (plan instanceof SqlSelect vs && !vs.projections().isEmpty()
-                && vs.projections().get(0).alias() != null) {
-            where = SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
-                    SqlExpr.Column.of("w", vs.projections().get(0).alias(),
-                            SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED));
-        }
-        return rowsOf(new SqlExpr.NullLit(), new SqlExpr.NullLit(), plan, where);
-    }
-
-    /** A GRID's rows for counting: every row counts (a grid row is never
-     * dropped), over the plan BEFORE the canon wrap — no cell is spelled. */
-    public static SqlQuery gridCountRows(SqlQuery wrapped) {
-        return rowsOf(new SqlExpr.NullLit(), new SqlExpr.NullLit(),
-                CanonicalRenderSql.unwrapTdsCanon(wrapped), null);
-    }
-
-
 
     /** A HOST-CONSTANT side (a compile-time fact the pipeline answered
      * without SQL — a generated seed-data string, a rendered DDL text, a

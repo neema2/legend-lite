@@ -3602,6 +3602,26 @@ public final class Lowerer {
         return MixedEncoding.slotCarrier(lowered, Stamps.isMany(value), valueType, sqlTypeOf(c.type()), () -> "_slot" + aliasCounter++);
     }
 
+    /**
+     * A CONDITION OVER NAMED VALUES, lowered as any expression is (the equality program's first slice, 2026-11-26):
+     * each name of {@code bound} stands for the SQL expression that holds its value -- a column of the statement the
+     * caller composes -- as a lambda's parameter stands for its row's column. An assert planned as the Pure condition
+     * it means reads its sides this way: each side's value is computed once and bound to a column, and the condition
+     * and the failure's record both read that column. A name outside {@code bound} is refused: the condition reads its
+     * sides alone.
+     */
+    public SqlExpr over(TypedSpec condition, java.util.Map<String, SqlExpr> bound) {
+        return scalar(condition, (var, property) -> {
+            SqlExpr value = property == null && var != null ? bound.get(var) : null;
+            if (value == null) {
+                throw new IllegalStateException("a condition over bound values reads $" + var
+                        + (property == null ? "" : "." + property) + ", which is none of "
+                        + new java.util.TreeSet<>(bound.keySet()));
+            }
+            return value;
+        });
+    }
+
     SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
         SqlExpr r = scalarInner(spec, columns);
         // stamp-vs-shape INVARIANT (throws; LL_STAMP_COUNT=1 = census mode)
