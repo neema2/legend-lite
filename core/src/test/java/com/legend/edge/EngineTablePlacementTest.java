@@ -336,6 +336,21 @@ class EngineTablePlacementTest {
                 && refused.getMessage().contains("a runtime with no single database"), refused.getMessage());
     }
 
+    /** Each row's rule lowers each overload its row maps: a rule reads its call's operands by position, so a rule
+     *  handed an overload it was not written for would fail here, where the statement is planned (the independent
+     *  audit of 2026-11-26, finding 7; until that day a row named a native of the call's own signature, and a test
+     *  compared the two signatures). */
+    @Test
+    void eachRowsRuleLowersEachOverloadItMaps() {
+        for (String call : List.of("$r.NAME->toOne()->substring(1)", "$r.NAME->toOne()->substring(1, 3)",
+                "$r.NAME->toOne()->substr(1)", "$r.NAME->toOne()->substr(1, 3)", "$r.NAME->toOne()->indexOf('o')",
+                "($r.ID->toOne() / 3)->round()", "($r.ID->toOne() / 3)->round(1)",
+                "$r.ID->toOne()->toDecimal()->round(1)", "[]->cast(@Integer)->toOne()")) {
+            String store = "|" + TABLE + "->extend(~a: r|" + call + ")->from(t::RT)";
+            assertNotEquals(asWritten(store), engines(store), store);
+        }
+    }
+
     /** {@code round} is a row (register S422): inside a store query the database's own ROUND, by the row's rule; in
      *  a host-side let, which legend-engine's own Java computes, the call's own rule, Pure's. */
     @Test

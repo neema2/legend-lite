@@ -3528,31 +3528,35 @@ final class ArchitectureTest {
      * other namer is a door's table, at the edge. A product class that named one would be the product taking an
      * audience's meaning by itself. In the place of spec's two claim pins (ClaimRegistryTest, "substringAsGiven's one
      * product claimer is Scalars", the user's ruling of 2026-11-19 ~21:10, and its sibling's): they pinned the same
-     * fact while the two rules were natives of the language.
+     * fact while the two rules were natives of the language. Read over core, the hosts' doors and the edge, the edge's
+     * own classes let through. Named limit: an access is a constant read or a method call; a class literal
+     * ({@code EnumSet.allOf(NamedRule.class)}) is not one, and is not seen (the guards catch drift, not adversaries).
      */
     @Test
     void anEditionsTableAloneNamesARule() {
-        NAMED_RULES_ARE_THE_TABLES.check(CORE_PROD_CLASSES);
+        NAMED_RULES_ARE_THE_TABLES.check(coreAndTheHostsDoors());
     }
 
     /** The rule of {@link #anEditionsTableAloneNamesARule}. */
     static final com.tngtech.archunit.lang.ArchRule NAMED_RULES_ARE_THE_TABLES = noClasses()
             .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
                     com.tngtech.archunit.core.domain.JavaAccess<?>>("a lowering.NamedRule named outside"
-                    + " lowering.NamedRules") {
+                    + " lowering.NamedRules and the edge") {
                 @Override
                 public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
                     if (!access.getTargetOwner().isEquivalentTo(com.legend.lowering.NamedRule.class)) {
                         return false;
                     }
-                    // the enum itself, and NamedRules with the class javac writes for its switch
-                    String origin = access.getOrigin().getOwner().getName();
+                    // the enum itself, NamedRules with the class javac writes for its switch, and the edge's tables
+                    com.tngtech.archunit.core.domain.JavaClass owner = access.getOrigin().getOwner();
+                    String origin = owner.getName();
                     return !(origin.equals("com.legend.lowering.NamedRule")
                             || origin.equals("com.legend.lowering.NamedRules")
-                            || origin.startsWith("com.legend.lowering.NamedRules$"));
+                            || origin.startsWith("com.legend.lowering.NamedRules$")
+                            || owner.getPackageName().equals("com.legend.edge"));
                 }
             })
-            .as("an edition's table alone names a rule: in the product a NamedRule constant is named by"
+            .as("an edition's table alone names a rule: outside the edge a NamedRule constant is named by"
                     + " lowering.NamedRules alone");
 
     /** {@link #anEditionsTableAloneNamesARule} fails on a class of the lowering's package that names a rule
@@ -3677,8 +3681,9 @@ final class ArchitectureTest {
      * THE PURE/V1 STYLE'S CALLERS (B7, the orchestrator's condition (2) on the {@code plainRaises} hook, 2026-11-17):
      * {@code edge.PureText.PURE_V1} -- legend-engine's unchecked raises written plain, the user's ruling "pure/v1
      * matches engine" -- is selected by the pure/v1 routes alone: the route module, the shipped server's runner and the
-     * embedded hosts' execute halves. PCT keeps {@code UPSTREAM} and the corpus its own style ({@code ENGINE_TESTS},
-     * the edition program's step 3, 2026-11-26); a new caller of PURE_V1 is a ruling, not an edit.
+     * embedded hosts' execute halves. PCT's legend-pure run keeps {@code UPSTREAM}; the corpus and PCT's legend-engine
+     * run have their own styles ({@code ENGINE_TESTS}, {@code ENGINE_PCT}: the edition program's step 3,
+     * 2026-11-26); a new caller of PURE_V1 is a ruling, not an edit.
      */
     @Test
     void thePureV1StyleIsSelectedByThePureV1RoutesAlone() {

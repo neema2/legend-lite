@@ -184,7 +184,8 @@ public final class PureText {
      *  operation, the database's own error passing through, and the planner is handed legend-engine's edition
      *  ({@link EngineTable#DOOR}; the edition program's step 2, 2026-11-25: its table and the planner's stamp took the
      *  place of the door's rewrite of the typed query). Handed by the pure/v1 routes alone ({@link PureV1Routes},
-     *  {@link EdgeServer#runner}); PCT keeps {@link #UPSTREAM}, the corpus plans under {@link #ENGINE_TESTS}. */
+     *  {@link EdgeServer#runner}); PCT's legend-pure run keeps {@link #UPSTREAM}, the corpus plans under
+     *  {@link #ENGINE_TESTS} and PCT's legend-engine run under {@link #ENGINE_PCT}. */
     public static final PlanStyle PURE_V1 = new PlanStyle() {
         @Override
         public SqlDialect dialect(DatabaseType type) {
@@ -244,7 +245,7 @@ public final class PureText {
      *  legend-engine's is Pure code that legend-pure runs, around queries it hands to {@code execute()}, which
      *  legend-engine runs: the queries get legend-engine's meaning, as at its API, and every call of the test's own
      *  code is stamped and keeps Pure's. Until this step the corpus planned under {@link #UPSTREAM}, lite's meaning on
-     *  both sides. PCT keeps {@link #UPSTREAM}: legend-pure's own tests, one audience throughout. */
+     *  both sides. PCT's legend-pure run keeps {@link #UPSTREAM}: legend-pure's own tests, one audience throughout. */
     public static final PlanStyle ENGINE_TESTS = withEdition(UPSTREAM, EngineTable.TESTS);
 
     /** PCT'S LEGEND-ENGINE RUN'S STYLE (the edition program's step 3's remainder, 2026-11-26): {@link #PURE_V1} in

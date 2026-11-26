@@ -42,7 +42,7 @@ The typed bodies are remembered per query, not per model (`SpecCompiler`'s memo 
 
 ### 2.2 The table
 
-The lowering already takes an object from the door on every path (`lowering/Styled.forms()`, built by `planner/PlanEnv`) and asks it at about 20 places. The table is that, made regular: a function mapped to another product-named rule (`substring` to `substringAsGiven`), a raise kind mapped to checked or plain, and a few whole-statement choices. It reaches functions and mapping code because by then everything is one tree.
+The lowering already takes an object from the door on every path (`lowering/Styled.forms()`, built by `planner/PlanEnv`) and asks it at about 20 places. The table is that, made regular: a function mapped to another product-named rule (`substring` to the rule `SUBSTRING_AS_GIVEN`; a rule of the lowering's, `lowering/NamedRule`, since 2026-11-26, where it was a native of the language until then), a raise kind mapped to checked or plain, and a few whole-statement choices. It reaches functions and mapping code because by then everything is one tree.
 
 ### 2.3 The stamp
 
