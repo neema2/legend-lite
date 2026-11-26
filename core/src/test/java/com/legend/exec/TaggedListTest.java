@@ -398,8 +398,8 @@ class TaggedListTest {
             assertEquals("[1, 2, 3]", String.valueOf(values(c, "|[3, 1, 2]->sort()")));
             assertEquals("[1.5, 2.5]", String.valueOf(values(c, "|[2.5, 1.5]->sort()")));
             // the sorted list read further, not returned: the same order (the positions themselves are placed so)
-            assertEquals("3", String.valueOf(value(c, "|[3.0, 3, 5]->sort()->at(0)")));
-            assertEquals("3.0", String.valueOf(value(c, "|[3.0, 3, 5]->sort()->at(1)")));
+            assertEquals("3", String.valueOf(value(c, "|[3.0, 3, 5]->sort()->at(0)->toString()")));
+            assertEquals("3.0", String.valueOf(value(c, "|[3.0, 3, 5]->sort()->at(1)->toString()")));
             // and reversed: the whole order the other way
             assertEquals("[3.0, 3, 1]", String.valueOf(values(c, "|[3, 3.0, 1]->sort()->reverse()")));
         }

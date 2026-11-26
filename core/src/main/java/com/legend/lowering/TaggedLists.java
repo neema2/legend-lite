@@ -284,7 +284,7 @@ final class TaggedLists {
         SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(unnested, "p", null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
         SqlExpr p = SqlExpr.Column.of(alias, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
-        SqlExpr typeOrder = numberTypeOrder(tl, tl.tagAt(p));
+        SqlExpr typeOrder = numberTypeOrderAt(tl, p);
         if (typeOrder != null) {
             // equal numbers of two types in the list: each position's PLACE by the comparable, then the number's
             // type, then the position (a row number over the three), and the positions listed by their place
@@ -338,6 +338,45 @@ final class TaggedLists {
             }
         }
         return places.size() < 2 ? null : new SqlExpr.Case(later, new SqlExpr.IntLit(0), SqlExpr.Reason.CARRIER);
+    }
+
+    /**
+     * {@link #numberTypeOrder} for the element at {@code position}. Where the list's tags are WRITTEN (a list built
+     * in the query: its tag array a literal), each position's type is known when the query is planned, so the order
+     * is a condition on the position alone -- {@code CASE WHEN p IN (1, 4) THEN 1 ELSE 0 END} -- and no array is read
+     * for it (measured 2026-11-26: reading the tag at the position cost a database that holds a list as JSON the
+     * whole array again, MySQL's sort family half as long again). Any other list reads its tag there.
+     */
+    private static @com.legend.base.Nullable SqlExpr numberTypeOrderAt(SqlExpr.TaggedList tl, SqlExpr position) {
+        if (!(tl.tags() instanceof SqlExpr.ArrayLit written)
+                || !written.elements().stream().allMatch(t -> t instanceof SqlExpr.IntLit)) {
+            return numberTypeOrder(tl, tl.tagAt(position));
+        }
+        java.util.Map<Integer, List<SqlExpr>> positionsOfPlace = new java.util.TreeMap<>();
+        java.util.Set<Integer> places = new java.util.HashSet<>();
+        for (int i = 0; i < written.elements().size(); i++) {
+            int channel = (int) ((SqlExpr.IntLit) written.elements().get(i)).value() - 1;
+            int place = numberTypePlace(tl.channels().get(channel).kind());
+            if (place < 0) {
+                continue;
+            }
+            places.add(place);
+            if (place > 0) {
+                positionsOfPlace.computeIfAbsent(place, k -> new ArrayList<>()).add(new SqlExpr.IntLit(i + 1));
+            }
+        }
+        if (places.size() < 2) {
+            return null;
+        }
+        List<SqlExpr.Case.When> later = new ArrayList<>();
+        for (java.util.Map.Entry<Integer, List<SqlExpr>> e : positionsOfPlace.entrySet()) {
+            List<SqlExpr> in = new ArrayList<>();
+            in.add(position);
+            in.addAll(e.getValue());
+            later.add(new SqlExpr.Case.When(in.size() == 2 ? SqlExpr.Call.of(SqlFn.EQUAL, in.get(0), in.get(1))
+                    : new SqlExpr.Call(SqlFn.IN, in), new SqlExpr.IntLit(e.getKey())));
+        }
+        return new SqlExpr.Case(later, new SqlExpr.IntLit(0), SqlExpr.Reason.CARRIER);
     }
 
     /** A number kind's place among equal magnitudes (Integer, Float, Decimal); -1 for a kind that is no number. */
@@ -836,7 +875,7 @@ final class TaggedLists {
         if (tl.order() == SqlExpr.TaggedList.Order.COMPARABLE || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC) {
             order.add(new SqlSelect.SortKey(tl.comparableAt(p), !desc, null, null));
             // equal numbers of two types: the number's type before the position, as the sort placed them
-            SqlExpr typeOrder = numberTypeOrder(tl, tl.tagAt(p));
+            SqlExpr typeOrder = numberTypeOrderAt(tl, p);
             if (typeOrder != null) {
                 order.add(new SqlSelect.SortKey(typeOrder, !desc, null, null));
             }
