@@ -90,8 +90,8 @@ class SnowflakeDialectTest {
     /**
      * The product's text of a Float is six decimals trimmed, with no shortest-digits machinery. (Until 2026-11-26 this
      * test also held Snowflake's own spelling of FLOAT_SHORTEST_TEXT, legend-pure's print of a Float from its digits
-     * read once: the node and that spelling are deleted, the edition program's step 8, slice 1 -- the text is the
-     * compatibility edge's alone, composed at lowering from the product's nodes, edge.EdgePureOnlyTexts.)
+     * read once: the node and that spelling are deleted, the edition program's step 8 -- legend-pure's print of a
+     * Float is Java's at a last step, at the compatibility edge; no SQL composes it.)
      */
     @Test
     void aFloatsTextIsSixDecimalsTrimmed_noShortestDigits() {

@@ -270,8 +270,9 @@ class CompatSpellingGuardTest {
             // INPUT (a wire text already suffixed is normalized before the canon), no spelling written
             "lowering/LiteralSpelling.java | +0000 | 1 | STAYS",
             // FLOAT_PRINT's rows: GONE 2026-11-17 (census B9, the orchestrator's ruling): measured equal to lite's writers'
-            // text inside its windows, the node is lite's canonical Float text, FLOAT_SHORTEST_TEXT, a product node in
-            // every dialect and the judges' message text alike; the symbol stays scanned so the old name cannot return
+            // text inside its windows, the node was lite's canonical Float text, FLOAT_SHORTEST_TEXT, a product node in
+            // every dialect and the judges' message text alike (itself deleted 2026-11-26, the edition program's
+            // step 8); the symbol stays scanned so the old name cannot return
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge

@@ -273,7 +273,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // (TextForms.Product and PureOnlyText.Refusal: gone 2026-11-17 with B8 -- a list's text is the style's two-form
         // kind, and every text only legend-pure writes is refused at lowering)
         // (FloatShortestText.Expansion: gone 2026-11-26, the edition program's step 8 -- legend-pure's print of a Float
-        // is the edge's alone, composed at lowering, edge.EdgePureOnlyTexts)
+        // is Java's at a last step, at the edge; no SQL composes it)
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
         return java.util.List.copyOf(ps);
@@ -284,9 +284,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return v.toPlainString();
     }
 
-    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-engine's in-query
-     *  cast of a Float, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
-     *  The product's dialects run none: they write each node lite's own way. */
+    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-pure's print form
+     *  of a DateTime and legend-engine's {@code TDSNull}, phase D's D1.2 and D1.3, 2026-11-15; a Float's in-query cast
+     *  was one until 2026-11-26). The product's dialects run none: they write each node lite's own way. */
     /** {@inheritDoc} A raw statement AS WRITTEN (Phase 6's B4 (ii), 2026-11-17): a SPELLING arm -- the statement's
      *  text, no decision -- so the compatibility edge's DuckDB and Postgres translate legend-engine's H2 text here. */
     @SpellingArm

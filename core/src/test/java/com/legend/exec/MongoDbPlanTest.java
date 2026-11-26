@@ -411,8 +411,8 @@ class MongoDbPlanTest {
                     new com.legend.sql.SqlExpr.StringLit(".0")));
             // the product's text of a Float (FLOAT_TO_TEXT: six decimals trimmed, S311; phase D's D1.2, 2026-11-15).
             // (legend-pure's print form, the node FLOAT_SHORTEST_TEXT, was measured here until 2026-11-26: the node is
-            // deleted, the edition program's step 8, slice 1 -- that text is the compatibility edge's alone, composed
-            // from the product's nodes, edge.EdgePureOnlyTexts; the casts it reads are spelled above)
+            // deleted, the edition program's step 8 -- that text is Java's at a last step, at the compatibility
+            // edge; the casts it read are spelled above)
             spelled.put("the product's text of 1e20", com.legend.lowering.LiteralSpelling.floatPrint(big));
             spelled.put("text of 2.0", text(new com.legend.sql.SqlExpr.FloatLit(2.0)));
             spelled.put("text of 1.5e-8", text(new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));

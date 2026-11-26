@@ -48,7 +48,7 @@ final class NamedRules {
      *  shortest digits ({@link #shortestDigits}), read as a double first where {@code asDouble}; any other operand is
      *  cast as it is held (moved here 2026-11-26 from the compatibility edge's SQL pass, {@code edge.PurePrintForms},
      *  which wrote this for every Float text of an edge plan: the edition program's step 8). */
-    private static SqlExpr floatTextByCast(SqlExpr x, boolean asDouble) {
+    static SqlExpr floatTextByCast(SqlExpr x, boolean asDouble) {
         SqlExpr operand = x;
         if (x instanceof SqlExpr.FloatLit f && Double.isFinite(f.value())) {
             SqlExpr digits = new SqlExpr.DecimalLit(shortestDigits(f.value()));

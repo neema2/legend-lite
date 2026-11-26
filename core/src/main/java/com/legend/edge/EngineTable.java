@@ -55,6 +55,10 @@ import java.util.Set;
  *   <li>the relational {@code isNumeric}: legend-engine's own form on each database, a row for each form (a plain
  *       decimal's text where its dialect translation writes a regular expression, no cased letter where it writes
  *       {@code lower = upper}), where the product's is one numeric check on every database (register S370).</li>
+ *   <li>{@code toString} of a Float: the database's own cast to text ({@code FLOAT_TEXT_BY_CAST}, and
+ *       {@code FLOAT_TEXT_BY_CAST_OF_A_DOUBLE} where legend-engine's literal processor reads a Float literal as a
+ *       double), on every database legend-engine has, where the product's is six decimals (the edition program's
+ *       step 8, 2026-11-26; the user's ruling that day, "agreed on float/date text for engine").</li>
  * </ul>
  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
@@ -105,9 +109,12 @@ final class EngineTable implements EditionTable, Edition {
      *  bare everywhere else. The user's ruling of 2026-11-26, "agreed on float/date text for engine": a row of this
      *  table, not presentation. On a database legend-engine does not have there is no row and the call keeps its own
      *  rule, lite's text. Until that day a pass of the edge's dialects wrote this cast for every Float text of every
-     *  compatibility plan ({@code PurePrintForms}); the two tests it holds are PCT's
-     *  {@code testFloatToStringWithNegativeExponent} (DuckDB) and the corpus's validation showcase
-     *  ({@code Quantity not in range: 1000000}), measured (docs/records/edition-homework/step8/). */
+     *  compatibility plan ({@code PurePrintForms}); the three tests it holds are PCT's legend-engine
+     *  lane's {@code testFloatToStringWithNegativeExponent} (DuckDB) and
+     *  {@code testFloatToStringWithPositiveExponent} (H2, {@code 1.3421E8}, failing as legend-engine's H2 does) and
+     *  the corpus's validation showcase ({@code Quantity not in range: 1000000}), measured
+     *  (docs/records/edition-homework/step8/). The row answers a call whose operand's declared type is Float; a
+     *  Float reached through a Number or an Any has no row and keeps lite's text. */
     private static final FunctionId TO_STRING = FunctionId.of(Pure.TO_STRING__ANY_1);
     private static final List<Row> FLOAT_TO_STRING = List.of(
             new Row(NamedRule.FLOAT_TEXT_BY_CAST_OF_A_DOUBLE, "toString(Float)", PureText.ENGINE_FLOAT_LITERAL_AS_DOUBLE),

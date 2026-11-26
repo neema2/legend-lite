@@ -34,9 +34,9 @@ class EngineFloatTextRowTest {
     private static String model(DatabaseType type) {
         return String.join("\n",
                 "###Relational\nDatabase f::DB ( Table T ( ID INTEGER PRIMARY KEY, QTY INTEGER, PRICE DOUBLE ) )",
-                "###Pure\nClass f::Trade { qty: Float[1]; price: Float[1]; }",
+                "###Pure\nClass f::Trade { qty: Float[1]; held: Integer[1]; price: Float[1]; }",
                 "###Mapping\nMapping f::M ( f::Trade: Relational { ~mainTable [f::DB]T qty: [f::DB]T.QTY,"
-                        + " price: [f::DB]T.PRICE } )",
+                        + " held: [f::DB]T.QTY, price: [f::DB]T.PRICE } )",
                 "###Connection\nRelationalDatabaseConnection f::Conn { store: f::DB; type: " + type.name()
                         + "; specification: LocalH2 { }; auth: DefaultH2; }",
                 "###Runtime\nRuntime f::RT { mappings: [f::M]; connections: [ f::DB: [ c: f::Conn ] ]; }");
@@ -88,6 +88,8 @@ class EngineFloatTextRowTest {
                 continue;
             }
             assertNotEquals(asWritten(c, computed), engines(c, computed), type + " " + computed);
+            // (what the row writes for an operand that is no literal, the one cast of it as it is, is pinned on the
+            // rule itself, NamedRulesFloatTextTest, and on a column below)
             String sql = engines(c, literal);
             // the literal as the exact numeric of its shortest digits, laid out plain
             assertTrue(sql.contains("0.000000013421"), type + ": " + sql);
@@ -115,9 +117,11 @@ class EngineFloatTextRowTest {
             String query = "|f::Trade.all()->project([t|$t.qty->toString()], ['q'])->from(f::M, f::RT)";
             String sql = engines(c, query);
             assertNotEquals(asWritten(c, query), sql, type + " " + query);
-            // the product's text of a Float is a longer expression over the value read as a double; the row's is the
-            // one cast of the column
-            assertTrue(sql.length() < asWritten(c, query).length(), type + ": " + sql);
+            // the row's statement is exactly the one that prints the same column read as the Integer it is held as:
+            // one cast of the column to text (the independent review of 2026-11-26; until this step
+            // FloatTextTest held the pass to the render of that cast)
+            String asHeld = "|f::Trade.all()->project([t|$t.held->toString()], ['q'])->from(f::M, f::RT)";
+            assertEquals(engines(c, asHeld), sql, type + " " + query);
             assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("DOUBLE"), type + ": " + sql);
         }
     }

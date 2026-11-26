@@ -60,8 +60,8 @@ class BigQueryDialectTest {
     }
 
     // (aFloatsPrintFormsReadItsTextOnce: gone 2026-11-26 with FLOAT_SHORTEST_TEXT and the readsLongTextOnce hook, the
-    // edition program's step 8, slice 1 -- legend-pure's print of a Float is the compatibility edge's alone, composed
-    // at lowering from the product's nodes, edge.EdgePureOnlyTexts)
+    // edition program's step 8 -- legend-pure's print of a Float is Java's at a last step, at the compatibility edge;
+    // no SQL composes it)
 
     /** The product's Float text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): {@code FORMAT}'s six decimals,
      *  trimmed, BigQuery's {@code nan} and {@code inf} by Pure's names; the value read once, no derived table. */

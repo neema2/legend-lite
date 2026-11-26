@@ -189,7 +189,7 @@ class AuditRound3Test {
     }
 
     @Test
-    @DisplayName("audit: floatRepr — fraction-free magnitudes render exact plain digits via HUGEINT")
+    @DisplayName("audit: a Float's text in an edge query is lite's own (until 2026-11-26: floatRepr, plain digits via HUGEINT)")
     void floatReprLargeBand() throws Exception {
         // a query planned in the compatibility edge's style writes lite's own text of a Float since the edition
         // program's step 8 (2026-11-26); until then legend-engine's in-query cast, by the edge's SQL pass, deleted

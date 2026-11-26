@@ -501,18 +501,20 @@ public final class LiteralSpelling {
     /**
      * A Float's text ({@code toString}, {@code format}'s {@code %f}): one call, {@link SqlFn#FLOAT_TO_TEXT}, which each
      * dialect writes -- the product six decimals trimmed, a whole value keeping one (the user's rulings of 2026-11-10
-     * and 2026-11-23), the compatibility edge legend-engine's in-query cast (edge/PurePrintForms; phase D's D1.2,
-     * 2026-11-15; until then this was Pure's form everywhere, a node deleted 2026-11-26).
+     * and 2026-11-23), the compatibility edge's dialects the same (until 2026-11-26 a pass of theirs
+     * wrote legend-engine's in-query cast; inside a store query at legend-engine's door that cast is a row of
+     * legend-engine's table now, {@code edge.EngineTable}, which lowers the call before this rule is reached).
      */
     public static SqlExpr floatPrint(SqlExpr x) {
         // ONE text for every Float, a value the store holds as an integer too (a physical column the store declares
         // integral under a Float property: legend-engine's test tradeTable.quantity INT under the validation
         // showcase's Float): the dialect reads the column as a double, so its whole value prints 2.0 (S311 amended,
         // the user's ruling of 2026-11-23, "I think we do it as 2.0"; B2a, 2026-11-24 -- until then a plain cast wrote
-        // its digits, the same text while a whole value printed 2, and both styles shared the cast). The compatibility
-        // edge writes legend-engine's in-query cast for this node (edge/PurePrintForms), so its text of such a column
-        // is still the integer the database holds ('Quantity not in range: 1000000', measured on the corpus
-        // 2026-10-18). The judges' print of such a column at the edge is its digits (edge/EdgePureOnlyTexts).
+        // its digits, the same text while a whole value printed 2, and both styles shared the cast). Inside a store
+        // query at legend-engine's door the call never reaches this rule: legend-engine's table writes the database's
+        // cast of the column as it is held (edge/EngineTable, the edition program's step 8, 2026-11-26), so its text
+        // of such a column is still the integer the database holds ('Quantity not in range: 1000000', measured on the
+        // corpus 2026-10-18 and again 2026-11-26).
         return SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x);
     }
 

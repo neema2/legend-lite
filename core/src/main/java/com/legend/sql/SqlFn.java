@@ -182,13 +182,14 @@ public enum SqlFn {
      *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
     DECIMAL_TO_TEXT,
     // (FLOAT_SHORTEST_TEXT, a Float's shortest round-trip text made plain inside its windows: gone 2026-11-26, the
-    // edition program's step 8, slice 1 -- since B2b's S5a-S5c only the compatibility edge wrote it, for
-    // legend-pure's %r of a Float, which the edge composes at lowering from the product's nodes, edge.EdgePureOnlyTexts)
+    // edition program's step 8 -- since B2b's S5a-S5c only the compatibility edge wrote it, for legend-pure's %r of a
+    // Float used further in a program, which is lite's own text now, FLOAT_TO_TEXT (tenet 1 as amended 2026-11-25))
     /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
      *  zeros trimmed, a whole value keeping one ({@code 2.0}), NaN and the infinities by name (the user's ruling of
      *  2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15; S311 amended by the user's ruling of 2026-11-23, "I think
-     *  we do it as 2.0") -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
-     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms). */
+     *  we do it as 2.0") -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}), the
+     *  compatibility edge's dialects too (until 2026-11-26 a pass of theirs wrote legend-engine's in-query cast for
+     *  it; that cast is a row of legend-engine's table now, {@code edge.EngineTable}, inside a store query alone). */
     FLOAT_TO_TEXT,
     /** A Float's FULL-PRECISION TEXT AS THE DATABASE ITSELF WRITES IT ({@code (x)}, one operand, a double; NULL stays
      *  NULL): toCSV's Float cell (the user's ruling of 2026-11-25, "okay make exact": each database's own full-precision

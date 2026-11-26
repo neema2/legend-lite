@@ -3,6 +3,8 @@
 
 package com.legend.lowering;
 
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,5 +38,27 @@ class NamedRulesFloatTextTest {
         for (double d : new double[] {0.1 + 0.2, 1.0 / 3.0, Math.PI, 1.0e-300, 1.0e300}) {
             assertEquals(d, NamedRules.shortestDigits(d).doubleValue(), Double.toString(d));
         }
+    }
+
+    /** The rule itself (the independent review of 2026-11-26): any operand but a finite Float literal is cast as it
+     *  is, whichever form the database takes (a column, a computed value; NaN and the infinities, which an exact
+     *  numeric cannot hold, stay the literal they are); a finite literal is its digits, read as a double first only
+     *  under {@link NamedRule#FLOAT_TEXT_BY_CAST_OF_A_DOUBLE}. */
+    @Test
+    void theRuleCastsItsOperandAsItIs_aFiniteLiteralByItsDigits() {
+        SqlExpr column = SqlExpr.Column.of("t", "QTY", SqlType.Scalar.BIGINT, true,
+                com.legend.sql.OutputCol.Origin.PHYSICAL);
+        for (SqlExpr asItIs : new SqlExpr[] {column, new SqlExpr.FloatLit(Double.NaN),
+                new SqlExpr.FloatLit(Double.POSITIVE_INFINITY), new SqlExpr.FloatLit(Double.NEGATIVE_INFINITY)}) {
+            SqlExpr cast = new SqlExpr.Cast(asItIs, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
+            assertEquals(cast, NamedRules.floatTextByCast(asItIs, false));
+            assertEquals(cast, NamedRules.floatTextByCast(asItIs, true));
+        }
+        SqlExpr digits = new SqlExpr.DecimalLit(new java.math.BigDecimal("0.000000013421"));
+        assertEquals(new SqlExpr.Cast(digits, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER),
+                NamedRules.floatTextByCast(new SqlExpr.FloatLit(1.3421e-8), false));
+        assertEquals(new SqlExpr.Cast(new SqlExpr.Cast(digits, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DECLARED),
+                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER),
+                NamedRules.floatTextByCast(new SqlExpr.FloatLit(1.3421e-8), true));
     }
 }

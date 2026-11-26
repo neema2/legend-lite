@@ -1045,7 +1045,6 @@ public class Trino extends AnsiSqlRenderer {
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS VARCHAR)");
             case BIT_NOT -> writer.append("bitwise_not(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
-            // floor without the BIGINT conversion
             // the first character's code point (codepoint takes a VARCHAR(1), and refuses the empty one: Pure's is 0)
             case ASCII_CODE -> writer.append("(CASE WHEN length(").expr(a.get(0), 0).append(") = 0 THEN 0 ELSE")
                     .append(" codepoint(CAST(substr(").expr(a.get(0), 0).append(", 1, 1) AS VARCHAR(1))) END)");
