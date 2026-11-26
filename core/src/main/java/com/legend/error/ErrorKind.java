@@ -38,8 +38,6 @@ public enum ErrorKind implements ErrorCode {
     INSERT_OUT_OF_BOUNDS(Form.any("add(set, index, value): index out of bounds")),
     /** [the value]: legend-pure's, the value as Pure prints a Float (K2). */
     SQRT_OF_NEGATIVE(Form.any("Unable to compute sqrt of %1$s", Slot.FLOAT)),
-    /** [the function (acos, asin), the value]: legend-pure's, the value as Pure prints a Float. */
-    INVERSE_TRIG_OUT_OF_DOMAIN(Form.any("Unable to compute %1$s of %2$s", Slot.TEXT, Slot.FLOAT)),
     /** [the bound] (a size known empty) or [the bound, the size]: legend-pure's toOne/cast. */
     SIZE_NOT_MULTIPLICITY(Form.of(1, "Cannot cast a collection of size 0 to multiplicity %1$s"),
             Form.any("Cannot cast a collection of size %2$s to multiplicity %1$s")),

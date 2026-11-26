@@ -169,11 +169,10 @@ public final class PureText {
 
     /** CENSUS CLASS A (docs/records/pure-v1-engine-census-2026-11-17.md): the kinds legend-engine 4.145.0's pure/v1
      *  route writes no check for in its SQL -- the database decides (rem's and divide's {@code mod} and {@code /},
-     *  {@code sqrt}, {@code acos} and {@code asin}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice},
-     *  {@code range}, {@code processCast}, the parses' plain casts). */
+     *  {@code sqrt}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice}, {@code range}, {@code processCast},
+     *  the parses' plain casts). */
     static final java.util.Set<com.legend.sql.RaiseKind> ENGINE_UNCHECKED = java.util.Collections.unmodifiableSet(
             java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
-                    com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
                     com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
                     com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, com.legend.sql.RaiseKind.RANGE_STEP_ZERO,
                     com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,

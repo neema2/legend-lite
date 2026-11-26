@@ -319,12 +319,8 @@ class HookRulingTest {
         // the raises a plan writes plain (B7, 2026-11-17; the two-form LoweringForms since the audit's K5): the
         // product's none, PCT's and the corpus's none (legend-pure's guarded words), the pure/v1 route's legend-engine's
         // census class A
-        // (2026-11-26, the user's ruling of 2026-11-25 on acos and asin, register S119 reopened: the product raises
-        // out of [-1, 1] as legend-pure does, and legend-engine's SQL is the bare function, so the new kind joins
-        // class A at its birth -- pure/v1's SQL for acos and asin is what it was)
         java.util.Set<com.legend.sql.RaiseKind> classA = java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO,
-                com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
-                com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE,
+                com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE,
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED,
                 com.legend.sql.RaiseKind.RANGE_STEP_ZERO, com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
                 com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, com.legend.sql.RaiseKind.TEXT_NOT_FLOAT,
