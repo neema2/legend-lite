@@ -1,0 +1,19 @@
+SELECT typeof(p), p FROM (VALUES (BIGINT '0'), (1), (2)) AS t(p)
+;;
+SELECT typeof(p) FROM (VALUES (1), (2)) AS t(p)
+;;
+SELECT typeof(p) FROM (VALUES (1), (9999999999)) AS t(p)
+;;
+SELECT date_diff('microsecond', TIMESTAMP '1970-01-01 00:00:00', TIMESTAMP '2024-01-31 00:32:34.999123456')
+;;
+SELECT to_unixtime(TIMESTAMP '2024-01-31 00:32:34.999123')
+;;
+SHOW FUNCTIONS LIKE '%unix%'
+;;
+SELECT element_at(transform(ARRAY[42], v -> v + v), 1)
+;;
+SELECT x FROM UNNEST(ARRAY[3,1,2]) WITH ORDINALITY AS u(x, o) ORDER BY o
+;;
+SHOW FUNCTIONS LIKE '%jaro%'
+;;
+SHOW FUNCTIONS LIKE 'array%'

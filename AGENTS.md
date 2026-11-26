@@ -183,7 +183,15 @@
 >    until the edition's guards land, phase E1]`
 >
 > Two readings were ruled the same minute. **Folds:** the compiler may fold
-> constants and facts fixed by the types, never row data. **Error records:** a
+> constants and facts fixed by the types, never row data. *Made precise by the
+> fold rule (the user, 2026-11-26: "Yes apply fold rule", then "Whole numbers
+> fine"):* the compiler compares two written values only of a kind whose
+> written token IS the value -- a String, a Boolean, an enumeration's value, a
+> whole number. A Float, a Decimal and a date are compared by the database,
+> which knows what each denotes (a Decimal by its number, a date-time by its
+> instant). Whole numbers stay because a function that recurses over a written
+> list ends at a guard like `size() == 0`, which the compiler must answer to
+> stop (`compiler.spec.LiteralUnroll.comparedHere`). **Error records:** a
 > raised error's record is lite's typed output, so compatibility may word
 > upstream's sentence in Java from it (tenet 3).
 >
@@ -576,6 +584,7 @@ otherwise, which is how it drifted:
 | Doc | What it is |
 |---|---|
 | `docs/records/edition-program-START-HERE-2026-11-25.md` | **Start here for the edition program** (the user's rulings of 2026-11-25; branches `claude/compat-b3-nufdlk` and `claude/compat-b2-nufdlk`): every piece of code carries an edition (`lite`, `pure`, `engine`) read only by the typer; the whole context for a session with none -- background, every approach tried and why it was rejected, the rulings verbatim, the measurements, the open decisions, the phases E0c-E7 step by step, how to run every check, the traps. The design is `docs/records/edition-design-2026-11-25.md`, the census `docs/records/edition-census-2026-11-25.md` |
+| `docs/records/database-recheck-2026-11-26/START_HERE.md` | **Start here for lean SQL on every database** (the follow-up to Stage B; the user, 2026-11-26: "we should write down all the research and all the context and any artifacts so we can do it next as a follow up right after B is done"): researched, nothing built. Where each database's SQL blows up and why (a list written more than once per operation; ClickHouse's settings on every statement), fourteen fixes ranked with estimates, every "this database cannot" of ours checked against the vendor and the database, versions against the latest, the defects found, the probe programs, the rules a slice is held to |
 | `docs/TOTAL_WALL_START_HERE_2026_11_11.md` | **Start here for the total-wall program** (branch `claude/total-wall`, the user's go of 2026-11-11): total plan/exec separation, phases A-F, then ONE PR. The orchestrator's handoff: every ruling, the state, what remains in order, the runbook (fast loop, lane rounds, audits, checkpoints), the sessions, and the templates for a fresh worker, lane round and audit |
 | `docs/DATA_IN_THE_PLAN_2026_11_09.md` | **Data in the plan** (the user's go, 2026-11-09): data enters a database through a load and only a load -- a reference with a digest (never a machine path, never large rows), resolved, verified and delivered by exec, the delivery chosen at planning per database; today's 17 mechanisms each replaced and deleted (13) or bounded by a guard (4, not loads); the deletion census as the proof; slices L1-L8. Evidence: `docs/data-in-the-plan-homework/` |
 | `docs/PLAN_AS_DATA_2026_11_07.md` | **Start here for P1's remaining work** (branch `claude/corpus-walk-deletion`, the user's rulings of 2026-11-08): a test body's run reads only its plan, which is data; two plan types; the judgments, failures and connection description as plan data; the edge's typed extension point; exec as the one walker with a callback; no `driver` package (`testplan`/`testexec` beside `planner`/`exec`); the guards that prove no code is in the plan; the order of work and its verification |

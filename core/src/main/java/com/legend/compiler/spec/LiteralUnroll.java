@@ -88,7 +88,8 @@ final class LiteralUnroll {
             case TypedCFloat f -> Optional.of(new Scalar(Type.Primitive.FLOAT.qualifiedName(), f.value()));
             case TypedEnumValue ev -> Optional.of(new Scalar(ev.enumFqn(), ev.enumFqn() + "." + ev.value()));
             case com.legend.compiler.spec.typed.TypedCDate d when d.info().type() instanceof Type.Primitive p ->
-                    // the literal body, a key the folds compare (W8, 2026-11-16: no print form's zone)
+                    // the literal body, a key for the structural folds (W8, 2026-11-16: no print form's zone); not
+                    // compared as a value by ==, in or contains (comparedHere); the map's get still does (step 10)
                     Optional.of(new Scalar(p.qualifiedName(), d.value().canonicalText()));
             case com.legend.compiler.spec.typed.TypedCDecimal d when d.info().type() instanceof Type.Primitive p ->
                     Optional.of(new Scalar(p.qualifiedName(), d.value()));
@@ -420,25 +421,45 @@ final class LiteralUnroll {
             return bool(false);
         }
         return literal(a.get(0)).flatMap(l -> literal(a.get(1))
-                .filter(r -> l instanceof Scalar && r instanceof Scalar && l.cls().equals(r.cls()))
+                .filter(r -> l instanceof Scalar && r instanceof Scalar && l.cls().equals(r.cls())
+                        && comparedHere(a.get(0)))
                 .<TypedSpec>map(r -> bool(((Scalar) l).value().equals(((Scalar) r).value()))))
                 .orElse(c);
     }
 
-    /** {@code value->in(list)} over a list of spelled scalars. A value of one number type against a list of another's
-     *  literals is a comparison only by the literal rule (NumberLiterals: a whole number written against a Float reads
-     *  as that Float, and is left as written), so its answer is by VALUE and the database's -- never this fold's, which
-     *  compares two spelled values as two kinds (2026-11-26, the audit of the edition program's steps 4 and 5:
-     *  {@code 1.0->in([0, 1])}, a call inlined, was folded to false). A list of mixed kinds is another matter: its
-     *  values carry their types, two kinds are never equal, and the fold answers. */
-    private static TypedSpec inFold(TypedNativeCall c, TypedSpec value, TypedCollection list) {
-        Type.Primitive valueKind = numberKind(value.info().type());
-        Type.Primitive listKind = numberKind(list.info().type());
-        if (valueKind != null && listKind != null && valueKind != listKind) {
-            return c;
-        }
-        return scalar(value).<TypedSpec>map(needle -> bool(list.elements().stream()
-                .anyMatch(e -> !neverEqual(value, e) && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
+    /**
+     * Whether the compiler may compare {@code spelled}'s VALUE with another's of its own kind: a String, a Boolean, an
+     * enumeration's value, an Integer -- the kinds whose written token IS the value, one spelling a value. THE FOLD
+     * RULE (the rules of record, row 1; docs/records/edition-design-v3-2026-11-25.md section 4: "the only computation
+     * before the database is folding constant String and Boolean expressions ... Everything else goes to the
+     * database: numbers, number and date text, list operations over values, indexOf, contains over values, dates";
+     * the user, 2026-11-26: "Why are we adding any logic to constant folding? I thought we were taking it all out
+     * except string and boolean const"). A Float, a Decimal, a date and a time are compared by the database alone,
+     * which knows what each denotes: two date-times by their instant whatever precision they were written at (S399),
+     * two Decimals by their number whatever their scale (S139) -- the folds had compared two spelled date-times by
+     * their written text and answered false where the database answers true. AN INTEGER STAYS (the user's ruling of
+     * 2026-11-26, "Whole numbers fine", after this slice's audit): a function that recurses over a written list ends at
+     * its guard, {@code $l->size() == 0}, an equality of two whole numbers it must answer to stop (docs/WORLD_MAP.md:
+     * the unroll compares spelled tokens); a whole number has one spelling, so there is no second answer to give.
+     * The comparison part of the folds' cut-back (the edition program's step 10), taken with the one equality.
+     */
+    private static boolean comparedHere(TypedSpec spelled) {
+        return spelled instanceof TypedCString || spelled instanceof TypedCBoolean || spelled instanceof TypedEnumValue
+                || spelled instanceof TypedCInteger;
+    }
+
+    /** Whether {@code other} is spelled as the same kind of literal as {@code value}, one of the kinds the compiler
+     *  compares ({@link #comparedHere}): a String against a String, a whole number against a whole number. A literal
+     *  of another kind is never the value's match in a fold, whatever key its spelling shares with it. */
+    private static boolean spelledAlike(TypedSpec value, TypedSpec other) {
+        return switch (value) {
+            case TypedCString s -> other instanceof TypedCString;
+            case TypedCBoolean b -> other instanceof TypedCBoolean;
+            case TypedEnumValue v -> other instanceof TypedEnumValue;
+            case TypedCInteger i -> other instanceof TypedCInteger;
+            default -> throw new IllegalStateException("a literal the compiler does not compare reached a fold: "
+                    + value);
+        };
     }
 
     /** {@code t} as the number type it is (a Decimal of a declared precision is a Decimal), or null where it is no
@@ -449,6 +470,31 @@ final class LiteralUnroll {
         }
         return t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT || t == Type.Primitive.DECIMAL
                 ? (Type.Primitive) t : null;
+    }
+
+    /** {@code value->in(list)} over a list of spelled scalars: folded where the value is of a kind the compiler may
+     *  compare ({@link #comparedHere}) -- against a list of mixed kinds too, whose other kinds are never equal to it:
+     *  an element is a match only where it is spelled as the value's own kind (the audit of this slice, 2026-11-26:
+     *  a date is keyed by its text, so {@code '2014-02-01'->in([%2014-02-01, 1])} had folded to true). A Float, a
+     *  Decimal or a date goes to the database: by the fold rule, and because the answer is the database's (a whole
+     *  number written against a Float reads as that Float, NumberLiterals; the audit of the edition program's steps
+     *  4 and 5 found {@code 1.0->in([0, 1])}, a call inlined, folded to false here). */
+    private static TypedSpec inFold(TypedNativeCall c, TypedSpec value, TypedCollection list) {
+        if (!comparedHere(value)) {
+            return c;
+        }
+        // a whole number against a list of another number type's literals is a comparison only by the literal rule
+        // (NumberLiterals), whose answer is by VALUE and the database's: left to it, as 1.0->in([0, 1]) is above
+        // (the re-check of this slice's audit, 2026-11-26: with whole numbers back in the fold, an inlined
+        // 1->in([0.0, 1.0]) folded to false where its mirror answers true)
+        Type.Primitive valueKind = numberKind(value.info().type());
+        Type.Primitive listKind = numberKind(list.info().type());
+        if (valueKind != null && listKind != null && valueKind != listKind) {
+            return c;
+        }
+        return scalar(value).<TypedSpec>map(needle -> bool(list.elements().stream()
+                .anyMatch(e -> spelledAlike(value, e) && !neverEqual(value, e)
+                        && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
     }
 
     /** Whether two spelled scalars are of two kinds one of which is an enumeration: never equal (the user, 2026-10-30,
@@ -498,7 +544,7 @@ final class LiteralUnroll {
         if (is(c, Pure.AT_COLLECTION_CONTAINS, Pure.AT_STRING_CONTAINS)
                 && c.callee().qualifiedName().equals("meta::pure::functions::collection::contains")
                 && a.size() == 2 && literalStructure(a.get(0))) {
-            Optional<Literal> needle = literal(a.get(1)).filter(l -> l instanceof Scalar);
+            Optional<Literal> needle = literal(a.get(1)).filter(l -> l instanceof Scalar && comparedHere(a.get(1)));
             if (needle.isPresent()) {
                 Scalar n = (Scalar) needle.get();
                 boolean allScalar = elements(a.get(0)).stream()

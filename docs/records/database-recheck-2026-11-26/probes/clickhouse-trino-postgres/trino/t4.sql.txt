@@ -1,0 +1,7 @@
+SELECT * FROM (VALUES ('a', 'x', 1), ('a', 'y', 2), ('b', 'x', 3)) t(k, c, v) PIVOT (sum(v) FOR c IN ('x', 'y'))
+;;
+SELECT * FROM (VALUES ('a', 'x', 1), ('a', 'y', 2), ('b', 'x', 3)) t(k, c, v) PIVOT (sum(v) AS s FOR c IN ('x' AS x, 'y' AS y))
+;;
+SELECT json_format(JSON '{"a":1}'), typeof(json_parse('[1,2]'))
+;;
+SHOW FUNCTIONS LIKE '%merge%'

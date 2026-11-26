@@ -1,0 +1,25 @@
+import sys,collections
+D='/tmp/claude-0/-home-user-legend-lite/37e604d0-f16d-5c80-a65e-84a7c2121e8e/scratchpad/ctp-dump'
+rows=[l.rstrip('\n').split('\t',5) for l in open(D+'/sqlf.tsv')]
+def strip(db,s):
+    if db=='ClickHouse':
+        i=s.rfind('\\nSETTINGS join_use_nulls')
+        if i>=0: return s[:i]
+    return s
+fam=collections.defaultdict(lambda: collections.defaultdict(int))
+per=collections.defaultdict(lambda: collections.defaultdict(int))
+famof={}
+for db,i,n,f,e,s in rows:
+    if n=='-1': continue
+    L=len(strip(db,s)); fam[db][f]+=L; per[int(i)][db]+=L; famof[int(i)]=(f,e)
+if sys.argv[1]=='rank':
+    for db in ['ClickHouse','Trino','Postgres']:
+        print('==',db,'(ClickHouse without SETTINGS)' if db=='ClickHouse' else '', sum(fam[db].values()))
+        r=sorted(fam[db].items(), key=lambda kv: -(kv[1]-fam['DuckDB'].get(kv[0],0)))
+        for f,c in r[:12]:
+            d=fam['DuckDB'].get(f,0); print(f'  {f[:75]:75} {c:7} duck {d:7} +{c-d:7} x{c/max(d,1):.2f}')
+else:
+    db,f=sys.argv[2],sys.argv[3]; k=int(sys.argv[4]) if len(sys.argv)>4 else 3
+    ids=[i for i in per if famof[i][0]==f]
+    ids.sort(key=lambda i:-(per[i].get(db,0)-per[i].get('DuckDB',0)))
+    for i in ids[:k]: print(i, dict(per[i]), famof[i][1][:160])

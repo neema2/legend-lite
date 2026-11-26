@@ -90,7 +90,10 @@ class NumberLiteralsTest {
                 // two literals, one of them a Decimal literal: still two literals (the step 6 measurement's finding,
                 // 2026-11-26: until then the Decimal literal was read as a value, and 1D == 1 answered true)
                 "|1D == 1", "|1.5 == 1.5D", "|1 == -1D", "|[1D, 2D]->contains(1)", "|1->in([1D, 2D])",
-                "|let a = 1.5; let b = 1; $a == $b;", "|let a = 1.5; let b = 1; $a > $b + 1;")) {
+                "|let a = 1.5; let b = 1; $a == $b;", "|let a = 1.5; let b = 1; $a > $b + 1;",
+                // a number no Decimal holds (past its 38 digits) is not exact there: the comparison stays a mistake
+                // at compile, never a database's overflow (the audit of batch A, 2026-11-26)
+                "|let a = 1.5D; $a == 1.0e40;", "|let a = 1.5D; $a < 123456789012345678901234567890123456789;")) {
             assertEquals(1, crossings(q), q);
         }
     }

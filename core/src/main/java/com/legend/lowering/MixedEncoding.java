@@ -328,10 +328,14 @@ final class MixedEncoding {
         } else {
             return null;
         }
-        // a date's precision, its tie-break after the instant (O2's D1, 2026-11-13): legend-pure's
-        // DateFunctions.compare compares component by component, and where one date lacks the other's finer
-        // component they are ordered coarser FIRST -- %2025-02-10 before %2025-02-10T00:00:00, which share an instant
-        SqlExpr p = group == 1 ? new SqlExpr.IntLit(precisionOf(t, e).ordinal()) : new SqlExpr.NullLit();
+        // a date's TYPE, its tie-break after the instant (O2's D1, 2026-11-13): a year, a year and month, a day and a
+        // date-time are four types, and where two of them share an instant the coarser is ordered FIRST --
+        // %2025-02-10 before %2025-02-10T00:00:00 (legend-pure's DateFunctions.compare, component by component). A
+        // date-time is ONE type whatever precision it was written at (the equality rule, register S399; the edition
+        // program's step 6, slice 6.1, 2026-11-26): two date-times at one instant are equal, so they tie here and
+        // keep the list's own order (until then the written precision ordered them, an hour before a second)
+        SqlExpr p = group == 1 ? new SqlExpr.IntLit(Math.min(precisionOf(t, e).ordinal(),
+                PureDateLiteral.Precision.HOUR.ordinal())) : new SqlExpr.NullLit();
         return new SqlExpr.StructLit(List.of(
                 new SqlExpr.StructLit.Field("g", new SqlExpr.IntLit(group)),
                 new SqlExpr.StructLit.Field("n", n != null ? n : new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE),
@@ -379,17 +383,31 @@ final class MixedEncoding {
         }
     }
 
-    /** The channel of a tagged list that holds a value of {@code kind} (a needle's static kind), else -1: a kind
-     *  with no channel is a member of nothing in the list (a {@code DateTime(n)} is its own kind: Pure's date
-     *  equality reads the subsecond text, the L1 audit's finding 2). */
-    static int channelOf(SqlExpr.TaggedList tl, String kind) {
+    /** The FAMILY a kind's values are equal within (the equality rule: within one type, the value, not its
+     *  spelling): a date-time at any written precision is a DateTime, equal by its instant (register S399); every
+     *  other kind is its own -- a Decimal's kind names no scale, so Decimals of two scales are one family already,
+     *  equal by their number (S139). The written digits stay the kind's for the value's PRESENTATION alone (the
+     *  result decoder reads them); no comparison reads them (the edition program's step 6, slice 6.1, 2026-11-26). */
+    static String family(String kind) {
+        return writtenDigits(kind) != null ? "DateTime" : kind;
+    }
+
+    /** Whether two kinds are of one family ({@link #family}). */
+    static boolean sameFamily(String a, String b) {
+        return family(a).equals(family(b));
+    }
+
+    /** The channels of a tagged list that hold values of {@code kind}'s family (a needle's static kind), in channel
+     *  order: a family with no channel is a member of nothing in the list. Several where the list holds Decimals at
+     *  two scales or date-times at two written precisions (one channel per slot). */
+    static List<Integer> channelsOf(SqlExpr.TaggedList tl, String kind) {
+        List<Integer> out = new ArrayList<>();
         for (int k = 0; k < tl.channels().size(); k++) {
-            String ck = tl.channels().get(k).kind();
-            if (ck.equals(kind)) {
-                return k;
+            if (sameFamily(tl.channels().get(k).kind(), kind)) {
+                out.add(k);
             }
         }
-        return -1;
+        return out;
     }
 
     /** The tagged kind of a needle's static type: the name a tagged list's channel carries, or null for a type no

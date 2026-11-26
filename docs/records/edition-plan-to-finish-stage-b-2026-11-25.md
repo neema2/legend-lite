@@ -155,16 +155,44 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 
 | Step | Built | Closed | What remains to close it |
 |---|---|---|---|
-| 1 | all (PCT on compiled legend-pure deferred to step 10 by the user) | no | `acos`/`asin` lands with the batch of steps 4 and 5; the program branch moves |
-| 2 | all, a full round passed | no | the program branch moves |
-| 3 | all, a full round passed | no | the program branch moves |
-| 4 | all, in the batch | no | the batch lands (CI green), the program branch moves |
-| 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | no | the batch lands. Its leftover rows are deferred by the user's word of 2026-11-26 (section 5b); its finish line is met but for one recorded difference (PCT's legend-engine run on DuckDB: `testBigFloatAbs`, register S120); the Float, date and `TDSNull` text rows are step 8's |
-| 6 | the research, the measurement, the first slice (`assertSize`, on a scratch branch) | no | slices 6.1 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
-| 8 | slices 1 and 2 on its branch | no | its deletion slice; its landing |
-| 9 | nothing (its first session never started; restarted 2026-11-26 15:01) | no | slice 1, then the later slices after steps 6 and 8 |
-| 10 | nothing | no | after 6, 8 and 9 |
+| 1 | all (PCT on compiled legend-pure deferred to step 10 by the user) | **yes, 2026-11-26** | nothing |
+| 2 | all | **yes, 2026-11-26** | nothing |
+| 3 | all | **yes, 2026-11-26** | nothing |
+| 4 | all | **yes, 2026-11-26** | nothing (its recorded gap, bodies typed into their call, is step 6's: section 5b) |
+| 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | **yes, 2026-11-26** | nothing in it. Its leftover rows are deferred by the user's word (section 5b); the Float, date and `TDSNull` text rows are step 8's. One recorded difference at its finish line (PCT's legend-engine run on DuckDB: `testBigFloatAbs`, register S120) |
+| 6 | the first slice (`assertSize`: **landed 2026-11-26**, `4d44bf54`); slice 6.1 built, measured and audited on `claude/batch-6-1`, the fold rule ruled by the user ("Whole numbers fine") | no | 6.1 lands (its full run, then the pull request's CI); then slices 6.2 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
+| 8 | slices 1 and 2 (**landed 2026-11-26**, `4d44bf54`; slice 2's own independent audit found no blocker and seven should-fix items, which its session is repairing on its branch); the Float deletion slice and the date-time slices built, the user's rulings given | no | slice 2's repairs and each later slice audited from outside, then landed; the `TDSNull` row; two register rows put to the user (`trim`; `length` and `indexOf` over characters past U+FFFF) |
+| 9 | slice 1 (**landed 2026-11-26**, `4d44bf54`); slice 2 built | no | slice 2 audited from outside, then landed; the later slices after steps 6 and 8 |
+| 10 | nothing | no | after 6, 8 and 9. Its first item: no line of the edge names a database (section 5b) |
 | 11 | nothing | no | the user's word |
+
+**How the next batch landed (2026-11-26, 20:22 UTC).** `4d44bf54`: step 6's first slice (`assertSize` as the
+product's own count, `assertNotSize` with it), step 8's slices 1 and 2, step 9's slice 1, and the fixes the lanes and
+the audit of batch A's landing asked for (MongoDB's `acos`/`asin` raise, ClickHouse's Float literal as the number).
+The program branch was fast-forwarded to it. Verified before: the fixed pre-push set (149 of 151, the one guard
+failure fixed and re-run), the local gate in a builder session (557 passed, the 14 root-only targets passed
+unprivileged, no pin up), six database lanes with no change against batch A beyond the two fixes, and an independent
+audit whose blocker (two stale H2 pins) and should-fix items were fixed and re-checked. CI on the pull request at that
+commit: 55 of 56 jobs green. **The one red job is `macos / datacube`, by one case of `//datacube:live_channel_test`**
+("a selected chart removed while the grid's whole filter is set here", `the mark is on the grid's filter`): the batch
+changes no file under `datacube`, `wasm`, `engine-client` or `query-store`, the same test passed on Linux and Windows
+on the same commit and on macOS on batch A, and it is the second time this one test has failed on macOS alone (the
+first is recorded above, at step 4). It is a timing-sensitive page test, landed over as such and filed as a task; the
+job could not be re-run from the session (GitHub answers 403). The step 6.1 batch's push runs it again.
+
+**How steps 1 to 5 closed (2026-11-26, 18:22 UTC).** Their code is batch A, `ae275024`: the program branch
+`claude/compat-b3-nufdlk` was fast-forwarded to it. Verified before: the fixed pre-push set, the local gate with its
+root-only targets run unprivileged, the shrink-only check of the guard pins, ten SQL databases' lanes, and an
+independent audit whose findings were fixed. CI on the pull request (#141) at that commit: 53 of 55 jobs green, none
+red. The two that did not run are macOS jobs that never got a runner (`macos / pct_duckdb`, cancelled in the queue
+after 75 minutes; `macos / edge_net`, still queued): both lanes are green on Linux and Windows, macOS's other
+thirteen jobs are green (its corpus lane with the new overlay among them), and both run again on macOS with the next
+batch's push. Every test whose answer moved and every pin was brought to the user (`edition-homework/
+landing-steps-4-5-2026-11-26.md`; the rulings in section 7a).
+**One thing batch A got wrong, found after:** MongoDB's lane was not re-run on its last commit, and the two `acos`
+and `asin` error tests fail there (the server's optimizer evaluates the operator over a literal before the
+statement's guard). Fixed in the next batch (`MongoDb.java`, the operand read through the row), verified on the lane
+345 of 345.
 
 ### 5b. Carried forward (so nothing deferred is forgotten; each line names the step that owns it)
 
@@ -177,8 +205,17 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 | Counts over a declared key: legend-engine trusts no key, lite folds over a declared one | recorded as a difference (a register row), **not built**; the row is written in step 10's records pass | the same |
 | A way for a project in lite's SDLC to be taken with legend-engine's meaning (today the SDLC's compile check is lite's own, strict) | **step 10** as a design note, built when projects declare their edition (the edition design's "per project") | the user, 2026-11-26: "keep sdlc but we need a way later to accept engine - put that on followup so we don't lose it" |
 | The compile route at legend-engine's door refuses a model whose function calls a plan-text function (today it accepts the model and refuses the call) | **step 9**, with the plan-text classes' move | register S427's remaining difference |
-| The literal rule's edges the audit noted: a Float literal too large for a Decimal (`1e40`) and an Integer literal past 38 digits against a Decimal become a database's error, not a compile error; `max($x.i, 1.0)` keeps the Number overload | **step 6** (slice 6.1, one value within one type) | the audit of batch A, notes |
+| The literal rule's edges the audit noted: a Float literal too large for a Decimal (`1e40`) and an Integer literal past 38 digits against a Decimal become a database's error, not a compile error *(built in slice 6.1, 2026-11-26: a number no Decimal holds is not exact there, so the comparison stays a compile error)*; `max($x.i, 1.0)` keeps the Number overload (not a comparison: recorded, not changed) | **step 6** (slice 6.1, one value within one type) | the audit of batch A, notes |
+| An instance whose key is a Decimal or a date-time, compared by the key's value: `^K(d=1.0D) == ^K(d=1.00D)` is false today because the product compares instances by a text of their keys, which keeps the written scale. Not fixed in slice 6.1 by trimming that text in SQL (more SQL, for code slice 6.4 deletes): it comes free when 6.4 compares the keys as typed values | **step 6** (slice 6.4, instances by typed keys) | slice 6.1, 2026-11-26; the research's item 4 |
 | A Float's `toString` reached through a Number or an Any (a mixed selection's candidate) inside a store query at legend-engine's door: lite's text today, legend-engine's is the database's cast (the Float row reads the operand's declared type, Float alone) | **step 6** (slice 6.2, where the mixed path is reworked: the table asked inside it) | step 8's deletion slice, its review, 2026-11-26 |
+| A date function's result is declared the abstract `Date` (`adjust`, and the others), so its `toString` is not a DateTime's text: at legend-pure's door on DuckDB `%2014-01-01T00:00:00.000+0000->adjust(1, DAYS)->toString()` prints the database's plain cast, `2014-01-02 00:00:00`, where legend-pure prints `2014-01-02T00:00:00.000+0000` (run 2026-11-26 through PCT's route; no recorded test holds it; the same family as the differences page's "33 differ only by an abstract Date's text") | **step 6** (slice 6.2: a value whose type is known only at run time carries its type, so its text is its type's) | step 8's date probe, 2026-11-26 |
+| BigQuery refuses a sort of a list of mixed kinds (`|[1, 'a', true]->sort()`): lite orders by the rank as a STRUCT, which BigQuery does not order ("ORDER BY does not support expressions of type STRUCT<g INT64, n FLOAT64, d DATETIME, ...>"; confirmed on the account by the lane, 2026-11-26; a list of Numbers alone sorts correctly; no PCT test on the lane covers it). The fix is to order by the struct's fields | **step 6** (slice 6.2, which gives the rank its tie-break by type and so rewrites this order) | the database re-check and the BigQuery lane's probe |
+| Two folds still compare a Decimal or a date by its written form (Java's `equals`), wrong under S139 and S399: the map's `get` over a written map (`newMap([pair(1.0D, 'a')])->get(1.00D)` folds to nothing; a date-time key at another written precision the same) and the inliner's `groupBy` over a written list (keys `1.0D` and `1.00D` make two groups). And two more are exact but outside the fold rule's letter: the whole-number ordering fold and the normalizer's whole-number `==` | **step 10** (the folds cut back to the rule, the list ruled) | the audit of the step 6.1 batch, S4, 2026-11-26 |
+| Whether a whole number against a Decimal in a mixed list is refused or answers false depends on the list's shape (`2->in([2D, 'a'])` is refused, `2->in([1, 2D, 'a'])` is false; `[1, 'a'] == [1D, 'a']` refused, `[1, 'a'] == [1D, 'a', 'b']` false). The refusals stand in for legend-pure's comparison of two numbers by their texts; under lite's equality rule the two are two types, never equal | **step 6** (slice 6.2, which makes these refusals answers) | the same audit, S5 |
+| A mixed list that is NOT written out and holds one type in two arrays (a relation's date-time cell beside a literal one, Decimals at two scales) compares element by element, which needs a lambda: refused on H2 where the array compare answered (wrongly, false); and on databases that hold a list as JSON text (SQLite, MariaDB) two date-times of one instant at two written precisions may still compare as different inside a list | **step 6** (the SQLite date-time form; slice 6.4 for lists on every database) | the same audit, S6; not measured |
+| A list of mixed types written leanly: (a) where the list is a literal, the compiler knows each element's type, so membership of a value of one type is `value IN (the elements of that type)` on every database, a fact fixed by the types and no value compared in Java (`1->in([1, 2, 5, 2, 'a', true])` is `1 IN (1, 2, 5, 2)`; today 220 characters on DuckDB, 286 on Snowflake, about 3,000 on H2); (b) where it is computed, the carrier uses what each database has: H2 its ARRAY type (today JSON and a CASE per element), BigQuery one `ARRAY<STRUCT<...>>` (today one single-type array per type, each operation a correlated `UNNEST ... WITH OFFSET`) | **step 6** (the fold-rule slice for (a); slices 6.2 and 6.4 for (b)) | the user, 2026-11-26, on the fold rule's measured SQL: "H2 has array type, and bigquery has array and struct - array on bigquery has to be single type" |
+| **Every database where the SQL blows up, looked at again** (the user, 2026-11-26, with the fold rule's ruling): the version lite runs against the latest released, and each "this database cannot" of lite's dialects against the database's own documentation and the database itself, "don't trust our docs". Measured over PCT's channel A, the same 2,300 statements: DuckDB 529 thousand characters, Databricks 655, Snowflake 845, Trino 918, BigQuery 934, Postgres 941, SQLite 1,543, MariaDB 1,613, ClickHouse 1,785, MySQL 2,074 (H2 457 over fewer statements). Known already: ClickHouse writes its SETTINGS clause, about 350 characters, on every statement; ClickHouse's parse of a TEXT to a Float is its fast one, a last digit off on some values and the smallest subnormal read as zero (measured 2026-11-26 on 26.3 with `clickhouse local`, three of ten values; the numeric literal is exact, and so is the text parse under `precise_float_parsing = 1`) -- lite's Float literals no longer go through it (the next batch), a text parsed at run time (`parseFloat`, a cast of a string) still does; H2's dialect carries a list as JSON though H2 has ARRAY; BigQuery's a mixed list as one array per type though it has STRUCT | **researched 2026-11-26, deferred by the user to right after Stage B** ("I don't think we should distract ourselves right now on the database list lean sql but we should write down all the research and all the context and any artifacts so we can do it next as a follow up right after B is done"): `docs/records/database-recheck-2026-11-26/START_HERE.md`, the ranked list, the three reports and the probes. One item stays in Stage B, in step 6 before slice 6.5: SQLite's one date-time text form, which the product's `==` needs to compare an instant there | the user's ruling 1 of about 18:10 UTC and their word of about 19:15 |
+| **No line outside a dialect names a database to decide anything** (the user, 2026-11-26: "Why is anywhere allowed to name database anywhere except dialect? Why did we allow anywhere outside dialect"). The edge's `PureText` names databases on six lines, four of them added in step 5 by a pin moved up (the sets of databases a row of legend-engine's table answers on), against the guard's own rule ("the fix is a dialect method, never a pin bump"). They move to the edge's own dialect object for each database, which a row asks; `DialectBoundaryTest`'s count for the file goes to zero. What stays, as defaults and not behaviour: `Databases` (the platform's default database, the replay referee's) and legend-engine's test database | **step 10**, its first item (steps 8 and 9 have the file open until their slices land); brought to the user as a before and after, with what it means for step 10's deletion of the edge's dialect subclasses | the user's question, about 18:19 UTC |
 | A table's cells counted, `assertSize(<table>.rows.values, n)`: the typer keeps the bare read as the table's rows, so every judge on every database counts the rows where Pure counts the cells (2 against 4 in the probe); the same at the size slice's base, so older than it. And one row's cells, `assertSize(<table>.rows->at(0).values, n)`. The typer keeps a row's bare `.values` as the row itself (one value), so the host judge counts 1 where Pure counts the cells; the database judge asks the product's `size`, whose value is the cells as a mixed list under a to-one stamp, which the renderer refuses by name (`DialectCapability: a tagged list reached the renderer`). **A move of the first slice** (measured at its base, `ae275024`, on DuckDB, H2 and SQLite): until it the database judge counted the side's rows itself and agreed with the host on 1, so all three judges gave one wrong verdict; since it the database judge and both-judges runs stop on the refusal. No test of PCT, the corpus or core holds the shape. A written `.values->size()` is right (the typer rewrites it to the column count). Held as it is by `AssertBarTest` | **step 6** (slice 6.2, where a list of values whose types are known at run time is typed as one; then both judges count the cells) | the audit of the next batch, S1, and the probes it asked for, 2026-11-26 |
 | A graph fetch inside a test body's `execute` is not planned ("class query under TypedGraphFetch is not resolvable"), under every judge | recorded, **not in Stage B** (the test body's planning, the product track) | the same probes |
 | H2's dialect: 135 PCT tests it does not write or writes wrongly | a task for the user (the product track), not a step of this plan | PCT on H2, 2026-11-26 |
@@ -801,6 +838,34 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   - *tolerance* compares numbers of different types by the assert's own meaning (its parameters are `Number`), so
     its condition is typed over values whose type is known at run time: slice 6.2's work, not a plain comparison of
     two typed sides, which lite's rule would refuse.
+- **Slice 6.1, one value within one type, built and measured on a scratch branch (2026-11-26, `claude/edit-ahead` at
+  `b64dc639`; not landed, it follows the next batch).** Four parts:
+  1. *The fold rule* (awaiting the user's ruling): the inliner's fold answers an equality, an `in` and a `contains`
+     of constant Strings, Booleans and enumeration values only; numbers and dates are the database's to compare, so
+     `%2020-01-01T10:00:00 == %2020-01-01T10:00:00.000` and `1.0D == 1.00D` are the database's `true`.
+  2. *A list written in the query needs no list in the SQL* (the user, on the fold rule's measured SQL: "H2 has array
+     type, and bigquery has array and struct"): membership of a value in a written mixed list is `value IN (the
+     elements of its type)`; two written lists compare position by position. Measured over PCT's channel A on eleven
+     databases: with it the fold rule's total is BELOW today's on ten (H2 492,904 to 457,463 characters; BigQuery
+     973,275 to 934,386; SQLite 1,562,673 to 1,543,087; DuckDB 529,909 to 529,252; Snowflake 846,314 to 844,951) and
+     above on ClickHouse alone (1,774,195 to 1,785,425: every statement there carries its SETTINGS clause, about 350
+     characters, so each constant that becomes a statement costs that).
+  3. *Inside a mixed list a value is compared by what it denotes:* Decimals of two scales by their number (S139),
+     date-times at two written precisions by their instant (S399), in membership, equality of two lists and
+     `removeDuplicates`; date-times of one instant tie in a mixed list's order. The written digits stay as the
+     value's presentation (the result decoder reads them).
+  4. *The literal rule's two edges:* a number no Decimal holds (past 38 digits) is not read as one.
+  **Measured at `b64dc639` against the commit before parts 3 and 4:** builds; every named test class passes; the
+  product's SQL sizes are identical on eleven databases, statement for statement; no PCT outcome differs (DuckDB both
+  styles, SQLite, H2). **Answers that move, all inside rulings S139 and S399:** `[1.5D, 'a'] == [1.50D, 'a']`,
+  `[%2014-01-01T00:00:00.000, 1]->contains(%2014-01-01T00:00:00)` and `[%...00.000, 1] == [%...00, 1]` false to
+  true; `[1.0D, 1.00D, 'a']->removeDuplicates()` three elements to two.
+  **One database answers differently, found by this measurement:** on SQLite a date-time is its text, so the
+  product's `==`, `in` and `contains` compare two date-times written at different precisions as different
+  (`...00:00:00.000` is not `...00:00:00`), where DuckDB and H2 compare the instant. It is so today for a column
+  against a literal too; the database judge normalizes each value in SQL (about 300 characters a value). Put to the
+  user: record it as SQLite's own answer, or pay that SQL in the product.
+  **Not in this slice:** an instance's Decimal or date-time key (section 5b, slice 6.4).
 
 ## 6b. Waiting on the user (gathered 2026-11-26)
 
@@ -1002,6 +1067,33 @@ the step not forget".
 | 3 | step 5's leftover rows | deferred, each to a named step (section 5b): `parseDecimal` per database, `parseJSON` and an enumeration compared by name to step 10; counts over a declared key recorded, not built; `rem` needs nothing. Step 5 closes with the batch |
 | 4 | lite's SDLC refusing a tree whose function compares across types | kept: the SDLC's check is lite's own. A way for a project to be taken with legend-engine's meaning is a follow-up (section 5b), not to be lost |
 | 5 | bodies typed into their call not yet held to the strict rule | the batch lands with the gap recorded; it is fixed inside step 6, not left |
+
+**The rulings of about 18:10 UTC (the user, 2026-11-26, on the seven questions put that afternoon; the words are the
+user's):** "1 Yes apply fold rule, but also relook at any database where the sql blows up - make sure we are running
+latest versions and relook at sql/database docs don't trust our docs one what is and is not supported / 2 step 8 yes
+but teach me why / 3 match engine for engine / 4 datetime for engine should use engines database form, datetime for
+pure is there a cheap format in database we can use or no? If there is a cheap standard format we can use maybe we
+should use everywhere for pure - if not go with lite in the middle / 5 I don't know what assert not size should do did
+we check upstream? / 6 you mean just compare whatever string was given? Shouldn't we normalize to at least pretend
+it's a date? Or no? Is it not just a cheap string format? / 7 what is the edges database naming count?"
+
+| # | On | What it settles |
+|---|---|---|
+| 1 | the fold rule (the inliner's fold answers an equality, an `in` and a `contains` of constant Strings, Booleans and enumeration values only) | **applied**, with step 6.1. The size pins of the families whose constants become statements (`eq`, `equal`, `not`, `and`, `or`) go up by this word; `in` and `contains` go down by more. **And a task with it:** every database where the SQL blows up is looked at again -- the version run against the latest, and each "this database cannot" of lite's dialects against the database's own documentation and the database itself, never lite's own notes (section 5b) |
+| 2 | step 8's Float deletion slice, the corpus plan size 234 characters up a lane | the pin moves. Why (asked): the plan holds the SQL as a tree; the tree held a short product node that the edge's dialect re-spelled as a cast when it wrote the text, and now holds the cast, whose stored spelling is 39 characters longer, six times; the SQL text is the same |
+| 3 | a date-time literal's `toString` at legend-engine's door | legend-engine's answer, the database's cast: three engine-lane tests go from "lite passes, legend-engine fails" to "both fail" on DuckDB and H2 |
+| 4 | a computed date-time's text | at legend-engine's door, the database's own form. At legend-pure's door: a cheap standard database format if there is one, else lite's own in the middle of a chain. Read: legend-pure's text trims the fraction's trailing zeros and ends `+0000`, which no database's format function writes in one call (DuckDB, H2 and Postgres reach it from their cast with two edits; that is three databases, not a standard); the cheap standard one is lite's own (`DATETIME_TO_TEXT`, one format call). So: lite's in the middle, Java writes legend-pure's at a last step, a literal keeps its written text |
+| 5 | `assertNotSize` over a relation | asked: was upstream checked? Read then, legend-pure `platform/pure/essential/tests/assertNotSize.pure`: `assertNotEq($size, $collection->size(), ...)` over `collection:Any[*]`, the mirror of `assertSize`'s `assertEq($size, $collection->size(), ...)`. Over a relation both count it as one value, so S137's rule covers it as it covers `assertSize`. Told to the user; held as built unless they object |
+| 6 | SQLite's date-times compared as text | not recorded as SQLite's own answer: normalized. The plan put to the user: every date-time SQLite holds is written in one fixed text form at its source (a literal by the dialect, free; a load; a function's result), so the plain comparison is the instant's with no SQL at the comparison. The form and its measured cost come back before it is built (step 6.1's SQLite part) |
+| 7 | `DialectBoundaryTest`'s count of the edge's lines naming a database, 6 to 7 for the date row | explained, not ruled. With ruling 4 it may not be needed: where legend-engine's source writes the plain cast on a database, the row answers by the existing set of legend-engine's databases. Step 8 reads the source first |
+
+**The fold rule, made precise (the user, 2026-11-26, about 19:55 UTC): "Whole numbers fine".** Put to them after the
+independent audit of the step 6.1 batch: with every number out of the fold, a function that recurses over a written
+list no longer ended at its guard (`$l->size() == 0`) and five corpus tests failed on DuckDB (`toPostgresModel`). So
+the compiler compares two written values only of a kind whose written token is the value: a String, a Boolean, an
+enumeration's value, a whole number. A Float, a Decimal and a date go to the database. Measured with it: 14
+constants a database become statements (39 with every number out), and the product's SQL is smaller than today on
+ten of eleven databases (ClickHouse 1,232 characters more, 0.07%).
 
 ## 8. Decisions still to come
 

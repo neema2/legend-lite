@@ -143,8 +143,12 @@ final class NumberLiterals {
                         ? new TypedCFloat(d, null, ExprType.one(Type.Primitive.FLOAT)) : null;
             }
             case DECIMAL -> {
+                // exact: a Decimal holds the written number, its digits before and after the point within the
+                // precision a Decimal has (1e40, or a whole number past 38 digits, is no Decimal: the comparison
+                // stays one across types, a compile error, never a database's overflow; the audit of 2026-11-26)
                 int scale = Math.max(0, digits.scale());
-                yield scale > Type.PrecisionDecimal.MAX_PRECISION ? null
+                int whole = Math.max(0, digits.precision() - digits.scale());
+                yield whole + scale > Type.PrecisionDecimal.MAX_PRECISION ? null
                         : new TypedCDecimal(digits.scale() < 0 ? digits.setScale(0) : digits, ExprType.one(
                                 new Type.PrecisionDecimal(Type.PrecisionDecimal.MAX_PRECISION, scale)));
             }

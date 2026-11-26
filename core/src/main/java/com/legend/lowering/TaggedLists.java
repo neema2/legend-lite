@@ -59,6 +59,95 @@ final class TaggedLists {
         throw new IllegalStateException("a tagged list's rows are a subquery over its cells, not " + tl.rows());
     }
 
+    /** Whether no two channels of the list(s) are of one family: each family's values are in one array. */
+    static boolean oneChannelPerFamily(SqlExpr.TaggedList... lists) {
+        java.util.Map<String, SqlType.Tagged.Slot> seen = new java.util.HashMap<>();
+        for (SqlExpr.TaggedList tl : lists) {
+            for (SqlType.Tagged.Slot s : tl.slots()) {
+                SqlType.Tagged.Slot first = seen.putIfAbsent(MixedEncoding.family(s.kind()), s);
+                if (first != null && !first.equals(s)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Two lists WRITTEN IN THE QUERY, every element present, are the same list where they are the same length and
+     * each position holds, on both sides, values of one family that are equal: no list in the SQL, one comparison
+     * per position, by the database's own comparison of the type -- a Decimal by its number (S139), a date-time by
+     * its instant (S399). A position whose two kinds are of different families makes the lists different by the
+     * types alone (the number kinds Pure's text equality can cross are refused by name first,
+     * {@link #refuseCrossingNumbers}). Null where a list is not written out (a computed list, a reordered one).
+     */
+    static @com.legend.base.Nullable SqlExpr sameWrittenLists(SqlExpr.TaggedList a, SqlExpr.TaggedList b) {
+        List<SqlExpr.Tagged.Candidate> ea = a.literalElements();
+        List<SqlExpr.Tagged.Candidate> eb = b.literalElements();
+        if (ea == null || eb == null) {
+            return null;
+        }
+        // an answer by the types alone (the lengths, a position's two kinds) writes no element: taken only where no
+        // element can raise, or its error would be lost -- else the lists compare as arrays, every element evaluated
+        // (the re-check of this slice's audit, 2026-11-26: [$p.name->toOne(), 1] == ['x', 'y'])
+        boolean quiet = raiseNothing(ea) && raiseNothing(eb);
+        if (ea.size() != eb.size()) {
+            return quiet ? new SqlExpr.BoolLit(false) : null;
+        }
+        boolean differ = false;
+        List<SqlExpr> same = new ArrayList<>(ea.size());
+        for (int i = 0; i < ea.size(); i++) {
+            SqlExpr.Tagged.Candidate x = ea.get(i);
+            SqlExpr.Tagged.Candidate y = eb.get(i);
+            if (!MixedEncoding.sameFamily(x.kind(), y.kind())) {
+                refuseCrossingNumbers(x.kind(), x.slot(), y.kind(), y.slot(), "two mixed lists' equality");
+                differ = true;
+                continue;
+            }
+            // a value that cannot be NULL (a literal) compares plainly; any other null-safe, as the array compare
+            // this replaces did, so the answer is always a Boolean (the audit of this slice: a bare = answered NULL
+            // for an element empty at run, and a NOT over it dropped the row)
+            same.add(neverNull(x.value()) && neverNull(y.value())
+                    ? SqlExpr.Call.of(SqlFn.EQUAL, x.value(), y.value())
+                    : SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, x.value(), y.value()));
+        }
+        if (differ || same.isEmpty()) {
+            return quiet ? new SqlExpr.BoolLit(false) : null;
+        }
+        SqlExpr all = same.get(0);
+        for (int i = 1; i < same.size(); i++) {
+            all = SqlExpr.Call.of(SqlFn.AND, all, same.get(i));
+        }
+        return all;
+    }
+
+    /** Whether {@code e} is a value WRITTEN in the query, which is never NULL: a literal, under the casts, the
+     *  grouping and the sign the lowering wraps one in. Read off the node, never off its type's nullable label, which
+     *  repeats the Pure multiplicity: a {@code [1]} property mapped to a nullable column says "never NULL" and may
+     *  hold one (the re-check of this slice's audit, 2026-11-26). */
+    private static boolean neverNull(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.Cast c -> neverNull(c.value());
+            case SqlExpr.Group g -> neverNull(g.inner());
+            case SqlExpr.Call c when c.fn() == SqlFn.NEGATE && c.args().size() == 1 -> neverNull(c.args().get(0));
+            case SqlExpr.StringLit s -> true;
+            case SqlExpr.IntLit i -> true;
+            case SqlExpr.FloatLit f -> true;
+            case SqlExpr.DecimalLit d -> true;
+            case SqlExpr.BoolLit b -> true;
+            case SqlExpr.DateLit d -> true;
+            case SqlExpr.TimestampLit t -> true;
+            case SqlExpr.TimeLit t -> true;
+            default -> false;
+        };
+    }
+
+    /** Whether no element of a written list can raise ({@link SqlExpr#raisesNothing}): only then may an answer be
+     *  given without writing the elements. */
+    private static boolean raiseNothing(List<SqlExpr.Tagged.Candidate> elements) {
+        return elements.stream().allMatch(c -> SqlExpr.raisesNothing(c.value()));
+    }
+
     /**
      * Two lists in their own order ({@link SqlExpr.TaggedList#identityPositions}) are the same list: the same size,
      * and for every kind either holds, the same channel array (null-safe: a NULL where the element is of another
@@ -68,9 +157,10 @@ final class TaggedLists {
     static SqlExpr sameListByKinds(SqlExpr.TaggedList a, SqlExpr.TaggedList b) {
         List<SqlExpr> conditions = new ArrayList<>();
         conditions.add(SqlExpr.Call.of(SqlFn.EQUAL, size(a), size(b)));
-        // every (kind, slot) either side holds, exactly: a Decimal at another scale, a DateTime at another written
-        // precision, is another kind (Pure's BigDecimal and PureDate equality: the scale, the subsecond text), so
-        // its values meet an all-NULL array (the L1 audit, 2026-10-29)
+        // every (kind, slot) either side holds: a kind one side has no channel for meets an all-NULL array. The
+        // caller sends two lists here only where each FAMILY is one slot across both (oneChannelPerFamily): Decimals
+        // at two scales, date-times at two written precisions, are one type's values in two arrays, compared element
+        // by element instead (the equality rule: by their number, by their instant; S139, S399)
         java.util.LinkedHashSet<SqlType.Tagged.Slot> slots = new java.util.LinkedHashSet<>();
         slots.addAll(a.slots());
         slots.addAll(b.slots());
@@ -377,8 +467,25 @@ final class TaggedLists {
         return tl.withPositions(Dedup.keptDedup(tl.positions(), depth, same));
     }
 
-    /** Two positions of {@code tl} hold the same element: the same channel, and that channel's values equal. */
+    /** Two positions of {@code tl} hold the same element: channels of one family ({@link MixedEncoding#family}), and
+     *  their values equal. Where every family is one channel (no Decimal at a second scale, no date-time at a second
+     *  written precision) that is the same channel, read once. */
     static SqlExpr sameElement(SqlExpr.TaggedList tl, SqlExpr p, SqlExpr q) {
+        if (!oneChannelPerFamily(tl)) {
+            List<SqlExpr> arms = new ArrayList<>();
+            for (int k = 0; k < tl.channels().size(); k++) {
+                for (int j = 0; j < tl.channels().size(); j++) {
+                    if (MixedEncoding.sameFamily(tl.channels().get(k).kind(), tl.channels().get(j).kind())) {
+                        arms.add(SqlExpr.Call.of(SqlFn.AND,
+                                SqlExpr.Call.of(SqlFn.AND,
+                                        SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(p), new SqlExpr.IntLit(k + 1)),
+                                        SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(q), new SqlExpr.IntLit(j + 1))),
+                                SqlExpr.Call.of(SqlFn.EQUAL, tl.channelAt(k, p), tl.channelAt(j, q))));
+                    }
+                }
+            }
+            return anyOf(arms);
+        }
         List<SqlExpr.Case.When> whens = new ArrayList<>(tl.channels().size());
         for (int k = 0; k < tl.channels().size(); k++) {
             whens.add(new SqlExpr.Case.When(
@@ -403,7 +510,7 @@ final class TaggedLists {
         List<SqlExpr> arms = new ArrayList<>();
         for (int i = 0; i < x.candidates().size(); i++) {
             SqlExpr.Tagged.Candidate a = x.candidates().get(i);
-            if (!a.kind().equals(kind)) {
+            if (!MixedEncoding.sameFamily(a.kind(), kind)) {
                 continue;
             }
             arms.add(SqlExpr.Call.of(SqlFn.AND,
@@ -460,15 +567,16 @@ final class TaggedLists {
         return SqlExpr.Call.of(SqlFn.COALESCE, any, new SqlExpr.BoolLit(false));
     }
 
-    /** Two tagged values are the same element: a channel of each with the same kind, both tags naming it, the
-     *  values equal. A kind one side has no channel for is never equal. */
+    /** Two tagged values are the same element: a channel of each of one family ({@link MixedEncoding#family}), the
+     *  tags naming them, the values equal as the database compares the type (a Decimal by its number, a date-time
+     *  by its instant). A family one side has no channel for is never equal. */
     static SqlExpr sameElement(SqlExpr.Tagged x, SqlExpr.Tagged y) {
         List<SqlExpr> arms = new ArrayList<>();
         for (int i = 0; i < x.candidates().size(); i++) {
             for (int j = 0; j < y.candidates().size(); j++) {
                 SqlExpr.Tagged.Candidate a = x.candidates().get(i);
                 SqlExpr.Tagged.Candidate b = y.candidates().get(j);
-                if (!a.kind().equals(b.kind())) {
+                if (!MixedEncoding.sameFamily(a.kind(), b.kind())) {
                     refuseCrossingNumbers(a.kind(), a.slot(), b.kind(), b.slot(), "two mixed values' equality");
                     continue;
                 }
@@ -483,10 +591,12 @@ final class TaggedLists {
     }
 
     /**
-     * Whether the list holds {@code needle}, a value of the static {@code kind}: a position whose channel is the
-     * needle's kind's and whose value there equals the needle; a kind the list has no channel for is a member of
-     * nothing ({@code '1'} is not {@code 1}; {@code 1} is not {@code 1.0}: a double's text differs), but for the
-     * number kinds Pure's text equality can cross ({@link #refuseCrossingNumbers}).
+     * Whether the list holds {@code needle}, a value of the static {@code kind}: a position whose channel is of the
+     * needle's kind's family ({@link MixedEncoding#family}: a Decimal at any scale, a date-time at any written
+     * precision) and whose value there equals the needle, by the database's own comparison of the type (a Decimal
+     * by its number, a date-time by its instant); a family the list has no channel for is a member of nothing
+     * ({@code '1'} is not {@code 1}; {@code 1} is not {@code 1.0}), but for the number kinds Pure's text equality
+     * can cross ({@link #refuseCrossingNumbers}).
      */
     static SqlExpr contains(SqlExpr.TaggedList tl, @com.legend.base.Nullable String kind, SqlExpr needle,
             Type needleType) {
@@ -494,18 +604,48 @@ final class TaggedLists {
             throw new com.legend.error.NotImplementedException("a mixed list's membership of a value of type "
                     + needleType + ", whose kind only its runtime value names: not lowered");
         }
-        int k = MixedEncoding.channelOf(tl, kind);
-        if (k < 0) {
+        List<Integer> own = MixedEncoding.channelsOf(tl, kind);
+        if (own.isEmpty()) {
             SqlType needleSlot = needle.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
             for (SqlExpr.TaggedList.Channel ch : tl.channels()) {
                 refuseCrossingNumbers(kind, needleSlot, ch.kind(), ch.slot(), "a mixed list's membership");
             }
             return new SqlExpr.BoolLit(false);
         }
+        List<SqlExpr.Tagged.Candidate> written = tl.literalElements();
+        // (an element of another type is not written at all, so the plain form is taken only where no element can
+        // raise: its error would be lost; the re-check of this slice's audit, 2026-11-26)
+        if (written != null && raiseNothing(written)) {
+            // A LIST WRITTEN IN THE QUERY needs no list at all (the user, 2026-11-26, on the measured SQL of the fold
+            // rule): each element's kind is the compiler's, and only an element of the needle's kind can equal it
+            // (the equality rule), so membership is the plain IN over those elements, as a list of one type writes
+            // it. The elements are chosen by their TYPE; every value is compared by the database. Every element of
+            // the kind's family, whichever slot holds it: Decimals of two scales are one type, equal by their number
+            // (S139); date-times at two written precisions, by their instant (S399)
+            List<SqlExpr> flat = new ArrayList<>();
+            flat.add(needle);
+            for (SqlExpr.Tagged.Candidate c : written) {
+                if (MixedEncoding.sameFamily(c.kind(), kind)) {
+                    flat.add(c.value());
+                }
+            }
+            // one element of the type: an equality (IN over one value that is a parameter is read as a LIST
+            // parameter by every dialect and refused; the audit of this slice, 2026-11-26)
+            SqlExpr found = flat.size() == 2 ? SqlExpr.Call.of(SqlFn.EQUAL, flat.get(0), flat.get(1))
+                    : new SqlExpr.Call(SqlFn.IN, flat);
+            return SqlExpr.Call.of(SqlFn.COALESCE, found, new SqlExpr.BoolLit(false));
+        }
         String p = "_tlp";
-        SqlExpr hit = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(SqlExpr.Column.derived(null, p)), new SqlExpr.IntLit(k + 1)),
-                SqlExpr.Call.of(SqlFn.EQUAL, tl.channelAt(k, SqlExpr.Column.derived(null, p)), needle));
+        List<SqlExpr> inChannel = new ArrayList<>(own.size());
+        for (int k : own) {
+            inChannel.add(SqlExpr.Call.of(SqlFn.AND,
+                    SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(SqlExpr.Column.derived(null, p)), new SqlExpr.IntLit(k + 1)),
+                    SqlExpr.Call.of(SqlFn.EQUAL, tl.channelAt(k, SqlExpr.Column.derived(null, p)), needle)));
+        }
+        SqlExpr hit = inChannel.get(0);
+        for (int i = 1; i < inChannel.size(); i++) {
+            hit = SqlExpr.Call.of(SqlFn.OR, hit, inChannel.get(i));
+        }
         return SqlExpr.Call.of(SqlFn.COALESCE,
                 SqlExpr.Call.of(SqlFn.GREATER,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, SqlExpr.Call.of(SqlFn.LIST_FILTER, tl.positions(),

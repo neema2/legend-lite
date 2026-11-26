@@ -1,0 +1,23 @@
+select sqlite_version()
+select group_concat(compile_options, ' ') from pragma_compile_options
+select datetime('2014-01-01 00:00:00.123'), datetime('2014-01-01 00:00:00.123','subsec'), strftime('%Y-%m-%d %H:%M:%f','2014-01-01 00:00:00'), strftime('%F %T','2014-01-01'), julianday('2014-01-01 00:00:00') = julianday('2014-01-01 00:00:00.000')
+select unixepoch('2014-01-01 00:00:00.5','subsec'), datetime(1388534400.5,'unixepoch','subsec')
+select '2014-01-01 00:00:00' = '2014-01-01 00:00:00.000', '2014-01-01 00:00:00' < '2014-01-01 00:00:00.000'
+select strftime('%Y-%m-%d %H:%M:%f', '2014-01-01 00:00:00.123456'), strftime('%Y-%m-%dT%H:%M:%f', '2014-01-01T00:00:00.1')
+select datetime('2014-01-01 00:00:00.999999','subsec'), datetime('2014-01-01 00:00:00.9999','+1 second','subsec')
+select value from generate_series(1,5)
+select value, key from json_each('[1,2,3]')
+select json_group_array(value) from (select value from json_each('[3,1,2]') order by value)
+select json_group_array(value order by value desc) from json_each('[3,1,2]')
+select string_agg(value, ',' order by value desc) from json_each('[3,1,2]')
+select hex(jsonb('[1,2]')), json(jsonb_array(1,2)), jsonb_array_length(jsonb('[1,2,3]'))
+select json_array_insert('[1,2]','$[1]',9)
+select * from carray(1,2)
+select percentile(value, 50), median(value) from json_each('[1,2,3,4]')
+select unhex('41'), concat_ws('-',1,2), format('%05d', 3), timediff('2014-01-02','2014-01-01'), octet_length('é')
+select sha3('a') 
+select regexp('a','a')
+select 'a' regexp 'a'
+select value from json_each('[1,2,3]') where value in (select value from json_each('[2,3]'))
+select ln(2), pow(2,3), floor(1.5)
+select json_array_length('[1,2,3]'), '[1,2,3]' ->> 1, '[1,2,3]' -> '$[#-1]'

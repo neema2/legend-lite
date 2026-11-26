@@ -1,0 +1,19 @@
+import sys,re
+tot={};sav={};n={}
+for line in open(sys.argv[1],encoding='utf-8'):
+    p=line.rstrip('\n').split('\t')
+    if len(p)<5 or p[2]=='-1': continue
+    d,s=p[0],p[4]
+    tot[d]=tot.get(d,0)+len(s)
+    if d=='SQLite':
+        i=s.find('\\nFROM json_each(')
+        j=s.find(') AS __u0', i)
+        if i>=0 and j>0 and "__u0.key" in s:
+            sav[d]=sav.get(d,0)+(j-i-len('\\nFROM json_each(')); n[d]=n.get(d,0)+1
+    if d in('MariaDB','MySQL'):
+        i=s.find('\\nFROM JSON_TABLE(')
+        if d=='MySQL': i=s.find('\\nFROM (LATERAL (SELECT ')
+        j=s.find('"__u0', i)
+        if i>=0 and j>0 and 'CONCAT(\'$[\', ("__u0"' in s:
+            sav[d]=sav.get(d,0)+(j-i); n[d]=n.get(d,0)+1
+print(tot); print(n); print(sav)
