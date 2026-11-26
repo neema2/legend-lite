@@ -22849,3 +22849,22 @@ tests' asserts to PASS and three plan-text failures' messages. (2) The legend-en
 nine because a PCT case is planned as host-side code since the stamp; the lane's own edition is next). (3)
 `Test_LegendLite_Postgres_StandardFunctions_PCT`'s `testFloatStdDev` row holds on x86-64 alone: Postgres built for
 arm64 (the macOS lane) answers `3.14`.
+
+**Added the same day: step 5's start (a row names a rule; `round`; PCT's legend-engine edition).** Ledgers moved,
+each down or re-recorded with its rows read:
+- `NativeCatalogGovernanceTest`: `INTERNAL_DESUGAR` 42 to 40; `CatalogUpstreamDiffTest`: `NOT_UPSTREAM_MAX` 80 to 76;
+  spec's ratchets: `implementation.kinds.Intrinsic` 742 to 738; `native-claims.tsv` regenerated (`bazel run
+  //:update_generated`): `substringAsGiven` and `substrAsGiven` are rules of the lowering's (`lowering/NamedRule`),
+  no natives.
+- `ClaimRegistryTest`'s two claim pins for those natives (the user's rulings of 2026-11-19 and 2026-11-20) are
+  replaced by `ArchitectureTest.anEditionsTableAloneNamesARule`, with its planted violation
+  (`lowering/PlantedNamedRule`); put to the user.
+- `PlanStyleFacetsTest.STYLES` gains `PureText.ENGINE_PCT`; `PlanStyleSurfaceTest`'s `PureText$3` is the class of
+  both `ENGINE_TESTS` and `ENGINE_PCT` (one helper, two styles).
+- The legend-engine lane's pins (`pct/engine_lane/`, `bazel run //pct:update_engine_lane`): 24 rows to BOTH_FAIL
+  under PCT's own edition and `round`'s row, each named in the commit; none to LITE_BEHIND.
+- The corpus's SQL size pins (`spec/src/test/resources/rcorpus/lean-sql-baseline.tsv`): the two `round` families on
+  DuckDB and H2, down (the database's own ROUND inside a test's `execute()` in the place of lite's half-to-even form).
+- channel B's ratchets (`relation.judge.chars`, `relation.judge.plan`): down, measured.
+- New SQL function `SqlFn.ROUND_RAW` (the database's own ROUND): an arm in every dialect, MongoDB's a refusal by
+  name; `Postgres.call` and `BigQuery.call` stay within the 250-line limit (the arm shares `ROUND_HALF_UP`'s).
