@@ -60,7 +60,7 @@ class EngineTablePlacementTest {
             "###Mapping\nMapping t::M ( t::Person: Relational { ~mainTable [t::DB]PERSON name: [t::DB]PERSON.NAME,"
                     + " code: [t::DB]PERSON.CODE } )",
             "###Mapping\nMapping t::M2 ( t::Out: Pure { ~src t::Person short: $src.name->substring(1, 2) } )",
-            "###Mapping\nMapping t::M3 ( t::Out: Pure { ~src t::Person short: t::firstThree($src.name) } )",
+            "###Mapping\nMapping t::M3 ( t::Out: Pure { ~src t::Person short: $src.initials() } )",
             "###Connection\nRelationalDatabaseConnection t::Conn { store: t::DB; type: H2; specification: LocalH2 { };"
                     + " auth: DefaultH2; }",
             "###Runtime\nRuntime t::RT { mappings: [t::M]; connections: [ t::DB: [ c1: t::Conn ] ]; }",
@@ -266,8 +266,6 @@ class EngineTablePlacementTest {
         AS_PURE.put("a qualified property a graph fetch reads off a class a model-to-model mapping makes (F4)",
                 "|t::Out.all()->graphFetch(#{t::Out{short,where}}#)->serialize(#{t::Out{short,where}}#)"
                         + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
-        AS_PURE.put("a checked graph fetch's constraint", "|t::Person.all()->graphFetchChecked(#{t::Person{name}}#)"
-                + "->serialize(#{t::Person{name}}#)->from(t::M, t::RT)");
     }
 
     @Test
@@ -316,18 +314,22 @@ class EngineTablePlacementTest {
     }
 
     /** A checked graph fetch reads its constraints in legend-engine's own Java and its tree's qualified property in
-     *  the database: one statement, each by where it runs. */
+     *  the database: one statement, each by where it runs. Planned on the model's second database, whose dialect
+     *  writes a checked fetch's defects. */
     @Test
     void aCheckedGraphFetchsConstraintAndItsQualifiedPropertyAreEachPlaced() {
-        String checked = "|t::Person.all()->graphFetchChecked(#{t::Person{name,initials}}#)"
-                + "->serialize(#{t::Person{name,initials}}#)->from(t::M, t::RT)";
-        String sql = engines(checked);
-        assertTrue(sql.contains("substr(\"t0\".NAME, 1, 2)"), sql);
-        assertNotEquals(asWritten(checked), sql);
-        // the constraint's own substring(1, 2) keeps legend-pure's form: the one a fetch without the property plans
+        ModelContext c = Compiler.compileModel(MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+                "type: DuckDB; specification: DuckDB { }; auth: Test;"));
+        // the constraint alone: its substring(1, 2) keeps legend-pure's form, the statement the door plans with no row
         String constraintOnly = "|t::Person.all()->graphFetchChecked(#{t::Person{name}}#)"
                 + "->serialize(#{t::Person{name}}#)->from(t::M, t::RT)";
-        assertEquals(asWritten(constraintOnly), engines(constraintOnly));
+        assertEquals(asWritten(c, constraintOnly, "t::RT"), engines(c, constraintOnly, "t::RT"));
+        // with the tree's qualified property beside it: a row applies to the property, and to it alone
+        String checked = "|t::Person.all()->graphFetchChecked(#{t::Person{name,initials}}#)"
+                + "->serialize(#{t::Person{name,initials}}#)->from(t::M, t::RT)";
+        assertNotEquals(asWritten(c, checked, "t::RT"), engines(c, checked, "t::RT"));
+        // (were the constraint's call given the row too, the two statements would differ by two calls: the fetch
+        // without the property shows the constraint's alone is not)
     }
 
     /** A runtime that binds model data alone names no database of legend-engine's (legend-engine runs the whole query
