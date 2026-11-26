@@ -40,7 +40,8 @@ import java.util.regex.Pattern;
 /**
  * THE EQUALITY MEASUREMENT (step 6.0 of the edition program; tooling, never a test, never product code): every body of
  * {@code bodies.tsv} (tools/equality-measure/collect.py) run as written and rewritten to its plain comparison, under
- * the host judge and the database judge, on DuckDB, H2 and SQLite, each outcome one row of {@code results.tsv}:
+ * the host judge and the database judge, on every database the platform runs in-process (the test backends'
+ * {@code TestBackends.inProcess()}), each outcome one row of {@code results.tsv}:
  * PASS, FAIL (an assert failed), UNJUDGED (the database judge declined), REFUSED (a compile or planning refusal),
  * ERROR (anything else), TIMEOUT. Then the product probes ({@code probes.tsv}): each expression's answer per database.
  *
@@ -48,11 +49,13 @@ import java.util.regex.Pattern;
  */
 public final class EqualityMeasure {
 
-    private static final List<DatabaseType> DATABASES = List.of(DatabaseType.DuckDB, DatabaseType.H2,
-            DatabaseType.SQLite);
+    /** The databases measured: the test backends' in-process ones, in their order (the first takes the census). */
+    private static final List<DatabaseType> DATABASES = TestBackends.inProcess().stream()
+            .map(com.legend.testbackend.TestBackend::type).toList();
+    private static final String NAMES = String.join("|", DATABASES.stream().map(DatabaseType::name).toList());
     private static final List<JudgeMode> JUDGES = List.of(JudgeMode.HOST, JudgeMode.DATABASE);
     private static final Pattern RUNTIME = Pattern.compile("(?m)^\\s*Runtime\\s+([\\w:]+)");
-    private static final Pattern ONE_DATABASE = Pattern.compile("specification:\\s*(DuckDB|SQLite|H2)\\s*\\{");
+    private static final Pattern ONE_DATABASE = Pattern.compile("specification:\\s*(" + NAMES + ")\\s*\\{");
     private static final long TIMEOUT_SECONDS = Long.getLong("measure.timeout", 60);
 
     private EqualityMeasure() {
@@ -102,7 +105,7 @@ public final class EqualityMeasure {
                     });
                     for (String form : List.of("written", "rewritten")) {
                         String body = form.equals("written") ? b.asWritten() : b.rewritten();
-                        if (db == DatabaseType.DuckDB && ctx instanceof ModelContext mc) {
+                        if (db == DATABASES.get(0) && ctx instanceof ModelContext mc) {
                             Outcome typedSides = timed(pool, () -> {
                                 StringBuilder sb = new StringBuilder();
                                 for (com.legend.compiler.spec.typed.TypedSpec s : typed(mc, body, b.imports()).body()) {
@@ -296,7 +299,7 @@ public final class EqualityMeasure {
         }
         if (RUNTIME.matcher(model).find()) {
             // a model whose connection names one in-process database: run on each of the three
-            return model.replaceAll("type:\\s*(DuckDB|H2|SQLite)\\s*;", "type: " + db.name() + ";");
+            return model.replaceAll("type:\\s*(" + NAMES + ")\\s*;", "type: " + db.name() + ";");
         }
         return StorelessRuntime.with(model.isBlank() ? "###Pure\n" : model, db);
     }

@@ -25,15 +25,15 @@ import java.util.Set;
  * THE PRODUCT'S SQL, DUMPED (tooling for the equality program; tools/equality-measure/README.md): every query of the
  * product's measured sets planned by the product's one planning entry ({@code TypedQuery.executionPlan}, lite's own
  * door and comparison setting, no edge style), each one's SQL statements or its refusal's first line, one row of
- * {@code sql.tsv}. {@code channel_a.jsonl} is planned on DuckDB, H2 and SQLite (its models declare no store);
+ * {@code sql.tsv}. {@code channel_a.jsonl} is planned on every in-process database (its models declare no store);
  * {@code core.jsonl} on the runtime each query was captured with, as {@code LeanSqlBaseline.measureOwn} plans it.
  *
  * <p>Args: {@code <lean-sql dir> <out dir>}.
  */
 public final class SqlDump {
 
-    private static final List<DatabaseType> DATABASES = List.of(DatabaseType.DuckDB, DatabaseType.H2,
-            DatabaseType.SQLite);
+    private static final List<DatabaseType> DATABASES = com.legend.testbackend.TestBackends.inProcess().stream()
+            .map(com.legend.testbackend.TestBackend::type).toList();
 
     private SqlDump() {
     }
