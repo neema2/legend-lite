@@ -703,23 +703,27 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   `PlannerSurfaceTest`): found by a measuring session in ten minutes, fixed in two test files. The lesson stands: a
   signature change is built against EVERY test library before it is called done, and a builder session does that
   while the working tree goes on.
-- **PCT on H2 is all five suites** (branch `claude/pct-h2-full`, session `session_0195rQEizYjy8rVS8hbgqhKy`): 1,249
-  tests, 1,020 pass, 229 pinned by message (212 new). 13 of the new pins fail the same way on DuckDB's lane and
-  one is a spelling; 47 the worker's report filed as H2's limits (no such function 38, no map type 3, DATEADD's INT
-  count 6), a label that is being checked claim by claim on the jar: the bit operations among them H2 does have
-  (`BITAND`, `BITOR`, `BITXOR`, `BITNOT`, `LSHIFT`, `RSHIFT` answer), base64 it does not.
-  **128 are list operations lite's H2 dialect does not write**, refused by name. The worker's report called
-  these "H2 has no list type", and the orchestrator repeated it to the user unchecked; the user caught it ("H2 has
-  array type I thought?") and lite's own jar confirms: H2 2.5.252 has `ARRAY[...]`, `CARDINALITY`, `ARRAY_GET`,
-  `ARRAY_CONTAINS`, `ARRAY_SLICE`, `||`, and `ARRAY_AGG ... ORDER BY` and the aggregates over
-  `FROM UNNEST(ARRAY[...])`. What it lacks is `LATERAL`, a correlated `UNNEST`, lambdas over an array and a map
-  type (`docs/H2_BACKEND.md` section 4 says the same). lite's dialect carries a list as a JSON array and sends the
-  list functions to the base's refusal. How many of the 128 read a constant list, which H2 can answer today, is
-  being counted. **23 more are defects of lite's H2 dialect** that pass on DuckDB (14 write a function H2 does not
-  have and are not refused by name; 9 are wrong answers or SQL H2 cannot read: `rem` of mixed numbers, `format` of a
-  Boolean, a Float's exponent text, an offset without its colon, `regexpReplace` first-match and its `g` flag,
-  `rpad` with a pad of several characters, `ascii('')`). Put to the user as a task of its own (the product track),
-  each pinned in a block titled as a defect. The four suites join the H2 gate: about 3 minutes on CI's H2 lane.
+- **PCT on H2 is all five suites** (branch `claude/pct-h2-full`, session `session_0195rQEizYjy8rVS8hbgqhKy`; the
+  record is `docs/records/h2-pct-full-2026-11-26.md`): 1,249 tests, 1,020 pass, 229 pinned by message (212 new). The
+  five suites are in the H2 gate (about 3 minutes of tests). The worker's first report filed most of the new pins as
+  "H2's limits" ("H2 has no list type"), and the orchestrator repeated it to the user unchecked; the user caught it
+  ("H2 has array type I thought?"). Every "H2 lacks" claim was then probed on lite's own jar (2.5.252), and the 212
+  are:
+  - **5 H2 truly cannot** (base64);
+  - **135 lite's H2 dialect does not write, or writes wrongly, though H2 can:** 76 list operations over a constant
+    list (H2 has `ARRAY[...]`, `CARDINALITY`, `ARRAY_GET`, `ARRAY_CONTAINS`, `ARRAY_SLICE`, and `ARRAY_AGG ... ORDER
+    BY` and every aggregate over `FROM UNNEST(ARRAY[...])`: 16 of 16 probes gave Pure's value; lite's dialect carries
+    a list as JSON and refuses these), 36 other forms (the bit operations 14, time buckets 11, a date-time from parts
+    2, `'%.Nf'` 3, date arithmetic past 32 bits 6), and 23 defects (14 write a function H2 does not have and are not
+    refused by name; 9 wrong answers or SQL H2 cannot read);
+  - **58 beyond one expression, or not settled:** 20 need a lambda or a comparator H2 cannot run (`fold`, a sort with
+    a comparator), 38 are open (lists of instances or of mixed types, an empty map, a signed 64-bit hash, two regular
+    expression functions, one date token);
+  - **14 the platform's own** (13 fail the same way on DuckDB's lane; one differs in a spelling).
+  What H2 truly lacks: `LATERAL`, a correlated `UNNEST`, lambdas over an array, a map type. The 135 are put to the
+  user as one task of the product track, in three parts (the defects, the forms, the constant lists with a design
+  first). The lesson: a worker's label for WHY a database refuses is a claim about that database; it is probed on the
+  database before it is repeated.
 - **Step 6 starts with the size assert alone.** `assertSize(c, n)` is planned as the Pure condition it means,
   `size(c) == n`: typed by the typer over the sides as named values, lowered by the product over the columns that hold
   them, each side's value read once and returned for the failure's record (`VerdictSql.typedOverValues`,
