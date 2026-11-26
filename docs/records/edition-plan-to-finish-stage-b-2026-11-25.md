@@ -704,9 +704,16 @@ for `acos`/`asin`, which is not equality. The first build of the rule had made t
   signature change is built against EVERY test library before it is called done, and a builder session does that
   while the working tree goes on.
 - **PCT on H2 is all five suites** (branch `claude/pct-h2-full`, session `session_0195rQEizYjy8rVS8hbgqhKy`): 1,249
-  tests, 1,020 pass, 229 pinned by message (212 new). 189 of the new pins are H2's limits or the platform's own
-  (no list type 128, no such function 38, no map type 3, DATEADD's INT count 6, the same failures as DuckDB's lane
-  13, a spelling 1); **23 are defects of lite's H2 dialect** that pass on DuckDB (14 write a function H2 does not
+  tests, 1,020 pass, 229 pinned by message (212 new). 61 of the new pins are H2's limits or the platform's own
+  (no such function 38, no map type 3, DATEADD's INT count 6, the same failures as DuckDB's lane 13, a spelling
+  1). **128 are list operations lite's H2 dialect does not write**, refused by name. The worker's report called
+  these "H2 has no list type", and the orchestrator repeated it to the user unchecked; the user caught it ("H2 has
+  array type I thought?") and lite's own jar confirms: H2 2.5.252 has `ARRAY[...]`, `CARDINALITY`, `ARRAY_GET`,
+  `ARRAY_CONTAINS`, `ARRAY_SLICE`, `||`, and `ARRAY_AGG ... ORDER BY` and the aggregates over
+  `FROM UNNEST(ARRAY[...])`. What it lacks is `LATERAL`, a correlated `UNNEST`, lambdas over an array and a map
+  type (`docs/H2_BACKEND.md` section 4 says the same). lite's dialect carries a list as a JSON array and sends the
+  list functions to the base's refusal. How many of the 128 read a constant list, which H2 can answer today, is
+  being counted. **23 more are defects of lite's H2 dialect** that pass on DuckDB (14 write a function H2 does not
   have and are not refused by name; 9 are wrong answers or SQL H2 cannot read: `rem` of mixed numbers, `format` of a
   Boolean, a Float's exponent text, an offset without its colon, `regexpReplace` first-match and its `g` flag,
   `rpad` with a pad of several characters, `ascii('')`). Put to the user as a task of its own (the product track),
