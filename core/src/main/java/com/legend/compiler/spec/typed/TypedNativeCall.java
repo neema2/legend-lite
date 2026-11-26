@@ -30,8 +30,9 @@ import java.util.List;
  *               ({@code UserCallInliner}: the last moment a {@code let} and an {@code execute()} boundary can still be
  *               told) and read only where the lowering picks a rule ({@code lowering.Scalars.lower}), which hands it
  *               to the door's table. The product never sets it. It is a field and not a wrapper node so that it
- *               rides along when a pass rebuilds the call: {@link #withChildren}, {@link #withInfo} and
- *               {@link #withArgs} keep it, and a pass that rebuilds a call from its callee uses {@link #withArgs}.
+ *               rides along when a pass rebuilds the call: {@link #withChildren} and {@link #withInfo} keep it,
+ *               and a pass that builds the call again by hand passes the stamp of the call it was given
+ *               ({@code NativeCallStampGuardTest} pins every construction that carries none: each a new call).
  *               Part of equality: two calls that differ in it lower differently.
  */
 public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info,

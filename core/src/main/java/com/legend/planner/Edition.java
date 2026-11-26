@@ -46,7 +46,8 @@ public interface Edition {
      *  the table without deciding the runtime's database. */
     boolean rowsByDatabase();
 
-    /** The table for statements that run on {@code database}; null where the edition's rows do not depend on it
-     *  ({@link #rowsByDatabase}) or the planning names no runtime. */
+    /** The table for statements that run on {@code database}. The argument is null where the edition's rows do not
+     *  depend on the database ({@link #rowsByDatabase}), where the planning names no runtime, and where the runtime
+     *  binds model data alone; the answer is never null. */
     EditionTable table(@Nullable DatabaseType database);
 }
