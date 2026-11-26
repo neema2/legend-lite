@@ -3863,10 +3863,7 @@ final class Scalars {
         SqlExpr.TaggedList la = asTaggedList(s0, a);
         SqlExpr.TaggedList lb = asTaggedList(s1, b);
         if (la != null && lb != null) {
-            // two lists in their own order compare channel by channel (no lambda: every database); a reordered
-            // one element by element
-            return la.identityPositions() && lb.identityPositions()
-                    ? TaggedLists.sameListByKinds(la, lb) : TaggedLists.sameList(la, lb);
+            return sameTaggedLists(s0, la, s1, lb);
         }
         if (la != null || lb != null) {
             // a mixed list against a list of ONE kind: equal where every element is of that kind and equals the
@@ -3883,18 +3880,17 @@ final class Scalars {
                 if (other instanceof SqlExpr.ArrayLit oal && oal.elements().size() == oc.elements().size()) {
                     SqlExpr.TaggedList ot = MixedEncoding.taggedList(oc, oal.elements());
                     if (ot != null) {
-                        return tl.identityPositions() && ot.identityPositions()
-                                ? TaggedLists.sameListByKinds(tl, ot) : TaggedLists.sameList(tl, ot);
+                        return sameTaggedLists(la != null ? s0 : s1, tl, otherSpec, ot);
                     }
                 }
-                // a list of ONE static kind
+                // a list of ONE static kind (one family: a date-time at any written precision is a DateTime)
                 for (TypedSpec el : oc.elements()) {
                     String k = MixedEncoding.kindOf(el);
-                    if (k == null || (kind != null && !kind.equals(k))) {
+                    if (k == null || (kind != null && !MixedEncoding.sameFamily(kind, k))) {
                         kind = null;
                         break;
                     }
-                    kind = k;
+                    kind = MixedEncoding.family(k);
                 }
             }
             if (kind != null) {
@@ -3911,6 +3907,28 @@ final class Scalars {
                     + " elements' kind is not static and that is not on the variant carrier: not lowered");
         }
         return null;
+    }
+
+    /** Two mixed lists are the same list. Two lists WRITTEN IN THE QUERY with every element present compare position
+     *  by position, no list in the SQL ({@link TaggedLists#sameWrittenLists}); two lists in their own order whose
+     *  families are each one array compare array by array (no lambda: every database); any other pair element by
+     *  element. */
+    private static SqlExpr sameTaggedLists(TypedSpec s0, SqlExpr.TaggedList la, TypedSpec s1, SqlExpr.TaggedList lb) {
+        if (everyElementWritten(s0) && everyElementWritten(s1)) {
+            SqlExpr written = TaggedLists.sameWrittenLists(la, lb);
+            if (written != null) {
+                return written;
+            }
+        }
+        return la.identityPositions() && lb.identityPositions() && TaggedLists.oneChannelPerFamily(la, lb)
+                ? TaggedLists.sameListByKinds(la, lb) : TaggedLists.sameList(la, lb);
+    }
+
+    /** A collection written in the query whose every element is exactly one value: its length is its element count
+     *  (an element that may be empty, {@code [$optional, 'a']}, leaves the length to the run). */
+    private static boolean everyElementWritten(TypedSpec list) {
+        return list instanceof TypedCollection c && !c.elements().isEmpty()
+                && c.elements().stream().allMatch(Scalars::isToOne);
     }
 
     /** A list on the variant carrier: typed JSON or an array of JSON, or a literal array of variant-wrapped
