@@ -164,3 +164,55 @@ DateTime rule) before it is kept. Then `bazel test --lockfile_mode=error //gates
 
 The session's second worktree and its scratchpad are gone with its container; everything they held is in this
 branch or in this note.
+
+## The second independent review (arrived after the pause; NOTHING of it is applied)
+
+*Opus, high effort, given the diff of the audit's fixes and the rules, read only; nothing built or run by it. Its
+findings are the first thing to do on resuming (step 1 of "What remains").*
+
+**Should-fix, code:**
+
+1. **`UpstreamPrints.inNoDefinedOrder` misses a legacy `TabularDataSet[1]`.** It tests values that are many or
+   relation-typed; a TDS is a class type and neither. So a `limit`, `drop` or `slice` over unordered TDS rows is not
+   flagged (as the typer's node or as the native `LIMIT__TDS_1`), and `.rows->toOne()` after it is order-free.
+   Example: `let r = execute(|P.all()->project([p|$p.salary],['s'])->limit(1), M, R, ext);
+   assertEquals('..', $r.values->toOne().rows->toOne().getFloat('s')->toString())` is lifted, and the unordered
+   `limit(1)` is read twice.
+2. **`PrintedRelations.mayBeASpelledDate` does not err to yes where it says it does.** A node that is no date and no
+   primitive (an `Any`) only has its children walked: a user function declared `Any[1]` that returns a DateTime
+   literal, under a cast (`f::a()->cast(@DateTime)->toString()`), through a let, or an `Any`-typed derived property,
+   is lifted, while the lowering, after inlining and the unroll's cast fold, would read the bare literal. Fix: yes
+   for a user function's call, and for a class's property, of any type that is no primitive.
+3. **`UpstreamPrints.orderFree` takes all of `OrderView.ORDER_PRESERVING`**, which holds `makeString`, a relation's
+   `toString` and `toCSV`: their answers depend on row order. `...values.name->makeString('')->parseFloat()
+   ->toString()` is lifted. Exclude them as the positional natives are excluded.
+
+**Should-fix, records:**
+
+4. **Answers moved by the DateTime narrowing with no words in a ruled row.** A native over literals other than
+   `adjust` (`max` or `min` of literals, a `first...Of...` returning a DateTime, `date::add`), and a class's property
+   under a native (`X.all()->map(p|$p.d)->toOne()`), now print lite's nine-digit `Z` text where the lift printed the
+   trimmed `+0000` text. S429 still says a native's call or a cast is lifted, so the response record's "the
+   difference S429 already carries" is not borne out: S429 needs an amendment draft for it (with S4's). And the
+   unread-let difference from legend-pure is a divergence with no row: it goes to the user as a draft, not as a
+   note.
+
+**Notes:**
+
+- `adjust` is sound as "never folded" (not by the unroll, the static fold or the inliner). legend-pure's `adjust`
+  keeps the literal's written precision (`.250`), which lite's print trims (`.25`): S429 records it.
+- `adjust` over a literal with more than six fraction digits lowers to a text (`DateShifts.java:189-197`), and
+  `PureValueText.value` refuses a text: such a lifted print may raise. Older than this diff; a probe settles it.
+- Duplicate lets, which lite accepts: `let d = %lit; let d = $d->cast(@DateTime); $d->toString()` is lifted.
+- `anyPrinted` may answer yes wrongly through a later or shadowing let; harmless, `read` resolves each side with its
+  own prefix. It followed the audit's B1 body through to a read.
+- `StatementEffects.reaches` swallows a typing error of a callee, so such a callee counts as in sight.
+- A sort with ties counts as ordered (`sortBy(non-unique)->at(0)` is lifted): existing policy.
+- B2 (a) is correct against `toRepresentation.pure`; nothing at the edge assumes the lifted call is `toString`.
+- The written-literal rule's slicing is correct; the body door writing a literal's print without a read is safe.
+- `EdgeCasesGoldenTest`'s new cases pin answers only through the recorded file (its own assertion cannot fail);
+  only three of the five probed literal shapes are RUN in `PctPlanRoutePrintTest`, the other two are asserted as
+  not lifted.
+
+**It did not verify:** that an inlined `Any`-returning function folds to the literal (finding 2), the cast texts in
+the lane probe's record, and that `--test_arg=--select-class` reaches a lane's runner.
