@@ -480,10 +480,22 @@ public final class ChannelB {
      * where they agree, else what differs; the body's own run follows as usual.
      */
     private static @com.legend.base.Nullable String twice(ModelContext ctx, ValueSpecification resolved) {
-        return twice(() -> com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
-                        typed(ctx, resolved), com.legend.testbackend.StorelessRuntime.RUNTIME,
-                        OPTIONS)),
-                () -> recorded(ctx, resolved));
+        return twice(() -> plannedAsRun(ctx, resolved), () -> recorded(ctx, resolved));
+    }
+
+    /** The body's test plan as JSON, planned from the body the run plans: typed as the run types it, a relation's
+     *  printed text read on a fresh connection first under the compatibility rules ({@link #typed(ModelContext,
+     *  ValueSpecification, Connection)}). Until 2026-11-26 this half planned the body before that read, so a body whose
+     *  run passes because its print is read at the edge was refused here by a database that prints no relation itself
+     *  (H2: four Relation tests, found by the heavy gate on the edition program's branch; the read is B3 step 2b's,
+     *  2026-11-24). */
+    private static String plannedAsRun(ModelContext ctx, ValueSpecification resolved) {
+        try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
+            return com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(typed(ctx, resolved, conn),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, OPTIONS));
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("the twice guard could not open its lane's database", e);
+        }
     }
 
     /** {@link #twice(ModelContext, ValueSpecification)}'s comparison over its two halves: {@code plan} plans the body
