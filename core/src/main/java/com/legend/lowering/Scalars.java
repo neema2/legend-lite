@@ -1797,7 +1797,10 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_STRING_CHUNK) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(
                     SqlFn.REGEXP_EXTRACT_ALL, args.get(0),
-                    args.get(1) instanceof SqlExpr.IntLit size
+                    // from 1 to 1000 alone: below 1 Pure raises and above 1000 a regular-expression engine may
+                    // refuse the bound, so those sizes keep the composed form they always had (the independent
+                    // audit of 2026-11-26)
+                    args.get(1) instanceof SqlExpr.IntLit size && size.value() >= 1 && size.value() <= 1000
                             ? new SqlExpr.StringLit(".{1," + size.value() + "}")
                             : SqlExpr.Call.of(SqlFn.CONCAT,
                                     new SqlExpr.StringLit(".{1,"),

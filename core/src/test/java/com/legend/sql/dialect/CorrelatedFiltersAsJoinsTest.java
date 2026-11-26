@@ -117,6 +117,35 @@ class CorrelatedFiltersAsJoinsTest {
         }
     }
 
+    /** A LEFT lateral is a LEFT join on the filter: a row before it with no inner row passing the filter keeps its
+     *  padded row either way. A comparison that is no equality moves as an equality does. */
+    @Test
+    void aLeftLateralIsALeftJoin_andAnyComparisonMoves() {
+        SqlExpr below = SqlExpr.Call.of(SqlFn.LESS, SqlExpr.Column.physical("r0", "k"), SqlExpr.Column.physical("l0", "k"));
+        SqlSelect given = SqlSelect.starOf(new SqlSource.Join(L, new SqlSource.Subselect(
+                SqlSelect.starOf(R).withWhere(below), "t1", null), SqlSource.Join.Kind.LEFT_LATERAL, null));
+        SqlSource.Join j = joinOf(rewritten(given));
+        assertEquals(SqlSource.Join.Kind.LEFT, j.kind());
+        assertEquals(SqlFn.LESS, assertInstanceOf(SqlExpr.Call.class, j.on()).fn());
+        assertNull(assertInstanceOf(SqlSelect.class, ((SqlSource.Subselect) j.right()).inner()).where());
+    }
+
+    /** What the pass cannot prove it reads, it leaves (the independent audit of 2026-11-26): a column with no table,
+     *  which could bind to another scope once the subquery is no lateral, and a value drawn afresh for each row, which
+     *  a lateral draws once a row before it and a join once. */
+    @Test
+    void aColumnWithNoTableOrAValueDrawnAfreshLeavesTheLateralAsItWas() {
+        SqlExpr unqualified = SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.physical(null, "b"), new SqlExpr.IntLit(1));
+        SqlExpr drawn = SqlExpr.Call.of(SqlFn.LESS, new SqlExpr.Call(SqlFn.RANDOM, List.of()), new SqlExpr.FloatLit(0.5));
+        for (SqlExpr local : List.of(unqualified, drawn)) {
+            SqlSelect given = lateralOver(SqlSelect.starOf(R)
+                    .withWhere(new SqlExpr.Call(SqlFn.AND, List.of(sameKey(), local))));
+            SqlSource.Join j = joinOf(rewritten(given));
+            assertEquals(SqlSource.Join.Kind.CROSS_LATERAL, j.kind(), local.toString());
+            assertSame(((SqlSource.Join) given.from()).right(), j.right(), "the subquery untouched: " + local);
+        }
+    }
+
     @Test
     void h2RunsItAfterItsOtherLateralPasses() {
         List<String> order = new H2().passes().stream().map(p -> p.getClass().getSimpleName()).toList();

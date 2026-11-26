@@ -50,6 +50,13 @@ final class CorrelatedFiltersAsJoins extends SqlRewriter {
         if (!Collections.disjoint(all.defined, out)) {
             return s;                                   // condition 3: an outer alias redefined inside
         }
+        if (!all.unreadable.isEmpty() || !all.unqualified.isEmpty()) {
+            // a source or a call whose reads the pass cannot see (raw SQL; a value drawn afresh for each row, which
+            // a lateral draws once a left row and a join once), or a column with no table, which a join inside a
+            // correlated subquery could bind to another scope than the lateral's (the independent audit of
+            // 2026-11-26)
+            return s;
+        }
         Reads body = Reads.of(in.withWhere(null));      // condition 4
         if (!Collections.disjoint(body.read, out) || !all.defined.containsAll(body.read)) {
             return s;
@@ -71,7 +78,7 @@ final class CorrelatedFiltersAsJoins extends SqlRewriter {
             }
             Set<String> allowed = new LinkedHashSet<>(out);
             allowed.addAll(own);
-            if (!r.subqueries.isEmpty() || !r.unqualified.isEmpty() || !allowed.containsAll(r.read)) {
+            if (!r.subqueries.isEmpty() || !allowed.containsAll(r.read)) {
                 return s;                               // condition 5
             }
             Respell rs = new Respell(own, outputOf, sub.alias(), in.outputs());
@@ -169,6 +176,8 @@ final class CorrelatedFiltersAsJoins extends SqlRewriter {
         final Set<String> read = new LinkedHashSet<>();
         final List<SqlExpr.Column> unqualified = new ArrayList<>();
         final List<SqlExpr> subqueries = new ArrayList<>();
+        /** What the pass cannot read through: a raw SQL source, a call that draws a value afresh. */
+        final List<Object> unreadable = new ArrayList<>();
 
         static Reads of(SqlQuery q) {
             Reads r = new Reads();
@@ -187,6 +196,9 @@ final class CorrelatedFiltersAsJoins extends SqlRewriter {
             if (!(s instanceof SqlSource.Join) && !(s instanceof SqlSource.Dual)) {
                 defined.add(s.alias());
             }
+            if (s instanceof SqlSource.RawSql) {
+                unreadable.add(s);
+            }
             return s;
         }
 
@@ -201,6 +213,14 @@ final class CorrelatedFiltersAsJoins extends SqlRewriter {
             } else if (e instanceof SqlExpr.ScalarSubquery || e instanceof SqlExpr.Exists
                     || e instanceof SqlExpr.InSubquery || e instanceof SqlExpr.Quantified) {
                 subqueries.add(e);
+            } else if (e instanceof SqlExpr.RowOrder ro && ro.table() != null) {
+                read.add(ro.table());                   // a row's position reads its table as a column does
+            } else if (e instanceof SqlExpr.Star st && st.table() != null) {
+                read.add(st.table());
+            } else if (e instanceof SqlExpr.StarExcept sx && sx.table() != null) {
+                read.add(sx.table());
+            } else if (e instanceof SqlExpr.Call c && c.fn().drawsAfresh()) {
+                unreadable.add(e);
             }
             return e;
         }

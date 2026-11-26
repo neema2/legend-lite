@@ -2433,6 +2433,14 @@ public class MariaDb extends AnsiSqlRenderer {
      */
     private SqlWriter.Piece regexpExtractAll(List<SqlExpr> a) {
         String p = patternOf(a, SqlFn.REGEXP_EXTRACT_ALL);
+        if (!oneMatchLength(p)) {
+            // the filter below asks whether SOME split of the text into k matches exists, which is the left-to-right
+            // scan's k-th match only where every match has one length: 'abc'->chunk(5), pattern .{1,5}, answered
+            // ['abc', 'c', 'c'] (the independent audit of 2026-11-26; chunk reached here since its written size
+            // became a literal pattern that day, refused until then as a pattern that is not a literal)
+            throw wall(SqlFn.REGEXP_EXTRACT_ALL, "a pattern whose matches may differ in length (its k-th match is"
+                    + " found by counting matches, which holds for one length alone)");
+        }
         int g = group(a);
         int ref = captureGroups(p) + 1 + g;
         if (ref > 9) {
@@ -2449,6 +2457,38 @@ public class MariaDb extends AnsiSqlRenderer {
                 .piece(rows(v -> v.append("CHAR_LENGTH(").expr(a.get(0), 0).append(") + 1"), "__k"))
                 .append(" WHERE ").expr(a.get(0), 4).append(" REGEXP CONCAT(" + repeat + ", ").piece(k)
                 .append(", '}')), JSON_ARRAY()) END)");
+    }
+
+    /** Whether every match of {@code p} has one length, read off its text and erring toward no: no quantifier that
+     *  varies ({@code *}, {@code +}, {@code ?}, {@code {m,n}} with m other than n, {@code {m,}}) and no alternation,
+     *  outside an escape and a character class. A group's marker ({@code (?}) is no quantifier. */
+    static boolean oneMatchLength(String p) {
+        boolean inClass = false;
+        for (int i = 0; i < p.length(); i++) {
+            char ch = p.charAt(i);
+            if (ch == '\\') {
+                i++;
+            } else if (inClass) {
+                inClass = ch != ']';
+            } else if (ch == '[') {
+                inClass = true;
+            } else if (ch == '(' && i + 1 < p.length() && p.charAt(i + 1) == '?') {
+                i++;
+            } else if (ch == '*' || ch == '+' || ch == '?' || ch == '|') {
+                return false;
+            } else if (ch == '{') {
+                int close = p.indexOf('}', i);
+                if (close > i) {
+                    String bounds = p.substring(i + 1, close);
+                    int comma = bounds.indexOf(',');
+                    if (comma >= 0 && !bounds.substring(0, comma).equals(bounds.substring(comma + 1))) {
+                        return false;
+                    }
+                    i = close;
+                }
+            }
+        }
+        return true;
     }
 
     /** The capturing groups of a pattern: each '(' not escaped, not in a class, not a '(?' group (but a named one). */
