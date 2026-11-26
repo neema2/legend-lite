@@ -160,11 +160,25 @@ for later. The parallel sessions the plan names (steps 8 and 9) go on, and land 
 | 3 | all | **yes, 2026-11-26** | nothing |
 | 4 | all | **yes, 2026-11-26** | nothing (its recorded gap, bodies typed into their call, is step 6's: section 5b) |
 | 5 | `round`, `toDecimal`, the plain parses, `dateDiff`, `splitPart`, `isNumeric`, the unchecked operations | **yes, 2026-11-26** | nothing in it. Its leftover rows are deferred by the user's word (section 5b); the Float, date and `TDSNull` text rows are step 8's. One recorded difference at its finish line (PCT's legend-engine run on DuckDB: `testBigFloatAbs`, register S120) |
-| 6 | the first slice (`assertSize`, in the next batch); slice 6.1 built and measured on a scratch branch, the fold rule ruled by the user | no | the next batch lands; then 6.1 with the fold rule; then slices 6.2 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
-| 8 | slices 1 and 2 (2 is in the next batch); the Float deletion slice and the date-time slices built, the user's rulings given | no | its slices land; the `TDSNull` row |
-| 9 | slice 1 (in the next batch); slice 2 built | no | slice 2 lands; the later slices after steps 6 and 8 |
+| 6 | the first slice (`assertSize`: **landed 2026-11-26**, `4d44bf54`); slice 6.1 built, measured and audited on `claude/batch-6-1`, the fold rule ruled by the user ("Whole numbers fine") | no | 6.1 lands (its full run, then the pull request's CI); then slices 6.2 to 6.6 in order, each landed before the next; the product SQL changes brought to the user per slice |
+| 8 | slices 1 and 2 (**landed 2026-11-26**, `4d44bf54`; slice 2's own independent audit found no blocker and seven should-fix items, which its session is repairing on its branch); the Float deletion slice and the date-time slices built, the user's rulings given | no | slice 2's repairs and each later slice audited from outside, then landed; the `TDSNull` row; two register rows put to the user (`trim`; `length` and `indexOf` over characters past U+FFFF) |
+| 9 | slice 1 (**landed 2026-11-26**, `4d44bf54`); slice 2 built | no | slice 2 audited from outside, then landed; the later slices after steps 6 and 8 |
 | 10 | nothing | no | after 6, 8 and 9. Its first item: no line of the edge names a database (section 5b) |
 | 11 | nothing | no | the user's word |
+
+**How the next batch landed (2026-11-26, 20:22 UTC).** `4d44bf54`: step 6's first slice (`assertSize` as the
+product's own count, `assertNotSize` with it), step 8's slices 1 and 2, step 9's slice 1, and the fixes the lanes and
+the audit of batch A's landing asked for (MongoDB's `acos`/`asin` raise, ClickHouse's Float literal as the number).
+The program branch was fast-forwarded to it. Verified before: the fixed pre-push set (149 of 151, the one guard
+failure fixed and re-run), the local gate in a builder session (557 passed, the 14 root-only targets passed
+unprivileged, no pin up), six database lanes with no change against batch A beyond the two fixes, and an independent
+audit whose blocker (two stale H2 pins) and should-fix items were fixed and re-checked. CI on the pull request at that
+commit: 55 of 56 jobs green. **The one red job is `macos / datacube`, by one case of `//datacube:live_channel_test`**
+("a selected chart removed while the grid's whole filter is set here", `the mark is on the grid's filter`): the batch
+changes no file under `datacube`, `wasm`, `engine-client` or `query-store`, the same test passed on Linux and Windows
+on the same commit and on macOS on batch A, and it is the second time this one test has failed on macOS alone (the
+first is recorded above, at step 4). It is a timing-sensitive page test, landed over as such and filed as a task; the
+job could not be re-run from the session (GitHub answers 403). The step 6.1 batch's push runs it again.
 
 **How steps 1 to 5 closed (2026-11-26, 18:22 UTC).** Their code is batch A, `ae275024`: the program branch
 `claude/compat-b3-nufdlk` was fast-forwarded to it. Verified before: the fixed pre-push set, the local gate with its
