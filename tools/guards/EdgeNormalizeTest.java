@@ -3,6 +3,7 @@
 
 package com.legend.tools.guards;
 
+import com.legend.tools.edgenet.CorpusOverlay;
 import com.legend.tools.edgenet.EdgeNormalize;
 import com.legend.tools.edgenet.PlatformOverlay;
 
@@ -206,5 +207,104 @@ class EdgeNormalizeTest {
                 "another database: the row is not this golden's");
         assertEquals(lines, PlatformOverlay.applied(lines, "channel_b_duckdb_standard_outcomes.tsv", windowsRow(),
                 "windows"), "an outcomes file: overlays are for answers");
+    }
+
+    // THE CORPUS's PLATFORM OVERLAY (2026-11-26, the user's "yes Macos"): on its OS a row's test FAILS on its last-place
+    // maths (the test's literal is Linux's value); its golden lines are put back only when the recording shows exactly
+    // that flip; on every other OS the row's test must pass in the recording, so a stale row fails. The lines are
+    // acos::testProject's, as PR #141's macOS gate run (45788970603) recorded them and as the Linux golden holds them.
+
+    private static final String ACOS = "meta::relational::tests::mapping::sqlFunction::acos::testProject";
+
+    private static final List<String> LINUX_LEDGER = List.of(
+            "meta::other::before\t0\tmeta::pure::functions::asserts::assertEquals\tPASS",
+            ACOS + "\t0\tmeta::pure::functions::asserts::assertSameElements\tPASS",
+            ACOS + "\t1\tmeta::pure::functions::asserts::assertEquals\tPASS",
+            "meta::other::after\t0\tmeta::pure::functions::asserts::assertEquals\tPASS");
+
+    private static final String MACOS_FAIL = ACOS + "\t0\tmeta::pure::functions::asserts::assertSameElements\tFAIL\t"
+            + "AssertFailed: expected: [[%s], [0.0]], actual: [[%s], [0.0]]";
+
+    private static List<String> macosLedger(String expected, String actual) {
+        return List.of(LINUX_LEDGER.get(0), MACOS_FAIL.formatted(expected, actual), LINUX_LEDGER.get(3));
+    }
+
+    private static List<CorpusOverlay.Row> acosRow() {
+        return CorpusOverlay.parse("macos", List.of("test\tdatabases\tfunction\tlinux\tmacos",
+                ACOS + "\tduckdb\tacos\t1.0471975511965979\t1.0471975511965976"));
+    }
+
+    private static List<String> corpus(List<String> recording, List<String> golden, CorpusOverlay.Kind kind,
+            String database, List<CorpusOverlay.Row> rows, String os) {
+        return CorpusOverlay.applied(recording, golden, kind, database, rows, os);
+    }
+
+    @Test
+    void aCorpusRowPutsTheGoldensLinesBackOnItsOs() {
+        assertEquals(LINUX_LEDGER, corpus(macosLedger("1.0471975511965979", "1.0471975511965976"), LINUX_LEDGER,
+                CorpusOverlay.Kind.LEDGER, "duckdb", acosRow(), "macos"),
+                "on macOS the one failing assert gives way to the golden's two PASS lines, in place");
+        List<String> roster = List.of("meta::a::x", ACOS, "meta::z::y");
+        assertEquals(List.of("meta::a::x", "meta::z::y"), corpus(roster, List.of("meta::a::x", "meta::z::y"),
+                CorpusOverlay.Kind.FAIL_ROSTER, "duckdb", acosRow(), "macos"), "the fail roster loses the test");
+        List<String> register = List.of("unordered-chain meta::a::x", "unordered-chain meta::z::y");
+        List<String> golden = List.of("unordered-chain meta::a::x", "unordered-chain " + ACOS,
+                "unordered-chain meta::z::y");
+        assertEquals(golden, corpus(register, golden, CorpusOverlay.Kind.UNORDERED_REGISTER, "duckdb", acosRow(),
+                "macos"), "the unordered register gets its line back, in its sorted place");
+    }
+
+    @Test
+    void aCorpusRowIsInertOnAnotherOsAndAnotherLane() {
+        assertEquals(LINUX_LEDGER, corpus(LINUX_LEDGER, LINUX_LEDGER, CorpusOverlay.Kind.LEDGER, "duckdb", acosRow(),
+                "linux"), "on Linux a row whose test passes changes nothing");
+        List<String> moved = macosLedger("1.0471975511965979", "1.0471975511965976");
+        assertEquals(moved, corpus(moved, LINUX_LEDGER, CorpusOverlay.Kind.LEDGER, "h2", acosRow(), "macos"),
+                "another lane: the row is not this golden's");
+    }
+
+    @Test
+    void aStaleCorpusRowFails() {
+        assertThrows(IllegalStateException.class, () -> corpus(LINUX_LEDGER, LINUX_LEDGER, CorpusOverlay.Kind.LEDGER,
+                "duckdb", acosRow(), "macos"), "on macOS a row whose test passes after all is stale");
+        List<String> gone = List.of(LINUX_LEDGER.get(0), LINUX_LEDGER.get(3));
+        assertThrows(IllegalStateException.class, () -> corpus(gone, gone, CorpusOverlay.Kind.LEDGER, "duckdb",
+                acosRow(), "linux"), "on Linux a row whose test is not in the recording is stale");
+        assertThrows(IllegalStateException.class, () -> corpus(List.of(ACOS), List.of(ACOS),
+                CorpusOverlay.Kind.FAIL_ROSTER, "duckdb", acosRow(), "linux"),
+                "on Linux a row whose test fails there too is stale (the test moved)");
+        List<String> failing = macosLedger("1.0471975511965979", "1.0471975511965976");
+        assertThrows(IllegalStateException.class, () -> corpus(failing, failing, CorpusOverlay.Kind.LEDGER, "duckdb",
+                acosRow(), "linux"), "on Linux a failing test is no row's to hide");
+    }
+
+    @Test
+    void anotherCorpusFailureOnItsOsFails() {
+        assertThrows(IllegalStateException.class, () -> corpus(macosLedger("1.0471975511965979", "1.0471975511965975"),
+                LINUX_LEDGER, CorpusOverlay.Kind.LEDGER, "duckdb", acosRow(), "macos"),
+                "a failure naming another value is a new difference, and fails");
+        assertThrows(IllegalStateException.class, () -> corpus(macosLedger("1.0471975511965978", "1.0471975511965976"),
+                LINUX_LEDGER, CorpusOverlay.Kind.LEDGER, "duckdb", acosRow(), "macos"),
+                "a failure whose expected value is not the row's Linux value fails: the test's literal moved");
+        List<String> otherFailure = List.of(LINUX_LEDGER.get(0), ACOS
+                + "\t0\tmeta::pure::functions::asserts::assertSameElements\tFAIL\tDataError: no such table",
+                LINUX_LEDGER.get(3));
+        assertThrows(IllegalStateException.class, () -> corpus(otherFailure, LINUX_LEDGER, CorpusOverlay.Kind.LEDGER,
+                "duckdb", acosRow(), "macos"), "a failure of another kind fails");
+        assertThrows(IllegalStateException.class, () -> corpus(List.of("unordered-chain " + ACOS),
+                List.of("unordered-chain " + ACOS), CorpusOverlay.Kind.UNORDERED_REGISTER, "duckdb", acosRow(),
+                "macos"), "a register that still holds the test's line does not show the flip");
+    }
+
+    @Test
+    void aCorpusOverlayRefusesAMalformedRow() {
+        assertThrows(IllegalArgumentException.class, () -> CorpusOverlay.parse("macos", List.of(
+                "test\tdatabases\tfunction\tlinux\tmacos", ACOS + "\tpostgres\tacos\t1.0\t2.0")),
+                "a lane the corpus has not: no normalizer would ever find the row stale");
+        assertThrows(IllegalArgumentException.class, () -> CorpusOverlay.parse("macos", List.of(
+                "test\tdatabases\tfunction\tlinux\tmacos", ACOS + "\tduckdb\tacos\t1.0\t2.0",
+                ACOS + "\tduckdb\tacos\t1.0\t3.0")), "one test twice");
+        assertThrows(IllegalArgumentException.class, () -> CorpusOverlay.parse("macos", List.of(
+                "suite\ttest\tcase\tdatabases\tfunction\tlinux\tmacos")), "PCT's header is not the corpus's");
     }
 }

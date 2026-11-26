@@ -6,7 +6,7 @@ load("//tools/generators:defs.bzl", "ENGINE_ROOT", "ENGINE_TREE", "UPSTREAM_ROOT
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
-load(":corpus.bzl", "corpus_lane")
+load(":corpus.bzl", "CORPUS_OVERLAYS", "corpus_lane", "corpus_overlay")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/jars:defs.bzl", "file_list")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
@@ -21,10 +21,11 @@ _MEASURED_ROSTERS = ["src/test/resources/rcorpus/%s-%s.txt" % (lane, m) for lane
     "engine-order-register",
 )]
 
-# what the corpus passes read of spec's tree: everything but the rosters they measure
+# what the corpus passes read of spec's tree: everything but the rosters they measure and the platform overlays the
+# diff tests apply after them (spec/corpus.bzl's CORPUS_OVERLAYS: an overlay edit reruns no pass)
 filegroup(
     name = "corpus_srcs",
-    srcs = glob(["src/**"], exclude = _MEASURED_ROSTERS),
+    srcs = glob(["src/**"], exclude = _MEASURED_ROSTERS + CORPUS_OVERLAYS),
 )
 
 # the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
@@ -111,7 +112,7 @@ legend_java_library(
     nullaway = False,
     testonly = True,
     srcs = glob(["src/test/java/**/*.java"]),
-    resources = glob(["src/test/resources/**"], exclude = _MEASURED_ROSTERS),
+    resources = glob(["src/test/resources/**"], exclude = _MEASURED_ROSTERS + CORPUS_OVERLAYS),
     runtime_deps = [
         "//core:drivers",
         "//core:query_capture",
@@ -737,12 +738,23 @@ guards_package()
 # 2026-11-19, the owner's call on the per-push cost): each lane's two diff tests run in that corpus lane, which builds
 # the same host pass (//gates:corpus_duckdb, //gates:corpus_h2), and not in //gates:edge_net, whose critical path the
 # DuckDB pass was (609 s of 690 s, measured); the umbrella below still re-records both.
+# the host ledger through the corpus's platform overlays (spec/corpus.bzl's corpus_overlay, 2026-11-26): on macOS a
+# row's test fails on its last-place maths, and its golden lines are put back only once the recording shows exactly that
+[corpus_overlay(
+    name = "corpus_overlay_%s/corpus_%s_host_judge-host.tsv" % (lane, lane),
+    lane = lane,
+    recorded = ":judge_host_%s/judge-host.tsv" % lane,
+    golden = "src/test/resources/edge/corpus_%s_host_judge-host.tsv" % lane,
+) for lane in ["duckdb", "h2"]]
+
 [write_source_files(
     name = "update_edge_corpus_" + lane,
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA corpus answer moved at the edge (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); a regression unless it is a ruled move -- then bazel run //spec:update_edge_corpus, citing the ruling",
     files = {
-        "src/test/resources/edge/corpus_%s_%s_%s" % (lane, judge, f): ":judge_%s_%s/%s" % (judge, lane, f)
+        "src/test/resources/edge/corpus_%s_%s_%s" % (lane, judge, f): (
+            ":corpus_overlay_%s/corpus_%s_%s_%s" % (lane, lane, judge, f) if f == "judge-host.tsv" else ":judge_%s_%s/%s" % (judge, lane, f)
+        )
         for judge in ["host"]
         for f in ["outcomes.tsv", "judge-%s.tsv" % judge]
     },
