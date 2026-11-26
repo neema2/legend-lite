@@ -501,8 +501,8 @@ public final class VerdictQueries {
      *  the Pure condition it means, planned by the product's own road; until then the database judge counted the
      *  side's rows itself). The call is built BY DECLARATION over the side the typer already typed as the assert's
      *  argument, as the typer's own desugars build one ({@code TdsDesugars}): the exact declared function, never an
-     *  overload picked by its arity. The typer's two rewrites of a WRITTEN {@code size} are not made here: a table's
-     *  cells (the table is refused as a relation first, S137) and one row's cells (a recorded gap, step 6.2's). */
+     *  overload picked by its arity. The typer's two rewrites of a WRITTEN {@code size} are not made here, so a
+     *  table's cells count its rows and one row's cells are refused: recorded gaps (AssertBarTest), step 6.2's. */
     public static TypedSpec sizeOf(TypedSpec collection, SpecCompiler specs) {
         return declared(specs, com.legend.builtin.Pure.SIZE__ANY_MANY, List.of(collection), Type.Primitive.INTEGER);
     }
