@@ -41,6 +41,8 @@ final class NamedRules {
                     SqlExpr.Call.of(SqlFn.PLUS, args.get(2), new SqlExpr.IntLit(1)));
             case FLOAT_TEXT_BY_CAST -> floatTextByCast(args.get(0), false);
             case FLOAT_TEXT_BY_CAST_OF_A_DOUBLE -> floatTextByCast(args.get(0), true);
+            case DATE_TIME_TEXT_BY_CAST -> new SqlExpr.Cast(args.get(0), com.legend.sql.SqlType.Scalar.VARCHAR,
+                    SqlExpr.Reason.USER);
         };
     }
 

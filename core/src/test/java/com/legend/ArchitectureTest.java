@@ -1392,8 +1392,10 @@ final class ArchitectureTest {
             // (lowering.NamedRules); anEditionsTableAloneNamesARule keeps every other namer out
             "lowering.NamedRule#CAST_TO_BARE_DECIMAL", "com.legend.edge.EngineTable",
             "lowering.NamedRule#DATE_DIFF_AS_GIVEN", "com.legend.edge.EngineTable",
-            // 2026-11-26, the edition program's step 8: a Float's text inside a store query at legend-engine's door,
-            // the database's own cast (the user's ruling of that day, "agreed on float/date text for engine")
+            // 2026-11-26, the edition program's step 8: a Float's text, and a DateTime's that is no literal, inside a
+            // store query at legend-engine's door, the database's own cast (the user's ruling of that day, "agreed on
+            // float/date text for engine")
+            "lowering.NamedRule#DATE_TIME_TEXT_BY_CAST", "com.legend.edge.EngineTable",
             "lowering.NamedRule#FLOAT_TEXT_BY_CAST", "com.legend.edge.EngineTable",
             "lowering.NamedRule#FLOAT_TEXT_BY_CAST_OF_A_DOUBLE", "com.legend.edge.EngineTable",
             "lowering.NamedRule#ROUND_AS_GIVEN", "com.legend.edge.EngineTable",

@@ -92,5 +92,11 @@ public enum NamedRule {
     /** {@link #FLOAT_TEXT_BY_CAST} with a Float literal operand read as the database's double first
      *  ({@code CAST(CAST(0.000000013421 AS DOUBLE) AS VARCHAR)}), so the database prints the literal as it prints any
      *  double ({@code 1.3421E-8}). */
-    FLOAT_TEXT_BY_CAST_OF_A_DOUBLE
+    FLOAT_TEXT_BY_CAST_OF_A_DOUBLE,
+
+    /** A DateTime's text as the target database's own cast of the value to text writes it
+     *  ({@code CAST(x AS VARCHAR)}): that database's layout of a timestamp ({@code 2014-01-02 10:20:30.25} on most: a
+     *  space, the fraction it holds, no zone). Not the product's text of a DateTime, ISO 8601 with nine fraction
+     *  digits and {@code Z} on every database. */
+    DATE_TIME_TEXT_BY_CAST
 }

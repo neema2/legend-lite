@@ -86,6 +86,14 @@ public final class PureText {
      *  4.145.0; until 2026-11-26 the edge's SQL pass chose between the two ({@code PurePrintForms.FloatLiteral}). */
     static final java.util.Set<DatabaseType> ENGINE_FLOAT_LITERAL_AS_DOUBLE = ON_H2;
 
+    /** Where legend-engine's {@code toString} of a DateTime, the database's cast of the timestamp to text, is read
+     *  as its answer for the row: the databases whose text of that cast has been read -- Postgres and Snowflake by
+     *  their lanes (docs/records/edition-homework/lanes/engine-templates-2026-11-26.md: "a timestamp keeps its
+     *  microseconds"), DuckDB and H2 run here (2026-11-26). Trino, ClickHouse, Databricks and BigQuery, which
+     *  legend-engine has too and writes the same cast on, join when a lane has read theirs. */
+    static final java.util.Set<DatabaseType> ENGINE_DATE_TIME_CAST_READ = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(DatabaseType.H2, DatabaseType.DuckDB, DatabaseType.Postgres, DatabaseType.Snowflake));
+
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}, {@link #ENGINE_TESTS},
      *  {@link #ENGINE_PCT}): a plan in legend-pure's words,
