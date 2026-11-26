@@ -89,3 +89,29 @@ rule that landed with B3 step 5.**
 ## What it cost
 
 Setup 8 minutes; the JVM lanes 17; DataCube and wasm 22 without the probe and 21 with; python 8.
+
+## Follow-up: the python failures, named (the same session, 2026-11-26)
+
+A correction to the count above: the 19 failures are 12 `Decimal is not JSON serializable` and **7** refusals by the
+query-level rule; none is unread.
+
+**The 7 the query-level rule refuses today** (each fails the same way without the probe; the rule landed with B3
+step 5a on the program's branch, so these are red on the branch and not on `main`):
+
+| Test | What it sends | Refused as |
+|---|---|---|
+| `test_page.py:2547` `test_rows_sampled_as_a_flow_box_samples_them` | `many.sample('oversample', 25, by='n', value=3, seed=1)` over an Integer column; the Pure is written by the client's own `page.py` (the oversample arm) | Integer with Float |
+| `test_page.py:784` `test_a_calculated_column_is_checked_by_the_compiler_where_it_is_added` | a calculated column `$x.pnl->toOne() < 0`, `pnl` a Float | Float with Integer |
+| `test_page.py:4227` `test_a_custom_filter_keeps_the_rows_its_condition_is_true_for` | a custom filter `$x.notional->toOne() > 90 && ...` | Float with Integer |
+| `test_page.py:4252` `test_a_dynamic_replace_takes_its_rules_from_another_grid` | a rule's condition `$x.notional->toOne() > 200` | Float with Integer |
+| `test_show.py:96` and `:102` | `->filter(x|$x.qty > 0)` over a frame | Float with Integer |
+| `test_notebook.py:141` `test_a_grid_is_planned_and_run_over_the_channel` | `->filter(x|$x.qty > 5)` | Float with Integer |
+
+Six of the seven are what a person types into a filter or a calculated column: a number column against a whole
+number. The seventh is Pure the client's own code writes.
+
+**The 12 others** (`json.dumps` of `ll.parse(...)` meets a `Decimal`): three in `test_edge.py`, nine in
+`test_engine.py`. Their cause is being traced by the same session.
+
+The probe's patch for `core/src/main` is the earlier `probe-crossings-outside-the-query.patch.txt` with a scope stack
+added (a function's name and hat, a body typed into its call, an island); the session keeps the exact text.
