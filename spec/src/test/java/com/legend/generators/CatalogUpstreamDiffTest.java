@@ -249,7 +249,9 @@ class CatalogUpstreamDiffTest {
     // 80 -> 80 (2026-11-23, item 3's S6; the user's Q-C = C1 and Q-S6): meta::legend::lite::assertFailedText replaced one
     // for one by meta::legend::lite::assertRaise(kind), lite-INTERNAL and the compiler's own -- an in-body guard's raise
     // of its assert kind where its caller gives no message; upstream declares no such function
-    private static final int NOT_UPSTREAM_MAX = 80;
+    // 80 -> 76 (2026-11-26, the edition program's step 5): substringAsGiven's and substrAsGiven's four overloads are
+    // gone from the catalog -- rules the legend-engine door's table names (lowering.NamedRule), no natives
+    private static final int NOT_UPSTREAM_MAX = 76;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

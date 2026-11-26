@@ -336,30 +336,21 @@ class EngineTablePlacementTest {
                 && refused.getMessage().contains("a runtime with no single database"), refused.getMessage());
     }
 
-    /** Each row names a native with the call's own signature: the rule it names lowers the call as typed. */
+    /** {@code round} is a row (register S422): inside a store query the database's own ROUND, by the row's rule; in
+     *  a host-side let, which legend-engine's own Java computes, the call's own rule, Pure's. */
     @Test
-    void eachRowsNativeHasItsCallsSignature() {
-        Map<List<com.legend.model.FunctionId>, List<com.legend.model.FunctionId>> rows = new LinkedHashMap<>();
-        rows.put(com.legend.builtin.Pure.AT_STRING_SUBSTRING, com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN);
-        rows.put(com.legend.builtin.Pure.AT_STRING_SUBSTR, com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
-        rows.put(List.of(com.legend.model.FunctionId.of(com.legend.builtin.Pure.INDEX_OF__STRING_1__STRING_1)),
-                com.legend.builtin.Pure.AT_LEGEND_LITE_SQL_POSITION);
-        rows.put(List.of(com.legend.model.FunctionId.of(com.legend.builtin.Pure.TO_ONE__T_MANY)),
-                com.legend.builtin.Pure.AT_LEGEND_LITE_TRUST_ONE);
-        for (Map.Entry<List<com.legend.model.FunctionId>, List<com.legend.model.FunctionId>> row : rows.entrySet()) {
-            assertEquals(row.getKey().size(), row.getValue().size(), row.toString());
-            for (int i = 0; i < row.getKey().size(); i++) {
-                com.legend.compiler.element.TypedFunction from =
-                        MODELLED.findFunctionById(row.getKey().get(i).qualified()).get(0);
-                com.legend.compiler.element.TypedFunction to =
-                        MODELLED.findFunctionById(row.getValue().get(i).qualified()).get(0);
-                assertEquals(from.parameters().stream().map(p -> p.type() + " " + p.multiplicity()).toList(),
-                        to.parameters().stream().map(p -> p.type() + " " + p.multiplicity()).toList(),
-                        from.qualifiedName() + " and " + to.qualifiedName());
-                assertEquals(from.returnType() + " " + from.returnMultiplicity(),
-                        to.returnType() + " " + to.returnMultiplicity(), from.qualifiedName());
-            }
+    void roundIsTheDatabasesOwnInsideAStoreQuery_andItsOwnRuleOutside() {
+        for (String rounded : List.of("round()", "round(1)")) {
+            String store = "|" + TABLE + "->extend(~a: r|($r.ID->toOne() / 3)->" + rounded + ")->from(t::RT)";
+            assertNotEquals(asWritten(store), engines(store), store);
+            String host = "{|let x = (7 / 2)->" + rounded + "; " + TABLE + "->filter(r|$r.ID > $x)->from(t::RT);}";
+            assertEquals(asWritten(host), engines(host), host);
         }
+        // where legend-engine's answer is not checked, the row refuses by name
+        NotImplementedException refused = assertThrows(NotImplementedException.class, () -> engines(
+                Compiler.compileModel(UNCHECKED),
+                "|" + TABLE + "->extend(~a: r|($r.ID->toOne() / 3)->round())->from(t::RT)", "t::RT"));
+        assertTrue(refused.getMessage().contains("legend-engine's answer for round/1"), refused.getMessage());
     }
 
     /** A check legend-engine's SQL does not write (a zero divisor's) is written where legend-engine's own Java runs the
@@ -429,7 +420,7 @@ class EngineTablePlacementTest {
         // the database the model's connection declares (read, never named here: the dialect owners name databases)
         DatabaseType declared = MODELLED.findConnection("t::Conn").orElseThrow().databaseType();
         assertThrows(IllegalStateException.class, () -> EngineTable.DOOR.lowersAs(call[0], java.util.Set.of()));
-        assertEquals(com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN.get(1),
+        assertEquals(com.legend.lowering.NamedRule.SUBSTRING_AS_GIVEN,
                 EngineTable.DOOR.table(declared).lowersAs(call[0], java.util.Set.of()));
         assertEquals(null, EngineTable.DOOR.table(declared).lowersAs(call[0].stampedOutsideStore(true),
                 java.util.Set.of()));

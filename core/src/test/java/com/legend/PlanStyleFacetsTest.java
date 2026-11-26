@@ -24,7 +24,10 @@ class PlanStyleFacetsTest {
     static final List<PlanStyle> STYLES = List.of(PlanStyle.PRODUCT, com.legend.edge.PureText.UPSTREAM,
             com.legend.edge.PureText.PURE_V1,
             // legend-engine's own tests' style, the relational corpus's door (the edition program's step 3, 2026-11-26)
-            com.legend.edge.PureText.ENGINE_TESTS);
+            com.legend.edge.PureText.ENGINE_TESTS,
+            // PCT's legend-engine run's style (the same step's remainder, the same day): pure/v1's in every method but
+            // its edition, under which nothing is stamped -- a PCT case is sent to the database whole
+            com.legend.edge.PureText.ENGINE_PCT);
             // (the edge's recorder of one planning call's raise sites' words, K10b of 2026-11-17: deleted 2026-11-20
             // with stage B's B1)
 

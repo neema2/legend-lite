@@ -4,7 +4,6 @@
 package com.legend.lowering;
 
 import com.legend.compiler.spec.typed.TypedNativeCall;
-import com.legend.model.FunctionId;
 import com.legend.platform.Feature;
 
 import java.util.Set;
@@ -12,9 +11,10 @@ import java.util.Set;
 /**
  * THE EDITION'S TABLE (the edition program, docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.2): what
  * a compatibility door hands the lowering so that a function becomes the SQL its audience means. A row names ANOTHER
- * PRODUCT NATIVE whose rule lowers the call ({@code substring} as {@code substringAsGiven}): data, never code, and never
- * SQL -- the rule it names is the product's, written where every rule is ({@link Scalars}), named by what it is and not
- * by who wants it. The product's own table ({@link LiteEditionTable}) has no row: lite means what its own rules say.
+ * RULE OF THE PRODUCT'S that lowers the call ({@code substring} by {@link NamedRule#SUBSTRING_AS_GIVEN}): data, never
+ * code, and never SQL -- the rule it names is the product's, written in the lowering ({@link NamedRules}), named by
+ * what it writes and not by who wants it. The product's own table ({@link LiteEditionTable}) has no row: lite means
+ * what its own rules say.
  * Beside the rows, the table says which of the product's checks its audience writes ({@link #checks}: the product
  * writes every one).
  *
@@ -32,11 +32,11 @@ import java.util.Set;
  */
 public interface EditionTable {
 
-    /** The native whose rule lowers {@code call}, or null for the call's own rule.
+    /** The rule that lowers {@code call} in place of its own, or null for the call's own rule.
      *
      *  @param call     the call, typed: its resolved native, its stamp, its operands' types
      *  @param features legend-engine's feature flags the statement runs under (a flag may choose the row) */
-    @com.legend.base.Nullable FunctionId lowersAs(TypedNativeCall call, Set<Feature> features);
+    @com.legend.base.Nullable NamedRule lowersAs(TypedNativeCall call, Set<Feature> features);
 
     /** Whether a check the product writes is written for this audience: true, the guarded operation, which raises
      *  lite's error of {@code kind}; false, the operation alone, the database's own answer or error passing through

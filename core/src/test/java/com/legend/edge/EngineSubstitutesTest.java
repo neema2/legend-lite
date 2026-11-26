@@ -35,8 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE DATABASE'S OWN SUBSTRING OVER THE ARGUMENTS AS GIVEN (A3 of the compatibility program, 2026-11-19; the native
- * {@code meta::legend::lite::substringAsGiven}, {@code SqlFn.SUBSTRING_AS_GIVEN}, which legend-engine's door's edition
+ * THE DATABASE'S OWN SUBSTRING OVER THE ARGUMENTS AS GIVEN (A3 of the compatibility program, 2026-11-19; the lowering's
+ * rule {@code NamedRule.SUBSTRING_AS_GIVEN}, {@code SqlFn.SUBSTRING_AS_GIVEN}, which legend-engine's door's edition
  * table names for a store-bound {@code substring}: {@link EngineTable}; where the table lands is
  * {@code EngineTablePlacementTest}'s). Three claims, each with its partner:
  * <ul>
@@ -280,47 +280,22 @@ class EngineSubstitutesTest {
         assertFalse(sql.contains("case"), sql);
     }
 
-    @Test
-    void substrAsGivenIsInternal_andAUserCannotNameItByAnyName() {
-        assertTrue(Pure.INTERNAL_DESUGAR.contains("substrAsGiven"), Pure.INTERNAL_DESUGAR.toString());
-        assertFalse(Pure.userResolvableFunctionFqns().contains(Pure.Lite.SUBSTR_AS_GIVEN));
-        assertEquals(2, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN.size());
-        assertTrue(Pure.COMPILER_OWN.contains(Pure.Lite.SUBSTR_AS_GIVEN), Pure.COMPILER_OWN.toString());
-        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
-        for (String query : List.of("|" + Pure.Lite.SUBSTR_AS_GIVEN + "('abc', 1, 2)",
-                "|" + Pure.Lite.SUBSTR_AS_GIVEN + "('abc', 1)",
-                "|" + com.legend.model.SignatureMangle.mangle(Pure.SUBSTR_AS_GIVEN__STRING_1__INTEGER_1) + "('abc', 1)",
-                "|" + Pure.Lite.SUBSTR_AS_GIVEN + "->eval('abc', 1)")) {
-            com.legend.error.LegendCompileException e = assertThrows(com.legend.error.LegendCompileException.class,
-                    () -> Compiler.query(ctx, query), query);
-            assertTrue(e.getMessage().contains("'" + Pure.Lite.SUBSTR_AS_GIVEN + "' is the compiler's own"),
-                    e.getMessage());
-        }
-    }
-
     // ---- the census ------------------------------------------------------------------------------------------------
 
+    /** The two substitutes are rules the door's table names ({@code lowering.NamedRule}), no functions of the language
+     *  (natives the compiler alone could write until 2026-11-26): nothing a program writes names one. */
     @Test
-    void theNativeIsInternal_andAUserCannotNameItByAnyName() {
-        assertTrue(Pure.INTERNAL_DESUGAR.contains("substringAsGiven"), Pure.INTERNAL_DESUGAR.toString());
-        assertFalse(Pure.userResolvableFunctionFqns().contains(Pure.Lite.SUBSTRING_AS_GIVEN));
-        assertEquals(2, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN.size());
-        assertTrue(Pure.COMPILER_OWN.contains(Pure.Lite.SUBSTRING_AS_GIVEN), Pure.COMPILER_OWN.toString());
-        // a user's program cannot name it: by its full name, by an overload's id, or under eval (the compiler's own
-        // natives' refusal, compiler.NameResolver); a bare name is none of the user's
+    void theSubstitutesAreNoFunctionsOfTheLanguage() {
         ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
-        for (String query : List.of("|" + Pure.Lite.SUBSTRING_AS_GIVEN + "('abc', 1, 2)",
-                "|" + Pure.Lite.SUBSTRING_AS_GIVEN + "('abc', 1)",
-                "|" + com.legend.model.SignatureMangle.mangle(Pure.SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1) + "('abc', 1)",
-                "|" + Pure.Lite.SUBSTRING_AS_GIVEN + "->eval('abc', 1)")) {
-            com.legend.error.LegendCompileException e = assertThrows(com.legend.error.LegendCompileException.class,
-                    () -> Compiler.query(ctx, query), query);
-            assertTrue(e.getMessage().contains("'" + Pure.Lite.SUBSTRING_AS_GIVEN + "' is the compiler's own"),
-                    e.getMessage());
+        for (String name : List.of("substringAsGiven", "substrAsGiven")) {
+            assertFalse(Pure.INTERNAL_DESUGAR.contains(name), Pure.INTERNAL_DESUGAR.toString());
+            assertFalse(Pure.userResolvableFunctionFqns().contains(Pure.Lite.PKG + name), name);
+            assertFalse(Pure.COMPILER_OWN.contains(Pure.Lite.PKG + name), Pure.COMPILER_OWN.toString());
+            for (String query : List.of("|'abc'->" + name + "(1, 2)", "|" + Pure.Lite.PKG + name + "('abc', 1, 2)")) {
+                RuntimeException unknown = assertThrows(RuntimeException.class,
+                        () -> Compiler.query(ctx, query).body(), query);
+                assertTrue(unknown.getMessage().contains(name), unknown.getMessage());
+            }
         }
-        // a bare name is none of the user's: an unknown function, found when the query is typed (its body read)
-        com.legend.error.TypeInferenceException bare = assertThrows(com.legend.error.TypeInferenceException.class,
-                () -> Compiler.query(ctx, "|'abc'->substringAsGiven(1, 2)").body());
-        assertTrue(bare.getMessage().contains("unknown function 'substringAsGiven'"), bare.getMessage());
     }
 }

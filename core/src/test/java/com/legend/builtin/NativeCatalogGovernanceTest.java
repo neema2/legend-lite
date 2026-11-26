@@ -191,7 +191,11 @@ class NativeCatalogGovernanceTest {
         // 42 -> 42 (2026-11-23, item 3's S6; the user's Q-C = C1 and Q-S6): assertFailedText (37 -> 38 above) replaced
         // one for one by assertRaise(kind), the in-body guard's raise of its assert kind where its caller gives no
         // message -- a site the catalog words, so the plan carries no sentence
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 42,
+        // 42 -> 40 (2026-11-26, the edition program's step 5): substringAsGiven and substrAsGiven are no natives any
+        // more -- the door's table names a rule of the lowering's (lowering.NamedRule) where it named a native, a relic
+        // of the door's rewrite of the typed query (deleted 2026-11-25); the table's later rows (round and the rest)
+        // add rules and no native
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 40,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

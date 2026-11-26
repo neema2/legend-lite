@@ -29,12 +29,22 @@ final class DecimalKindRules {
     }
 
     static SqlExpr round(TypedNativeCall n, List<SqlExpr> args) {
+        return rounded(SqlFn.ROUND, n, args);
+    }
+
+    /** {@code round} with a half going away from zero ({@link NamedRule#ROUND_HALF_AWAY_FROM_ZERO}): the product's
+     *  round in every other way -- an Integer of one argument, the operand's type at a scale. */
+    static SqlExpr roundHalfAwayFromZero(TypedNativeCall n, List<SqlExpr> args) {
+        return rounded(SqlFn.ROUND_HALF_UP, n, args);
+    }
+
+    private static SqlExpr rounded(SqlFn rounding, TypedNativeCall n, List<SqlExpr> args) {
         if (args.size() == 1) {
-            return new SqlExpr.Cast(new SqlExpr.Call(SqlFn.ROUND, args),
+            return new SqlExpr.Cast(new SqlExpr.Call(rounding, args),
                     SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR);
         }
         return decimalScaleCast(n, 1,
-                new SqlExpr.Call(SqlFn.ROUND, args));
+                new SqlExpr.Call(rounding, args));
     }
 
     static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args, Styled styled) {
