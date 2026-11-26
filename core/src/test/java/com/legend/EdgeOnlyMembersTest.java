@@ -112,10 +112,8 @@ class EdgeOnlyMembersTest {
                     "2026-11-25: the marker's kind, read by legend-pure's door to answer it (B3 step 5)"),
             Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#operator()",
                     "2026-11-25: the marker's operator, as legend-pure's door names it in a refusal (B3 step 5)"),
-            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#left()",
-                    "2026-11-25: the marker's first type, as legend-pure's door names it in a refusal (B3 step 5)"),
-            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#right()",
-                    "2026-11-25: the marker's second type, as legend-pure's door names it in a refusal (B3 step 5)"),
+            // (TypedCrossTypeComparison#left() and #right(): the product reads them too since 2026-11-26, the literal
+            // rule, compiler.spec.NumberLiterals -- no longer the edge's alone, so their pins are deleted: a shrink)
             // 2026-11-26 (the edition program's step 2b: the comparison setting in the type-checker): the door hands
             // the type-checker its setting for the query here; lite's own road never asks (lite's setting is the spec
             // compiler's own), so only the compatibility doors call it

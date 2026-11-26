@@ -14,13 +14,11 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedCrossTypeComparison;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.FunctionId;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * THE LITERAL RULE (the user's ruling of 2026-11-26, "okay for float/decimal literal compare", option (b) of the
@@ -45,8 +43,6 @@ final class NumberLiterals {
 
     private NumberLiterals() {
     }
-
-    private static final Set<FunctionId> UNARY_MINUS = Set.copyOf(Pure.AT_MATH_MINUS);
 
     /** {@code crossing}'s comparison with its literal side read in the other side's type, or null where the rule does
      *  not reach it. */
@@ -87,7 +83,7 @@ final class NumberLiterals {
 
     private static boolean literal(TypedSpec side) {
         TypedSpec unsigned = side instanceof TypedNativeCall minus && minus.args().size() == 1
-                && UNARY_MINUS.contains(minus.callee().id()) ? minus.args().get(0) : side;
+                && Pure.AT_MATH_MINUS.contains(minus.callee().id()) ? minus.args().get(0) : side;
         return unsigned instanceof TypedCInteger || unsigned instanceof TypedCFloat || unsigned instanceof TypedCDecimal;
     }
 
@@ -160,7 +156,7 @@ final class NumberLiterals {
      *  written). Null for anything else, a Decimal literal included: its suffix states its type. */
     private static @Nullable BigDecimal digits(TypedSpec side) {
         if (side instanceof TypedNativeCall minus && minus.args().size() == 1
-                && UNARY_MINUS.contains(minus.callee().id())) {
+                && Pure.AT_MATH_MINUS.contains(minus.callee().id())) {
             BigDecimal inner = unsigned(minus.args().get(0));
             return inner == null ? null : inner.negate();
         }

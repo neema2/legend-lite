@@ -151,11 +151,12 @@ class SqlWriterTest {
 
     @Test
     void aParameterUnderAHelperIsBoundEveryPlaceItIsWritten() throws SQLException {
-        // DuckDB's acos writes its argument twice: the domain guard, then the call (E-3)
+        // DuckDB's acos writes its argument three times: the domain guard, the call, and the test that keeps an absent
+        // argument absent (E-3; the third since 2026-11-26, the independent review of step 5's batch)
         SqlSelect q = where(SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ACOS, P_AGE), AGE));
         RenderedStatement s = new DuckDb().renderStatement(q);
-        assertEquals(List.of("maxAge", "maxAge"), s.binds().stream().map(RenderedStatement.Bind::parameter).toList(),
-                s.sql());
+        assertEquals(List.of("maxAge", "maxAge", "maxAge"),
+                s.binds().stream().map(RenderedStatement.Bind::parameter).toList(), s.sql());
         // acos(1) is 0, at most every age; acos(2) is out of the domain: NaN, at most none
         assertEquals(List.of("a", "b", "c"), run(s, Map.of("maxAge", 1)), s.sql());
         assertEquals(List.of(), run(s, Map.of("maxAge", 2)), s.sql());
