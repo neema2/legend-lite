@@ -280,8 +280,9 @@ class EngineTablePlacementTest {
         // a let-bound lambda the store query evaluates and a host-side let evaluates too
         String shared = engines("{|let f = {s: String[1]|$s->indexOf('x')}; let n = $f->eval('abcx'); " + TABLE
                 + "->filter(r|$r.ID == $n)->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}");
-        assertTrue(shared.contains("LOCATE('x', \"t0\".NAME)"), shared);
-        assertFalse(shared.contains("LOCATE('x', 'abcx')"), shared);
+        // the store's use is the database's position, 1-based; the host's is legend-pure's, 0-based
+        assertTrue(shared.contains("LOCATE('x', \"t0\".NAME) AS \"i\""), shared);
+        assertTrue(shared.contains("LOCATE('x', 'abcx') - 1"), shared);
     }
 
     // ---- a database where legend-engine's answer is not yet checked -------------------------------------------------

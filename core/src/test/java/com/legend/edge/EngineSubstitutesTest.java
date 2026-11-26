@@ -107,6 +107,50 @@ class EngineSubstitutesTest {
         return String.format(STORE, connectionBody);
     }
 
+    /** The product's style handed legend-engine's table: the product's own dialects and session settings (the
+     *  backends' sessions are the product's), every store-bound {@code substring} lowered by the table's row. */
+    private static final com.legend.database.PlanStyle PRODUCT_WITH_THE_TABLE = new com.legend.database.PlanStyle() {
+        @Override
+        public com.legend.sql.dialect.SqlDialect dialect(DatabaseType type) {
+            return com.legend.database.PlanStyle.PRODUCT.dialect(type);
+        }
+
+        @Override
+        public TraceCell traceCell() {
+            return com.legend.database.PlanStyle.PRODUCT.traceCell();
+        }
+
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            return kind == com.legend.lowering.EditionTable.class ? kind.cast(EngineTable.INSTANCE) : productForm;
+        }
+
+        @Override
+        public String graphKeyDate(String written) {
+            return com.legend.database.PlanStyle.PRODUCT.graphKeyDate(written);
+        }
+
+        @Override
+        public String graphKeyString(String value) {
+            return com.legend.database.PlanStyle.PRODUCT.graphKeyString(value);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind) {
+            return com.legend.database.PlanStyle.PRODUCT.facet(kind);
+        }
+
+        @Override
+        public boolean judgesEngineText() {
+            return com.legend.database.PlanStyle.PRODUCT.judgesEngineText();
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            return com.legend.database.PlanStyle.PRODUCT.facet(kind, refusal);
+        }
+    };
+
     private static String query(String subject, String args) {
         return "|" + TABLE + "->extend(~x: r|" + subject + "->substring(" + args.replace("$", subject) + "))"
                 + "->from(t::RT)";
@@ -199,7 +243,7 @@ class EngineSubstitutesTest {
                         String subject = literal ? "'Credit'" : COLUMN;
                         String sqlSubject = literal ? "'Credit'" : "DESK";
                         Lean.Result lite = Lean.runInStyle(m, query(subject, row.pure()), "t::RT", c,
-                                PureText.PURE_V1);
+                                PRODUCT_WITH_THE_TABLE);
                         List<String> liteAnswers = new ArrayList<>();
                         for (List<Object> r : lite.rows()) {
                             liteAnswers.add(r.get(1) == null ? null : r.get(1).toString());
