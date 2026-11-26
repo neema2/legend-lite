@@ -72,6 +72,29 @@ class EngineTestsStyleTest {
     }
 
     @Test
+    @DisplayName("a query the test binds to a let and then hands to execute() is still legend-engine's (the"
+            + " independent audit of 2026-11-26, finding 1: the corpus writes most of its queries this way)")
+    void aQueryBoundByALetIsLegendEngines() {
+        String query = "x::Firm.all()->filter(f|$f.name->substring(1, 3) == 'cm')->project([f|$f.name], ['name'])";
+        String inline = "{| let r = " + executed(query) + ";\n$r.values->filter(x|$x.name == 'Acme');}";
+        String bound = "{| let q = {|" + query + "};\nlet r = meta::pure::router::execute($q, x::M,"
+                + " x::RT.runtimeValue, []);\n$r.values->filter(x|$x.name == 'Acme');}";
+        assertNotEquals(planned(bound, PureText.UPSTREAM), planned(bound, PureText.ENGINE_TESTS));
+        // and it is the same plan as the query written in place
+        assertEquals(planned(inline, PureText.ENGINE_TESTS), planned(bound, PureText.ENGINE_TESTS));
+    }
+
+    @Test
+    @DisplayName("a let INSIDE the executed query that reads no store is legend-engine's own Java's, Pure's meaning,"
+            + " as at its API")
+    void aQuerysOwnStoreFreeLetIsPures() {
+        String body = "{| let r = meta::pure::router::execute(|let cut = 'Acme'->substring(1, 3);"
+                + " x::Firm.all()->filter(f|$f.name == $cut)->project([f|$f.name], ['name']);, x::M,"
+                + " x::RT.runtimeValue, []);\n$r.values->filter(x|$x.name == 'Acme');}";
+        assertEquals(planned(body, PureText.UPSTREAM), planned(body, PureText.ENGINE_TESTS));
+    }
+
+    @Test
     @DisplayName("a let of the test's own, read inside a later query, keeps Pure's meaning there")
     void aTestsLetReadInsideAQueryIsPures() {
         String body = "{| let cut = 'Acme'->substring(1, 3);\nlet r = " + executed("x::Firm.all()"

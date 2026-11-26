@@ -22766,3 +22766,41 @@ each lane's baseline, no answer moved (docs/records/edition-homework/lanes/basel
   `EdgeOnlyMembersTest` (the same member, read by the compatibility doors alone), `CodeShapeGuardrailTest` (the
   typer's one mutable field renamed, `Typer.marking` to `Typer.compared`), `JavaEvalLedgerTest` (the two edge files'
   reason reworded, no row added). A new test, `CrossTypeRuleTest`.
+
+## 2026-11-26 — The edition program's step 3: the corpus plans as legend-engine's own tests (six tests gained a lane)
+
+The relational corpus plans under its own style, `PureText.ENGINE_TESTS` (until now `PureText.UPSTREAM`, shared with
+PCT): the queries a test hands legend-engine get legend-engine's meaning, the test's own code keeps Pure's (the
+planner's stamp on a test body; the plan record's section 6a has the design, the measurement and the limits).
+
+**The rosters, re-blessed (`bazel run //spec:update_rcorpus_duckdb`, `//spec:update_rcorpus_h2`), each lane the same:**
+- **`<lane>-fail-roster.txt` loses six tests, which pass now.** Three run a query whose `substring` is the database's
+  own, as legend-engine sends it, where lite's raised Pure's range error ("Range [1, 5) out of bounds"):
+  `meta::relational::tests::query::function::testFilterUsingSubstringFunction`,
+  `...::testFilterUsingParseIntegerFunction`, `...::testFilterUsingParseDecimalFunction`. Three compare the SQL text
+  of such a query, which has no range check now, as legend-engine's has none:
+  `meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes`,
+  `...::testToSQLStringSubstrWithComputedIndex`, `...::testToSQLStringSubstringIsUncorrectedByDefault`.
+- **`<lane>-unordered-register.txt` gains five `unordered-chain` rows,** for five of the six (their queries have no
+  sort; the rows are compared as a multiset, as the register records for every such test).
+- **Nothing else moves:** no test lost; the skipped rosters, the accepted rosters and the engine-order registers are
+  unchanged. Totals: DuckDB 2281 pass, 276 fail, 7 skipped of 2613 (before: 2275, 282); H2 2140 pass, 422 fail, 7
+  skipped (before: 2134, 428).
+- **Three tests that would pass for the wrong reason stay failing** (`testPlanForDateTimeConstantParameterGMTTimeZone`
+  and its EST and no-time-zone siblings): with legend-engine's table and no stamp, the test's own
+  `indexOf(...) != -1` was the database's position function (0 on a miss) and could not fail. Their real failure is
+  lite's plan text, which writes a timestamp literal differently from legend-engine's (SQL text is never promised).
+
+**Guards and pins moved, each dated:**
+- `PlanStyleSurfaceTest` and `PlanStyleFacetsTest.STYLES`: a third plan style, legend-engine's own tests'.
+- `JavaEvalLedgerTest`, two size pins DOWN: `planner/BodyPlanner.java` 318 to 316, `testplan/BodyDriver.java` 547 to
+  544 (the driver's own copy of a side's inlining left for the planner's).
+- `EdgeOnlyMembersTest`: `CrossTypeComparisons#in(List)`, read by legend-pure's door (the audit of step 2b).
+- `PlannerSurfaceTest`: `TypedQuery#comparing(CrossTypeRule)` is filed as a callback (the same audit).
+- New tests: `EngineTestsStyleTest` (the query is legend-engine's, the test's own code Pure's, a test's `let` read
+  inside a query Pure's); `PureComparisonsTest` and `CrossTypeRuleTest` gain the audit's cases;
+  `EngineTablePlacementTest` gains the stamped checks.
+
+Checked on the commit that holds it: the guards (`//core:guardrails`, `//core:guardrails_edge`, `//core:census`,
+`//core:census_edge`), `//core:core_edge_tests`, core's compiler, lowering, planner, root and testplan suites,
+`//spec:spec_tests`, the generated-file tests, and both corpus lanes (`//spec:corpus_duckdb`, `//spec:corpus_h2`).

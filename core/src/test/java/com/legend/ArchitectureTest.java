@@ -3635,7 +3635,8 @@ final class ArchitectureTest {
      * THE PURE/V1 STYLE'S CALLERS (B7, the orchestrator's condition (2) on the {@code plainRaises} hook, 2026-11-17):
      * {@code edge.PureText.PURE_V1} -- legend-engine's unchecked raises written plain, the user's ruling "pure/v1
      * matches engine" -- is selected by the pure/v1 routes alone: the route module, the shipped server's runner and the
-     * embedded hosts' execute halves. PCT and the corpus keep {@code UPSTREAM}; a new caller is a ruling, not an edit.
+     * embedded hosts' execute halves. PCT keeps {@code UPSTREAM} and the corpus its own style ({@code ENGINE_TESTS},
+     * the edition program's step 3, 2026-11-26); a new caller of PURE_V1 is a ruling, not an edit.
      */
     @Test
     void thePureV1StyleIsSelectedByThePureV1RoutesAlone() {

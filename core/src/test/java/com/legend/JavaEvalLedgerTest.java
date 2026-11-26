@@ -1603,7 +1603,8 @@ class JavaEvalLedgerTest {
                     "PlanEnv.java",
                     // a door's edition as the planner reads it, and the product's (the edition program's step 2,
                     // 2026-11-26; docs/records/edition-plan-to-finish-stage-b-2026-11-25.md sections 2.2 and 2.3): an
-                    // interface of five questions about the program's shape or the door (what is stamped, whether
+                    // interface of questions about the program's shape or the door (what is stamped, a test body's
+                    // own code among it since step 3, whether
                     // written flags are read, the lowering's table for a database) and its product form, which
                     // answers no to each and hands the table with no row; signatures and constants, nothing evaluated
                     "Edition.java", "LiteEdition.java",
