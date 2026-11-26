@@ -399,6 +399,15 @@ class TaggedListTest {
             assertEquals("[1.5, 2.5]", String.valueOf(values(c, "|[2.5, 1.5]->sort()")));
             // and reversed: the whole order the other way
             assertEquals("[3.0, 3, 1]", String.valueOf(values(c, "|[3, 3.0, 1]->sort()->reverse()")));
+            // the sorted list read further, not returned: the positions themselves are placed so
+            assertEquals("3,3.0,5", String.valueOf(value(c,
+                    "|[3.0, 3, 5]->sort()->map(x | $x->toString())->joinStrings(',')")));
+            // returned as the answer, the list is ordered once: by the comparable, the type, the position -- the
+            // sort's own ordered copy of the positions is not written (it was written and then ordered again)
+            String sql = query("|[3.0, 3, 1]->sort()").plan("s::RT").sql();
+            assertTrue(sql.contains("SELECT UNNEST([1, 2, 3]) AS __p"), sql);
+            assertTrue(sql.contains("CASE WHEN t0.__p = 1 THEN 1 ELSE 0 END"), sql);
+            assertFalse(sql.contains("ROW_NUMBER()"), sql);
         }
     }
 
