@@ -409,11 +409,12 @@ public final class DatabaseJudge {
                 && AssertVerdicts.envelopeValuesRead(args.get(0), letPrefix);
         var cw = java.util.Objects.requireNonNull(coll.side());
         com.legend.lowering.CanonRider nr = n.rider();
-        if (cw.shape() != com.legend.plan.ResultShape.GRAPH && !envelope && nr != null && !nr.literalOnly()
+        if (!envelope && nr != null && !nr.literalOnly()
                 && oneKind(nr) == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 && n.side() != null) {
             // THE CONDITION THE ASSERT MEANS, size(c) == n (the equality program's first slice, 2026-11-26): the
-            // product's own count and the product's own ==, each side's value read once and riding the failure
+            // product's own count and the product's own ==, each side's value read once and riding the failure -- a
+            // graph's root objects too, which the product counts (until then a member of the judge's own)
             TypedSpec size = com.legend.compiler.spec.VerdictQueries.sizeOf(args.get(0), specs);
             SideRows count = planSide(size, false, letPrefix, specs, env, hook);
             BodyDriver.WrappedSide counted = count.side();
@@ -429,16 +430,6 @@ public final class DatabaseJudge {
                 return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
                         com.legend.testexecutionplan.RootLoop.Family.SIZE, !negated, null, null, null, -1),
                         count.on(env));
-            }
-        }
-        if (cw.shape() == com.legend.plan.ResultShape.GRAPH && nr != null && !nr.literalOnly()
-                && oneKind(nr) == com.legend.compiler.element.type.Type.Primitive.INTEGER && n.side() != null) {
-            // TYPED (item 3's S4, the last families): a graph's count of root objects against the size's one Integer
-            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedSizeOfGraph(cw.plan(),
-                    n.side().plan(), !negated);
-            if (typed != null) {
-                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
-                        com.legend.testexecutionplan.RootLoop.Family.SIZE, !negated, null, null, null, -1), coll.on(env));
             }
         }
         // no typed form: refused by name (item 3's S4, the sentence rows' deletion, 2026-11-22)
