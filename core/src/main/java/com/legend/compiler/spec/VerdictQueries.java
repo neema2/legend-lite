@@ -501,8 +501,8 @@ public final class VerdictQueries {
      *  the Pure condition it means, planned by the product's own road; until then the database judge counted the
      *  side's rows itself). The call is built BY DECLARATION over the side the typer already typed as the assert's
      *  argument, as the typer's own desugars build one ({@code TdsDesugars}): the exact declared function, never an
-     *  overload picked by its arity. A rewrite the typer makes of a WRITTEN {@code size} call (a grid's cells,
-     *  rows times columns) is not made here; the judge refuses such a side before it asks (a grid's envelope read). */
+     *  overload picked by its arity. The typer's two rewrites of a WRITTEN {@code size} are not made here: a table's
+     *  cells (the table is refused as a relation first, S137) and one row's cells (a recorded gap, step 6.2's). */
     public static TypedSpec sizeOf(TypedSpec collection, SpecCompiler specs) {
         return declared(specs, com.legend.builtin.Pure.SIZE__ANY_MANY, List.of(collection), Type.Primitive.INTEGER);
     }
@@ -531,7 +531,7 @@ public final class VerdictQueries {
         return built(function, args, out);
     }
 
-    /** The one place this class builds a call of a declared function over typed arguments, answering {@code out}. */
+    /** A NEW call of a declared function over typed arguments (new calls only: a rebuilt call passes its stamp). */
     private static TypedNativeCall built(com.legend.compiler.element.TypedFunction function, List<TypedSpec> args,
             Type out) {
         return new TypedNativeCall(function, args, scalar(out));
