@@ -310,6 +310,21 @@ query and the call in a body, all as before. A test (`CrossTypeRuleTest`) lists 
   that remembers a query by identity from `Compiler.query(text)` no longer finds the admitted one (the lean-SQL
   capture, for product queries only; `JudgeJsonTest` compares the bodies now).
 
+**Lite's own clients under the query-level rule (2026-11-26).** The measuring session found the python tests red on
+this branch, and not on `main`: 19 cases in `//python:engine_test`, `edge_test` and `notebook_test`, which the local
+gate does not run (they are the warehouse gate's). All come from B3 step 5a, which made a comparison across types in a
+query a compile error:
+- **12** were the fix step 5a itself made: one shared test query went from `> 5` to `> 5.0`, and a parsed Float
+  literal is read exactly (as a Decimal), which the tests then wrote with the standard library's JSON writer. They use
+  the library's own writer now.
+- **6** are what a person types into a filter or a calculated column: a Float column against a whole number
+  (`$x.qty > 0`, `$x.pnl->toOne() < 0`). Written `0.0` now. **This is the rule's cost to a user, and it is the
+  question for the user below (a literal against a column).**
+- **1** is DataCube's own code: its Oversample wrote `rank <= count * (100 - n) / n`, an Integer against a Float. It
+  writes `rank * n <= count * (100 - n)` now, in whole numbers and exact, and reads that form back
+  (`datacube/src/row-sample.ts`). No DataCube test planned an oversample, which is why its lanes were green.
+Pushed as `593aca57`, not run here; the measuring session runs the python and DataCube lanes on it.
+
 **Still open from the work list:** the corpus door's edition and its stamping, which needs the frame-aware walk; a runtime's own model-chain connection is not counted as "chained" (the
 old detector did not count it either).
 
