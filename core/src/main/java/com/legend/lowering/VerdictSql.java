@@ -1041,29 +1041,38 @@ public final class VerdictSql {
                         new SqlExpr.BoolLit(wantTrue)), List.of());
     }
 
-    /** One side of an assert planned as the condition it means ({@link #typedOverValues}): the column its ONE value
-     *  rides the failure under, its plan, and its Pure type. */
-    public record ValueSide(String column, SqlQuery wrapped, Type kind) {
+    /** One side of an assert planned as the condition it means ({@link #typedOverValues}): the name it stands under
+     *  in the condition, the column its ONE value rides the failure under, its plan, and its Pure type. */
+    public record ValueSide(String name, String column, SqlQuery wrapped, Type kind) {
+        /** An assert's two sides of one type, named as its condition names them
+         *  ({@code compiler.spec.VerdictQueries.EXPECTED}, {@code ACTUAL}), each under its failure column. */
+        public static List<ValueSide> pair(SqlQuery expected, SqlQuery actual, Type kind) {
+            return List.of(
+                    new ValueSide(com.legend.compiler.spec.VerdictQueries.EXPECTED, TYPED_EXPECTED, expected, kind),
+                    new ValueSide(com.legend.compiler.spec.VerdictQueries.ACTUAL, TYPED_ACTUAL, actual, kind));
+        }
     }
 
     /**
      * AN ASSERT AS THE PRODUCT'S OWN CONDITION OVER ITS SIDES' VALUES (the equality program's first slice, 2026-11-26;
      * docs/records/edition-homework/r3/research-step6-equality.md section 4): each side's ONE value read once
-     * ({@link #single}) and bound to a column; the verdict {@code holds} over those columns, which the caller has the
-     * PRODUCT lower from the Pure condition the assert means ({@code planner.SidePlanner.over}), so no comparison
-     * written here is the judge's own; each value rides the failure under its side's column, so the values compared
-     * are the values recorded. {@code assertSize}'s member since that day ({@code size(c) == n}: the product's count
-     * and the product's {@code ==}; until then {@code typedSize}, the judge's own count of the side's rows and its
-     * own IS NOT DISTINCT FROM). Null where a side has no typed value column.
+     * ({@link #single}) and bound to a column; the verdict {@code holds} over those columns by the sides' names,
+     * which the caller has the PRODUCT lower from the Pure condition the assert means
+     * ({@code planner.SidePlanner.over}), so no comparison written here is the judge's own; each value rides the
+     * failure under its side's column, so the values compared are the values recorded. {@code assertSize}'s member
+     * since that day ({@code size(c) == n}: the product's count and the product's {@code ==}; until then
+     * {@code typedSize}, the judge's own count of the side's rows and its own IS NOT DISTINCT FROM). Null where a
+     * side has no typed value column.
      */
     public static @com.legend.base.Nullable TypedRow typedOverValues(List<ValueSide> sides,
-            java.util.function.Function<List<SqlExpr>, SqlExpr> holds) {
+            java.util.function.Function<java.util.Map<String, SqlExpr>, SqlExpr> holds) {
         List<SqlWith.Cte> ctes = new ArrayList<>();
-        List<SqlExpr> bound = new ArrayList<>();
+        java.util.Map<String, SqlExpr> bound = new java.util.LinkedHashMap<>();
         List<Valued> values = new ArrayList<>();
         SqlSource from = null;
         for (int i = 0; i < sides.size(); i++) {
-            SqlQuery rows = valueRows(sides.get(i).wrapped());
+            ValueSide side = sides.get(i);
+            SqlQuery rows = valueRows(side.wrapped());
             if (rows == null) {
                 return null;
             }
@@ -1072,14 +1081,13 @@ public final class VerdictSql {
             SqlSource read = new SqlSource.Subselect(one, "v" + i, null);
             from = from == null ? read : cross(from, read);
             SqlExpr value = SqlExpr.Column.of("v" + i, one.outputs(), SINGLE);
-            bound.add(value);
-            values.add(new Valued(sides.get(i).column(), value, one.outputs().get(0).type(), sides.get(i).kind(),
-                    false));
+            bound.put(side.name(), value);
+            values.add(new Valued(side.column(), value, one.outputs().get(0).type(), side.kind(), false));
         }
         if (from == null) {
             throw new IllegalArgumentException("a condition over no side");
         }
-        return typedRow(ctes, from, holds.apply(List.copyOf(bound)), values);
+        return typedRow(ctes, from, holds.apply(java.util.Collections.unmodifiableMap(bound)), values);
     }
 
     /** {@code assertSize} / {@code assertNotSize} over a graph side, TYPED (item 3's S4, the last families): the

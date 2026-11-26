@@ -393,12 +393,6 @@ public final class DatabaseJudge {
                 name + ": UNJUDGED in database mode — " + why + detail);
     }
 
-    static TypedSide databaseSize(String name, List<TypedSpec> args,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return databaseSize(name, args, letPrefix, specs, env, hook, false);
-    }
-
     /** {@code negated}: {@code assertNotSize} (#28): the size row with the polarity flipped, its negated sentence. */
     static TypedSide databaseSize(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
@@ -422,20 +416,15 @@ public final class DatabaseJudge {
             // product's own count and the product's own ==, each side's value read once and riding the failure
             TypedSpec size = com.legend.compiler.spec.VerdictQueries.sizeOf(args.get(0), specs);
             SideRows count = planSide(size, false, letPrefix, specs, env, hook);
-            if (count.why() != null) {
+            BodyDriver.WrappedSide counted = count.side();
+            if (count.why() != null || counted == null) {
                 return unjudged(name, "the collection's size: " + count.why());
             }
             TypedSpec same = com.legend.compiler.spec.VerdictQueries.sameValue(args.get(1).info(), size.info(),
                     !negated, specs);
-            com.legend.lowering.VerdictSql.TypedRow typed = count.side() == null ? null
-                    : com.legend.lowering.VerdictSql.typedOverValues(List.of(
-                    new com.legend.lowering.VerdictSql.ValueSide(com.legend.lowering.VerdictSql.TYPED_EXPECTED,
-                            n.side().plan(), com.legend.compiler.element.type.Type.Primitive.INTEGER),
-                    new com.legend.lowering.VerdictSql.ValueSide(com.legend.lowering.VerdictSql.TYPED_ACTUAL,
-                            count.side().plan(), com.legend.compiler.element.type.Type.Primitive.INTEGER)),
-                    bound -> com.legend.planner.SidePlanner.over(same, java.util.Map.of(
-                            com.legend.compiler.spec.VerdictQueries.EXPECTED, bound.get(0),
-                            com.legend.compiler.spec.VerdictQueries.ACTUAL, bound.get(1)), env.plan()));
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedOverValues(
+                    com.legend.lowering.VerdictSql.ValueSide.pair(n.side().plan(), counted.plan(), size.info().type()),
+                    bound -> com.legend.planner.SidePlanner.over(same, bound, env.plan()));
             if (typed != null) {
                 return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
                         com.legend.testexecutionplan.RootLoop.Family.SIZE, !negated, null, null, null, -1),
@@ -1001,7 +990,7 @@ public final class DatabaseJudge {
         }
         @Override public TypedSide size(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return databaseSize(name, args, letPrefix, specs, env, hook);
+            return databaseSize(name, args, letPrefix, specs, env, hook, false);
         }
         @Override public TypedSide contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

@@ -500,7 +500,7 @@ public final class VerdictQueries {
      *  side as it is typed (the equality program's first slice, 2026-11-26: an assert is the Pure condition it means,
      *  planned by the product's own road; until then the database judge counted the side's rows itself). */
     public static TypedSpec sizeOf(TypedSpec collection, SpecCompiler specs) {
-        TypedSpec over = specs.typeExpression(call("meta::pure::functions::collection::size",
+        TypedSpec over = specs.typeExpression(call(com.legend.builtin.Pure.SIZE__ANY_MANY.qualifiedName(),
                 new com.legend.protocol.spec.Variable(ACTUAL)), java.util.Map.of(ACTUAL, collection.info()));
         return substituted(over, ACTUAL, collection);
     }
@@ -510,9 +510,11 @@ public final class VerdictQueries {
      *  the door's comparison setting ({@link SpecCompiler#typeExpressionMarked}): two sides of different types are
      *  lite's comparison across types, which its planner refuses by name. */
     public static TypedSpec sameValue(ExprType expected, ExprType actual, boolean want, SpecCompiler specs) {
-        com.legend.protocol.spec.ValueSpecification same = call("meta::pure::functions::boolean::equal",
+        com.legend.protocol.spec.ValueSpecification same = call(
+                com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName(),
                 new com.legend.protocol.spec.Variable(ACTUAL), new com.legend.protocol.spec.Variable(EXPECTED));
-        return specs.typeExpressionMarked(want ? same : call("meta::pure::functions::boolean::not", same),
+        return specs.typeExpressionMarked(
+                want ? same : call(com.legend.builtin.Pure.NOT__BOOLEAN_1.qualifiedName(), same),
                 java.util.Map.of(EXPECTED, expected, ACTUAL, actual));
     }
 
