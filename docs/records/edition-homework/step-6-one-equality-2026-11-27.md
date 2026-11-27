@@ -490,6 +490,10 @@ files; the work to one equality and the third review's fixes in it), as they rep
 | Snowflake (PCT channels A and B) | channel A 1,249 pass; channel B's five suites pass; no test's outcome differs from the base or from round 1 |
 | Databricks (PCT channels A and B) | channel A 1,249 pass; channel B 1,228 pass and the same 21 errors as at the base, the same tests with the same lines; nothing differs |
 | Postgres, Trino (PCT channels A and B) | all 20 suite targets pass; no test's outcome differs from the base or from round 1 |
+| MariaDB, MySQL, ClickHouse (PCT channels A and B) | channel A: every suite passes on all three (1,251 cases each). Channel B: MySQL (1,231 pass, the same 18 ledgered errors) and ClickHouse (1,240 pass, the same 9) as at the base. **MariaDB channel B is the flake of round 1, older than step 6:** seven runs (the base twice, round 1 twice, this commit three times) all fail, each with a different set of list-order asserts (the same elements in another order; 65 distinct tests in at least one run), never a value, a type or a compile error; the 16 ledgered failures are the same in every run. So this suite cannot tell a regression from the flake until a list's elements come back in their order on MariaDB (the queued task) |
+
+All ten databases and the relational corpus have now reported on `83cb22ae2`: no test's outcome differs from the
+base on any of them. A mid-point reading: the closing batch changes the code again and is verified once, at its end.
 
 **The lanes so far** (each at the stack before the fixes of this section): Postgres, Trino, MariaDB, MySQL,
 ClickHouse, SQLite, MongoDB, Snowflake and BigQuery show no test whose outcome differs from the base. Databricks and
