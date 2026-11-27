@@ -69,8 +69,15 @@ library's comments were shortened three times to fit that figure and no higher o
 - PCT, lite's own rules, on DuckDB: `meta::pure::functions::lang::tests::compare::testCompareDecimalAndLongTypes`
   from an expected failure ("compare compares Decimal with Integer") to pass: two exact numbers, compared by value
   (`Test_LegendLite_LiteRules_GrammarFunctions_PCT`, `channelb/ledger.tsv`).
-- No other recorded suite: PCT's expected failures on DuckDB and H2, the corpus rosters, the edge goldens and the
-  edge corpus are unchanged by the regeneration. What CI's corpus lanes and the database lanes show is under "What
+- The relational corpus at legend-engine's own tests' door, the edge golden
+  (`spec/src/test/resources/edge/corpus_*_host_judge-host.tsv`), three lines, every one still PASS: in
+  `meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation` (DuckDB and H2) and
+  `meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep` (DuckDB) one `assertEquals` is now
+  judged as the any-order assert. The order rule no longer takes a side whose order it cannot tell for ordered, and
+  the door reads such an `assertEquals` as `assertSameElements` (the user, 2026-11-27: "when there is no sort order
+  in upstream, we want to check multiset"). Found by CI's corpus lanes: the edge corpus goldens were not on the
+  regeneration list.
+- No other recorded suite: PCT's expected failures on DuckDB and H2 and the corpus rosters are unchanged. What CI's corpus lanes and the database lanes show is under "What
   judged it".
 - The acceptance measure (every assert of lite's own tests against its plain comparison; 1,733 bodies on DuckDB, H2
   and SQLite): 176 differed when step 6 began, 99 before the closing batch, 85 after it; read body by body in the
@@ -162,6 +169,7 @@ The final commit is `3bee40e22` (the code of `508aaef6f`, the regenerated files,
 | The confirming round (the same 91 targets) and the acceptance measure | here, at `3bee40e22` | running |
 | CI on the draft pull request #141: every per-push lane on Linux, macOS and Windows (the product build, core, the guards, both corpora, PCT on DuckDB, H2 and Postgres, channel B, parser equivalence, stress, the warehouse, DataCube, the UI) | GitHub | running |
 | The database lanes: PCT's two channels on Trino, MariaDB, MySQL, ClickHouse, SQLite, Snowflake, BigQuery, Databricks; channel A on MongoDB; channel B on Postgres; the time-series replays on Postgres, ClickHouse and Snowflake; MongoDB's plan test | six sessions, measure only, at `3bee40e22` | as each reports, below |
+| -- MariaDB, MySQL, ClickHouse | | **no outcome differs** but for MariaDB channel B's known flake: channel A 1,251 cases pass on each; channel B on MySQL (18 not passing) and ClickHouse (9) the same ledgered sets; MariaDB's channel B fails on list ORDER alone, a different set of tests in each of its eight runs across four commits, the base included (the same 16 ledgered failures every time; never a value, a type or a compile error). The new refusal for lists of exact numbers at two scales touches no test. The time-series replay and documents on ClickHouse and the guarded-raise test pass |
 | -- Postgres and Trino | | **no outcome differs**: Trino channel A 1,249 cases pass, its test lists identical to the last round's and the base's; channel B on Postgres and on Trino the same line for line; the time-series replay on Postgres passes ("215 of 215 series as on DuckDB") |
 | -- Databricks | | **no outcome differs**: channel A 1,249 cases pass; channel B 1,228 pass and 21 refused or failed, the same 21 as the last round's and the base's, their texts the same |
 | -- BigQuery | | **no outcome differs**: channel A 1,249 cases pass; channel B's outcome lines are the same as the last round's and the base's, the 19 tests that fail on `main` ("UNION ALL has incompatible types") the same 19 |
