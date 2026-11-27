@@ -257,8 +257,12 @@ public final class EqualityMeasure {
                 new Position("statement", false, false, (l, r) -> "{|" + eq.apply(l, r) + "}"),
                 new Position("not", true, false, (l, r) -> "{|!(" + eq.apply(l, r) + ")}"),
                 new Position("if", false, false, (l, r) -> "{|if(" + eq.apply(l, r) + ", |true, |false)}"),
-                new Position("and", false, false, (l, r) -> "{|(" + eq.apply(l, r) + ") && true}"),
-                new Position("or", false, false, (l, r) -> "{|(" + eq.apply(l, r) + ") || false}"),
+                new Position("and", false, false,
+                        (l, r) -> "{|(" + eq.apply(l, r) + ") && [1, 2]->filter(y | $y > 1)->isNotEmpty()}"),
+                new Position("or", false, false,
+                        (l, r) -> "{|(" + eq.apply(l, r) + ") || [1, 2]->filter(y | $y > 5)->isNotEmpty()}"),
+                // C1 of the measure's review: != is the comparison's negation wherever it stands
+                new Position("not-equal", true, false, (l, r) -> "{|(" + l + ") != (" + r + ")}"),
                 new Position("lets", false, false, (l, r) -> "{|let a = " + l + "; let b = " + r + "; $a == $b;}"),
                 new Position("kept-in-map", false, false,
                         (l, r) -> "{|[1]->map(x | " + eq.apply(l, r) + ")->at(0)}"),
@@ -267,7 +271,7 @@ public final class EqualityMeasure {
                 new Position("list-exists", false, false, (l, r) -> "{|[1]->exists(x | " + eq.apply(l, r) + ")}"),
                 new Position("list-forAll", false, false, (l, r) -> "{|[1]->forAll(x | " + eq.apply(l, r) + ")}"),
                 new Position("reads-element", false, false,
-                        (l, r) -> "{|[0]->map(x | (" + l + ")->filter(e | $x == 0) == (" + r + "))->at(0)}"),
+                        (l, r) -> "{|[0]->map(x | (" + l + ")->drop($x) == (" + r + "))->at(0)}"),
                 new Position("function-any", false, false, (l, r) -> "{|t::sameAny(" + l + ", " + r + ")}"),
                 new Position("function-generic", false, false, (l, r) -> "{|t::sameT(" + l + ", " + r + ")}"),
                 new Position("table-filter", false, false,
@@ -291,6 +295,20 @@ public final class EqualityMeasure {
         out.add(new Sides("boolean same", "T", "true", "true"));
         out.add(new Sides("enum same", "T", "t::E.A", "t::E.A"));
         out.add(new Sides("enum differ", "F", "t::E.A", "t::E.B"));
+        out.add(new Sides("boolean differ", "F", "true", "false"));
+        out.add(new Sides("string case differs", "F", "'a'", "'A'"));
+        out.add(new Sides("string trailing space", "F", "'a'", "'a '"));
+        out.add(new Sides("enum and string", "N", "t::E.A", "'A'"));
+        out.add(new Sides("float sum not exact", "F", "0.1 + 0.2", "0.3"));
+        out.add(new Sides("float differ", "F", "1.5", "2.5"));
+        out.add(new Sides("integers past 2^53 differ", "F", "9007199254740993", "9007199254740992"));
+        out.add(new Sides("int and decimal differ", "F", "1", "1.5D"));
+        out.add(new Sides("decimal differ", "F", "1.0D", "1.5D"));
+        out.add(new Sides("decimal sum exact", "T", "0.1D + 0.2D", "0.3D"));
+        out.add(new Sides("day differ", "F", "%2020-01-01", "%2020-01-02"));
+        out.add(new Sides("date-time a millisecond apart", "F", "%2020-01-01T10:00:00.001", "%2020-01-01T10:00:00.002"));
+        out.add(new Sides("pairs differ", "F", "pair(1, 'a')", "pair(1, 'b')"));
+        out.add(new Sides("list decimal differs", "F", "[1.0D, 10.125D]->filter(x | $x > 0D)", "[1.0D, 10.5D]"));
         // exact numbers of two types and two scales
         out.add(new Sides("int and decimal", "T", "1", "1D"));
         out.add(new Sides("decimal two scales", "T", "1.0D", "1.00D"));
@@ -359,7 +377,7 @@ public final class EqualityMeasure {
         out.add(new Sides("maps a value differs", "F", "newMap([pair('a', 1), pair('b', 2)])",
                 "newMap([pair('a', 1), pair('b', 3)])"));
         out.add(new Sides("pairs same", "T", "pair(1, 'a')", "pair(1, 'a')"));
-        out.add(new Sides("pairs int and decimal", "?", "pair(1, 1D)", "pair(1, 1)"));
+        out.add(new Sides("pairs int and decimal", "T", "pair(1, 1D)", "pair(1, 1)"));
         out.add(new Sides("list of pairs computed", "T", "[pair(1, 'a'), pair(2, 'b')]->filter(p | true)",
                 "[pair(1, 'a'), pair(2, 'b')]"));
         out.add(new Sides("instances written alike", "F", "^t::K(id=1, name='a')", "^t::K(id=1, name='a')"));
@@ -447,6 +465,11 @@ public final class EqualityMeasure {
                 new StoreSides("day column and literal", "1,2", "$r.day", "%2020-01-01"),
                 new StoreSides("date-time column and literal", "2", "$r.at", "%2020-01-01T10:00:00"),
                 new StoreSides("day and date-time columns", "N", "$r.day", "$r.at"),
+                new StoreSides("float column and whole-number literal", "1,4", "$r.f", "1"),
+                new StoreSides("decimal column and whole-number literal", "1,3", "$r.d", "1"),
+                new StoreSides("integer column and literal with a fraction", "N", "$r.i", "1.5"),
+                new StoreSides("date-time column and day literal", "N", "$r.at", "%2020-01-01"),
+                new StoreSides("date-time column and literal to the hour", "2", "$r.at", "%2020-01-01T10"),
                 new StoreSides("column and the empty list", "3,5", "$r.i", "[]"),
                 new StoreSides("computed column value and literal", "1,2,4", "$r.i->map(x | $x + 1)", "2"));
     }
@@ -459,8 +482,10 @@ public final class EqualityMeasure {
                         (l, r) -> "{|" + all + "->filter(r | " + eq.apply(l, r) + ")->project([r | $r.id], ['id'])}"),
                 new StorePosition("filter-not", true,
                         (l, r) -> "{|" + all + "->filter(r | !(" + eq.apply(l, r) + "))->project([r | $r.id], ['id'])}"),
-                new StorePosition("filter-and", false,
-                        (l, r) -> "{|" + all + "->filter(r | (" + eq.apply(l, r) + ") && true)->project([r | $r.id], ['id'])}"),
+                new StorePosition("filter-not-equal", true,
+                        (l, r) -> "{|" + all + "->filter(r | (" + l + ") != (" + r + "))->project([r | $r.id], ['id'])}"),
+                new StorePosition("filter-and", false, (l, r) -> "{|" + all + "->filter(r | (" + eq.apply(l, r)
+                        + ") && ($r.id > 0))->project([r | $r.id], ['id'])}"),
                 new StorePosition("filter-if", false, (l, r) -> "{|" + all + "->filter(r | if(" + eq.apply(l, r)
                         + ", |true, |false))->project([r | $r.id], ['id'])}"),
                 new StorePosition("filter-function-any", false,
@@ -584,7 +609,8 @@ public final class EqualityMeasure {
         } catch (Throwable t) {
             return outcomeOf(t, "ERROR");
         }
-        return new Outcome("PASS", verdicts[0] + " verdicts");
+        return verdicts[0] == 1 && verdicts[1] == 0 ? new Outcome("PASS", "1 verdict")
+                : new Outcome("ODD", verdicts[0] + " passing and " + verdicts[1] + " failing verdicts, no failure raised");
     }
 
     private static TypedQuery typed(ModelContext ctx, String body, List<String> imports) {
