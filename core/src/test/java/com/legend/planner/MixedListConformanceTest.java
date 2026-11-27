@@ -145,13 +145,16 @@ class MixedListConformanceTest {
         // B5 (the PR1 re-review, 2026-11-16): an integer literal the double holds exactly ranks, 2^53 and 2^60 too
         Compiler.query(Compiler.compileModel(model), "|['b', 9007199254740992, 1152921504606846976]->sort()")
                 .executionPlan(StorelessRuntime.RUNTIME);
+        // a tie of two number types has a rule since the edition program's step 6, slice 6.2 (2026-11-26, the user's
+        // ruling on decision D2: the greatest of a tie is the higher type): it plans, where B4 of the PR1 re-review
+        // had it refused by name ("two of its elements of different kinds compare equal")
+        Compiler.query(Compiler.compileModel(model), "|['b', 1, 1.0]->max()")
+                .executionPlan(StorelessRuntime.RUNTIME);
         for (String[] c : new String[][] {{"|['b', 1, 0.1D]->sort()", "the Decimal 0.1 (not exact as a DOUBLE)"},
                 {"|['b', 9007199254740993, 9007199254740992]->sort()", "the integer 9007199254740993 (not exact"},
                 // B2: a Number list's extreme ranks as DOUBLE too (the mixed-elements route)
                 {"|[9007199254740992, 9007199254740993, 0.5]->max()", "9007199254740992 and 9007199254740993: its"},
-                {"|[1.00000000000000001D, 1.00000000000000002D, 0.5]->min()", "1.00000000000000001 and 1.000000000"},
-                // B4: a real literal tie across number kinds
-                {"|['b', 1, 1.0]->max()", "two of its elements of different kinds compare equal"}}) {
+                {"|[1.00000000000000001D, 1.00000000000000002D, 0.5]->min()", "1.00000000000000001 and 1.000000000"}}) {
             com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
                     () -> Compiler.query(Compiler.compileModel(model), c[0]).executionPlan(StorelessRuntime.RUNTIME),
                     c[0]);
