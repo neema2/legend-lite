@@ -101,3 +101,31 @@ program branch moves.
 | N1 | The instruction is typed "never NULL", and its two-value form can be | open: read with the round's result |
 | N3 | An unreachable refusal with the wrong words | fixed: a malformed call is a defect |
 | N4 | The planner's rows are lowered on DuckDB too, where nothing writes them | open: measured cost first |
+
+## The measure at the slice's last commit (`cbb7ac779`; 106 comparisons, 5,766 runs)
+
+Two rows were added to the measure with the review (a list joined from an empty value; two String lists that differ
+in case), so the totals are of 106 comparisons where the baseline's were of 104.
+
+| | right everywhere | refused by name everywhere | answered only in some places | fails somewhere | a wrong answer somewhere | contradicts |
+|---|---|---|---|---|---|---|
+| DuckDB | 75 (62) | 0 (0) | 2 (2) | 18 (29) | 2 (2) | 9 (9) |
+| H2 | 80 (78) | 10 (9) | 3 (3) | 7 (7) | 1 (1) | 5 (6) |
+| SQLite | 73 (71) | 2 (2) | 12 (12) | 4 (4) | 3 (3) | 12 (12) |
+
+(The baseline in brackets.) These are now `tools/equality-measure/positions-baseline.tsv`; the full report is
+`positions/after-slice-1-cbb7ac779.md`. H2's "refused by name" rose by one because one of the two new rows is a
+computed list, which H2 refuses everywhere; no existing row became a refusal.
+
+One thing the review's fixes got wrong and the measure caught: reading "do the two written lists need their rows" by
+their SQL types (the same for `[1.0D, 10.125D]` and `[1.000D, 10.125D]`) sent them back to a comparison of texts on
+H2. Two written lists of exact numbers now always carry their rows.
+
+**Moved to slice 2's first task, not done here:** the test that holds these counts in CI. The report's reading of an
+outcome is a Python script; the test needs it in Java, so that one piece of code classifies for the tool and for the
+test. Until then the counts are held by this loop: the tool is run after every change and a count that moves
+unpredicted stops the slice.
+
+**Not built, and why:** a test that writes one comparison both ways on DuckDB. Planning one query with two dialects is
+possible today only through the plan-style hook, which step 10 deletes. What stands in for it: DuckDB writes the two
+lists, H2 and SQLite write the two sides' rows, and the measure requires the same expected answer on all three.
