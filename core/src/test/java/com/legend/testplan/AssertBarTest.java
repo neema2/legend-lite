@@ -1073,6 +1073,7 @@ class AssertBarTest {
         // and the equality refused)
         want.put("{|assert(!(['1'->fromJson()]->cast(@Any)->at(0) == 'a'))}", "pass");
         want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))}", "pass");
+        String bothDisagree = "|DuckDB/BOTH=JudgesDisagree|H2/BOTH=JudgesDisagree|SQLite/BOTH=JudgesDisagree";
         want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->map(x | $x)->contains('a'))}", "pass");
         // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
         // the record, a NULL among them JSON null (the audit of 8477c703); H2's JSON array aggregate drops a JSON null,
@@ -1081,7 +1082,9 @@ class AssertBarTest {
                 + "|H2/DATABASE=AssertFailed|H2/BOTH=JudgesDisagree");
         want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected: [], actual: [1]");
         // a Variant is never a value of another type, its text's included (the audit of c2217801; S401)
-        want.put("{|assertEquals('\"abc\"'->fromJson()->cast(@Any), 'abc')}", "AssertFailed");
+        // (both judges fail it; their records write the Variant differently, so a both-judges run stops on the
+        // difference -- found 2026-11-27 by this line, a recorded gap of the Variant read through Any)
+        want.put("{|assertEquals('\"abc\"'->fromJson()->cast(@Any), 'abc')}", "AssertFailed" + bothDisagree);
         want.put("{|assertEquals('1'->fromJson()->cast(@Any), 1)}", "AssertFailed");
         // written as two types, the assert is the compile error a comparison of them is (the user's ruling of
         // 2026-11-26, "yes compile error", built 2026-11-27; until then judged, as above)
@@ -1098,9 +1101,16 @@ class AssertBarTest {
         want.put("{|assertEquals(1, '1'->fromJson()->cast(@Any))}", variantOne);
         want.put("{|assertEquals(1->cast(@Any), '1'->fromJson())}", variantOne);
         want.put("{|assertEq(1, '1'->fromJson())}", "ModelException: assertEq compares Integer with meta::pure::metamodel::variant::Variant");
-        want.put("{|assertEq(1, '1'->fromJson()->cast(@Any))}", variantOne);
-        want.put("{|assertNotEquals(1, '1'->fromJson())}", "pass");
-        want.put("{|assertNotEquals(true, 'true'->fromJson())}", "pass");
+        // (the host judge's identity holds a Variant read through Any against the Integer of its text, where the
+        // database judge fails it as the equality does -- found 2026-11-27 by this line, a recorded gap between the
+        // judges: the host's is the wrong one, S401)
+        want.put("{|assertEq(1, '1'->fromJson()->cast(@Any))}", variantOne + "|DuckDB/HOST=pass|H2/HOST=pass|SQLite/HOST=pass"
+                + bothDisagree);
+        // written as two types: the compile error (2026-11-27; until then held, a Variant never a value of another)
+        want.put("{|assertNotEquals(1, '1'->fromJson())}", "ModelException: assertNotEquals compares Integer with meta::pure::metamodel::variant::Variant");
+        want.put("{|assertNotEquals(true, 'true'->fromJson())}",
+                "ModelException: assertNotEquals compares Boolean with meta::pure::metamodel::variant::Variant");
+        want.put("{|assertNotEquals(1, '1'->fromJson()->cast(@Any))}", "pass");
         want.put("{|assert(!'1'->fromJson()->in([1, 2]))}",
                 "ModelException: in compares meta::pure::metamodel::variant::Variant with Integer");
         want.put("{|assert(![1, 2]->contains('1'->fromJson()))}",
