@@ -108,10 +108,10 @@ final class NumberLiterals {
     private static final java.util.Set<com.legend.model.FunctionId> EXACT_ARITHMETIC = exactArithmetic();
 
     private static java.util.Set<com.legend.model.FunctionId> exactArithmetic() {
-        java.util.Set<com.legend.model.FunctionId> all = new java.util.HashSet<>(Pure.AT_MATH_PLUS);
+        java.util.Set<com.legend.model.FunctionId> all = new java.util.LinkedHashSet<>(Pure.AT_MATH_PLUS);
         all.addAll(Pure.AT_MATH_MINUS);
         all.addAll(Pure.AT_MATH_TIMES);
-        return java.util.Set.copyOf(all);
+        return java.util.Collections.unmodifiableSet(all);
     }
 
     /**
