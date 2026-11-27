@@ -61,6 +61,18 @@ keyed-count row, a way for an SDLC project to take legend-engine's meaning, PCT 
 
 Full runs on every gate, an outside audit of the whole branch, one pull request to `main`, the user's word.
 
+**Not before step 6B (added 2026-11-27, the user: "how do make sure that A does not survive after B? I'm super
+nervous we're just going to be stuck with a bunch of garbage A code if we merge to main").** Step 6 landed on the
+program's branch as "A": one code for a comparison of two whole sides, a second for two single values, and the test
+checker's own assert planning still there. Nothing of step 6 goes to `main` until step 6B has landed on the
+program's branch, and step 11 checks all three of:
+1. the acceptance measure (`tools/equality-measure/run.sh`: every assert against its plain comparison) differs only
+   where a database has no form for the value, each such body named;
+2. the list of comparison codes B's design starts from (every place that decides how two values compare, with its
+   lines) has reached the design's target, and the code B's design names for deletion is gone;
+3. the test checker plans an assert as the plain comparison it means, with no comparison code of its own (slice 6.5
+   of this page, as first planned).
+
 ### Rough size of what is left (an estimate, not a measurement)
 
 Step 6 is the long pole: 6.2 about half a day more, 6.3 about a day, 6.4 two days, 6.5 a day, 6.6 half a day. Steps 8
