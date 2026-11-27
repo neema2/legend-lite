@@ -1214,6 +1214,26 @@ which the orchestrator's first list had left out):
   point when everything else is done". So it is neither in step 6's build now nor closed: it is looked at again,
   with SQLite's date-time text, when everything else of step 6 is done.
 
+**The user's answers of 2026-11-27 to the eleven open points put that day** (numbered as put; the words are the
+user's): 11, a Float stays the database's double and a third date-time type waits until after Stage B: **"yes"**.
+10, an outside audit of the step-6 stack and the database lanes: **"yes we need full audit"**. 9, two date-times at
+one instant tie in a sort and keep the written order (D14): **"yes accept"**. 8, a table's cells counted by an assert
+out of step 6 (D6): **"okay, will we fix later?"** (it stays on the carried-forward table, section 5b, with its
+owner). 1, one side empty inside an expression: **"yes wait until we know the cost"**. Asked back, not ruled: 7
+("what is pure's answer? Is it complex to do?"), 6 ("what are product implications"), 5, arithmetic with a written
+literal ("shouldn't this match comparison? How hard/complex is this to do"), 4 ("I thought lite sorts int then
+float, wouldn't max return float?"), 3, the size rows that go up ("yes need to see the sql and if it messes with
+product performance/lean-ness"), 2 ("I thought engine has a different rule from pure?").
+
+On 2 the orchestrator had been wrong: it had called the new number rule in the other two modes "what compiled
+legend-pure and legend-engine answer". Read again in `edition-homework/upstream-step6/answers.md` (run on all three
+runtimes): `[3, 'a']->contains(3D)` is false on interpreted legend-pure and on legend-engine and true on compiled
+legend-pure; `[3, 'a'] == [3D, 'a']` is false on interpreted and true on the other two; `[3, 3D]->removeDuplicates()`
+keeps both on all three. So the two modes keep the answers they had before the ruling (three number types never
+equal in a mixed list, the assert's judge the same), as the rule put to the user said ("legend-pure's and
+legend-engine's modes keep their own behaviour"): a rule of the product's that each door's table asks for, and the
+host judge's forms.
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
