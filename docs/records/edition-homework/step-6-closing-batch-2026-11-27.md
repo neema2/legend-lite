@@ -64,6 +64,11 @@ in `step-6-one-equality-2026-11-27.md` (same folder).
 | B19 | **(review)** The compatibility doors share the product's equality code under their number rule, so three answers moved at the doors without being listed: the empty ladder for computed lists, a date-time carried as text compared by its instant, one value against a list. | Read each against upstream (run, not recalled); listed in the landing summary with what moved. |
 | B20 | **(review)** Older than step 6, found on the way: a test body's seed queries are typed with lite's setting whatever door admitted the test; `indexOf` has no door row; a keyed sort's ties at a door are lite's; a lowerer made with no planner takes the database's list comparison silently. | The last is built (refused by name). The first three recorded for the edition program's closing steps. |
 
+| B21 | **(second review; wrong today, before step 6)** A filter under `!` over `&&` or `||` drops the row whose comparison has an empty side (`filter(r \| !($r.nick == 'a' \|\| $r.id == 7))`; Pure keeps it), and a `forAll` whose comparison has an empty side answers true where Pure says false. | Build: the empty-side rule's corrected meaning of "a condition" (design 6.1) covers both. Each answer that moves is listed. |
+| B22 | **(second review; introduced by step 6)** At the two compatibility doors a date built to the hour equals a full date-time (`date(2015, 4, 16, 14) == %2015-04-16T14:00:00`: true; upstream false, run 2026-11-27; a database error before step 6). | Build: the doors answer upstream's false (design 6.5). Lite's own rule (S399) unchanged. |
+| B23 | **(second review)** A sort over store rows on a key that is not unique leaves ties in arrival order: a "sorted" side can still differ between runs. | Record: a register row; the rule cannot see a key's uniqueness. |
+| B24 | **(second review)** At the doors `assertNotEquals` is left as written, so a side the order rule newly calls unordered is a new refusal there; six more readers of the order rule move with it. | Listed from the corpus and PCT rounds; each to the user. |
+
 ## Probed before the build (RUN 2026-11-27 at `5713d5158`, DuckDB, H2 and SQLite; a temporary test, never committed)
 
 SQLite answered as DuckDB on every row; H2 differed only where it holds no list (refused by name, as before).

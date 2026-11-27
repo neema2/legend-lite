@@ -308,3 +308,96 @@ Rows A8, A9 and B16 to B20 of `step-6-closing-batch-2026-11-27.md`; B2, B9 and B
   legend-engine door inside a store query must answer exactly that: three cases in the door's tests (5.3).
 - **A tie of an Integer and a Decimal** in `max`, `min`, `greatest`, `least`: register S428's pattern (a two-argument
   call keeps its first, a list's fold its last, `least` its first). Row B9's register row is written from it.
+
+## 6. After the second independent review (2026-11-27, read-only, of `268591b9c`; of section 5 alone)
+
+Its verdict: section 5 could not be built as written. Three blockers, each a wrong answer on ordinary input, all in
+the empty-side rule and the "false, still evaluated" form; none in 5.1 or 5.2's items 1 to 5 (the piece already
+being built). Each section below REPLACES the matching part of section 5.
+
+### 6.1 The empty side (replaces 5.3)
+
+**What "a condition" means, exactly.** Where a comparison stands as a POSITIVE condition the database's "no value"
+and Pure's false are the same thing, and the comparison is left as it is. Positive: the condition of a filter, a
+join, an `exists`, an `if` or CASE, a HAVING, a QUALIFY; and beneath those, through `&&` and `||` only. NOT positive,
+so guarded like a kept value:
+
+- anything under `!` other than an equality standing directly under it. `!($a == $b)` is already rewritten to the
+  null-safe "is distinct from" (`NullSemantics.negate`), which is two-valued and right in every position, so that
+  one equality is left for the rewrite. `!($r.nick == 'a' || $r.id == 7)` in a filter is a bare `NOT (...)` today
+  and DROPS the row whose `nick` is empty, where Pure keeps it: wrong today, before step 6, and fixed by this rule.
+- every predicate of a `forAll`: the relation form writes `NOT pred` (a row whose comparison has no value is not
+  counted against it, so `forAll` answers true where Pure says false), and the list forms ignore a NULL on every
+  dialect.
+
+**Where the guard sits.** Not in `Lowerer.scalar` (window columns and the reducers call the rule directly and never
+pass there: the probe's window row). One method of the `Lowerer` is the only caller of `Scalars.lower`; it applies
+the guard to an equality that is not marked a positive condition; a guard test fails for a second caller.
+
+**Which form.** One side may be empty: `COALESCE(l = r, FALSE)`, as built. Both sides may be empty: the null-safe
+equality (Pure's answer in all three cases), in EVERY position, a condition included (Pure's `[] == []` is true, so
+a filter keeps the row: two plain optional columns are already written so). It hangs off the door's question, never
+inside `Equalities.nullArms`: legend-engine's door inside a store query keeps what it has, which is what was
+measured (two plain nullable columns null-safe, a computed side a plain `=`, the negation null-safe; met today,
+`Equalities.java:349-366`, `NullSemantics.java:84`). ClickHouse spells the null-safe form with each side written
+twice; recorded.
+
+**The cost of a miss, restated.** A positive condition the marking misses gets a guarded equality, and the
+recognisers that read a condition's equalities stop seeing it: `KeyedCounts`, `ExistsJoins`,
+`GraphAggDecorrelate`, `DecodeShapes`, `OuterJoinResidualsAsMatches`, the as-of joins of ClickHouse and Snowflake
+(a refusal), a hash join lost. Not a wrong answer, but not "a few characters" either, and no size pin names it. So:
+the condition roots are taken from the inventory, each with a test; the five targets the first attempt broke
+(joins, `exists`, an enumeration's decode, a union's route-key join) are the regression set; and every regenerated
+SQL size that moves is read against the list of shapes this rule predicts (a kept value, a `!` over `&&`/`||`, a
+`forAll`), any other being a missed condition.
+
+**What moves, for the user:** the six probe rows become right; a filter under `!` over `&&`/`||` and a `forAll`
+whose comparison has an empty side change answer (Pure's); SQL grows by one small wrapper at each such equality,
+so some size pins rise (the numbers are brought to the user: a pin goes up only with their word).
+
+### 6.2 The order of a side (amends 5.4)
+
+- The fallback answers INCIDENTAL where a many-valued input is, else DEFINED: never SORTED (`reverse` of a sorted
+  list is ordered, not "sorted": `ReplayGates` and `HostJudge.planRendered` read SORTED as "the tail sort holds").
+  A function of many values with no many-valued input (`range`, `split`, a map's `keys`) is DEFINED.
+- A parameter: seeded as a defined value where the comparison is planned, the way `OrderedAsserts.rewrite` seeds a
+  lambda's parameters; the lets the environment seeds are passed too (today only the statement's own lets are).
+- "Weaker, never a new failure" was wrong for `assertNotEquals`: the doors leave it as written and lite refuses it
+  (`UpstreamTestBodies.java:87-89`), so a newly unordered side there is a new refusal. And more readers move than
+  the two named: `UpstreamTestBodies`, `UpstreamPrints`, `ReplayGates`, `AssertVerdicts`, `DatabaseJudge`,
+  `HostJudge`. The corpus and PCT rounds list every outcome that moves; each comes to the user.
+- **Recorded, not fixed:** a sort over store rows on a key that is not unique leaves its ties in arrival order, so
+  a "sorted" side can still differ between runs (`HostJudge.java:345-346` says so of the judges). The rule cannot
+  see a key's uniqueness. A row of the register with the tie rule.
+
+### 6.3 "False, still evaluated" over lists (replaces the form in "B2, sized")
+
+The sized form answered false for two EMPTY sides, where Pure's `[] == []` is true. The form: each side's marked
+text folded by one aggregate in its own derived table (an aggregate reads every row; each side written once), and
+the answer `COALESCE(l.m = r.m, l.m IS NULL AND r.m IS NULL)`: never true for two sides that hold values, true for
+two empty sides, false for one. Where the planner answers a constant today (`RootComparison.kind` reads the held
+kinds; `SideEqualities.values` then writes its both-empty test as NOT EXISTS, which evaluates no element) is the
+same place. Also there: a variable counted harmless whose `let` value computes (`LiteCrossTypeRule.harmless`):
+probed, then fixed or recorded.
+
+### 6.4 Lowerers made with no planner (withdraws 5.2 item 6)
+
+Three roads make a lowerer with no planner (`Compiler.lowerResolved`, `EnginePlans`, the seedable-lets probe). A
+refusal there would become a quietly empty lineage (its caller turns a lowering failure into "no rows") or change
+which lets seed (the probe catches every exception), and would refuse the per-row typed-list comparisons 2.5
+keeps. Withdrawn: those roads keep the plain comparison, and the record says so.
+
+### 6.5 A date built to the hour at the two compatibility doors (5.9's open question, answered by reading)
+
+Both doors answer TRUE today for `date(2015, 4, 16, 14) == %2015-04-16T14:00:00`, where upstream answers false:
+the doors' rule reaches the shared instant arm step 6 added (`Equalities.java:141-146`), and the partial-precision
+arm covers a year and a month only. Before step 6 it was a database error there. To build: at the doors a
+date-time carried as its written text against one the database holds is never equal (upstream's "the precision is
+part of the value"), as a part of the doors' named rule for `==`; lite's own rule (register S399, by the instant)
+unchanged. Run at both doors before and after.
+
+### 6.6 `hasSameElements` in the type-checker (places 5.5)
+
+Before `Typer.compared`'s early returns, asking `EqualityClasses.neverEqual` directly and never the door's setting;
+it reads no door. Where it also takes the run-time and at-the-call handling of an equality, lite's rule applies at
+the call too.
