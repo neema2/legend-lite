@@ -76,6 +76,9 @@ public final class PureComparisons implements CrossTypeRule {
             // testCompareMixedTypes, testDateCompare, testMax_Date, testMin_Date); recorded where it is not Pure's: a
             // day against a date-time at one instant, which legend-pure orders the day first and the database ties
             case ORDERING -> c.comparison();
+            // an assert is judged as it was at this door (the user's ruling of 2026-11-26: the compile error is
+            // lite's own door's; the compatibility doors are unaffected)
+            case ASSERT -> c.comparison();
         };
     }
 

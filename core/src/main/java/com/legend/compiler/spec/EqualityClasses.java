@@ -62,6 +62,16 @@ public final class EqualityClasses {
                 TypedCrossTypeComparison.Kind.ORDERING, "max");
         put(all, List.of(FunctionId.of(Pure.MIN__NUMBER_1__NUMBER_1), FunctionId.of(Pure.MIN__DATE_1__DATE_1)),
                 TypedCrossTypeComparison.Kind.ORDERING, "min");
+        // an assert of two sides compares them: its first two arguments (a message and its values may follow)
+        put(all, Pure.AT_ASSERTS_ASSERT_EQUALS, TypedCrossTypeComparison.Kind.ASSERT, "assertEquals");
+        put(all, Pure.AT_ASSERTS_ASSERT_NOT_EQUALS, TypedCrossTypeComparison.Kind.ASSERT, "assertNotEquals");
+        put(all, Pure.AT_ASSERTS_ASSERT_EQ, TypedCrossTypeComparison.Kind.ASSERT, "assertEq");
+        put(all, Pure.AT_ASSERTS_ASSERT_NOT_EQ, TypedCrossTypeComparison.Kind.ASSERT, "assertNotEq");
+        put(all, Pure.AT_ASSERTS_ASSERT_IS, TypedCrossTypeComparison.Kind.ASSERT, "assertIs");
+        put(all, Pure.AT_ASSERTS_ASSERT_IS_NOT, TypedCrossTypeComparison.Kind.ASSERT, "assertIsNot");
+        put(all, Pure.AT_ASSERTS_ASSERT_SAME_ELEMENTS, TypedCrossTypeComparison.Kind.ASSERT, "assertSameElements");
+        put(all, Pure.AT_ASSERTS_ASSERT_CONTAINS, TypedCrossTypeComparison.Kind.ASSERT, "assertContains");
+        put(all, Pure.AT_ASSERTS_ASSERT_NOT_CONTAINS, TypedCrossTypeComparison.Kind.ASSERT, "assertNotContains");
         return java.util.Collections.unmodifiableMap(all);
     }
 
@@ -75,8 +85,16 @@ public final class EqualityClasses {
     /** The crossing {@code chosen} applied to {@code args} makes, if it is a comparison whose sides' types are known and
      *  differ. */
     public static Optional<Crossing> crossing(TypedFunction chosen, List<TypedSpec> args, ModelContext ctx) {
-        return chosen.definition() == null || args.size() != 2 ? Optional.empty()
+        return !compares(chosen, args) ? Optional.empty()
                 : crossing(chosen, args.get(0).info().type(), args.get(1).info().type(), ctx);
+    }
+
+    /** Whether {@code chosen} applied to {@code args} is a comparison the rule reads: of its two arguments, or an
+     *  assert's of its first two. */
+    private static boolean compares(TypedFunction chosen, List<TypedSpec> args) {
+        Comparison comparison = chosen.definition() == null ? null : COMPARISONS.get(chosen.id());
+        return comparison != null && (args.size() == 2
+                || args.size() > 2 && comparison.kind() == TypedCrossTypeComparison.Kind.ASSERT);
     }
 
     /** {@link #crossing} by the types the two sides' values HOLD, where an upcast written over a side hides it:
@@ -85,7 +103,7 @@ public final class EqualityClasses {
      *  {@code Any} by such a cast is still known to be between two types (the equality rule's run-time item: equal
      *  means the same type and the same value). */
     static Optional<Crossing> heldCrossing(TypedFunction chosen, List<TypedSpec> args, ModelContext ctx) {
-        return chosen.definition() == null || args.size() != 2 ? Optional.empty()
+        return !compares(chosen, args) ? Optional.empty()
                 : crossing(chosen, held(args.get(0)), held(args.get(1)), ctx);
     }
 
@@ -154,8 +172,9 @@ public final class EqualityClasses {
     static Optional<com.legend.compiler.spec.typed.TypedRunTimeComparison> atRunTime(TypedSpec call,
             TypedFunction chosen, List<TypedSpec> args) {
         Comparison comparison = chosen.definition() == null || args.size() != 2 ? null : COMPARISONS.get(chosen.id());
-        if (comparison == null || !filledAtTheCall(args.get(0).info().type())
-                && !filledAtTheCall(args.get(1).info().type())) {
+        // (an assert is never kept for its call: its sides are judged when the test runs, by the types they hold)
+        if (comparison == null || comparison.kind() == TypedCrossTypeComparison.Kind.ASSERT
+                || !filledAtTheCall(args.get(0).info().type()) && !filledAtTheCall(args.get(1).info().type())) {
             return Optional.empty();
         }
         // compared when the query runs where the author declared a side so (Number, the abstract Date, Any); else the

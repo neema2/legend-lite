@@ -180,17 +180,22 @@ class AssertBarTest {
             // the ledger audit's D4 (2026-11-16): a list of Integers against the same numbers as Floats fails, as the
             // one-value probe above does; the message is the failed typed comparison's, never an untyped re-compare
             // that held (which passed the assertSameElements and raised "verdict/message divergence" on assertEquals)
-            new Probe("integer-vs-float-lists", "{|assertEquals([1, 2], [1.0, 2.0])}",
+            // (two sides of two KNOWN types are a compile error on lite's own door: anAssertOfTwoKnownTypesIsRefused...)
+            new Probe("integer-vs-float-lists-typed-at-run-time",
+                    "{|assertEquals([1, 2]->cast(@Number), [1.0, 2.0]->cast(@Number))}",
                     "expected: [1, 2], actual: [1.0, 2.0]"),
-            new Probe("integer-vs-float-same-elements", "{|assertSameElements([2, 1], [2.0, 1.0])}",
+            new Probe("integer-vs-float-same-elements-typed-at-run-time",
+                    "{|assertSameElements([2, 1]->cast(@Number), [2.0, 1.0]->cast(@Number))}",
                     "expected the elements [2, 1] in any order, got [2.0, 1.0]"),
             // the type is part of the value in lite's own runs (register S127, the user's ruling of 2026-11-04;
             // backwards-compatibility mode compares an Integer and a Decimal by text: below)
             // (an Integer and a Decimal of one value are equal: two exact numbers, the user's ruling of 2026-11-27)
             new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", null),
             new Probe("decimal-vs-integer-values", "{|assertEquals(1.5D, 1)}", "expected: 1.5, actual: 1"),
-            new Probe("float-vs-decimal", "{|assertEquals(1.5, 1.5D)}", "expected: 1.5 (Float), actual: 1.5 (Decimal)"),
-            new Probe("assertNotEquals-across-kinds", "{|assertNotEquals(3, 3.0)}", null),
+            new Probe("float-vs-decimal-typed-at-run-time", "{|assertEquals(1.5->cast(@Number), 1.5D->cast(@Number))}",
+                    "expected: 1.5 (Float), actual: 1.5 (Decimal)"),
+            new Probe("assertNotEquals-across-kinds-typed-at-run-time",
+                    "{|assertNotEquals(3->cast(@Number), 3.0->cast(@Number))}", null),
             new Probe("assertNotEquals-exact-numbers", "{|assertNotEquals(3, 3D)}", "3 should not equal 3"),
             new Probe("mixed-list", "{|assertEquals([1, 'a', 2.5], [1, 'a', 2.5])}", null),
             new Probe("empty-vs-filtered", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
@@ -402,6 +407,51 @@ class AssertBarTest {
                         : said.contains("the program road does not plan this body"), mode + ": " + said);
             }
         }
+    }
+
+    /** AN ASSERT OF TWO KNOWN TYPES IS A COMPILE ERROR ON LITE'S OWN DOOR (the user's ruling of 2026-11-26, "yes compile
+     *  error": an assert that compares two different types is the mistake a comparison of them is; built with the
+     *  edition program's step 6): refused when the body is compiled, under every judge alike, naming the assert and
+     *  the two types. Numbers are of two families, so an Integer against a Decimal is by value and no mistake; a
+     *  written literal reads as the type of the value it is written against; sides typed only when the test runs (a
+     *  mixed list, a Number, an Any) are judged by the types they hold, as before. The compatibility doors judge an
+     *  assert as they did ({@code NumberKindsEdgeTest}, {@code EqualityCompatEdgeTest}). */
+    @Test
+    void anAssertOfTwoKnownTypesIsRefusedWhenTheBodyIsCompiled() throws Exception {
+        java.util.Map<String, String> refused = new java.util.LinkedHashMap<>();
+        refused.put("{|assertEquals(1, 1.0)}", "assertEquals compares Integer with Float");
+        refused.put("{|assertEquals(1.5, 1.5D)}", "assertEquals compares Float with Decimal");
+        refused.put("{|assertEquals([1, 2], [1.0, 2.0])}", "assertEquals compares Integer with Float");
+        refused.put("{|assertSameElements([2, 1], [2.0, 1.0])}", "assertSameElements compares Integer with Float");
+        refused.put("{|assertNotEquals(3, 3.0)}", "assertNotEquals compares Integer with Float");
+        refused.put("{|assertEq('a', 1)}", "assertEq compares String with Integer");
+        refused.put("{|assertEquals(1, 1.0, 'mine')}", "assertEquals compares Integer with Float");
+        refused.put("{|assertContains([1, 2], 1.0)}", "assertContains compares Integer with Float");
+        refused.put("{|let x = 1; assertEquals(1.5, $x);}", "assertEquals compares Float with Integer");
+        java.util.Map<String, String> judged = new java.util.LinkedHashMap<>();
+        judged.put("{|assertEquals(1D, 1)}", "pass");
+        judged.put("{|assertEquals([1, 2], [1D, 2.00D])}", "pass");
+        judged.put("{|let x = 1.0; assertEquals(1, $x);}", "pass");
+        judged.put("{|let x = 2.5D; assertEquals(2.5, $x);}", "pass");
+        judged.put("{|assertEquals([1, 'a'], [1, 'a'])}", "pass");
+        List<String> wrong = new ArrayList<>();
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                for (var e : refused.entrySet()) {
+                    String got = outcome(c, e.getKey(), mode);
+                    if (!got.contains(e.getValue()) || !got.contains("two values are equal only when")) {
+                        wrong.add(mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+                for (var e : judged.entrySet()) {
+                    String got = outcome(c, e.getKey(), mode);
+                    if (!got.equals(e.getValue())) {
+                        wrong.add(mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "\n  " + String.join("\n  ", wrong));
     }
 
     @Test

@@ -55,7 +55,7 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
             return false;
         }
         if (crossing.comparison() instanceof com.legend.compiler.spec.typed.TypedNativeCall call
-                && call.args().size() == 2) {
+                && call.args().size() >= 2) {
             // a written whole number no Decimal holds (past its 38 digits) is no value of the other side's type: the
             // comparison stays a mistake at compile, never a database's overflow (the audit of batch A, 2026-11-26)
             boolean leftWhole = crossing.left() == com.legend.compiler.element.type.Type.Primitive.INTEGER;
@@ -93,7 +93,8 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
      *  raised while the general overload was typed pre-empted that refusal. */
     @Override
     public TypedSpec inGenericBody(TypedCrossTypeComparison crossing) {
-        if (exact(crossing)) {
+        if (exact(crossing) || crossing.kind() == TypedCrossTypeComparison.Kind.ASSERT) {
+            // (an assert over the caller's columns is judged when the test runs, by the types its sides hold)
             return crossing.comparison();
         }
         TypedSpec read = NumberLiterals.read(crossing);
@@ -167,6 +168,7 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
             case MEMBERSHIP -> new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info());
             case INDEX -> new com.legend.compiler.spec.typed.TypedCInteger(-1L, call.info());
             case ORDERING -> byValueThenType(call, c, ctx);
+            case ASSERT -> call;
         };
     }
 

@@ -37,7 +37,13 @@ public record TypedCrossTypeComparison(TypedSpec comparison, Kind kind, String o
         /** {@code indexOf}: a value's position among a collection's elements. */
         INDEX,
         /** {@code <}, {@code <=}, {@code >}, {@code >=}, {@code compare}, two-argument {@code max} and {@code min}. */
-        ORDERING
+        ORDERING,
+        /** A test's assert of two sides: {@code assertEquals}, {@code assertNotEquals}, {@code assertEq},
+         *  {@code assertNotEq}, {@code assertIs}, {@code assertIsNot}, {@code assertSameElements},
+         *  {@code assertContains}, {@code assertNotContains}. Two sides of two known types are the mistake a
+         *  comparison of them is (the user's ruling of 2026-11-26, "yes compile error": on lite's own door an assert
+         *  across types is refused when the body is compiled; a compatibility door's assert is judged as it was). */
+        ASSERT
     }
 
     /** Lite's refusal of this comparison: a compile error naming the two types and the fix (the planner's before it

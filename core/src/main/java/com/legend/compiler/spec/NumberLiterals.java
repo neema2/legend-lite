@@ -49,7 +49,7 @@ final class NumberLiterals {
     /** {@code crossing}'s comparison with its literal side read in the other side's type, or null where the rule does
      *  not reach it. */
     static @Nullable TypedSpec read(TypedCrossTypeComparison crossing) {
-        if (!(crossing.comparison() instanceof TypedNativeCall call) || call.args().size() != 2
+        if (!(crossing.comparison() instanceof TypedNativeCall call) || !twoSides(crossing, call)
                 || !number(crossing.left()) || !number(crossing.right())) {
             return null;
         }
@@ -68,7 +68,7 @@ final class NumberLiterals {
      *  whose type the function's caller gave, which may itself be a literal the caller passed. Null where the rule
      *  does not reach it. */
     static @Nullable TypedSpec readWritten(TypedCrossTypeComparison crossing, boolean leftWritten) {
-        if (!(crossing.comparison() instanceof TypedNativeCall call) || call.args().size() != 2
+        if (!(crossing.comparison() instanceof TypedNativeCall call) || !twoSides(crossing, call)
                 || !number(crossing.left()) || !number(crossing.right())) {
             return null;
         }
@@ -86,7 +86,8 @@ final class NumberLiterals {
         if (read == null) {
             return null;
         }
-        if ((leftWritten ? crossing.left() : crossing.right()) == Type.Primitive.INTEGER) {
+        if ((leftWritten ? crossing.left() : crossing.right()) == Type.Primitive.INTEGER
+                && crossing.kind() != TypedCrossTypeComparison.Kind.ASSERT) {
             // a whole number against a Float or a Decimal: every database reads the Integer literal as the other
             // side's type exactly (that it is exact there was just checked), so the comparison is the call as
             // written and its SQL does not change (measured 2026-11-26: rewriting 100 as the Decimal 100 made each
@@ -95,7 +96,17 @@ final class NumberLiterals {
         }
         // a Float literal against a Decimal or an Integer is rewritten: left as written the database would compare
         // two doubles, which is not exact for every Decimal or every Integer past 2^53
-        return call.withChildren(leftWritten ? List.of(read, r) : List.of(l, read));
+        // (an assert's literal is always rewritten: its judge compares typed values, and the whole number 1 against
+        // the Float 1.0 would be two types there; its message and the message's values follow the two sides)
+        List<TypedSpec> sides = new java.util.ArrayList<>(call.args());
+        sides.set(leftWritten ? 0 : 1, read);
+        return call.withChildren(sides);
+    }
+
+    /** Whether {@code call} compares its two arguments, or is an assert comparing its first two. */
+    private static boolean twoSides(TypedCrossTypeComparison crossing, TypedNativeCall call) {
+        return call.args().size() == 2
+                || call.args().size() > 2 && crossing.kind() == TypedCrossTypeComparison.Kind.ASSERT;
     }
 
     private static boolean number(Type t) {
