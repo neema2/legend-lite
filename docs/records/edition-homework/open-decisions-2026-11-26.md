@@ -135,6 +135,15 @@ legend-engine writes a `CASE` and the database answers the Float.
 - *Recommendation:* (a). (Changed: the first recommendation, (b), assumed upstream kept the first; it keeps the
   last, in all three runtimes.)
 
+*Added after the rulings (about 23:30 UTC), read in the pinned sources by the doors' session and then RUN on all
+three upstream runtimes (`upstream-step6/answers.md`, group E):* upstream has TWO `min`s. The one over a list of
+numbers (and of dates) is a fold, which keeps the LAST written of a tie (`[3, 3.0]->min()` is the Float). The
+generic one, which `least` calls and a list that is not all numbers takes, is `sort()->first()`: the FIRST written
+(`[3, 3.0]->least()` and `[3, 3.0, 'a']->min()` are the Integer). Both `max`s and `greatest` keep the last written.
+The rule for the other two modes follows each function's own body. A day and its midnight date-time are NOT a tie
+upstream (the day is the smaller, so `max` is the date-time and `min` the day, in either order); lite refuses that
+pair by name at every door today, which this slice does not change.
+
 **D3. `<`, `<=`, `>`, `>=` between values whose types are known only at run time.**
 
 | | all three upstream runtimes | in an H2 store query (legend-engine) |
