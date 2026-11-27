@@ -77,6 +77,17 @@ library's comments were shortened three times to fit that figure and no higher o
   the door reads such an `assertEquals` as `assertSameElements` (the user, 2026-11-27: "when there is no sort order
   in upstream, we want to check multiset"). Found by CI's corpus lanes: the edge corpus goldens were not on the
   regeneration list.
+- **The time-series library against gs-quant** (`tools/gs-quant-oracle/ledger-adversarial-raw.tsv` and
+  `-adjusted.tsv`, one row each, moved by the test's own `-Dts.gsquant.update`; found by CI's `core` lane, the test
+  not being in the local round): `vol_swap_volatility default @BTCUSD` from REFUSED to PASS. The line has two rows on
+  one date; the word's answer is one point at the line's last date, which lite now gives, equal to gs-quant's.
+  **This is a refusal LOST, for the user's word (item 5 below).** Read in the SQL before and after
+  (`836de4901`, `d0a70c4f5`): one thing differs, the filter that keeps the last date, `date = MAX(date) OVER (...)`
+  before and `date IS NOT DISTINCT FROM MAX(date) OVER (...)` now (two sides that may both be empty are compared
+  null-safely in a filter too: this landing's empty-side rule). The refusal for the duplicate date stands in the same
+  condition, joined by AND, and DuckDB no longer evaluates it for the duplicate date's row, which the filter drops.
+  The refusal fired before only by the order DuckDB evaluated the two in. The reports made from the ledgers
+  (`summary.tsv`, `two-rows.tsv`, `unruled.tsv`, `TWO_ROWS.md`) are regenerated with them.
 - No other recorded suite: PCT's expected failures on DuckDB and H2 and the corpus rosters are unchanged. What CI's corpus lanes and the database lanes show is under "What
   judged it".
 - The acceptance measure (every assert of lite's own tests against its plain comparison; 1,733 bodies on DuckDB, H2
@@ -135,6 +146,15 @@ New and extended tests: `exec/RootComparisonTest`, `RunTimeComparisonTest`, `Num
      at every door, so a 14:00:00 row matches. Pure says they are not the same; legend-engine inside a store query
      compares against the day's midnight and returns no row. Older than step 6, no recorded test holds it, and it
      is NOT changed in this landing: fix it with the doors' date rule in step 6B, or sooner?
+
+5. **A refusal that fired only where the database happened to evaluate a row its filter drops** (the time-series
+   case above). In Pure's strict reading the row's refusal is raised before the filter, so the query is refused;
+   lite's SQL merges the two into one condition, where a database may skip it. Options: (a) accept the answer for
+   this case (it equals gs-quant's, and no value on the duplicate date is in it); (b) restore the refusal by
+   keeping a value that may raise below a filter that drops rows, in the pass that merges SQL levels (the
+   time-series SQL grows; its own step, not step 6's); (c) withdraw the null-safe comparison in filters for computed
+   sides, which restores the old SQL and the old luck. Recorded as it is until ruled; (b) is the one that makes the
+   refusal true on every database.
 
 ## Limits, recorded and not built (each in the batch list)
 
