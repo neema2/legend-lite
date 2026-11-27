@@ -103,6 +103,78 @@ final class NumberLiterals {
         return call.withChildren(sides);
     }
 
+    /** The arithmetic a written Float literal is read in ({@link #inExactArithmetic}): a sum, a difference, a
+     *  product. (A quotient is a Float whatever its operands, Pure's {@code divide}.) */
+    private static final java.util.Set<String> EXACT_ARITHMETIC = java.util.Set.of(
+            "meta::pure::functions::math::plus", "meta::pure::functions::math::minus",
+            "meta::pure::functions::math::times");
+
+    /**
+     * THE LITERAL RULE IN ARITHMETIC (the user, 2026-11-27: "shouldn't this match comparison?", then "good let's do
+     * it"): a Float literal written into a sum, a difference or a product whose every other operand is an exact
+     * number, at least one a Decimal, reads as the Decimal its digits write -- {@code $x.amount * 0.1} over a Decimal
+     * is {@code $x.amount * 0.1D}. Such arithmetic is a Decimal's by Pure's rule ({@link NumberKinds}: any Decimal
+     * operand gives a Decimal), and legend-pure computes it as one, the Float read by its shortest text (its compiled
+     * {@code CompiledSupport.toBigDecimal}: {@code BigDecimal.valueOf(double)}; read 2026-11-27). Left a Float
+     * literal, the database computed a double under a type that says Decimal (measured the same day: a
+     * {@code DECIMAL(10,2)} column's 0.10 times 0.1 answered 0.010000000000000002, plus 0.2 answered
+     * 0.30000000000000004; a whole-number literal was exact already).
+     *
+     * <p>Not reached, each the arithmetic as written: a Float VALUE among the operands (a column, a computed
+     * Float: the arithmetic is a double's whatever the literal is read as); an operand typed only {@code Number};
+     * a literal no Decimal holds. {@code args} as they are where the rule does not reach them.
+     */
+    static List<TypedSpec> inExactArithmetic(com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args) {
+        if (!chosen.isNative() || !EXACT_ARITHMETIC.contains(chosen.qualifiedName())) {
+            return args;
+        }
+        boolean decimal = false;
+        boolean floatLiteral = false;
+        for (TypedSpec a : args) {
+            for (TypedSpec o : a instanceof TypedCollection c ? c.elements() : List.of(a)) {
+                Type t = o.info().type();
+                if (floatLiteral(o)) {
+                    floatLiteral = true;
+                } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+                    decimal = true;
+                } else if (t != Type.Primitive.INTEGER) {
+                    return args;
+                }
+            }
+        }
+        if (!decimal || !floatLiteral) {
+            return args;
+        }
+        List<TypedSpec> read = new ArrayList<>(args.size());
+        for (TypedSpec a : args) {
+            if (!(a instanceof TypedCollection c)) {
+                TypedSpec one = floatLiteral(a) ? literal(a, Type.Primitive.DECIMAL) : a;
+                if (one == null) {
+                    return args;
+                }
+                read.add(one);
+                continue;
+            }
+            List<TypedSpec> elements = new ArrayList<>(c.elements().size());
+            for (TypedSpec e : c.elements()) {
+                TypedSpec one = floatLiteral(e) ? literal(e, Type.Primitive.DECIMAL) : e;
+                if (one == null) {
+                    return args;
+                }
+                elements.add(one);
+            }
+            read.add(c.withChildren(elements));
+        }
+        return read;
+    }
+
+    /** Whether {@code side} is one Float literal, signed or not. */
+    private static boolean floatLiteral(TypedSpec side) {
+        TypedSpec unsigned = side instanceof TypedNativeCall minus && minus.args().size() == 1
+                && Pure.AT_MATH_MINUS.contains(minus.callee().id()) ? minus.args().get(0) : side;
+        return unsigned instanceof TypedCFloat;
+    }
+
     /** Whether {@code call} compares its two arguments, or is an assert comparing its first two. */
     private static boolean twoSides(TypedCrossTypeComparison crossing, TypedNativeCall call) {
         return call.args().size() == 2

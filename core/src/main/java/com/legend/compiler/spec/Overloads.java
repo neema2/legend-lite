@@ -649,7 +649,9 @@ final class Overloads {
                     + " or a misspelling)");
         }
         InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes, expected);
-        List<TypedSpec> typedArgs = Typer.withOperatorRun(r.chosen(), args);
+        // (a Float literal written into a Decimal's sum, difference or product is the Decimal its digits write)
+        List<TypedSpec> typedArgs = NumberLiterals.inExactArithmetic(r.chosen(), Typer.withOperatorRun(r.chosen(),
+                args));
         return new Application(r.chosen(), typedArgs, NumberKinds.refine(r.chosen(), typedArgs,
                 refineParseDate(r.chosen(), typedArgs, refineDecimalCarrier(r.chosen(), r.output()))));
     }
@@ -856,7 +858,8 @@ final class Overloads {
 
         ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b,
                 java.util.Arrays.stream(typed).map(TypedSpec::info).toList());
-        List<TypedSpec> typedArgs = Typer.withOperatorRun(chosen, List.of(typed));
+        List<TypedSpec> typedArgs = NumberLiterals.inExactArithmetic(chosen, Typer.withOperatorRun(chosen,
+                List.of(typed)));
         return new Application(chosen, typedArgs, NumberKinds.refine(chosen, typedArgs,
                 refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out))));
     }

@@ -182,4 +182,41 @@ class NumberFamiliesTest {
         }
         assertTrue(wrong.isEmpty(), "\n  " + String.join("\n  ", wrong));
     }
+
+    /** A Float literal written into a Decimal's sum, difference or product is the Decimal its digits write (the user,
+     *  2026-11-27: "shouldn't this match comparison?", "good let's do it"): the arithmetic is a Decimal's by Pure's
+     *  rule, and the database computes it as one. Until then the database computed a double: a DECIMAL(10,2) column's
+     *  0.10 times 0.1 answered 0.010000000000000002. A Float VALUE in the arithmetic keeps it a double's. */
+    @Test
+    void aFloatLiteralInADecimalsArithmeticIsReadAsADecimal() throws Exception {
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            try (Connection connection = backend.open()) {
+                // the model's rows: amounts 1.00 and 2.50 (as doubles, 0.1 * 1.0 * 3 is 0.30000000000000004 and
+                // 0.1 * 2.5 * 3 is 0.7500000000000001: column d tells the two arithmetics apart)
+                Lean.Result r;
+                try {
+                    r = Lean.established(model, "|p::Party.all()->project(~[id: p|$p.id, a: p|$p.amount * 0.1,"
+                            + " b: p|$p.amount + 0.2, c: p|$p.amount - 0.1, d: p|0.1 * $p.amount * 3,"
+                            + " e: p|$p.amount * -0.1])->sort(~id->ascending())", "p::RT", connection);
+                } catch (RuntimeException e) {
+                    // SQLite holds no exact decimal and refuses a Decimal's arithmetic by name, never approximating
+                    // it (D2a, 2026-11-17): as before this rule, whatever the literal reads as
+                    if (String.valueOf(e.getMessage()).contains("reached SQLite, which holds no exact")) {
+                        continue;
+                    }
+                    throw e;
+                }
+                List<List<String>> got = r.rows().stream().map(row -> row.stream().map(c -> c instanceof Number n
+                        ? new java.math.BigDecimal(n.toString()).stripTrailingZeros().toPlainString()
+                        : String.valueOf(c)).toList()).toList();
+                assertEquals(List.of(List.of("1", "0.1", "1.2", "0.9", "0.3", "-0.1"),
+                        List.of("2", "0.25", "2.7", "2.4", "0.75", "-0.25")), got, backend.type() + "\n" + r.text());
+                // a Float value among the operands: a double's arithmetic, as before (0.5 is exact in a double)
+                Lean.Result f = Lean.established(model, "|p::Party.all()->project(~[id: p|$p.id,"
+                        + " a: p|$p.ratio * 0.5])->sort(~id->ascending())", "p::RT", connection);
+                assertEquals(2, f.rows().size(), backend.type() + "\n" + f.text());
+            }
+        }
+    }
 }
