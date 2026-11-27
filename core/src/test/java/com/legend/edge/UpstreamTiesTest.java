@@ -467,8 +467,13 @@ class UpstreamTiesTest {
         assertTrue(engines.contains("greatest(CAST(t0.I AS DOUBLE), t0.F)"), engines);
         String least = sql(Door.LEGEND_ENGINE, PureText.PURE_V1, min);
         assertTrue(least.contains("least(t0.F, CAST(t0.I AS DOUBLE))"), least);
-        // legend-engine's PCT door tells no inside from outside: the winner keeps its type there, as before
-        assertFalse(sql(Door.LEGEND_ENGINE_PCT, PureText.ENGINE_PCT, max).contains("AS DOUBLE)"));
+        // legend-engine's PCT door tells no inside from outside, and legend-pure's has no such rule: the winner keeps
+        // its type there, as before, and a column of such a value is the product's limit it was (measured 2026-11-27)
+        for (Door untouched : List.of(Door.LEGEND_ENGINE_PCT, Door.LEGEND_PURE)) {
+            RuntimeException limit = assertThrows(RuntimeException.class, () -> sql(untouched, untouched.style, max));
+            assertTrue(String.valueOf(limit.getMessage()).contains("a tagged value reached the renderer"),
+                    untouched + ": " + limit.getMessage());
+        }
         // a written tie outside any store query keeps the winner's type there (ARGUMENTS holds its answer)
         assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, "|max(3, 3.0)").contains("AS DOUBLE)"));
         // two columns of one type: the call's own rule, no conversion

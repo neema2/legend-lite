@@ -40,8 +40,10 @@ final class SameValuesForm {
     static SqlQuery of(SqlQuery eRows, SqlQuery aRows, boolean ordered) {
         for (OutputCol c : values(eRows)) {
             if (c.type() instanceof SqlType.Array || c.type() instanceof SqlType.Map) {
-                throw new com.legend.sql.DialectCapability("an assert comparing lists or maps of values has no typed"
-                        + " form on a database that carries them as JSON: refused (item 3's S4)");
+                // (a query's comparison of two whole sides is refused by the same words since the edition program's
+                // step 6: the product's equality over two sides is the judge's)
+                throw new com.legend.sql.DialectCapability("a comparison of lists or maps of values (a query's ==, an"
+                        + " assert's) has no typed form on a database that carries them as JSON: refused");
             }
         }
         return ordered ? inOrder(eRows, aRows) : anyOrder(eRows, aRows);

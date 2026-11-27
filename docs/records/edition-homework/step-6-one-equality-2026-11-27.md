@@ -316,6 +316,22 @@ get to real one equality ... did we stick to our tenets?" -- awaiting their word
    (reordered maps false on DuckDB and SQLite; tables as before step 6). Proposed: refuse maps and tables inside an
    expression by name on lite's own route until they are built, after measuring which of our own tests rely on it
    (the probe `TempProbeTest6`, same comparison at the root and inside an `if`, is written and to run).
+   **Measured 2026-11-27 (`TempProbeTest6`, the same comparison as `|a == b` and as `|if(a == b, |'same', |'other')`,
+   lite's own route):**
+
+   | comparison | as the answer | inside an `if` |
+   |---|---|---|
+   | two maps, entries in another order | DuckDB true; H2 and SQLite refused by name | DuckDB **other**; SQLite **other**; H2 a database error (`MAP_FROM_ENTRIES` not found) |
+   | two tables, the same rows | true on all three | DuckDB, SQLite same; H2 a database error (`LIST` not found) |
+   | two tables, rows in another order | false on all three | DuckDB, SQLite **same** |
+   | two tables, other column names | false on all three | DuckDB, SQLite **same** |
+   | a computed list against a written one | right on all three | DuckDB, SQLite right; H2 refused by name |
+   | two Decimal lists, other written scales | true on all three | DuckDB same; SQLite **other**; H2 refused by name |
+   | lists typed only at run time, a mixed list, `list(...)`, `pair(...)` | right | right where it is planned |
+
+   So inside an expression two different tables answer "the same" on DuckDB and SQLite, reordered maps answer "not
+   the same", and SQLite compares two Decimal lists by their text. Each was so before step 6; step 6 made the
+   answer right only where the comparison is the query's last statement.
 2. *The name `sameElements`* (the user offered `~=` or `setCompare()`): a public name, to confirm.
 3. *The two pins moved for it* (lite's surface 9 to 10; functions upstream does not declare 76 to 77): to confirm.
 4. *The planner tells lite's own code from a door's by the number rule the door named*
@@ -340,7 +356,11 @@ goes up brought to the user first.
    (the pair that was run upstream), to run.
 4. The test checker's small items: the two judges' wording for a Variant read through `Any`; the tolerance assert as
    its formula; the asserts the database judge cannot judge, read one by one.
-5. legend-pure's door for an empty side (what it shows today).
+5. legend-pure's door for an empty side: **measured 2026-11-27** (`[1, 2]->filter(x | $x > 5)->first() == 1` as a
+   query's answer): no value (NULL) at all four doors -- lite's, legend-pure's, legend-engine's API and its PCT run --
+   where Pure says false; under `!` true and inside an `if` the false branch at all four, as Pure. So legend-pure's
+   door has the same gap as lite's own, and the fix that is carried (the guard written by the code that shows a
+   comparison as a value) covers both.
 6. Run again: the full round, `tools/equality-measure/run.sh` (the step's acceptance measure), every lane and the
    heavy run; then one follow-up review of everything changed since the two audits.
 7. Then: the regenerated files once more, the push to the pull request's branch for CI, the program branch. Nothing
