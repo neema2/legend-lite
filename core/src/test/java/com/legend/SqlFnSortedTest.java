@@ -233,7 +233,11 @@ class SqlFnSortedTest {
             Map.entry("CELL_TEXT", Set.of(
                     "com.legend.lowering.Coercions", "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.CellTexts")),
+            // COALESCE and CONCAT: + lowering.Equalities (2026-11-27, the edition program's step 6, the user's "4 agreed"): a
+            // comparison of two types that can never be equal still evaluates both its sides, so a side that raises still
+            // raises as Pure says (Equalities.neverEqualButEvaluated: each side's text behind a different letter, compared)
             Map.entry("COALESCE", Set.of(
+                    "com.legend.lowering.Equalities",
                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     // (lowering.LiteVerdictWords, census J29's lite verdict sentences: gone 2026-11-22, item 3's S4 step 4)
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",
@@ -246,6 +250,7 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CheckedDefectsToLists", "com.legend.sql.dialect.FoldToListReduce",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("CONCAT", Set.of(
+                    "com.legend.lowering.Equalities",   // 2026-11-27, step 6: see COALESCE above
                     "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.LiteralSpelling",

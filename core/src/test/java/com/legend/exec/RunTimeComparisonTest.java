@@ -225,17 +225,17 @@ class RunTimeComparisonTest {
         var backend = TestBackends.platform();
         String model = MODEL.formatted(backend.type());
         try (Connection connection = backend.open()) {
-            Lean.Result r = Lean.established(model, "|[1, 2]->at(1)->cast(@Number) == 2.0", "p::RT", connection);
+            Lean.Result r = Lean.established(model, "|[1, 2]->at(1)->cast(@Number) == 2.5", "p::RT", connection);
             assertEquals(List.of(List.of(false)), r.rows(), r.text());
         }
         try (Connection connection = backend.open()) {
             org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> Lean.established(model,
-                    "|[1, 2]->at(5)->cast(@Number) == 1.0", "p::RT", connection));
+                    "|[1, 2]->at(5)->cast(@Number) == 1.5", "p::RT", connection));
         }
         try (Connection connection = backend.open()) {
             // the same in a function whose author declared the sides Number
             org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> Lean.established(model,
-                    "|x::same([1, 2]->at(5), 1.0)", "p::RT", connection));
+                    "|x::same([1, 2]->at(5), 1.5)", "p::RT", connection));
         }
     }
 }

@@ -259,9 +259,9 @@ tests. For the user's word with the size table's rows.
 - A comparison that is always false but whose side would raise: "4 agreed" -- built for `==`
   (`TypedRunTimeComparison.answeredNeverEqual`, `Equalities.neverEqualButEvaluated`); `in`, `contains` and
   `indexOf` with a side that may raise keep their constant (recorded).
-- One side empty: "Yes do the empty side fix", "okay fix for lite if small" -- built on lite's own rule
-  (`Equalities.emptySideIsFalse`: a plain column that may be empty against a value). The doors: each as its own
-  upstream answers (legend-pure false, legend-engine the database's NULL); legend-pure's door not yet checked.
+- One side empty: "Yes do the empty side fix", "okay fix for lite if small" -- **built, found not small, backed
+  out the same day** (below). The doors: each as its own upstream answers (legend-pure false, legend-engine the
+  database's NULL); legend-pure's door not yet checked.
 - Two tables under `==`: strict, an unsorted side refused, and a separate function for the rows in any order
   ("Yeah or ~= if want to be cute, or setCompare()"; named `sameElements`, after `assertSameElements`: `~=` would be
   a new operator in a grammar checked against upstream's, and "set" would say duplicates do not count). The strict
@@ -274,9 +274,27 @@ tests. For the user's word with the size table's rows.
 double under a type that says Decimal, recorded in register S429. Not typed a Float in lite's own mode (the
 recommendation put to them), not converted through text.
 
-**Built since the audits and not yet run** (the run of `261ee728d` covers the first two): the empty-side fix; the
-always-false fix; one value read twice is one evaluation (`UserCallInliner.finish`, `ff19de458`); strict `==` on
-tables (`2d4edec3f`).
+**The empty-side fix, backed out (2026-11-27).** The user's condition was "fix for lite if small". It was built as
+a guard written by the comparison itself (`x IS NOT NULL AND x = v` wherever exactly one side may be empty), and the
+run of `261ee728d` showed it is not small: the same comparison is also a filter's, a join's and an `exists`'s
+condition, a `CASE WHEN`'s test, an enumeration mapping's decode and a union's route-key join, and the guard appeared
+in all of them (five targets failed: `JoinTortureTest`, `LowerRelationDuckDbTest`, an enumeration mapping's SQL,
+`UnionTargetLeanJoinTest.oneKeyPerArm`, a planner test). Stripping it again from a filter and a join (`d39d70540`)
+covers two of those places, not the rest. So the guard and the stripping are both removed; the answer is as it was
+before step 6 (right inside a filter, an `if` and under `!`; the database's NULL where the comparison's value is
+shown as a column). **What the fix needs:** the guard added only where a comparison is kept as a VALUE (a projected
+or extended column, a grouping key), by the code that writes that column, never by the comparison -- a slice of its
+own, with the SQL size of every query that shows a comparison measured first. Carried; the measurement's "empties"
+bodies stay in the list of bodies that differ.
+
+**The always-false fix: one correction to what was said.** The example put to the user
+(`[1, 2]->at(5)->cast(@Number) == 1.0`) was wrong: a written `1.0` against a whole number reads as `1`, so that
+query compared two whole numbers and already raised. The case that answered a quiet false is a literal that cannot
+adapt (`== 1.5`) or two computed sides of different types; the test now uses those
+(`RunTimeComparisonTest.aComparisonOfTwoTypesStillRaisesWhatItsSideRaises`).
+
+**Built since the audits and not yet run:** the always-false fix; one value read twice is one evaluation
+(`UserCallInliner.finish`, `ff19de458`); strict `==` on tables (`2d4edec3f`).
 
 **Left to do, in order:**
 1. `sameElements(a, b)`: a lite function (`meta::legend::lite::`), tables and lists, the rows or elements in any

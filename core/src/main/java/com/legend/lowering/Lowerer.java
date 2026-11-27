@@ -2326,8 +2326,7 @@ public final class Lowerer {
             SqlExpr predicate,
             com.legend.compiler.spec.typed.TypedFilter.Stamp stamp) {
         // the style's merge (L10): the product's append, legend-engine's zones (kept for its exists form)
-        // (an equality's empty-side guard says nothing in a condition: written plain, NullSemantics.plainInCondition)
-        return whereZones().merge(existing, NullSemantics.plainInCondition(predicate), stamp);
+        return whereZones().merge(existing, predicate, stamp);
     }
 
     /** The isolate-terminal boundary: the select was JUST isolated, so an
@@ -3240,13 +3239,7 @@ public final class Lowerer {
         return sideCondition(lambda, left, right, null);
     }
 
-    /** A join's condition: its equalities written plain ({@link NullSemantics#plainInCondition}). */
     private SqlExpr sideCondition(TypedLambda lambda, SqlSource left, SqlSource right,
-                                  @com.legend.base.Nullable List<SqlSelect.Projection> leftCarry) {
-        return NullSemantics.plainInCondition(sideConditionAsLowered(lambda, left, right, leftCarry));
-    }
-
-    private SqlExpr sideConditionAsLowered(TypedLambda lambda, SqlSource left, SqlSource right,
                                   @com.legend.base.Nullable List<SqlSelect.Projection> leftCarry) {
         String leftVar = lambda.parameters().get(0);
         String rightVar = lambda.parameters().size() > 1 ? lambda.parameters().get(1) : null;
