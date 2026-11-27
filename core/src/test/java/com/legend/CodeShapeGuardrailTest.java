@@ -585,6 +585,29 @@ class CodeShapeGuardrailTest {
                 + " SetIds.defaultFor — never spelled in place; strays: " + strays);
     }
 
+    /** A SCALAR NATIVE'S RULE IS PICKED IN ONE PLACE ({@code lowering.Lowerer.written}; the edition program's step 6,
+     *  its closing batch, 2026-11-27). What an equality answers for a side that holds no value is decided where the
+     *  equality is written, so every path that writes one must pass there. Until then six sites of the Lowerer each
+     *  called {@code Scalars.lower}, and a rule applied at one of them (a column's value) missed the others (a
+     *  window's column, a reducer's input): measured, a comparison there answered "no value" where Pure says false. */
+    @Test
+    void aScalarNativesRuleIsPickedInOnePlace() throws IOException {
+        Pattern pick = Pattern.compile("\\bScalars\\s*\\.\\s*lower\\s*\\(");
+        List<String> sites = new ArrayList<>();
+        for (Path p : mainSources()) {
+            if (p.getFileName().toString().equals("Scalars.java")) {
+                continue;
+            }
+            Matcher m = pick.matcher(blankNonCode(Files.readString(p)));
+            while (m.find()) {
+                sites.add(p.getFileName().toString());
+            }
+        }
+        assertTrue(sites.equals(List.of("Lowerer.java")), () -> "Scalars.lower is called from Lowerer.written alone: a"
+                + " second caller writes a native without the rules applied there (an equality's empty side); found "
+                + sites);
+    }
+
     @Test
     void classNamesAreNeverLogic() throws IOException {
         Pattern logic = Pattern.compile(
