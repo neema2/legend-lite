@@ -608,3 +608,43 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
   H2 standard and unclassified are behind by the gaps above. Item 1 moves 12 more PCT tests to PCT's answer: 7 on DuckDB
   and 5 on H2.
+
+### 26. Where lite cannot tell that a side's order is fixed, it refuses an ordered comparison (the edition program, 2026-11-27)
+- **You write** `==` or `assertEquals` over two lists or two tables, one of them rows read from a database with no
+  sort, also after such rows have passed through a function (`removeDuplicates`, `reverse`, `tail`, an `if` of two
+  reads).
+- **legend-pure and legend-engine** compare in order, in whatever order the rows arrived; legend-engine's own tests
+  encode the order its H2 returns.
+- **Lite, on its own route,** refuses when the query is compiled, naming the two fixes: sort both sides, or use
+  `hasSameElements` (`assertSameElements` in a test). Where lite does not know a function, it does not assume
+  "ordered": the function's result is as ordered as what it was applied to. A written list or a sorted one is
+  compared as before.
+- **At the compatibility doors' tests:** such an `assertEquals`, and an `assert(a == b)`, is checked in any order. A
+  `==` in an ordinary query at legend-engine's door keeps legend-engine's ordered meaning.
+- **Two limits, recorded:** a sort on a key that is not unique leaves its ties in arrival order; a to-many property
+  read from one object picked out of a sorted read is treated as sorted. In both the fix is your own sort.
+- Register S431.
+
+### 27. The type of `max` and `min` of two number columns at legend-engine's door (the edition program, 2026-11-27; for the user's ruling)
+- **You write** `max` or `min` of two columns inside a query sent to the database, at legend-engine's door.
+- **legend-engine on H2** answers in the type H2 promotes the two columns to (run 2026-11-27): an Integer and a
+  Float column a Float; an Integer and a Decimal column a Decimal of scale 2 (the Integer 3 is printed `3.00`); a
+  Decimal and a Float column H2's decimal float.
+- **Lite at that door** matches the first. For an Integer against a Decimal column, and a Decimal against a Float
+  column, it keeps the winner's own type: the number is the same, its printed scale may not be.
+- Register S433.
+
+### 28. An equality with an empty side answers as Pure does, wherever it stands (the edition program, 2026-11-27)
+- **You write** `$x.nick == 'a'` where `nick` may hold no value, as a column, as a query's answer, inside another
+  expression, under `!`, in a `forAll`.
+- **legend-pure, and legend-engine's own Java** (outside any query sent to the database): false where one side is
+  empty, true where both are (run 2026-11-27).
+- **legend-engine inside a query sent to the database** writes the database's comparison: two plain nullable columns
+  are compared null-safe; with a computed side `==` gives no value for an empty side, and its negation is null-safe.
+- **Lite, on its own route and at legend-pure's door:** Pure's answer in every position. As a filter's, a join's or
+  an `if`'s condition the statement is as it was (there "no value" already means "no"); everywhere else the
+  comparison answers false for its empty side, and two empty sides are equal.
+- **Lite at legend-engine's door** answers as legend-engine does in each of its two places: no difference.
+- **What changed for lite's own answers:** a comparison kept as a value (a column, an operand, a window's column, a
+  counted value, a list lambda's result) no longer answers "no value"; `filter(r | !($r.nick == 'a' || $r.id == 7))`
+  keeps the row whose `nick` is empty; a `forAll` over rows no longer passes a row whose comparison had no value.
