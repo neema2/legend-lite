@@ -190,7 +190,7 @@ final class AssertRecords {
         return out;
     }
 
-    /** A tagged side's values ({@code VerdictSql.typedTagged}): each struct's value, the column its kind's index
+    /** A tagged side's values ({@code SideEqualities.tagged}): each struct's value, the column its kind's index
      *  ({@code k}) names. */
     private static List<Object> untagged(List<Object> structs) {
         List<Object> out = new java.util.ArrayList<>(structs.size());

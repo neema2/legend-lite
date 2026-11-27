@@ -3,8 +3,11 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.element.EqualityKeys;
+import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -326,7 +329,7 @@ public final class SideEqualities {
     /**
      * {@code assertContains}' TYPED member over instances of one class -- a model class's or a Pair's, each a struct
      * (item 3's S4, the last families): the collection's instances and the value's as rows of their typed leaves, as
-     * {@link #typedInstances} reads them (the host's {@code Equality}: the classifier, then the keys or the identity);
+     * {@link #instances} reads them (the host's {@code Equality}: the classifier, then the keys or the identity);
      * the verdict whether some instance's leaves are each {@code IS NOT DISTINCT FROM} the value's, under {@code want};
      * both sides' instances ride the failure whole, as the host's record writes them. Null where {@link
      * #typedInstances} has no reading.
@@ -748,7 +751,7 @@ public final class SideEqualities {
         return byType ? kind + "|" + type : kind;
     }
 
-    /** A side's values as kinded rows ({@link #typedTagged}): {@code k}, the index of its kind's key in
+    /** A side's values as kinded rows ({@link #tagged}): {@code k}, the index of its kind's key in
      *  {@code columns}, then {@code v0..vn} one per key, then {@code __rn}, numbered in the side's own order. A tagged
      *  side's tag names its slot; a typed side's every value is its one kind's. */
     static @com.legend.base.Nullable SqlQuery kindedRows(SqlQuery wrapped, Type kind,
@@ -990,7 +993,7 @@ public final class SideEqualities {
 
     /**
      * {@code assertContains} / {@code assertNotContains}' TYPED member over tagged values (item 3's S4, the audit of
-     * 946d16f2: a mixed list, an Any): each value its kind and its value ({@link #kindedRows}, as {@link #typedTagged}
+     * 946d16f2: a mixed list, an Any): each value its kind and its value ({@link #kindedRows}, as {@link #tagged}
      * compares them); the verdict whether some element has the value's kind and a value {@code IS NOT DISTINCT FROM} it,
      * under {@code want}; both sides' tagged values ride the failure ({@code Family.CONTAINS_TAGGED}). Null where a
      * side has no kinded reading.
@@ -1484,4 +1487,320 @@ public final class SideEqualities {
                 : List.of();
         return new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), by, null);
     }
+
+    /** Two sides of instances of one class carried as JSON documents' text (item 3's S4, the last families: a
+     *  metamodel's SetImplementation, a Table -- a graph's array of its root objects), each side its documents' root
+     *  elements, as the host reads a graph side ({@code Verdicts.decodeSideValues}): their texts compared -- one
+     *  serializer writes both, so one instance is one text -- in order or as a multiset; each side's elements ride the
+     *  failure as JSON, read as instances, as the host's record writes them. Null where a side has no value column. */
+    public static @com.legend.base.Nullable Compared instanceTexts(SqlQuery eWrapped, Type eKind,
+            SqlQuery aWrapped, Type aKind, boolean multiset) {
+        SqlQuery eRaw = documentTexts(eWrapped);
+        SqlQuery aRaw = documentTexts(aWrapped);
+        SqlQuery eRows = eRaw == null ? null : valueRows(eRaw);
+        SqlQuery aRows = aRaw == null ? null : valueRows(aRaw);
+        if (eRows == null || aRows == null) {
+            return null;
+        }
+        if (!multiset) {
+            // in order: the documents' texts in order, each document riding the failure whole, its root objects read
+            // where the record is built (Family.EQUALS_DOCUMENTS) -- no row per element, which every database spells
+            SqlQuery eList = listed("__xe", eRows);
+            SqlQuery aList = listed("__xa", aRows);
+            SqlQuery eDocs = listed("__de", jsonDocuments("__xe", eRows));
+            SqlQuery aDocs = listed("__da", jsonDocuments("__xa", aRows));
+            SqlExpr same = SqlExpr.Call.of(SqlFn.SAME_IN_ORDER, SqlExpr.Column.of("e", eList.outputs(), LISTED),
+                    SqlExpr.Column.of("a", aList.outputs(), LISTED), new SqlExpr.ScalarSubquery(cteRows("__xe", eRows)),
+                    new SqlExpr.ScalarSubquery(cteRows("__xa", aRows)));
+            return new Compared(List.of(new SqlWith.Cte("__xe", eRows), new SqlWith.Cte("__xa", aRows),
+                            new SqlWith.Cte("__de", jsonDocuments("__xe", eRows)),
+                            new SqlWith.Cte("__da", jsonDocuments("__xa", aRows))),
+                    cross(cross(cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a",
+                            null)), new SqlSource.Subselect(eDocs, "de", null)), new SqlSource.Subselect(aDocs, "da", null)),
+                    same, List.of(
+                            held("de", eDocs, eKind), held("da", aDocs, aKind)));
+        }
+        SqlQuery eEl = rootElements("__xe", eRows);
+        SqlQuery aEl = rootElements("__xa", aRows);
+        SqlQuery eTexts = elementTexts("__ee", eEl);
+        SqlQuery aTexts = elementTexts("__ea", aEl);
+        SqlQuery eList = listed("__te", eTexts);
+        SqlQuery aList = listed("__ta", aTexts);
+        SqlQuery eDocs = listed("__ee", eEl);
+        SqlQuery aDocs = listed("__ea", aEl);
+        SqlExpr same = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
+                SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
+                new SqlExpr.ScalarSubquery(cteRows("__te", eTexts)), new SqlExpr.ScalarSubquery(cteRows("__ta", aTexts)));
+        return new Compared(List.of(new SqlWith.Cte("__xe", eRows), new SqlWith.Cte("__xa", aRows),
+                        new SqlWith.Cte("__ee", eEl), new SqlWith.Cte("__ea", aEl),
+                        new SqlWith.Cte("__te", eTexts), new SqlWith.Cte("__ta", aTexts)),
+                cross(cross(cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a", null)),
+                        new SqlSource.Subselect(eDocs, "de", null)), new SqlSource.Subselect(aDocs, "da", null)),
+                same, List.of(
+                        held("de", eDocs, eKind), held("da", aDocs, aKind)));
+    }
+
+    /** A side's document texts ({@code rows}, read as {@code cte}) each as its JSON document, in order. */
+    static SqlQuery jsonDocuments(String cte, SqlQuery rows) {
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.JSON, false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", rows.outputs(), O),
+                SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
+                rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, "t", rows.outputs(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
+                List.of(oOut, rnOut));
+    }
+
+    /** A side's documents ({@code rows}, read as {@code cte}) as their root arrays' elements, each JSON, in order. */
+    static SqlQuery rootElements(String cte, SqlQuery rows) {
+        OutputCol vOut = new OutputCol("value", SqlType.Scalar.JSON, true);
+        SqlSelect elements = CollectionRelations.rows(SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, new SqlExpr.Cast(
+                SqlExpr.Column.of("t", rows.outputs(), O), SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE)), "value", vOut,
+                List.of(vOut), new SqlSource.Table(cte, "t", rows.outputs(), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE));
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.JSON, false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("w", List.of(vOut), "value"), O, oOut),
+                new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                        List.of(), List.of(), null), RN, rnOut)), false, new SqlSource.Subselect(elements, "w", null),
+                null, List.of(), null, null, List.of(), null, null, List.of(oOut, rnOut));
+    }
+
+    /** Elements' rows ({@code rows}, read as {@code cte}) each as its JSON text, in order. */
+    static SqlQuery elementTexts(String cte, SqlQuery rows) {
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.VARCHAR, false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", rows.outputs(), O),
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
+                rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, "t", rows.outputs(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
+                List.of(oOut, rnOut));
+    }
+
+    /** {@code wrapped}'s first column as its text, in the side's own order. */
+    static @com.legend.base.Nullable SqlQuery documentTexts(SqlQuery wrapped) {
+        if (wrapped.outputs().isEmpty()) {
+            return null;
+        }
+        OutputCol out = new OutputCol("value", SqlType.Scalar.VARCHAR, true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("w", wrapped.outputs(),
+                wrapped.outputs().get(0).name()), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), "value", out)), false,
+                new SqlSource.Subselect(wrapped, "w", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(out));
+    }
+
+    /**
+     * HOW TWO SIDES COMPARE ({@link #pair}): the kinds each side's values are compared as and the form of the
+     * comparison -- typed values; dates, by kind and instant; the same only where both are empty (an empty side, two
+     * kinds never equal, a Variant against another type); tagged values, each its kind and its value; instances of one
+     * class, each a row of its typed leaves ({@code keys}, or its identity where it has none); lists and maps; instances
+     * carried as their JSON documents.
+     */
+    public record Pair(Type e, Type a, Form form, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
+        /** The form of a pair's comparison. */
+        public enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES, COLLECTIONS, INSTANCE_TEXTS }
+
+        Pair(Type e, Type a, Form form) {
+            this(e, a, form, null);
+        }
+
+        /** Whether the pair's two typed kinds differ (two kinds never equal, register S127): decided by their kinds,
+         *  the same only where both are empty, whatever channel carries them. */
+        public boolean kindsDiffer() {
+            return form == Form.VALUES && !e.equals(a)
+                    // a Variant against values of another type (register S401): the same only where both are empty
+                    || form == Form.EMPTY_ONLY && (PlatformTypes.isVariant(e) || PlatformTypes.isVariant(a));
+        }
+
+        /** The pair's comparison over its two sides' plans, in order or as a multiset; null where a side's values
+         *  have no typed column. */
+        public @com.legend.base.Nullable Compared compared(SqlQuery ePlan, SqlQuery aPlan, boolean multiset) {
+            return switch (form) {
+                case TAGGED -> tagged(ePlan, e, aPlan, a, multiset);
+                case INSTANCES -> instances(ePlan, e, aPlan, a, keys, multiset);
+                case COLLECTIONS -> collections(ePlan, e, aPlan, a, multiset);
+                case VALUES, DATES, EMPTY_ONLY -> values(ePlan, e, aPlan, a, multiset, form == Form.EMPTY_ONLY);
+                case INSTANCE_TEXTS -> instanceTexts(ePlan, e, aPlan, a, multiset);
+            };
+        }
+    }
+
+    /** How the two sides of an equality compare: each side's typed class (two number kinds then the same only where
+     *  both are empty, register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair has no
+     *  typed comparison (the caller refuses it by name). A Decimal literal is typed: its written scale rides its SQL
+     *  type. */
+    public static @com.legend.base.Nullable Pair pair(TypedSpec eSpec, Type eKind, SqlQuery ePlan, TypedSpec aSpec,
+            Type aKind, SqlQuery aPlan, ModelContext ctx) {
+        // a Variant among a side's values (a mixed collection's member too): register S401's refusal where only
+        // identity decides, before any other form reads the pair
+        refuseIdentityOnly(eSpec, aSpec);
+        // a side declared Any is a Variant only where the plan sees one under its casts ({@code VariantEquality.sideType}); its JSON
+        // carrier cannot tell a Variant from the value it holds (the audit of 8477c703: an Integer cast to Any had been
+        // read as a Variant, and two Variants cast to Any raised at run)
+        Type eSide = PlatformTypes.isAny(eSpec.info().type()) ? com.legend.compiler.spec.typed.VariantEquality.sideType(eSpec) : eKind;
+        Type aSide = PlatformTypes.isAny(aSpec.info().type()) ? com.legend.compiler.spec.typed.VariantEquality.sideType(aSpec) : aKind;
+        if (PlatformTypes.isVariant(eSide) || PlatformTypes.isVariant(aSide)) {
+            // register S401 (ruled by the user 2026-11-23): two whole Variants, or a Variant and an Any the plan cannot
+            // see, refused by name (refuseIdentityOnly); a Variant against a value of any other type is not equal, as
+            // in Pure -- the two the same only where both are empty ({@link #values}), its values riding the
+            // record as carried
+            refuseIdentityOnly(eSpec, aSpec);
+            return new Pair(eSide, aSide, Pair.Form.EMPTY_ONLY);
+        }
+        boolean eMixed = carriesKinds(ePlan) || writtenDate(eKind, ePlan) || jsonCarried(ePlan);
+        boolean aMixed = carriesKinds(aPlan) || writtenDate(aKind, aPlan) || jsonCarried(aPlan);
+        if (eMixed || aMixed) {
+            // a value whose kind the database decides among candidates (a Number's max, a mixed list), or a Date
+            // written as its text (a partial date, a Date the egress writes): each value its kind and its value,
+            // against a side of one typed class or another such side ({@link #tagged})
+            return (eMixed || sideKind(eSpec, eKind, ePlan) != null) && (aMixed || sideKind(aSpec, aKind, aPlan) != null)
+                    ? new Pair(eKind, aKind, Pair.Form.TAGGED) : null;
+        }
+        if (PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind)) {
+            // an empty side (Nil, the empty collection's kind): the two the same only where both are empty, the other
+            // side's values typed by its own kind for the record
+            Type e = PlatformTypes.isNil(eKind) ? eKind : emptyKind(eKind, ePlan) != null ? eKind
+                    : sideKind(eSpec, eKind, ePlan);
+            Type a = PlatformTypes.isNil(aKind) ? aKind : emptyKind(aKind, aPlan) != null ? aKind
+                    : sideKind(aSpec, aKind, aPlan);
+            return e == null || a == null ? null : new Pair(e, a, Pair.Form.EMPTY_ONLY);
+        }
+        Type e = dateKind(eSpec, eKind, ePlan);
+        Type a = dateKind(aSpec, aKind, aPlan);
+        if (e != null && a != null) {
+            // a date literal's side rides the literal channel (its written text), its value column still the
+            // database's DATE or TIMESTAMP, which the pair compares (S399)
+            return new Pair(e, a, Pair.Form.DATES);
+        }
+        e = typedClass(eKind);
+        a = typedClass(aKind);
+        if (e != null && a != null) {
+            return new Pair(e, a, Pair.Form.VALUES);
+        }
+        String ef = EqualityKeys.fqnOf(eSpec.info().type());
+        if (named(ePlan) && named(aPlan) && ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
+                && !PlatformTypes.isAny(eSpec.info().type()) && !ctx.isSubtype(ef, PACKAGEABLE)) {
+            // instances of one class carried as their JSON documents' text (a metamodel's SetImplementation, a Table):
+            // the documents compared as texts, recorded as documents (item 3's S4, the last families)
+            return new Pair(eSpec.info().type(), aSpec.info().type(), Pair.Form.INSTANCE_TEXTS);
+        }
+        if (named(ePlan) && named(aPlan) && EqualityKeys.fqnOf(eKind) instanceof String ek
+                && ek.equals(EqualityKeys.fqnOf(aKind))) {
+            // a packageable element carried by its path (a Mapping, a class reference of either class): its path
+            // compared, a String; one kind for both, the metaclass they share -- Class<p::Q> and Class<Any> are two
+            // views of one reference, never kinds that differ (the audit of 3f2fe452)
+            return new Pair(eKind, eKind, Pair.Form.VALUES);
+        }
+        if (collection(ePlan) && collection(aPlan)) {
+            // nested lists and maps: each value as its database holds it ({@link #collections})
+            return new Pair(eKind, aKind, Pair.Form.COLLECTIONS);
+        }
+        // instances of ONE class -- a model class's or a Pair's -- its keys read here, at planning (a subtype pair
+        // restricts by the classifiers its run carries, which the host reads)
+        return ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
+                ? new Pair(eKind, aKind, Pair.Form.INSTANCES, variantKeysRefused(EqualityKeys.resolve(ctx,
+                        eSpec.info().type())))
+                : null;
+    }
+
+    /** The kind an emptiness assert's typed member lists a side's values as (item 3's S4): its typed class, or, where
+     *  its values are carried as a struct, a map, a list or a JSON document (an instance, a Pair, a Map, a nested
+     *  list, an Any), its own kind -- whether a side is empty is a fact of its rows whatever their type, its values
+     *  riding the failure as the host's reader reads them; null where its plan types no value column (a tagged value
+     *  lists its kinds' values: its own member). */
+    public static @com.legend.base.Nullable Type emptyKind(@com.legend.base.Nullable Type kind, SqlQuery plan) {
+        Type typed = typedClass(kind);
+        if (typed != null || kind == null || plan.outputs().isEmpty()) {
+            return typed;
+        }
+        // any carrier the plan types: a struct, a map, a list, JSON, or a scalar of a kind of its own (an Any-typed side
+        // whose values one SQL type holds); never a tagged value's tag (its kinds' values: its own member)
+        SqlType t = plan.outputs().get(0).type();
+        return t instanceof SqlType.Tagged ? null : kind;
+    }
+
+    /** Whether a side of a class's kind carries each value as a text (a packageable element by its path). */
+    static boolean named(SqlQuery plan) {
+        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() == SqlType.Scalar.VARCHAR;
+    }
+
+    /** Whether a side's values are lists or maps (a nested List, a Map). */
+    static boolean collection(SqlQuery plan) {
+        return !plan.outputs().isEmpty() && (plan.outputs().get(0).type() instanceof SqlType.Array
+                || plan.outputs().get(0).type() instanceof SqlType.Map);
+    }
+
+    /** Whether a side's values are carried as JSON (an Any): each its JSON kind's value ({@link #tagged}). */
+    static boolean jsonCarried(SqlQuery plan) {
+        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() == SqlType.Scalar.JSON;
+    }
+
+    /** Whether a side's plan carries a tagged value (its first column a {@code SqlType.Tagged}: the kind the
+     *  database decided among candidates). */
+    static boolean carriesKinds(SqlQuery plan) {
+        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() instanceof SqlType.Tagged;
+    }
+
+    /** A side's typed kind: its date kind ({@link #dateKind}), else its typed class; null where it has neither. */
+    static @com.legend.base.Nullable Type sideKind(TypedSpec spec, Type kind, SqlQuery plan) {
+        Type d = dateKind(spec, kind, plan);
+        return d != null ? d : typedClass(kind);
+    }
+
+    /** A date side's kind under register S399 (the user's ruling of 2026-11-22: the product compares a date by its
+     *  kind and its instant, the database comparing): a literal's own -- a day a StrictDate, a date-time of any written
+     *  precision a DateTime, a partial date none (its written text the tagged form's) --, a StrictDate's or DateTime's side
+     *  its own, a {@code Date} side's by its column's SQL type (a DATE holds days, a TIMESTAMP date-times); null for any
+     *  other side. A fact of the types, fixed at planning. */
+    static @com.legend.base.Nullable Type dateKind(TypedSpec spec, Type kind, SqlQuery plan) {
+        if (spec instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+            return d.value() instanceof com.legend.values.PureDateLiteral.StrictDate ? Type.Primitive.STRICT_DATE
+                    : d.value().precision().atLeast(com.legend.values.PureDateLiteral.Precision.HOUR)
+                            ? Type.Primitive.DATE_TIME : null;
+        }
+        if (kind == Type.Primitive.STRICT_DATE || kind == Type.Primitive.DATE_TIME) {
+            return kind;
+        }
+        if (kind != Type.Primitive.DATE || plan.outputs().isEmpty()) {
+            return null;
+        }
+        SqlType sql = plan.outputs().get(0).type();
+        return sql == SqlType.Scalar.DATE ? Type.Primitive.STRICT_DATE
+                : sql == SqlType.Scalar.TIMESTAMP || sql == SqlType.Scalar.TIMESTAMPTZ
+                        ? Type.Primitive.DATE_TIME : null;
+    }
+
+    /** Register S401 (ruled by the user 2026-11-23): an equality only identity decides -- two whole Variants, a
+     *  Variant and an Any the plan cannot see, or a Variant among values of other types -- refused by name at planning,
+     *  under both judges alike, as the product refuses it ({@code VariantEquality.between}, which reads a side through
+     *  its casts and its collection literal's members). */
+    public static com.legend.compiler.spec.typed.VariantEquality.Verdict refuseIdentityOnly(TypedSpec e, TypedSpec a) {
+        refuseMixedDays(e, a);
+        return com.legend.compiler.spec.typed.VariantEquality.between(e, a);
+    }
+
+    /** Register S399 (a day is never a date-time): a side whose values hold both days and date-times (a list literal,
+     *  read through a map, a filter or an if as {@code VariantEquality.dateKinds} reads it, never a function's arguments) reaches the
+     *  database as one kind (DuckDB's and H2's arrays hold one type), so neither judge can tell its days apart --
+     *  refused by name at planning, under both judges alike (the final audit of c758fe95, 2026-11-23: the host had
+     *  called a day contained in such a list; the narrow review of f9e74256: a list read through a map had escaped).
+     *  A list bound by a let reaches the judges as a variable, unread: a recorded gap (S399). */
+    public static void refuseMixedDays(TypedSpec... sides) {
+        for (TypedSpec s : sides) {
+            java.util.Set<Type> kinds = com.legend.compiler.spec.typed.VariantEquality.dateKinds(s);
+            if (kinds.contains(Type.Primitive.STRICT_DATE) && kinds.contains(Type.Primitive.DATE_TIME)) {
+                throw new com.legend.error.NotImplementedException("values holding both days and date-times are not"
+                        + " compared: the database carries them as one kind, so their days cannot be told apart (register"
+                        + " S399); compare the days and the date-times apart");
+            }
+        }
+    }
+
+    /** {@code k}, after register S401's refusal of a key declared Variant. */
+    static @com.legend.base.Nullable EqualityKeys variantKeysRefused(@com.legend.base.Nullable EqualityKeys k) {
+        com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(k);
+        return k;
+    }
+
+    static final String PACKAGEABLE = "meta::pure::metamodel::PackageableElement";
 }

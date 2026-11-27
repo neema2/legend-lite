@@ -95,7 +95,7 @@ public final class VerdictSql {
     /** A comparison the product's equality made over two sides ({@link SideEqualities.Compared}) as a typed member's
      *  row: the comparison under the assert's polarity ({@code want}: the sides are to be the same), each side's
      *  values written where the verdict fails. Null where the sides have no typed comparison. */
-    private static @com.legend.base.Nullable TypedRow verdict(SideEqualities.@com.legend.base.Nullable Compared compared,
+    public static @com.legend.base.Nullable TypedRow typed(SideEqualities.@com.legend.base.Nullable Compared compared,
             boolean want) {
         if (compared == null) {
             return null;
@@ -109,70 +109,44 @@ public final class VerdictSql {
                 : SqlExpr.Call.of(SqlFn.NOT, compared.same()), values);
     }
 
-    /** {@code assertEquals}'s and {@code assertSameElements}' member over two sides of typed values
-     *  ({@link SideEqualities#values}). */
-    public static @com.legend.base.Nullable TypedRow typedEquals(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
-            Type aKind, boolean multiset, boolean wantEqual, boolean emptyOnly) {
-        return verdict(SideEqualities.values(eWrapped, eKind, aWrapped, aKind, multiset, emptyOnly), wantEqual);
-    }
-
-    /** The same over two sides of lists or maps ({@link SideEqualities#collections}). */
-    public static @com.legend.base.Nullable TypedRow typedCollections(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
-            Type aKind, boolean multiset, boolean wantEqual) {
-        return verdict(SideEqualities.collections(eWrapped, eKind, aWrapped, aKind, multiset), wantEqual);
-    }
-
-    /** The same where a side's values carry their kinds ({@link SideEqualities#tagged}). */
-    public static @com.legend.base.Nullable TypedRow typedTagged(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
-            Type aKind, boolean multiset, boolean wantEqual) {
-        return verdict(SideEqualities.tagged(eWrapped, eKind, aWrapped, aKind, multiset), wantEqual);
-    }
-
-    /** The same over two sides of instances of one class ({@link SideEqualities#instances}). */
-    public static @com.legend.base.Nullable TypedRow typedInstances(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
-            Type aKind, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys, boolean multiset,
-            boolean wantEqual) {
-        return verdict(SideEqualities.instances(eWrapped, eKind, aWrapped, aKind, keys, multiset), wantEqual);
-    }
-
     /** {@code assertContains}'s member over instances of one class ({@link SideEqualities#containsInstances}). */
     public static @com.legend.base.Nullable TypedRow typedContainsInstances(SqlQuery collWrapped, Type collKind,
             SqlQuery valWrapped, Type valKind, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys,
             boolean want) {
-        return verdict(SideEqualities.containsInstances(collWrapped, collKind, valWrapped, valKind, keys), want);
+        return typed(SideEqualities.containsInstances(collWrapped, collKind, valWrapped, valKind, keys), want);
     }
 
     /** {@code assertContains}'s member where the values carry their kinds ({@link SideEqualities#containsTagged}). */
     public static @com.legend.base.Nullable TypedRow typedContainsTagged(SqlQuery collWrapped, Type collKind,
             SqlQuery valWrapped, Type valKind, boolean want) {
-        return verdict(SideEqualities.containsTagged(collWrapped, collKind, valWrapped, valKind), want);
+        return typed(SideEqualities.containsTagged(collWrapped, collKind, valWrapped, valKind), want);
     }
 
     /** {@code assertContains}'s member over typed values ({@link SideEqualities#contains}). */
     public static @com.legend.base.Nullable TypedRow typedContains(SqlQuery collWrapped, Type collKind,
             SqlQuery valWrapped, Type valKind, boolean want) {
-        return verdict(SideEqualities.contains(collWrapped, collKind, valWrapped, valKind), want);
+        return typed(SideEqualities.contains(collWrapped, collKind, valWrapped, valKind), want);
     }
 
     /** A condition's {@code $need->forAll(n | $have->contains($n))} fold ({@link SideEqualities#subset}); its record
      *  the condition's, fixed at planning. */
     public static @com.legend.base.Nullable TypedRow typedSubset(SqlQuery needWrapped, SqlQuery haveWrapped,
             Type kind, boolean wantTrue) {
-        return verdict(SideEqualities.subset(needWrapped, haveWrapped, kind), wantTrue);
+        return typed(SideEqualities.subset(needWrapped, haveWrapped, kind), wantTrue);
     }
 
     /** A quantified equality judged element by element ({@link SideEqualities#perElement}): where an element fails,
      *  the first failing one's two operands and its index ride the failure. */
     public static @com.legend.base.Nullable TypedRow typedPerElement(SqlQuery pairs, Type expectedKind,
             Type actualKind, boolean neverEqual) {
-        return verdict(SideEqualities.perElement(pairs, expectedKind, actualKind, neverEqual), true);
+        return typed(SideEqualities.perElement(pairs, expectedKind, actualKind, neverEqual), true);
     }
 
     /** {@code assertEquals} and {@code assertNotEquals} over two tables ({@link SideEqualities#grids}). */
     public static @com.legend.base.Nullable TypedRow typedGridPair(SideEqualities.GridSide e, List<Type> eKinds,
             SideEqualities.GridSide a, List<Type> aKinds, boolean multiset, boolean wantEqual, boolean schemasDiffer,
             Type eRows, Type aRows) {
-        return verdict(SideEqualities.grids(e, eKinds, a, aKinds, multiset, schemasDiffer, eRows, aRows), wantEqual);
+        return typed(SideEqualities.grids(e, eKinds, a, aKinds, multiset, schemasDiffer, eRows, aRows), wantEqual);
     }
 
 
@@ -246,12 +220,12 @@ public final class VerdictSql {
      *  host reads a graph side ({@code Family.EMPTY_GRAPH}; no row per element, which every database spells). Null where
      *  the graph's plan has no value column. */
     public static @com.legend.base.Nullable TypedRow typedEmptyGraph(SqlQuery graphPlan, Type kind) {
-        SqlQuery raw = documentTexts(graphPlan);
+        SqlQuery raw = SideEqualities.documentTexts(graphPlan);
         SqlQuery rows = raw == null ? null : SideEqualities.valueRows(raw);
         if (rows == null) {
             return null;
         }
-        SqlQuery docs = jsonDocuments("__xg", rows);
+        SqlQuery docs = SideEqualities.jsonDocuments("__xg", rows);
         SqlQuery list = SideEqualities.listed("__dg", docs);
         return typedRow(List.of(new SqlWith.Cte("__xg", rows), new SqlWith.Cte("__dg", docs)),
                 new SqlSource.Subselect(list, "a", null), SqlExpr.Call.of(SqlFn.EQUAL, graphCount(graphPlan),
@@ -382,95 +356,6 @@ public final class VerdictSql {
                         new SqlExpr.StringLit(type), SqlType.Scalar.VARCHAR, Type.Primitive.STRING, false)));
     }
 
-    /** Two sides of instances of one class carried as JSON documents' text (item 3's S4, the last families: a
-     *  metamodel's SetImplementation, a Table -- a graph's array of its root objects), each side its documents' root
-     *  elements, as the host reads a graph side ({@code Verdicts.decodeSideValues}): their texts compared -- one
-     *  serializer writes both, so one instance is one text -- in order or as a multiset; each side's elements ride the
-     *  failure as JSON, read as instances, as the host's record writes them. Null where a side has no value column. */
-    public static @com.legend.base.Nullable TypedRow typedInstanceTexts(SqlQuery eWrapped, Type eKind,
-            SqlQuery aWrapped, Type aKind, boolean multiset, boolean wantEqual) {
-        SqlQuery eRaw = documentTexts(eWrapped);
-        SqlQuery aRaw = documentTexts(aWrapped);
-        SqlQuery eRows = eRaw == null ? null : SideEqualities.valueRows(eRaw);
-        SqlQuery aRows = aRaw == null ? null : SideEqualities.valueRows(aRaw);
-        if (eRows == null || aRows == null) {
-            return null;
-        }
-        if (!multiset) {
-            // in order: the documents' texts in order, each document riding the failure whole, its root objects read
-            // where the record is built (Family.EQUALS_DOCUMENTS) -- no row per element, which every database spells
-            SqlQuery eList = SideEqualities.listed("__xe", eRows);
-            SqlQuery aList = SideEqualities.listed("__xa", aRows);
-            SqlQuery eDocs = SideEqualities.listed("__de", jsonDocuments("__xe", eRows));
-            SqlQuery aDocs = SideEqualities.listed("__da", jsonDocuments("__xa", aRows));
-            SqlExpr same = SqlExpr.Call.of(SqlFn.SAME_IN_ORDER, SqlExpr.Column.of("e", eList.outputs(), LISTED),
-                    SqlExpr.Column.of("a", aList.outputs(), LISTED), new SqlExpr.ScalarSubquery(SideEqualities.cteRows("__xe", eRows)),
-                    new SqlExpr.ScalarSubquery(SideEqualities.cteRows("__xa", aRows)));
-            return typedRow(List.of(new SqlWith.Cte("__xe", eRows), new SqlWith.Cte("__xa", aRows),
-                            new SqlWith.Cte("__de", jsonDocuments("__xe", eRows)),
-                            new SqlWith.Cte("__da", jsonDocuments("__xa", aRows))),
-                    SideEqualities.cross(SideEqualities.cross(SideEqualities.cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a",
-                            null)), new SqlSource.Subselect(eDocs, "de", null)), new SqlSource.Subselect(aDocs, "da", null)),
-                    wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
-                            listValue(TYPED_EXPECTED, "de", eDocs, eKind), listValue(TYPED_ACTUAL, "da", aDocs, aKind)));
-        }
-        SqlQuery eEl = rootElements("__xe", eRows);
-        SqlQuery aEl = rootElements("__xa", aRows);
-        SqlQuery eTexts = elementTexts("__ee", eEl);
-        SqlQuery aTexts = elementTexts("__ea", aEl);
-        SqlQuery eList = SideEqualities.listed("__te", eTexts);
-        SqlQuery aList = SideEqualities.listed("__ta", aTexts);
-        SqlQuery eDocs = SideEqualities.listed("__ee", eEl);
-        SqlQuery aDocs = SideEqualities.listed("__ea", aEl);
-        SqlExpr same = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
-                SqlExpr.Column.of("e", eList.outputs(), LISTED), SqlExpr.Column.of("a", aList.outputs(), LISTED),
-                new SqlExpr.ScalarSubquery(SideEqualities.cteRows("__te", eTexts)), new SqlExpr.ScalarSubquery(SideEqualities.cteRows("__ta", aTexts)));
-        return typedRow(List.of(new SqlWith.Cte("__xe", eRows), new SqlWith.Cte("__xa", aRows),
-                        new SqlWith.Cte("__ee", eEl), new SqlWith.Cte("__ea", aEl),
-                        new SqlWith.Cte("__te", eTexts), new SqlWith.Cte("__ta", aTexts)),
-                SideEqualities.cross(SideEqualities.cross(SideEqualities.cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a", null)),
-                        new SqlSource.Subselect(eDocs, "de", null)), new SqlSource.Subselect(aDocs, "da", null)),
-                wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
-                        listValue(TYPED_EXPECTED, "de", eDocs, eKind), listValue(TYPED_ACTUAL, "da", aDocs, aKind)));
-    }
-
-    /** A side's document texts ({@code rows}, read as {@code cte}) each as its JSON document, in order. */
-    private static SqlQuery jsonDocuments(String cte, SqlQuery rows) {
-        OutputCol oOut = new OutputCol(O, SqlType.Scalar.JSON, false);
-        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", rows.outputs(), O),
-                SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
-                rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, "t", rows.outputs(), false,
-                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
-                List.of(oOut, rnOut));
-    }
-
-    /** A side's documents ({@code rows}, read as {@code cte}) as their root arrays' elements, each JSON, in order. */
-    private static SqlQuery rootElements(String cte, SqlQuery rows) {
-        OutputCol vOut = new OutputCol("value", SqlType.Scalar.JSON, true);
-        SqlSelect elements = CollectionRelations.rows(SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, new SqlExpr.Cast(
-                SqlExpr.Column.of("t", rows.outputs(), O), SqlType.Scalar.JSON, SqlExpr.Reason.JUDGE)), "value", vOut,
-                List.of(vOut), new SqlSource.Table(cte, "t", rows.outputs(), false, java.util.Map.of(),
-                        com.legend.sql.NameQuoting.BARE));
-        OutputCol oOut = new OutputCol(O, SqlType.Scalar.JSON, false);
-        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("w", List.of(vOut), "value"), O, oOut),
-                new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                        List.of(), List.of(), null), RN, rnOut)), false, new SqlSource.Subselect(elements, "w", null),
-                null, List.of(), null, null, List.of(), null, null, List.of(oOut, rnOut));
-    }
-
-    /** Elements' rows ({@code rows}, read as {@code cte}) each as its JSON text, in order. */
-    private static SqlQuery elementTexts(String cte, SqlQuery rows) {
-        OutputCol oOut = new OutputCol(O, SqlType.Scalar.VARCHAR, false);
-        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", rows.outputs(), O),
-                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
-                rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, "t", rows.outputs(), false,
-                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
-                List.of(oOut, rnOut));
-    }
-
     /** A grid's column {@code column} as a side of its values, in the grid's own order (item 3's S4: a one-column grid
      *  against a list). */
     public static @com.legend.base.Nullable SqlQuery gridColumn(SqlQuery grid, String column) {
@@ -523,18 +408,6 @@ public final class VerdictSql {
         int[] next = {0};
         SqlExpr.TaggedList cells = ValueCollections.rowMajorTaggedList(rel, schema, () -> "__gc" + next[0]++);
         return cells == null ? null : TaggedLists.root(cells, true, "__gc" + next[0]++);
-    }
-
-    /** {@code wrapped}'s first column as its text, in the side's own order. */
-    private static @com.legend.base.Nullable SqlQuery documentTexts(SqlQuery wrapped) {
-        if (wrapped.outputs().isEmpty()) {
-            return null;
-        }
-        OutputCol out = new OutputCol("value", SqlType.Scalar.VARCHAR, true);
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("w", wrapped.outputs(),
-                wrapped.outputs().get(0).name()), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), "value", out)), false,
-                new SqlSource.Subselect(wrapped, "w", null), null, List.of(), null, null, List.of(), null, null,
-                List.of(out));
     }
 
     /**

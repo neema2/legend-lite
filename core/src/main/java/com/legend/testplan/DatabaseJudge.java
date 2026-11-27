@@ -191,7 +191,7 @@ public final class DatabaseJudge {
         JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, re.kinds().get(ie), java.util.Objects.requireNonNull(we)
                 .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan(), env.ctx());
         if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny)
-                || tp.form() == JudgmentFacts.TypedPair.Form.INSTANCE_TEXTS || tp.kindsDiffer()
+                || tp.instanceTexts() || tp.kindsDiffer()
                 || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))) {
             com.legend.lowering.VerdictSql.TypedRow typed = tp.row(we.plan(), wa.plan(), canonicalOrder, wantEqual);
             if (typed != null) {
@@ -448,7 +448,7 @@ public final class DatabaseJudge {
         // the elements recorded by their kind where the side's canon names one primitive kind
         com.legend.lowering.CanonRider r = side.rider();
         // (a side the types say is empty -- Nil, an empty literal's kind on its literal channel alone -- its own kind)
-        if (sw.shape() != com.legend.plan.ResultShape.GRAPH && r != null && !r.tdsWrapped() && JudgmentFacts.emptyKind(
+        if (sw.shape() != com.legend.plan.ResultShape.GRAPH && r != null && !r.tdsWrapped() && com.legend.lowering.SideEqualities.emptyKind(
                 r.kinds().isEmpty() ? arg.info().type() : r.kinds().stream().allMatch(
                 com.legend.compiler.element.type.PlatformTypes::isNil) ? r.kinds().get(0) : oneKind(r), sw.plan())
                 instanceof com.legend.compiler.element.type.Type rk) {
