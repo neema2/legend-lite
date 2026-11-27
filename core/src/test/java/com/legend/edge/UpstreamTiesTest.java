@@ -462,10 +462,13 @@ class UpstreamTiesTest {
     void anIntegerAndAFloatColumnsExtremeIsAFloatAtLegendEnginesApi() {
         String max = "|#>{s::DB.T}#->extend(~m: r | max($r.I->toOne(), $r.F->toOne()))->select(~[m])->from(s::RT)";
         String min = "|#>{s::DB.T}#->extend(~m: r | min($r.F->toOne(), $r.I->toOne()))->select(~[m])->from(s::RT)";
+        // (the platform's database spells the two functions in lower case)
         String engines = sql(Door.LEGEND_ENGINE, PureText.PURE_V1, max);
-        assertTrue(engines.contains("GREATEST(CAST(") && engines.contains("AS DOUBLE)"), engines);
+        assertTrue(engines.contains("greatest(CAST(t0.I AS DOUBLE), t0.F)"), engines);
         String least = sql(Door.LEGEND_ENGINE, PureText.PURE_V1, min);
-        assertTrue(least.contains("LEAST(") && least.contains("AS DOUBLE)"), least);
+        assertTrue(least.contains("least(t0.F, CAST(t0.I AS DOUBLE))"), least);
+        // legend-engine's PCT door tells no inside from outside: the winner keeps its type there, as before
+        assertFalse(sql(Door.LEGEND_ENGINE_PCT, PureText.ENGINE_PCT, max).contains("AS DOUBLE)"));
         // a written tie outside any store query keeps the winner's type there (ARGUMENTS holds its answer)
         assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, "|max(3, 3.0)").contains("AS DOUBLE)"));
         // two columns of one type: the call's own rule, no conversion
