@@ -86,9 +86,9 @@ class RunTimeComparisonTest {
         out.put("|x::amongFloats(2)", false);
         out.put("|x::isOneAndAHalf(1.5)", true);
         out.put("|x::isOneAndAHalf(1)", false);
-        // a position among values of another type: none
+        // a position among values of another type: none (answered by the types, so on every database; a position
+        // among values of the value's own type is the database's list position, which not every database here has)
         out.put("|x::whereIn(1.0, [1, 2])", -1L);
-        out.put("|x::whereIn(2, [1, 2])", 1L);
         return out;
     }
 
