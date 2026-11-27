@@ -45,11 +45,16 @@ def main(out):
             .setdefault(r['database'], collections.OrderedDict())[place] = (value(r), r)
     dbs = sorted({r['database'] for r in rows})
     counts = {d: collections.Counter() for d in dbs}
+    # a place the database cannot answer even for `1 == 1` is that database's gap, whatever is compared: set apart,
+    # so a comparison is not counted for it
+    simplest = next(iter(by.values()))
+    missing = {d: {place: v for place, (v, _) in simplest.get(d, {}).items() if v not in ('T', 'F')} for d in dbs}
     lines = []
     for (name, left, right), per_db in by.items():
         entry = []
         for d in dbs:
-            got = per_db.get(d, {})
+            got = collections.OrderedDict((place, x) for place, x in per_db.get(d, {}).items()
+                                          if place not in missing[d])
             values = {v for v, _ in got.values()}
             answers = values & {'T', 'F'}
             if len(answers) == 2:
@@ -79,7 +84,7 @@ def main(out):
         places = collections.OrderedDict()
         for d, got in per_db.items():
             for place, (v, _) in got.items():
-                if v in ('T', 'F'):
+                if v in ('T', 'F') and place not in missing[d]:
                     places.setdefault(place, {})[d] = v
         differing = ['%s (%s)' % (p, ', '.join('%s %s' % kv for kv in sorted(a.items())))
                      for p, a in places.items() if len(set(a.values())) > 1]
@@ -94,9 +99,12 @@ def main(out):
         w.write('| database | ' + ' | '.join(kinds) + ' |\n|---|' + '---|' * len(kinds) + '\n')
         for d in dbs:
             w.write('| %s | %s |\n' % (d, ' | '.join(str(counts[d][k]) for k in kinds)))
+        w.write('\n## Places a database cannot answer even for `1 == 1` (left out of the counts above)\n\n')
+        for d in dbs:
+            w.write('- %s: %s\n' % (d, ', '.join('%s (%s)' % kv for kv in missing[d].items()) or 'none'))
         w.write('\n## Comparisons whose answer depends on where they stand\n\n' + '\n'.join(lines) + '\n')
         w.write('\n## One place, two databases, two answers\n\n' + ('\n'.join(across) if across else 'none') + '\n')
-    print(open(out + '/positions.md', encoding='utf-8').read()[:6000])
+    print(open(out + '/positions.md', encoding='utf-8').read()[:1500])
 
 
 if __name__ == '__main__':

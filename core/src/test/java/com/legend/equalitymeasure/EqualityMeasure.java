@@ -223,29 +223,31 @@ public final class EqualityMeasure {
     private static final String ONE_ROW = "#TDS\n id\n 1\n#";
 
     private static List<Position> positionList() {
+        // (each side in parentheses: `1 + 1 == 2` is read as `1 + (1 == 2)`)
+        java.util.function.BinaryOperator<String> eq = (l, r) -> "(" + l + ") == (" + r + ")";
         return List.of(
-                new Position("statement", false, false, (l, r) -> "{|" + l + " == " + r + "}"),
-                new Position("not", true, false, (l, r) -> "{|!(" + l + " == " + r + ")}"),
-                new Position("if", false, false, (l, r) -> "{|if(" + l + " == " + r + ", |true, |false)}"),
-                new Position("and", false, false, (l, r) -> "{|(" + l + " == " + r + ") && true}"),
-                new Position("or", false, false, (l, r) -> "{|(" + l + " == " + r + ") || false}"),
+                new Position("statement", false, false, (l, r) -> "{|" + eq.apply(l, r) + "}"),
+                new Position("not", true, false, (l, r) -> "{|!(" + eq.apply(l, r) + ")}"),
+                new Position("if", false, false, (l, r) -> "{|if(" + eq.apply(l, r) + ", |true, |false)}"),
+                new Position("and", false, false, (l, r) -> "{|(" + eq.apply(l, r) + ") && true}"),
+                new Position("or", false, false, (l, r) -> "{|(" + eq.apply(l, r) + ") || false}"),
                 new Position("lets", false, false, (l, r) -> "{|let a = " + l + "; let b = " + r + "; $a == $b;}"),
                 new Position("kept-in-map", false, false,
-                        (l, r) -> "{|[1]->map(x | " + l + " == " + r + ")->at(0)}"),
+                        (l, r) -> "{|[1]->map(x | " + eq.apply(l, r) + ")->at(0)}"),
                 new Position("list-filter", false, false,
-                        (l, r) -> "{|[1]->filter(x | " + l + " == " + r + ")->isNotEmpty()}"),
-                new Position("list-exists", false, false, (l, r) -> "{|[1]->exists(x | " + l + " == " + r + ")}"),
-                new Position("list-forAll", false, false, (l, r) -> "{|[1]->forAll(x | " + l + " == " + r + ")}"),
+                        (l, r) -> "{|[1]->filter(x | " + eq.apply(l, r) + ")->isNotEmpty()}"),
+                new Position("list-exists", false, false, (l, r) -> "{|[1]->exists(x | " + eq.apply(l, r) + ")}"),
+                new Position("list-forAll", false, false, (l, r) -> "{|[1]->forAll(x | " + eq.apply(l, r) + ")}"),
                 new Position("reads-element", false, false,
-                        (l, r) -> "{|[0]->map(x | " + l + "->filter(e | $x == 0) == " + r + ")->at(0)}"),
+                        (l, r) -> "{|[0]->map(x | (" + l + ")->filter(e | $x == 0) == (" + r + "))->at(0)}"),
                 new Position("function-any", false, false, (l, r) -> "{|t::sameAny(" + l + ", " + r + ")}"),
                 new Position("function-generic", false, false, (l, r) -> "{|t::sameT(" + l + ", " + r + ")}"),
                 new Position("table-filter", false, false,
-                        (l, r) -> "{|" + ONE_ROW + "->filter(row | " + l + " == " + r + ")}"),
+                        (l, r) -> "{|" + ONE_ROW + "->filter(row | " + eq.apply(l, r) + ")}"),
                 new Position("table-column", false, false,
-                        (l, r) -> "{|" + ONE_ROW + "->extend(~same: row | " + l + " == " + r + ")->select(~same)}"),
+                        (l, r) -> "{|" + ONE_ROW + "->extend(~same: row | " + eq.apply(l, r) + ")->select(~same)}"),
                 new Position("assertEquals", false, true, (l, r) -> "{|assertEquals(" + l + ", " + r + ")}"),
-                new Position("assert", false, true, (l, r) -> "{|assert(" + l + " == " + r + ")}"));
+                new Position("assert", false, true, (l, r) -> "{|assert(" + eq.apply(l, r) + ")}"));
     }
 
     private static List<Sides> sidesList() {
