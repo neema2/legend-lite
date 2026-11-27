@@ -194,3 +194,34 @@ became of it (fixed in `ad1e546a6` and `2d28215ea` unless said otherwise):
 | 21 | LOW | The library's `within` compared its two dates by their own types, as `meet` did | fixed |
 | 22 | LOW | An assert's Integer literal is rewritten, so its failure records the literal as the type it was read as | recorded where the rule is written (`NumberLiterals`) |
 | 23 | LOW | Records and javadocs that said what the code no longer does | fixed |
+
+## SQL size, measured (2026-11-27; the user: "def want to see/understand the growth")
+
+The size table regenerated at the stack (`core/src/test/resources/lean-sql/baseline.tsv`), against the program
+branch `9adb84bf`: 13,963,445 characters before, 13,473,390 after (490,055 fewer). 39 rows down (521,518 characters),
+49 rows up (31,463).
+
+**Why it had grown, and the fix.** With the one equality first built, the `equal` rows went up by half on several
+databases (MySQL 51,539 to 77,220). Read in the statements themselves: a query's comparison of two sides carried the
+assert judge's failure record beside it, each side's rows a second time, which a query never reads. The comparison
+now gives a form without them (`SideEqualities.Compared.answerOnly`), and those rows are below where they started
+(MySQL 39,052, Snowflake 45,789 to 16,719, Trino 17,979 to 6,806).
+
+**The 49 rows that go up, each needing the user's word:**
+- 45 have ONE MORE STATEMENT than before: a query that was refused and now plans. `equal`, `greaterThan`,
+  `lessThan` and `min` of an Integer and a Decimal on each of 11 databases (the two families' ruling: two exact
+  numbers compare by value; `2->min(1.23D)`, `9999999999999992D->compare(9999999999999991) > 0`), and H2's mixed
+  sort from slice 6.2. No query of these rows is longer than it was.
+- 4 have the same statements and longer SQL: PCT's `let` on H2 (126,502 to 136,762), core's `equal` on SQLite
+  (24,280 to 27,271), core's `let` on DuckDB (136,469 to 137,877) and on SQLite (29,965 to 31,150).
+
+**Every query whose SQL is longer than at slice 6.2** (each of the 30,488 measured query-and-database pairs compared:
+111 shorter by 188,626 characters in all, 21 longer by 19,092, 43 that were refused now planned, none newly refused).
+The 21 are 15 queries:
+- an instance compared with an instance, or a list of instances with another (`$side1 == $side1`,
+  `[^s::Side(...), ...] == [...]`, `[$a] == [$a]`): 14 of the 15, on H2 and SQLite (H2 1,796 to 4,780 for the
+  simplest). They are compared by typed leaves now -- the class each instance actually is, then each key by its
+  value -- where they were compared as one text of the keys, which kept a Decimal key's written scale and read the
+  declared class;
+- one mixed list deduplicated, sorted and compared with another, on SQLite (18,253 to 20,600): its sides compared as
+  rows, where SQLite has no list to compare.
