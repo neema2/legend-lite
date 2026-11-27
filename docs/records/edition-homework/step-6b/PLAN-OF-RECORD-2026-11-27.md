@@ -241,6 +241,18 @@ a recorded answer moves that the half page did not name. Each means: stop and te
 | The withdrawn first design and its review (kept as evidence) | `design-2026-11-27.md`, `review-1-of-the-first-design.md` |
 | A's landing, its five items for the user, the DuckDB lambda error | `../landing-step-6-closing-2026-11-27.md` |
 
+## 6a. How well the existing suites protect B (checked 2026-11-27, slice 0; read in the build files, not run)
+
+| Suite | Door | Checker | Protects |
+|---|---|---|---|
+| The two relational corpus lanes (`spec/corpus.bzl`: `-Dlegend.judge.mode=host`) | legend-engine's | the Java checker | the doors' rules (slice 7) and the Java checker; not lite's own comparison |
+| PCT channel B per push (`ChannelB`: `JudgeMode.HOST`; BOTH only in the manual "twice" runs) | legend-pure's | the Java checker | the same |
+| `//core:core_tests_judges` (per push, in CI's core lane): core's body-running packages under DATABASE alone and BOTH | lite's own | the database checker, and both | **the test checker's database side: slices 1 to 6** |
+| Core's own tests | lite's own | as each test asks | the product's comparison where a test happens to compare |
+| The position matrix (slice 0) | lite's own; both doors once widened | both | every place a comparison can stand: **the main protection, because nothing else asks one comparison in every place** |
+
+So a slice that passes every lane can still be wrong in a place no suite asks: the measure is not optional.
+
 ## 7. Open, for the user
 
 1. The five items of A's landing summary. Two are needed by a slice: the time-series refusal (before slice 2) and
