@@ -2052,7 +2052,7 @@ function timeseries::lines::timed<T,D,OP,OO>(t: Relation<T>[1], date: ColSpec<D�
 // trade at its day's rate); where both have several, no pairing is right, and the meeting is refused while the query
 // runs (the time model's D1, ruled 2026-11-03: a join would multiply them, 3 against 2 giving 6).
 // (A line's keys and periods are never empty, so they meet by a plain equality the database can hash: toOne. B2, F6.)
-// (the two dates compared as dates, cast(@Date): lines of two grains are refused by helpers::grain)
+// (compared as dates, cast(@Date): two grains are refused by helpers::grain)
 function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
 {
   $x->timeseries::lines::perPeriod($key, $period, ~mx)
@@ -2272,7 +2272,7 @@ function timeseries::lines::onto<T,U,K,P,Q,S,N>(spine: Relation<T>[1], key: ColS
     ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next)
 }
 
-// ... OF THE OTHER GRAIN (D4): refused while the query runs, naming the fix; no period is compared here.
+// ... OF THE OTHER GRAIN (D4): refused while the query runs, naming the fix.
 function timeseries::lines::onto<T,U,K,L,S,N>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:StrictDate)⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<(?:DateTime)⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1]): Relation<T+U+N>[1]
 {
   $spine->filter(r|timeseries::lines::oneGrain())
@@ -2377,7 +2377,7 @@ function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpe
 // beside its default, gsWhole a window gs-quant takes as the whole line ('w: default': its default, None, percentile's;
 // 'w: unsized': any window of no size, zscores' \`if not w.w\`; 'w: always': whatever it is told, winsorize's -- the
 // builders write whole, the look-ahead seen); gsTold a gs-quant parameter the builders take in every call, its default
-// none the language says (none now: vol_swap_volatility's n_days was, until its default became gs-quant's, 2026-11-08). On a rows form, when: the argument it computes alone, compared as spelled ('mode: truncate': a
+// none the language says (none now). On a rows form, when: the argument it computes alone, compared as spelled ('mode: truncate': a
 // lag past the line's end is no column of its table).
 Profile timeseries::Words
 {
