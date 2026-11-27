@@ -32,8 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * comparison the instant's, each asked of SQLite itself:
  * <ol>
  *   <li>ONE TEXT: every way of writing one instant -- a literal with no fraction, with trailing zeros, with nine
- *       digits; a text read as a date-time with a space or a {@code T}, with {@code Z}, with an offset from UTC -- is
- *       held as the same text;</li>
+ *       digits; a text read as a date-time with a space or a {@code T}, with {@code Z}, with an offset from UTC, each
+ *       both as a constant the program wrote (which the dialect may spell when the plan is made) and read by the
+ *       statement at run (the independent audit's finding 4, 2026-11-26: until then only the first) -- is held as
+ *       the same text;</li>
  *   <li>ITS ORDER: over every pair of instants, exactly one of {@code <}, {@code =}, {@code >} holds between their
  *       texts, and it is the one that holds between the instants -- a whole second against the same second with a
  *       fraction, {@code .5} against {@code .25} and {@code .05}, the last nanosecond of a minute against the next
@@ -103,19 +105,30 @@ class SqliteDateTimeTextOrderTest {
             for (char separator : new char[] {' ', 'T'}) {
                 for (String zone : List.of("", "Z", "+00:00", "+0000")) {
                     out.add(read(second(t, separator) + f + zone));
+                    out.add(readAtRun(second(t, separator) + f + zone));
                 }
             }
             if (t.getYear() > 1 && t.getYear() < 9999) {
                 out.add(read(second(t.plusHours(1), ' ') + f + "+01:00"));
+                out.add(readAtRun(second(t.plusHours(1), ' ') + f + "+01:00"));
                 out.add(read(second(t.minusHours(5).minusMinutes(30), 'T') + f + "-0530"));
+                out.add(readAtRun(second(t.minusHours(5).minusMinutes(30), 'T') + f + "-0530"));
                 out.add(new SqlExpr.TimestampLit(second(t.plusHours(1), 'T') + f + "+01:00"));
             }
         }
         return out;
     }
 
+    /** {@code text} read as a date-time by a cast the PROGRAM wrote: a constant, spelled when the plan is made where
+     *  the statement would read the same ({@code SQLite.constantInstant}). */
     private static SqlExpr read(String text) {
         return new SqlExpr.Cast(new SqlExpr.StringLit(text), SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.USER);
+    }
+
+    /** {@code text} read by the STATEMENT at run: the cast a plan declares (a loaded cell's), which the dialect never
+     *  spells -- the database reads it ({@code SQLite.instantOf}). */
+    private static SqlExpr readAtRun(String text) {
+        return new SqlExpr.Cast(new SqlExpr.StringLit(text), SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.DECLARED);
     }
 
     private static String sql(SqlExpr... values) {
@@ -168,12 +181,20 @@ class SqliteDateTimeTextOrderTest {
                             a.getNano()));
                     SqlExpr y = new SqlExpr.TimestampLit(second(b, 'T') + String.format(java.util.Locale.ROOT, ".%09d",
                             b.getNano()));
+                    // and one side read by the statement at run, from a text written with a 'T' and trailing zeros
+                    SqlExpr atRun = readAtRun(second(a, 'T') + String.format(java.util.Locale.ROOT, ".%09d0",
+                            a.getNano()));
                     try (ResultSet rs = st.executeQuery(sql(SqlExpr.Call.of(SqlFn.LESS, x, y),
-                            SqlExpr.Call.of(SqlFn.EQUAL, x, y), SqlExpr.Call.of(SqlFn.GREATER, x, y)))) {
+                            SqlExpr.Call.of(SqlFn.EQUAL, x, y), SqlExpr.Call.of(SqlFn.GREATER, x, y),
+                            SqlExpr.Call.of(SqlFn.LESS, atRun, y), SqlExpr.Call.of(SqlFn.EQUAL, atRun, y),
+                            SqlExpr.Call.of(SqlFn.GREATER, atRun, y)))) {
                         rs.next();
                         int order = a.compareTo(b);
-                        assertEquals(List.of(order < 0, order == 0, order > 0),
-                                List.of(rs.getInt(1) == 1, rs.getInt(2) == 1, rs.getInt(3) == 1), a + " against " + b);
+                        List<Boolean> instants = List.of(order < 0, order == 0, order > 0);
+                        assertEquals(instants, List.of(rs.getInt(1) == 1, rs.getInt(2) == 1, rs.getInt(3) == 1),
+                                a + " against " + b);
+                        assertEquals(instants, List.of(rs.getInt(4) == 1, rs.getInt(5) == 1, rs.getInt(6) == 1),
+                                a + ", read at run, against " + b);
                     }
                 }
             }

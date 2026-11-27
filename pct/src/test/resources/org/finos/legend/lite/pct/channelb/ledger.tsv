@@ -56,13 +56,13 @@ postgres	Unclassified	meta::pure::functions::string::tests::char::testEmptyChar	
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
 # PR #118 fix round, 2026-11-18: the range refusal's new wording (DataError: the value is outside the range this database can hold: <reason>)
 # 2026-11-21, stage B's B1 (PR #130's server round; FOR THE USER'S WORD with B1's moves): the edge words a lite-only refusal by its place, as channel A's expected failures pin it (DataError: <place>); the kind's sentence before it left with the edge's words in SQL
+# 2026-11-27, the SQLite date-time text's audit fixes (the independent audit of 2026-11-26, finding 2; the orchestrator's go): a text read as a date-time at run is its instant or is refused, and an hour of one digit is read as legend-pure's parser reads it -- sqlite essential's testDateDiffWithDifferentTimeZones (parseDate('2015-1-1T5:00:00.000+0100'), held as written until then, its dateDiff NULL) passes, as on duckdb, and left (1 row)
 sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
 sqlite	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
 sqlite	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
 sqlite	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
 sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
 # SQLite has no time zones but UTC
-sqlite	Essential	meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	AssertFailed: expected: [0], actual: []
 # SQLite has no time zones but UTC
 sqlite	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached SQLite: SQLite has no time zones but UTC
 # an integer past 64 bits: SQLite has none

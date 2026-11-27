@@ -48,6 +48,7 @@ class DateTimeInstantSideBySideTest {
                 (
                     Table T ( ID INTEGER PRIMARY KEY, TS TIMESTAMP )
                     Table U ( UID INTEGER PRIMARY KEY, UTS TIMESTAMP, TXT VARCHAR(40) )
+                    Table V ( VID INTEGER PRIMARY KEY, VTS TIMESTAMP, VTXT VARCHAR(40) )
                 )
                 ###Connection
                 RelationalDatabaseConnection s::Conn
@@ -64,7 +65,11 @@ class DateTimeInstantSideBySideTest {
                         "4,2014-01-01 00:00:00.5", "5,2014-01-02 10:30:00.123456", "6,2013-12-31 23:59:59.999",
                         "-----", "default", "U", "UID,UTS,TXT", "10,2014-01-01 00:00:00.0,2014-01-01T00:00:00.00",
                         "11,2014-01-01 00:00:00.50,2014-01-01 00:00:00.5000",
-                        "12,2015-01-01 00:00:00,2016-06-06 06:06:06", ""));
+                        "12,2015-01-01 00:00:00,2016-06-06 06:06:06",
+                        // V: instants before 1970 and at it, written with trailing zeros, each beside a text of it
+                        "-----", "default", "V", "VID,VTS,VTXT", "20,1969-07-20 20:17:40.250,1969-07-20T20:17:40.25",
+                        "21,1969-12-31 23:59:59.500,1969-12-31 23:59:59.5", "22,1970-01-01 00:00:00.000,1970-01-01T00:00:00.000",
+                        "23,2014-01-01 10:20:30.50,2014-01-01T10:20:30.500", ""));
     }
 
     /** {@code query}'s rows on {@code type}, each row its cells' text. */
@@ -98,6 +103,82 @@ class DateTimeInstantSideBySideTest {
     private static final String T = "|#>{s::DB.T}#";
     private static final String MONTHS = "meta::pure::functions::date::DurationUnit.MONTHS";
     private static final String MILLIS = "meta::pure::functions::date::DurationUnit.MILLISECONDS";
+
+    private static final String V = "|#>{s::DB.V}#";
+    private static final String UNIT = "meta::pure::functions::date::DurationUnit.";
+
+    // ---- values computed at run, from a column (the independent audit's finding 4, 2026-11-26) ----------------------
+
+    @Test
+    void beforeNineteenSeventyAsAfter() throws Exception {
+        table(V + "->filter(r|$r.VTS < %1970-01-01T00:00:00)->select(~[VID])->sort(~VID->ascending())", "20", "21");
+        table(V + "->filter(r|$r.VTS == %1969-07-20T20:17:40.25)->select(~[VID])", "20");
+        table(V + "->filter(r|$r.VTS == %1970-01-01T00:00:00)->select(~[VID])", "22");
+        table(V + "->sort(~VTS->descending())->select(~[VID])", "23", "22", "21", "20");
+    }
+
+    @Test
+    void adjustOverAColumnByWholeSecondsIsTheInstants() throws Exception {
+        table(V + "->filter(r|$r.VTS->toOne()->adjust(1, " + UNIT + "SECONDS) == %1969-07-20T20:17:41.25)"
+                + "->select(~[VID])", "20");
+        table(V + "->filter(r|$r.VTS->toOne()->adjust(1, " + UNIT + "SECONDS) == %1970-01-01T00:00:00.5)"
+                + "->select(~[VID])", "21");
+        table(V + "->filter(r|$r.VTS->toOne()->adjust(-1, " + UNIT + "HOURS) == %1969-12-31T23:00:00)"
+                + "->select(~[VID])", "22");
+        table(V + "->filter(r|$r.VTS->toOne()->adjust(-45, " + UNIT + "MINUTES) == %2014-01-01T09:35:30.5)"
+                + "->select(~[VID])", "23");
+        table(V + "->filter(r|$r.VTS->toOne()->adjust(2, " + UNIT + "DAYS) == %2014-01-03T10:20:30.500)"
+                + "->select(~[VID])", "23");
+        table(V + "->filter(r|$r.VTS->toOne()->adjust(-1, " + UNIT + "WEEKS) == %1969-07-13T20:17:40.250)"
+                + "->select(~[VID])", "20");
+        // a sum of an adjust and its inverse is the instant it started from
+        table(V + "->filter(r|$r.VTS->toOne()->adjust(90, " + UNIT + "SECONDS)->adjust(-90, " + UNIT
+                + "SECONDS) == $r.VTS->toOne())->select(~[VID])->sort(~VID->ascending())", "20", "21", "22", "23");
+    }
+
+    /** dateDiff by seconds, minutes and hours is the time elapsed, in whole units toward zero (so half a second
+     *  across midnight is none): the same over a column on both databases, before 1970 as after. */
+    @Test
+    void dateDiffOverAColumnIsTheSame() throws Exception {
+        String diff = "->extend(~D: r|dateDiff($r.VTS->toOne(), ";
+        table(V + "->filter(r|$r.VID == 21)" + diff + "%1970-01-01T00:00:00.4, " + UNIT + "SECONDS))->select(~[D])",
+                "0");
+        table(V + "->filter(r|$r.VID == 21)" + diff + "%1970-01-01T00:00:01.4, " + UNIT + "SECONDS))->select(~[D])",
+                "1");
+        table(V + "->filter(r|$r.VID == 21)" + diff + "%1970-01-01T00:00:01.5, " + UNIT + "SECONDS))->select(~[D])",
+                "2");
+        table(V + "->filter(r|$r.VID == 20)" + diff + "%1969-07-20T21:00:00, " + UNIT + "HOURS))->select(~[D])", "0");
+        table(V + "->filter(r|$r.VID == 20)" + diff + "%1969-07-20T21:17:40.25, " + UNIT + "HOURS))->select(~[D])",
+                "1");
+        table(V + "->filter(r|$r.VID == 23)" + diff + "%2014-01-01T10:19:59.9, " + UNIT + "MINUTES))->select(~[D])",
+                "0");
+        table(V + "->filter(r|$r.VID == 23)" + diff + "%2014-01-01T10:19:30.5, " + UNIT + "MINUTES))->select(~[D])",
+                "-1");
+    }
+
+    @Test
+    void aTextOfAColumnParsedIsItsInstant_beforeNineteenSeventyToo() throws Exception {
+        table(V + "->filter(r|$r.VTXT->toOne()->parseDate() == $r.VTS->toOne())->select(~[VID])"
+                + "->sort(~VID->ascending())", "20", "21", "22", "23");
+    }
+
+    @Test
+    void aVariantsStringReadAsADateTimeIsItsInstant() throws Exception {
+        table(V + "->filter(r|$r.VTXT->toOne()->toVariant()->to(@DateTime) == $r.VTS->toOne())->select(~[VID])"
+                + "->sort(~VID->ascending())", "20", "21", "22", "23");
+    }
+
+    /** A date built of whole parts is its instant. (Built with a FRACTIONAL second, or of fewer parts, it is the
+     *  lowering's text carrier on every database -- {@code lowering.DateCtorRule}: Pure's own print of it -- which
+     *  DuckDB reads as a date-time where it is compared and SQLite compares as the text it is: not this dialect's
+     *  text, and not held here.) */
+    @Test
+    void aDateBuiltOfWholePartsIsItsInstant() throws Exception {
+        table(V + "->filter(r|date(2014, 1, 1, 10, 20, $r.VID->toOne() + 7) == %2014-01-01T10:20:30.000)"
+                + "->select(~[VID])", "23");
+        table(V + "->filter(r|date(1969, 12, 31, 23, 59, $r.VID->toOne() + 30) < $r.VTS->toOne())"
+                + "->select(~[VID])->sort(~VID->ascending())", "21", "22", "23");
+    }
 
     // ---- == and != ------------------------------------------------------------------------------------------------
 

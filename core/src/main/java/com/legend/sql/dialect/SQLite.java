@@ -1448,21 +1448,12 @@ public class SQLite extends AnsiSqlRenderer {
             // compared -- nine, the digits a literal and a load keep here (literalFractionDigits,
             // timestampColumnDigits; S181 refuses more) -- never cut (the user's rule of 2026-11-22)
             SqlType from = typeOf(v);
-            if (from == SqlType.Scalar.TIMESTAMP) {
-                // a value this dialect types a date-time is that one text already (2026-11-26: every source writes
-                // it), so it is compared as it is held -- until then read through the whole arm below, about 600
-                // characters a value. Two readings are kept: a DAY's text (no time: no colon), which a Date-typed
-                // slot may hold beside date-times, is its midnight (as every database's date-time of a day is), and
-                // a nonzero digit past the ninth -- only a user's own text has one -- is refused, never compared.
-                // No longer read here: a text this dialect did not make (a store's own column: timestampLit's note),
-                // which is compared as it is held, as the product compares it
-                String past = "substr(__i0.t, instr(__i0.t, '.') + 10)";
-                return writer.append("(SELECT CASE WHEN instr(__i0.t, ':') = 0 THEN __i0.t || ' 00:00:00' WHEN"
-                        + " instr(__i0.t, '.') > 0 AND ltrim(" + past + ", '0123456789') = '' AND ltrim(" + past
-                        + ", '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE __i0.t END FROM (SELECT ")
-                        .expr(v, 0).append(" AS t) AS __i0)");
-            }
+            // a value this dialect types a date-time is read in full, as a text is (the independent audit's finding 1,
+            // 2026-11-26: for a day the typed value was compared as held, and a store's own cell -- '...30.500',
+            // '...T10:20:30.5' -- that the host judge reads as its instant was unequal here to the text of that
+            // instant; the two judges reach one verdict, G2). The judge is test machinery and spends the SQL
             SqlWriter.Piece t = from == SqlType.Scalar.DATE ? w -> w.append("(").expr(v, 0).append(" || ' 00:00:00')")
+                    : from == SqlType.Scalar.TIMESTAMP ? padded(dateTimeText(w -> w.expr(v, 0)))
                     : offsetWithColon(padded(dateTimeText(w -> w.expr(v, 0))));
             // a text that is not yet a date-time (a literal's written text, a day): its second by SQLite's reading
             // of it, its fraction the run of digits after the point (a zone after it is no digit of it), one with a
@@ -1513,7 +1504,7 @@ public class SQLite extends AnsiSqlRenderer {
             // element-wise
             SqlExpr el = SqlExpr.Column.param("__c", v);
             return writer.piece(overElements(v, "__c", "__co", null,
-                    jsonOf(castTo(w -> w.append(param("__c")), from, arr.element()), arr.element()), null));
+                    jsonOf(castTo(w -> w.append(param("__c")), from, arr.element(), v), arr.element()), null));
         }
         if (target instanceof SqlType.Struct || target instanceof SqlType.Map) {
             return writer.expr(v, 0);
@@ -1558,7 +1549,7 @@ public class SQLite extends AnsiSqlRenderer {
         // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
         boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT
                 || target == SqlType.Scalar.HUGEINT);
-        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target, v));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code ->> '$'}: a string unquoted, a boolean 1 or
@@ -1582,7 +1573,7 @@ public class SQLite extends AnsiSqlRenderer {
         }
         if (to instanceof SqlType.Array arr) {
             SqlWriter.Piece each = arr.element() == SqlType.Scalar.JSON ? w -> w.append(param("__j"))
-                    : castTo(w -> w.append("(" + param("__j") + " ->> '$')"), SqlType.Scalar.JSON, arr.element());
+                    : castTo(w -> w.append("(" + param("__j") + " ->> '$')"), SqlType.Scalar.JSON, arr.element(), v);
             return w -> w.append("(CASE WHEN json_type(").expr(v, 0).append(") = 'array' THEN (SELECT ")
                     .append("json_group_array(").piece(jsonOf(each, arr.element())).append(" ORDER BY ")
                     .append(param("__jo")).append(") FROM (SELECT " + elementRead(SqlType.Scalar.JSON) + " AS ")
@@ -1592,12 +1583,14 @@ public class SQLite extends AnsiSqlRenderer {
         if (to instanceof SqlType.Map || to instanceof SqlType.Struct) {
             return w -> w.expr(v, 0);
         }
-        return castTo(w -> w.append("(").expr(v, 9).append(" ->> '$')"), SqlType.Scalar.JSON, to);
+        return castTo(w -> w.append("(").expr(v, 9).append(" ->> '$')"), SqlType.Scalar.JSON, to, v);
     }
 
     /** {@code value} (of type {@code from}, when known) cast to {@code to}, each cast decided here: a type name casts
-     *  by its affinity only (CAST('2024-01-01' AS DATE) is 2024, measured). */
-    private SqlWriter.Piece castTo(SqlWriter.Piece value, @com.legend.base.Nullable SqlType from, SqlType to) {
+     *  by its affinity only (CAST('2024-01-01' AS DATE) is 2024, measured). {@code source}: the expression the value
+     *  is read from, the operand of a raise the cast writes. */
+    private SqlWriter.Piece castTo(SqlWriter.Piece value, @com.legend.base.Nullable SqlType from, SqlType to,
+            SqlExpr source) {
         if (to instanceof SqlType.Decimal d) {
             // DuckDB's decimal cast rounds to the scale, half away from zero (as round does)
             return w -> w.append("round(CAST(").piece(value).append(" AS REAL), " + d.scale() + ")");
@@ -1617,19 +1610,13 @@ public class SQLite extends AnsiSqlRenderer {
             case DOUBLE -> w -> w.append("CAST(").piece(value).append(" AS REAL)");
             case DATE -> w -> w.append("date(").piece(value).append(")");
             // the one text of a date-time (timestampLit): a day's midnight by a constant; a text that is not this
-            // dialect's own -- a user's, a Variant's string -- read into it by SQL at run (instantOf)
-            case TIMESTAMP -> from == SqlType.Scalar.DATE
+            // dialect's own -- a user's, a Variant's string, a loaded cell that is not ISO -- read into it by SQL at
+            // run, or refused by name (instantOf). A zoned date-time is held as its naive UTC text: the same read,
+            // which applies the offset a text carries
+            case TIMESTAMP, TIMESTAMPTZ -> from == SqlType.Scalar.DATE
                     ? w -> w.append("(").piece(value).append(" || ' 00:00:00')")
                     : from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
-                            ? instantOf(padded(dateTimeText(value))) : value;
-            // a zoned date-time is held as its naive UTC text: its offset applied at the cast
-            case TIMESTAMPTZ -> from == SqlType.Scalar.DATE
-                    ? w -> w.append("(").piece(value).append(" || ' 00:00:00')")
-                    : from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
-                            ? instantRead(w -> w.append("(SELECT ").piece(utcOf(w2 -> w2.append("__u.t")))
-                                    .append(" FROM (SELECT ").piece(padded(dateTimeText(value)))
-                                    .append(" AS t) AS __u)"))
-                    : value;
+                            ? instantOf(value, source, false) : value;
             case JSON -> w -> w.append("json_quote(").piece(value).append(")");
             // a time of day is its text: a date-time text's from its twelfth character, a date's midnight
             case TIME -> from == SqlType.Scalar.TIMESTAMP || from == SqlType.Scalar.TIMESTAMPTZ
@@ -2635,29 +2622,6 @@ public class SQLite extends AnsiSqlRenderer {
         return w -> w.append("replace(trim(").piece(text).append("), 'T', ' ')");
     }
 
-    /** A date-time text with an offset ('Z', '+HH:MM', '+HHMM') as its naive UTC text (SQLite's modifiers shift by
-     *  '+HH:MM'; the fraction's digits kept as written); one with none as it is. */
-    private static SqlWriter.Piece utcOf(SqlWriter.Piece t) {
-        SqlWriter.Piece shifted6 = shift(w -> w.append("substr(").piece(t).append(", 1, length(").piece(t)
-                .append(") - 6)"), w -> w.append("substr(").piece(t).append(", -6)"));
-        SqlWriter.Piece shifted5 = shift(w -> w.append("substr(").piece(t).append(", 1, length(").piece(t)
-                .append(") - 5)"), w -> w.append("(substr(").piece(t).append(", -5, 3) || ':' || substr(").piece(t)
-                .append(", -2))"));
-        return w -> w.append("(CASE WHEN ").piece(t).append(" GLOB '*Z' THEN substr(").piece(t).append(", 1, length(")
-                .piece(t).append(") - 1) WHEN ").piece(t).append(" GLOB '*[+-][0-9][0-9]:[0-9][0-9]' THEN ")
-                .piece(shifted6).append(" WHEN length(").piece(t).append(") > 10 AND ").piece(t)
-                .append(" GLOB '*[0-9][+-][0-9][0-9][0-9][0-9]' THEN ").piece(shifted5).append(" ELSE ").piece(t)
-                .append(" END)");
-    }
-
-    /** {@code body} (a naive date-time text) shifted back by {@code offset} ('+HH:MM'): its seconds by datetime, its
-     *  fraction's digits as written. */
-    private static SqlWriter.Piece shift(SqlWriter.Piece body, SqlWriter.Piece offset) {
-        return w -> w.append("(datetime(substr(").piece(body).append(", 1, 19), CASE substr(").piece(offset)
-                .append(", 1, 1) WHEN '+' THEN '-' ELSE '+' END || substr(").piece(offset).append(", 2)) || substr(")
-                .piece(body).append(", 20))");
-    }
-
     /** A date-time text with its date's fields padded ('2014-2-27' is 2014-02-27, as DuckDB's cast reads it), its time
      *  and fraction as written; a text with no year-month-day date as it is. */
     private static SqlWriter.Piece padded(SqlWriter.Piece text) {
@@ -2673,19 +2637,6 @@ public class SQLite extends AnsiSqlRenderer {
                 + " AS rest FROM (SELECT ").piece(text).append(" AS t) AS __pd) AS __pd2)");
     }
 
-    /**
-     * A date-time TEXT that is not this dialect's own -- a user's text cast to a date-time, a Variant's string, a
-     * parsed text ({@code text}: its 'T' a space and its day's fields padded already) -- read into the one text of its
-     * instant ({@link #timestampLit}), by SQL at run: the one kind of source that needs it. Its second by SQLite's
-     * own reading of the text (an offset it carries applied, as DuckDB's cast applies one) or, where that reads none (a year outside 0000 to 9999, an hour alone), its own day and time as
-     * written, an hour, minute or second it does not write {@code 00}; its fraction the run of digits after its point,
-     * every one kept (S181 refuses no text the database parses) but its trailing zeros. A day alone is its midnight;
-     * NULL stays NULL.
-     */
-    private static SqlWriter.Piece instantOf(SqlWriter.Piece text) {
-        return instantRead(offsetWithColon(text));
-    }
-
     /** {@code text} with an offset written {@code +HHMM} (Pure's own print form of one, {@code +0000}) written
      *  {@code +HH:MM}, the one form SQLite's date functions apply; any other text as it is. */
     private static SqlWriter.Piece offsetWithColon(SqlWriter.Piece text) {
@@ -2694,25 +2645,85 @@ public class SQLite extends AnsiSqlRenderer {
                 .piece(text).append(" AS t) AS __oc)");
     }
 
-    private static SqlWriter.Piece instantRead(SqlWriter.Piece text) {
-        String p = "instr(__i0.t, ' ')";
-        String f = "substr(__i0.t, instr(__i0.t, '.') + 1)";
-        return w -> w.append("(SELECT ").piece(shortest(w2 -> w2.append("coalesce(strftime('%Y-%m-%d %H:%M:%S',"
-                + " __it.t), __it.day || ' ' || __it.tm || substr('00:00:00', length(__it.tm) + 1)) || '.' || __it.d")))
-                .append(" FROM (SELECT __i0.t AS t, CASE WHEN " + p + " = 0 THEN __i0.t ELSE substr(__i0.t, 1, " + p
-                        + " - 1) END AS day, CASE WHEN " + p + " = 0 THEN '' ELSE substr(__i0.t, " + p
-                        + " + 1, 8) END AS tm, CASE WHEN instr(__i0.t, '.') > 0 THEN substr(" + f + ", 1, length(" + f
-                        + ") - length(ltrim(" + f + ", '0123456789'))) ELSE '' END AS d FROM (SELECT ").piece(text)
-                .append(" AS t) AS __i0) AS __it)");
+    /**
+     * A date-time TEXT that is not this dialect's own -- a user's text cast to a date-time, a Variant's string, a
+     * parsed text, a loaded cell that is not ISO -- READ into the one text of its instant ({@link #timestampLit}) by
+     * SQL at run, or REFUSED by name (TEXT_NOT_DATE, its operand {@code source}): never a text that is not the instant
+     * the text names (the independent audit's finding 2, 2026-11-26: until then a text SQLite's date functions could
+     * not read kept its day and eight characters of its time, so {@code 10:20:30xyz} and {@code 10:20:30+15:00} became
+     * real instants, and February 30 the second of March).
+     *
+     * <p>What is read (the text's spaces trimmed, its 'T' a space):
+     * <ul>
+     *   <li>a DAY, {@code Y-M-D} in digits, each field padded as DuckDB's cast reads it ({@code 2014-2-27}), and a real
+     *       day of the years 0000 to 9999 ({@code date(day) = day}: SQLite rolls February 30 over, and reads a bare
+     *       number as a Julian day);</li>
+     *   <li>then nothing (its midnight; {@code parse}: the day itself, which the cast around a parse decides), or a
+     *       TIME as SQLite's date functions read one -- {@code HH:MM}, then {@code :SS}, then a point and digits --
+     *       or an hour alone ({@code HH}, which they do not read: {@code :00} is written after it); an hour of one
+     *       digit before its minutes is padded (legend-pure's parser reads every field by its digits, and its own
+     *       {@code testDateDiffWithDifferentTimeZones} parses {@code 2015-1-1T5:00:00.000+0100}); the hour below 24,
+     *       which they would hold as written;</li>
+     *   <li>after a time with minutes, an OFFSET from UTC they apply: {@code Z}, {@code +HH:MM} to fourteen hours, and
+     *       {@code +HHMM} (Pure's own print form, {@code +0000}), written with its colon first. An offset that moves
+     *       the instant out of the years 0000 to 9999 is refused (their text of year -1 is {@code -001});</li>
+     *   <li>the fraction's digits are the text's own, every one kept (S181 refuses no text the database parses) but
+     *       its trailing zeros;</li>
+     *   <li>{@code parse} false, a year OUTSIDE 0000 to 9999, which their functions answer NULL: read only as this
+     *       dialect itself writes one ({@link #timestampLit}: the year an integer with no sign but a minus and no
+     *       leading zero, month and day padded), its month, day and time read against the year of 2000 to 2399 with
+     *       the same leap rule, and no offset (none can be applied without their functions). A parse refuses one, as
+     *       it always has.</li>
+     * </ul>
+     * NULL stays NULL in a cast; a parse of NULL raises, as before. In a LOAD's rows, where no raise can be declared
+     * ({@link #raisesAreDeclared}), a cell that is no date-time is held as it was written, as before. A CONSTANT text a program wrote is spelled when
+     * the plan is made, only in shapes this reads to the same text ({@link #constantInstant};
+     * {@code SqliteDateTimeReadTest} holds the two to one answer, or one refusal, shape by shape).
+     */
+    private SqlWriter.Piece instantOf(SqlWriter.Piece text, SqlExpr source, boolean parse) {
+        // _t the text; _d its day and _r the rest; _y the day padded and _m the time as SQLite reads one (an hour of
+        // one digit padded, an hour alone given its minutes, an offset its colon); _s the second SQLite reads
+        // ('-001-...' is its year -1) and _f what follows the point; a wide year's _n its year and _w its month, day
+        // and time read against a year of the same leap rule
+        String read = "date(_y) = _y AND _s >= '0' AND _m < '24'";
+        String wide = "_y = _n || substr(_y, -6) AND _n NOT BETWEEN 0 AND 9999 AND _m NOT GLOB '*[^0-9:.]*' AND _m"
+                + " < '24' AND substr(_w, 5, 6) = substr(_y, -6)";
+        String fraction = " || '.' || replace(_f, ltrim(_f, '0123456789'), ''), '0'), '.')";
+        return w -> {
+            if (parse || raisesAreDeclared()) {
+                w.append("(SELECT rtrim(rtrim(CASE WHEN " + (parse ? read + " THEN iif(_m = '', _y, _s)"
+                        : "_y IS NULL THEN NULL WHEN " + read + " THEN _s WHEN " + wide + " THEN _n || substr(_w, 5)")
+                        + " ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_DATE,
+                                List.of(source))))).append(" END" + fraction);
+            } else {
+                // a LOAD's cell (a DML's rows: no statement's site table, so no raise can be declared): a text that
+                // is no date-time is held as it was written, as it was before 2026-11-26 -- visibly none, and equal
+                // to no instant -- never read as some instant
+                w.append("(SELECT CASE WHEN " + read + " THEN rtrim(rtrim(_s" + fraction + " WHEN " + wide
+                        + " THEN rtrim(rtrim(_n || substr(_w, 5)" + fraction + " ELSE _t END");
+            }
+            w.append(" FROM (SELECT *, datetime(_y || ' ' || _m) AS _s, substr(_m, instr(_m || '.', '.') + 1) AS"
+                    + " _f" + (parse ? "" : ", CAST(_y AS INTEGER) AS _n, datetime((2000 + CAST(_y AS INTEGER) %"
+                            + " 400) || substr(_y, -6) || ' ' || _m) AS _w")
+                    + " FROM (SELECT *, CASE WHEN _d GLOB '*-*-*' AND _d NOT GLOB '*-*-*-*' AND _d NOT GLOB"
+                    + " '*[^0-9-]*' THEN printf('%04d-%02d-%02d', _d, substr(_d, instr(_d, '-') + 1), replace(_d,"
+                    + " rtrim(_d, '0123456789'), '')) ELSE _d END AS _y, iif(_r GLOB '?:*', '0', '') || iif(_r GLOB"
+                    + " '*[+-]????', substr(_r, 1, length(_r) - 2) || ':' || substr(_r, -2), iif(length(_r) = 2, _r ||"
+                    + " ':00', _r)) AS _m FROM (SELECT *, substr(_t, 1, instr(_t || ' ', ' ') - 1) AS _d, ltrim(substr("
+                    + "_t, instr(_t || ' ', ' ') + 1)) AS _r FROM (SELECT replace(trim(").piece(text)
+                    .append("), 'T', ' ') AS _t)))))");
+        };
     }
 
     /** A date or date-time a program wrote as a constant text (its spaces trimmed, a 'T' or a space between day and
-     *  time), in the shapes the statement's own reading takes: a day whose fields may be unpadded ({@link #padded}),
-     *  then optionally its time, and after a time an offset from UTC as {@link #utcOf} reads one ({@code Z},
-     *  {@code +HH:MM}, {@code +HHMM}). */
+     *  time), ONLY in shapes the statement's own reading ({@link #instantOf}) reads to the same text: a day of a year
+     *  of one to four digits whose fields may be unpadded, then optionally its time ({@code HH}, {@code HH:MM},
+     *  {@code HH:MM:SS}, a point and one to nine digits), and after a time with minutes an offset from UTC ({@code Z},
+     *  {@code +HH:MM}, {@code +HHMM}; the independent audit's finding 3, 2026-11-26: an offset after an hour alone was
+     *  spelled here and garbage there). */
     private static final java.util.regex.Pattern PARSED_LITERAL = java.util.regex.Pattern.compile(
-            "(\\d{1,4})-(\\d{1,2})-(\\d{1,2})(?:[ T](\\d{2})(?::(\\d{2})(?::(\\d{2})(\\.\\d{1,9})?)?)?"
-                    + "(Z|[+-]\\d{2}:?\\d{2})?)?");
+            "(\\d{1,4})-(\\d{1,2})-(\\d{1,2})(?:[ T](\\d{2})(?::(\\d{2})(?::(\\d{2})(\\.\\d{1,9})?)?"
+                    + "(Z|[+-]\\d{2}:?\\d{2})?)?)?");
 
     /** The text this dialect holds for the CONSTANT text {@code text} read as a date or date-time, spelled when the
      *  plan is made (a constant's spelling, as a date-time literal's is: no SQL at run), or null where the database
@@ -2729,14 +2740,25 @@ public class SQLite extends AnsiSqlRenderer {
         }
         String offset = m.group(8);
         try {
-            java.time.LocalDate.of(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)),
-                    Integer.parseInt(m.group(3)));
-            java.time.LocalTime.of(m.group(4) == null ? 0 : Integer.parseInt(m.group(4)),
-                    m.group(5) == null ? 0 : Integer.parseInt(m.group(5)),
-                    m.group(6) == null ? 0 : Integer.parseInt(m.group(6)));
+            java.time.LocalDateTime written = java.time.LocalDateTime.of(
+                    java.time.LocalDate.of(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)),
+                            Integer.parseInt(m.group(3))),
+                    java.time.LocalTime.of(m.group(4) == null ? 0 : Integer.parseInt(m.group(4)),
+                            m.group(5) == null ? 0 : Integer.parseInt(m.group(5)),
+                            m.group(6) == null ? 0 : Integer.parseInt(m.group(6))));
             if (offset != null && !offset.equals("Z")) {
-                java.time.LocalTime.of(Integer.parseInt(offset.substring(1, 3)),
-                        Integer.parseInt(offset.substring(offset.length() - 2)));
+                // an offset as the statement's read applies one: to fourteen hours, and the instant still in the
+                // years 0000 to 9999 (past either, the statement refuses: so must this, by leaving it the text)
+                int hours = Integer.parseInt(offset.substring(1, 3));
+                int minutes = Integer.parseInt(offset.substring(offset.length() - 2));
+                if (hours > 14 || minutes > 59) {
+                    return null;
+                }
+                int year = written.minusSeconds((offset.charAt(0) == '-' ? -1 : 1) * (hours * 3600L + minutes * 60L))
+                        .getYear();
+                if (year < 0 || year > 9999) {
+                    return null;
+                }
             }
         } catch (java.time.DateTimeException notADate) {
             return null;
@@ -2751,21 +2773,15 @@ public class SQLite extends AnsiSqlRenderer {
                 + (offset == null ? "" : offset));
     }
 
-    /** Pure's parseDate of a text: its date's fields padded ({@link #padded}); a day alone stays its day (the cast
-     *  around it decides what it is), a text with a time of day is read into the one text of its instant
-     *  ({@link #instantOf}); a text that is no date raises. A constant text in full ISO shape is spelled when the
-     *  plan is made ({@link #constantInstant}). */
+    /** Pure's parseDate of a text: a day alone stays its day (the cast around it decides what it is), a text with a
+     *  time of day is the one text of its instant, and a text that is neither raises ({@link #instantOf}). A constant
+     *  text is spelled when the plan is made, where the statement would read the same ({@link #constantInstant}). */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
         String constant = x instanceof SqlExpr.StringLit lit ? constantInstant(lit.value(), false, false) : null;
         if (constant != null) {
             return w -> w.append(constant);
         }
-        String day = "date(substr(__pp.t, 1, 10)) = substr(__pp.t, 1, 10)";
-        return w -> w.append("(SELECT CASE WHEN " + day + " AND length(__pp.t) = 10 THEN __pp.t WHEN " + day
-                + " AND substr(__pp.t, 11, 1) = ' ' THEN ").piece(instantOf(w2 -> w2.append("__pp.t")))
-                .append(" ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
-                        com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))))).append(" END FROM (SELECT ")
-                .piece(padded(dateTimeText(w2 -> w2.expr(x, 0)))).append(" AS t) AS __pp)");
+        return instantOf(w -> w.expr(x, 0), x, true);
     }
 
     private static final String BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";

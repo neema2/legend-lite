@@ -1242,6 +1242,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return site(r);
     }
 
+    /** Whether a raise can be written here: inside a statement's render, whose site table declares it
+     *  ({@link #site}). A load's rows (a DML's render) have no table, so a dialect that reads a cell's text there
+     *  cannot refuse it by name. */
+    protected final boolean raisesAreDeclared() {
+        return raiseSites != null;
+    }
+
     /**
      * {@code r}'s text as a SITE of the statement under way: the user's own message where it is a {@code fail}, else the token
      * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
