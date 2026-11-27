@@ -360,7 +360,8 @@ public final class EqualityMeasure {
         out.add(new Sides("list days computed", "T", "[%2020-01-01, %2020-01-02]->filter(d | true)",
                 "[%2020-01-01, %2020-01-02]"));
         // (the review of slice 1, S5 and N4: an element that is empty is no element; a comparison held in a let)
-        out.add(new Sides("list with an empty element", "T", "[[1, 2]->filter(x | $x > 5)->first(), 1]", "[1]"));
+        out.add(new Sides("list joined from an empty value", "T",
+                "[1, 2]->filter(x | $x > 5)->first()->concatenate([1])", "[1]"));
         out.add(new Sides("string lists differ in case", "F", "['a', 'b']->filter(s | true)", "['A', 'b']"));
         out.add(new Sides("one value and list of one", "T", "1", "[1, 2]->filter(x | $x < 2)"));
         out.add(new Sides("mixed list written same", "T", "[1, 'a']", "[1, 'a']"));

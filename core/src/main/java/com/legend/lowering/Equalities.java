@@ -117,12 +117,13 @@ final class Equalities {
                 || !SideEqualities.comparedAsValues(n.args().get(0).info().type(), n.args().get(1).info().type())) {
             return compared;
         }
-        // the rows ride where a database that compares rows needs them: a computed side; or two written lists the
-        // SQL types differently (a Decimal at two scales, an Integer against a Decimal), whose JSON texts are not
-        // their values. Two written lists of one SQL type are compared as they were (Strings among them: a
-        // database's comparison of two String COLUMNS follows its collation, its comparison of two lists does not)
+        // the rows ride where a database that compares rows needs them: a computed side; or two written lists of
+        // exact numbers, whose JSON texts are not their values (1.0 and 1.000 are one number; measured 2026-11-27 on
+        // H2: read by their SQL types alone, which were the same, the two lists were compared as texts again). Two
+        // written lists of Strings are compared as they were: a database's comparison of two String COLUMNS follows
+        // its collation, its comparison of two lists does not
         boolean written = n.args().get(0) instanceof TypedCollection && n.args().get(1) instanceof TypedCollection;
-        boolean rows = !written || !Objects.equals(c.args().get(0).type(), c.args().get(1).type());
+        boolean rows = !written || SideEqualities.exactNumber(n.args().get(0).info().type());
         com.legend.sql.SqlQuery left = rows ? sideRows.apply(n.args().get(0)) : null;
         com.legend.sql.SqlQuery right = left == null ? null : sideRows.apply(n.args().get(1));
         return new SqlExpr.Call(SqlFn.SAME_IN_ORDER, left == null || right == null ? c.args()
