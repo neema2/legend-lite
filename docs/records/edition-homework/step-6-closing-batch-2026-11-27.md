@@ -93,6 +93,14 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
 | B4 | `let g = generateGuid(); $g == $g` | refused by name (drawn afresh, read twice) | true | a named refusal |
 | B4 | `let ks = [generateGuid(), generateGuid()]; $ks->filter(k \| $k == $ks->at(0))->size()` | **0** | 1 | confirmed wrong: the fresh-draw check sees a value that IS a draw, not a list HOLDING draws. Build: the same refusal. |
 
+## The build's runs (2026-11-27; the scratch branch `claude/step-6-numbers`; nothing on the pull request's branch)
+
+| Run | Commit | Result | Read |
+|---|---|---|---|
+| piece 1, the focused 22 targets | `5e383d967` | 20 pass, 2 fail | both the earlier wording fix's, never run before: the host judge's pinned size (one line over), and a test that expected the two judges' records to DIFFER for a Variant read through `Any` -- they now agree. Fixed; the four targets re-run green at `cb7e767fe`. |
+| piece 3, the same 22 | `433369337` | 19 pass, 3 fail | the empty-side rule right on every new case (the six probe rows, a filter under `!`, two sides both empty), on DuckDB, H2 and SQLite. The three: my test read the guard's spelling in upper case; a class's rows under `forAll` as a query's own answer is an older defect (section D); and `EqualityWorldsConformanceTest` pinned `[]->head() == []->head()` as a DECLARED divergence (no value where Pure says true) -- the rule closed it, the test now says the two agree. |
+| pieces 1 to 3 with the order rule | `e3f924ad9` | 16 pass, 6 fail | six causes, read together: (1) my correction "many values read from one sorted value are unordered" refused every sorted frame read (`$result.values.rows`): backed out, recorded as register S431's second limit; (2) a `match`'s parameter was taken for an execution frame's rows (two PCT tests refused): it is a value the walk cannot see; (3) the planner minted typed nodes for the rule's scope (an architecture rule): moved to the compiler; (4) a function's name written as a literal, and a `Map.copyOf` (two guards); (5) a test case of mine over a shape lite does not plan; (6) a row-level `forAll` still answers true where a row's comparison has an empty side: being probed. |
+
 ## C. Not yet verified, or housekeeping
 
 | # | What |
