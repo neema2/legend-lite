@@ -90,14 +90,14 @@ final class RootComparison {
                     + " drawn once for each side");
         }
         List<TypedSpec> lets = body.subList(0, body.size() - 1);
-        if (Type.isRelation(left.info().type()) || Type.isRelation(right.info().type())) {
+        if (table(left) || table(right)) {
             return tables(left, right, lets, negated, lowered, numbers, anyOrder);
         }
         if (anyOrder) {
             // the equality rule: different types never compare, a compile error naming the two -- the type-checker's
             // own question (two unrelated classes too: the third review of 2026-11-27, M6)
-            java.util.Optional<Type[]> two = com.legend.compiler.spec.EqualityClasses.neverEqual(left.info().type(),
-                    right.info().type(), ctx);
+            java.util.Optional<Type[]> two = com.legend.compiler.spec.EqualityClasses.neverEqual(valueType(left),
+                    valueType(right), ctx);
             if (two.isPresent()) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
                         "sameElements compares elements of one type, and its sides hold "
@@ -105,12 +105,12 @@ final class RootComparison {
                                 + ": two types are never equal -- convert one side");
             }
         }
-        if (known(left.info().type()) && known(right.info().type())
-                && !java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
-                        SideEqualities.typedClass(right.info().type()))
+        if (known(valueType(left)) && known(valueType(right))
+                && !java.util.Objects.equals(SideEqualities.typedClass(valueType(left)),
+                        SideEqualities.typedClass(valueType(right)))
                 // (an Integer side against a Decimal side is one comparison, by value: two exact numbers)
-                && !(SideEqualities.exactNumber(left.info().type())
-                        && SideEqualities.exactNumber(right.info().type()))) {
+                && !(SideEqualities.exactNumber(valueType(left))
+                        && SideEqualities.exactNumber(valueType(right)))) {
             // two known types: the comparison is whatever the door that admitted the code made of it (refused on
             // lite's own, the database's by value on legend-engine's), which stands as it is lowered
             return null;
@@ -128,8 +128,8 @@ final class RootComparison {
                 kind(right, rightPlan), rightPlan, ctx);
         SideEqualities.Compared compared = pair == null ? null
                 : pair.under(numbers).compared(leftPlan, rightPlan, anyOrder);
-        return compared == null ? unplanned(anyOrder, "its sides (" + left.info().type().typeName() + " and "
-                + right.info().type().typeName() + ") have no typed comparison") : answer(compared, negated);
+        return compared == null ? unplanned(anyOrder, "its sides (" + valueType(left).typeName() + " and "
+                + valueType(right).typeName() + ") have no typed comparison") : answer(compared, negated);
     }
 
     /**
@@ -216,6 +216,24 @@ final class RootComparison {
                 side -> BodyPlanner.lowererFor(side, env, ctx, identity).lower(
                         com.legend.lowering.SeedableLets.withSeedableLetPrefix(side, env.queryLets(), ctx)),
                 lowerer::numbersOf, ctx));
+    }
+
+    /**
+     * The type of {@code side}'s values: its own; or, where it is ROWS READ AS VALUES, their one column's. A store's
+     * rows mapped to one value each ({@code p::Party.all()->map(p | $p.name)}) reach the planner, once the store is
+     * resolved, as a relation of one column and many rows: a list of that column's values, no table (measured
+     * 2026-11-27: read as a table against a list it had no comparison here, and took the plain one, in the order
+     * the rows arrived).
+     */
+    private static Type valueType(TypedSpec side) {
+        Type t = side.info().type();
+        return side.info().multiplicity().isMany() && Type.schemaView(t) instanceof Type.RelationType rows
+                && rows.columns().size() == 1 ? rows.columns().get(0).type() : t;
+    }
+
+    /** Whether {@code side} is a table: relation-typed, and no rows read as values ({@link #valueType}). */
+    private static boolean table(TypedSpec side) {
+        return Type.isRelation(side.info().type()) && valueType(side) == side.info().type();
     }
 
     private static boolean wholeOrTable(TypedSpec side) {
@@ -345,7 +363,7 @@ final class RootComparison {
     /** The kind a side's values are compared as: its type, a {@code Number} side's the number type its plan's column
      *  holds where that names one (the fact the database judge's side reads, {@code CanonicalRenderSql}). */
     private static Type kind(TypedSpec side, SqlQuery plan) {
-        Type t = side.info().type();
+        Type t = valueType(side);
         if (t == Type.Primitive.NUMBER && !plan.outputs().isEmpty()) {
             Type held = Type.kindOfSqlType(plan.outputs().get(0).type());
             if (held == Type.Primitive.INTEGER || held == Type.Primitive.FLOAT || held == Type.Primitive.DECIMAL) {
