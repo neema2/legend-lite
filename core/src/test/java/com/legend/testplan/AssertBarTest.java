@@ -191,6 +191,7 @@ class AssertBarTest {
             new Probe("decimal-vs-integer-values", "{|assertEquals(1.5D, 1)}", "expected: 1.5, actual: 1"),
             new Probe("float-vs-decimal", "{|assertEquals(1.5, 1.5D)}", "expected: 1.5 (Float), actual: 1.5 (Decimal)"),
             new Probe("assertNotEquals-across-kinds", "{|assertNotEquals(3, 3.0)}", null),
+            new Probe("assertNotEquals-exact-numbers", "{|assertNotEquals(3, 3D)}", "3 should not equal 3"),
             new Probe("mixed-list", "{|assertEquals([1, 'a', 2.5], [1, 'a', 2.5])}", null),
             new Probe("empty-vs-filtered", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
             new Probe("assertError-let-message", "{|let m = 'boom'; assertError(|fail($m), $m);}", null),
@@ -443,9 +444,10 @@ class AssertBarTest {
     }
 
     /** A Decimal property over an INTEGER column (PR #118 fix round, 2026-11-18, G2): its value arrives as the column's
-     *  integer, its declaration says Decimal. Lite's own rule (register S127) compares two numbers by their DECLARED
-     *  kinds, so the Integer 1 and the property's Decimal 1 are never equal -- under the host judge as under the database
-     *  judge, and under both together: one outcome, and one message, per assert, on DuckDB, H2 and SQLite alike. Its row
+     *  integer, its declaration says Decimal. Lite's own rule (register S127 as amended 2026-11-27) calls an Integer and
+     *  a Decimal of one value equal, two exact numbers, so the Integer 1 and the property's Decimal 1 are equal -- under
+     *  the host judge as under the database judge, and under both together: one outcome, and one message, per assert,
+     *  on DuckDB, H2 and SQLite alike (until that ruling two kinds never equal, compared by their DECLARED kinds). Its row
      *  is the connection's declared test data, a load of the plan's; {@code %s} its database. */
     private static final String MAPPED_ON = """
             ###Pure
@@ -474,13 +476,15 @@ class AssertBarTest {
     void anEqOverADeclaredDecimalIsOneVerdictUnderEveryJudge() throws Exception {
         String d = "p::P.all()->filter(x | $x.id == 1)->toOne().d";
         String mapped = "p::P.all()->map(x | $x.d)->toOne()";
-        // the body, and its one outcome: the Integer 1 is not the Decimal 1 in lite's own runs (S127)
+        // the body, and its one outcome: the Integer 1 is the Decimal 1 in lite's own runs -- two exact numbers, equal
+        // by their value (S127 as amended by the user's ruling of 2026-11-27; until then two kinds never equal, and
+        // each of the four the opposite)
         java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
         for (String side : List.of(d, mapped)) {
-            want.put("{|assertEq(1, " + side + ")}", "AssertFailed: expected: 1 (Integer), actual: 1 (Decimal)");
-            want.put("{|assertIs(1, " + side + ")}", "AssertFailed: expected: 1 (Integer), actual: 1 (Decimal)");
-            want.put("{|assertNotEq(1, " + side + ")}", "pass");
-            want.put("{|assertIsNot(1, " + side + ")}", "pass");
+            want.put("{|assertEq(1, " + side + ")}", "pass");
+            want.put("{|assertIs(1, " + side + ")}", "pass");
+            want.put("{|assertNotEq(1, " + side + ")}", "AssertFailed: 1 should not equal 1");
+            want.put("{|assertIsNot(1, " + side + ")}", "AssertFailed: Should not be identical to: 1");
         }
         // the database judge's text of a store-read Decimal drops only its carrier's D: its sign and digits kept (a
         // DECIMAL(10,2) read decodes scale-canonical, 1.50 as 1.5, under both judges: LiteralSpelling.wireValueEgress's

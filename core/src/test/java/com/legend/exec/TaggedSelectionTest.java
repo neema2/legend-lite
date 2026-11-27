@@ -77,10 +77,11 @@ class TaggedSelectionTest {
         assertEquals(1, plan.columns().size(), plan.sql());
         ExecutionPlan.Column value = plan.columns().get(0);
         assertEquals("Number", value.type());
-        // the slots in the order the elements are searched for the winner: a greatest's the higher number type first,
-        // so a tie of equal numbers keeps the Decimal, then the Float (slice 6.2: MixedEncoding.TiePick; the written
-        // order until then)
-        assertEquals("TAGGED<Decimal DECIMAL(2,1), Float DOUBLE, Integer BIGINT>", value.slot());
+        // the slots in the order the elements are searched for the winner: a greatest's the later family first, so a
+        // tie of equal numbers keeps the Float, then an exact number, the Integer and the Decimal in the order the
+        // list holds them (the user's ruling of 2026-11-27: two families; from slice 6.2 until then Decimal, Float,
+        // Integer; the written order before that)
+        assertEquals("TAGGED<Float DOUBLE, Integer BIGINT, Decimal DECIMAL(2,1)>", value.slot());
         String sql = plan.sql();
         for (String column : List.of("value__0", "value__1", "value__2")) {
             assertTrue(sql.contains(column), sql);
@@ -95,8 +96,8 @@ class TaggedSelectionTest {
     void theWinnerIsReadInItsOwnKind() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(new BigDecimal("3.0"), value(c, "|[1, 2.5, 3.0D]->max()"));
-            // the tag names the winner's slot (the first of a greatest's: Decimal DECIMAL(2,1)), read with the carrier
-            assertEquals(new com.legend.result.TaggedCell(0, new BigDecimal("3.0")), tagged(c, "|[1, 2.5, 3.0D]->max()"));
+            // the tag names the winner's slot (the last of a greatest's: Decimal DECIMAL(2,1)), read with the carrier
+            assertEquals(new com.legend.result.TaggedCell(2, new BigDecimal("3.0")), tagged(c, "|[1, 2.5, 3.0D]->max()"));
             assertEquals(2.5d, value(c, "|[1, 2.5]->max()"));
             assertEquals(3L, value(c, "|[1, 2.5, 3]->max()"));
             assertEquals(1L, value(c, "|[1, 2.5]->min()"));
@@ -104,8 +105,8 @@ class TaggedSelectionTest {
             assertEquals(1L, value(c, "|least([1, 2.5])"));
             // mode keeps the last of the winning run, as Pure's does
             assertEquals(2.5d, value(c, "|[1, 2, 2.5, 2.5]->mode()"));
-            // a tie of two numbers of different types, lite's own rule: by the order of types (Integer, Float,
-            // Decimal), wherever they are written -- the greatest is the Float, the least the Integer (slice 6.2 of
+            // a tie of two numbers of the two families, lite's own rule: an exact number, then a Float, wherever
+            // they are written -- the greatest is the Float, the least the Integer (slice 6.2 of
             // the edition program's step 6; until it lite kept the FIRST written, under a note that called it Pure's
             // rule: legend-pure and legend-engine keep the LAST of a list's tie, run 2026-11-26, and answer so at
             // their own doors, NamedRule.EXTREME_KEEPS_THE_FOLDS_TIE)

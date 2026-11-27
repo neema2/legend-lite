@@ -39,11 +39,16 @@ class EqualityCompatEdgeTest {
 
     @Test
     void theEdgesDoorComparesNumberKindsByLitesRule() throws Exception {
-        // register S127: two numbers of different kinds are never equal -- on the edge's door too since B3 step 1a
-        // (2026-11-24; until then compiled legend-pure's CompiledSupport.eq there, 1D == 1 by text)
+        // register S127: numbers are of two families -- an exact number (an Integer, a Decimal) never equals a Float,
+        // two exact numbers are equal by their value (the user's ruling of 2026-11-27) -- on the edge's door too, by
+        // the one rulebook of B3 step 1a (2026-11-24). For 1D == 1 that is compiled legend-pure's verdict again
+        // (CompiledSupport.eq, by text), which the edge held until B3 and lite's rule denied from then until this
+        // ruling
         try (Connection c = TestBackends.platform().open()) {
-            fails(c, "|assertEquals(1D, 1)");
+            holds(c, "|assertEquals(1D, 1)");
+            fails(c, "|assertEquals(1.5D, 1)");
             fails(c, "|assertEquals(1.0, 1)");
+            fails(c, "|assertEquals(1.5, 1.5D)");
         }
     }
 

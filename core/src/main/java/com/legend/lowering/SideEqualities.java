@@ -1093,22 +1093,37 @@ public final class SideEqualities {
     }
 
     /** One side's typed rows of an Integer-against-Decimal pair ({@link #values}): an Integer side's values read as
-     *  Decimals at the other side's scale ({@link #wideEnough}), over its rows read once from {@code cte}; a Decimal
-     *  side's as they are. Null where the other side holds no typed Decimal (one written as its text). */
+     *  the other side carries its Decimals, over its rows read once from {@code cte} -- as Decimals at the other
+     *  side's scale ({@link #wideEnough}), or, where the other side's Decimals are their canonical text (a store-read
+     *  Decimal's egress, {@code LiteralSpelling.wireValueEgress}: no trailing zero, no bare point, then {@code D}),
+     *  as that text of the whole number, which is its digits and the {@code D}: two such texts are the same exactly
+     *  where the two numbers are. A Decimal side's rows as they are. Null where a side holds neither. */
     private static @com.legend.base.Nullable SqlQuery besideDecimals(String cte, SqlQuery rows, SqlQuery other) {
         SqlType own = rows.outputs().get(0).type();
         SqlType theirs = other.outputs().get(0).type();
-        if (own instanceof SqlType.Decimal) {
-            return theirs instanceof SqlType.Decimal || wholeNumber(theirs) ? rows : null;
-        }
-        if (!wholeNumber(own) || !(theirs instanceof SqlType.Decimal d)) {
+        boolean ownText = own == SqlType.Scalar.DECIMAL_TEXT;
+        boolean theirText = theirs == SqlType.Scalar.DECIMAL_TEXT;
+        if (!(wholeNumber(own) || own instanceof SqlType.Decimal || ownText)
+                || !(wholeNumber(theirs) || theirs instanceof SqlType.Decimal || theirText)) {
             return null;
         }
+        if (!wholeNumber(own) || wholeNumber(theirs)) {
+            // nothing to read anew on this side: a Decimal side as it is carried, two whole-number carriers as they
+            // are (a Decimal property over a whole-number column); a typed Decimal against a Decimal's text has no
+            // typed comparison, as two Decimal sides so carried have none ({@link #oneCarrier})
+            return own instanceof SqlType.Decimal && theirText || ownText && theirs instanceof SqlType.Decimal
+                    ? null : rows;
+        }
         SqlQuery read = cteRows(cte, rows);
-        OutputCol oOut = new OutputCol(O, wideEnough(d), read.outputs().get(0).nullable());
+        SqlExpr whole = SqlExpr.Column.of("t", read.outputs(), O);
+        OutputCol oOut = new OutputCol(O, theirs instanceof SqlType.Decimal d ? wideEnough(d) : theirs,
+                read.outputs().get(0).nullable());
         OutputCol rnOut = read.outputs().get(1);
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", read.outputs(),
-                O), oOut.type(), SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
+        SqlExpr beside = theirs instanceof SqlType.Decimal ? new SqlExpr.Cast(whole, oOut.type(), SqlExpr.Reason.JUDGE)
+                : new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(whole, SqlType.Scalar.VARCHAR,
+                        SqlExpr.Reason.JUDGE), new SqlExpr.StringLit("D")), SqlType.Scalar.DECIMAL_TEXT,
+                        SqlExpr.Reason.JUDGE);
+        return new SqlSelect(List.of(new SqlSelect.Projection(beside, O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
                 read.outputs(), RN), RN, rnOut)), false, new SqlSource.Subselect(read, "t", null), null, List.of(), null,
                 null, List.of(), null, null, List.of(oOut, rnOut));
     }

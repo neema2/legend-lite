@@ -188,10 +188,14 @@ class PureAssertsTest {
                 new BigDecimal("1.50"), new BigDecimal("1.5")));
         assertTrue(same(
                 new BigDecimal("1.5"), new BigDecimal("1.5")));
-        // X1/X3: NO cross-primitive-kind equality (engine eq requires
-        // the same primitive type name)
-        assertFalse(same(8L, new BigDecimal("8")));
+        // numbers are of two families (the user's ruling of 2026-11-27): an Integer and a Decimal, two exact
+        // numbers, are equal by their value; an exact number never equals a Float (X1/X3 until then: no equality
+        // across any two primitive kinds, as the engine's eq requires the same primitive type name)
+        assertTrue(same(8L, new BigDecimal("8")));
+        assertTrue(same(new BigDecimal("8.00"), 8L));
+        assertFalse(same(8L, new BigDecimal("8.5")));
         assertFalse(same(8.0d, new BigDecimal("8.0")));
+        assertFalse(same(8L, 8.0d));
         double base = 0.1 + 0.2;   // 0.30000000000000004
         assertTrue(same(base, 0.3 + Math.ulp(0.3)),
                 "within 2 ULP compares equal (dialect libm)");
