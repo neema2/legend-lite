@@ -216,6 +216,23 @@ final class Equalities {
         return SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Call.of(SqlFn.EQUAL, l, r), new SqlExpr.BoolLit(false));
     }
 
+    /**
+     * Two sides of two types, which are never equal -- unless BOTH hold no value, which are ({@code [] == []} is
+     * true): each side's "no value, or a value" as one character, the two joined and compared with "none, none".
+     * Each side is written once and read (its emptiness is asked of the value itself), so a side that fails raises;
+     * no text is made of a value, so a side may hold anything. A side read from a list is its fold
+     * ({@code WholeComparisons.everyValueRead}), NULL where the list is empty.
+     */
+    static SqlExpr sameOnlyWhereBothEmpty(SqlExpr left, SqlExpr right) {
+        return SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.CONCAT, noneOrSome(left), noneOrSome(right)),
+                new SqlExpr.StringLit("nn"));
+    }
+
+    private static SqlExpr noneOrSome(SqlExpr side) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, side),
+                new SqlExpr.StringLit("n"))), new SqlExpr.StringLit("v"), SqlExpr.Reason.OPERATOR);
+    }
+
     /** {@link #neverEqualButEvaluated} for a membership or an index of two types ({@code in}, {@code contains},
      *  {@code indexOf}): false, or -1 for {@code index}, each of {@code singles} -- the single values among the
      *  comparison's sides -- still evaluated, their texts joined behind a mark and compared with another. */

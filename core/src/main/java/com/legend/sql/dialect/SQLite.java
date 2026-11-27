@@ -1916,6 +1916,7 @@ public class SQLite extends AnsiSqlRenderer {
     private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            SameValuesForm.refuseTextOnlyLists(a);
             return writer.append("(json(").expr(a.get(0), 0).append(c.fn() == SqlFn.EQUAL ? ") = json(" : ") <> json(")
                     .expr(a.get(1), 0).append("))");
         }

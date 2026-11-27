@@ -43,6 +43,7 @@ class RunTimeComparisonTest {
             function x::sameNums(a: Number[*], b: Number[*]): Boolean[1] { $a == $b }
             function x::sameAnys(a: Any[*], b: Any[*]): Boolean[1] { $a == $b }
             function x::among(a: Number[1], b: Number[*]): Boolean[1] { $a->in($b) }
+            function x::sameOpt(a: Number[0..1], b: Number[0..1]): Boolean[1] { $a == $b }
             function x::sameT<T,U>(a: T[1], b: U[1]): Boolean[1] { $a == $b }
             function x::isZeroT<T>(a: T[1]): Boolean[1] { $a == 0 }
             ###Relational
@@ -335,6 +336,31 @@ class RunTimeComparisonTest {
         try (Connection connection = backend.open()) {
             assertEquals(List.of(List.of(2L)), Lean.established(model,
                     "{| let ks = [generateGuid(), generateGuid()]; $ks->size(); }", "p::RT", connection).rows());
+        }
+    }
+
+    /** TWO TYPES ARE NEVER EQUAL -- UNLESS BOTH SIDES ARE EMPTY, WHICH ARE ({@code [] == []} is true; the closing
+     *  batch, 2026-11-27). Where neither side is known to hold a value the answer is "the same only where both are
+     *  empty", each side read once. Until then that case was the database's own comparison across the two types: an
+     *  Integer 1 against a Float 1.0 answered true. */
+    @Test
+    void twoTypesThatMayBothBeEmptyAreTheSameOnlyWhereBothAre() throws Exception {
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        String noInteger = "[1, 2]->filter(x | $x > 5)->first()";
+        String noFloat = "[1.5]->filter(x | $x > 5.0)->first()";
+        java.util.Map<String, Object> answered = new java.util.LinkedHashMap<>();
+        answered.put("|x::sameOpt(" + noInteger + ", " + noFloat + ")", true);
+        answered.put("|x::sameOpt([1, 2]->first(), [1.0, 2.0]->first())", false);
+        answered.put("|x::sameOpt([1, 2]->first(), " + noFloat + ")", false);
+        answered.put("|x::sameOpt(" + noInteger + ", [1.0, 2.0]->first())", false);
+        // two exact numbers are one family: by value
+        answered.put("|x::sameOpt([1, 2]->first(), [1.0D, 2.0D]->first())", true);
+        for (java.util.Map.Entry<String, Object> c : answered.entrySet()) {
+            try (Connection connection = backend.open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                assertEquals(List.of(List.of(c.getValue())), r.rows(), c.getKey() + "\n" + r.text());
+            }
         }
     }
 }

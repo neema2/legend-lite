@@ -491,6 +491,41 @@ class RootComparisonTest {
         assertEquals(List.of(), wrong, "every case");
     }
 
+    /** WHERE NO STATEMENT OF ITS OWN ANSWERS A COMPARISON, AND THE DATABASE'S OWN IS NOT THE RULE, IT IS REFUSED BY
+     *  NAME (the closing batch; the user, 2026-11-27: "per row refused okay"). A map compared where it reads the
+     *  element it stands in was the database's own map comparison (its entries by the order they were written in);
+     *  two lists of Decimals there, on a database that carries a list as JSON, were compared as their texts (1.0
+     *  against 1.00 not the same). The fix is the database follow-up's; until then never a wrong answer. */
+    @Test
+    void aComparisonNoStatementAnswersIsRefusedByNameWhereTheDatabasesOwnIsNotTheRule() throws Exception {
+        List<String> wrong = new java.util.ArrayList<>();
+        String maps = "|[1, 2]->map(x | newMap([pair('a', $x)]) == newMap([pair('a', 1)]))";
+        String decimals = "|[1, 2]->map(x | [1.0D * $x, 2.0D] == [1.00D, 2.00D])";
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            try (Connection connection = backend.open()) {
+                wrong.add(backend.type() + ": " + maps + " -> " + Lean.established(model, maps, "p::RT", connection)
+                        .rows());
+            } catch (RuntimeException e) {
+                if (!(e instanceof com.legend.error.NotImplementedException
+                        || e instanceof com.legend.sql.DialectCapability)) {
+                    wrong.add(backend.type() + ": " + maps + " -> " + e);
+                }
+            }
+            if ("SQLite".equals(String.valueOf(backend.type()))) {
+                try (Connection connection = backend.open()) {
+                    wrong.add("SQLite: " + decimals + " -> " + Lean.established(model, decimals, "p::RT", connection)
+                            .rows());
+                } catch (RuntimeException e) {
+                    if (!String.valueOf(e.getMessage()).contains("has no typed form")) {
+                        wrong.add("SQLite: " + decimals + " -> " + e);
+                    }
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "each refused by name");
+    }
+
     /** {@code query}'s rows, or the name of what refused it. */
     private static String outcome(com.legend.testbackend.TestBackend backend, String model, String query)
             throws Exception {

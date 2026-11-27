@@ -172,9 +172,12 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
             // closing batch ("Build 3"): the lowering reads its every value by a statement of the planner's, or
             // refuses by name where it cannot -- until then the constant stood for a list, and a list whose
             // computation fails answered a quiet false)
-            case EQUALITY -> !neverEmpty(call) ? call
-                    : unevaluatedIsHarmless(call)
-                            ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
+            // (two sides that may BOTH be empty are the same where both are -- [] == [] is true -- so only a side that
+            // is never empty makes the answer false outright; otherwise the marker, answered where it is written as
+            // "the same only where both are empty", each side read once. Until the closing batch that case was the
+            // plain comparison, the database's own across two types: 1 against 1.0 true)
+            case EQUALITY -> neverEmpty(call) && unevaluatedIsHarmless(call)
+                    ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
                     : marked.answeredNeverEqual();
             // membership and index the same (the user, 2026-11-27: "why cant we do the work we promised"):
             // [1, 2]->at(5)->cast(@Number)->in([1.5]) raises in Pure, and so does a list that fails

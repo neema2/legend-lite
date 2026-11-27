@@ -3772,15 +3772,22 @@ public final class Lowerer {
             ColumnResolver columns) {
         if (x.neverEqual() && x.comparison() instanceof TypedNativeCall never && never.args().size() == 2) {
             // answered by its sides' types, each side evaluated (a side that may raise still raises)
+            boolean equality = x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.EQUALITY;
+            // (two sides that may BOTH be empty are the same where both are: only a side that is never empty makes
+            // an equality false outright)
+            boolean bothMayBeEmpty = equality && never.args().stream().noneMatch(side ->
+                    side.info().multiplicity() instanceof Multiplicity.Bounded b && b.lower() >= 1);
             List<SqlExpr> read = new ArrayList<>();
             for (TypedSpec side : never.args()) {
-                SqlExpr value = side.info().multiplicity().isMany() ? everyValueRead(side, x.operator())
-                        : scalarInner(side, columns);
+                SqlExpr value = side.info().multiplicity().isMany()
+                        ? everyValueRead(side, x.operator(), bothMayBeEmpty) : scalarInner(side, columns);
                 if (value != null) {
                     read.add(value);
                 }
             }
-            boolean equality = x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.EQUALITY;
+            if (bothMayBeEmpty) {
+                return Equalities.sameOnlyWhereBothEmpty(read.get(0), read.get(1));
+            }
             return equality && read.size() == 2 ? Equalities.neverEqualButEvaluated(read.get(0), read.get(1))
                     : Equalities.neverAmongButEvaluated(read,
                             x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX);
@@ -3794,12 +3801,13 @@ public final class Lowerer {
     }
 
     /** Every value of {@code side}, a list on one side of a comparison answered "never equal", READ: null where the
-     *  list is written or read where it stands (nothing computes, so nothing may raise); else the planner's
+     *  list is written or read where it stands (nothing computes, so nothing may raise) and its emptiness is not
+     *  asked ({@code always}: two sides that may both be empty are the same where both are); else the planner's
      *  statement that folds its every value to one ({@link WholeComparisons#everyValueRead}), as one value. Where no
      *  statement of its own reads the list (it is computed from the row or the element the comparison stands in),
      *  refused by name: never the quiet false it was. */
-    private @com.legend.base.Nullable SqlExpr everyValueRead(TypedSpec side, String operator) {
-        if (!computes(side)) {
+    private @com.legend.base.Nullable SqlExpr everyValueRead(TypedSpec side, String operator, boolean always) {
+        if (!always && !computes(side)) {
             return null;
         }
         @com.legend.base.Nullable SqlQuery read = wholeComparisons == null ? null : wholeComparisons.everyValueRead(side);
@@ -4526,6 +4534,18 @@ public final class Lowerer {
             // (asked once: the guard binds the planner's answer its arm yields)
             case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && wholeSides(n) instanceof SqlExpr planned ->
                 planned;
+            // a MAP or a TABLE compared where no statement of its own compares it (it reads the row or the element
+            // it stands in): a database's own comparison is not the rule -- a map's entries by the order they were
+            // written in, a table no value at all -- so it is refused by name (the user, 2026-11-27: "per row
+            // refused okay"; the fix is the database follow-up's row D8). A door's own rule for == is the door's
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && n.args().size() == 2
+                    && wholeComparisons != null && Scalars.doorsRule(n, features, styled()) == null
+                    && n.args().stream().anyMatch(a -> PlatformTypes.isMapCarrier(a.info().type())
+                            || Type.isRelation(a.info().type())) ->
+                throw new com.legend.error.NotImplementedException("== over a map or a table read from the row or the"
+                        + " element it stands in: only a database's own comparison could answer it there, which is"
+                        + " not Pure's (a map's entries in any order, a table's columns and rows); not supported yet"
+                        + " -- compare them as a query's answer, or in a let the comparison reads");
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
