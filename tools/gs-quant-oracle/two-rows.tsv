@@ -143,7 +143,7 @@ max_drawdown default	two-values	732 points, 2 values on 2025-02-05	REFUSED
 max_drawdown w=63	two-values	669 points, 2 values on 2025-02-05	REFUSED
 max_drawdown w=3mo	raises-two-rows	ValueError at econometrics.py:1090	GS_ERROR
 max_drawdown w=20,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
-vol_swap_volatility default	no-value	1 points, 0 values on 2025-02-05	REFUSED
+vol_swap_volatility default	no-value	1 points, 0 values on 2025-02-05	PASS
 vol_swap_volatility w=20	two-values	713 points, 2 values on 2025-02-05	REFUSED
 sharpe_ratio default	raises-497	MqValueError at econometrics.py:497	GS_ERROR
 sharpe_ratio w=63	raises-497	MqValueError at econometrics.py:497	GS_ERROR
