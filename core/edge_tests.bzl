@@ -99,6 +99,9 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/PureComparisonsTest.java",
     "src/test/java/com/legend/edge/EngineTablePlacementTest.java",
     "src/test/java/com/legend/edge/EngineTestsStyleTest.java",
+    # where equal numbers of different types land, at lite's door, legend-pure's and legend-engine's (the edition
+    # program's step 6, slice 6.2, 2026-11-26)
+    "src/test/java/com/legend/edge/UpstreamTiesTest.java",
     "src/test/java/com/legend/edge/PureMeaningEngineTest.java",
     # the edge's words of a raise site from its record (stage B's B1, 2026-11-20)
     "src/test/java/com/legend/edge/PureMessagesWordedTest.java",

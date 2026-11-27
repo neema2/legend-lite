@@ -172,9 +172,12 @@ public final class PureText {
                 return kind.cast((com.legend.planner.RoutedQueries) AggAwareActivities::routingActivity);
             }
             if (kind == com.legend.planner.Edition.class) {
-                // the door's edition (the edition program's step 2): PCT's door, legend-pure's own tests', hands none
-                // yet, the product's as it is (the corpus has its own style since step 3, ENGINE_TESTS)
-                return productForm;
+                // the door's edition (the edition program's step 2): this style is legend-pure's door (PCT's
+                // legend-pure run, legend-pure's own tests'), and hands legend-pure's edition, whose only rows are
+                // where equal numbers of different types land (PureTable; step 6's slice 6.2, 2026-11-26: until then
+                // the product's edition as it is). The corpus and legend-engine's doors hand their own in its place
+                // (ENGINE_TESTS, PURE_V1, ENGINE_PCT)
+                return kind.cast(PureTable.DOOR);
             }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");

@@ -60,6 +60,12 @@ import java.util.Set;
  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
  * connection ({@link #transformsOutsideStore}).
  *
+ * <p>One family of rows is neither the database's own function nor decided by the stamp ({@link UpstreamTies}; the
+ * edition program's step 6, slice 6.2, the user's rulings of 2026-11-26 ~23:10): where equal numbers of different
+ * types land in a sort, and which of them {@code max}, {@code min}, {@code greatest} and {@code least} keep.
+ * legend-engine's own Java and legend-pure answer those alike, and lite writes that answer itself on every database,
+ * so these rows answer inside a store query and outside one, on any database, and are never refused.
+ *
  * <p>legend-engine's answer for a row is the database's own function's, so each row carries the databases it answers
  * on ({@link PureText}'s sets: where a lane has read legend-engine's SQL and run it beside the rule). On any other
  * database a call a row would answer is refused by name, never answered with a guess (the user's ruling of 2026-11-20
@@ -192,6 +198,12 @@ final class EngineTable implements EditionTable, Edition {
         if (!table) {
             throw new IllegalStateException("legend-engine's edition was asked for a row: the planner makes the table"
                     + " of a statement's database from it (Edition.table)");
+        }
+        // where equal numbers of different types land: upstream's own answer on every database, and the same inside a
+        // store query and outside one, so it is asked before the stamp and is never a per-database row
+        NamedRule tie = UpstreamTies.rule(call);
+        if (tie != null) {
+            return tie;
         }
         if (call.outsideStore()) {
             return null;
