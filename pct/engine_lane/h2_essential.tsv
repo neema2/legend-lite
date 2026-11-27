@@ -79,7 +79,7 @@ meta::pure::functions::collection::tests::slice::testSliceInList	REFUSES	REFUSES
 meta::pure::functions::collection::tests::slice::testSliceOnBounds	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::slice::testSliceOnEmpty	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::slice::testSliceOutOfBounds	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::collection::tests::sort::testMixedSortNoComparator	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testMixedSortNoComparator	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::sort::testSimpleSort	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::collection::tests::sort::testSimpleSortNoComparator	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::collection::tests::sort::testSimpleSortReversed	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	FAIL	REFUSED	BOTH_FAIL
