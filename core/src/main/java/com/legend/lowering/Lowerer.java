@@ -397,10 +397,6 @@ public final class Lowerer {
     private java.util.function.@com.legend.base.Nullable Function<TypedNativeCall,
             @com.legend.base.Nullable SqlQuery> wholeComparisons;
 
-    /** The comparison last asked of {@link #wholeComparisons} and its answer: a switch's guard asks, its arm reads. */
-    private @com.legend.base.Nullable TypedNativeCall wholeAsked;
-    private @com.legend.base.Nullable SqlExpr wholeAnswer;
-
     /** A comparison of two WHOLE sides (computed lists, maps, tables) inside an expression is answered by
      *  {@code planner}'s statement for it, read here as one value: the statement that answers the same comparison as
      *  a query's last, so it answers the same wherever it stands ({@code planner.RootComparison.inside}; the edition
@@ -415,12 +411,8 @@ public final class Lowerer {
         if (wholeComparisons == null) {
             return null;
         }
-        if (wholeAsked != n) {
-            @com.legend.base.Nullable SqlQuery planned = wholeComparisons.apply(n);
-            wholeAnswer = planned == null ? null : new SqlExpr.ScalarSubquery(planned);
-            wholeAsked = n;
-        }
-        return wholeAnswer;
+        @com.legend.base.Nullable SqlQuery planned = wholeComparisons.apply(n);
+        return planned == null ? null : new SqlExpr.ScalarSubquery(planned);
     }
 
     /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
@@ -4428,8 +4420,9 @@ public final class Lowerer {
             // == over two whole sides (computed lists, maps, tables) that read nothing of the row they stand in: the
             // statement that answers the comparison as a query's last, read as one value -- one equality wherever
             // the comparison stands (planner.RootComparison.inside)
-            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && wholeSides(n) != null ->
-                java.util.Objects.requireNonNull(wholeSides(n));
+            // (asked once: the guard binds the planner's answer its arm yields)
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && wholeSides(n) instanceof SqlExpr planned ->
+                planned;
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is

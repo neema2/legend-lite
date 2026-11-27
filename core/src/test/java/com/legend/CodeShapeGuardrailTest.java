@@ -369,6 +369,11 @@ class CodeShapeGuardrailTest {
             // 2026-11-17; Lowerer.plainRaises, B7's of the same day, folded into it). Made visible 2026-11-17:
             // declared over two lines since B17/B8, unseen by the line-based guard; not new state
             "Lowerer.styled",
+            // the planner's answer for a comparison of two whole sides met inside an expression (2026-11-27, the
+            // edition program's step 6; the user: "why cant we do the work we promised to get to one equality?"):
+            // builder-style, set once by the planner's lowerer factories (withWholeComparisons) before lower(), the
+            // same lifecycle as the fields above
+            "Lowerer.wholeComparisons",
             // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
             // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set

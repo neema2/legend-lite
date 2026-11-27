@@ -485,13 +485,18 @@ class TaggedListTest {
         // variant lane, one LIST over the grid in its own order (the typed columns' tagged flatten is the test
         // above; the L2 audit, 2026-10-29, found this test named for the flatten it never reached)
         try (Connection c = TestBackends.platform().open()) {
-            assertEquals(true, program(c, "[1, 'x', 2, 'y'] == $rs.rows.values;"));
-            // a sorted relation keeps its order (the rows numbered by its own sort keys: finding 5)
-            assertEquals(true, Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
-                    CONN_LET.replace("order by A", "order by A desc") + "[2, 'y', 1, 'x'] == $rs.rows.values;}",
-                    StorelessRuntime.RUNTIME, c).one());
-            assertEquals(false, program(c, "[1.0, 'x', 2, 'y'] == $rs.rows.values;"));
-            assertEquals(false, program(c, "[1, 'x', 2] == $rs.rows.values;"));
+            // a raw grid's order is its SQL text's, which the planner does not read (B3 step 4, 2026-11-24): == compares
+            // in order, so it is refused by name, as the assert of the same side is (the edition program's step 6,
+            // 2026-11-27, the third review's M1: until then the cells were compared in the order they arrived, whatever
+            // "order by" the text held); sameElements compares them in any order
+            com.legend.error.ModelException unordered = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.error.ModelException.class, () -> program(c, "[1, 'x', 2, 'y'] == $rs.rows.values;"));
+            assertTrue(unordered.getMessage().contains("== compares two lists in order")
+                    && unordered.getMessage().contains("sameElements"), unordered.getMessage());
+            assertEquals(true, program(c, "sameElements([1, 'x', 2, 'y'], $rs.rows.values);"));
+            assertEquals(true, program(c, "sameElements([2, 'y', 1, 'x'], $rs.rows.values);"));
+            assertEquals(false, program(c, "sameElements([1.0, 'x', 2, 'y'], $rs.rows.values);"));
+            assertEquals(false, program(c, "sameElements([1, 'x', 2], $rs.rows.values);"));
             assertEquals(4L, program(c, "$rs.rows.values->size();"));
             assertEquals(true, program(c, "$rs.rows.values->contains('y');"));
             assertEquals(false, program(c, "$rs.rows.values->contains('1');"));

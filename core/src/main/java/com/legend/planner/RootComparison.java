@@ -207,6 +207,17 @@ final class RootComparison {
         }
     }
 
+    /** {@code lowerer}, a test body's ({@code BodyPlanner.lowererFor}), asking here for the comparisons of two whole
+     *  sides it meets inside an expression (an assert's condition, an {@code if}'s): each side lowered by a lowerer
+     *  made as it was. */
+    static com.legend.lowering.Lowerer asking(com.legend.lowering.Lowerer lowerer, List<TypedSpec> body, PlanEnv env,
+            ModelContext ctx, boolean identity) {
+        return lowerer.withWholeComparisons(inside(body, env.queryLets().keySet(),
+                side -> BodyPlanner.lowererFor(side, env, ctx, identity).lower(
+                        com.legend.lowering.SeedableLets.withSeedableLetPrefix(side, env.queryLets(), ctx)),
+                lowerer::numbersOf, ctx));
+    }
+
     private static boolean wholeOrTable(TypedSpec side) {
         return Type.isRelation(side.info().type()) || whole(side);
     }

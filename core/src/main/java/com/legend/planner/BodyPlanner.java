@@ -174,12 +174,7 @@ public final class BodyPlanner {
                     com.legend.compiler.element.type.Type.Primitive.STRING,
                     com.legend.compiler.element.type.Multiplicity.Bounded.ONE).slot());
         }
-        // a comparison of two whole sides inside an expression (an assert's condition, an if's) is the statement that
-        // answers it as a query's last (RootComparison.inside): each side lowered by a lowerer made as this one
-        Lowerer made = lowerer;
-        return made.withWholeComparisons(RootComparison.inside(body, env.queryLets().keySet(),
-                side -> lowererFor(side, env, ctx, identity).lower(SeedableLets.withSeedableLetPrefix(side,
-                        env.queryLets(), ctx)), made::numbersOf, ctx));
+        return RootComparison.asking(lowerer, body, env, ctx, identity);
     }
 
     /** A VALUE as the executor's body: the let prefix spliced, user calls
