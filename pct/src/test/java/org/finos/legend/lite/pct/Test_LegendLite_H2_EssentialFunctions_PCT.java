@@ -31,6 +31,7 @@ public class Test_LegendLite_H2_EssentialFunctions_PCT extends PCTReportConfigur
 
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     // First measured 2026-11-26 (H2 2.5.252; 345 tests, 84 pinned), from what H2 answered: nothing burned down.
+    // 83 pinned since 2026-11-27 (slice 6.2 of the edition program's step 6: testMixedSortNoComparator passes).
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // LITE'S H2 DIALECT DOES NOT WRITE THESE LIST OPERATIONS (not 'H2 has no list type': corrected 2026-11-26, measured on
             // H2 2.5.252). H2 has arrays -- ARRAY[...], CARDINALITY, a[i], ARRAY_CONTAINS, ARRAY_SLICE, ||, and ARRAY_AGG(x ORDER BY x),
@@ -74,7 +75,8 @@ public class Test_LegendLite_H2_EssentialFunctions_PCT extends PCTReportConfigur
             one("meta::pure::functions::collection::tests::reverse::testReverse_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::collection::tests::slice::testSliceError_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::collection::tests::slice::testSliceOutOfBounds_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
-            one("meta::pure::functions::collection::tests::sort::testMixedSortNoComparator_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
+            // (sort::testMixedSortNoComparator left 2026-11-27, the edition program's step 6, slice 6.2: a mixed list's sort is
+            // written with no UNNEST of the list at the statement's root, so H2 plans it and answers Pure's values)
             one("meta::pure::functions::collection::tests::sort::testSimpleSortNoComparator_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::collection::tests::sort::testSimpleSortReversed_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::collection::tests::sort::testSimpleSortWithFunctionVariables_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),

@@ -65,6 +65,9 @@ The doors' rows move no size row (measured on the merged head against its base: 
 
 - PCT on H2, legend-engine's lane: `meta::pure::functions::collection::tests::sort::testMixedSortNoComparator` from
   refused to pass (`pct/engine_lane/h2_essential.tsv`, `refusals_h2.tsv`, `summary_h2.tsv`).
+- PCT on H2, lite's own lane: the same test from an expected failure ("UNNEST reached a dialect without an unnest
+  placement") to pass; its entry leaves `Test_LegendLite_H2_EssentialFunctions_PCT` (84 pinned to 83). Found by CI
+  on the pull request (`linux / pct_h2`, `macos / pct_h2`): the local focused run did not include H2's lite lane.
 - No other recorded suite: PCT's expected failures, the corpus rosters, the edge goldens and the edge corpus are
   regenerated unchanged. PCT on DuckDB and channel B: no verdict line differs with the doors' rows.
 
