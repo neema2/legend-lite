@@ -13,7 +13,7 @@ package com.legend.lowering;
  *
  * <p>{@link #THREE_TYPES} keeps an Integer, a Float and a Decimal three types never equal to one another:
  * interpreted legend-pure's answer on every pair, and what both compatibility doors answered before that ruling. A
- * door's table names it ({@link NamedRule#MIXED_NUMBERS_OF_THREE_TYPES}; the ruling: "legend-pure's and
+ * door's table names it ({@link NamedRule#NUMBERS_OF_THREE_TYPES}; the ruling: "legend-pure's and
  * legend-engine's modes keep their own behaviour").
  *
  * <p>The database compares the two values either way; the rule only says whether it may.

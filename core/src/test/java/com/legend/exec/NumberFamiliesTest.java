@@ -30,11 +30,13 @@ class NumberFamiliesTest {
     private static final String MODEL = """
             ###Pure
             Class p::Party { id: Integer[1]; amount: Decimal[1]; ratio: Float[1]; }
+            Class p::Loose { n: Number[1]; k: Number[1]; m: Number[1]; }
             ###Relational
             Database p::DB ( Table PARTY (ID INTEGER PRIMARY KEY, AMOUNT DECIMAL(10, 2), RATIO DOUBLE) )
             ###Mapping
             Mapping p::M ( p::Party: Relational { ~mainTable [p::DB] PARTY id: PARTY.ID, amount: PARTY.AMOUNT,
-                ratio: PARTY.RATIO } )
+                ratio: PARTY.RATIO }
+              p::Loose: Relational { ~mainTable [p::DB] PARTY n: PARTY.ID, k: PARTY.AMOUNT, m: PARTY.RATIO } )
             ###Connection
             RelationalDatabaseConnection p::C { store: p::DB; type: %s;
                 specification: LocalH2 {
@@ -97,6 +99,44 @@ class NumberFamiliesTest {
                         () -> Lean.established(model, q, "p::RT", connection), q);
                 assertTrue(String.valueOf(e.getMessage()).contains("two values are equal only when")
                         || String.valueOf(e.getMessage()).contains("compared"), q + ": " + e.getMessage());
+            }
+        }
+    }
+
+    @Test
+    void numbersTypedOnlyByTheirColumnsAreRefusedAcrossTheTwoFamilies() throws Exception {
+        // the user's ruling of 2026-11-27 ("great do it"): a property declared Number has no type its author wrote,
+        // but its column holds one. An exact number's column against a Float's can never be equal, so the query is
+        // refused where it is planned, as two known types are where it is compiled -- never false for every row. A
+        // written literal still reads as the column's type, and an Integer against a Decimal is by value.
+        // n is over an INTEGER column, k over a DECIMAL(10, 2), m over a DOUBLE: rows (1, 1.00, 1.0), (2, 2.50, 2.5)
+        String model = MODEL.formatted(TestBackends.platform().type());
+        Map<String, Object> holds = new LinkedHashMap<>();
+        holds.put("|p::Loose.all()->filter(x|$x.n == $x.k)->project(~[n: x|$x.n])", List.of(List.of(1L)));
+        holds.put("|p::Loose.all()->filter(x|$x.n < $x.k)->project(~[n: x|$x.n])", List.of(List.of(2L)));
+        holds.put("|p::Loose.all()->filter(x|$x.m == 1)->project(~[n: x|$x.n])", List.of(List.of(1L)));
+        holds.put("|p::Loose.all()->filter(x|$x.m > 2)->project(~[n: x|$x.n])", List.of(List.of(2L)));
+        holds.put("|p::Loose.all()->filter(x|$x.m->in([1, 7]))->project(~[n: x|$x.n])", List.of(List.of(1L)));
+        for (Map.Entry<String, Object> c : holds.entrySet()) {
+            try (Connection connection = TestBackends.platform().open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                assertEquals(c.getValue(), r.rows(), c.getKey() + "\n" + r.text());
+            }
+        }
+        Map<String, String> refused = new LinkedHashMap<>();
+        refused.put("|p::Loose.all()->filter(x|$x.n == $x.m)->project(~[n: x|$x.n])", "== compares Integer with Float");
+        refused.put("|p::Loose.all()->filter(x|$x.m == $x.k)->project(~[n: x|$x.n])", "== compares Float with Decimal");
+        refused.put("|p::Loose.all()->filter(x|$x.n < $x.m)->project(~[n: x|$x.n])", "< compares Integer with Float");
+        refused.put("|p::Loose.all()->filter(x|$x.n == 1.5)->project(~[n: x|$x.n])", "== compares Integer with Float");
+        refused.put("|p::Loose.all()->filter(x|$x.n->in([1.5, 2.5]))->project(~[n: x|$x.n])",
+                "in compares Integer with Float");
+        for (Map.Entry<String, String> c : refused.entrySet()) {
+            try (Connection connection = TestBackends.platform().open()) {
+                RuntimeException e = assertThrows(RuntimeException.class,
+                        () -> Lean.established(model, c.getKey(), "p::RT", connection), c.getKey());
+                assertTrue(String.valueOf(e.getMessage()).contains(c.getValue())
+                        && e.getMessage().contains("the types of the columns its two sides read"),
+                        c.getKey() + ": " + e.getMessage());
             }
         }
     }

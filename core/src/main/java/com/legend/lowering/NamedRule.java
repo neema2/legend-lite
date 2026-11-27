@@ -97,10 +97,13 @@ public enum NamedRule {
      *  least the Integer). */
     EXTREME_KEEPS_THE_FOLDS_TIE,
 
-    /** {@code ==}, {@code eq}, {@code contains}, {@code in} and {@code removeDuplicates} with an Integer, a Float and
-     *  a Decimal THREE TYPES never equal to one another inside a mixed list: {@code [3, 'a']->contains(3D)} is false
-     *  and {@code [3, 3D]->removeDuplicates()} keeps both. Not the product's, which calls an Integer and a Decimal of
-     *  one value equal (two exact numbers; the user's ruling of 2026-11-27). A call that meets no mixed list is
-     *  written by its own rule, unchanged. */
-    MIXED_NUMBERS_OF_THREE_TYPES
+    /** A comparison ({@code ==}, {@code eq}, {@code contains}, {@code in}, {@code removeDuplicates}, {@code <},
+     *  {@code <=}, {@code >}, {@code >=}) with an Integer, a Float and a Decimal THREE TYPES. Inside a mixed list
+     *  they are never equal to one another: {@code [3, 'a']->contains(3D)} is false and
+     *  {@code [3, 3D]->removeDuplicates()} keeps both. Where the two sides' types are known only when the query runs
+     *  (a {@code Number}, an {@code Any}) the comparison is the database's, and nothing is refused. Not the
+     *  product's, which calls an Integer and a Decimal of one value equal (two exact numbers; the user's ruling of
+     *  2026-11-27) and refuses a comparison of an exact number's column with a Float's ({@code HeldNumbers}). A call
+     *  that meets neither is written by its own rule, unchanged. */
+    NUMBERS_OF_THREE_TYPES
 }

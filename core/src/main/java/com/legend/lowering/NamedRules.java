@@ -41,7 +41,7 @@ final class NamedRules {
                     SqlExpr.Call.of(SqlFn.PLUS, args.get(2), new SqlExpr.IntLit(1)));
             case SORT_TIES_AS_WRITTEN -> Scalars.sortTiesAsWritten(call, args);
             case EXTREME_KEEPS_THE_FOLDS_TIE -> Scalars.extremeKeepingTheFoldsTie(call, args);
-            case MIXED_NUMBERS_OF_THREE_TYPES -> Scalars.mixedNumbersOfThreeTypes(call, args);
+            case NUMBERS_OF_THREE_TYPES -> Scalars.numbersOfThreeTypes(call, args);
         };
     }
 

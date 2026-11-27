@@ -2315,15 +2315,8 @@ final class Scalars {
         // real pure declares BOTH in(Any[1], ...) and in(Any[0..1], ...):
         // the optional-needle overload is FALSE for the empty needle
         // (COALESCE — a NULL needle must never say NULL).
-        RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_0_1__ANY_MANY), (n, args) ->
-                args.get(0) instanceof SqlExpr.NullLit
-                        ? new SqlExpr.BoolLit(false)
-                        : SqlExpr.Call.of(SqlFn.COALESCE,
-                                java.util.Objects.requireNonNull(
-                                        RULES.get(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY)),
-                                        "in-rule must be registered")
-                                        .apply(n, args),
-                                new SqlExpr.BoolLit(false)));
+        RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_0_1__ANY_MANY),
+                inOfOptionalRule(NumberFamilies.TWO_FAMILIES));
         RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY), inRule(NumberFamilies.TWO_FAMILIES));
     }
 
@@ -2398,6 +2391,9 @@ final class Scalars {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR");
             return NamedRules.lower(named, call, loweredArgs);
         }
+        // the product's own comparison of numbers whose types only their columns give: two families are refused
+        // here, where the columns are known (a door's row names its own rule for these calls, above)
+        HeldNumbers.refuseAcrossFamilies(call, loweredArgs);
         Rule rule = FeatureRules.select(key, features);
         if (rule != null) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR-FEATURE");
@@ -3822,12 +3818,26 @@ final class Scalars {
         };
     }
 
-    /** {@link NamedRule#MIXED_NUMBERS_OF_THREE_TYPES}: the call's own rule with an Integer, a Float and a Decimal
-     *  three types never equal inside a mixed list. A call that meets no mixed list is written exactly as its own
-     *  rule writes it. */
-    static SqlExpr mixedNumbersOfThreeTypes(TypedNativeCall n, List<SqlExpr> args) {
+    /** The optional-needle {@code in}: false for the empty needle, else {@link #inRule}'s answer, never NULL. */
+    static Rule inOfOptionalRule(NumberFamilies numbers) {
+        return (n, args) -> args.get(0) instanceof SqlExpr.NullLit ? new SqlExpr.BoolLit(false)
+                : SqlExpr.Call.of(SqlFn.COALESCE, inRule(numbers).apply(n, args), new SqlExpr.BoolLit(false));
+    }
+
+    /** {@link NamedRule#NUMBERS_OF_THREE_TYPES}: the call's own rule with an Integer, a Float and a Decimal three
+     *  types -- never equal inside a mixed list, and, where their types are known only when the query runs, compared
+     *  by the database with nothing refused. A call that meets neither is written exactly as its own rule writes
+     *  it. */
+    static SqlExpr numbersOfThreeTypes(TypedNativeCall n, List<SqlExpr> args) {
         com.legend.model.FunctionId id = n.callee().id();
         NumberFamilies three = NumberFamilies.THREE_TYPES;
+        if (id.equals(com.legend.model.FunctionId.of(Pure.IN__ANY_0_1__ANY_MANY))) {
+            return inOfOptionalRule(three).apply(n, args);
+        }
+        if (com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL,
+                Pure.AT_BOOLEAN_GREATER_THAN, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL).contains(id)) {
+            return ownRule(n).apply(n, args);
+        }
         if (com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ).contains(id)) {
             return Equalities.equal(n, args, three);
         }

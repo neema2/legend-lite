@@ -67,6 +67,17 @@ public record TypedCrossTypeComparison(TypedSpec comparison, Kind kind, String o
                 + " is a mistake -- pass values of one type (toFloat(), toString(), an enumeration's own value)");
     }
 
+    /** Lite's refusal of this comparison where a side is declared {@code Number}, {@code Any} or the abstract
+     *  {@code Date} and the COLUMNS the two sides read hold two types that are never equal: known only once the
+     *  query is planned over its store, so refused there, never answered false for every row (the user's ruling of
+     *  2026-11-27, "great do it": the same reasoning as a comparison a call fixes). */
+    public com.legend.error.ModelException refusalOverColumns() {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER, operator
+                + " compares " + left.typeName() + " with " + right.typeName() + ", the types of the columns its two"
+                + " sides read: two values are equal only when they have the same type and the same value, so this"
+                + " comparison is a mistake -- convert one side (toFloat(), toDecimal(), toString())");
+    }
+
     @Override
     public ExprType info() {
         return comparison.info();
