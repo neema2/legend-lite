@@ -120,8 +120,14 @@ New and extended tests: `exec/RootComparisonTest`, `RunTimeComparisonTest`, `Num
 3. **`assert(t1 == t2)` over two tables in an upstream-style test body** is read as written (ordered), no longer as
    the any-order assert: rewriting it changed what two tables' comparison means. What moved by it is under "What
    judged it".
-4. **A date built to the hour inside a query sent to a database, at legend-engine's door** answers false against a
-   date-time column; upstream was run only outside such a query. Asked of the upstream runner (request 5).
+4. **Dates written to the hour or the minute, at the two compatibility doors** (run on legend-engine 2026-11-27,
+   `upstream-step6/answers-request-5-2026-11-27.md`):
+   - a date BUILT to the hour (`date(2015, 4, 16, 14)`) against a date-time column: lite answers false, which is
+     Pure's answer; legend-engine refuses to plan it inside a query it sends to a database. Kept as it is.
+   - a date-time LITERAL written to the hour (`%2015-04-16T14`) against a date-time: lite compares by the instant
+     at every door, so a 14:00:00 row matches. Pure says they are not the same; legend-engine inside a store query
+     compares against the day's midnight and returns no row. Older than step 6, no recorded test holds it, and it
+     is NOT changed in this landing: fix it with the doors' date rule in step 6B, or sooner?
 
 ## Limits, recorded and not built (each in the batch list)
 
