@@ -1054,13 +1054,19 @@ public final class SideEqualities {
         // a stored one as it is held, a written one from its text: an hour's text read at its minute; a day's text (a
         // DateTime over a column that holds days: the egress writes its day alone, the dates audit's MEDIUM 4) read
         // at its midnight, as it is
-        SqlExpr instant = carried == SqlType.Scalar.TIMESTAMP ? new SqlExpr.Cast(v, SqlType.Scalar.TIMESTAMP,
-                SqlExpr.Reason.JUDGE) : instantOfText(v);
+        SqlExpr instant = carried == SqlType.Scalar.TIMESTAMP ? instantOfHeld(v) : instantOfText(v);
         OutputCol oOut = new OutputCol(O, SqlType.Scalar.TIMESTAMP, false);
         OutputCol rnOut = rows.outputs().get(1);
         return new SqlSelect(List.of(new SqlSelect.Projection(instant, O, oOut), new SqlSelect.Projection(
                 SqlExpr.Column.of("t", rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Subselect(rows, "t",
                 null), null, List.of(), null, null, List.of(), null, null, List.of(oOut, rnOut));
+    }
+
+    /** A date-time the database holds ({@code v}), as the instant compared with one read from its text
+     *  ({@link #instantOfText}): the same cast, so the two sides are one form on a database whose date-time is a text
+     *  (SQLite: measured 2026-11-27, a held date-time left as it was never matched the text's reading there). */
+    static SqlExpr instantOfHeld(SqlExpr v) {
+        return new SqlExpr.Cast(v, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE);
     }
 
     /** A date-time carried as its written text ({@code v}), read as the instant it writes ({@link #instants}'s

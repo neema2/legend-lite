@@ -109,10 +109,10 @@ final class Equalities {
         // database was handed the text against a TIMESTAMP and refused it ("invalid timestamp field format")
         List<SqlExpr> sides = args;
         if (carriedAs(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(args.get(1), SqlType.Scalar.TIMESTAMP)) {
-            sides = List.of(SideEqualities.instantOfText(args.get(0)), args.get(1));
+            sides = List.of(SideEqualities.instantOfText(args.get(0)), SideEqualities.instantOfHeld(args.get(1)));
         } else if (carriedAs(args.get(1), SqlType.Scalar.TEMPORAL_TEXT)
                 && carriedAs(args.get(0), SqlType.Scalar.TIMESTAMP)) {
-            sides = List.of(args.get(0), SideEqualities.instantOfText(args.get(1)));
+            sides = List.of(SideEqualities.instantOfHeld(args.get(0)), SideEqualities.instantOfText(args.get(1)));
         }
         List<SqlExpr> cargs = List.of(
                 CastPolicy.comparisonWireOperand(n.args().get(0),
