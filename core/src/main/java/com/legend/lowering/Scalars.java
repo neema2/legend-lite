@@ -101,94 +101,10 @@ final class Scalars {
     }
 
     static {
-        // equal/eq are PRECISION-AWARE over dates: a partial-date
-        // literal equals only a SAME-precision value (real pure, decided
-        // statically — partial precision is literal-only; columns are
-        // full-precision); same-precision partials compare as ISO-prefix
-        // strings. eq = strict equality = the = operator here.
-        // equal takes NO optionalOperandGuards DELIBERATELY (T1.4):
-        // equal is a total NATIVE ([] == [] is TRUE; the guard would
-        // spell it false). The residual both-NULL divergence (SQL NULL
-        // vs pure true) is the reference engine's own behavior (bare =;
-        // IS NOT DISTINCT FROM appears in no golden).
+        // equal and eq: the product's equality has one owner (Equalities, slice 6.4a of the edition program's step 6)
         {
             for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ)) {
-                RULES.put(f, (n, args) -> {
-                    // ENGINE-VERBATIM empty ladder (pureToSQLQuery.pure
-                    // nullSafeEqualsOperation: "a literal empty ([])
-                    // operand degenerates to a null check on the other
-                    // side ([] == [] is statically true)"; frontier
-                    // witness testEqualEmpty — the engine's relational
-                    // DuckDB executor passes it). Scoped to the LITERAL
-                    // empty collection: the engine's [0..0] criterion is
-                    // honest post-routing, but OUR checker types some
-                    // subtype navigations [0..0] that still read real
-                    // columns (the gate-4 mapping-family regression
-                    // pinned that narrowing at burn slice 4).
-                    boolean le = n.args().get(0) instanceof
-                            com.legend.compiler.spec.typed.TypedCollection lc
-                            && lc.elements().isEmpty();
-                    boolean re = n.args().get(1) instanceof
-                            com.legend.compiler.spec.typed.TypedCollection rc
-                            && rc.elements().isEmpty();
-                    if (le || re) {
-                        if (le && re) {
-                            return new SqlExpr.BoolLit(true);
-                        }
-                        SqlExpr.TaggedList full = asTaggedList(n.args().get(le ? 1 : 0), args.get(le ? 1 : 0));
-                        if (full != null) {
-                            // a mixed list against []: equal where it holds nothing (the L1 audit, 2026-10-29)
-                            return SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(full), new SqlExpr.IntLit(0));
-                        }
-                        return SqlExpr.Call.of(SqlFn.IS_NULL,
-                                args.get(le ? 1 : 0));
-                    }
-                    // a TAGGED value or list on a side (track L, 2026-10-29): equality by kind and value -- two
-                    // elements the same channel's values, an element against a value of a static kind that
-                    // channel's value, two lists element by element; a kind no channel holds is never equal
-                    SqlExpr taggedEq = taggedEquality(n.args().get(0), args.get(0), n.args().get(1), args.get(1));
-                    if (taggedEq != null) {
-                        return taggedEq;
-                    }
-                    Integer p0 = partialPrecision(n.args().get(0));
-                    Integer p1 = partialPrecision(n.args().get(1));
-                    if (p0 != null || p1 != null) {
-                        if (Objects.equals(p0, p1)) {
-                            return new SqlExpr.Call(SqlFn.EQUAL, args);
-                        }
-                        Type other = (p0 != null ? n.args().get(1) : n.args().get(0))
-                                .info().type();
-                        // Covers both a full-precision opposite side AND a
-                        // different-precision partial (whose static type is
-                        // also Date) — never equal.
-                        if (isFullPrecisionDate(other)) {
-                            return new SqlExpr.BoolLit(false);
-                        }
-                        // A Date is never equal to a NON-date kind — the
-                        // string carrier must not leak into '2014'=='2014'
-                        // being true (audit). Any stays dynamic (fall through).
-                        if (!PlatformTypes.isAny(other)) {
-                            return new SqlExpr.BoolLit(false);
-                        }
-                    }
-                    List<SqlExpr> cargs = List.of(
-                            CastPolicy.comparisonWireOperand(n.args().get(0),
-                                    args.get(0), n.args().get(1)),
-                            CastPolicy.comparisonWireOperand(n.args().get(1),
-                                    args.get(1), n.args().get(0)));
-                    // a literal side meeting a variant-carried side joins it there (the spelling carrier's
-                    // equality by emission left with track L's L2, 2026-10-29: a mixed value is tagged, above)
-                    cargs = VariantShapes.alignLiteralToJson(n.args(), cargs);
-                    SqlExpr inv = EnumSourceValues.decodeInvert(
-                            n.args().get(0), n.args().get(1),
-                            cargs.get(0), cargs.get(1));
-                    if (inv != null) {
-                        return inv;
-                    }
-                    // nullable col-vs-col equality is NULL-SAFE (engine
-                    // isEqualsFromFilter; task #62's equal-side arm)
-                    return NullSemantics.equalNullArms(n, cargs);
-                });
+                RULES.put(f, Equalities::equal);
             }
         }
         // Ordering comparisons PAD partial-date literals to their instant
@@ -3674,12 +3590,6 @@ final class Scalars {
         return null;
     }
 
-    /** A date type whose VALUES are always full-precision (columns, full literals). */
-    private static boolean isFullPrecisionDate(Type t) {
-        return t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE_TIME
-                || t == Type.Primitive.DATE;
-    }
-
     /** The toOne AGG-STRIP (STAMP_DISCIPLINE_PROGRAM, C2 key insight):
      * dropping the LIST collect on a subquery operand yields SQL's
      * NATIVE scalar-subquery semantics — pure's checked toOne (>1 rows
@@ -3748,100 +3658,6 @@ final class Scalars {
 
     static boolean isToOne(TypedSpec arg) {
         return Stamps.toOne(arg);
-    }
-
-    /** Equality where a side is a tagged value or a tagged list (track L); null where neither is. */
-    private static @com.legend.base.Nullable SqlExpr taggedEquality(TypedSpec s0, SqlExpr a, TypedSpec s1, SqlExpr b) {
-        if (a instanceof SqlExpr.Tagged x && b instanceof SqlExpr.Tagged y) {
-            return TaggedLists.sameElement(x, y);
-        }
-        if (a instanceof SqlExpr.Tagged x) {
-            return TaggedLists.sameElement(x, MixedEncoding.kindOfValue(s1, b), b, s1.info().type());
-        }
-        if (b instanceof SqlExpr.Tagged y) {
-            return TaggedLists.sameElement(y, MixedEncoding.kindOfValue(s0, a), a, s0.info().type());
-        }
-        SqlExpr.TaggedList la = asTaggedList(s0, a);
-        SqlExpr.TaggedList lb = asTaggedList(s1, b);
-        if (la != null && lb != null) {
-            return sameTaggedLists(s0, la, s1, lb);
-        }
-        if (la != null || lb != null) {
-            // a mixed list against a list of ONE kind: equal where every element is of that kind and equals the
-            // other's at its index (a kind the mixed list has no channel for is never equal)
-            SqlExpr.TaggedList tl = java.util.Objects.requireNonNull(la != null ? la : lb);
-            TypedSpec otherSpec = la != null ? s1 : s0;
-            SqlExpr other = la != null ? b : a;
-            // a list of ONE declared kind that is not a literal collection (a String[*] variable, a map's result):
-            // its kind is its element type's (the L1 audit, 2026-10-29)
-            String kind = otherSpec instanceof TypedCollection ? null : MixedEncoding.kindOf(otherSpec);
-            if (otherSpec instanceof TypedCollection oc && !oc.elements().isEmpty()) {
-                // a row's cells (the Typer's rowCells collection, on the variant carrier for its NULL cells) are a
-                // literal collection of static kinds: read as a tagged list, the two compare kind by kind
-                if (other instanceof SqlExpr.ArrayLit oal && oal.elements().size() == oc.elements().size()) {
-                    SqlExpr.TaggedList ot = MixedEncoding.taggedList(oc, oal.elements());
-                    if (ot != null) {
-                        return sameTaggedLists(la != null ? s0 : s1, tl, otherSpec, ot);
-                    }
-                }
-                // a list of ONE static kind (one family: a date-time at any written precision is a DateTime)
-                for (TypedSpec el : oc.elements()) {
-                    String k = MixedEncoding.kindOf(el);
-                    if (k == null || (kind != null && !MixedEncoding.sameFamily(kind, k))) {
-                        kind = null;
-                        break;
-                    }
-                    kind = MixedEncoding.family(k);
-                }
-            }
-            if (kind != null) {
-                return TaggedLists.sameListOfKind(tl, kind, other);
-            }
-            if (variantList(other)) {
-                // against a list on the VARIANT carrier (a row's cells read in a lambda, an Any value): the mixed
-                // list joins it there, and the carrier's own equality decides (its kinds are JSON's: a number's
-                // text, a string, a boolean; the lane the spelling carrier's list met it on)
-                return SqlExpr.Call.of(SqlFn.EQUAL, la != null ? TaggedLists.asVariantList(la) : a,
-                        lb != null ? TaggedLists.asVariantList(lb) : b);
-            }
-            throw new com.legend.error.NotImplementedException("a mixed list compared with a list whose"
-                    + " elements' kind is not static and that is not on the variant carrier: not lowered");
-        }
-        return null;
-    }
-
-    /** Two mixed lists are the same list. Two lists WRITTEN IN THE QUERY with every element present compare position
-     *  by position, no list in the SQL ({@link TaggedLists#sameWrittenLists}); two lists in their own order whose
-     *  families are each one array compare array by array (no lambda: every database); any other pair element by
-     *  element. */
-    private static SqlExpr sameTaggedLists(TypedSpec s0, SqlExpr.TaggedList la, TypedSpec s1, SqlExpr.TaggedList lb) {
-        if (everyElementWritten(s0) && everyElementWritten(s1)) {
-            SqlExpr written = TaggedLists.sameWrittenLists(la, lb);
-            if (written != null) {
-                return written;
-            }
-        }
-        return la.identityPositions() && lb.identityPositions() && TaggedLists.oneChannelPerFamily(la, lb)
-                ? TaggedLists.sameListByKinds(la, lb) : TaggedLists.sameList(la, lb);
-    }
-
-    /** A collection written in the query whose every element is exactly one value: its length is its element count
-     *  (an element that may be empty, {@code [$optional, 'a']}, leaves the length to the run). */
-    private static boolean everyElementWritten(TypedSpec list) {
-        return list instanceof TypedCollection c && !c.elements().isEmpty()
-                && c.elements().stream().allMatch(Scalars::isToOne);
-    }
-
-    /** A list on the variant carrier: typed JSON or an array of JSON, or a literal array of variant-wrapped
-     *  elements (a row's cells as the Typer synthesizes them). */
-    private static boolean variantList(SqlExpr e) {
-        if (e.type() instanceof com.legend.sql.TypeFact.Typed t
-                && (t.type() == SqlType.Scalar.JSON
-                        || (t.type() instanceof SqlType.Array a && a.element() == SqlType.Scalar.JSON))) {
-            return true;
-        }
-        return e instanceof SqlExpr.ArrayLit al && !al.elements().isEmpty()
-                && al.elements().stream().allMatch(MixedEncoding::variantWrapped);
     }
 
     /** {@code lowered} as a tagged list (track L, 2026-10-29): one already, or a Number-LUB literal mix read as its

@@ -264,7 +264,10 @@ class SqlFnSortedTest {
             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
             // + lowering.NamedRules (2026-11-26, the edition program's step 5): the rule a door's table names for a text
             // with no cased letter, lower(s) = upper(s), moved from the edge's forms into the lowering's named rules
+            // + lowering.Equalities (2026-11-27, the edition program's step 6, slice 6.4a): the product's == has one owner; the
+            // rule's body and the null-safe decision moved there from Scalars and NullSemantics as they stood (no SQL changes)
             Map.entry("EQUAL", Set.of(
+                    "com.legend.lowering.Equalities",
                     "com.legend.lowering.NamedRules",
                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5b: the CSV's empty String (S420)
                     "com.legend.sql.dialect.SameValuesForm",
@@ -327,7 +330,10 @@ class SqlFnSortedTest {
                     "com.legend.lowering.TaggedLists", "com.legend.lowering.VariantShapes",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.LateralExplodeToUnion", "com.legend.testdatagen.TestDataPlanner")),
+            // IS_NULL: + lowering.Equalities (2026-11-27, slice 6.4a of the edition program's step 6): a literal [] against a
+            // value is the other side's null check, moved with the == rule from Scalars as it stood
             Map.entry("IS_NULL", Set.of(
+                    "com.legend.lowering.Equalities",
                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CheckedEnvelope",
                     "com.legend.lowering.Coercions", "com.legend.lowering.CollectionLanes",
