@@ -257,6 +257,13 @@ final class EngineTable implements EditionTable, Edition {
         return call.outsideStore() || !PureText.ENGINE_UNCHECKED.contains(kind);
     }
 
+    /** legend-engine's door keeps the comparison it had where a side is empty: the database's answer. What
+     *  legend-engine itself answers there was not run (its statement is a bare {@code =}), so it is not changed. */
+    @Override
+    public boolean emptySideIsFalse(TypedNativeCall comparison) {
+        return false;
+    }
+
     private @Nullable List<Row> rows(TypedNativeCall call, Set<Feature> features) {
         FunctionId key = call.callee().id();
         if (TO_ONE.equals(key)) {

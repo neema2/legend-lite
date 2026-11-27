@@ -41,6 +41,36 @@ final class Equalities {
         return equal(n, args, NumberFamilies.TWO_FAMILIES);
     }
 
+    /**
+     * AN EMPTY SIDE WHERE THE COMPARISON'S VALUE IS KEPT (the edition program's step 6; the user, 2026-11-27: "Yes do
+     * the empty side fix", then "why cant we do the work we promised"): {@code $x.nick == 'a'} where {@code nick}
+     * holds no value is false, as Pure says ({@code [] == 'a'}). A bare {@code =} answers no value there. That is
+     * right wherever the comparison is a CONDITION -- a filter's, a join's, an {@code if}'s, a {@code CASE}'s: each
+     * reads "no value" as "not so" -- and wrong only where the comparison's VALUE is kept: a column of it, a query's
+     * answer (measured 2026-11-27: no value at every door). So the lowering asks here only for a comparison it keeps
+     * the value of ({@code Lowerer.keepingItsValue}), and a condition's statement is as it was, a comparison a database
+     * can use an index for.
+     *
+     * <p>{@code compared} where exactly one side may be empty: {@code COALESCE(l = r, FALSE)}, each side written
+     * once. Two sides that may both be empty are the null-safe arm's ({@link #nullArms}: empty equals empty); a
+     * comparison of two values that are never empty needs nothing.
+     *
+     * <p>The first form of this fix (2026-11-27, backed out the same day) wrote a guard into the comparison itself,
+     * so it appeared in every filter, join, EXISTS and CASE that compares.
+     */
+    static SqlExpr falseWhereASideIsEmpty(TypedNativeCall n, SqlExpr compared) {
+        if (!(compared instanceof SqlExpr.Call c) || c.fn() != SqlFn.EQUAL || c.args().size() != 2
+                || n.args().size() != 2) {
+            return compared;
+        }
+        boolean first = NullSemantics.isOptional(n.args().get(0).info().multiplicity());
+        boolean second = NullSemantics.isOptional(n.args().get(1).info().multiplicity());
+        if (first == second) {
+            return compared;
+        }
+        return SqlExpr.Call.of(SqlFn.COALESCE, compared, new SqlExpr.BoolLit(false));
+    }
+
     /** {@link #equal(TypedNativeCall, List)} with how numbers of different types compare inside a mixed list
      *  ({@link NumberFamilies}: the product's two families, or the three types a compatibility door's table
      *  names). */

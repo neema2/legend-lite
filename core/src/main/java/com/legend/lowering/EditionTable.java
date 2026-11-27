@@ -46,4 +46,14 @@ public interface EditionTable {
      *  @param call the call the check belongs to, whose stamp may decide it (a call outside any store query is the
      *              audience's own Java's, which checks); null where the check is no call's own (a cast, a slice) */
     boolean checks(com.legend.sql.RaiseKind kind, @com.legend.base.Nullable TypedNativeCall call);
+
+    /** Whether {@code comparison}, an equality one side of which may hold no value, answers FALSE where that side is
+     *  empty and the comparison's value is kept (a column, a query's answer): Pure's answer ({@code [] == 'a'} is
+     *  false), the product's and legend-pure's. False where the audience's own statement leaves the database's
+     *  answer, no value (legend-engine's door: its table says so).
+     *
+     *  @param comparison the equality, typed */
+    default boolean emptySideIsFalse(TypedNativeCall comparison) {
+        return true;
+    }
 }

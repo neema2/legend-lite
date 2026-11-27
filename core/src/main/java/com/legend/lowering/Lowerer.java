@@ -351,9 +351,51 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
+    /** The equalities whose VALUE the statement keeps ({@link #keepingItsValue}), by node, while their value's
+     *  expression is lowered. */
+    private final java.util.Set<TypedSpec> valueKept =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /**
+     * {@code value} is an expression whose VALUE the statement keeps -- a column's, a query's answer: the equalities
+     * its value is made of are marked, each to answer false where one of its sides is empty
+     * ({@link Equalities#falseWhereASideIsEmpty}). Those are the equalities reached from {@code value} through
+     * {@code &&}, {@code ||}, {@code !} and an {@code if}'s branches alone: an {@code if}'s condition, a filter's
+     * predicate and any comparison a function reads are conditions or another value's, as they were. The door's
+     * table says whether its audience answers so ({@link EditionTable#emptySideIsFalse}).
+     */
+    private <T> T keepingItsValue(TypedSpec value, java.util.function.Supplier<T> lowered) {
+        List<TypedSpec> marked = new ArrayList<>();
+        markKept(value, marked);
+        try {
+            return lowered.get();
+        } finally {
+            // (a mark its value's lowering did not reach is no mark for another's: the node may stand elsewhere too)
+            marked.forEach(valueKept::remove);
+        }
+    }
+
+    private void markKept(TypedSpec value, List<TypedSpec> marked) {
+        switch (value) {
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && n.args().size() == 2 -> {
+                if (styled().edition().emptySideIsFalse(n) && valueKept.add(n)) {
+                    marked.add(n);
+                }
+            }
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_AND) || isFamily(n, Pure.AT_BOOLEAN_OR)
+                    || isFamily(n, Pure.AT_BOOLEAN_NOT) -> n.args().forEach(a -> markKept(a, marked));
+            case TypedIf i -> {
+                markKept(PureSql.thunkBody(i.thenBranch()), marked);
+                i.elseBranch().ifPresent(e -> markKept(PureSql.thunkBody(e), marked));
+            }
+            default -> { }
+        }
+    }
+
     /** The planner's answer for a comparison of two whole sides met inside an expression ({@link
      *  #withWholeComparisons}); null where no planner gave one (a lowerer made outside the planner's roads). */
-    private java.util.function.@com.legend.base.Nullable Function<TypedNativeCall, SqlQuery> wholeComparisons;
+    private java.util.function.@com.legend.base.Nullable Function<TypedNativeCall,
+            @com.legend.base.Nullable SqlQuery> wholeComparisons;
 
     /** The comparison last asked of {@link #wholeComparisons} and its answer: a switch's guard asks, its arm reads. */
     private @com.legend.base.Nullable TypedNativeCall wholeAsked;
@@ -363,7 +405,7 @@ public final class Lowerer {
      *  {@code planner}'s statement for it, read here as one value: the statement that answers the same comparison as
      *  a query's last, so it answers the same wherever it stands ({@code planner.RootComparison.inside}; the edition
      *  program's step 6, 2026-11-27). {@code planner} answers null for a comparison it does not plan. */
-    public Lowerer withWholeComparisons(Function<TypedNativeCall, SqlQuery> planner) {
+    public Lowerer withWholeComparisons(Function<TypedNativeCall, @com.legend.base.Nullable SqlQuery> planner) {
         this.wholeComparisons = planner;
         return this;
     }
@@ -374,7 +416,7 @@ public final class Lowerer {
             return null;
         }
         if (wholeAsked != n) {
-            SqlQuery planned = wholeComparisons.apply(n);
+            @com.legend.base.Nullable SqlQuery planned = wholeComparisons.apply(n);
             wholeAnswer = planned == null ? null : new SqlExpr.ScalarSubquery(planned);
             wholeAsked = n;
         }
@@ -925,10 +967,11 @@ public final class Lowerer {
             e = RootLiterals.swap(spec);
         }
         if (e == null) {
-            e = scalar(spec, (var, name) -> {
+            // (the query's answer is a value the statement keeps)
+            e = keepingItsValue(spec, () -> scalar(spec, (var, name) -> {
                 throw new IllegalStateException("a scalar query has no row scope for $"
                         + var + "." + name);
-            });
+            }));
         }
         // FIX-EMITTER (contract program): an Any-stamped root travels
         // as variant JSON — an inlined body can leave its RAW value
@@ -2179,7 +2222,8 @@ public final class Lowerer {
             // no row: every variable read is an enclosing row's)
             ColumnResolver reads = scopedResolver(base,
                     c.fn().parameters().isEmpty() ? null : c.fn().parameters().get(0), budget);
-            switch (attempt(() -> scalar(body, reads))) {
+            // (a column's value is one the statement keeps)
+            switch (keepingItsValue(body, () -> attempt(() -> scalar(body, reads)))) {
                 case Resolution.Resolved r -> {
                     if (manyCols.contains(c)) {
                         Type elemT = Type.schemaView(info.type()) instanceof Type.RelationType rt
@@ -3662,6 +3706,10 @@ public final class Lowerer {
 
     SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
         SqlExpr r = scalarInner(spec, columns);
+        if (!valueKept.isEmpty() && valueKept.remove(spec) && spec instanceof TypedNativeCall kept) {
+            // an equality whose value the statement keeps: false where one side is empty (Equalities)
+            r = Equalities.falseWhereASideIsEmpty(kept, r);
+        }
         // stamp-vs-shape INVARIANT (throws; LL_STAMP_COUNT=1 = census mode)
         StampCensus.check(spec, r);
         return r;
