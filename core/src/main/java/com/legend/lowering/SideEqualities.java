@@ -83,7 +83,16 @@ public final class SideEqualities {
         // __xa), which the record lists
         SqlQuery eRows = readOnce("__xe", eRaw, eKind);
         SqlQuery aRows = readOnce("__xa", aRaw, aKind);
-        boolean bothEmptyOnly = emptyOnly || !eKind.equals(aKind);
+        // an Integer side against a Decimal side: two EXACT numbers, equal by their value (the user's ruling of
+        // 2026-11-27, "Yes I like the rule": exact with exact by value, a Float only with a Float) -- the Integer
+        // side's values read as Decimals, so the two lists hold one type and the database compares the numbers
+        boolean exactPair = !eKind.equals(aKind) && exactNumber(eKind) && exactNumber(aKind);
+        boolean bothEmptyOnly = emptyOnly || !eKind.equals(aKind) && !exactPair;
+        if (exactPair && !bothEmptyOnly && eRows != null && aRows != null) {
+            SqlQuery e = besideDecimals("__xe", eRows, aRows);
+            aRows = besideDecimals("__xa", aRows, eRows);
+            eRows = e;
+        }
         // the carriers matter only where the values are compared: two kinds lite never calls equal compare no value
         if (eRows == null || aRows == null || !bothEmptyOnly && !oneCarrier(eRows, aRows)) {
             return null;
@@ -95,9 +104,9 @@ public final class SideEqualities {
         // (H2 has no list equality, no EXCEPT ALL, no FULL OUTER JOIN; M1), the dialect's (SameValuesForm)
         SqlExpr eL = SqlExpr.Column.of("e", eList.outputs(), LISTED);
         SqlExpr aL = SqlExpr.Column.of("a", aList.outputs(), LISTED);
-        // two kinds lite never calls equal (register S127: an Integer and a Decimal, the type part of the value), or an
-        // empty side's (Nil, {@code emptyOnly}): the sides are the same only where both are empty, an empty side's list
-        // NULL
+        // two kinds lite never calls equal (register S127: an exact number and a Float, the type part of the value),
+        // or an empty side's (Nil, {@code emptyOnly}): the sides are the same only where both are empty, an empty
+        // side's list NULL
         SqlExpr holds = bothEmptyOnly
                 ? SqlExpr.Call.of(SqlFn.AND, noRows("__e", eRows), noRows("__a", aRows))
                 : SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER, eL, aL,
@@ -219,8 +228,9 @@ public final class SideEqualities {
      * {@link SqlType.Tagged}: its tag and one slot per kind), against another tagged side or one of a typed class. Each
      * value is a row of its kind's index ({@code k}, into the kinds of both sides, one order) and one typed column per
      * kind ({@code v0, v1, ...}, the value in its kind's column, NULL in the others), compared by the one list node --
-     * two values the same only where their kinds and their values are (register S127: an Integer is never a Float;
-     * S139 a Decimal by its value; S399 a DateTime of any written precision one kind). Each side's rows ride the failure
+     * two values the same only where their kinds and their values are (register S127: an exact number is never a
+     * Float, and an Integer and a Decimal are one kind here, equal by their value; S139 a Decimal by its value; S399
+     * a DateTime of any written precision one kind). Each side's rows ride the failure
      * as structs, the record un-tagging each to its kind's value. Null where a side carries no tagged or typed value,
      * or a kind (an enumeration's) no column holds.
      */
@@ -621,7 +631,7 @@ public final class SideEqualities {
                     continue;
                 }
                 // a DateTime compared at the judge's instant (S399): its compare column a TIMESTAMP whatever its slot
-                into.putIfAbsent(kindKey(slot.kind(), slot.type(), byType), !byType && instant(slot.kind())
+                stated(into, kindKey(slot.kind(), slot.type(), byType), !byType && instant(slot.kind())
                         ? SqlType.Scalar.TIMESTAMP : slot.type());
             }
             return true;
@@ -632,7 +642,7 @@ public final class SideEqualities {
             if (byType) {
                 into.putIfAbsent(kindKey("Any", SqlType.Scalar.JSON, true), SqlType.Scalar.JSON);
             } else {
-                JSON_KINDS.forEach((k, t) -> into.putIfAbsent(kindKey(k, t, false), t));
+                JSON_KINDS.forEach((k, t) -> stated(into, kindKey(k, t, false), t));
             }
             return true;
         }
@@ -650,7 +660,7 @@ public final class SideEqualities {
             return false;
         }
         SqlType held = byType ? wrapped.outputs().get(0).type() : heldType(wrapped, t);
-        into.putIfAbsent(kindKey(kindText(t), held, byType), held);
+        stated(into, kindKey(kindText(t), held, byType), held);
         return true;
     }
 
@@ -790,8 +800,13 @@ public final class SideEqualities {
      *  column is the record's ({@code byType}) its SQL type too. */
     static String kindKey(String slotKind, SqlType type, boolean byType) {
         String kind = MixedEncoding.writtenDigits(slotKind) != null ? "DateTime" : slotKind;
-        return byType ? kind + "|" + type : kind;
+        // compared, an Integer and a Decimal are one kind: two exact numbers are equal by their value (the user's
+        // ruling of 2026-11-27), so the two share a compare column; recorded, each is its own
+        return byType ? kind + "|" + type : MixedEncoding.exactNumber(kind) ? EXACT : kind;
     }
+
+    /** The compare column's key that an Integer's and a Decimal's values share ({@link #kindKey}). */
+    private static final String EXACT = "Exact number";
 
     /** A side's values as kinded rows ({@link #tagged}): {@code k}, the index of its kind's key in
      *  {@code columns}, then {@code v0..vn} one per key, then {@code __rn}, numbered in the side's own order. A tagged
@@ -859,7 +874,8 @@ public final class SideEqualities {
                         SqlExpr held = SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1));
                         vs.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
                                 !byType && instant(slot.kind()) ? new SqlExpr.Cast(held, SqlType.Scalar.TIMESTAMP,
-                                        SqlExpr.Reason.JUDGE) : held));
+                                        SqlExpr.Reason.JUDGE) : byType ? held : fitted(held, slot.type(),
+                                        java.util.Objects.requireNonNull(columns.get(key), "a kind's SQL type"))));
                     }
                 }
                 return vs.isEmpty() ? null : new SqlExpr.Case(vs, nullOf(java.util.Objects.requireNonNull(
@@ -891,8 +907,9 @@ public final class SideEqualities {
                 valueOf = key -> {
                     for (String k : JSON_KINDS.keySet()) {
                         if (kindKey(k, java.util.Objects.requireNonNull(JSON_KINDS.get(k)), false).equals(key)) {
-                            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(jsonKindIs(k, jt), jsonValue(k, v))),
-                                    nullOf(java.util.Objects.requireNonNull(columns.get(key), "a kind's SQL type")),
+                            SqlType column = java.util.Objects.requireNonNull(columns.get(key), "a kind's SQL type");
+                            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(jsonKindIs(k, jt), fitted(jsonValue(k,
+                                    v), java.util.Objects.requireNonNull(JSON_KINDS.get(k)), column))), nullOf(column),
                                     SqlExpr.Reason.JUDGE);
                         }
                     }
@@ -930,7 +947,9 @@ public final class SideEqualities {
             String own = kindKey(kindText(t), byType ? wrapped.outputs().get(0).type() : heldType(wrapped, t),
                     byType);
             kOf = new SqlExpr.IntLit(order.indexOf(own));
-            valueOf = key -> key.equals(own) ? SqlExpr.Column.of("r", r.outputs(), O) : null;
+            valueOf = key -> key.equals(own) ? byType ? SqlExpr.Column.of("r", r.outputs(), O) : fitted(
+                    SqlExpr.Column.of("r", r.outputs(), O), r.outputs().get(0).type(), java.util.Objects.requireNonNull(
+                            columns.get(key), "a kind's SQL type")) : null;
         }
         ps.add(new SqlSelect.Projection(kOf, "k", kOut));
         outs.add(kOut);
@@ -1031,6 +1050,61 @@ public final class SideEqualities {
     static boolean oneCarrier(SqlQuery e, SqlQuery a) {
         return (e.outputs().get(0).type() == SqlType.Scalar.DECIMAL_TEXT)
                 == (a.outputs().get(0).type() == SqlType.Scalar.DECIMAL_TEXT);
+    }
+
+    /** Whether {@code kind} is an exact number's: an Integer's or a Decimal's (the two are equal by their value). */
+    static boolean exactNumber(Type kind) {
+        return kind == Type.Primitive.INTEGER || kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal;
+    }
+
+    private static boolean wholeNumber(SqlType t) {
+        return t == SqlType.Scalar.INTEGER || t == SqlType.Scalar.BIGINT;
+    }
+
+    /** The Decimal type that holds every Integer beside {@code d}'s values: {@code d}'s scale, and digits enough
+     *  before the point for the largest Integer (19), as far as a Decimal goes (38 digits: at a scale past 19 an
+     *  Integer too large for it is the database's overflow error, never a wrong answer). */
+    static SqlType.Decimal wideEnough(SqlType.Decimal d) {
+        return new SqlType.Decimal(Math.min(38, Math.max(d.precision(), 19 + d.scale())), d.scale());
+    }
+
+    /** {@code value}, held in {@code own}, as its compare column {@code column} holds it: an Integer read as the
+     *  column's Decimal where the column holds both exact kinds ({@link #stated}); any other as it is. */
+    private static SqlExpr fitted(SqlExpr value, SqlType own, SqlType column) {
+        return wholeNumber(own) && column instanceof SqlType.Decimal ? new SqlExpr.Cast(value, column,
+                SqlExpr.Reason.JUDGE) : value;
+    }
+
+    /** A kind's compare column stated into {@code into}: the first type stated for its key, but where the key is the
+     *  exact numbers' and both an Integer and a Decimal are stated, a Decimal that holds both ({@link #wideEnough}). */
+    private static void stated(java.util.Map<String, SqlType> into, String key, SqlType type) {
+        SqlType had = into.putIfAbsent(key, type);
+        if (had != null && wholeNumber(had) && type instanceof SqlType.Decimal d) {
+            into.put(key, wideEnough(d));
+        } else if (had instanceof SqlType.Decimal d && wholeNumber(type)) {
+            into.put(key, wideEnough(d));
+        }
+    }
+
+    /** One side's typed rows of an Integer-against-Decimal pair ({@link #values}): an Integer side's values read as
+     *  Decimals at the other side's scale ({@link #wideEnough}), over its rows read once from {@code cte}; a Decimal
+     *  side's as they are. Null where the other side holds no typed Decimal (one written as its text). */
+    private static @com.legend.base.Nullable SqlQuery besideDecimals(String cte, SqlQuery rows, SqlQuery other) {
+        SqlType own = rows.outputs().get(0).type();
+        SqlType theirs = other.outputs().get(0).type();
+        if (own instanceof SqlType.Decimal) {
+            return theirs instanceof SqlType.Decimal || wholeNumber(theirs) ? rows : null;
+        }
+        if (!wholeNumber(own) || !(theirs instanceof SqlType.Decimal d)) {
+            return null;
+        }
+        SqlQuery read = cteRows(cte, rows);
+        OutputCol oOut = new OutputCol(O, wideEnough(d), read.outputs().get(0).nullable());
+        OutputCol rnOut = read.outputs().get(1);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", read.outputs(),
+                O), oOut.type(), SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t",
+                read.outputs(), RN), RN, rnOut)), false, new SqlSource.Subselect(read, "t", null), null, List.of(), null,
+                null, List.of(), null, null, List.of(oOut, rnOut));
     }
 
     /**
@@ -1646,8 +1720,9 @@ public final class SideEqualities {
             this(e, a, form, null);
         }
 
-        /** Whether the pair's two typed kinds differ (two kinds never equal, register S127): decided by their kinds,
-         *  the same only where both are empty, whatever channel carries them. */
+        /** Whether the pair's two typed kinds differ (register S127): decided by their kinds, the same only where
+         *  both are empty, whatever channel carries them -- but an Integer against a Decimal, two exact numbers, which
+         *  {@link #values} compares by their value. */
         public boolean kindsDiffer() {
             return form == Form.VALUES && !e.equals(a)
                     // a Variant against values of another type (register S401): the same only where both are empty

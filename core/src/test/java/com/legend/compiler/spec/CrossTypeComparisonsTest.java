@@ -46,7 +46,8 @@ class CrossTypeComparisonsTest {
     @Test
     @DisplayName("numbers of different types, an enumeration against a String, a day against a date-time: marked")
     void comparisonsAcrossTypesAreMarked() {
-        for (String q : List.of("|1 == 1.0", "|1D == 1", "|1 != 1.5", "|x::Kind.CITY == 'CITY'",
+        // (an Integer against a Decimal is no crossing: two exact numbers, by value; the user's ruling of 2026-11-27)
+        for (String q : List.of("|1 == 1.0", "|1D == 1.0", "|1 != 1.5", "|x::Kind.CITY == 'CITY'",
                 "|%2020-01-02 == %2020-01-02T00:00:00", "|1 < 1.5", "|1->in([1.0, 2.0])", "|[1.0, 2.0]->contains(1)",
                 "|'a' == 1", "|^x::A(n=1) == ^x::C(n=1)", "|max(%2020-01-02, %2020-01-02T00:00:00)")) {
             assertEquals(1, crossings(q).size(), q);

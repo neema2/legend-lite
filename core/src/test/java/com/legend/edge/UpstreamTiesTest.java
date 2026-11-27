@@ -160,7 +160,9 @@ class UpstreamTiesTest {
             new Case("B4", "|[3.0, 3]->min()", List.of(I3), List.of(I3)),
             new Case("B5", "|[3.0, 3, 1]->sort()", List.of(I1, F3, I3), List.of(I1, I3, F3)),
             new Case("B6", "|[3, 3.0, 1]->sort()", List.of(I1, I3, F3), List.of(I1, I3, F3)),
-            new Case("B7", "|[3D, 3.0, 3]->sort()", List.of(D3, F3, I3), List.of(I3, F3, D3)),
+            // (lite: an exact number before a Float, and two equal exact numbers in the order they were written --
+            // the user's ruling of 2026-11-27; until then Integer, Float, Decimal)
+            new Case("B7", "|[3D, 3.0, 3]->sort()", List.of(D3, F3, I3), List.of(D3, I3, F3)),
             new Case("B9", "|[3.0, 'a', 3]->sort()", List.of(F3, I3, "String a"), List.of(I3, F3, "String a")),
             new Case("B9x", "|['a', 3, 3.0]->sort()", List.of(I3, F3, "String a"), List.of(I3, F3, "String a")));
 

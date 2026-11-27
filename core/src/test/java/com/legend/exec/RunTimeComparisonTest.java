@@ -18,10 +18,11 @@ import org.junit.jupiter.api.Test;
 /**
  * A COMPARISON WRITTEN IN A FUNCTION OVER VALUES WHOSE TYPES ITS CALLER GIVES (the edition program's step 6,
  * 2026-11-27; the equality rule's run-time item and the user's rulings of 2026-11-26 on decisions D3 and D5): on
- * lite's own route two values are equal only when they have the same type and the same value, so a function written
- * for {@code Number} or {@code Any} answers by the types its arguments have; an ordering is by value, then by type
- * (an Integer below a Float below a Decimal); and a number literal the function's author wrote reads as the type of
- * the value it is written against.
+ * lite's own route two values are equal only when they have the same type and the same value -- numbers by their
+ * family, an exact one (an Integer, a Decimal) never a Float, two exact ones by value (the user's ruling of
+ * 2026-11-27) -- so a function written for {@code Number} or {@code Any} answers by the types its arguments have; an
+ * ordering is by value, then by family (an exact number below a Float); and a number literal the function's author
+ * wrote reads as the type of the value it is written against.
  */
 class RunTimeComparisonTest {
 
@@ -54,10 +55,17 @@ class RunTimeComparisonTest {
 
     private static Map<String, Object> cases() {
         Map<String, Object> out = new LinkedHashMap<>();
-        // two values of two types are never equal; of one type, by value
+        // an exact number and a Float are never equal; two exact numbers (an Integer, a Decimal), and two values of
+        // one type, by value (the user's ruling of 2026-11-27)
         out.put("|x::same(1, 1.0)", false);
         out.put("|x::same(1.0, 1)", false);
-        out.put("|x::same(1, 1D)", false);
+        out.put("|x::same(1, 1D)", true);
+        out.put("|x::same(1.00D, 1)", true);
+        out.put("|x::same(1, 1.5D)", false);
+        out.put("|x::same(1.5, 1.5D)", false);
+        out.put("|x::less(1, 1.5D)", true);
+        out.put("|x::less(1, 1D)", false);
+        out.put("|x::lessEq(1D, 1)", true);
         out.put("|x::same(1, 1)", true);
         out.put("|x::same(1.5, 1.5)", true);
         out.put("|x::sameAny(1, 1.0)", false);

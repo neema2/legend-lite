@@ -163,10 +163,12 @@ public final class Equality {
                     + a.getClass().getSimpleName());
         }
         if (ek != ak) {
-            // Rule 3 (register S127, the user's ruling of 2026-11-04): a different kind is never equal -- the type is part
-            // of the value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false), on every route: B3's one rulebook (2026-11-24; E1
-            // withdrawn 2026-11-20 ~21:00) deleted compiled legend-pure's crossing rule from the edge, which moved no test
-            return false;
+            // Rule 3 (register S127): a different kind is never equal -- the type is part of the value (1 == 1.0 and
+            // 1.5 == 1.5D false) -- but for two EXACT numbers, an Integer and a Decimal, which are equal by their value
+            // (the user's ruling of 2026-11-27, "Yes I like the rule": exact with exact by value, a Float only with a
+            // Float; until then, by the ruling of 2026-11-04, 1D == 1 was false too). On every route
+            return ek != Kind.FLOAT && ak != Kind.FLOAT && isNumericKind(ek) && isNumericKind(ak)
+                    && e instanceof Number en && a instanceof Number an && decimal(en).compareTo(decimal(an)) == 0;
         }
         if (ek == Kind.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -287,11 +289,13 @@ public final class Equality {
 
     static List<Typed> sorted(List<Typed> values) {
         List<Typed> out = new ArrayList<>(values);
-        // equal values of two types (3 and 3.0) in one place on both sides, whatever order each was written in: the
-        // kind breaks the tie (two lists are matched element by element after this sort, and 3 is not 3.0)
+        // equal values of two families (3 and 3.0) in one place on both sides, whatever order each was written in: the
+        // family breaks the tie, an exact number before a Float (two lists are matched element by element after this
+        // sort, and 3 is not 3.0; an Integer and a Decimal of one value are equal, so either order of the two matches)
         out.sort(java.util.Comparator.comparingInt((Typed t) -> typeRank(t.value()))
                 .thenComparing(t -> withinRank(t.value()))
-                .thenComparingInt(t -> java.util.Optional.ofNullable(effectiveKind(t)).map(Enum::ordinal).orElse(-1)));
+                .thenComparingInt(t -> java.util.Optional.ofNullable(effectiveKind(t))
+                        .map(k -> k == Kind.DECIMAL ? Kind.INTEGER.ordinal() : k.ordinal()).orElse(-1)));
         return out;
     }
 

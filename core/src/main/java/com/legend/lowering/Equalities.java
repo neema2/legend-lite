@@ -167,7 +167,7 @@ final class Equalities {
                 // a list of ONE static kind (one family: a date-time at any written precision is a DateTime)
                 for (TypedSpec el : oc.elements()) {
                     String k = MixedEncoding.kindOf(el);
-                    if (k == null || (kind != null && !MixedEncoding.sameFamily(kind, k))) {
+                    if (k == null || (kind != null && !kind.equals(MixedEncoding.family(k)))) {
                         kind = null;
                         break;
                     }

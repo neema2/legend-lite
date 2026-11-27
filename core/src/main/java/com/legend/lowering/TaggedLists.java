@@ -64,7 +64,9 @@ final class TaggedLists {
         java.util.Map<String, SqlType.Tagged.Slot> seen = new java.util.HashMap<>();
         for (SqlExpr.TaggedList tl : lists) {
             for (SqlType.Tagged.Slot s : tl.slots()) {
-                SqlType.Tagged.Slot first = seen.putIfAbsent(MixedEncoding.family(s.kind()), s);
+                // (an Integer and a Decimal can be equal, so the two are one family held in two arrays)
+                SqlType.Tagged.Slot first = seen.putIfAbsent(MixedEncoding.exactNumber(s.kind()) ? "exact number"
+                        : MixedEncoding.family(s.kind()), s);
                 if (first != null && !first.equals(s)) {
                     return false;
                 }
@@ -77,8 +79,9 @@ final class TaggedLists {
      * Two lists WRITTEN IN THE QUERY, every element present, are the same list where they are the same length and
      * each position holds, on both sides, values of one family that are equal: no list in the SQL, one comparison
      * per position, by the database's own comparison of the type -- a Decimal by its number (S139), a date-time by
-     * its instant (S399). A position whose two kinds are of different families makes the lists different by the
-     * types alone: two values of different types are never equal (the equality rule; {@code 3} is not {@code 3D}).
+     * its instant (S399), an Integer and a Decimal by their value (two exact numbers; the user's ruling of
+     * 2026-11-27). A position whose two kinds can never be equal makes the lists different by the types alone: two
+     * values of different types are never equal (the equality rule; {@code 3} is not {@code 3.0}).
      * Null where a list is not written out (a computed list, a reordered one).
      */
     static @com.legend.base.Nullable SqlExpr sameWrittenLists(SqlExpr.TaggedList a, SqlExpr.TaggedList b) {
@@ -300,8 +303,9 @@ final class TaggedLists {
     /**
      * How a sort places EQUAL NUMBERS OF DIFFERENT TYPES (3 and 3.0; a list of one number type has no such pair and
      * is written the same under each):
-     * {@link #BY_TYPE} lite's own rule, Integer, Float, Decimal, then the written order (the user's rulings of
-     * 2026-11-25 and 2026-11-26: "I agree with the framing" -- lite's rule in lite's mode);
+     * {@link #BY_TYPE} lite's own rule, an exact number (an Integer, a Decimal) before a Float, then the written
+     * order -- so an Integer and a Decimal of one value, which are equal, keep the order they were written in (the
+     * user's ruling of 2026-11-27, "Yes I like the rule, keep ordering strict"; until then Integer, Float, Decimal);
      * {@link #AS_WRITTEN} the written order, a stable sort's, which is legend-pure's and legend-engine's sort (run on
      * all three upstream runtimes, 2026-11-26: {@code [3.0, 3, 1]->sort()} is {@code [1, 3.0, 3]});
      * {@link #LAST_WRITTEN_FIRST} the written order reversed, so the FIRST of a sorted list is the last written of
@@ -319,14 +323,15 @@ final class TaggedLists {
         SqlSelect inner = positionRows(tl.positions());
         SqlExpr p = SqlExpr.Column.of(alias, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
         SqlExpr typeOrder = numberTypeOrderAt(tl, p);
-        if (typeOrder != null) {
+        if (typeOrder != null || numberKinds(tl) > 1) {
             // equal numbers of two types in the list: each position's PLACE by the comparable, then by what the
-            // ties rule says (the number's type and the position; the position alone, either way), a row number
-            // over them, and the positions listed by their place -- an ordered aggregate over the comparable alone
-            // promises no order among equals
+            // ties rule says (an exact number before a Float, then the position; the position alone, either way), a
+            // row number over them, and the positions listed by their place -- an ordered aggregate over the
+            // comparable alone promises no order among equals (an Integer and a Decimal of one value are equal, and
+            // keep the order they were written in)
             List<SqlSelect.SortKey> keys = new ArrayList<>(3);
             keys.add(new SqlSelect.SortKey(tl.comparableAt(p), true, SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
-            if (ties == Ties.BY_TYPE) {
+            if (ties == Ties.BY_TYPE && typeOrder != null) {
                 keys.add(new SqlSelect.SortKey(typeOrder, true, null, null));
             }
             keys.add(new SqlSelect.SortKey(p, ties != Ties.LAST_WRITTEN_FIRST, null, null));
@@ -343,6 +348,7 @@ final class TaggedLists {
                     false, new SqlSource.Subselect(places, placed, null), null, List.of(), null, null, List.of(),
                     null, null, List.of());
             return tl.withPositions(new SqlExpr.ScalarSubquery(listed)).withOrder(ties == Ties.BY_TYPE
+                    && typeOrder != null
                     ? SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE : SqlExpr.TaggedList.Order.COMPARABLE);
         }
         SqlSelect outer = new SqlSelect(List.of(new SqlSelect.Projection(
@@ -382,6 +388,17 @@ final class TaggedLists {
             from = inner.from();
         }
         return positions;
+    }
+
+    /** How many number types the list holds (an Integer's, a Float's, a Decimal's channels). */
+    private static int numberKinds(SqlExpr.TaggedList tl) {
+        java.util.Set<String> kinds = new java.util.HashSet<>();
+        for (int k = 0; k < tl.channels().size(); k++) {
+            if (MixedEncoding.numberTypePlace(tl.channels().get(k).kind()) >= 0) {
+                kinds.add(MixedEncoding.family(tl.channels().get(k).kind()));
+            }
+        }
+        return kinds.size();
     }
 
     /**
@@ -721,8 +738,9 @@ final class TaggedLists {
      * needle's kind's family ({@link MixedEncoding#family}: a Decimal at any scale, a date-time at any written
      * precision) and whose value there equals the needle, by the database's own comparison of the type (a Decimal
      * by its number, a date-time by its instant); a family the list has no channel for is a member of nothing
-     * ({@code '1'} is not {@code 1}; {@code 1} is not {@code 1.0}; {@code 3} is not {@code 3D}: two values of
-     * different types are never equal, the equality rule).
+     * ({@code '1'} is not {@code 1}; {@code 1} is not {@code 1.0}: two values of different types are never equal,
+     * the equality rule; {@code 3} is {@code 3D}: an Integer and a Decimal are two exact numbers, equal by their
+     * value, the user's ruling of 2026-11-27).
      */
     static SqlExpr contains(SqlExpr.TaggedList tl, @com.legend.base.Nullable String kind, SqlExpr needle,
             Type needleType) {

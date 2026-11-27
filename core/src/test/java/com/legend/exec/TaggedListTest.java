@@ -334,22 +334,31 @@ class TaggedListTest {
     }
 
     @Test
-    void numbersOfDifferentTypesAreNeverEqualInAMixedList() throws Exception {
-        // the equality rule (the user, 2026-11-24): two values are equal only when they have the same type and the
-        // same value, so an Integer, a Float and a Decimal in a mixed list never equal one another, whatever their
-        // digits. (Compiled legend-pure compares two numbers of different kinds by their texts, so 3 == 3D and
-        // 1.5 == 1.5D are true there: lite refused those pairs by name until slice 6.2; they answer false now, a
-        // recorded difference.)
+    void anExactNumberNeverEqualsAFloatInAMixedList_andTwoExactNumbersAreEqualByValue() throws Exception {
+        // the equality rule for numbers (the user, 2026-11-27, "Yes I like the rule, keep ordering strict"): numbers
+        // are of two families, exact (Integer, Decimal) and approximate (Float). Two exact numbers are equal by
+        // their value, whichever of the two types holds it; an exact number and a Float are never equal, whatever
+        // their digits. (Until that ruling an Integer and a Decimal were never equal either, the ruling of
+        // 2026-11-24; compiled legend-pure compares two numbers of different kinds by their texts, so 3 == 3D is
+        // true there too, and 1.5 == 1.5D, which stays false here: a recorded difference.)
         try (Connection c = TestBackends.platform().open()) {
+            // an exact number against a Float: never
             assertEquals(false, value(c, "|[1, 'a']->contains(1.0)"));
-            assertEquals(false, value(c, "|[1, 'a']->contains(1.5D)"));
             assertEquals(false, value(c, "|[1, 'a'] == [1.0, 'a']"));
-            assertEquals(false, value(c, "|[3, 'a']->contains(3D)"));
-            assertEquals(false, value(c, "|[3, 'a'] == [3D, 'a']"));
             assertEquals(false, value(c, "|[1.5, 'a']->contains(1.5D)"));
-            // the shape no longer decides (the audit of slice 6.1, S5: one was refused, the other false)
-            assertEquals(false, value(c, "|2->in([2D, 'a'])"));
-            assertEquals(false, value(c, "|2->in([1, 2D, 'a'])"));
+            // an Integer against a Decimal: by value
+            assertEquals(true, value(c, "|[3, 'a']->contains(3D)"));
+            assertEquals(true, value(c, "|[3, 'a']->contains(3.00D)"));
+            assertEquals(false, value(c, "|[3, 'a']->contains(3.5D)"));
+            assertEquals(false, value(c, "|[1, 'a']->contains(1.5D)"));
+            assertEquals(true, value(c, "|[3, 'a'] == [3D, 'a']"));
+            assertEquals(false, value(c, "|[3, 'a'] == [3.1D, 'a']"));
+            assertEquals(true, value(c, "|2->in([2D, 'a'])"));
+            assertEquals(true, value(c, "|2->in([1, 2D, 'a'])"));
+            assertEquals(false, value(c, "|2->in([1, 2.5D, 'a'])"));
+            assertEquals(true, value(c, "|2D->in([1, 2, 'a'])"));
+            // so one of two equal exact numbers is a duplicate of the other, and a Float of that value is not
+            assertEquals(2L, value(c, "|[1, 1D, 1.0]->removeDuplicates()->size()"));
             // and the same type still compares by its value
             assertEquals(true, value(c, "|[3D, 'a']->contains(3.0D)"));
         }

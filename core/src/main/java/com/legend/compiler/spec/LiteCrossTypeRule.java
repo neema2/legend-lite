@@ -33,8 +33,38 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
 
     @Override
     public TypedSpec inQuery(TypedCrossTypeComparison crossing) {
+        if (exact(crossing)) {
+            return crossing.comparison();
+        }
         TypedSpec read = NumberLiterals.read(crossing);
         return read != null ? read : crossing;
+    }
+
+    /** Whether {@code crossing} is between two EXACT numbers, an Integer and a Decimal (the user's ruling of
+     *  2026-11-27, "Yes I like the rule, keep ordering strict": numbers are of two families, exact -- Integer and
+     *  Decimal -- and approximate -- Float; within a family a comparison is by value, across the two it is a compile
+     *  error, as before, and a written literal still reads as the other side's type where nothing is lost). Such a
+     *  comparison is the comparison itself: the database compares the two values exactly. */
+    private static boolean exact(TypedCrossTypeComparison crossing) {
+        if (!exactNumber(crossing.left()) || !exactNumber(crossing.right())) {
+            return false;
+        }
+        if (crossing.comparison() instanceof com.legend.compiler.spec.typed.TypedNativeCall call
+                && call.args().size() == 2) {
+            // a written whole number no Decimal holds (past its 38 digits) is no value of the other side's type: the
+            // comparison stays a mistake at compile, never a database's overflow (the audit of batch A, 2026-11-26)
+            boolean leftWhole = crossing.left() == com.legend.compiler.element.type.Type.Primitive.INTEGER;
+            if (NumberLiterals.written(call.args().get(leftWhole ? 0 : 1))
+                    && NumberLiterals.readWritten(crossing, leftWhole) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean exactNumber(com.legend.compiler.element.type.Type t) {
+        return t == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || t == com.legend.compiler.element.type.Type.Primitive.DECIMAL;
     }
 
     @Override
@@ -56,6 +86,9 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
      *  itself, when the query runs, naming the fix; a compile error here pre-empted that refusal. */
     @Override
     public TypedSpec inGenericBody(TypedCrossTypeComparison crossing) {
+        if (exact(crossing)) {
+            return crossing.comparison();
+        }
         TypedSpec read = NumberLiterals.read(crossing);
         return read != null ? read : new com.legend.compiler.spec.typed.TypedRunTimeComparison(crossing.comparison(),
                 crossing.kind(), crossing.operator(), false, false);
@@ -78,11 +111,13 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
      *       as that type where it is exact there (decision D5: {@code $x->in([0, 1])} over a Float is by value),
      *       else it is no value of that type and the answer is the types';</li>
      *   <li>two values of two types: never equal ({@code ==} and {@code eq} false where a side is never empty,
-     *       {@code in} and {@code contains} false, {@code indexOf} -1), and ordered by value, then by type, an
-     *       Integer below a Float below a Decimal (decision D3: {@code <} and {@code <=} are both {@code <=} where
-     *       the first side's type is the lower, both {@code <} where it is the higher; {@code >} and {@code >=} the
-     *       mirror), a fact of the two types folded into the operator. Any other ordering (two dates, a text against
-     *       a number, {@code compare}, {@code max}, {@code min}) is the comparison itself, by value.</li>
+     *       {@code in} and {@code contains} false, {@code indexOf} -1), and ordered by value, then by family, an
+     *       exact number below a Float (decision D3: {@code <} and {@code <=} are both {@code <=} where the first
+     *       side is the exact one, both {@code <} where it is the Float; {@code >} and {@code >=} the mirror), a fact
+     *       of the two types folded into the operator. Any other ordering (two dates, a text against a number,
+     *       {@code compare}, {@code max}, {@code min}) is the comparison itself, by value;</li>
+     *   <li>an Integer against a Decimal: the comparison itself -- two exact numbers are equal by their value and
+     *       ordered by it (the user's ruling of 2026-11-27).</li>
      * </ul>
      */
     @Override
@@ -98,6 +133,9 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
         EqualityClasses.Crossing c = known.get();
         TypedCrossTypeComparison crossing = new TypedCrossTypeComparison(call, c.kind(), c.operator(), c.left(),
                 c.right(), call.pos());
+        if (exact(crossing)) {
+            return call;
+        }
         if (marked.leftWritten() != marked.rightWritten()) {
             TypedSpec read = NumberLiterals.readWritten(crossing, marked.leftWritten());
             if (read != null) {
@@ -124,15 +162,15 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
         return false;
     }
 
-    /** The order of the number types among equal values. */
-    private static final java.util.List<com.legend.compiler.element.type.Type> NUMBER_TYPES = java.util.List.of(
-            com.legend.compiler.element.type.Type.Primitive.INTEGER, com.legend.compiler.element.type.Type.Primitive.FLOAT,
-            com.legend.compiler.element.type.Type.Primitive.DECIMAL);
+    /** A number type's place among equal values: an exact number before a Float; -1 for a type that is no number. */
+    private static int place(com.legend.compiler.element.type.Type t) {
+        return exactNumber(t) ? 0 : t == com.legend.compiler.element.type.Type.Primitive.FLOAT ? 1 : -1;
+    }
 
     private static TypedSpec byValueThenType(com.legend.compiler.spec.typed.TypedNativeCall call,
             EqualityClasses.Crossing c, com.legend.compiler.element.ModelContext ctx) {
-        int left = NUMBER_TYPES.indexOf(c.left());
-        int right = NUMBER_TYPES.indexOf(c.right());
+        int left = place(c.left());
+        int right = place(c.right());
         boolean less = c.operator().equals("<") || c.operator().equals("<=");
         boolean greater = c.operator().equals(">") || c.operator().equals(">=");
         if (left < 0 || right < 0 || !less && !greater) {

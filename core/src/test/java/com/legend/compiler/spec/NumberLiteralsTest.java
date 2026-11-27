@@ -87,14 +87,25 @@ class NumberLiteralsTest {
     void whatTheRuleDoesNotReach() {
         for (String q : List.of("|let a = 1; $a == 1.5;", "|let a = 1; $a->in([0.5, 1.0]);",
                 "|let a = 1.5; $a == 9007199254740993;", "|let a = 1.5; $a == 1D;", "|1 == 1.0", "|1->in([1.0, 2.0])",
-                // two literals, one of them a Decimal literal: still two literals (the step 6 measurement's finding,
-                // 2026-11-26: until then the Decimal literal was read as a value, and 1D == 1 answered true)
-                "|1D == 1", "|1.5 == 1.5D", "|1 == -1D", "|[1D, 2D]->contains(1)", "|1->in([1D, 2D])",
+                // two literals, one of them a Decimal literal: still two literals, and a Float against a Decimal is
+                // across the two families (an Integer against a Decimal is not: anIntegerAgainstADecimalIsNoCrossing)
+                "|1.5 == 1.5D", "|1.5 == -1D", "|[1D, 2D]->contains(1.0)", "|1.0->in([1D, 2D])",
                 "|let a = 1.5; let b = 1; $a == $b;", "|let a = 1.5; let b = 1; $a > $b + 1;",
                 // a number no Decimal holds (past its 38 digits) is not exact there: the comparison stays a mistake
                 // at compile, never a database's overflow (the audit of batch A, 2026-11-26)
                 "|let a = 1.5D; $a == 1.0e40;", "|let a = 1.5D; $a < 123456789012345678901234567890123456789;")) {
             assertEquals(1, crossings(q), q);
+        }
+    }
+
+    @Test
+    @DisplayName("an Integer against a Decimal: two exact numbers, compared by value, no comparison across types")
+    void anIntegerAgainstADecimalIsNoCrossing() {
+        // the user's ruling of 2026-11-27 ("Yes I like the rule, keep ordering strict"): numbers are of two families,
+        // exact (Integer, Decimal) and approximate (Float); within a family a comparison is by value
+        for (String q : List.of("|1D == 1", "|1 == -1D", "|[1D, 2D]->contains(1)", "|1->in([1D, 2D])", "|1 < 1.5D",
+                "|let a = 1; let b = 1.5D; $a == $b;", "|let a = 1; let b = 1.5D; $a >= $b;")) {
+            assertEquals(0, crossings(q), q);
         }
     }
 

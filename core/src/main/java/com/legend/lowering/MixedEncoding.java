@@ -80,8 +80,8 @@ final class MixedEncoding {
             return new MixedElems(searched, picked, computedIntegers).tagged(winner);
         }
 
-        /** A candidate's place among equal values of different types: a number's by its type (Integer, Float,
-         *  Decimal); any other kind 0, so its elements keep the written order (a stable sort). */
+        /** A candidate's place among equal values of different types: a number's by its family (an exact number,
+         *  then a Float); any other kind 0, so its elements keep the written order (a stable sort). */
         private static int typePlace(SqlExpr.Tagged.Candidate candidate) {
             return Math.max(0, numberTypePlace(candidate.kind()));
         }
@@ -89,18 +89,20 @@ final class MixedEncoding {
 
     /** Which element a selection keeps where several hold the winning value ({@link MixedElems#tagged(SqlExpr,
      *  TiePick)}): lite's own rule is by the order of types ({@link #LEAST_TYPE} for a least element, {@link
-     *  #GREATEST_TYPE} for a greatest: among equal numbers Integer, Float, Decimal); legend-pure's and legend-engine's
+     *  #GREATEST_TYPE} for a greatest: among equal numbers an exact one, then a Float; the first written of two exact ones); legend-pure's and legend-engine's
      *  is by the fold their {@code max} and {@code min} are written as (run on all three upstream runtimes,
      *  2026-11-26, docs/records/edition-homework/upstream-step6/answers.md): over a LIST the later element of a tie
      *  ({@link #LAST_WRITTEN}), of TWO ARGUMENTS the left one ({@link #FIRST_WRITTEN}). */
     enum TiePick { FIRST_WRITTEN, LAST_WRITTEN, LEAST_TYPE, GREATEST_TYPE }
 
-    /** A number kind's place among equal magnitudes (Integer, Float, Decimal); -1 for a kind that is no number. */
+    /** A number kind's place among equal magnitudes: an exact number (an Integer, a Decimal) before a Float -- an
+     *  Integer and a Decimal of one value are EQUAL, so they share a place and keep the order they were written in
+     *  (the user's ruling of 2026-11-27; until then Integer, Float, Decimal, three types never equal); -1 for a kind
+     *  that is no number. */
     static int numberTypePlace(String kind) {
         return switch (family(kind)) {
-            case "Integer" -> 0;
+            case "Integer", "Decimal" -> 0;
             case "Float" -> 1;
-            case "Decimal" -> 2;
             default -> -1;
         };
     }
@@ -442,9 +444,18 @@ final class MixedEncoding {
         return writtenDigits(kind) != null ? "DateTime" : kind;
     }
 
-    /** Whether two kinds are of one family ({@link #family}). */
+    /** Whether a value of kind {@code a} can equal one of kind {@code b}: the two are of one family ({@link #family}),
+     *  or both are EXACT numbers -- an Integer and a Decimal are equal by their value, whichever of the two types
+     *  holds it (the user's ruling of 2026-11-27, "Yes I like the rule": exact with exact by value, a Float only with
+     *  a Float). The database compares the two values; the kinds only say that it may. */
     static boolean sameFamily(String a, String b) {
-        return family(a).equals(family(b));
+        return family(a).equals(family(b)) || exactNumber(a) && exactNumber(b);
+    }
+
+    /** Whether {@code kind} is an exact number's: an Integer's or a Decimal's. */
+    static boolean exactNumber(String kind) {
+        String family = family(kind);
+        return family.equals("Integer") || family.equals("Decimal");
     }
 
     /** The channels of a tagged list that hold values of {@code kind}'s family (a needle's static kind), in channel
