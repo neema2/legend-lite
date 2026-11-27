@@ -527,9 +527,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 25. `==` on two tables is strict; `sameElements` compares in any order (the edition program, 2026-11-27)
 - **You write** a comparison of two tables as a query's answer: `|$a == $b`.
-- **legend-pure** has no table equality of its own (its table classes define none, read in the pinned sources; not
-  run): a `==` of two tables reads as "the same object". Rows in any order are compared only inside a test, by
+- **legend-pure** compares two tables by identity (run on interpreted and compiled legend-pure, 2026-11-27): two
+  written tables with the same columns and rows are NOT equal, and a table equals only itself (`$a == $a`). An
+  `assertEquals` of two identical written tables fails there. Rows in any order are compared only inside a test, by
   `assertSameElements`.
+- **legend-engine** never compares two tables: the query is refused by name, inside a store query and outside one
+  (run the same day).
 - **Lite, on its own route:** two tables are equal when their columns have the same names in the same order and
   their rows are the same in order, each cell by its column's type. A table whose order the query does not define
   (rows read with no sort, or past a grouping, a join or a union) is refused when the query is compiled, naming the
@@ -538,7 +541,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   the same column names, the same in any order. Duplicates count: `[1, 1, 2]` and `[1, 2, 2]` are not the same.
 - **Not covered:** `sameElements` is answered as a query's last statement; inside an expression (an `if`, a
   filter) it is refused by name. At legend-pure's and legend-engine's doors a `==` of two tables is the comparison
-  it was.
+  it was, by the tables' values: two identical written tables are equal there, where legend-pure says they are not.
 - Register row S430.
 
 ## Gaps lite has today (not differences by design)

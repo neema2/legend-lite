@@ -347,8 +347,17 @@ independent review of everything changed since the two audits; CI on every opera
 goes up brought to the user first.
 
 **Left to do, in order:**
-1. `sameElements(a, b)`: built (above); to run, with its generated lists (`native-claims.tsv`). Upstream's answer
-   for `==` on two tables is still to be run on the engine runner.
+1. `sameElements(a, b)`: built and run (above). **Upstream's answer for `==` on two tables, RUN 2026-11-27** (a
+   worker session; interpreted and compiled legend-pure 5.99.0, legend-engine 4.145.0): legend-pure compares two
+   tables by IDENTITY -- two written tables with the same rows are not equal, a table equals only itself, and
+   `assertEquals` of two identical written tables fails; legend-engine never plans the comparison (refused by name
+   store-less and inside a store query). In register S430 and differences item 25. **To put to the user:** lite's
+   by-value rule was ruled before this was run; it departs from Pure's identity, which is an artifact of a class
+   with no equality key.
+   The same session ran `max`/`min` inside legend-engine's H2 store query: two COLUMNS (3, 3.0) answer 3.0 whichever
+   wins, as built; two WRITTEN values answer the winner in its own type (`max(3, 3.0)` is 3, `max(3.0, 3)` is 3.0),
+   so the rule now leaves two written values to the rule that keeps a tie's own element. A column against a written
+   value, and Integer/Decimal and Decimal/Float columns, are being run (asked 2026-11-27).
 2. The two type-checker leftovers of the audit: the first is fixed (a query's lambda handed to a function generic
    over a relation's columns is the query's code: `Typer.callerLambdas`), to run; the second is carried with its
    reason (the audits' table, row 14).

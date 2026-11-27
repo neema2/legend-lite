@@ -3906,12 +3906,23 @@ final class Scalars {
         if (!wholeFirst && !wholeSecond) {
             return extremeKeepingTheFoldsTie(n, args);
         }
+        if (writtenNumber(n.args().get(0)) && writtenNumber(n.args().get(1))) {
+            // two WRITTEN values: legend-engine's CASE over two literals answers the winner in its own type inside a
+            // store query too (run on legend-engine's H2 2026-11-27: max(3, 3.0) there is 3, max(3.0, 3) is 3.0,
+            // min(2, 2.5) is 2 -- the database folds the CASE to the literal it picks), which is the other rule's answer
+            return extremeKeepingTheFoldsTie(n, args);
+        }
         SqlExpr first = wholeFirst ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR)
                 : args.get(0);
         SqlExpr second = wholeSecond ? new SqlExpr.Cast(args.get(1), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR)
                 : args.get(1);
         return SqlExpr.Call.of(Pure.AT_MATH_MAX.contains(n.callee().id()) ? SqlFn.GREATEST : SqlFn.LEAST, first,
                 second);
+    }
+
+    private static boolean writtenNumber(TypedSpec side) {
+        return side instanceof com.legend.compiler.spec.typed.TypedCInteger
+                || side instanceof com.legend.compiler.spec.typed.TypedCFloat;
     }
 
     /** Whether upstream writes {@code n}'s {@code min} as a FOLD over the list (the Number and the date overloads:

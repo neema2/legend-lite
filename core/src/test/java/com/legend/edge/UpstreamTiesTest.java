@@ -474,8 +474,13 @@ class UpstreamTiesTest {
             assertTrue(String.valueOf(limit.getMessage()).contains("a tagged value reached the renderer"),
                     untouched + ": " + limit.getMessage());
         }
-        // a written tie outside any store query keeps the winner's type there (ARGUMENTS holds its answer)
-        assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, "|max(3, 3.0)").contains("AS DOUBLE)"));
+        // two written values keep the winner's type, outside any store query (ARGUMENTS holds the answer) and inside
+        // one (run on legend-engine's H2 2026-11-27: max(3, 3.0) there is 3): never this rule's statement
+        for (String written : List.of("|max(3, 3.0)",
+                "|#>{s::DB.T}#->extend(~m: r | max(3, 3.0)->toString())->select(~[m])->from(s::RT)")) {
+            assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, written).contains("greatest(CAST(3 AS DOUBLE), 3.0)"),
+                    written);
+        }
         // two columns of one type: the call's own rule, no conversion
         assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1,
                 "|#>{s::DB.T}#->extend(~m: r | max($r.I->toOne(), $r.ID->toOne()))->select(~[m])->from(s::RT)")
