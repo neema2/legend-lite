@@ -72,7 +72,11 @@ final class AssertRecords {
     /** A side's values as a JSON carrier may have brought them: none for a side of a primitive kind. */
     private static List<Object> carrier(com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts f,
             List<Object> carried) {
-        return f != null && f.kind() instanceof com.legend.testexecutionplan.KindClass.Primitive ? List.of() : carried;
+        // (a Variant side's JSON texts are its VALUES, no class's carrier: read as one, a Variant holding an object
+        // or an array against a value of another type was written "expected: [{...}], actual: []", the other side
+        // lost -- probed 2026-11-27)
+        return f != null && (f.kind() instanceof com.legend.testexecutionplan.KindClass.Primitive || variant(f))
+                ? List.of() : carried;
     }
 
     /**

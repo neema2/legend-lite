@@ -45,7 +45,8 @@ final class HostJudge {
 
     /** A side the canon fetch reads ({@link #sideCanonOf}): never folded, on the identity lane. */
     private static HostSides.Ask canonAsk(TypedSpec arg, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return new HostSides.Ask(arg, true, HostSides.Fold.NONE, hook);
+        return new HostSides.Ask(com.legend.compiler.spec.typed.VariantEquality.asItsVariant(arg), true,
+                HostSides.Fold.NONE, hook);
     }
 
     /** The static facts of one side, read once at planning. */
