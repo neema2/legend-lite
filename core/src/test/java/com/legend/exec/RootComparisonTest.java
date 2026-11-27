@@ -247,4 +247,79 @@ class RootComparisonTest {
                     + " tables in order") && e.getMessage().contains("sameElements"), e.getMessage());
         }
     }
+
+    /** {@code sameElements(a, b)} (the user, 2026-11-27: {@code ==} on two tables is strict, and a separate function
+     *  compares them when the order does not matter): two lists' elements, or two tables' rows under the same column
+     *  names, the same in ANY order -- each as often on one side as on the other, each pair by the one equality. The
+     *  same answer on every database, collected so one run shows every case that is wrong. */
+    @Test
+    void sameElementsComparesTwoSidesInAnyOrder() throws Exception {
+        Map<String, Boolean> cases = new LinkedHashMap<>();
+        // lists: any order; duplicates count
+        cases.put("|sameElements([1, 2, 3], [3, 1, 2])", true);
+        cases.put("|[1, 2, 3]->sameElements([3, 1, 2])", true);
+        cases.put("|sameElements([1, 2, 3]->filter(x | $x > 1), [3, 2])", true);
+        cases.put("|sameElements([1, 1, 2], [1, 2, 2])", false);
+        cases.put("|sameElements([1, 2], [1, 2, 3])", false);
+        cases.put("|!sameElements([1, 2], [2, 1])", false);
+        cases.put("|!sameElements([1, 2], [2, 3])", true);
+        cases.put("|sameElements(['a', 'b'], ['b', 'a'])", true);
+        // two empty sides; one empty side
+        cases.put("|sameElements([1, 2]->filter(x | $x > 5), [3]->filter(x | $x > 5))", true);
+        cases.put("|sameElements([1, 2]->filter(x | $x > 5), [3])", false);
+        // an Integer against a Decimal: two exact numbers, by value; a Decimal by its number
+        cases.put("|sameElements([1, 2], [2.0D, 1D])", true);
+        cases.put("|sameElements([1.50D, 2D], [2.00D, 1.5D])", true);
+        // values typed only when the query runs: by the type each holds
+        cases.put("|sameElements([1, 2]->cast(@Number), [2, 1]->cast(@Number))", true);
+        cases.put("|sameElements([1, 2]->cast(@Number), [2.0, 1.0]->cast(@Number))", false);
+        // tables: the rows in any order, the columns' names the same
+        String ab = "#TDS\n id, s\n 1, x\n 2, y\n#";
+        cases.put("|sameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, x\n#)", true);
+        cases.put("|sameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, z\n#)", false);
+        cases.put("|sameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, x\n 1, x\n#)", false);
+        cases.put("|sameElements(#TDS\n id\n 1\n#, #TDS\n ix\n 1\n#)", false);
+        // a store's rows, read with no sort: the comparison == refuses (anUnsortedTableIsRefusedUnderEquals)
+        cases.put("|sameElements(p::Party.all()->project(~[id: p|$p.id, name: p|$p.name]),"
+                + " #TDS\n id, name\n 1, Meridian\n#)", true);
+        cases.put("|let rows = p::Party.all()->project(~[id: p|$p.id]); sameElements($rows, #TDS\n id\n 2\n#);",
+                false);
+        List<String> wrong = new java.util.ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (Map.Entry<String, Boolean> c : cases.entrySet()) {
+                try (Connection connection = backend.open()) {
+                    Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                    if (!List.of(List.of(c.getValue())).equals(r.rows())) {
+                        wrong.add(backend.type() + ": " + c.getKey() + " -> " + r.rows());
+                    }
+                } catch (RuntimeException e) {
+                    wrong.add(backend.type() + ": " + c.getKey() + " -> " + e.getClass().getSimpleName() + ": "
+                            + String.valueOf(e.getMessage()).lines().findFirst().orElse(""));
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "every case on every database");
+    }
+
+    /** What {@code sameElements} refuses, each by name: two sides of two known types (the equality rule: different
+     *  types never compare), and any place but a query's last statement. */
+    @Test
+    void sameElementsRefusesTwoTypesAndAnyPlaceButTheAnswer() throws Exception {
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        Map<String, String> refused = new LinkedHashMap<>();
+        refused.put("|sameElements([1, 2], ['a', 'b'])", "sameElements compares elements of one type");
+        refused.put("|sameElements([1, 2], [1.0, 2.0])", "sameElements compares elements of one type");
+        refused.put("|if(sameElements([1, 2], [2, 1]), |'same', |'other')", "sameElements inside an expression");
+        refused.put("|sameElements(#TDS\n id\n 1\n#, [1])", "sameElements: a table against a side that is no table");
+        for (Map.Entry<String, String> c : refused.entrySet()) {
+            try (Connection connection = backend.open()) {
+                RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                        () -> Lean.established(model, c.getKey(), "p::RT", connection), c.getKey());
+                org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(e.getMessage()).contains(c.getValue()),
+                        c.getKey() + " -> " + e.getMessage());
+            }
+        }
+    }
 }

@@ -643,6 +643,17 @@ public final class Pure {
          *  evaluated on a row ({@code $rel->columns()}, typed {@code Any}); a {@code ColSpec} there is a name alone. */
         public static final String READ = PKG + "read";
 
+        /** Two sides' elements the same in ANY order (the user, 2026-11-27, the edition program's step 6: {@code ==}
+         *  on two tables is strict, and "a separate function" compares them when the order does not matter: "Yeah or
+         *  ~= if want to be cute, or setCompare()"): {@code sameElements($a, $b)} is true where two lists hold the same
+         *  elements, or two tables the same rows under the same column names, whatever their order -- each element as
+         *  often on one side as on the other (so it is no comparison of sets: {@code [1, 1, 2]} and {@code [1, 2, 2]}
+         *  are not the same), each pair by the one equality ({@code lowering.SideEqualities}, the comparison
+         *  {@code assertSameElements} is judged by, after which it is named). A function and no operator: the grammar is
+         *  checked against upstream's. Upstream has the assert alone. Answered as a query's last statement
+         *  ({@code planner.RootComparison}); inside an expression it is refused by name. */
+        public static final String SAME_ELEMENTS = PKG + "sameElements";
+
         private Lite() {
         }
     }
@@ -713,7 +724,8 @@ public final class Pure {
                     liteLocalName(Lite.UPDATE),
                     liteLocalName(Lite.MERGE),
                     liteLocalName(Lite.WITHOUT),
-                    liteLocalName(Lite.READ));
+                    liteLocalName(Lite.READ),
+                    liteLocalName(Lite.SAME_ELEMENTS));
 
     /** The same surface by FUNCTION ID: each bare name ({@link #LITE_SURFACE}) and the lite overloads it stands for,
      *  the catalog's generated AT_ groups. EngineHandlers adds them to the engine surface, joined by id like the
@@ -728,7 +740,8 @@ public final class Pure {
                 liteLocalName(Lite.UPDATE), AT_LEGEND_LITE_UPDATE,
                 liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE,
                 liteLocalName(Lite.WITHOUT), AT_LEGEND_LITE_WITHOUT,
-                liteLocalName(Lite.READ), AT_LEGEND_LITE_READ);
+                liteLocalName(Lite.READ), AT_LEGEND_LITE_READ,
+                liteLocalName(Lite.SAME_ELEMENTS), AT_LEGEND_LITE_SAME_ELEMENTS);
     }
 
     /** Every registered native in the lite-internal package — the
@@ -2390,6 +2403,8 @@ public final class Pure {
     public static final NativeFunctionDefinition RPAD__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::rpad(str:meta::pure::metamodel::type::String[1], length:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition RPAD__STRING_1__INTEGER_1__STRING_1 = signature("native function meta::pure::functions::string::rpad(str:meta::pure::metamodel::type::String[1], length:meta::pure::metamodel::type::Integer[1], char:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition RTRIM__STRING_1 = signature("native function meta::pure::functions::string::rtrim(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+    // sameElements (Lite.SAME_ELEMENTS, lite surface, 2026-11-27): two lists' elements or two tables' rows, the same in any order
+    public static final NativeFunctionDefinition SAME_ELEMENTS__ANY_MANY__ANY_MANY = signature("native function meta::legend::lite::sameElements(left:meta::pure::metamodel::type::Any[*], right:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition SECOND__DATE_1 = signature("native function meta::pure::functions::date::second(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition SELECT__RELATION_1 = signature("native function meta::pure::functions::relation::select<T>(r:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition SELECT__RELATION_1__COL_SPEC_1 = signature("native function meta::pure::functions::relation::select<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
@@ -2652,6 +2667,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_READ = com.legend.model.FunctionId.ofAll(READ__T_1__COL_SPEC_1, READ__T_1__COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SAME_ELEMENTS = com.legend.model.FunctionId.ofAll(SAME_ELEMENTS__ANY_MANY__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_POSITION = com.legend.model.FunctionId.ofAll(SQL_POSITION__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_SUBSTRING = com.legend.model.FunctionId.ofAll(SQL_SUBSTRING__STRING_1__INTEGER_1, SQL_SUBSTRING__STRING_1__INTEGER_1__INTEGER_1);

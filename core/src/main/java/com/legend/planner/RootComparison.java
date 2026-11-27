@@ -36,6 +36,10 @@ import java.util.function.Function;
  *
  * <p>Two tables are compared as two tables ({@link #tables}): their columns' names, then their rows.
  *
+ * <p>{@code |sameElements($a, $b)} is planned here too ({@code Pure.Lite.SAME_ELEMENTS}; the user, 2026-11-27): the
+ * same two sides, their elements or rows compared in ANY order, each as often on one side as on the other. It has no
+ * other form: where {@code ==} would fall back to the plain comparison, it is refused by name.
+ *
  * <p>The product's own rule alone: a comparison a compatibility door admitted is the plain comparison it was.
  */
 final class RootComparison {
@@ -58,13 +62,20 @@ final class RootComparison {
             negated = true;
             root = not.args().get(0);
         }
-        if (!(root instanceof TypedNativeCall equal) || equal.args().size() != 2
-                || !Pure.AT_BOOLEAN_EQUAL.contains(equal.callee().id())) {
+        if (!(root instanceof TypedNativeCall equal) || equal.args().size() != 2) {
+            return null;
+        }
+        // sameElements(a, b): the two sides' elements, or two tables' rows, in ANY order (Pure.Lite.SAME_ELEMENTS)
+        boolean anyOrder = Pure.AT_LEGEND_LITE_SAME_ELEMENTS.contains(equal.callee().id());
+        if (!anyOrder && !Pure.AT_BOOLEAN_EQUAL.contains(equal.callee().id())) {
             return null;
         }
         TypedSpec left = equal.args().get(0);
         TypedSpec right = equal.args().get(1);
-        com.legend.lowering.NumberFamilies numbers = numbersOf.apply(equal);
+        // (sameElements is the product's own function: the product's rule for numbers, whichever door admitted the
+        // code that calls it)
+        com.legend.lowering.NumberFamilies numbers = anyOrder ? com.legend.lowering.NumberFamilies.TWO_FAMILIES
+                : numbersOf.apply(equal);
         if (numbers != com.legend.lowering.NumberFamilies.TWO_FAMILIES) {
             // a comparison a compatibility door admitted (its table names its own rule for ==): the plain comparison
             // it was before this class, so the door keeps every answer it had -- the database's for two sides typed
@@ -75,11 +86,12 @@ final class RootComparison {
         if (body.stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)) {
             // a value drawn afresh where it is written (random(), generateGuid()): planned as two sides, a let both
             // sides read would be drawn twice (the same audit): the plain comparison, which reads it once or refuses
-            return null;
+            return unplanned(anyOrder, "a value drawn afresh where it is written (random, generateGuid) would be"
+                    + " drawn once for each side");
         }
         List<TypedSpec> lets = body.subList(0, body.size() - 1);
         if (Type.isRelation(left.info().type()) || Type.isRelation(right.info().type())) {
-            return tables(left, right, lets, negated, lowered, numbers);
+            return tables(left, right, lets, negated, lowered, numbers, anyOrder);
         }
         if (known(left.info().type()) && known(right.info().type())
                 && !java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
@@ -87,11 +99,18 @@ final class RootComparison {
                 // (an Integer side against a Decimal side is one comparison, by value: two exact numbers)
                 && !(SideEqualities.exactNumber(left.info().type())
                         && SideEqualities.exactNumber(right.info().type()))) {
+            if (anyOrder) {
+                // the equality rule: different types never compare, a compile error naming the two
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
+                        "sameElements compares elements of one type, and its sides hold "
+                                + left.info().type().typeName() + " and " + right.info().type().typeName()
+                                + ": two types are never equal -- convert one side");
+            }
             // two known types: the comparison is whatever the door that admitted the code made of it (refused on
             // lite's own, the database's by value on legend-engine's), which stands as it is lowered
             return null;
         }
-        if (!whole(left) && !whole(right)) {
+        if (!anyOrder && !whole(left) && !whole(right)) {
             // two values an expression compares exactly on every database: the plain comparison
             return null;
         }
@@ -100,8 +119,18 @@ final class RootComparison {
         SideEqualities.Pair pair = SideEqualities.pair(left, kind(left, leftPlan), leftPlan, right,
                 kind(right, rightPlan), rightPlan, ctx);
         SideEqualities.Compared compared = pair == null ? null
-                : pair.under(numbers).compared(leftPlan, rightPlan, false);
-        return compared == null ? null : answer(compared, negated);
+                : pair.under(numbers).compared(leftPlan, rightPlan, anyOrder);
+        return compared == null ? unplanned(anyOrder, "its sides (" + left.info().type().typeName() + " and "
+                + right.info().type().typeName() + ") have no typed comparison") : answer(compared, negated);
+    }
+
+    /** A statement this class does not plan: the plain comparison for {@code ==} (null: lowered as any expression
+     *  is), a refusal by name for {@code sameElements}, which has no other form. */
+    private static @Nullable SqlQuery unplanned(boolean anyOrder, String why) {
+        if (anyOrder) {
+            throw new com.legend.error.NotImplementedException("sameElements: " + why);
+        }
+        return null;
     }
 
     /** The statement's one row: whether the two sides are the same, or (under a {@code !}) are not. */
@@ -124,10 +153,12 @@ final class RootComparison {
      * a table's columns exist only when the query runs, or a column has no typed comparison.
      */
     private static @Nullable SqlQuery tables(TypedSpec left, TypedSpec right, List<TypedSpec> lets, boolean negated,
-            Function<List<TypedSpec>, SqlQuery> lowered, com.legend.lowering.NumberFamilies numbers) {
+            Function<List<TypedSpec>, SqlQuery> lowered, com.legend.lowering.NumberFamilies numbers,
+            boolean anyOrder) {
         if (!(Type.schemaView(left.info().type()) instanceof Type.RelationType l) || l.isLateBound()
                 || !(Type.schemaView(right.info().type()) instanceof Type.RelationType r) || r.isLateBound()) {
-            return null;
+            return unplanned(anyOrder, "a table against a side that is no table, or a table whose columns exist only"
+                    + " when the query runs");
         }
         if (SideEqualities.columnsDiffer(l, r)) {
             return new SqlSelect(List.of(new SqlSelect.Projection(new com.legend.sql.SqlExpr.BoolLit(negated), "value",
@@ -137,28 +168,28 @@ final class RootComparison {
         SqlQuery leftPlan = lowered.apply(with(lets, left));
         SqlQuery rightPlan = lowered.apply(with(lets, right));
         if (leftPlan.outputs().size() != l.columns().size() || rightPlan.outputs().size() != r.columns().size()) {
-            return null;
+            return unplanned(anyOrder, "a table whose plan's columns are not its declared ones");
         }
         // == compares two tables' rows IN ORDER, as assertEquals does, and a table whose order the query does not
         // define (a store's rows, a DISTINCT, a grouping) has none to compare: refused, naming the two fixes, as the
         // assert refuses it (the user, 2026-11-27: strict ==, and "sameElements" for the rows in any order; for one
         // afternoon an unsorted side was compared as a multiset here, one operator with two meanings). Never by the
         // order a database happened to return them in (the outside audit of 2026-11-27, MEDIUM 7).
-        boolean leftUnordered = com.legend.compiler.spec.OrderedAsserts.unorderedRows(left, lets);
-        if (leftUnordered || com.legend.compiler.spec.OrderedAsserts.unorderedRows(right, lets)) {
+        boolean leftUnordered = !anyOrder && com.legend.compiler.spec.OrderedAsserts.unorderedRows(left, lets);
+        if (leftUnordered || !anyOrder && com.legend.compiler.spec.OrderedAsserts.unorderedRows(right, lets)) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
                     "== compares two tables in order, and its " + (leftUnordered ? "first" : "second")
                             + " side's order is not defined (a store or frame read with no sort, or past a grouping, a"
                             + " join or a union): the database's arrival order would decide the answer -- sort both"
                             + " sides, or say sameElements when the order does not matter");
         }
-        boolean multiset = false;
         // each column by the kind its plan's output decides where its declaration leaves it open (a String, a Number,
-        // an Any: the reading an assert's judge gives a table's cells)
+        // an Any: the reading an assert's judge gives a table's cells); sameElements: the rows as a multiset
         SideEqualities.Compared compared = SideEqualities.tables(leftPlan,
                 com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(l, leftPlan.outputs()), rightPlan,
-                com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(r, rightPlan.outputs()), multiset, numbers);
-        return compared == null ? null : answer(compared, negated);
+                com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(r, rightPlan.outputs()), anyOrder, numbers);
+        return compared == null ? unplanned(anyOrder, "a column of its tables has no typed comparison")
+                : answer(compared, negated);
     }
 
     /** Whether {@code t} names its values' type: a primitive that is no supertype of others, or an enumeration. */

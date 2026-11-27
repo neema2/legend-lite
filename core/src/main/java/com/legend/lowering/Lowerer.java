@@ -4325,6 +4325,11 @@ public final class Lowerer {
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
                 ProductRelationText.of(tc, this::relation, nextAlias());
+            // sameElements (the edition program's step 6, 2026-11-27): two whole sides compared in any order, planned
+            // as a query's last statement (planner.RootComparison); anywhere else it is refused by name, before a side
+            // is lowered as a value (a table has none)
+            case TypedNativeCall n when Pure.AT_LEGEND_LITE_SAME_ELEMENTS.contains(n.callee().id()) ->
+                throw Scalars.sameElementsInsideAnExpression();
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is

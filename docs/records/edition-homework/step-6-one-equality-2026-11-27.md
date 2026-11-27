@@ -265,7 +265,13 @@ tests. For the user's word with the size table's rows.
 - Two tables under `==`: strict, an unsorted side refused, and a separate function for the rows in any order
   ("Yeah or ~= if want to be cute, or setCompare()"; named `sameElements`, after `assertSameElements`: `~=` would be
   a new operator in a grammar checked against upstream's, and "set" would say duplicates do not count). The strict
-  half is built (`2d4edec3f`); **`sameElements` is not built yet**.
+  half is built (`2d4edec3f`). **`sameElements` is built, not yet run**: `meta::legend::lite::sameElements(Any[*],
+  Any[*]): Boolean[1]`, user-facing by its bare name (`Pure.Lite.SAME_ELEMENTS`, `LITE_SURFACE`); planned as a
+  query's last statement by `planner.RootComparison` over `SideEqualities` with the multiset member (the code
+  `assertSameElements` is judged by); two sides of two known types a compile error; inside an expression refused by
+  name (`Scalars.sameElementsInsideAnExpression`). Register S430, differences item 25. The catalog's count of
+  functions upstream does not declare goes 76 to 77 on the user's word above (`CatalogUpstreamDiffTest`); the
+  generated lists follow at the next regeneration.
 - The lanes: "Have to run the lanes always when making major changes" (in AGENTS.md).
 - The date rule: strict for "the same" and for an ordering alike ("We don't really want date vs datetime to work for
   greater than/less than vs not for equal").
@@ -297,9 +303,8 @@ adapt (`== 1.5`) or two computed sides of different types; the test now uses tho
 (`UserCallInliner.finish`, `ff19de458`); strict `==` on tables (`2d4edec3f`).
 
 **Left to do, in order:**
-1. `sameElements(a, b)`: a lite function (`meta::legend::lite::`), tables and lists, the rows or elements in any
-   order -- over `SideEqualities.tables(..., multiset = true, ...)` and the lists' multiset member; the declaration
-   beside the other lite natives in `builtin/Pure.java` (`Lite.STAGE` is the nearest example), its generated lists.
+1. `sameElements(a, b)`: built (above); to run, with its generated lists (`native-claims.tsv`). Upstream's answer
+   for `==` on two tables is still to be run on the engine runner.
 2. The two type-checker leftovers of the audit (a query's lambda handed to a function generic over a relation's
    columns; such a function's `Number` parameters refused where the rule says false).
 3. `max`/`min` of two arguments at legend-engine's door in the database's promoted type.

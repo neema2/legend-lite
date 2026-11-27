@@ -2093,6 +2093,13 @@ final class Scalars {
                 return pureToString(styled, t, args.get(0));
             });
         }
+        // sameElements: answered as a query's last statement (planner.RootComparison); its rule here is the refusal
+        // every other position gets (the lowering refuses it before its sides are lowered, Lowerer.scalarInner)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SAME_ELEMENTS) {
+            RULES.put(f, (n, args) -> {
+                throw sameElementsInsideAnExpression();
+            });
+        }
         // isDistinctFrom (DEEP_AUDIT §5k) = SQL IS DISTINCT FROM; pure's 1-arg isDistinct
         // = the ALL_DISTINCT semantic node (a blanket family() once routed it here — AIOOBE)
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_DISTINCT_FROM) {
@@ -3892,6 +3899,15 @@ final class Scalars {
      *  Their {@code max} keeps the last written either way. */
     private static boolean aFold(TypedNativeCall n) {
         return !Pure.AT_COLLECTION_MIN.contains(n.callee().id());
+    }
+
+    /** {@code sameElements} anywhere but a query's last statement: refused by name (Pure.Lite.SAME_ELEMENTS). Two
+     *  whole sides are two statements' rows; inside an expression they would be two list values, which not every
+     *  database holds (the lists-inside-an-expression follow-up). */
+    static com.legend.error.NotImplementedException sameElementsInsideAnExpression() {
+        return new com.legend.error.NotImplementedException("sameElements inside an expression: it is answered as a"
+                + " query's last statement, |sameElements($a, $b) or |!sameElements($a, $b) -- compute the two sides"
+                + " with let, then compare them last");
     }
 
     /** The product's own rule for {@code n}, which a named rule falls back to for the calls it does not rewrite. */

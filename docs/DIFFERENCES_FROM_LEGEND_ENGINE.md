@@ -523,6 +523,22 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   arithmetic by name.
 - Register row S429.
 
+### 25. `==` on two tables is strict; `sameElements` compares in any order (the edition program, 2026-11-27)
+- **You write** a comparison of two tables as a query's answer: `|$a == $b`.
+- **legend-pure** has no table equality of its own (its table classes define none, read in the pinned sources; not
+  run): a `==` of two tables reads as "the same object". Rows in any order are compared only inside a test, by
+  `assertSameElements`.
+- **Lite, on its own route:** two tables are equal when their columns have the same names in the same order and
+  their rows are the same in order, each cell by its column's type. A table whose order the query does not define
+  (rows read with no sort, or past a grouping, a join or a union) is refused when the query is compiled, naming the
+  two fixes: sort both sides, or use `sameElements`.
+- **`sameElements(a, b)` is lite's own function** (upstream has none): two lists' elements, or two tables' rows under
+  the same column names, the same in any order. Duplicates count: `[1, 1, 2]` and `[1, 2, 2]` are not the same.
+- **Not covered:** `sameElements` is answered as a query's last statement; inside an expression (an `if`, a
+  filter) it is refused by name. At legend-pure's and legend-engine's doors a `==` of two tables is the comparison
+  it was.
+- Register row S430.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,
