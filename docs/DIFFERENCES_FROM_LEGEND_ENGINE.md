@@ -477,6 +477,28 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   the same everywhere.
 - **Register:** S127 (as amended 2026-11-25 and 2026-11-26).
 
+### 23. Equal numbers of different types: where a sort puts them, which one `max` and `min` keep (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write** a list that holds the same number in two types: `[3.0, 3, 1]->sort()`, `[3, 3.0]->max()`,
+  `[3, 3.0]->least()`.
+- **legend-engine and legend-pure** compare by value, so `3` and `3.0` tie, and the answer follows the order they
+  were written in:
+  - a sort keeps a tie as written: `[3.0, 3, 1]->sort()` is `[1, 3.0, 3]`, `[3, 3.0, 1]->sort()` is `[1, 3, 3.0]`;
+  - a number list's `max` and `min` keep the last written of a tie: `[3, 3.0]->max()` is the Float `3.0`,
+    `[3.0, 3]->max()` the Integer `3`;
+  - `max(3, 3.0)` and `min(3, 3.0)` keep the left one;
+  - `greatest` keeps the last written, `least` the first.
+- **At legend-engine's door and at legend-pure's, lite answers the same,** on every database.
+  - One difference stays at legend-engine's door: inside a query sent to a database, legend-engine lets the database
+    choose the result's type, so `max` of an Integer column and a Float column comes back a Float even when the
+    Integer was kept (`3.0`, where lite answers `3`). The number is the same; its type is not.
+- **On lite's own route** the type is part of the value, so a tie of value is placed by type: Integer, then Float,
+  then Decimal. `[3.0, 3, 1]->sort()` is `[1, 3, 3.0]` however it was written; `max` and `greatest` of a tie keep
+  the higher type, `min` and `least` the lower. `max(3, 3.0)` written with two values of two types is a compile
+  error (item 22).
+- **Why:** one set of values should give one answer, whatever order they happened to be written or read in.
+- **Register:** S428.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,
