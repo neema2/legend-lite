@@ -310,6 +310,44 @@ public final class SideEqualities {
                         held("e", eList, eKind), held("a", aList, aKind)));
     }
 
+    /**
+     * Two instances of one declared class the same, INSIDE AN EXPRESSION (the edition program's step 6, the one
+     * equality): each one's typed leaves as {@link #instances} reads a side's -- the class it actually is
+     * ({@code __type}), then each key property (a nested keyed instance's leaves in its place), or its identity for a
+     * class with no key -- every pair of leaves not distinct. So a Decimal key is compared by its number and a
+     * date-time key by its instant, where a text of the keys kept how each was written, and two instances of two
+     * classes are never the same whatever type they are declared under. Null where a leaf has no typed reading here
+     * (a to-many key, a key slot of a polymorphic or Any class, a JSON field, a keyless class with no identity).
+     */
+    static @com.legend.base.Nullable SqlExpr sameInstance(SqlExpr e, SqlType.Struct es, SqlExpr a, SqlType.Struct as,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
+        List<List<Leaf>> both = pairedLeaves(es, as, keys);
+        if (both == null) {
+            return null;
+        }
+        SqlExpr same = null;
+        for (int i = 0; i < both.get(0).size(); i++) {
+            SqlExpr one = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, leafOf(e, both.get(0).get(i)),
+                    leafOf(a, both.get(1).get(i)));
+            same = same == null ? one : SqlExpr.Call.of(SqlFn.AND, same, one);
+        }
+        return same;
+    }
+
+    /** One leaf of {@code instance}, read as {@link #leafRows} reads it: the field down its path, cast to its
+     *  layout's type; an identity behind the guard that raises where the product does not track it. */
+    private static SqlExpr leafOf(SqlExpr instance, Leaf leaf) {
+        SqlExpr v = instance;
+        for (String step : leaf.path()) {
+            v = new SqlExpr.StructGet(v, step);
+        }
+        String last = leaf.path().get(leaf.path().size() - 1);
+        return last.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
+                ? new SqlExpr.Cast(CanonicalRenderSql.trackedId(((SqlExpr.StructGet) v).source()),
+                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
+                : new SqlExpr.Cast(v, leaf.type(), SqlExpr.Reason.JUDGE);
+    }
+
     /** Two layouts' leaves as the host restricts them, path by path of one kind ({@link #leaves}); null where a leaf
      *  has no typed reading or the two differ. */
     static @com.legend.base.Nullable List<List<Leaf>> pairedLeaves(SqlType.Struct es, SqlType.Struct as,
