@@ -225,3 +225,16 @@ The 21 are 15 queries:
   declared class;
 - one mixed list deduplicated, sorted and compared with another, on SQLite (18,253 to 20,600): its sides compared as
   rows, where SQLite has no list to compare.
+
+**The database judge's SQL on PCT (lite's rules; `pct/.../channelb/ratchets.tsv`), measured test by test** (1,249
+tests at slice 6.2 and at the stack, 2026-11-27): 3,466,097 characters to 3,475,870. Seven tests are longer and one
+shorter; no other test's judge SQL changed.
+- Longer, each a list that mixes number types sorted or asked for its extreme: `testLeast_Number` (7,895 to
+  11,502), `testGreatest_Number` (7,950 to 11,556), `testMode_Number` (5,398 to 7,978), `testMax_NumbersArray`
+  (6,433 to 8,664), `testMin_NumbersArray` (7,971 to 8,968), `testMixedSortNoComparator` (2,753 to 4,445). A tie of
+  value is placed by family and two equal exact numbers keep their written order (the two families' ruling), which
+  takes the stable, windowed sort where a sort by type did.
+- `testCompareDecimalAndLongTypes` (0 to 1,265): refused before, an Integer against a Decimal; it runs now.
+- Shorter: `testEqualNonPrimitive` (106,026 to 99,821).
+So the suite pins that go up (Essential 901,459 to 903,151, Standard 780,331 to about 793,000) are these seven
+tests. For the user's word with the size table's rows.
