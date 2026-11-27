@@ -248,6 +248,7 @@ tests. For the user's word with the size table's rows.
 | SQLite, MongoDB (PCT channel A on both, channel B on SQLite; 3 targets of 5 suites each) | `9adb84bf` | `d44222cab` | every suite passes at both; no test's outcome differs; no ledger or ratchet line out of date. (MongoDB's grouped results come back in another order from run to run, which no test reads; the plans are identical) |
 | Snowflake (PCT channels A and B) | `9adb84bf` | `d44222cab` | channel A 1,249 tests pass at both, none differs; channel B's five suites pass at both with the same per-body counts and outcome lines; no ledger or ratchet line out of date |
 | BigQuery (PCT channels A and B) | `9adb84bf` | `d44222cab` | no test's outcome differs. Channel A: every suite passes at both. Channel B: grammar, relation and standard pass at both; essential (16 tests) and unclassified (3 tests) fail at BOTH, the same tests with the same text ("Column N in UNION ALL has incompatible types: INT64, STRING"): older than step 6, the queued task "Fix BigQuery channel B: untyped NULL in the batch union" |
+| Databricks (PCT channels A and B) | `9adb84bf` | `efe7bcfc7` | no test's outcome differs: channel A 1,249 tests pass at both; channel B's five suites pass at both, the same 21 errors at both (date-times of 7 to 9 fraction digits refused, out-of-range dates, an unresolved column under SELECT DISTINCT in 8 relation tests: all older than step 6) |
 
 ## The user's decisions of 2026-11-27 after the audits, and what is left (the working list)
 
