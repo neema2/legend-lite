@@ -1073,7 +1073,6 @@ class AssertBarTest {
         // and the equality refused)
         want.put("{|assert(!(['1'->fromJson()]->cast(@Any)->at(0) == 'a'))}", "pass");
         want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))}", "pass");
-        String bothDisagree = "|DuckDB/BOTH=JudgesDisagree|H2/BOTH=JudgesDisagree|SQLite/BOTH=JudgesDisagree";
         want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->map(x | $x)->contains('a'))}", "pass");
         // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
         // the record, a NULL among them JSON null (the audit of 8477c703); H2's JSON array aggregate drops a JSON null,
@@ -1082,9 +1081,10 @@ class AssertBarTest {
                 + "|H2/DATABASE=AssertFailed|H2/BOTH=JudgesDisagree");
         want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected: [], actual: [1]");
         // a Variant is never a value of another type, its text's included (the audit of c2217801; S401)
-        // (both judges fail it; their records write the Variant differently, so a both-judges run stops on the
-        // difference -- found 2026-11-27 by this line, a recorded gap of the Variant read through Any)
-        want.put("{|assertEquals('\"abc\"'->fromJson()->cast(@Any), 'abc')}", "AssertFailed" + bothDisagree);
+        // (both judges fail it, and write the same record: expected "abc" (Variant), actual "abc" (String). Until the
+        // closing batch of step 6 the host judge read the Variant through Any decoded, wrote abc, and a both-judges
+        // run stopped on the two records' difference -- found 2026-11-27 by this line)
+        want.put("{|assertEquals('\"abc\"'->fromJson()->cast(@Any), 'abc')}", "AssertFailed");
         want.put("{|assertEquals('1'->fromJson()->cast(@Any), 1)}", "AssertFailed");
         // written as two types, the assert is the compile error a comparison of them is (the user's ruling of
         // 2026-11-26, "yes compile error", built 2026-11-27; until then judged, as above)
