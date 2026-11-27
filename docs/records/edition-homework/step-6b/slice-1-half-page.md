@@ -50,3 +50,38 @@ door (`NumberFamilies.TWO_FAMILIES`). The doors' rule is untouched.
 
 The other kinds (slice 3); maps and tables (slices 3 and 4); `contains` and the rest (slice 5); binding a side once
 (slice 2); H2's JSON-text comparison of two computed lists that read the row (a named gap until H2 has list values).
+
+## What was built and measured (2026-11-27, late evening; scratch branch `claude/step-6-numbers`)
+
+Commits `3bd6ef0cd` (the first cut) and the one after it (the rows form binds each side once).
+
+- `lowering/Equalities.asSameValues`: the plain `=` of two list values of exact numbers or Strings becomes
+  `SAME_IN_ORDER(value, value[, rows, rows])`; called from `Lowerer.written` for the product's own `==` (a door's rule
+  keeps its own writing).
+- `lowering/WholeComparisons.sideRows` and its one implementation in `planner/RootComparison`: a side's typed rows,
+  where the side reads nothing of the row.
+- `planner/RootComparison.plan` stands aside for these kinds (after the order rule has had its say).
+- `sql/dialect/AnsiSqlRenderer.sameValues`: the two-value form is the database's own comparison, as before the
+  slice; the rows form binds each side's rows once (`SameValuesForm.boundOnce`).
+
+**The measure, against the baseline** (5,646 runs; every answer that moved is one the half page named):
+
+| | right everywhere | fails somewhere | contradicts |
+|---|---|---|---|
+| DuckDB | 62 to 73 | 29 to 18 | 9 |
+| H2 | 78 to 79 | 7 | 6 to 5 |
+| SQLite | 71 | 4 | 12 |
+
+- DuckDB: the eleven list comparisons of these kinds that failed in the four list-lambda places now answer, each
+  the expected answer.
+- H2 and SQLite: two written Decimal lists at two scales are equal as a plain `==`, as the assert already said.
+- Nothing else moved.
+
+**SQL** for `[1, 2]->map(x | $x + 1) == [2, 3]` as a query's answer: DuckDB 580 characters to 80
+(`SELECT (list_transform([1, 2], x -> x + 1) IS NOT DISTINCT FROM [2, 3]) AS value`); SQLite 2,371 to 2,199; H2
+refuses the computed list at the product's door before and after (its missing list operations).
+
+**Still to do in this slice:** the result of CI's core and checks lanes run here (started 23:20 UTC); the test that
+writes the comparisons both ways on DuckDB; the test that holds the measure's counts; an independent review of the
+diff; the size pins read; then the corpus and PCT lanes, one push to the pull request, the lanes once, and the
+program branch moves.
