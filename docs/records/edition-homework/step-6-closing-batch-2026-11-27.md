@@ -161,6 +161,27 @@ one as Floats, answer false -- both computed -- where single values are refused)
 inside a function's own lambda is the function's); a table against a table per row; the order rule's two limits
 (register S431); a variable counted harmless whose `let` computes.
 
+## The acceptance measure on the batch (RUN 2026-11-27 at `534c788d3`; every assert of lite's own tests against its plain comparison, 1,733 bodies)
+
+**85 bodies differ on at least one database** (99 before the batch, 176 when step 6's measuring began): DuckDB 28,
+H2 59, SQLite 54. The two judges never disagree verdict against verdict (0, as before). `assertSameElements` is now
+paired with `hasSameElements`.
+
+| Group | DuckDB | H2 | SQLite | What it is |
+|---|---|---|---|---|
+| a database with no list form (H2's encodings; SQLite's list and map forms; H2's mixed-list syntax error) | 0 | 38 | 16 | the database follow-up |
+| **the verdict moves: dates and written precision** | 7 | 7 | 14 | NOT one equality yet: `assertEquals(%2020-01-02T00:00, [%2020-01-02, %2020-01-01T00:00]->at(0))` fails as an assert and passes as `==` |
+| **the verdict moves: number types** | 0 | 3 | 3 | `assertEquals([1, 2], [1D, 2.00D])` passes as an assert and fails as `==` on H2 and SQLite |
+| **the verdict moves: a JSON date-time** | 0 | 0 | 1 | SQLite |
+| **`hasSameElements` refuses where `assertSameElements` answers** | 2 | 0 | 0 | a frame's table against a written list: the assert compares its rows' cells, the function refuses "a table against a side that is no table" |
+| **an empty side answers no row** | 0 | 1 | 1 | `0 == ''->ascii()` as a plain comparison returns no value on H2 and SQLite |
+| the database judge cannot judge the form | 7 | 3 | 7 | not a difference of answers |
+| the body is not planned (an element's message in a `forAll`), the mixed-days refusal, and other refusals and harness errors | 12 | 7 | 12 | read one by one in the landing summary |
+
+So in ANSWERS too the two forms are not yet one: about ten bodies on DuckDB and more on H2 and SQLite move their
+verdict or their refusal between an assert and its plain comparison, beyond the databases' missing list forms. The
+rows in bold are the product's own.
+
 ## C. Not yet verified, or housekeeping
 
 | # | What |
