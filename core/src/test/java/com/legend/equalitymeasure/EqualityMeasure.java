@@ -368,7 +368,7 @@ public final class EqualityMeasure {
         out.add(new Sides("Number lists int and float", "F", "[1, 2]->cast(@Number)", "[1.0, 2.0]->cast(@Number)"));
         out.add(new Sides("Number lists int and decimal", "T", "[1, 2]->cast(@Number)", "[1D, 2D]->cast(@Number)"));
         out.add(new Sides("Any lists same", "T", "[1, 2]->cast(@Any)", "[1, 2]->cast(@Any)"));
-        out.add(new Sides("nested lists", "?", "list([1, 2])", "list([1, 2])"));
+        out.add(new Sides("nested lists", "T", "list([1, 2])", "list([1, 2])"));
         // maps, pairs, instances
         out.add(new Sides("maps same order", "T", "newMap([pair('a', 1), pair('b', 2)])",
                 "newMap([pair('a', 1), pair('b', 2)])"));
