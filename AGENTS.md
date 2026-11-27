@@ -693,6 +693,11 @@ No full round and no regeneration for a small change.
 4. the heavy and manual lanes in another session;
 5. a round on the database lanes.
 
+**Every database lane, every major change** (the user, 2026-11-27: "Have to run the lanes always when making major
+changes"): the embedded-server lanes, the cloud lanes and the heavy run (the local gate and the relational corpus) are
+started for each big step without asking, and run again after the fixes its checks bring. Saving tokens is no reason
+to leave one out.
+
 The working session goes on to the next step meanwhile. What the checks find is fixed in the next commit. Every test
 whose answer moves and every new difference from legend-engine is gathered and brought to the user at the end of the
 step, with its register row.
