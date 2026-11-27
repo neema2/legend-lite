@@ -97,6 +97,18 @@ public enum NamedRule {
      *  least the Integer). */
     EXTREME_KEEPS_THE_FOLDS_TIE,
 
+    /** {@code max} and {@code min} of an Integer and a Float, two arguments, in the type the DATABASE gives the two:
+     *  a Float, whichever wins ({@code max} of the columns (3, 3.0) is {@code 3.0}, {@code min} of (2, 2.5) is
+     *  {@code 2.0}). What legend-engine answers inside a store query, where it writes the database's own expression
+     *  ({@code case when I < F then F else I end}: run 2026-11-26,
+     *  docs/records/edition-homework/upstream-step6/answers.md rows S9b and K5); outside one its own Java keeps the
+     *  winner in its own type ({@link #EXTREME_KEEPS_THE_FOLDS_TIE}). Written as the database's GREATEST or LEAST
+     *  over the Integer converted and the Float: one function and one cast. For any other pair of arguments it
+     *  writes {@link #EXTREME_KEEPS_THE_FOLDS_TIE}'s rule (an Integer against a Decimal inside a store query was
+     *  not run upstream, so it is not guessed). The user, 2026-11-27: "great to match engine but only if not too
+     *  complex and costly". */
+    EXTREME_OF_TWO_IN_THE_DATABASES_TYPE,
+
     /** A comparison ({@code ==}, {@code eq}, {@code contains}, {@code in}, {@code removeDuplicates}, {@code <},
      *  {@code <=}, {@code >}, {@code >=}) with an Integer, a Float and a Decimal THREE TYPES. Inside a mixed list
      *  they are never equal to one another: {@code [3, 'a']->contains(3D)} is false and

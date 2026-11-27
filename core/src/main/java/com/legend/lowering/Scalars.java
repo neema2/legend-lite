@@ -3891,6 +3891,29 @@ final class Scalars {
         throw new IllegalStateException("no extreme's rule for " + id + ": an edition's row named one");
     }
 
+    /** {@link NamedRule#EXTREME_OF_TWO_IN_THE_DATABASES_TYPE}: {@code max} or {@code min} of an Integer and a Float
+     *  as the database's GREATEST or LEAST over two Floats, the Integer converted -- a Float whichever wins, the type
+     *  the database gives legend-engine's own CASE over the two. Any other call: the rule that keeps a tie's own
+     *  element ({@link #extremeKeepingTheFoldsTie}). */
+    static SqlExpr extremeOfTwoInTheDatabasesType(TypedNativeCall n, List<SqlExpr> args) {
+        if (args.size() != 2 || n.args().size() != 2) {
+            return extremeKeepingTheFoldsTie(n, args);
+        }
+        Type left = SideEqualities.typedClass(n.args().get(0).info().type());
+        Type right = SideEqualities.typedClass(n.args().get(1).info().type());
+        boolean wholeFirst = left == Type.Primitive.INTEGER && right == Type.Primitive.FLOAT;
+        boolean wholeSecond = left == Type.Primitive.FLOAT && right == Type.Primitive.INTEGER;
+        if (!wholeFirst && !wholeSecond) {
+            return extremeKeepingTheFoldsTie(n, args);
+        }
+        SqlExpr first = wholeFirst ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR)
+                : args.get(0);
+        SqlExpr second = wholeSecond ? new SqlExpr.Cast(args.get(1), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR)
+                : args.get(1);
+        return SqlExpr.Call.of(Pure.AT_MATH_MAX.contains(n.callee().id()) ? SqlFn.GREATEST : SqlFn.LEAST, first,
+                second);
+    }
+
     /** Whether upstream writes {@code n}'s {@code min} as a FOLD over the list (the Number and the date overloads:
      *  {@code fold({n, m | min($n, $m)}, at(0))}, which keeps the LATER element of a tie) and not as the generic
      *  {@code sort()->first()} (the FIRST written, the sort being stable): read in the pinned sources and run on all

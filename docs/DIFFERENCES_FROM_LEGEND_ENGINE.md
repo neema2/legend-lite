@@ -496,9 +496,11 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - `max(3, 3.0)` and `min(3, 3.0)` keep the left one;
   - `greatest` keeps the last written, `least` the first.
 - **At legend-engine's door and at legend-pure's, lite answers the same,** on every database.
-  - One difference stays at legend-engine's door: inside a query sent to a database, legend-engine lets the database
-    choose the result's type, so `max` of an Integer column and a Float column comes back a Float even when the
-    Integer was kept (`3.0`, where lite answers `3`). The number is the same; its type is not.
+  - Inside a query sent to a database, legend-engine lets the database choose the result's type, so `max` of an
+    Integer column and a Float column comes back a Float even when the Integer was kept (`3.0`). At legend-engine's
+    door lite answers the same for `max` and `min` of an Integer and a Float (since 2026-11-27).
+  - One difference stays there: for any other pair of types (an Integer against a Decimal) and for a list's `max`
+    over columns, lite keeps the winner in its own type. The number is the same; its type may not be.
 - **On lite's own route** numbers are of two families, exact (Integer, Decimal) and approximate (Float), and a tie
   of value is placed by family: an exact number, then a Float. `[3.0, 3, 1]->sort()` is `[1, 3, 3.0]` however it
   was written; `max` and `greatest` of a tie keep the Float, `min` and `least` the exact number. An Integer and a

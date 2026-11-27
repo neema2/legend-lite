@@ -1434,6 +1434,11 @@ final class ArchitectureTest {
             // as legend-pure and legend-engine do, named in ONE class of the edge that both compatibility doors' tables
             // read (edge.UpstreamTies; EngineTable and the new PureTable ask it and name no rule of these themselves)
             "lowering.NamedRule#EXTREME_KEEPS_THE_FOLDS_TIE", "com.legend.edge.UpstreamTies",
+            // 2026-11-27 (the edition program's step 6; the user's word that day, "great to match engine but only if not
+            // too complex and costly"): max and min of an Integer and a Float inside a store query answer the
+            // database's type for the two, as legend-engine's own CASE there does -- legend-engine's door alone, and
+            // only where it tells inside a store query from outside, so its table names the rule itself
+            "lowering.NamedRule#EXTREME_OF_TWO_IN_THE_DATABASES_TYPE", "com.legend.edge.EngineTable",
             // 2026-11-27 (the edition program's step 6; the user's ruling of that day: lite's numbers are of two
             // families, and "legend-pure's and legend-engine's modes keep their own behaviour"): the rule under which
             // an Integer, a Float and a Decimal stay three types, named in the same class for both doors' tables

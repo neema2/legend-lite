@@ -159,6 +159,11 @@ final class EngineTable implements EditionTable, Edition {
                 new Row(NamedRule.TEXT_CAST_TO_FLOAT, "parseFloat/1", PureText.ENGINE_DATABASES));
     }
 
+    /** {@code max} and {@code min} of two numbers: the overloads legend-engine writes as a CASE inside a store query
+     *  ({@code core_functions_standard/math/aggregator/max.pure:27-30}, {@code min.pure:27-30}). */
+    private static final Set<FunctionId> OF_TWO_NUMBERS = Set.of(FunctionId.of(Pure.MAX__NUMBER_1__NUMBER_1),
+            FunctionId.of(Pure.MIN__NUMBER_1__NUMBER_1));
+
     /** Whether this is a statement's table (made by {@link #table}); the door's edition is not. */
     private final boolean table;
     /** The database this table's statement runs on; null where its planning names no single one. */
@@ -198,6 +203,14 @@ final class EngineTable implements EditionTable, Edition {
         if (!table) {
             throw new IllegalStateException("legend-engine's edition was asked for a row: the planner makes the table"
                     + " of a statement's database from it (Edition.table)");
+        }
+        // max and min of two numbers inside a store query, at the doors that tell inside from outside (legend-engine's
+        // API and its own tests; its PCT run stamps nothing, and what it answers there was not run): legend-engine
+        // writes the database's own CASE over the two, so an Integer and a Float answer a Float whichever wins (the
+        // user, 2026-11-27: "great to match engine but only if not too complex and costly"). Outside a store query
+        // its own Java keeps the winner's type: the row below
+        if (stamps && !call.outsideStore() && OF_TWO_NUMBERS.contains(call.callee().id())) {
+            return NamedRule.EXTREME_OF_TWO_IN_THE_DATABASES_TYPE;
         }
         // where equal numbers of different types land: upstream's own answer on every database, and the same inside a
         // store query and outside one, so it is asked before the stamp and is never a per-database row

@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -447,6 +448,30 @@ class UpstreamTiesTest {
                 sql(Door.LEGEND_ENGINE, PureText.PURE_V1, IN_A_STORE));
         assertEquals(sql(Door.LEGEND_PURE, PureText.UPSTREAM, IN_A_STORE),
                 sql(Door.LEGEND_ENGINE_PCT, PureText.ENGINE_PCT, IN_A_STORE));
+    }
+
+    /** {@code max} and {@code min} of an Integer column and a Float column inside a store query (the user,
+     *  2026-11-27: "great to match engine but only if not too complex and costly"): legend-engine writes the
+     *  database's own CASE over the two there, so the answer is a Float whichever wins -- (3, 3.0) answers 3.0 and
+     *  {@code min} of (2, 2.5) answers 2.0, RUN on legend-engine 2026-11-26 (answers.md rows S9b and K5). Lite's
+     *  door for legend-engine's API writes the database's GREATEST or LEAST over the Integer converted and the Float;
+     *  outside a store query, and at the two doors that do not tell inside from outside, the winner keeps its type. */
+    @Test
+    @DisplayName("max and min of an Integer and a Float column at legend-engine's API door: a Float, the database's"
+            + " type for the two")
+    void anIntegerAndAFloatColumnsExtremeIsAFloatAtLegendEnginesApi() {
+        String max = "|#>{s::DB.T}#->extend(~m: r | max($r.I->toOne(), $r.F->toOne()))->select(~[m])->from(s::RT)";
+        String min = "|#>{s::DB.T}#->extend(~m: r | min($r.F->toOne(), $r.I->toOne()))->select(~[m])->from(s::RT)";
+        String engines = sql(Door.LEGEND_ENGINE, PureText.PURE_V1, max);
+        assertTrue(engines.contains("GREATEST(CAST(") && engines.contains("AS DOUBLE)"), engines);
+        String least = sql(Door.LEGEND_ENGINE, PureText.PURE_V1, min);
+        assertTrue(least.contains("LEAST(") && least.contains("AS DOUBLE)"), least);
+        // a written tie outside any store query keeps the winner's type there (ARGUMENTS holds its answer)
+        assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, "|max(3, 3.0)").contains("AS DOUBLE)"));
+        // two columns of one type: the call's own rule, no conversion
+        assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1,
+                "|#>{s::DB.T}#->extend(~m: r | max($r.I->toOne(), $r.ID->toOne()))->select(~[m])->from(s::RT)")
+                .contains("AS DOUBLE)"));
     }
 
     @Test
