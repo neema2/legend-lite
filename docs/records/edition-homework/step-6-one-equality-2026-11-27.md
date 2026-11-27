@@ -147,7 +147,7 @@ at the end of the expansion pass). Nothing after that pass sees the record, and 
 |---|---|---|
 | `same(a: Number, b: Number) { $a == $b }`, `same(1, 1.0)` | false: two types (the equality rule) | the comparison as written, the database's (unchanged) |
 | the same over an Integer column and a Float column | false for every row | the database's comparison |
-| `$a < $b`, `less(1, 1.0)` | true: by value, then by type, Integer below Float below Decimal (decision D3), folded into the operator (`<` becomes `<=`), no SQL added | by value |
+| `$a < $b`, `less(1, 1.0)` | true: by value, then by family, an exact number (Integer, Decimal) below a Float (decision D3, as amended by the two families' ruling of 2026-11-27: an Integer against a Decimal is the comparison itself, by value), folded into the operator (`<` becomes `<=`), no SQL added | by value |
 | `amongWholes(a: Number) { $a->in([0, 1]) }`, `amongWholes(1.0)` | true: a literal the function's author wrote reads as the value's type (decision D5) | the database's |
 | `isOneAndAHalf(a: Number) { $a == 1.5 }`, `isOneAndAHalf(1)` | false: 1.5 is no Integer | the database's |
 | a literal handed on through another function (`sameAsOne(a) { same($a, 1) }`) | a value there, not a written literal: `sameAsOne(1.0)` false | |
@@ -157,5 +157,8 @@ A comparison between two generic positions of a body typed into each call (a fun
 same answer, from that call's column types. To be measured on the timeseries library and both corpora before it
 stays: the library compares two lines' period columns and refuses a day against a date-time itself.
 
-Not built: legend-pure's own answer at its door (false for `same(1, 1.0)`, strict for a written literal), which needs
-its setting to read bodies; the door's bodies are the database's comparison as before.
+Built since (2026-11-27, the user's "yes we should measure and hopefully fix"): legend-pure's own answer at its door
+(false for `same(1, 1.0)`, strict for a written literal): its setting reads bodies (`edge/PureComparisons`). An upcast
+written in the query (`1->cast(@Number) == 1.0`) is answered there as legend-pure answers it too (false; answers.md
+C10b). Pairs, lists and maps whose types differ only inside them stay the database's comparison at that door:
+legend-pure's answer for them was not read.

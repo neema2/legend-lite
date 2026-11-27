@@ -307,17 +307,17 @@ public final class Lowerer {
     /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
     private @com.legend.base.Nullable SharedRelations.Frame sharing;
 
-    /** Whether a relation the statement reads more than once is written once ({@code on}), or at each read as
-     *  legend-engine writes it: a frame whose post-processor extracts the statement's subqueries as common table
-     *  expressions of its own spelling. */
     /** How numbers of different types compare for {@code comparison} here: the product's two families, unless this
      *  door's table names the three types for the call ({@code NamedRule.NUMBERS_OF_THREE_TYPES}). Asked by the
-     *  planner for a comparison it plans over two whole sides ({@code planner.RootComparison}), so the sides compare
-     *  by the rule the same comparison takes inside an expression. */
+     *  planner for a comparison it could plan over two whole sides ({@code planner.RootComparison}), which it does
+     *  under the product's rule alone. */
     public NumberFamilies numbersOf(TypedNativeCall comparison) {
         return NamedRules.numbers(styled().edition().lowersAs(comparison, features));
     }
 
+    /** Whether a relation the statement reads more than once is written once ({@code on}), or at each read as
+     *  legend-engine writes it: a frame whose post-processor extracts the statement's subqueries as common table
+     *  expressions of its own spelling. */
     public Lowerer sharingRelations(boolean on) {
         this.shareRelations = on;
         return this;

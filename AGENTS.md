@@ -222,8 +222,12 @@
 >   `Number`, `Any` or the abstract `Date` takes the type its column holds once the
 >   query is planned. Two that can never be equal there (an exact number's column
 >   against a Float's, a day's against a date-time's) are refused where the query is
->   planned, in lite's mode alone (`lowering.HeldKinds`). A written number literal
->   still adapts; a written day does not read as a date-time (a day is no instant).
+>   planned, in lite's mode alone (`lowering.HeldKinds`): numbers in an ordering too;
+>   a day against a date-time only where the question is whether they are the same
+>   (`==`, `eq`, `in`, `contains`), which is the later being by their values. Only a
+>   comparison the query's author wrote: one in a function's body is the function's.
+>   A written number literal still adapts; a written day does not read as a
+>   date-time (a day is no instant).
 > - **Inside a function whose types the caller gives** (the user, 2026-11-27: "the
 >   split with compile error when we know"): a parameter declared `Any`, `Number` or
 >   the abstract `Date` is compared when the query runs; a comparison between the
@@ -241,10 +245,10 @@
 >   written digits; nothing is computed from a row (`compiler.spec.NumberLiterals`).
 > - **Inside functions and mapping code too** (the edition program's step 4,
 >   2026-11-26): a function's, a derived property's, a constraint's and a mapping's
->   Pure hold to the same rule, the error raised when the body is compiled.
->   One kind of body is not yet held to it, a gap to close with step 6 (register
->   S127): a function whose body is typed into each call (generic over a relation's
->   columns, or taking a table with no declared columns).
+>   Pure hold to the same rule, the error raised when the body is compiled. A
+>   function whose body is typed into each call (generic over a relation's columns,
+>   or taking a table with no declared columns) is held to it at the call (below,
+>   since the edition program's step 6).
 > - **Types known only at run time** (`Any`, `Number`, the abstract `Date`, a generic
 >   position) carry their type beside the value; equal means the same type and the
 >   same value, and a mixed list orders by value, then by type.

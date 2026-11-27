@@ -135,6 +135,23 @@ class PureAssertsTest {
                 sameMsg(List.of(3L, 3L), List.of(3L, 3.0d), LITE));
     }
 
+    /** Rules that keep three number types and a tie as it was written, as a compatibility door's forms do (the
+     *  edge's {@code CompiledPureHostForms}): lite's forms but for the number rule. */
+    private static final HostRules THREE_TYPES = new HostRules((HostForms) java.lang.reflect.Proxy.newProxyInstance(
+            HostForms.class.getClassLoader(), new Class<?>[] {HostForms.class}, (proxy, method, args) ->
+                    method.getName().equals("exactNumbersByValue") ? Boolean.FALSE
+                            : method.invoke(LiteHostForms.STRICT, args)));
+
+    @Test
+    @DisplayName("at a compatibility door a tie stays as each side wrote it: legend-pure's assertSameElements is a"
+            + " stable sort, so [3, 3.0] against [3.0, 3] fails there (the outside audit of 2026-11-27)")
+    void sameElementsAtADoorKeepATieAsWritten() {
+        org.junit.jupiter.api.Assertions.assertNotNull(sameMsg(List.of(3L, 3.0d), List.of(3.0d, 3L), THREE_TYPES));
+        org.junit.jupiter.api.Assertions.assertNotNull(sameMsg(List.of(3L, new java.math.BigDecimal("3")),
+                List.of(new java.math.BigDecimal("3"), 3L), THREE_TYPES));
+        assertNull(sameMsg(List.of(3L, 3.0d, 1L), List.of(1L, 3L, 3.0d), THREE_TYPES));
+    }
+
     @Test
     @DisplayName("spec: testFailureAssertSameElements — lite's words, each side in its own order")
     void sameElementsFailureMessage() {

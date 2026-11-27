@@ -39,7 +39,9 @@ import java.util.List;
  * double nearest to it. Nothing is computed from a row's value; the compiler rewrites a constant token (the folds'
  * rule: constants and facts fixed by the types). An Integer literal is not even rewritten: a database reads a whole
  * number against a Float or a Decimal as that type, exactly, so the comparison stands as written and its SQL is
- * unchanged; only a Float literal is replaced, by the Decimal or the Integer its digits write.
+ * unchanged; only a Float literal is replaced, by the Decimal or the Integer its digits write. (In an ASSERT every
+ * literal is rewritten, an Integer too: its judge compares typed values. A failure's record then shows the literal
+ * as the type it was read as -- {@code assertEquals(1.0, $n)} over an Integer records "expected: 1".)
  */
 final class NumberLiterals {
 

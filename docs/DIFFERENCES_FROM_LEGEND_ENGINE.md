@@ -463,9 +463,13 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **lite** refuses to compile it and names the two types and the fix: write both sides in one type (an enumeration's
   own value, `toFloat()`, `toString()`). Two values are equal only when they have the same type and the same value.
   - The rule holds everywhere Pure is written: the query, a function, a derived property, a constraint, a mapping.
-    - One kind of function is not yet checked: one whose body is typed afresh for each call (generic over a
-      relation's columns, or taking a table with no declared columns). A comparison of two known different types
-      written inside it is not refused today. A gap, not a design.
+    - A function whose body is typed afresh for each call (generic over a relation's columns, or taking a table
+      with no declared columns) is checked at the call: two different types the call gives are that call's
+      compile error, naming the function. A parameter its author declared `Number`, `Any` or `Date` is compared
+      when the query runs instead (two types are then never equal).
+    - A property declared `Number`, `Any` or `Date` takes the type of the column it reads. A comparison the query
+      writes between two such that can never be equal (a whole-number column against a floating-point one; for
+      `==`, `in` and `contains`, a day against a date-time) is refused when the query is planned.
     - lite's own SDLC uses the same check, so a tree holding such a comparison in a function does not land there.
       A way for a project to be taken with legend-engine's meaning instead is planned, not built.
   - **A number literal is not a mistake:** written against a number of another type it reads as that type when it

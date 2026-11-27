@@ -1921,9 +1921,9 @@ public final class SideEqualities {
             return new Pair(e, a, form, keys, numbers);
         }
 
-        /** Whether the pair's two typed kinds differ (register S127): decided by their kinds, the same only where
-         *  both are empty, whatever channel carries them -- but an Integer against a Decimal, two exact numbers, which
-         *  {@link #values} compares by their value. */
+        /** Whether the pair's two typed kinds differ (register S127): a reader's question about the record it
+         *  writes. An Integer against a Decimal differ in kind here too, though {@link #values} compares the two by
+         *  their value under the product's two families. */
         public boolean kindsDiffer() {
             return form == Form.VALUES && !e.equals(a)
                     // a Variant against values of another type (register S401): the same only where both are empty

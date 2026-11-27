@@ -293,17 +293,15 @@ public final class Equality {
         // equal values of two families (3 and 3.0) in one place on both sides, whatever order each was written in: the
         // family breaks the tie, an exact number before a Float (two lists are matched element by element after this
         // sort, and 3 is not 3.0; an Integer and a Decimal of one value are equal, so either order of the two matches)
-        java.util.Comparator<Typed> order = java.util.Comparator.comparingInt((Typed t) -> typeRank(t.value()))
-                .thenComparing(t -> withinRank(t.value()));
-        if (rules.forms().exactNumbersByValue()) {
-            // lite's rule alone (the user's ruling for slice 6.2: lite's in lite's mode, upstream's at the other
-            // two): at a compatibility door a tie stays as each side wrote it, the stable sort legend-pure's
-            // assertSameElements has, so [3, 3.0] against [3.0, 3] fails there as it does upstream (the outside
-            // audit of 2026-11-27, HIGH: the tie-break had been applied whatever the forms)
-            order = order.thenComparingInt(t -> java.util.Optional.ofNullable(effectiveKind(t))
-                    .map(k -> k == Kind.DECIMAL ? Kind.INTEGER.ordinal() : k.ordinal()).orElse(-1));
-        }
-        out.sort(order);
+        // lite's rule alone (the user's ruling for slice 6.2: lite's in lite's mode, upstream's at the other two): at
+        // a compatibility door a tie stays as each side wrote it, the stable sort legend-pure's assertSameElements
+        // has, so [3, 3.0] against [3.0, 3] fails there as it does upstream (the outside audit of 2026-11-27, HIGH:
+        // the tie-break had been applied whatever the forms)
+        out.sort(java.util.Comparator.comparingInt((Typed t) -> typeRank(t.value()))
+                .thenComparing(t -> withinRank(t.value()))
+                .thenComparingInt(t -> !rules.forms().exactNumbersByValue() ? 0 : java.util.Optional.ofNullable(
+                        effectiveKind(t)).map(k -> k == Kind.DECIMAL ? Kind.INTEGER.ordinal() : k.ordinal())
+                        .orElse(-1)));
         return out;
     }
 
