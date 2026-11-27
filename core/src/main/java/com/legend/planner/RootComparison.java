@@ -36,7 +36,7 @@ import java.util.function.Function;
  *
  * <p>Two tables are compared as two tables ({@link #tables}): their columns' names, then their rows.
  *
- * <p>{@code |sameElements($a, $b)} is planned here too ({@code Pure.Lite.SAME_ELEMENTS}; the user, 2026-11-27): the
+ * <p>{@code |hasSameElements($a, $b)} is planned here too ({@code Pure.Lite.HAS_SAME_ELEMENTS}; the user, 2026-11-27): the
  * same two sides, their elements or rows compared in ANY order, each as often on one side as on the other. It has no
  * other form: where {@code ==} would fall back to the plain comparison, it is refused by name.
  *
@@ -65,14 +65,14 @@ final class RootComparison {
         if (!(root instanceof TypedNativeCall equal) || equal.args().size() != 2) {
             return null;
         }
-        // sameElements(a, b): the two sides' elements, or two tables' rows, in ANY order (Pure.Lite.SAME_ELEMENTS)
-        boolean anyOrder = Pure.AT_LEGEND_LITE_SAME_ELEMENTS.contains(equal.callee().id());
+        // hasSameElements(a, b): the two sides' elements, or two tables' rows, in ANY order (Pure.Lite.HAS_SAME_ELEMENTS)
+        boolean anyOrder = Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(equal.callee().id());
         if (!anyOrder && !Pure.AT_BOOLEAN_EQUAL.contains(equal.callee().id())) {
             return null;
         }
         TypedSpec left = equal.args().get(0);
         TypedSpec right = equal.args().get(1);
-        // (sameElements is the product's own function: the product's rule for numbers, whichever door admitted the
+        // (hasSameElements is the product's own function: the product's rule for numbers, whichever door admitted the
         // code that calls it)
         com.legend.lowering.NumberFamilies numbers = anyOrder ? com.legend.lowering.NumberFamilies.TWO_FAMILIES
                 : numbersOf.apply(equal);
@@ -100,7 +100,7 @@ final class RootComparison {
                     valueType(right), ctx);
             if (two.isPresent()) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
-                        "sameElements compares elements of one type, and its sides hold "
+                        "hasSameElements compares elements of one type, and its sides hold "
                                 + two.get()[0].typeName() + " and " + two.get()[1].typeName()
                                 + ": two types are never equal -- convert one side");
             }
@@ -135,7 +135,7 @@ final class RootComparison {
     /**
      * THE SAME COMPARISON INSIDE AN EXPRESSION (the edition program's step 6; the user, 2026-11-27: "why cant we do
      * the work we promised to get to one equality?"): the lowering asks here for every {@code ==} and
-     * {@code sameElements} it meets inside an expression -- an {@code if}'s condition, an operand of {@code &&},
+     * {@code hasSameElements} it meets inside an expression -- an {@code if}'s condition, an operand of {@code &&},
      * {@code ||} or {@code !}, an assert's condition, a column's value. Where the two sides are whole (a computed list,
      * a map, a table) and read nothing of the row or element the comparison stands in (only the statement's own lets,
      * {@code body}'s statements before its last, and the lets the environment seeds), the answer is {@link #plan}'s
@@ -171,7 +171,7 @@ final class RootComparison {
             if (call.args().size() != 2) {
                 return null;
             }
-            boolean anyOrder = Pure.AT_LEGEND_LITE_SAME_ELEMENTS.contains(call.callee().id());
+            boolean anyOrder = Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(call.callee().id());
             if (!anyOrder && !Pure.AT_BOOLEAN_EQUAL.contains(call.callee().id())) {
                 return null;
             }
@@ -241,10 +241,10 @@ final class RootComparison {
     }
 
     /** A statement this class does not plan: the plain comparison for {@code ==} (null: lowered as any expression
-     *  is), a refusal by name for {@code sameElements}, which has no other form. */
+     *  is), a refusal by name for {@code hasSameElements}, which has no other form. */
     private static @Nullable SqlQuery unplanned(boolean anyOrder, String why) {
         if (anyOrder) {
-            throw new com.legend.error.NotImplementedException("sameElements: " + why);
+            throw new com.legend.error.NotImplementedException("hasSameElements: " + why);
         }
         return null;
     }
@@ -263,7 +263,7 @@ final class RootComparison {
     /**
      * Two TABLES: the same where their columns have the same names in the same order and their rows are the same,
      * each cell by its column's type ({@link SideEqualities#tables}, the comparison an assert of two tables is judged
-     * by), in order. A side whose order the query does not define is refused by name: {@code sameElements} is the
+     * by), in order. A side whose order the query does not define is refused by name: {@code hasSameElements} is the
      * comparison of rows in any order. Two tables whose columns differ in name or number are never equal, a fact of their
      * types: answered with no read. Null (the statement is lowered as any expression is) where a side is no table,
      * a table's columns exist only when the query runs, or a column has no typed comparison.
@@ -290,7 +290,7 @@ final class RootComparison {
             refuseUnordered(left, right, lets, "tables");
         }
         // each column by the kind its plan's output decides where its declaration leaves it open (a String, a Number,
-        // an Any: the reading an assert's judge gives a table's cells); sameElements: the rows as a multiset
+        // an Any: the reading an assert's judge gives a table's cells); hasSameElements: the rows as a multiset
         SideEqualities.Compared compared = SideEqualities.tables(leftPlan,
                 com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(l, leftPlan.outputs()), rightPlan,
                 com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(r, rightPlan.outputs()), anyOrder, numbers);
@@ -303,7 +303,7 @@ final class RootComparison {
      * the query does not define (a store's rows, a DISTINCT, a grouping; a list mapped from them) has none to
      * compare: refused, naming the two fixes, by the rule the assert refuses it by ({@code OrderedAsserts
      * .unorderedSide}: with at most one value on either side an ordered and an order-free comparison agree). The
-     * user, 2026-11-27: strict {@code ==}, and {@code sameElements} for any order; for one afternoon an unsorted
+     * user, 2026-11-27: strict {@code ==}, and {@code hasSameElements} for any order; for one afternoon an unsorted
      * table was compared as a multiset here, one operator with two meanings. Never by the order a database happened
      * to return them in (the outside audit of 2026-11-27, MEDIUM 7; a LIST side too since the third review, M1:
      * {@code p::Party.all()->map(p | $p.name) == ['A', 'B']} had been compared as the rows arrived).
@@ -315,7 +315,7 @@ final class RootComparison {
                     "== compares two " + what + " in order, and its " + (side == 0 ? "first" : "second")
                             + " side's order is not defined (a store or frame read with no sort, or past a grouping, a"
                             + " join or a union): the database's arrival order would decide the answer -- sort both"
-                            + " sides, or say sameElements when the order does not matter");
+                            + " sides, or say hasSameElements when the order does not matter");
         }
     }
 

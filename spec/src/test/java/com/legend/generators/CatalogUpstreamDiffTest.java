@@ -253,9 +253,10 @@ class CatalogUpstreamDiffTest {
     // gone from the catalog -- rules the legend-engine door's table names (lowering.NamedRule), no natives
     // 76 -> 77 (2026-11-27, the edition program's step 6; the user's word that day on the question "should we be strict
     // with 2 table equals and have a separate operator or function for multiset compare?": "Yeah or ~= if want to be
-    // cute, or setCompare()"): meta::legend::lite::sameElements, user-facing (Pure.LITE_SURFACE) -- two lists' elements
+    // cute, or setCompare()"): meta::legend::lite::hasSameElements, user-facing (Pure.LITE_SURFACE) -- two lists' elements
     // or two tables' rows the same in any order, the comparison assertSameElements is judged by, as a value; upstream has
-    // the assert alone (docs/SEMANTICS_REGISTER.md S430)
+    // the assert alone (docs/SEMANTICS_REGISTER.md S430). The pin's move confirmed by the user the same day ("Two pins
+    // fine"); named hasSameElements on their word ("Should it be hasSameElements?")
     private static final int NOT_UPSTREAM_MAX = 77;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;

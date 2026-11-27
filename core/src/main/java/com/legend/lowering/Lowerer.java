@@ -4412,13 +4412,13 @@ public final class Lowerer {
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
                 ProductRelationText.of(tc, this::relation, nextAlias());
-            // sameElements (the edition program's step 6, 2026-11-27): two whole sides compared in any order, the
+            // hasSameElements (the edition program's step 6, 2026-11-27): two whole sides compared in any order, the
             // planner's statement for them read as one value (planner.RootComparison.inside); over sides that read
             // the row it stands in it is refused by name, before a side is lowered as a value (a table has none)
-            case TypedNativeCall n when Pure.AT_LEGEND_LITE_SAME_ELEMENTS.contains(n.callee().id()) -> {
+            case TypedNativeCall n when Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(n.callee().id()) -> {
                 SqlExpr planned = wholeSides(n);
                 if (planned == null) {
-                    throw Scalars.sameElementsInsideAnExpression();
+                    throw Scalars.hasSameElementsInsideAnExpression();
                 }
                 yield planned;
             }

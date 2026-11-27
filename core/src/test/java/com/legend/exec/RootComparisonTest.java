@@ -244,45 +244,45 @@ class RootComparisonTest {
                     () -> Lean.established(model, "|p::Party.all()->project(~[id: p|$p.id]) == #TDS\n id\n 1\n#",
                             "p::RT", connection));
             org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(e.getMessage()).contains("== compares two"
-                    + " tables in order") && e.getMessage().contains("sameElements"), e.getMessage());
+                    + " tables in order") && e.getMessage().contains("hasSameElements"), e.getMessage());
         }
     }
 
-    /** {@code sameElements(a, b)} (the user, 2026-11-27: {@code ==} on two tables is strict, and a separate function
+    /** {@code hasSameElements(a, b)} (the user, 2026-11-27: {@code ==} on two tables is strict, and a separate function
      *  compares them when the order does not matter): two lists' elements, or two tables' rows under the same column
      *  names, the same in ANY order -- each as often on one side as on the other, each pair by the one equality. The
      *  same answer on every database, collected so one run shows every case that is wrong. */
     @Test
-    void sameElementsComparesTwoSidesInAnyOrder() throws Exception {
+    void hasSameElementsComparesTwoSidesInAnyOrder() throws Exception {
         Map<String, Boolean> cases = new LinkedHashMap<>();
         // lists: any order; duplicates count
-        cases.put("|sameElements([1, 2, 3], [3, 1, 2])", true);
-        cases.put("|[1, 2, 3]->sameElements([3, 1, 2])", true);
-        cases.put("|sameElements([1, 2, 3]->filter(x | $x > 1), [3, 2])", true);
-        cases.put("|sameElements([1, 1, 2], [1, 2, 2])", false);
-        cases.put("|sameElements([1, 2], [1, 2, 3])", false);
-        cases.put("|!sameElements([1, 2], [2, 1])", false);
-        cases.put("|!sameElements([1, 2], [2, 3])", true);
-        cases.put("|sameElements(['a', 'b'], ['b', 'a'])", true);
+        cases.put("|hasSameElements([1, 2, 3], [3, 1, 2])", true);
+        cases.put("|[1, 2, 3]->hasSameElements([3, 1, 2])", true);
+        cases.put("|hasSameElements([1, 2, 3]->filter(x | $x > 1), [3, 2])", true);
+        cases.put("|hasSameElements([1, 1, 2], [1, 2, 2])", false);
+        cases.put("|hasSameElements([1, 2], [1, 2, 3])", false);
+        cases.put("|!hasSameElements([1, 2], [2, 1])", false);
+        cases.put("|!hasSameElements([1, 2], [2, 3])", true);
+        cases.put("|hasSameElements(['a', 'b'], ['b', 'a'])", true);
         // two empty sides; one empty side
-        cases.put("|sameElements([1, 2]->filter(x | $x > 5), [3]->filter(x | $x > 5))", true);
-        cases.put("|sameElements([1, 2]->filter(x | $x > 5), [3])", false);
+        cases.put("|hasSameElements([1, 2]->filter(x | $x > 5), [3]->filter(x | $x > 5))", true);
+        cases.put("|hasSameElements([1, 2]->filter(x | $x > 5), [3])", false);
         // an Integer against a Decimal: two exact numbers, by value; a Decimal by its number
-        cases.put("|sameElements([1, 2], [2.0D, 1D])", true);
-        cases.put("|sameElements([1.50D, 2D], [2.00D, 1.5D])", true);
+        cases.put("|hasSameElements([1, 2], [2.0D, 1D])", true);
+        cases.put("|hasSameElements([1.50D, 2D], [2.00D, 1.5D])", true);
         // values typed only when the query runs: by the type each holds
-        cases.put("|sameElements([1, 2]->cast(@Number), [2, 1]->cast(@Number))", true);
-        cases.put("|sameElements([1, 2]->cast(@Number), [2.0, 1.0]->cast(@Number))", false);
+        cases.put("|hasSameElements([1, 2]->cast(@Number), [2, 1]->cast(@Number))", true);
+        cases.put("|hasSameElements([1, 2]->cast(@Number), [2.0, 1.0]->cast(@Number))", false);
         // tables: the rows in any order, the columns' names the same
         String ab = "#TDS\n id, s\n 1, x\n 2, y\n#";
-        cases.put("|sameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, x\n#)", true);
-        cases.put("|sameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, z\n#)", false);
-        cases.put("|sameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, x\n 1, x\n#)", false);
-        cases.put("|sameElements(#TDS\n id\n 1\n#, #TDS\n ix\n 1\n#)", false);
+        cases.put("|hasSameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, x\n#)", true);
+        cases.put("|hasSameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, z\n#)", false);
+        cases.put("|hasSameElements(" + ab + ", #TDS\n id, s\n 2, y\n 1, x\n 1, x\n#)", false);
+        cases.put("|hasSameElements(#TDS\n id\n 1\n#, #TDS\n ix\n 1\n#)", false);
         // a store's rows, read with no sort: the comparison == refuses (anUnsortedTableIsRefusedUnderEquals)
-        cases.put("|sameElements(p::Party.all()->project(~[id: p|$p.id, name: p|$p.name]),"
+        cases.put("|hasSameElements(p::Party.all()->project(~[id: p|$p.id, name: p|$p.name]),"
                 + " #TDS\n id, name\n 1, Meridian\n#)", true);
-        cases.put("|let rows = p::Party.all()->project(~[id: p|$p.id]); sameElements($rows, #TDS\n id\n 2\n#);",
+        cases.put("|let rows = p::Party.all()->project(~[id: p|$p.id]); hasSameElements($rows, #TDS\n id\n 2\n#);",
                 false);
         List<String> wrong = new java.util.ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
@@ -304,7 +304,7 @@ class RootComparisonTest {
 
     /** A LIST whose order the query does not define is refused under {@code ==} as a table is (the third review of
      *  2026-11-27, M1: a store's rows mapped to a list had been compared in the order the database returned them,
-     *  where an assert of the same side is refused); sorted it is compared, and {@code sameElements} takes it as it
+     *  where an assert of the same side is refused); sorted it is compared, and {@code hasSameElements} takes it as it
      *  is. */
     @Test
     void anUnsortedListIsRefusedUnderEquals() throws Exception {
@@ -315,12 +315,12 @@ class RootComparisonTest {
             RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                     () -> Lean.established(model, "|" + names + " == ['Meridian', 'Other']", "p::RT", connection));
             org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(e.getMessage()).contains("== compares two"
-                    + " lists in order") && e.getMessage().contains("sameElements"), e.getMessage());
+                    + " lists in order") && e.getMessage().contains("hasSameElements"), e.getMessage());
         }
         Map<String, Boolean> answered = new LinkedHashMap<>();
         answered.put("|" + names + "->sort() == ['Meridian', 'Other']", false);
-        answered.put("|sameElements(" + names + ", ['Meridian'])", true);
-        answered.put("|sameElements(" + names + ", ['Meridian', 'Other'])", false);
+        answered.put("|hasSameElements(" + names + ", ['Meridian'])", true);
+        answered.put("|hasSameElements(" + names + ", ['Meridian', 'Other'])", false);
         // (against one value an ordered and an order-free comparison agree: not refused, as the assert's rule)
         answered.put("|" + names + " == ['Meridian']", true);
         for (Map.Entry<String, Boolean> c : answered.entrySet()) {
@@ -331,20 +331,20 @@ class RootComparisonTest {
         }
     }
 
-    /** What {@code sameElements} refuses, each by name: two sides of two known types (the equality rule: different
+    /** What {@code hasSameElements} refuses, each by name: two sides of two known types (the equality rule: different
      *  types never compare), a table against a list, and sides that read the row or element it stands in. */
     @Test
-    void sameElementsRefusesTwoTypesAndAnyPlaceButTheAnswer() throws Exception {
+    void hasSameElementsRefusesTwoTypesAndAnyPlaceButTheAnswer() throws Exception {
         var backend = TestBackends.platform();
         String model = MODEL.formatted(backend.type());
         Map<String, String> refused = new LinkedHashMap<>();
-        refused.put("|sameElements([1, 2], ['a', 'b'])", "sameElements compares elements of one type");
-        refused.put("|sameElements([1, 2], [1.0, 2.0])", "sameElements compares elements of one type");
+        refused.put("|hasSameElements([1, 2], ['a', 'b'])", "hasSameElements compares elements of one type");
+        refused.put("|hasSameElements([1, 2], [1.0, 2.0])", "hasSameElements compares elements of one type");
         // two unrelated classes: the type-checker's own question (the third review of 2026-11-27, M6)
-        refused.put("|sameElements([^p::K(name='a')], [^p::Party(id=1, name='a')])",
-                "sameElements compares elements of one type");
-        refused.put("|[1, 2]->map(x | sameElements([$x, 2], [2, 1]))", "sameElements over values of the row or element");
-        refused.put("|sameElements(#TDS\n id\n 1\n#, [1])", "sameElements: a table against a side that is no table");
+        refused.put("|hasSameElements([^p::K(name='a')], [^p::Party(id=1, name='a')])",
+                "hasSameElements compares elements of one type");
+        refused.put("|[1, 2]->map(x | hasSameElements([$x, 2], [2, 1]))", "hasSameElements over values of the row or element");
+        refused.put("|hasSameElements(#TDS\n id\n 1\n#, [1])", "hasSameElements: a table against a side that is no table");
         for (Map.Entry<String, String> c : refused.entrySet()) {
             try (Connection connection = backend.open()) {
                 RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
@@ -378,9 +378,9 @@ class RootComparisonTest {
         comparisons.add("[1.0D, 2.5D]->filter(x | $x > 0D) == [1.00D, 2.50D]");
         comparisons.add("[1, 'a']->filter(x | true) == [1, 'a']");
         comparisons.add("[1, 'a']->filter(x | true) == [1, 'b']");
-        comparisons.add("sameElements([1, 2, 3], [3, 1, 2])");
-        comparisons.add("sameElements([1, 1, 2], [1, 2, 2])");
-        comparisons.add("sameElements(#TDS\n id, s\n 1, x\n 2, y\n#, #TDS\n id, s\n 2, y\n 1, x\n#)");
+        comparisons.add("hasSameElements([1, 2, 3], [3, 1, 2])");
+        comparisons.add("hasSameElements([1, 1, 2], [1, 2, 2])");
+        comparisons.add("hasSameElements(#TDS\n id, s\n 1, x\n 2, y\n#, #TDS\n id, s\n 2, y\n 1, x\n#)");
         List<String> differs = new java.util.ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             String model = MODEL.formatted(backend.type());

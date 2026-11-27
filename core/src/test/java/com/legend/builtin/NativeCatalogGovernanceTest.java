@@ -236,9 +236,11 @@ class NativeCatalogGovernanceTest {
         // ColSpec is a name alone and a column is read only as a reflected Column evaluated on a row (typed Any)
         // +1 2026-11-27 (the edition program's step 6; the user's word that day, to "should we be strict with 2 table
         // equals and have a separate operator or function for multiset compare?": "Yeah or ~= if want to be cute, or
-        // setCompare()"; docs/SEMANTICS_REGISTER.md S430): sameElements -- two lists' elements or two tables' rows the
+        // setCompare()"; docs/SEMANTICS_REGISTER.md S430): hasSameElements -- two lists' elements or two tables' rows the
         // same in any order, the comparison assertSameElements is judged by, as a value a query answers; upstream has
         // the assert alone, and lite's == on two tables is strict (a side with no defined order is refused)
+        // (the pin's move confirmed by the user the same day, "Two pins fine"; the name theirs: "Should it be
+        // hasSameElements?")
         assertTrue(Pure.LITE_SURFACE.size() <= 10,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }

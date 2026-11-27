@@ -2093,11 +2093,11 @@ final class Scalars {
                 return pureToString(styled, t, args.get(0));
             });
         }
-        // sameElements: answered as a query's last statement (planner.RootComparison); its rule here is the refusal
+        // hasSameElements: answered as a query's last statement (planner.RootComparison); its rule here is the refusal
         // every other position gets (the lowering refuses it before its sides are lowered, Lowerer.scalarInner)
-        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SAME_ELEMENTS) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS) {
             RULES.put(f, (n, args) -> {
-                throw sameElementsInsideAnExpression();
+                throw hasSameElementsInsideAnExpression();
             });
         }
         // isDistinctFrom (DEEP_AUDIT §5k) = SQL IS DISTINCT FROM; pure's 1-arg isDistinct
@@ -3940,11 +3940,11 @@ final class Scalars {
         return !Pure.AT_COLLECTION_MIN.contains(n.callee().id());
     }
 
-    /** {@code sameElements} over sides that read the row or the element it stands in: refused by name
-     *  (Pure.Lite.SAME_ELEMENTS). Two whole sides are two statements' rows ({@code planner.RootComparison}); per row
+    /** {@code hasSameElements} over sides that read the row or the element it stands in: refused by name
+     *  (Pure.Lite.HAS_SAME_ELEMENTS). Two whole sides are two statements' rows ({@code planner.RootComparison}); per row
      *  they would be two list values, which not every database holds (the lists-inside-an-expression follow-up). */
-    static com.legend.error.NotImplementedException sameElementsInsideAnExpression() {
-        return new com.legend.error.NotImplementedException("sameElements over values of the row or element it stands"
+    static com.legend.error.NotImplementedException hasSameElementsInsideAnExpression() {
+        return new com.legend.error.NotImplementedException("hasSameElements over values of the row or element it stands"
                 + " in: it compares two whole sides (lists or tables computed apart from that row) -- compute the two"
                 + " sides with let, outside the lambda, then compare them");
     }

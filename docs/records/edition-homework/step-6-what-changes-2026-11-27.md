@@ -20,11 +20,11 @@ disagree. Now one rule answers both.
 | 8 | `$t.at == %2020-01-01`, `$t.at >= %2020-01-01` where `at` is declared `Date` and its column holds date-times | the database's comparison (the day read as midnight) | refused when the query is planned, for "the same" and for "the later" alike | yours ("error way if it's only for lite mode"; "we don't really want greater-than to work and equal not") |
 | 9 | `$amount * 0.1`, `$amount + 0.2` where `amount` is a Decimal | floating-point maths under a type that says Decimal (`0.010000000000000002`) | exact: the written `0.1` is read as the Decimal 0.1, which is Pure's answer | yours ("good let's do it") |
 | 10 | a computed list, a map or a table compared with `==`: as the query's answer, inside an `if`, under `&&`/`\|\|`/`!`, in a test's `assert(...)` | different answers or an error depending on the database, and on where the comparison stood (inside an `if`, two different tables answered "the same" on DuckDB and SQLite) | the same answer on every database, wherever the comparison stands | the step's design; yours ("why cant we do the work we promised to get to one equality?") |
-| 10b | a list whose order the query does not define, under `==` (`p::Party.all()->map(p \| $p.name) == ['A', 'B']`) | compared in the order the database returned the rows | refused when the query is compiled, as a table is: sort it, or use `sameElements` | the third review; the rule of row 13 |
+| 10b | a list whose order the query does not define, under `==` (`p::Party.all()->map(p \| $p.name) == ['A', 'B']`) | compared in the order the database returned the rows | refused when the query is compiled, as a table is: sort it, or use `hasSameElements` | the third review; the rule of row 13 |
 | 11 | `[] == [1, 2]->filter(x \| $x > 5)` | false, or an error on H2 | true: an empty list is an empty list | the step's design |
 | 12 | two maps written in different orders, as a query's answer | not equal | equal, as Pure and the assert say | found by probing, 2026-11-27 |
 | 13 | two tables with `==`, as a query's answer | column names and row order ignored | strict: the column names must match and the rows must be the same in order. A table with no defined order (no sort; or after a grouping, a join or a union) is refused when the query is compiled, naming the two fixes | yours ("Yeah or ~= if want to be cute, or setCompare()") |
-| 13b | `sameElements($a, $b)` | did not exist | new: two lists or two tables compared in any order. Duplicates count (`[1, 1, 2]` and `[1, 2, 2]` are not the same). A function, not an operator; named after `assertSameElements` | same decision |
+| 13b | `hasSameElements($a, $b)` | did not exist | new: two lists or two tables compared in any order. Duplicates count (`[1, 1, 2]` and `[1, 2, 2]` are not the same). A function, not an operator; named after `assertSameElements` | same decision |
 | 14 | two instances with `==` | compared as one piece of text of their keys (`1.0D` differed from `1.00D`; the declared class, not the actual one) | the actual class, then each key by its value | the step's design |
 | 15 | `date(2015, 4, 16, 14) == %2015-04-16T14` inside an expression | a database error | compared by the instant | a defect fixed |
 | 16 | a list mixing days and date-times, passed through `map`, then `contains` | a wrong "true" on DuckDB | refused by name, as the assert already did | a defect fixed |
@@ -86,7 +86,7 @@ Two fixes that are not about equality but were found by it:
 
 - **A list compared per row** (a filter that compares each row's list to another): still the database's own list
   comparison where the database has lists, and refused where it has none (H2; partly SQLite, MySQL, MariaDB).
-  `sameElements` there is refused by name. This needs a list representation on each of those databases: the
+  `hasSameElements` there is refused by name. This needs a list representation on each of those databases: the
   database program.
 - A function generic over a table whose other parameters are declared `Number`, called with `1` and `1.0`: a
   compile error where the rule says "false". The fix would change how every such function's arithmetic is typed.

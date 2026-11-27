@@ -488,15 +488,15 @@ class TaggedListTest {
             // a raw grid's order is its SQL text's, which the planner does not read (B3 step 4, 2026-11-24): == compares
             // in order, so it is refused by name, as the assert of the same side is (the edition program's step 6,
             // 2026-11-27, the third review's M1: until then the cells were compared in the order they arrived, whatever
-            // "order by" the text held); sameElements compares them in any order
+            // "order by" the text held); hasSameElements compares them in any order
             com.legend.error.ModelException unordered = org.junit.jupiter.api.Assertions.assertThrows(
                     com.legend.error.ModelException.class, () -> program(c, "[1, 'x', 2, 'y'] == $rs.rows.values;"));
             assertTrue(unordered.getMessage().contains("== compares two lists in order")
-                    && unordered.getMessage().contains("sameElements"), unordered.getMessage());
-            assertEquals(true, program(c, "sameElements([1, 'x', 2, 'y'], $rs.rows.values);"));
-            assertEquals(true, program(c, "sameElements([2, 'y', 1, 'x'], $rs.rows.values);"));
-            assertEquals(false, program(c, "sameElements([1.0, 'x', 2, 'y'], $rs.rows.values);"));
-            assertEquals(false, program(c, "sameElements([1, 'x', 2], $rs.rows.values);"));
+                    && unordered.getMessage().contains("hasSameElements"), unordered.getMessage());
+            assertEquals(true, program(c, "hasSameElements([1, 'x', 2, 'y'], $rs.rows.values);"));
+            assertEquals(true, program(c, "hasSameElements([2, 'y', 1, 'x'], $rs.rows.values);"));
+            assertEquals(false, program(c, "hasSameElements([1.0, 'x', 2, 'y'], $rs.rows.values);"));
+            assertEquals(false, program(c, "hasSameElements([1, 'x', 2], $rs.rows.values);"));
             assertEquals(4L, program(c, "$rs.rows.values->size();"));
             assertEquals(true, program(c, "$rs.rows.values->contains('y');"));
             assertEquals(false, program(c, "$rs.rows.values->contains('1');"));

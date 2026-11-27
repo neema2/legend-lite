@@ -202,13 +202,13 @@ never the author's conclusions. Nothing run. What it found and what became of ea
 
 | # | Severity | Finding | What became of it |
 |---|---|---|---|
-| H1 | HIGH | `==` answers differently by where it stands: the strict table rule, the any-order map comparison and the list-as-statements comparison existed only for a query's last statement; inside an `if`, a filter or a test body's `assert(...)` the old path ran (the test road never asked the planner) | **being fixed** (the user, 2026-11-27: "why cant we do the work we promised"): the lowering asks the planner for every `==` and `sameElements` inside an expression, on the product's road and the test body's (`RootComparison.inside`, `d535ced03`); `RootComparisonTest.aComparisonAnswersTheSameInsideAnExpression` |
+| H1 | HIGH | `==` answers differently by where it stands: the strict table rule, the any-order map comparison and the list-as-statements comparison existed only for a query's last statement; inside an `if`, a filter or a test body's `assert(...)` the old path ran (the test road never asked the planner) | **being fixed** (the user, 2026-11-27: "why cant we do the work we promised"): the lowering asks the planner for every `==` and `hasSameElements` inside an expression, on the product's road and the test body's (`RootComparison.inside`, `d535ced03`); `RootComparisonTest.aComparisonAnswersTheSameInsideAnExpression` |
 | M1 | MEDIUM | A LIST side whose order the query does not define (`p::Party.all()->map(p\|$p.name) == ['A', 'B']`) is compared in the order the database returned it; an assert of the same side is refused | fixed below (the refusal a table's side gets) |
 | M2 | MEDIUM | `HeldKinds` skipped any author's upcast, so a no-op upcast of a property already declared `Number` (`$a.n->cast(@Number) == $a.f`) escaped the planning-time refusal the same query gets without the cast; the same for dates | fixed below (the skip only where the cast's source has a known type) |
 | M3 | MEDIUM | The planner infers who is asking from the number rule a door named (tenet 6) | disclosed; question 4 to the user |
-| M4 | MEDIUM | The two pins for `sameElements` moved on words of the user's that named other spellings | disclosed; questions 2 and 3 to the user |
+| M4 | MEDIUM | The two pins for `hasSameElements` moved on words of the user's that named other spellings | disclosed; questions 2 and 3 to the user |
 | M5 | MEDIUM | The always-false fix turned two answers into refusals: a never-equal comparison inside a collection's value lane ("not supported yet"), and at the root over whole sides (a list cast to text, which H2, SQLite and BigQuery refuse) | fixed below (the collection lane lowers it as an expression does; over many-valued sides the constant stands, recorded) |
-| M6 | MEDIUM | `sameElements` checked two known types only for primitives and enumerations: two lists of unrelated classes were no compile error; and the check runs at planning, not at typing | fixed below for classes (the type-checker's own question); at planning still, recorded |
+| M6 | MEDIUM | `hasSameElements` checked two known types only for primitives and enumerations: two lists of unrelated classes were no compile error; and the check runs at planning, not at typing | fixed below for classes (the type-checker's own question); at planning still, recorded |
 | M7 | MEDIUM | The `max`/`min` commit was never run and its test reads SQL text alone; the regenerated size files predate ten SQL-changing commits | run since (`b59`, `b62`); the full round regenerates |
 | L1 | LOW | Two tables whose column names differ are answered false without evaluating either side | recorded |
 | L2 | LOW | `harmless()` took any cast as harmless, a downcast that can fail included; membership and index stay constants | the downcast fixed below; membership and index are piece 3 of the work under way |
@@ -218,13 +218,13 @@ never the author's conclusions. Nothing run. What it found and what became of ea
 | L6 | LOW | GREATEST and LEAST answer NULL for a NULL argument on MySQL, MariaDB and Snowflake where legend-engine's CASE answers the other argument | fixed below (the CASE legend-engine writes, the Integer converted) |
 | L7 | LOW | A comparison typed as code the rule never reads (an island's translation) keeps its position, so the planning-time refusal could take it for the query's own | fixed below (only the query's own comparisons keep a position) |
 | L8 | LOW | The fresh-draw check reads the body, not the lets the environment seeds | recorded |
-| L9 | LOW | Weak or missing tests: the always-false test accepts any error; no root-against-expression test; none for unordered lists under `==`, `sameElements` over classes, the PCT door's `max`/`min` | the root-against-expression and PCT-door tests exist since; the others added below |
+| L9 | LOW | Weak or missing tests: the always-false test accepts any error; no root-against-expression test; none for unordered lists under `==`, `hasSameElements` over classes, the PCT door's `max`/`min` | the root-against-expression and PCT-door tests exist since; the others added below |
 | L10 | LOW | `RootComparison.whole`'s comment out of date; a parser ratchet moved with no dated line | fixed below |
 
 Checked and found sound by the same review: the empty-side back-out is complete; the host judge's tie-break is lite's
 door's alone; the `max`/`min` rule does not touch the PCT door; every dialect's truncation to those units delivers a
 DATE and Pure's `firstDayOf*` return a day (read in the pinned sources); the Decimal carrying is symmetric; the
-guard entries carry dated words; no upstream function is named `sameElements`.
+guard entries carry dated words; no upstream function is named `hasSameElements`.
 
 ## SQL size, measured (2026-11-27; the user: "def want to see/understand the growth")
 
@@ -294,13 +294,13 @@ tests. For the user's word with the size table's rows.
   out the same day** (below). The doors: each as its own upstream answers (legend-pure false, legend-engine the
   database's NULL); legend-pure's door not yet checked.
 - Two tables under `==`: strict, an unsorted side refused, and a separate function for the rows in any order
-  ("Yeah or ~= if want to be cute, or setCompare()"; named `sameElements`, after `assertSameElements`: `~=` would be
+  ("Yeah or ~= if want to be cute, or setCompare()"; named `hasSameElements`, after `assertSameElements`: `~=` would be
   a new operator in a grammar checked against upstream's, and "set" would say duplicates do not count). The strict
-  half is built (`2d4edec3f`). **`sameElements` is built, not yet run**: `meta::legend::lite::sameElements(Any[*],
-  Any[*]): Boolean[1]`, user-facing by its bare name (`Pure.Lite.SAME_ELEMENTS`, `LITE_SURFACE`); planned as a
+  half is built (`2d4edec3f`). **`hasSameElements` is built, not yet run**: `meta::legend::lite::hasSameElements(Any[*],
+  Any[*]): Boolean[1]`, user-facing by its bare name (`Pure.Lite.HAS_SAME_ELEMENTS`, `LITE_SURFACE`); planned as a
   query's last statement by `planner.RootComparison` over `SideEqualities` with the multiset member (the code
   `assertSameElements` is judged by); two sides of two known types a compile error; inside an expression refused by
-  name (`Scalars.sameElementsInsideAnExpression`). Register S430, differences item 25. The catalog's count of
+  name (`Scalars.hasSameElementsInsideAnExpression`). Register S430, differences item 25. The catalog's count of
   functions upstream does not declare goes 76 to 77 on the user's word above (`CatalogUpstreamDiffTest`); the
   generated lists follow at the next regeneration.
 - The lanes: "Have to run the lanes always when making major changes" (in AGENTS.md).
@@ -336,7 +336,7 @@ channel B's three lite suites): all 16 pass. That run covers the back-out above,
 read twice is one evaluation (`UserCallInliner.finish`, `ff19de458`) and strict `==` on tables (`2d4edec3f`).
 
 **Run 2026-11-27 at `38b367872`** (18 test targets: the 16 above with core's root suite and the time-series
-library): all 18 pass. That run covers `sameElements` and a caller's lambda in a generic function's body.
+library): all 18 pass. That run covers `hasSameElements` and a caller's lambda in a generic function's body.
 
 **Built after that run:** `max`/`min` of an Integer and a Float at legend-engine's door (run since: `b62`, the
 edge tests).
@@ -346,7 +346,7 @@ Too expensive?").** Not too expensive: about a day. Each piece, what it is and w
 
 | Piece | What | State |
 |---|---|---|
-| 1 | Two whole sides (computed lists, maps, tables) compared INSIDE an expression -- an `if`'s condition, under `&&`, `\|\|`, `!`, a test body's `assert(...)` -- are the statement that answers them as a query's last, read as one value (`Lowerer.withWholeComparisons`, `planner/RootComparison.inside`, on the product's road and the test body's). Sides that read the row they stand in keep the database's own comparison (the database follow-up); `sameElements` there is refused by name | **run 2026-11-27 at `43cf5e021`**: `RootComparisonTest.aComparisonAnswersTheSameInsideAnExpression` passes -- every case of the root tests, as an `if`'s condition and under `&&`, against its answer as a query's last, on DuckDB, H2 and SQLite |
+| 1 | Two whole sides (computed lists, maps, tables) compared INSIDE an expression -- an `if`'s condition, under `&&`, `\|\|`, `!`, a test body's `assert(...)` -- are the statement that answers them as a query's last, read as one value (`Lowerer.withWholeComparisons`, `planner/RootComparison.inside`, on the product's road and the test body's). Sides that read the row they stand in keep the database's own comparison (the database follow-up); `hasSameElements` there is refused by name | **run 2026-11-27 at `43cf5e021`**: `RootComparisonTest.aComparisonAnswersTheSameInsideAnExpression` passes -- every case of the root tests, as an `if`'s condition and under `&&`, against its answer as a query's last, on DuckDB, H2 and SQLite |
 | 2 | An empty side answers false where the comparison's VALUE is kept (a column, a query's answer): the equalities such a value is made of are marked (`Lowerer.keepingItsValue`: reached through `&&`, `\|\|`, `!`, an `if`'s branches) and each is `COALESCE(l = r, FALSE)` where exactly one side may be empty (`Equalities.falseWhereASideIsEmpty`). No condition's statement changes. The door's table says whose answer it is (`EditionTable.emptySideIsFalse`): the product's and legend-pure's; legend-engine's door keeps what it had | **run at `43cf5e021`**: every column case passes on the three databases; the three query's-answer cases fail on H2 alone, for a reason older than step 6 (a filtered list's first element has no form inside an expression there): not asked of H2 since |
 | 3 | A membership or an index of two types (`in`, `contains`, `indexOf`) still raises what its single value raises (`LiteCrossTypeRule`, `Equalities.neverAmongButEvaluated`) | **run at `0c027ad58`**: `RunTimeComparisonTest.aMembershipOfTwoTypesStillRaisesWhatItsValueRaises` passes |
 | 4 | The two judges' wording for a Variant read through `Any` | probed, four wording defects, **not fixed** (the row above): verdicts right, not the product's equality |
@@ -394,7 +394,7 @@ get to real one equality ... did we stick to our tenets?" -- awaiting their word
    So inside an expression two different tables answer "the same" on DuckDB and SQLite, reordered maps answer "not
    the same", and SQLite compares two Decimal lists by their text. Each was so before step 6; step 6 made the
    answer right only where the comparison is the query's last statement.
-2. *The name `sameElements`* (the user offered `~=` or `setCompare()`): a public name, to confirm.
+2. *The name `hasSameElements`* (the user offered `~=` or `setCompare()`): a public name, to confirm.
 3. *The two pins moved for it* (lite's surface 9 to 10; functions upstream does not declare 76 to 77): to confirm.
 4. *The planner tells lite's own code from a door's by the number rule the door named*
    (`RootComparison`: `numbersOf != TWO_FAMILIES`; `HeldKinds` the product's rule alone by the same signal): the
@@ -403,13 +403,29 @@ get to real one equality ... did we stick to our tenets?" -- awaiting their word
 5. *The empty-side fix* (with `in`/`contains`/`indexOf` and a side that would raise): its own slice right after
    landing, before step 8?
 
+**The user's answers of 2026-11-27 (to the questions above and those that followed), in their words:**
+- The function's name: "Should it be hasSameElements?" -- yes: it reads as a question with a yes or no for an
+  answer, as `contains` and `isEmpty` do, and still pairs with `assertSameElements`. Renamed (it was `sameElements`
+  for some hours; this record says `hasSameElements` throughout since).
+- The two pins moved for it: "Two pins fine".
+- Lite's `==` on two tables by value, against Pure's identity (run): "Lite comparing two tables yes".
+- The time-series bundle's budget, 148,200 to 148,500: "Time series budget fine" (moved once the round measures it).
+- The three size rows that go up (core's `let` family: one more query runs on each database): "3 row sizes fine".
+- "What is planners who is asking?" -- explained (the planner tells lite's own code from a door's by which number
+  rule the door named; the proper form is the type-checker's rewrite, the edition's guard phase). **Still theirs to
+  accept as recorded debt.**
+- "Why is the json wording hard to fix?" -- it is not hard: four small defects in two places, about half a day,
+  held back to protect the landing. **Being fixed now**, beside the runs.
+- Question 1 (refuse, or build): answered by "Why cant we do the work we promised to get to one equality?" --
+  built (the table of pieces above). Question 5 (the empty side): built.
+
 **What the landing waits for, all on the final commit:** the full round; the relational corpus (never run on this
 stack); the acceptance measure, every remaining difference explained; every database lane and the heavy run; one
 independent review of everything changed since the two audits; CI on every operating system; any SQL size row that
 goes up brought to the user first.
 
 **Left to do, in order:**
-1. `sameElements(a, b)`: built and run (above). **Upstream's answer for `==` on two tables, RUN 2026-11-27** (a
+1. `hasSameElements(a, b)`: built and run (above). **Upstream's answer for `==` on two tables, RUN 2026-11-27** (a
    worker session; interpreted and compiled legend-pure 5.99.0, legend-engine 4.145.0): legend-pure compares two
    tables by IDENTITY -- two written tables with the same rows are not equal, a table equals only itself, and
    `assertEquals` of two identical written tables fails; legend-engine never plans the comparison (refused by name

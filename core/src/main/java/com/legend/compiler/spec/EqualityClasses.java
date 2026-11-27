@@ -190,7 +190,7 @@ public final class EqualityClasses {
     /** The two types by which values of {@code l} and of {@code r} can never be equal under the product's rule, or
      *  empty: {@link #differing}, less a pair of two exact numbers (an Integer and a Decimal compare by value). The
      *  question the rule asks of a comparison it reads, for a caller that compares two sides it plans itself
-     *  ({@code sameElements}, {@code planner.RootComparison}). */
+     *  ({@code hasSameElements}, {@code planner.RootComparison}). */
     public static Optional<Type[]> neverEqual(Type l, Type r, ModelContext ctx) {
         return differing(l, r, ctx).filter(d -> !(exactNumber(d[0]) && exactNumber(d[1])));
     }
