@@ -47,12 +47,14 @@ public interface EditionTable {
      *              audience's own Java's, which checks); null where the check is no call's own (a cast, a slice) */
     boolean checks(com.legend.sql.RaiseKind kind, @com.legend.base.Nullable TypedNativeCall call);
 
-    /** Whether {@code comparison}, an equality one side of which may hold no value, answers FALSE where that side is
-     *  empty and the comparison's value is kept (a column, a query's answer): Pure's answer ({@code [] == 'a'} is
-     *  false), the product's and legend-pure's. False where the audience's own statement leaves the database's
-     *  answer, no value (legend-engine's door: its table says so).
+    /** Whether {@code comparison}, an equality a side of which may hold no value, answers for its empty sides as
+     *  Pure does: false where one side is empty and the comparison is no positive condition, true where both are
+     *  ({@code Equalities.emptySidesAsPure}; {@code [] == 'a'} is false, {@code [] == []} true). The product and
+     *  legend-pure answer so everywhere. False where the audience's own statement leaves the database's answer
+     *  (legend-engine's door inside a store query: its table says so). The second question the lowering asks a
+     *  door's table, of the kind {@link #checks} is; asked where an equality is written ({@code Lowerer.written}).
      *
-     *  @param comparison the equality, typed */
+     *  @param comparison the equality, typed: its stamp may decide */
     default boolean emptySideIsFalse(TypedNativeCall comparison) {
         return true;
     }

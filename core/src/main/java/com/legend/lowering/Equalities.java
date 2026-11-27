@@ -42,33 +42,46 @@ final class Equalities {
     }
 
     /**
-     * AN EMPTY SIDE WHERE THE COMPARISON'S VALUE IS KEPT (the edition program's step 6; the user, 2026-11-27: "Yes do
-     * the empty side fix", then "why cant we do the work we promised"): {@code $x.nick == 'a'} where {@code nick}
-     * holds no value is false, as Pure says ({@code [] == 'a'}). A bare {@code =} answers no value there. That is
-     * right wherever the comparison is a CONDITION -- a filter's, a join's, an {@code if}'s, a {@code CASE}'s: each
-     * reads "no value" as "not so" -- and wrong only where the comparison's VALUE is kept: a column of it, a query's
-     * answer (measured 2026-11-27: no value at every door). So the lowering asks here only for a comparison it keeps
-     * the value of ({@code Lowerer.keepingItsValue}), and a condition's statement is as it was, a comparison a database
-     * can use an index for.
-     *
-     * <p>{@code compared} where exactly one side may be empty: {@code COALESCE(l = r, FALSE)}, each side written
-     * once. Two sides that may both be empty are the null-safe arm's ({@link #nullArms}: empty equals empty); a
-     * comparison of two values that are never empty needs nothing.
-     *
-     * <p>The first form of this fix (2026-11-27, backed out the same day) wrote a guard into the comparison itself,
-     * so it appeared in every filter, join, EXISTS and CASE that compares.
+     * AN EQUALITY'S EMPTY SIDES, AS PURE ANSWERS THEM (the edition program's step 6; the user, 2026-11-27: "Yes do the
+     * empty side fix", then "why cant we do the work we promised to get to one equality?"). Pure's {@code ==} is
+     * two-valued: {@code [] == 'a'} is false and {@code [] == []} is true. A database's {@code =} over a side that
+     * holds no value answers "no value", which is the same as false only where the comparison stands as a positive
+     * condition ({@code Lowerer.asCondition}). So {@code compared}, the plain {@code =} of {@code n}'s two sides:
+     * <ul>
+     *   <li>BOTH sides may be empty: the null-safe equality, in every position -- two empties are equal, in a
+     *       filter too (two plain optional columns were written so already, {@link #nullArms}). An enumeration's
+     *       comparison is left to its own machinery (recorded);</li>
+     *   <li>exactly ONE side may be empty, and the comparison is no positive condition: false where that side is
+     *       empty, the comparison written once ({@code COALESCE(l = r, FALSE)});</li>
+     *   <li>otherwise as it is.</li>
+     * </ul>
+     * Anything that is no plain {@code =} of two operands (a null-safe form, a list's or an instance's comparison,
+     * a constant) is left as it is: it answers for its empty sides itself.
      */
-    static SqlExpr falseWhereASideIsEmpty(TypedNativeCall n, SqlExpr compared) {
+    static SqlExpr emptySidesAsPure(TypedNativeCall n, SqlExpr compared, boolean positiveCondition) {
         if (!(compared instanceof SqlExpr.Call c) || c.fn() != SqlFn.EQUAL || c.args().size() != 2
                 || n.args().size() != 2) {
             return compared;
         }
         boolean first = NullSemantics.isOptional(n.args().get(0).info().multiplicity());
         boolean second = NullSemantics.isOptional(n.args().get(1).info().multiplicity());
-        if (first == second) {
+        if (first && second) {
+            return NullSemantics.enumInvolved(n) ? compared : new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, c.args());
+        }
+        if (first == second || positiveCondition) {
             return compared;
         }
         return SqlExpr.Call.of(SqlFn.COALESCE, compared, new SqlExpr.BoolLit(false));
+    }
+
+    /** The two sides of an equality {@link #emptySidesAsPure} wrote as "false where a side is empty", or null where
+     *  {@code e} is no such form: its negation is the null-safe not-equal of the two ({@link NullSemantics#negate}),
+     *  as an unguarded equality's is. */
+    static @com.legend.base.Nullable List<SqlExpr> guardedSides(SqlExpr e) {
+        return e instanceof SqlExpr.Call guard && guard.fn() == SqlFn.COALESCE && guard.args().size() == 2
+                && guard.args().get(1) instanceof SqlExpr.BoolLit otherwise && !otherwise.value()
+                && guard.args().get(0) instanceof SqlExpr.Call equal && equal.fn() == SqlFn.EQUAL
+                && equal.args().size() == 2 ? equal.args() : null;
     }
 
     /** {@link #equal(TypedNativeCall, List)} with how numbers of different types compare inside a mixed list

@@ -257,11 +257,15 @@ final class EngineTable implements EditionTable, Edition {
         return call.outsideStore() || !PureText.ENGINE_UNCHECKED.contains(kind);
     }
 
-    /** legend-engine's door keeps the comparison it had where a side is empty: the database's answer. What
-     *  legend-engine itself answers there was not run (its statement is a bare {@code =}), so it is not changed. */
+    /** legend-engine's answer for an equality's empty side is by where the comparison runs (run 2026-11-27 on
+     *  legend-engine 4.145.0, {@code docs/records/edition-homework/upstream-step6/answers-request-3-2026-11-27.md}):
+     *  OUTSIDE any store query its own Java answers as Pure does ({@code [] == 'a'} false, {@code [] == []} true);
+     *  INSIDE one it writes the database's comparison -- two plain nullable columns null-safe, a computed side a
+     *  plain {@code =} whose answer for an empty side is no value, the negation null-safe -- which is what the
+     *  product's rule writes there with no guard ({@code Equalities.nullArms}, {@code NullSemantics.negate}). */
     @Override
     public boolean emptySideIsFalse(TypedNativeCall comparison) {
-        return false;
+        return comparison.outsideStore();
     }
 
     private @Nullable List<Row> rows(TypedNativeCall call, Set<Feature> features) {

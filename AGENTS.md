@@ -243,10 +243,14 @@
 >   comparison of two whole sides (computed lists, maps, tables) answers the same as a query's last statement, as an
 >   `if`'s condition, under `&&`, `||` or `!`, and in a test's `assert(...)`: one statement plans it
 >   (`planner.RootComparison`). Only a comparison whose sides read the row it stands in is still the database's own.
-> - **An empty side** (the user, 2026-11-27: "Yes do the empty side fix"): `$x.nick == 'a'` where `nick` holds no
->   value is false, as Pure says. A condition already read it so; where the comparison's VALUE is kept (a column, a
->   query's answer) it now answers false too (`lowering.Equalities.falseWhereASideIsEmpty`), on lite's route and at
->   legend-pure's door. Never a guard inside a filter, a join or a CASE.
+> - **An empty side** (the user, 2026-11-27: "Yes do the empty side fix"; the closing batch's rule after its two
+>   reviews): `$x.nick == 'a'` where `nick` holds no value is false, and two empty sides are equal, as Pure says,
+>   wherever the comparison stands. Where it is a POSITIVE condition (a filter's, a join's, an `if`'s, and `&&`, `||`
+>   beneath them) the database's "no value" already is that answer and the statement is as written
+>   (`Lowerer.asCondition`); everywhere else -- a kept value, an operand, a window's or an aggregate's input, anything
+>   under `!` or a `forAll` -- the equality answers for its empty side where it is written (`Lowerer.written`,
+>   `lowering.Equalities.emptySidesAsPure`). On lite's route and at legend-pure's door; legend-engine's door answers
+>   as legend-engine does, by where the comparison runs (`EditionTable.emptySideIsFalse`).
 > - **An assert is the comparison it means** (the user, 2026-11-26: "yes compile
 >   error"): on lite's own door an assert of two written types is refused when the
 >   body is compiled.

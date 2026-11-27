@@ -17,13 +17,19 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * ONE SIDE OF AN EQUALITY HOLDS NO VALUE (the edition program's step 6; the user, 2026-11-27: "Yes do the empty side
- * fix", then "why cant we do the work we promised to get to one equality?"): {@code $x.nick == 'a'} where {@code nick}
- * is empty is false, as Pure says ({@code [] == 'a'}), wherever the comparison stands. As a condition -- a filter's,
- * an {@code if}'s -- it was right already; where its VALUE is kept (a column of it, a query's answer) it was the
- * database's NULL, a cell with no value, at every door (measured 2026-11-27). The lowering now marks the equalities a
- * kept value is made of ({@code Lowerer.keepingItsValue}) and each answers false where one side is empty
- * ({@code Equalities.falseWhereASideIsEmpty}); a condition's statement is as it was.
+ * A SIDE OF AN EQUALITY HOLDS NO VALUE (the edition program's step 6; the user, 2026-11-27: "Yes do the empty side
+ * fix", then "why cant we do the work we promised to get to one equality?"). Pure's {@code ==} is two-valued:
+ * {@code $x.nick == 'a'} where {@code nick} is empty is false ({@code [] == 'a'}), and two empty sides are equal
+ * ({@code [] == []}), wherever the comparison stands. A database's {@code =} answers "no value" there, which is the
+ * same as false only where the comparison is a POSITIVE condition (a filter's, a join's, an {@code if}'s, and
+ * {@code &&}, {@code ||} beneath them). So the lowering leaves those as they are written ({@code Lowerer
+ * .asCondition}) and answers every other equality for its empty side where it is written ({@code Lowerer.written},
+ * {@code Equalities.emptySidesAsPure}): a column, a query's answer, an operand, a window's column, an aggregate's
+ * input, a list lambda's result -- and anything under a {@code !} or a {@code forAll}.
+ *
+ * <p>Measured before (2026-11-27, on DuckDB and SQLite): each "kept value" case below answered no value (the count
+ * 1 of 2, the mapped list one element of two); {@code filter(o | !($o.nick == 'a' || $o.id == 7))} dropped the row
+ * whose nick is empty, and so it had before step 6; a {@code forAll} over such a comparison answered true.
  */
 class EmptySideEqualityTest {
 
@@ -58,11 +64,41 @@ class EmptySideEqualityTest {
                 List.of(List.of(1L, true), List.of(2L, false)));
         cases.put("|p::O.all()->project(~[id: o|$o.id, e: o|if($o.id > 0, |$o.nick == 'a', |true)])"
                 + "->sort(~id->ascending())", List.of(List.of(1L, true), List.of(2L, false)));
+        // a comparison used as an operand, and read as text
+        cases.put("|p::O.all()->project(~[id: o|$o.id, e: o|($o.nick == 'a') == false])->sort(~id->ascending())",
+                List.of(List.of(1L, false), List.of(2L, true)));
+        cases.put("|p::O.all()->project(~[id: o|$o.id, e: o|($o.nick == 'a')->toString()])->sort(~id->ascending())",
+                List.of(List.of(1L, "true"), List.of(2L, "false")));
+        // a window's column, and an aggregate's input (both rows are counted: a false is a value)
+        cases.put("|p::O.all()->project(~[id: o|$o.id, nick: o|$o.nick])"
+                + "->extend(over(~id), ~e: {p, w, r | $r.nick == 'a'})->select(~[id, e])->sort(~id->ascending())",
+                List.of(List.of(1L, true), List.of(2L, false)));
+        cases.put("|p::O.all()->project(~[id: o|$o.id, nick: o|$o.nick])"
+                + "->groupBy(~[], ~[c: r | $r.nick == 'a' : y | $y->count()])", List.of(List.of(2L)));
+        // BOTH sides may be empty: two empties are equal, as a column and in a filter
+        String either = "if($o.id > 100, |'zz', |$o.nick) == $o.nick";
+        cases.put("|p::O.all()->project(~[id: o|$o.id, e: o|" + either + "])->sort(~id->ascending())",
+                List.of(List.of(1L, true), List.of(2L, true)));
+        cases.put("|p::O.all()->filter(o|" + either + ")->project(~[id: o|$o.id])->sort(~id->ascending())",
+                List.of(List.of(1L), List.of(2L)));
+        // under a negation "no value" is not false: the row whose nick is empty is kept, as Pure keeps it
+        cases.put("|p::O.all()->filter(o|!($o.nick == 'a' || $o.id == 7))->project(~[id: o|$o.id])",
+                List.of(List.of(2L)));
+        cases.put("|p::O.all()->filter(o|!($o.nick == 'a' && $o.id == 1))->project(~[id: o|$o.id])",
+                List.of(List.of(2L)));
+        // every row's comparison must hold: the row whose nick is empty answers false
+        cases.put("|p::O.all()->forAll(o|$o.nick == 'a')", List.of(List.of(false)));
+        cases.put("|p::O.all()->exists(o|$o.nick == 'a')", List.of(List.of(true)));
         // as a query's answer
         Map<String, Object> answers = new LinkedHashMap<>();
         answers.put("|[1, 2]->filter(x | $x > 5)->first() == 1", List.of(List.of(false)));
         answers.put("|!([1, 2]->filter(x | $x > 5)->first() == 1)", List.of(List.of(true)));
         answers.put("|[1, 2]->filter(x | $x > 1)->first() == 2", List.of(List.of(true)));
+        answers.put("|([1, 2]->filter(x | $x > 5)->first() == 1)->toString()", List.of(List.of("false")));
+        // a list lambda's result: an element for each, none lost
+        answers.put("|[1, 2]->map(x | [1]->filter(y | $y == $x)->first() == 1)", List.of(List.of(true), List.of(false)));
+        answers.put("|[1, 2]->forAll(x | [1]->filter(y | $y == $x)->first() == 1)", List.of(List.of(false)));
+        answers.put("|[1, 2]->exists(x | [1]->filter(y | $y == $x)->first() == 1)", List.of(List.of(true)));
         cases.putAll(answers);
         // as a condition: as it was
         cases.put("|p::O.all()->filter(o|$o.nick == 'a')->project(~[id: o|$o.id])", List.of(List.of(1L)));

@@ -153,6 +153,12 @@ final class NullSemantics {
         if (!(inner instanceof SqlExpr.Call c)) {
             return null;
         }
+        // an equality answered false for its empty side (Equalities.emptySidesAsPure): negated, the null-safe
+        // not-equal of its two sides, as the unguarded equality's negation is
+        List<SqlExpr> guarded = Equalities.guardedSides(inner);
+        if (guarded != null) {
+            return enumInvolved ? notEqualExpandedArms(guarded) : notEqualNullArms(guarded);
+        }
         return switch (c.fn()) {
             case EQUAL -> enumInvolved
                     ? notEqualExpandedArms(c.args())

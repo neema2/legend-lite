@@ -490,6 +490,28 @@ class UpstreamTiesTest {
     }
 
     @Test
+    @DisplayName("an equality one side of which may be empty: lite and legend-pure answer false there; legend-engine"
+            + " as it does, by where the comparison runs")
+    void anEmptySideIsAnsweredAsEachAudienceAnswersIt() {
+        // run 2026-11-27 (docs/records/edition-homework/upstream-step6/answers-request-3-2026-11-27.md): inside its
+        // store query legend-engine writes a plain '=' for a column against a value (no value where the column is
+        // empty), and outside any store query its own Java answers false, as Pure does
+        String inside = "|#>{s::DB.T}#->extend(~e: r | $r.I == 1)->select(~[e])->from(s::RT)";
+        String outside = "|[1, 2]->filter(x | $x > 5)->first() == 1";
+        assertTrue(sql(Door.LITE, PlanStyle.PRODUCT, inside).contains("COALESCE("), "lite, a column's value");
+        assertTrue(sql(Door.LEGEND_PURE, PureText.UPSTREAM, inside).contains("COALESCE("), "legend-pure, the same");
+        assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, inside).contains("COALESCE("),
+                "legend-engine inside a store query: the database's own answer");
+        assertTrue(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, outside).contains("COALESCE("),
+                "legend-engine outside any store query: false, as its own Java answers");
+        // a filter is a positive condition at every door: as written
+        String filtered = "|#>{s::DB.T}#->filter(r | $r.I == 1)->select(~[ID])->from(s::RT)";
+        for (Door door : List.of(Door.LITE, Door.LEGEND_PURE, Door.LEGEND_ENGINE)) {
+            assertFalse(sql(door, door.style, filtered).contains("COALESCE("), door + ": a filter's condition");
+        }
+    }
+
+    @Test
     @DisplayName("on a database where legend-engine's own functions are not yet checked, these rows are answered,"
             + " never refused: the answer is lite's own SQL, the same on every database")
     void theRowsAreNeverRefusedByDatabase() {
