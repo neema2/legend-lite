@@ -74,6 +74,43 @@ and H2 and channel B, and both corpora run on it; then the equality measurement 
   unverified; low priority by the user's word), so on SQLite two date-times written at different precisions still
   compare as texts inside an expression.
 
+## The whole of what is left, checked against every source (2026-11-27, after the user's "That's all that's remaining for all of step 6? Everything?")
+
+The orchestrator's first two lists for the user left items out. This one is made from four sources read line by
+line: the plan record's carried-forward table (section 5b), the user's rulings in it, the research's gaps G1 to G8
+(`r3/research-step6-equality.md` section 2.3), and the last equality measurement's groups (176 bodies whose assert
+form and in-expression form differ; the judges disagree on NO verdict, only on what the database judge cannot
+judge: 10, 8 and 8 bodies on DuckDB, H2 and SQLite).
+
+| Item | Source | State |
+|---|---|---|
+| An assert of two known types is a compile error on lite's own door | the user, 2026-11-26, "yes compile error"; the measurement's 30 "compile refusal" bodies | **coded 2026-11-27, not run** (`EqualityClasses`, `Kind.ASSERT`); lite's own tests that assert across types on purpose are rewritten as the round finds them |
+| A comparison in a function between positions a call fixes: a compile error at the call | the user, 2026-11-27, "the split with compile error when we know"; 5b's first row | **coded, not run** |
+| An upcast value compared by the type it holds | the measurement ("number types", `1->cast(@Any) == 'a'->cast(@Any)` a conversion error) | **coded, not run** |
+| Pairs, lists and maps by the types inside them | G4; the plan's 6.3 | **coded, not run** |
+| Numbers in two families | the user, 2026-11-27 | coded; its confirming round green; the full run of the stack going |
+| A plain `Number`, `Date` or `Any` value compared by the type its column holds (`$p.weight == 1` over a DOUBLE column is the database's comparison today) | G2 | not built: needs the kept comparison to reach the lowering on lite's door only |
+| Two tables with `==`: column names and row order | G5; the measurement's "grids" (4, 3, 4) | not built |
+| Lists of instances, and an instance with a to-many key, by typed leaves (text today) | the measurement's "instances and keys" | not built |
+| A keyless instance against itself (`$xs->at(0) == $xs->at(0)`) | G4 | not checked |
+| Maps compared whatever order their entries were written in, inside an expression | the measurement's "other" (`newMap` order) | not built |
+| An hour-precision date-time literal inside an expression (a database error today) | the measurement (4, 4, 0) | not built |
+| A day against a date-time known only at run time, inside an expression | the measurement's "dates and written precision" (7, 7 on DuckDB and H2) | to re-measure, then build |
+| The mixed-days refusal | the measurement (3, 2, 3); the plan's 6.6 | not built |
+| An element's own message inside `forAll`, and `assert(cond, msg)` inside `forAll` | the measurement (4, 1, 4); G6 | not built |
+| `is` as a product native (`assertIs`, `assertIsNot`) | G6 | not checked |
+| DuckDB's nanoseconds in the product's `==` (today only in the judge's record) | G7; the plan's 6.6 | not built |
+| The tolerance assert as its formula (`abs(e - a) <= d`) | the plan's 6.6 | not built |
+| An abstract `Date`'s text (`adjust(...)->toString()` at legend-pure's door) | 5b; the plan's 6.6 | not built |
+| The JSON lane: `Any` cells compared by JSON kind; a Decimal or a date there refused | G2 | the judge's sides read JSON kinds; inside an expression not checked |
+| One side empty inside an expression (`$x.opt == 1` is SQL's NULL) | the measurement's "empties" (3, 1, 4) | the user's decision, after its SQL cost is measured |
+| What the database judge cannot judge (6, 2, 6 bodies) | the measurement | to read one by one |
+| The equality measurement run again, every body that still differs explained | this record | at the end |
+| Lists inside an expression on a database with no list type (H2 59 + 9 bodies, SQLite 22) | G3; the plan's 6.4 | the user, 2026-11-27: looked at again, with SQLite's date-time text, when everything else is done |
+| A Float's text through a `Number` or `Any` inside a store query at legend-engine's door | 5b | rides with step 8 (paused): the Float row it needs is step 8's |
+| A table's cells counted by an assert (D6); two date-times at one instant tying in a sort (D14) | the open decisions | the user's, unanswered |
+| Slice 6.2's database lanes and outside audit | the fast setup | not run; the user's go |
+
 ## The same meaning inside an expression (the user's question, 2026-11-27)
 
 The user, on being told the judge's comparison had moved: "Did we merged the meaning of equality? So like if a filter
