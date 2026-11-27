@@ -21,12 +21,6 @@ final class NamedRules {
     /** A plain decimal number's text, the pattern {@link NamedRule#TEXT_IS_PLAIN_DECIMAL} matches in full. */
     private static final String PLAIN_DECIMAL = "[-]?[0-9]+([.][0-9]+)?";
 
-    /** How numbers of different types compare for a comparison a table names {@code named} for (null: no row, the
-     *  product's own rule): the product's two families, or the three types of {@link NamedRule#NUMBERS_OF_THREE_TYPES}. */
-    static NumberFamilies numbers(@com.legend.base.Nullable NamedRule named) {
-        return named == NamedRule.NUMBERS_OF_THREE_TYPES ? NumberFamilies.THREE_TYPES : NumberFamilies.TWO_FAMILIES;
-    }
-
     /** {@code call} written by {@code rule} over its lowered arguments. */
     static SqlExpr lower(NamedRule rule, TypedNativeCall call, List<SqlExpr> args) {
         return switch (rule) {

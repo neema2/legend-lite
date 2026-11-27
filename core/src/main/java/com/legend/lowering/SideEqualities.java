@@ -91,7 +91,7 @@ public final class SideEqualities {
      * before the actual, as the host's side batch reads them. Null where a side's value has no type the row can carry.
      */
     public static @com.legend.base.Nullable Compared values(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
-            Type aKind, boolean multiset, boolean emptyOnly, NumberFamilies numbers) {
+            Type aKind, boolean multiset, boolean emptyOnly) {
         SqlQuery eRaw = valueRows(eWrapped);
         SqlQuery aRaw = valueRows(aWrapped);
         // each side computed once: where its values are read as instants, the instants read its rows' table (__xe,
@@ -101,7 +101,7 @@ public final class SideEqualities {
         // an Integer side against a Decimal side: two EXACT numbers, equal by their value (the user's ruling of
         // 2026-11-27, "Yes I like the rule": exact with exact by value, a Float only with a Float) -- the Integer
         // side's values read as Decimals, so the two lists hold one type and the database compares the numbers
-        boolean exactPair = numbers == NumberFamilies.TWO_FAMILIES && !eKind.equals(aKind) && exactNumber(eKind)
+        boolean exactPair = !eKind.equals(aKind) && exactNumber(eKind)
                 && exactNumber(aKind);
         boolean bothEmptyOnly = emptyOnly || !eKind.equals(aKind) && !exactPair;
         if (!bothEmptyOnly && eRows != null && aRows != null && exactNumber(eKind) && exactNumber(aKind)) {
@@ -257,19 +257,19 @@ public final class SideEqualities {
      * or a kind (an enumeration's) no column holds.
      */
     public static @com.legend.base.Nullable Compared tagged(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
-            Type aKind, boolean multiset, NumberFamilies numbers) {
+            Type aKind, boolean multiset) {
         // the values compared by KIND (a Decimal of any scale by its value, S139); the values recorded by kind AND SQL
         // type, each Decimal in a column of its own scale, so none is rescaled in the record (batch 3's audit, H1)
         java.util.TreeMap<String, SqlType> kinds = new java.util.TreeMap<>();
         java.util.TreeMap<String, SqlType> held = new java.util.TreeMap<>();
-        if (!kindsOf(eWrapped, eKind, kinds, false, numbers) || !kindsOf(aWrapped, aKind, kinds, false, numbers)
-                || !kindsOf(eWrapped, eKind, held, true, numbers) || !kindsOf(aWrapped, aKind, held, true, numbers)) {
+        if (!kindsOf(eWrapped, eKind, kinds, false) || !kindsOf(aWrapped, aKind, kinds, false)
+                || !kindsOf(eWrapped, eKind, held, true) || !kindsOf(aWrapped, aKind, held, true)) {
             return null;
         }
-        SqlQuery eCells = kindedRows(eWrapped, eKind, kinds, false, numbers);
-        SqlQuery aCells = kindedRows(aWrapped, aKind, kinds, false, numbers);
-        SqlQuery eHeld = kindedRows(eWrapped, eKind, held, true, numbers);
-        SqlQuery aHeld = kindedRows(aWrapped, aKind, held, true, numbers);
+        SqlQuery eCells = kindedRows(eWrapped, eKind, kinds, false);
+        SqlQuery aCells = kindedRows(aWrapped, aKind, kinds, false);
+        SqlQuery eHeld = kindedRows(eWrapped, eKind, held, true);
+        SqlQuery aHeld = kindedRows(aWrapped, aKind, held, true);
         if (eCells == null || aCells == null || eHeld == null || aHeld == null) {
             return null;
         }
@@ -645,7 +645,7 @@ public final class SideEqualities {
 
     /** Whether a tagged side ({@code wrapped}'s first column a {@link SqlType.Tagged}) or a side of one typed class
      *  states its kinds, each with the SQL type that holds it, into {@code into}, keyed by {@link #kindKey}. */
-    static boolean kindsOf(SqlQuery wrapped, Type kind, java.util.Map<String, SqlType> into, boolean byType, NumberFamilies numbers) {
+    static boolean kindsOf(SqlQuery wrapped, Type kind, java.util.Map<String, SqlType> into, boolean byType) {
         if (wrapped.outputs().isEmpty() || wrapped.outputs().get(0).type() == SqlType.Scalar.DECIMAL_TEXT) {
             // (a Decimal the root writes as its text has no typed reading against a tagged side's values: oneCarrier's
             // rule, the audit of 3f2fe452 -- its text was joined against a number)
@@ -659,12 +659,12 @@ public final class SideEqualities {
                 if (!byType && slot.kind().equals("Date")) {
                     // a Date slot holds its value written: each one of the four date kinds, as a written side's
                     for (java.util.Map.Entry<String, SqlType> k : DATE_KINDS.entrySet()) {
-                        into.putIfAbsent(kindKey(k.getKey(), k.getValue(), false, numbers), k.getValue());
+                        into.putIfAbsent(kindKey(k.getKey(), k.getValue(), false), k.getValue());
                     }
                     continue;
                 }
                 // a DateTime compared at the judge's instant (S399): its compare column a TIMESTAMP whatever its slot
-                stated(into, kindKey(slot.kind(), slot.type(), byType, numbers), !byType && instant(slot.kind())
+                stated(into, kindKey(slot.kind(), slot.type(), byType), !byType && instant(slot.kind())
                         ? SqlType.Scalar.TIMESTAMP : slot.type());
             }
             return true;
@@ -673,9 +673,9 @@ public final class SideEqualities {
             // a value carried as JSON (an Any): each value its JSON kind's -- a String, an Integer, a Float, a Boolean --
             // as the product reads a Variant (CastPolicy), compared as that kind's value; recorded as carried
             if (byType) {
-                into.putIfAbsent(kindKey("Any", SqlType.Scalar.JSON, true, numbers), SqlType.Scalar.JSON);
+                into.putIfAbsent(kindKey("Any", SqlType.Scalar.JSON, true), SqlType.Scalar.JSON);
             } else {
-                JSON_KINDS.forEach((k, t) -> stated(into, kindKey(k, t, false, numbers), t));
+                JSON_KINDS.forEach((k, t) -> stated(into, kindKey(k, t, false), t));
             }
             return true;
         }
@@ -684,7 +684,7 @@ public final class SideEqualities {
             // its kind's value and recorded as it is written
             SqlType carried = wrapped.outputs().get(0).type();
             for (java.util.Map.Entry<String, SqlType> k : DATE_KINDS.entrySet()) {
-                into.putIfAbsent(writtenKey(k.getKey(), carried, byType, numbers), byType ? carried : k.getValue());
+                into.putIfAbsent(writtenKey(k.getKey(), carried, byType), byType ? carried : k.getValue());
             }
             return true;
         }
@@ -693,7 +693,7 @@ public final class SideEqualities {
             return false;
         }
         SqlType held = byType ? wrapped.outputs().get(0).type() : heldType(wrapped, t);
-        stated(into, kindKey(kindText(t), held, byType, numbers), held);
+        stated(into, kindKey(kindText(t), held, byType), held);
         return true;
     }
 
@@ -825,18 +825,18 @@ public final class SideEqualities {
 
     /** A written Date's kind's column key: its compared kind's ({@link #DATE_KINDS}), and where the column is the
      *  record's, the text it is written in. */
-    static String writtenKey(String kind, SqlType carried, boolean byType, NumberFamilies numbers) {
-        return kindKey(kind, byType ? carried : java.util.Objects.requireNonNull(DATE_KINDS.get(kind)), byType, numbers);
+    static String writtenKey(String kind, SqlType carried, boolean byType) {
+        return kindKey(kind, byType ? carried : java.util.Objects.requireNonNull(DATE_KINDS.get(kind)), byType);
     }
 
     /** A kind's column key: its name (a DateTime of any written precision one kind, register S399), and where the
      *  column is the record's ({@code byType}) its SQL type too. */
-    static String kindKey(String slotKind, SqlType type, boolean byType, NumberFamilies numbers) {
+    static String kindKey(String slotKind, SqlType type, boolean byType) {
         String kind = MixedEncoding.writtenDigits(slotKind) != null ? "DateTime" : slotKind;
         // compared, an Integer and a Decimal are one kind: two exact numbers are equal by their value (the user's
         // ruling of 2026-11-27), so the two share a compare column; recorded, each is its own
         return byType ? kind + "|" + type
-                : numbers == NumberFamilies.TWO_FAMILIES && MixedEncoding.exactNumber(kind) ? EXACT : kind;
+                : MixedEncoding.exactNumber(kind) ? EXACT : kind;
     }
 
     /** The compare column's key that an Integer's and a Decimal's values share ({@link #kindKey}). */
@@ -846,7 +846,7 @@ public final class SideEqualities {
      *  {@code columns}, then {@code v0..vn} one per key, then {@code __rn}, numbered in the side's own order. A tagged
      *  side's tag names its slot; a typed side's every value is its one kind's. */
     static @com.legend.base.Nullable SqlQuery kindedRows(SqlQuery wrapped, Type kind,
-            java.util.SortedMap<String, SqlType> columns, boolean byType, NumberFamilies numbers) {
+            java.util.SortedMap<String, SqlType> columns, boolean byType) {
         List<String> order = new ArrayList<>(columns.keySet());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         List<OutputCol> outs = new ArrayList<>();
@@ -881,12 +881,12 @@ public final class SideEqualities {
                     for (String k : List.of("DateTime", "Year", "YearMonth", "StrictDate")) {
                         ks.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, at, writtenKindIs(k, text)),
                                 new SqlExpr.IntLit(order.indexOf(kindKey(k, java.util.Objects.requireNonNull(
-                                        DATE_KINDS.get(k)), false, numbers)))));
+                                        DATE_KINDS.get(k)), false)))));
                     }
                     continue;
                 }
                 ks.add(new SqlExpr.Case.When(at,
-                        new SqlExpr.IntLit(order.indexOf(kindKey(slot.kind(), slot.type(), byType, numbers)))));
+                        new SqlExpr.IntLit(order.indexOf(kindKey(slot.kind(), slot.type(), byType)))));
             }
             kOf = new SqlExpr.Case(ks, null, SqlExpr.Reason.JUDGE);
             valueOf = key -> {
@@ -895,7 +895,7 @@ public final class SideEqualities {
                     SqlType.Tagged.Slot slot = tg.slots().get(i);
                     if (!byType && slot.kind().equals("Date")) {
                         for (String k : DATE_KINDS.keySet()) {
-                            if (kindKey(k, java.util.Objects.requireNonNull(DATE_KINDS.get(k)), false, numbers).equals(key)) {
+                            if (kindKey(k, java.util.Objects.requireNonNull(DATE_KINDS.get(k)), false).equals(key)) {
                                 SqlExpr text = SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1));
                                 vs.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.EQUAL,
                                         tag, new SqlExpr.IntLit(i)), writtenKindIs(k, text)),
@@ -904,7 +904,7 @@ public final class SideEqualities {
                         }
                         continue;
                     }
-                    if (kindKey(slot.kind(), slot.type(), byType, numbers).equals(key)) {
+                    if (kindKey(slot.kind(), slot.type(), byType).equals(key)) {
                         SqlExpr held = SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1));
                         vs.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
                                 !byType && instant(slot.kind()) ? new SqlExpr.Cast(held, SqlType.Scalar.TIMESTAMP,
@@ -924,8 +924,8 @@ public final class SideEqualities {
             SqlExpr v = SqlExpr.Column.of("r", r.outputs(), O);
             if (byType) {
                 // recorded as carried: the JSON value itself
-                kOf = new SqlExpr.IntLit(order.indexOf(kindKey("Any", SqlType.Scalar.JSON, true, numbers)));
-                valueOf = key -> key.equals(kindKey("Any", SqlType.Scalar.JSON, true, numbers)) ? v : null;
+                kOf = new SqlExpr.IntLit(order.indexOf(kindKey("Any", SqlType.Scalar.JSON, true)));
+                valueOf = key -> key.equals(kindKey("Any", SqlType.Scalar.JSON, true)) ? v : null;
             } else {
                 SqlExpr jt = SqlExpr.Call.of(SqlFn.JSON_TYPE, v);
                 List<SqlExpr.Case.When> ks = new ArrayList<>();
@@ -933,14 +933,14 @@ public final class SideEqualities {
                         new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.NULL)), new SqlExpr.NullLit()));
                 for (String k : JSON_KINDS.keySet()) {
                     ks.add(new SqlExpr.Case.When(jsonKindIs(k, jt), new SqlExpr.IntLit(order.indexOf(kindKey(k,
-                            java.util.Objects.requireNonNull(JSON_KINDS.get(k)), false, numbers)))));
+                            java.util.Objects.requireNonNull(JSON_KINDS.get(k)), false)))));
                 }
                 // an object or an array: no typed value here, refused by name
                 kOf = new SqlExpr.Case(ks, SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
                         com.legend.sql.RaiseKind.JUDGED_TREE_NOT_TYPED, List.of())), SqlExpr.Reason.JUDGE);
                 valueOf = key -> {
                     for (String k : JSON_KINDS.keySet()) {
-                        if (kindKey(k, java.util.Objects.requireNonNull(JSON_KINDS.get(k)), false, numbers).equals(key)) {
+                        if (kindKey(k, java.util.Objects.requireNonNull(JSON_KINDS.get(k)), false).equals(key)) {
                             SqlType column = java.util.Objects.requireNonNull(columns.get(key), "a kind's SQL type");
                             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(jsonKindIs(k, jt), fitted(jsonValue(k,
                                     v), java.util.Objects.requireNonNull(JSON_KINDS.get(k)), column))), nullOf(column),
@@ -958,10 +958,10 @@ public final class SideEqualities {
             SqlQuery r = rows;
             SqlExpr text = SqlExpr.Column.of("r", r.outputs(), O);
             SqlType carried = r.outputs().get(0).type();
-            kOf = dateKindOfText(text, name -> order.indexOf(writtenKey(name, carried, byType, numbers)));
+            kOf = dateKindOfText(text, name -> order.indexOf(writtenKey(name, carried, byType)));
             valueOf = key -> {
                 for (String k : DATE_KINDS.keySet()) {
-                    if (writtenKey(k, carried, byType, numbers).equals(key)) {
+                    if (writtenKey(k, carried, byType).equals(key)) {
                         // compared as its kind's value; recorded as it is written
                         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(writtenKindIs(k, text),
                                 byType ? text : writtenDateValue(k, text))), nullOf(java.util.Objects.requireNonNull(
@@ -979,7 +979,7 @@ public final class SideEqualities {
             }
             SqlQuery r = rows;
             String own = kindKey(kindText(t), byType ? wrapped.outputs().get(0).type() : heldType(wrapped, t),
-                    byType, numbers);
+                    byType);
             kOf = new SqlExpr.IntLit(order.indexOf(own));
             valueOf = key -> key.equals(own) ? byType ? SqlExpr.Column.of("r", r.outputs(), O) : fitted(
                     SqlExpr.Column.of("r", r.outputs(), O), r.outputs().get(0).type(), java.util.Objects.requireNonNull(
@@ -1189,17 +1189,16 @@ public final class SideEqualities {
     public static @com.legend.base.Nullable Compared containsTagged(SqlQuery collWrapped, Type collKind,
             SqlQuery valWrapped, Type valKind) {
         // (an assert's membership is judged by the product's own rule: a compatibility door's is the host judge's)
-        NumberFamilies numbers = NumberFamilies.TWO_FAMILIES;
         java.util.TreeMap<String, SqlType> kinds = new java.util.TreeMap<>();
         java.util.TreeMap<String, SqlType> held = new java.util.TreeMap<>();
-        if (!kindsOf(collWrapped, collKind, kinds, false, numbers) || !kindsOf(valWrapped, valKind, kinds, false, numbers)
-                || !kindsOf(collWrapped, collKind, held, true, numbers) || !kindsOf(valWrapped, valKind, held, true, numbers)) {
+        if (!kindsOf(collWrapped, collKind, kinds, false) || !kindsOf(valWrapped, valKind, kinds, false)
+                || !kindsOf(collWrapped, collKind, held, true) || !kindsOf(valWrapped, valKind, held, true)) {
             return null;
         }
-        SqlQuery cc = kindedRows(collWrapped, collKind, kinds, false, numbers);
-        SqlQuery vc = kindedRows(valWrapped, valKind, kinds, false, numbers);
-        SqlQuery ch = kindedRows(collWrapped, collKind, held, true, numbers);
-        SqlQuery vh = kindedRows(valWrapped, valKind, held, true, numbers);
+        SqlQuery cc = kindedRows(collWrapped, collKind, kinds, false);
+        SqlQuery vc = kindedRows(valWrapped, valKind, kinds, false);
+        SqlQuery ch = kindedRows(collWrapped, collKind, held, true);
+        SqlQuery vh = kindedRows(valWrapped, valKind, held, true);
         if (cc == null || vc == null || ch == null || vh == null) {
             return null;
         }
@@ -1548,19 +1547,12 @@ public final class SideEqualities {
      * calls equal compared by its kind tag. Where the verdict fails, each grid's rows ride back as typed row structs
      * for the host's record ({@code AssertKind.EQUALS} over the rows, {@code NOT_EQUALS}). Null where a column has no
      * typed class ({@link #typedClass}), or a date column's cells are no date the database holds.
+     *
+     * <p>An Integer and a Decimal are equal by their value (the user's ruling of 2026-11-27): an Integer column
+     * against a Decimal one is compared by value, each side's cells carried as one type ({@link #besideExact}).
      */
     public static @com.legend.base.Nullable Compared grids(GridSide e, List<Type> eKinds, GridSide a,
             List<Type> aKinds, boolean multiset, boolean schemasDiffer, Type eRows, Type aRows) {
-        return grids(e, eKinds, a, aKinds, multiset, schemasDiffer, eRows, aRows, NumberFamilies.TWO_FAMILIES);
-    }
-
-    /** {@link #grids(GridSide, List, GridSide, List, boolean, boolean, Type, Type)} under {@code numbers}: where an
-     *  Integer and a Decimal are equal by their value (the user's ruling of 2026-11-27), an Integer column against a
-     *  Decimal one is compared by value, each side's cells carried as one type ({@link #besideExact}); where the two
-     *  are two types, by its kind tag, as any two kinds are. */
-    public static @com.legend.base.Nullable Compared grids(GridSide e, List<Type> eKinds, GridSide a,
-            List<Type> aKinds, boolean multiset, boolean schemasDiffer, Type eRows, Type aRows,
-            NumberFamilies numbers) {
         if (!typedGrid(e, eKinds) || !typedGrid(a, aKinds)) {
             return null;
         }
@@ -1572,7 +1564,7 @@ public final class SideEqualities {
             boolean twoKinds = both
                     && !java.util.Objects.equals(typedClass(eKinds.get(i)), typedClass(aKinds.get(i)));
             boolean bothExact = both && exactNumber(eKinds.get(i)) && exactNumber(aKinds.get(i));
-            boolean exact = twoKinds && numbers == NumberFamilies.TWO_FAMILIES && bothExact;
+            boolean exact = twoKinds && bothExact;
             tagged.add(twoKinds && !exact);
             // carried as one type: an Integer column beside a Decimal one (two exact numbers), and two Decimal
             // columns one of which a store read carries as its text beside one the plan types (a Decimal by its
@@ -1671,13 +1663,13 @@ public final class SideEqualities {
      * columns, or a column has no typed comparison.
      */
     public static @com.legend.base.Nullable Compared tables(SqlQuery left, Type.RelationType l,
-            SqlQuery right, Type.RelationType r, boolean multiset, NumberFamilies numbers) {
+            SqlQuery right, Type.RelationType r, boolean multiset) {
         if (left.outputs().size() != l.columns().size() || right.outputs().size() != r.columns().size()) {
             return null;
         }
         return grids(tableSide(left, l.columns().size()), l.columns().stream().map(Type.Column::type).toList(),
                 tableSide(right, r.columns().size()), r.columns().stream().map(Type.Column::type).toList(),
-                multiset, false, l, r, numbers);
+                multiset, false, l, r);
     }
 
     /** A table's plan as a grid side: its rows' ordinal as its last output, and its data columns named and typed
@@ -1906,19 +1898,12 @@ public final class SideEqualities {
      * class, each a row of its typed leaves ({@code keys}, or its identity where it has none); lists and maps; instances
      * carried as their JSON documents.
      */
-    public record Pair(Type e, Type a, Form form, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys,
-            NumberFamilies numbers) {
+    public record Pair(Type e, Type a, Form form, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
         /** The form of a pair's comparison. */
         public enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES, COLLECTIONS, INSTANCE_TEXTS }
 
         Pair(Type e, Type a, Form form) {
-            this(e, a, form, null, NumberFamilies.TWO_FAMILIES);
-        }
-
-        /** This pair compared by {@code numbers}' rule for numbers of different types (the product's two families
-         *  unless the door that admitted the comparison names another, {@code Lowerer.numbersOf}). */
-        public Pair under(NumberFamilies numbers) {
-            return new Pair(e, a, form, keys, numbers);
+            this(e, a, form, null);
         }
 
         /** Whether the pair's two typed kinds differ (register S127): a reader's question about the record it
@@ -1934,11 +1919,10 @@ public final class SideEqualities {
          *  have no typed column. */
         public @com.legend.base.Nullable Compared compared(SqlQuery ePlan, SqlQuery aPlan, boolean multiset) {
             return switch (form) {
-                case TAGGED -> tagged(ePlan, e, aPlan, a, multiset, numbers);
+                case TAGGED -> tagged(ePlan, e, aPlan, a, multiset);
                 case INSTANCES -> instances(ePlan, e, aPlan, a, keys, multiset);
                 case COLLECTIONS -> collections(ePlan, e, aPlan, a, multiset);
-                case VALUES, DATES, EMPTY_ONLY -> values(ePlan, e, aPlan, a, multiset, form == Form.EMPTY_ONLY,
-                        numbers);
+                case VALUES, DATES, EMPTY_ONLY -> values(ePlan, e, aPlan, a, multiset, form == Form.EMPTY_ONLY);
                 case INSTANCE_TEXTS -> instanceTexts(ePlan, e, aPlan, a, multiset);
             };
         }
@@ -2018,7 +2002,7 @@ public final class SideEqualities {
         // restricts by the classifiers its run carries, which the host reads)
         return ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
                 ? new Pair(eKind, aKind, Pair.Form.INSTANCES, variantKeysRefused(EqualityKeys.resolve(ctx,
-                        eSpec.info().type())), NumberFamilies.TWO_FAMILIES)
+                        eSpec.info().type())))
                 : null;
     }
 

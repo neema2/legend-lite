@@ -2385,6 +2385,22 @@ final class Scalars {
         return new SqlExpr.BoolLit(true);
     }
 
+    /**
+     * THE LOWERING'S ONE QUESTION TO THE DOOR ABOUT A CALL (the edition program's step 5: "the lowering's side is one
+     * lookup"): the rule the door's table names for {@code call}, or null where it names none and the call is lowered
+     * by the product's own rule. One piece of code, asked where a call's rule is picked: {@link #lower} for every
+     * scalar native, and the {@code Lowerer} for a comparison of two whole sides, whose own rule is the planner's
+     * statement ({@link WholeComparisons}).
+     *
+     * <p>A ROW REPLACES THE CALL'S OWN RULE, ALL OF IT. For {@code ==} the product's own rule is more than its SQL
+     * operator: the whole-side statement for two computed lists, maps or tables ({@link WholeComparisons}), and the
+     * refusal of two column types that can never be equal ({@link HeldKinds}). A door that names a rule for
+     * {@code ==} ({@link NamedRule#NUMBERS_OF_THREE_TYPES}) gets neither; nothing else decides that.
+     */
+    static @com.legend.base.Nullable NamedRule doorsRule(TypedNativeCall call, Set<Feature> features, Styled styled) {
+        return styled.edition().lowersAs(call, features);
+    }
+
     /** The lowering for {@code call}'s resolved overload under the query's
      *  feature flags (a flagged rule, {@link FeatureRules}, wins over the
      *  plain one for its key); loud error when unregistered. */
@@ -2393,7 +2409,7 @@ final class Scalars {
         com.legend.model.FunctionId key = call.callee().id();
         // the edition's table (EditionTable): a door's row names another rule of the product's that lowers this call
         // (NamedRule), by the call's stamp; the product's table has no row
-        NamedRule named = styled.edition().lowersAs(call, features);
+        NamedRule named = doorsRule(call, features, styled);
         if (named != null) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR");
             return NamedRules.lower(named, call, loweredArgs);

@@ -358,7 +358,7 @@ class RootComparisonTest {
     /** ONE EQUALITY WHEREVER THE COMPARISON STANDS (the user, 2026-11-27: "why cant we do the work we promised to get
      *  to one equality?"): a comparison of two whole sides answers the same as a query's last statement, as an
      *  {@code if}'s condition and as an operand of {@code &&}. Inside an expression it is the same statement, read
-     *  as one value ({@code planner.RootComparison.inside}). Until then it was the database's own comparison of two
+     *  as one value ({@code planner.RootComparison.over}). Until then it was the database's own comparison of two
      *  list values there: measured 2026-11-27, two tables with other column names or rows in another order answered
      *  "the same" on DuckDB and SQLite, two maps written in another order "not the same", two Decimal lists of other
      *  written scales "not the same" on SQLite, and H2 answered a database error or refused. Where a database refuses
@@ -397,6 +397,35 @@ class RootComparisonTest {
             }
         }
         assertEquals(List.of(), differs, "the same comparison, the same answer");
+    }
+
+    /** A SIDE THAT READS A {@code let} (the closing batch, 2026-11-27: one entry). The lowering asks the planner
+     *  for the body's last statement and for a comparison inside an expression alike ({@code lowering
+     *  .WholeComparisons}), and each side is planned with the lets it reads -- a list's, a sorted table's -- so the
+     *  two answer the same. Until then the last statement was planned by a pass of the planner's own, before the
+     *  lowering, and a comparison inside an expression by the lowering's call: two entries for one comparison. */
+    @Test
+    void aSideThatReadsALetAnswersTheSameWhereverTheComparisonStands() throws Exception {
+        String list = "let a = [1, 2]->filter(x | $x > 0); ";
+        String table = "let t = #TDS\n id, s\n 1, x\n 2, y\n#->sort(~id->ascending()); ";
+        Map<String, Object> cases = new LinkedHashMap<>();
+        cases.put("{| " + list + "$a == [1, 2]; }", true);
+        cases.put("{| " + list + "!($a == [2, 1]); }", true);
+        cases.put("{| " + list + "if($a == [1, 2], |'same', |'other'); }", "same");
+        cases.put("{| " + list + "if($a == [2, 1], |'same', |'other'); }", "other");
+        cases.put("{| " + table + "$t == $t; }", true);
+        cases.put("{| " + table + "if($t == $t, |'same', |'other'); }", "same");
+        List<String> wrong = new java.util.ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (Map.Entry<String, Object> c : cases.entrySet()) {
+                String got = outcome(backend, model, c.getKey());
+                if (!String.valueOf(List.of(List.of(c.getValue()))).equals(got)) {
+                    wrong.add(backend.type() + ": " + c.getKey().replace('\n', ' ') + " -> " + got);
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "every case on every database");
     }
 
     /** {@code query}'s rows, or the name of what refused it. */

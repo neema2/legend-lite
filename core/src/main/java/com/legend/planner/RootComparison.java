@@ -11,6 +11,7 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.lowering.SideEqualities;
+import com.legend.lowering.WholeComparisons;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
@@ -40,29 +41,24 @@ import java.util.function.Function;
  * same two sides, their elements or rows compared in ANY order, each as often on one side as on the other. It has no
  * other form: where {@code ==} would fall back to the plain comparison, it is refused by name.
  *
- * <p>The product's own rule alone: a comparison a compatibility door admitted is the plain comparison it was.
+ * <p>THE PRODUCT'S OWN RULE, AND THE LOWERING'S TO ASK FOR ({@link WholeComparisons}): this class knows nothing of
+ * who is asking. The lowering asks here only for a comparison the door's table named no rule for, by the one lookup
+ * it has ({@code lowering.Scalars.doorsRule}); a comparison a compatibility door named a rule for is lowered by that
+ * rule and never reaches this class (the user, 2026-11-27: "We shouldn't land with the planner knowing editions";
+ * until the closing batch this class read which number rule the door's table had named, and stood aside by it).
  */
 final class RootComparison {
 
     private RootComparison() {
     }
 
-    /** {@code body}'s comparison planned over its two sides ({@code lowered}: a body's plan, the lets it reads and
-     *  one side), or null where its last statement is no comparison of two whole sides, or the sides have no typed
-     *  comparison (the statement is then lowered as any expression is). */
-    static @Nullable SqlQuery plan(List<TypedSpec> body, Function<List<TypedSpec>, SqlQuery> lowered,
-            Function<TypedNativeCall, com.legend.lowering.NumberFamilies> numbersOf, ModelContext ctx) {
-        if (body.isEmpty()) {
-            return null;
-        }
-        TypedSpec root = body.get(body.size() - 1);
-        boolean negated = false;
-        if (root instanceof TypedNativeCall not && not.args().size() == 1
-                && Pure.AT_BOOLEAN_NOT.contains(not.callee().id())) {
-            negated = true;
-            root = not.args().get(0);
-        }
-        if (!(root instanceof TypedNativeCall equal) || equal.args().size() != 2) {
+    /** {@code equal} (a {@code ==} or a {@code hasSameElements} of two sides; under {@code negated}, its {@code !})
+     *  planned over its two sides ({@code lowered}: a body's plan, the lets it reads and one side), reading
+     *  {@code lets}; or null where the sides have no whole comparison (two single values, two known types): the
+     *  comparison is then lowered as any expression is. */
+    private static @Nullable SqlQuery plan(List<TypedSpec> lets, TypedNativeCall equal, boolean negated,
+            java.util.Collection<TypedSpec> seeded, Function<List<TypedSpec>, SqlQuery> lowered, ModelContext ctx) {
+        if (equal.args().size() != 2) {
             return null;
         }
         // hasSameElements(a, b): the two sides' elements, or two tables' rows, in ANY order (Pure.Lite.HAS_SAME_ELEMENTS)
@@ -72,26 +68,18 @@ final class RootComparison {
         }
         TypedSpec left = equal.args().get(0);
         TypedSpec right = equal.args().get(1);
-        // (hasSameElements is the product's own function: the product's rule for numbers, whichever door admitted the
-        // code that calls it)
-        com.legend.lowering.NumberFamilies numbers = anyOrder ? com.legend.lowering.NumberFamilies.TWO_FAMILIES
-                : numbersOf.apply(equal);
-        if (numbers != com.legend.lowering.NumberFamilies.TWO_FAMILIES) {
-            // a comparison a compatibility door admitted (its table names its own rule for ==): the plain comparison
-            // it was before this class, so the door keeps every answer it had -- the database's for two sides typed
-            // Number or Any (1->cast(@Number) == 1D->cast(@Number) is true at legend-engine's door), no refusal the
-            // plain path did not make, two tables as they were (the outside audit of 2026-11-27, HIGH 1)
-            return null;
-        }
-        if (body.stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)) {
+        List<TypedSpec> body = with(lets, equal);
+        if (body.stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)
+                || seeded.stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)) {
             // a value drawn afresh where it is written (random(), generateGuid()): planned as two sides, a let both
-            // sides read would be drawn twice (the same audit): the plain comparison, which reads it once or refuses
+            // sides read would be drawn twice (the outside audit of 2026-11-27): the plain comparison, which reads
+            // it once or refuses. The lets the environment seeds are read too (the third review, L3: a seeded let
+            // is as much the sides' as one the statement binds)
             return unplanned(anyOrder, "a value drawn afresh where it is written (random, generateGuid) would be"
                     + " drawn once for each side");
         }
-        List<TypedSpec> lets = body.subList(0, body.size() - 1);
         if (table(left) || table(right)) {
-            return tables(left, right, lets, negated, lowered, numbers, anyOrder);
+            return tables(left, right, lets, negated, lowered, anyOrder);
         }
         if (anyOrder) {
             // the equality rule: different types never compare, a compile error naming the two -- the type-checker's
@@ -126,37 +114,37 @@ final class RootComparison {
         SqlQuery rightPlan = lowered.apply(with(lets, right));
         SideEqualities.Pair pair = SideEqualities.pair(left, kind(left, leftPlan), leftPlan, right,
                 kind(right, rightPlan), rightPlan, ctx);
-        SideEqualities.Compared compared = pair == null ? null
-                : pair.under(numbers).compared(leftPlan, rightPlan, anyOrder);
+        SideEqualities.Compared compared = pair == null ? null : pair.compared(leftPlan, rightPlan, anyOrder);
         return compared == null ? unplanned(anyOrder, "its sides (" + valueType(left).typeName() + " and "
                 + valueType(right).typeName() + ") have no typed comparison") : answer(compared, negated);
     }
 
     /**
-     * THE SAME COMPARISON INSIDE AN EXPRESSION (the edition program's step 6; the user, 2026-11-27: "why cant we do
-     * the work we promised to get to one equality?"): the lowering asks here for every {@code ==} and
-     * {@code hasSameElements} it meets inside an expression -- an {@code if}'s condition, an operand of {@code &&},
-     * {@code ||} or {@code !}, an assert's condition, a column's value. Where the two sides are whole (a computed list,
-     * a map, a table) and read nothing of the row or element the comparison stands in (only the statement's own lets,
-     * {@code body}'s statements before its last, and the lets the environment seeds), the answer is {@link #plan}'s
-     * statement, which the lowering reads as one
-     * value: the code that answers the comparison as a query's last statement, and judges an assert of the two. So
-     * the comparison answers the same wherever it stands. Until then it was the database's own comparison of two
-     * list values there (two tables' column names and row order unread, two maps' entries by the order they were
-     * written in, a Decimal list by its text where a list is JSON, a database error where a database has no lists:
-     * measured 2026-11-27).
+     * THE PLANNER'S ANSWERS FOR {@code body}'S COMPARISONS OF TWO WHOLE SIDES ({@link WholeComparisons}), which the
+     * lowering asks for the comparisons the product's own rule lowers: the body's last statement
+     * ({@code asTheStatement}: this class's statement is the statement), and every {@code ==} and
+     * {@code hasSameElements} met inside an expression -- an {@code if}'s condition, an operand of {@code &&},
+     * {@code ||} or {@code !}, an assert's condition, a column's value ({@code insideAnExpression}: the same
+     * statement, which the lowering reads as one value). One code answers both, and judges an assert of the two
+     * sides: the comparison answers the same wherever it stands (the user, 2026-11-27: "why cant we do the work we
+     * promised to get to one equality?"). Until then the comparison inside an expression was the database's own
+     * comparison of two list values (two tables' column names and row order unread, two maps' entries by the order
+     * they were written in, a Decimal list by its text where a list is JSON, a database error where a database has
+     * no lists: measured 2026-11-27).
      *
-     * <p>Null where this class does not plan the comparison: the plain comparison it was (two single values; a side
-     * that reads the row it stands in, which only a database's own list values compare -- the database follow-up).
+     * <p>Inside an expression a side is planned only where it reads nothing of the row or element the comparison
+     * stands in: the statement's own lets ({@code body}'s statements before its last), the lets the environment
+     * seeds ({@code seeded}) and the query's parameters ({@code parameters}) -- never a name some lambda of the
+     * statement binds too (a name bound twice is not told apart here: left to the plain comparison). The body's last
+     * statement stands in no lambda, so it has no such test.
+     *
+     * @param lowered a body's plan: the lets it reads and one side, lowered as the statement it is
      */
-    static Function<TypedNativeCall, @Nullable SqlQuery> inside(List<TypedSpec> body, java.util.Set<String> seedable,
-            Function<List<TypedSpec>, SqlQuery> lowered,
-            Function<TypedNativeCall, com.legend.lowering.NumberFamilies> numbersOf, ModelContext ctx) {
-        // what a side may read beside itself: the statement's own lets (its statements before the last) and the lets
-        // the environment seeds; never a name some lambda of the statement binds too (a side that reads a row or an
-        // element is that row's, and a name bound twice is not told apart here: left to the plain comparison)
+    static WholeComparisons over(List<TypedSpec> body, java.util.Map<String, TypedSpec> seeded,
+            java.util.Set<String> parameters, Function<List<TypedSpec>, SqlQuery> lowered, ModelContext ctx) {
         List<TypedSpec> lets = body.isEmpty() ? List.of() : List.copyOf(body.subList(0, body.size() - 1));
-        java.util.Set<String> readable = new java.util.LinkedHashSet<>(seedable);
+        java.util.Set<String> readable = new java.util.LinkedHashSet<>(seeded.keySet());
+        readable.addAll(parameters);
         for (TypedSpec let : lets) {
             if (let instanceof com.legend.compiler.spec.typed.TypedLet named) {
                 readable.add(named.name());
@@ -167,24 +155,28 @@ final class RootComparison {
             lambdaBound(body.get(body.size() - 1), bound);
         }
         readable.removeAll(bound);
-        return call -> {
-            if (call.args().size() != 2) {
-                return null;
+        java.util.Collection<TypedSpec> seededValues = List.copyOf(seeded.values());
+        return new WholeComparisons() {
+            @Override
+            public @Nullable SqlQuery asTheStatement(TypedNativeCall comparison, boolean negated) {
+                return plan(lets, comparison, negated, seededValues, lowered, ctx);
             }
-            boolean anyOrder = Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(call.callee().id());
-            if (!anyOrder && !Pure.AT_BOOLEAN_EQUAL.contains(call.callee().id())) {
-                return null;
+
+            @Override
+            public @Nullable SqlQuery insideAnExpression(TypedNativeCall comparison) {
+                if (comparison.args().size() != 2) {
+                    return null;
+                }
+                boolean anyOrder = Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(comparison.callee().id());
+                if (!anyOrder && !wholeOrTable(comparison.args().get(0)) && !wholeOrTable(comparison.args().get(1))) {
+                    return null;
+                }
+                if (!readable.containsAll(com.legend.compiler.spec.typed.FreeVars.of(comparison))) {
+                    // a side reads the row or the element the comparison stands in
+                    return null;
+                }
+                return plan(lets, comparison, false, seededValues, lowered, ctx);
             }
-            TypedSpec left = call.args().get(0);
-            TypedSpec right = call.args().get(1);
-            if (!anyOrder && !wholeOrTable(left) && !wholeOrTable(right)) {
-                return null;
-            }
-            if (!readable.containsAll(com.legend.compiler.spec.typed.FreeVars.of(call))) {
-                // a side reads the row or the element the comparison stands in
-                return null;
-            }
-            return plan(with(lets, call), lowered, numbersOf, ctx);
         };
     }
 
@@ -207,15 +199,14 @@ final class RootComparison {
         }
     }
 
-    /** {@code lowerer}, a test body's ({@code BodyPlanner.lowererFor}), asking here for the comparisons of two whole
-     *  sides it meets inside an expression (an assert's condition, an {@code if}'s): each side lowered by a lowerer
-     *  made as it was. */
+    /** {@code lowerer}, a test body's ({@code BodyPlanner.lowererFor}), handed this class's answers for the
+     *  comparisons of two whole sides it meets (the body's last statement, an assert's condition, an {@code if}'s):
+     *  each side lowered by a lowerer made as it was. A test body declares no parameter. */
     static com.legend.lowering.Lowerer asking(com.legend.lowering.Lowerer lowerer, List<TypedSpec> body, PlanEnv env,
             ModelContext ctx, boolean identity) {
-        return lowerer.withWholeComparisons(inside(body, env.queryLets().keySet(),
+        return lowerer.withWholeComparisons(over(body, env.queryLets(), java.util.Set.of(),
                 side -> BodyPlanner.lowererFor(side, env, ctx, identity).lower(
-                        com.legend.lowering.SeedableLets.withSeedableLetPrefix(side, env.queryLets(), ctx)),
-                lowerer::numbersOf, ctx));
+                        com.legend.lowering.SeedableLets.withSeedableLetPrefix(side, env.queryLets(), ctx)), ctx));
     }
 
     /**
@@ -269,8 +260,7 @@ final class RootComparison {
      * a table's columns exist only when the query runs, or a column has no typed comparison.
      */
     private static @Nullable SqlQuery tables(TypedSpec left, TypedSpec right, List<TypedSpec> lets, boolean negated,
-            Function<List<TypedSpec>, SqlQuery> lowered, com.legend.lowering.NumberFamilies numbers,
-            boolean anyOrder) {
+            Function<List<TypedSpec>, SqlQuery> lowered, boolean anyOrder) {
         if (!(Type.schemaView(left.info().type()) instanceof Type.RelationType l) || l.isLateBound()
                 || !(Type.schemaView(right.info().type()) instanceof Type.RelationType r) || r.isLateBound()) {
             return unplanned(anyOrder, "a table against a side that is no table, or a table whose columns exist only"
@@ -293,7 +283,7 @@ final class RootComparison {
         // an Any: the reading an assert's judge gives a table's cells); hasSameElements: the rows as a multiset
         SideEqualities.Compared compared = SideEqualities.tables(leftPlan,
                 com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(l, leftPlan.outputs()), rightPlan,
-                com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(r, rightPlan.outputs()), anyOrder, numbers);
+                com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(r, rightPlan.outputs()), anyOrder);
         return compared == null ? unplanned(anyOrder, "a column of its tables has no typed comparison")
                 : answer(compared, negated);
     }

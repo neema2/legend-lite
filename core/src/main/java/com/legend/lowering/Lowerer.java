@@ -307,14 +307,6 @@ public final class Lowerer {
     /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
     private @com.legend.base.Nullable SharedRelations.Frame sharing;
 
-    /** How numbers of different types compare for {@code comparison} here: the product's two families, unless this
-     *  door's table names the three types for the call ({@code NamedRule.NUMBERS_OF_THREE_TYPES}). Asked by the
-     *  planner for a comparison it could plan over two whole sides ({@code planner.RootComparison}), which it does
-     *  under the product's rule alone. */
-    public NumberFamilies numbersOf(TypedNativeCall comparison) {
-        return NamedRules.numbers(styled().edition().lowersAs(comparison, features));
-    }
-
     /** Whether a relation the statement reads more than once is written once ({@code on}), or at each read as
      *  legend-engine writes it: a frame whose post-processor extracts the statement's subqueries as common table
      *  expressions of its own spelling. */
@@ -392,27 +384,53 @@ public final class Lowerer {
         }
     }
 
-    /** The planner's answer for a comparison of two whole sides met inside an expression ({@link
-     *  #withWholeComparisons}); null where no planner gave one (a lowerer made outside the planner's roads). */
-    private java.util.function.@com.legend.base.Nullable Function<TypedNativeCall,
-            @com.legend.base.Nullable SqlQuery> wholeComparisons;
+    /** The planner's answers for comparisons of two whole sides ({@link #withWholeComparisons}); null where no
+     *  planner gave any (a lowerer made outside the planner's roads). */
+    private @com.legend.base.Nullable WholeComparisons wholeComparisons;
 
-    /** A comparison of two WHOLE sides (computed lists, maps, tables) inside an expression is answered by
-     *  {@code planner}'s statement for it, read here as one value: the statement that answers the same comparison as
-     *  a query's last, so it answers the same wherever it stands ({@code planner.RootComparison.inside}; the edition
-     *  program's step 6, 2026-11-27). {@code planner} answers null for a comparison it does not plan. */
-    public Lowerer withWholeComparisons(Function<TypedNativeCall, @com.legend.base.Nullable SqlQuery> planner) {
+    /** A comparison of two WHOLE sides (computed lists, maps, tables) is answered by {@code planner}'s statement for
+     *  it ({@link WholeComparisons}; the edition program's step 6, 2026-11-27): as the body's last statement that
+     *  statement is the statement ({@link #wholeAnswer}); inside an expression it is read as one value
+     *  ({@link #wholeSides}); so the comparison answers the same wherever it stands. The planner is asked only for
+     *  a comparison the door's table named no rule for ({@link Scalars#doorsRule}): it knows nothing of doors. */
+    public Lowerer withWholeComparisons(WholeComparisons planner) {
         this.wholeComparisons = planner;
         return this;
     }
 
-    /** {@code n} as the planner's statement for a comparison of two whole sides, one value; null where it has none. */
+    /** {@code n}, met inside an expression, as the planner's statement for a comparison of two whole sides, one
+     *  value; null where the door named a rule for the call (it is lowered by that rule), or the planner has no
+     *  statement for it. */
     private @com.legend.base.Nullable SqlExpr wholeSides(TypedNativeCall n) {
-        if (wholeComparisons == null) {
+        if (wholeComparisons == null || Scalars.doorsRule(n, features, styled()) != null) {
             return null;
         }
-        @com.legend.base.Nullable SqlQuery planned = wholeComparisons.apply(n);
+        @com.legend.base.Nullable SqlQuery planned = wholeComparisons.insideAnExpression(n);
         return planned == null ? null : new SqlExpr.ScalarSubquery(planned);
+    }
+
+    /** {@code body}'s answer where its LAST statement is a comparison of two whole sides ({@code ==},
+     *  {@code hasSameElements}, or {@code !} of one) that the product's own rule lowers and the planner plans: the
+     *  planner's statement, which IS the statement (no wrapper, nothing pruned or rebound: it is whole as planned).
+     *  Null for every other body, which is lowered as it always was. Asked before the lets are lowered: the planner
+     *  plans each side with the lets it reads. */
+    private @com.legend.base.Nullable SqlQuery wholeAnswer(List<TypedSpec> body) {
+        if (wholeComparisons == null || body.isEmpty()) {
+            return null;
+        }
+        TypedSpec root = body.get(body.size() - 1);
+        boolean negated = false;
+        if (root instanceof TypedNativeCall not && not.args().size() == 1 && isFamily(not, Pure.AT_BOOLEAN_NOT)) {
+            negated = true;
+            root = not.args().get(0);
+        }
+        if (!(root instanceof TypedNativeCall comparison) || comparison.args().size() != 2
+                || !isFamily(comparison, Pure.AT_BOOLEAN_EQUAL)
+                        && !Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(comparison.callee().id())
+                || Scalars.doorsRule(comparison, features, styled()) != null) {
+            return null;
+        }
+        return wholeComparisons.asTheStatement(comparison, negated);
     }
 
     /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
@@ -584,6 +602,11 @@ public final class Lowerer {
      */
     public SqlQuery lower(List<TypedSpec> body) {
         com.legend.base.RunScope.planning("lower a spec");
+        // a comparison of two whole sides as the body's answer: the planner's statement for it (wholeAnswer)
+        SqlQuery whole = wholeAnswer(body);
+        if (whole != null) {
+            return whole;
+        }
         if (cellGrids == null) {
             cellGrids = cellGrids(body);   // before the lets are lowered (withQueryLets)
         }
