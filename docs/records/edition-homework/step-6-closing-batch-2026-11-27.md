@@ -267,6 +267,14 @@ answers. The measure is to be run again in the one verification.
   `assertEquals` (`OrderedAsserts.rewrite`, `UpstreamTestBodies.assertOfEqualsOrderFree`). A `==` in a query at
   legend-engine's door keeps upstream's ordered meaning. Lite's own `assertSameElements` and `hasSameElements` are one
   comparison, and the acceptance measure now pairs them.
+- **Step 6's scope after the architecture audit, ruled:** "I guess let's do A and then fast follow with B?" (to: A,
+  land what is real and name it honestly, with making the two comparison codes one as its own next step; B, make
+  them one before landing). So the batch is verified once and brought to the user as one landing summary; "one
+  equality" is claimed only for what the audit found real (a comparison of two whole sides at lite's own door), and
+  the rest is named as two codes that are meant to agree, with the measure beside it. B follows at once, its design
+  reviewed before any code. The user's question with it, to be answered by B's design and not forgotten: "How did we
+  get this so wrong even after many rounds of audits of the plans? And so many checks on our tenets? Feels like we
+  completely missed the mark?"
 - **B2, ruled:** "3 size before we decide", then, on the sizing and the probe: "Build 3". Built in the batch.
 - **5 (B6, B7, B9, B10, B13):** "other 5 do you suggest to keep for now" -- the author's answer: yes, all five, with
   a register row for B9's `max` tie and for B10, written in the batch and shown in the landing summary. Put to the
