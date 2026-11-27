@@ -290,6 +290,12 @@ final class Typer {
      *  setting's answer for it. */
     TypedSpec compared(TypedSpec call, com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
+        if (compared == Compared.UNREAD && crossTypes.readsBodies()) {
+            // code the setting is never asked about (an island's translation, a planner's own frame) is not the
+            // query's own either: its comparison without the position the planning-time refusal reads
+            // (EqualityClasses.notTheQuerys; the third review of 2026-11-27, L7)
+            return EqualityClasses.notTheQuerys(call);
+        }
         if (compared == Compared.UNREAD || compared != Compared.QUERY && !crossTypes.readsBodies()) {
             return call;
         }

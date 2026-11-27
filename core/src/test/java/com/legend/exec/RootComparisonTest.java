@@ -302,6 +302,35 @@ class RootComparisonTest {
         assertEquals(List.of(), wrong, "every case on every database");
     }
 
+    /** A LIST whose order the query does not define is refused under {@code ==} as a table is (the third review of
+     *  2026-11-27, M1: a store's rows mapped to a list had been compared in the order the database returned them,
+     *  where an assert of the same side is refused); sorted it is compared, and {@code sameElements} takes it as it
+     *  is. */
+    @Test
+    void anUnsortedListIsRefusedUnderEquals() throws Exception {
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        String names = "p::Party.all()->map(p | $p.name)";
+        try (Connection connection = backend.open()) {
+            RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> Lean.established(model, "|" + names + " == ['Meridian', 'Other']", "p::RT", connection));
+            org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(e.getMessage()).contains("== compares two"
+                    + " lists in order") && e.getMessage().contains("sameElements"), e.getMessage());
+        }
+        Map<String, Boolean> answered = new LinkedHashMap<>();
+        answered.put("|" + names + "->sort() == ['Meridian', 'Other']", false);
+        answered.put("|sameElements(" + names + ", ['Meridian'])", true);
+        answered.put("|sameElements(" + names + ", ['Meridian', 'Other'])", false);
+        // (against one value an ordered and an order-free comparison agree: not refused, as the assert's rule)
+        answered.put("|" + names + " == ['Meridian']", true);
+        for (Map.Entry<String, Boolean> c : answered.entrySet()) {
+            try (Connection connection = backend.open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                assertEquals(List.of(List.of(c.getValue())), r.rows(), c.getKey() + "\n" + r.text());
+            }
+        }
+    }
+
     /** What {@code sameElements} refuses, each by name: two sides of two known types (the equality rule: different
      *  types never compare), a table against a list, and sides that read the row or element it stands in. */
     @Test
@@ -311,6 +340,9 @@ class RootComparisonTest {
         Map<String, String> refused = new LinkedHashMap<>();
         refused.put("|sameElements([1, 2], ['a', 'b'])", "sameElements compares elements of one type");
         refused.put("|sameElements([1, 2], [1.0, 2.0])", "sameElements compares elements of one type");
+        // two unrelated classes: the type-checker's own question (the third review of 2026-11-27, M6)
+        refused.put("|sameElements([^p::K(name='a')], [^p::Party(id=1, name='a')])",
+                "sameElements compares elements of one type");
         refused.put("|[1, 2]->map(x | sameElements([$x, 2], [2, 1]))", "sameElements over values of the row or element");
         refused.put("|sameElements(#TDS\n id\n 1\n#, [1])", "sameElements: a table against a side that is no table");
         for (Map.Entry<String, String> c : refused.entrySet()) {

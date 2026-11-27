@@ -93,19 +93,24 @@ final class RootComparison {
         if (Type.isRelation(left.info().type()) || Type.isRelation(right.info().type())) {
             return tables(left, right, lets, negated, lowered, numbers, anyOrder);
         }
+        if (anyOrder) {
+            // the equality rule: different types never compare, a compile error naming the two -- the type-checker's
+            // own question (two unrelated classes too: the third review of 2026-11-27, M6)
+            java.util.Optional<Type[]> two = com.legend.compiler.spec.EqualityClasses.neverEqual(left.info().type(),
+                    right.info().type(), ctx);
+            if (two.isPresent()) {
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
+                        "sameElements compares elements of one type, and its sides hold "
+                                + two.get()[0].typeName() + " and " + two.get()[1].typeName()
+                                + ": two types are never equal -- convert one side");
+            }
+        }
         if (known(left.info().type()) && known(right.info().type())
                 && !java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
                         SideEqualities.typedClass(right.info().type()))
                 // (an Integer side against a Decimal side is one comparison, by value: two exact numbers)
                 && !(SideEqualities.exactNumber(left.info().type())
                         && SideEqualities.exactNumber(right.info().type()))) {
-            if (anyOrder) {
-                // the equality rule: different types never compare, a compile error naming the two
-                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
-                        "sameElements compares elements of one type, and its sides hold "
-                                + left.info().type().typeName() + " and " + right.info().type().typeName()
-                                + ": two types are never equal -- convert one side");
-            }
             // two known types: the comparison is whatever the door that admitted the code made of it (refused on
             // lite's own, the database's by value on legend-engine's), which stands as it is lowered
             return null;
@@ -113,6 +118,9 @@ final class RootComparison {
         if (!anyOrder && !whole(left) && !whole(right)) {
             // two values an expression compares exactly on every database: the plain comparison
             return null;
+        }
+        if (!anyOrder) {
+            refuseUnordered(left, right, lets, "lists");
         }
         SqlQuery leftPlan = lowered.apply(with(lets, left));
         SqlQuery rightPlan = lowered.apply(with(lets, right));
@@ -249,18 +257,8 @@ final class RootComparison {
         if (leftPlan.outputs().size() != l.columns().size() || rightPlan.outputs().size() != r.columns().size()) {
             return unplanned(anyOrder, "a table whose plan's columns are not its declared ones");
         }
-        // == compares two tables' rows IN ORDER, as assertEquals does, and a table whose order the query does not
-        // define (a store's rows, a DISTINCT, a grouping) has none to compare: refused, naming the two fixes, as the
-        // assert refuses it (the user, 2026-11-27: strict ==, and "sameElements" for the rows in any order; for one
-        // afternoon an unsorted side was compared as a multiset here, one operator with two meanings). Never by the
-        // order a database happened to return them in (the outside audit of 2026-11-27, MEDIUM 7).
-        boolean leftUnordered = !anyOrder && com.legend.compiler.spec.OrderedAsserts.unorderedRows(left, lets);
-        if (leftUnordered || !anyOrder && com.legend.compiler.spec.OrderedAsserts.unorderedRows(right, lets)) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
-                    "== compares two tables in order, and its " + (leftUnordered ? "first" : "second")
-                            + " side's order is not defined (a store or frame read with no sort, or past a grouping, a"
-                            + " join or a union): the database's arrival order would decide the answer -- sort both"
-                            + " sides, or say sameElements when the order does not matter");
+        if (!anyOrder) {
+            refuseUnordered(left, right, lets, "tables");
         }
         // each column by the kind its plan's output decides where its declaration leaves it open (a String, a Number,
         // an Any: the reading an assert's judge gives a table's cells); sameElements: the rows as a multiset
@@ -271,6 +269,27 @@ final class RootComparison {
                 : answer(compared, negated);
     }
 
+    /**
+     * {@code ==} compares two sides' rows or elements IN ORDER, as {@code assertEquals} does, and a side whose order
+     * the query does not define (a store's rows, a DISTINCT, a grouping; a list mapped from them) has none to
+     * compare: refused, naming the two fixes, by the rule the assert refuses it by ({@code OrderedAsserts
+     * .unorderedSide}: with at most one value on either side an ordered and an order-free comparison agree). The
+     * user, 2026-11-27: strict {@code ==}, and {@code sameElements} for any order; for one afternoon an unsorted
+     * table was compared as a multiset here, one operator with two meanings. Never by the order a database happened
+     * to return them in (the outside audit of 2026-11-27, MEDIUM 7; a LIST side too since the third review, M1:
+     * {@code p::Party.all()->map(p | $p.name) == ['A', 'B']} had been compared as the rows arrived).
+     */
+    private static void refuseUnordered(TypedSpec left, TypedSpec right, List<TypedSpec> lets, String what) {
+        int side = com.legend.compiler.spec.OrderedAsserts.unorderedSide(left, right, lets);
+        if (side >= 0) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
+                    "== compares two " + what + " in order, and its " + (side == 0 ? "first" : "second")
+                            + " side's order is not defined (a store or frame read with no sort, or past a grouping, a"
+                            + " join or a union): the database's arrival order would decide the answer -- sort both"
+                            + " sides, or say sameElements when the order does not matter");
+        }
+    }
+
     /** Whether {@code t} names its values' type: a primitive that is no supertype of others, or an enumeration. */
     private static boolean known(Type t) {
         return t instanceof Type.Primitive p && p != Type.Primitive.NUMBER && p != Type.Primitive.DATE
@@ -278,9 +297,9 @@ final class RootComparison {
     }
 
     /** Whether {@code side} is compared as a whole side, never as a value inside an expression: a computed list
-     *  (a database may hold none as a value, or hold it as text), a map, or values whose type is known only when the
-     *  query runs. A side written in the query (a literal, a collection of literals, the empty list) is a value everywhere:
-     *  the plain comparison reads it exactly. */
+     *  (a database may hold none as a value, or hold it as text) or a map. ONE value is no whole side, whatever its
+     *  type (below). A side written in the query (a literal, a collection of literals, the empty list) is a value
+     *  everywhere: the plain comparison reads it exactly. */
     private static boolean whole(TypedSpec side) {
         if (written(side)) {
             return false;

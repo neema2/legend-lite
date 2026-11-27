@@ -99,7 +99,7 @@ public final class OrderedAsserts {
     /** The side (0 expected, 1 actual) whose rows have no defined order while the other side holds more than one value,
      *  or -1: with at most one value on either side, an ordered and an order-free comparison agree (step 4's review,
      *  M2). */
-    static int unorderedSide(TypedSpec expected, TypedSpec actual, List<TypedSpec> lets) {
+    public static int unorderedSide(TypedSpec expected, TypedSpec actual, List<TypedSpec> lets) {
         if (atMostOne(expected) || atMostOne(actual)) {
             return -1;
         }

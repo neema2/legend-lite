@@ -169,8 +169,11 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
             // (the constant only where neither side is a computation that may raise: Pure evaluates both sides
             // before it compares them, so [1, 2]->at(5)->cast(@Number) == 1.0 raises there -- the false that still
             // evaluates its sides otherwise; the user, 2026-11-27, "agreed")
+            // (over a many-valued side the constant stands: evaluated, the side would be a list value inside an
+            // expression, which not every database holds -- recorded with membership and index below)
             case EQUALITY -> !neverEmpty(call) ? call
-                    : unevaluatedIsHarmless(call) ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
+                    : unevaluatedIsHarmless(call) || manyValued(call)
+                            ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
                     : marked.answeredNeverEqual();
             case MEMBERSHIP -> new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info());
             case INDEX -> new com.legend.compiler.spec.typed.TypedCInteger(-1L, call.info());
@@ -197,11 +200,17 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
             case com.legend.compiler.spec.typed.TypedVariable v -> true;
             case com.legend.compiler.spec.typed.TypedPropertyAccess p -> p.children().stream()
                     .allMatch(LiteCrossTypeRule::harmless);
-            case com.legend.compiler.spec.typed.TypedCast cast -> harmless(cast.source());
+            // (an upcast, or the compiler's own conformance cast: a cast DOWN can fail, so it is evaluated)
+            case com.legend.compiler.spec.typed.TypedCast cast -> (cast.wire()
+                    || EqualityClasses.declaredOpen(cast.target())) && harmless(cast.source());
             case com.legend.compiler.spec.typed.TypedCollection list -> list.elements().stream()
                     .allMatch(LiteCrossTypeRule::harmless);
             default -> false;
         };
+    }
+
+    private static boolean manyValued(com.legend.compiler.spec.typed.TypedNativeCall call) {
+        return call.args().stream().anyMatch(side -> side.info().multiplicity().isMany());
     }
 
     /** {@code equal([], [])} is true: only a side that is never empty makes the answer the types' alone. */

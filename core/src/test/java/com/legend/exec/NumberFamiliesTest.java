@@ -131,6 +131,10 @@ class NumberFamiliesTest {
         refused.put("|p::Loose.all()->filter(x|$x.n == 1.5)->project(~[n: x|$x.n])", "== compares Integer with Float");
         refused.put("|p::Loose.all()->filter(x|$x.n->in([1.5, 2.5]))->project(~[n: x|$x.n])",
                 "in compares Integer with Float");
+        // an upcast of a value already typed only by its column says nothing new: refused as without it (the third
+        // review of 2026-11-27, M2: it had escaped, and the database compared 1 with 1.0)
+        refused.put("|p::Loose.all()->filter(x|$x.n->cast(@Number) == $x.m)->project(~[n: x|$x.n])",
+                "== compares Integer with Float");
         for (Map.Entry<String, String> c : refused.entrySet()) {
             try (Connection connection = TestBackends.platform().open()) {
                 RuntimeException e = assertThrows(RuntimeException.class,

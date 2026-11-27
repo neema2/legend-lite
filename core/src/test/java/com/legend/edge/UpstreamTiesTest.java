@@ -462,11 +462,13 @@ class UpstreamTiesTest {
     void anIntegerAndAFloatColumnsExtremeIsAFloatAtLegendEnginesApi() {
         String max = "|#>{s::DB.T}#->extend(~m: r | max($r.I->toOne(), $r.F->toOne()))->select(~[m])->from(s::RT)";
         String min = "|#>{s::DB.T}#->extend(~m: r | min($r.F->toOne(), $r.I->toOne()))->select(~[m])->from(s::RT)";
-        // (the platform's database spells the two functions in lower case)
+        // legend-engine's own CASE (max: when l < r then r else l; min: when r < l then r else l), the Integer converted
         String engines = sql(Door.LEGEND_ENGINE, PureText.PURE_V1, max);
-        assertTrue(engines.contains("greatest(CAST(t0.I AS DOUBLE), t0.F)"), engines);
+        assertTrue(engines.contains("CASE WHEN CAST(t0.I AS DOUBLE) < t0.F THEN t0.F ELSE CAST(t0.I AS DOUBLE) END"),
+                engines);
         String least = sql(Door.LEGEND_ENGINE, PureText.PURE_V1, min);
-        assertTrue(least.contains("least(t0.F, CAST(t0.I AS DOUBLE))"), least);
+        assertTrue(least.contains("CASE WHEN CAST(t0.I AS DOUBLE) < t0.F THEN CAST(t0.I AS DOUBLE) ELSE t0.F END"),
+                least);
         // legend-engine's PCT door tells no inside from outside, and legend-pure's has no such rule: the winner keeps
         // its type there, as before, and a column of such a value is the product's limit it was (measured 2026-11-27)
         for (Door untouched : List.of(Door.LEGEND_ENGINE_PCT, Door.LEGEND_PURE)) {
@@ -478,7 +480,7 @@ class UpstreamTiesTest {
         // one (run on legend-engine's H2 2026-11-27: max(3, 3.0) there is 3): never this rule's statement
         for (String written : List.of("|max(3, 3.0)",
                 "|#>{s::DB.T}#->extend(~m: r | max(3, 3.0)->toString())->select(~[m])->from(s::RT)")) {
-            assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, written).contains("greatest(CAST(3 AS DOUBLE), 3.0)"),
+            assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, written).contains("CASE WHEN CAST(3 AS DOUBLE) < 3.0"),
                     written);
         }
         // two columns of one type: the call's own rule, no conversion

@@ -143,8 +143,14 @@ final class HeldKinds {
                 MixedEncoding.kindType(rk), call.pos()).refusalOverColumns();
     }
 
+    /** An upcast the author wrote over a value whose own type is known ({@code 1->cast(@Number)}): the
+     *  type-checker's rule answered it by the type the value holds. An upcast of a value already typed only by its
+     *  column ({@code $a.n->cast(@Number)}, {@code n} declared {@code Number}) says nothing new: this rule reads it
+     *  as the column it is (the third review of 2026-11-27, M2: it had escaped the refusal the same query gets
+     *  without the cast). */
     private static boolean upcast(TypedSpec side) {
-        return side instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire();
+        return side instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire()
+                && !open(c.source().info().type());
     }
 
     private static boolean open(Type t) {

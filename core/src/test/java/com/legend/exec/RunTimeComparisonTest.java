@@ -228,14 +228,18 @@ class RunTimeComparisonTest {
             Lean.Result r = Lean.established(model, "|[1, 2]->at(1)->cast(@Number) == 2.5", "p::RT", connection);
             assertEquals(List.of(List.of(false)), r.rows(), r.text());
         }
-        try (Connection connection = backend.open()) {
-            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> Lean.established(model,
-                    "|[1, 2]->at(5)->cast(@Number) == 1.5", "p::RT", connection));
-        }
-        try (Connection connection = backend.open()) {
-            // the same in a function whose author declared the sides Number
-            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> Lean.established(model,
-                    "|x::same([1, 2]->at(5), 1.5)", "p::RT", connection));
+        // the sixth element of a list of two is the database's error, never a refusal to plan (the third review of
+        // 2026-11-27, L9: any error had passed)
+        for (String raises : List.of("|[1, 2]->at(5)->cast(@Number) == 1.5",
+                // the same in a function whose author declared the sides Number
+                "|x::same([1, 2]->at(5), 1.5)")) {
+            try (Connection connection = backend.open()) {
+                RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                        () -> Lean.established(model, raises, "p::RT", connection), raises);
+                org.junit.jupiter.api.Assertions.assertFalse(
+                        e instanceof com.legend.error.NotImplementedException
+                                || e instanceof com.legend.error.ModelException, raises + ": " + e);
+            }
         }
     }
 }

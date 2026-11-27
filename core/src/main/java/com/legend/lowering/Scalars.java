@@ -3892,9 +3892,9 @@ final class Scalars {
     }
 
     /** {@link NamedRule#EXTREME_OF_TWO_IN_THE_DATABASES_TYPE}: {@code max} or {@code min} of an Integer and a Float
-     *  as the database's GREATEST or LEAST over two Floats, the Integer converted -- a Float whichever wins, the type
-     *  the database gives legend-engine's own CASE over the two. Any other call: the rule that keeps a tie's own
-     *  element ({@link #extremeKeepingTheFoldsTie}). */
+     *  as legend-engine's own CASE over the two, the Integer converted to a Float -- a Float whichever wins, the type
+     *  the database gives that CASE over two columns. Any other call: the rule that keeps a tie's own element
+     *  ({@link #extremeKeepingTheFoldsTie}). */
     static SqlExpr extremeOfTwoInTheDatabasesType(TypedNativeCall n, List<SqlExpr> args) {
         if (args.size() != 2 || n.args().size() != 2) {
             return extremeKeepingTheFoldsTie(n, args);
@@ -3916,8 +3916,13 @@ final class Scalars {
                 : args.get(0);
         SqlExpr second = wholeSecond ? new SqlExpr.Cast(args.get(1), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR)
                 : args.get(1);
-        return SqlExpr.Call.of(Pure.AT_MATH_MAX.contains(n.callee().id()) ? SqlFn.GREATEST : SqlFn.LEAST, first,
-                second);
+        // the CASE legend-engine writes (max: case when l < r then r else l end; min: case when r < l then r else l
+        // end), so a NULL argument answers on every database what legend-engine's own statement answers there -- a
+        // database's GREATEST and LEAST do not agree on one (the third review of 2026-11-27, L6: NULL on MySQL,
+        // MariaDB and Snowflake, the other argument on DuckDB and Postgres)
+        SqlExpr picksSecond = Pure.AT_MATH_MAX.contains(n.callee().id())
+                ? SqlExpr.Call.of(SqlFn.LESS, first, second) : SqlExpr.Call.of(SqlFn.LESS, second, first);
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(picksSecond, second)), first, SqlExpr.Reason.OPERATOR);
     }
 
     private static boolean writtenNumber(TypedSpec side) {
