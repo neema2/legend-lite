@@ -29,6 +29,24 @@ the first run clones the pinned upstream `.pure` files into `<out dir>/upstream`
 
 Compare two commits by running each into its own `<out dir>` and diffing `results.tsv` (sorted).
 
+## The position matrix (step 6B's measure)
+
+One comparison, `L == R`, asked in every place a comparison can stand, per in-process database: a query's answer,
+under `!`, an `if`'s condition, an operand of `&&` and `||`, over two lets, a kept value and a condition inside a
+list's lambda, a side that reads the lambda's element, inside a function whose parameters are typed when it is called
+(`Any`, and a type variable), a table's filter and a table's column, and a test's `assertEquals` and `assert` under
+each judge. Nothing is expected of an answer: the measure is whether the answers agree.
+
+    bazel run //core:equality_measure -- --positions <out dir> [<comparison name regex>]
+    python3 tools/equality-measure/positions.py <out dir>
+
+`positions.tsv` holds every outcome as it came; `positions.md` counts, per database, the comparisons with one answer
+everywhere, those refused everywhere, those **answered only in some places** and those that **contradict** (true in
+one place and false in another), lists each of the last two with its places, and lists any place that answers
+differently on two databases. The comparisons and the places are the two lists in `EqualityMeasure.java`
+(`sidesList`, `positionList`): add a row to either to widen the measure. "One equality" is done when the last two
+columns read zero on every database.
+
 ## The product's SQL between two commits
 
 `tools/equality-measure/sql-changes.sh <commit A> <commit B> <out dir>` (the tree clean; it checks each commit out
