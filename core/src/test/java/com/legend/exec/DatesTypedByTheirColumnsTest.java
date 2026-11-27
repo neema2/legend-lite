@@ -92,4 +92,27 @@ class DatesTypedByTheirColumnsTest {
             }
         }
     }
+
+    /** A list holding both days and date-times, read through a map, reaches the database as one kind: refused by
+     *  name, as an assert of it is; written where it is compared, each element is the kind it was written as. */
+    @Test
+    void daysAndDateTimesInOneListAreToldApartOrRefused() throws Exception {
+        String model = MODEL.formatted(TestBackends.platform().type());
+        Map<String, Boolean> written = new LinkedHashMap<>();
+        written.put("|[%2020-01-01T00:00, %2020-01-02]->contains(%2020-01-02T00:00)", false);
+        written.put("|[%2020-01-01T00:00, %2020-01-02]->contains(%2020-01-02)", true);
+        for (Map.Entry<String, Boolean> c : written.entrySet()) {
+            try (Connection connection = TestBackends.platform().open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                assertEquals(List.of(List.of(c.getValue())), r.rows(), c.getKey() + "\n" + r.text());
+            }
+        }
+        try (Connection connection = TestBackends.platform().open()) {
+            String query = "|[%2020-01-01T00:00, %2020-01-02]->map(x|$x)->contains(%2020-01-02T00:00)";
+            RuntimeException e = assertThrows(RuntimeException.class,
+                    () -> Lean.established(model, query, "p::RT", connection), query);
+            assertTrue(String.valueOf(e.getMessage()).contains("values holding both days and date-times are not"
+                    + " compared"), e.getMessage());
+        }
+    }
 }

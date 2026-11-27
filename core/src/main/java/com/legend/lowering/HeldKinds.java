@@ -94,6 +94,19 @@ final class HeldKinds {
         }
         TypedSpec l = call.args().get(0);
         TypedSpec r = call.args().get(1);
+        if (read.kind() != TypedCrossTypeComparison.Kind.ORDERING) {
+            // a list holding both days and date-times, read through a map, a filter or an if, reaches the database
+            // as one kind, so its days cannot be told from its date-times there (register S399): refused by name, as
+            // both judges refuse it (measured 2026-11-27 on DuckDB: [%2020-01-01T00:00, %2020-01-02]->map(x|$x)
+            // ->contains(%2020-01-02T00:00) answered true). A list written where it is compared is answered by each
+            // element's written kind, rightly: not refused.
+            if (!(l instanceof TypedCollection)) {
+                SideEqualities.refuseMixedDays(l);
+            }
+            if (!(r instanceof TypedCollection)) {
+                SideEqualities.refuseMixedDays(r);
+            }
+        }
         String lk = MixedEncoding.kindOfValue(l, args.get(0));
         String rk = MixedEncoding.kindOfValue(r, args.get(1));
         if (lk == null || rk == null || NumberFamilies.TWO_FAMILIES.canEqual(lk, rk)) {
