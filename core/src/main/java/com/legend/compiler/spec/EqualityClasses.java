@@ -102,7 +102,7 @@ public final class EqualityClasses {
      *  value as it is. So a comparison one side of which is declared {@code Number}, the abstract {@code Date} or
      *  {@code Any} by such a cast is still known to be between two types (the equality rule's run-time item: equal
      *  means the same type and the same value). */
-    static Optional<Crossing> heldCrossing(TypedFunction chosen, List<TypedSpec> args, ModelContext ctx) {
+    public static Optional<Crossing> heldCrossing(TypedFunction chosen, List<TypedSpec> args, ModelContext ctx) {
         return !compares(chosen, args) ? Optional.empty()
                 : crossing(chosen, held(args.get(0)), held(args.get(1)), ctx);
     }

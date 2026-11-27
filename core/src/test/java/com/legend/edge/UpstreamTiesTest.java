@@ -48,6 +48,11 @@ class UpstreamTiesTest {
 
     /** A table with an Integer and a Float column, on the platform's own engine. */
     private static final String MODEL = """
+            ###Pure
+            function u::same(a: Number[1], b: Number[1]): Boolean[1] { $a == $b }
+            function u::less(a: Number[1], b: Number[1]): Boolean[1] { $a < $b }
+            function u::amongWholes(a: Number[1]): Boolean[1] { $a->in([0, 1]) }
+            function u::amongFloats(a: Number[1]): Boolean[1] { $a->in([0.0, 1.0]) }
             ###Relational
             Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, I INTEGER, F FLOAT ) )
             ###Connection
@@ -230,6 +235,31 @@ class UpstreamTiesTest {
                 assertEquals(List.of(e.getValue()[1]), answer(door, e.getKey()), door + " " + e.getKey());
             }
         }
+    }
+
+    @Test
+    @DisplayName("a function written for Number: legend-pure's door answers by the types its arguments have, as"
+            + " legend-pure does")
+    void aFunctionWrittenForNumberAtLegendPuresDoor() throws Exception {
+        // run 2026-11-26 on interpreted and compiled legend-pure (answers.md, group D: D1 to D6): two types are
+        // never equal, a literal written in the function is NOT read as the argument's type, an ordering is by
+        // value. Until the edition program's step 6 legend-pure's door sent a function's comparison to the database,
+        // which answered same(1, 1.0) true
+        Map<String, String> pure = new java.util.LinkedHashMap<>();
+        pure.put("|u::same(1, 1.0)", "Boolean false");
+        pure.put("|u::same(1, 1)", "Boolean true");
+        pure.put("|u::amongWholes(1.0)", "Boolean false");
+        pure.put("|u::amongWholes(1)", "Boolean true");
+        pure.put("|u::amongFloats(1)", "Boolean false");
+        pure.put("|u::amongFloats(1.0)", "Boolean true");
+        pure.put("|u::less(1, 1.0)", "Boolean false");
+        pure.put("|u::less(1, 2.0)", "Boolean true");
+        for (Map.Entry<String, String> e : pure.entrySet()) {
+            assertEquals(List.of(e.getValue()), answer(Door.LEGEND_PURE, e.getKey()), e.getKey());
+        }
+        // lite's own door: by the types too, but a literal the function's author wrote reads as the argument's type
+        assertEquals(List.of("Boolean false"), answer(Door.LITE, "|u::same(1, 1.0)"));
+        assertEquals(List.of("Boolean true"), answer(Door.LITE, "|u::amongWholes(1.0)"));
     }
 
     @Test
