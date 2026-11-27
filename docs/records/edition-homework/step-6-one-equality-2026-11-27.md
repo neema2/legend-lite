@@ -70,3 +70,28 @@ and H2 and channel B, and both corpora run on it; then the equality measurement 
 - Carried, not built here: SQLite's one date-time text (its work is on `claude/sqlite-datetime-form`, `626b330`,
   unverified; low priority by the user's word), so on SQLite two date-times written at different precisions still
   compare as texts inside an expression.
+
+## The typer's part: comparisons whose types a caller gives (built 2026-11-27, branch `claude/step-6-3`)
+
+A function written for `Number`, the abstract `Date`, `Any` or a type variable compares values whose types are known
+only where the function is used. Where the function is typed, such a comparison is kept as a record around its call
+(`TypedRunTimeComparison`); once every function a query reaches stands in the query, each argument in its parameter's
+place, the door's comparison setting answers it from the types its sides have there (`CrossTypeRule.atTheCall`, asked
+at the end of the expansion pass). Nothing after that pass sees the record, and no SQL layer changes.
+
+| | lite's own doors | legend-pure's and legend-engine's doors |
+|---|---|---|
+| `same(a: Number, b: Number) { $a == $b }`, `same(1, 1.0)` | false: two types (the equality rule) | the comparison as written, the database's (unchanged) |
+| the same over an Integer column and a Float column | false for every row | the database's comparison |
+| `$a < $b`, `less(1, 1.0)` | true: by value, then by type, Integer below Float below Decimal (decision D3), folded into the operator (`<` becomes `<=`), no SQL added | by value |
+| `amongWholes(a: Number) { $a->in([0, 1]) }`, `amongWholes(1.0)` | true: a literal the function's author wrote reads as the value's type (decision D5) | the database's |
+| `isOneAndAHalf(a: Number) { $a == 1.5 }`, `isOneAndAHalf(1)` | false: 1.5 is no Integer | the database's |
+| a literal handed on through another function (`sameAsOne(a) { same($a, 1) }`) | a value there, not a written literal: `sameAsOne(1.0)` false | |
+| a side still typed only at run time after expansion (a `Number` column, a computed `Number`) | the comparison as written: the database compares the values it holds | |
+
+A comparison between two generic positions of a body typed into each call (a function over "any relation") takes the
+same answer, from that call's column types. To be measured on the timeseries library and both corpora before it
+stays: the library compares two lines' period columns and refuses a day against a date-time itself.
+
+Not built: legend-pure's own answer at its door (false for `same(1, 1.0)`, strict for a written literal), which needs
+its setting to read bodies; the door's bodies are the database's comparison as before.
