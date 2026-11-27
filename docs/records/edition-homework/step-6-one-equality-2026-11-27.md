@@ -106,7 +106,8 @@ judge: 10, 8 and 8 bodies on DuckDB, H2 and SQLite).
 | The tolerance assert as its formula (`abs(e - a) <= d`) | the plan's 6.6 | not built |
 | An abstract `Date`'s text (`adjust(...)->toString()` at legend-pure's door) | 5b; the plan's 6.6 | not built |
 | The JSON lane: `Any` cells compared by JSON kind; a Decimal or a date there refused | G2 | the judge's sides read JSON kinds; inside an expression not checked |
-| A Variant read through `Any`: the host judge's `assertEq` holds it against the Integer of its text where the database judge fails it, and the two judges' records of `assertEquals('"abc"'->fromJson()->cast(@Any), 'abc')` write the Variant differently (a both-judges run stops on each) | found 2026-11-27 by `AssertBarTest`'s new lines, which hold them as they are | not built: the host's is the wrong one (S401) |
+| A Variant read through `Any`: the host judge's `assertEq` held it against the Integer of its text where the database judge fails it | found 2026-11-27 by `AssertBarTest`'s new lines | **fixed, not run** (`HostJudgments.eqOf` reads a Variant side as `assertEquals` does) |
+| The two judges' records of `assertEquals('"abc"'->fromJson()->cast(@Any), 'abc')` write the Variant differently (a both-judges run stops on the difference) | the same lines, which hold it as it is | not built |
 | One side empty inside an expression (`$x.opt == 1` is SQL's NULL) | the measurement's "empties" (3, 1, 4) | the user's decision, after its SQL cost is measured |
 | What the database judge cannot judge (6, 2, 6 bodies) | the measurement | to read one by one |
 | The equality measurement run again, every body that still differs explained | this record | at the end |

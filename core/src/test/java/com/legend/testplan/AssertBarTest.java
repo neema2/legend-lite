@@ -1101,11 +1101,10 @@ class AssertBarTest {
         want.put("{|assertEquals(1, '1'->fromJson()->cast(@Any))}", variantOne);
         want.put("{|assertEquals(1->cast(@Any), '1'->fromJson())}", variantOne);
         want.put("{|assertEq(1, '1'->fromJson())}", "ModelException: assertEq compares Integer with meta::pure::metamodel::variant::Variant");
-        // (the host judge's identity holds a Variant read through Any against the Integer of its text, where the
-        // database judge fails it as the equality does -- found 2026-11-27 by this line, a recorded gap between the
-        // judges: the host's is the wrong one, S401)
-        want.put("{|assertEq(1, '1'->fromJson()->cast(@Any))}", variantOne + "|DuckDB/HOST=pass|H2/HOST=pass|SQLite/HOST=pass"
-                + bothDisagree);
+        // (until 2026-11-27 the host judge's identity held a Variant read through Any against the Integer of its
+        // text, where the database judge failed it: found by this line, fixed the same day -- assertEq reads a Variant
+        // side as assertEquals does)
+        want.put("{|assertEq(1, '1'->fromJson()->cast(@Any))}", variantOne);
         // written as two types: the compile error (2026-11-27; until then held, a Variant never a value of another)
         want.put("{|assertNotEquals(1, '1'->fromJson())}", "ModelException: assertNotEquals compares Integer with meta::pure::metamodel::variant::Variant");
         want.put("{|assertNotEquals(true, 'true'->fromJson())}",

@@ -558,8 +558,11 @@ final class HostJudgments {
     private static TypedSide eqOf(HostJudgment.Eq j, List<TypedSide> pair, HostRules rules, BodyRun run) {
         SideFetch ef = sideCanonOf(pair.get(0));
         SideFetch af = sideCanonOf(pair.get(1));
-        Object ee = AssertRuns.one(LiteWords.enumNames(j.e(), j.a(), ef.values()), "assertEq expected");
-        Object aa = AssertRuns.one(LiteWords.enumNames(j.a(), j.e(), af.values()), "assertEq actual");
+        // (a Variant side's value as the Variant it is, never the number or the text its JSON holds: as assertEquals'
+        // sides are read, structuredSide -- until 2026-11-27 assertEq held a Variant read through Any against the
+        // Integer of its text, where the database judge failed it, S401)
+        Object ee = AssertRuns.one(LiteWords.enumNames(j.e(), j.a(), LiteWords.asVariants(j.e(), ef.values())), "assertEq expected");
+        Object aa = AssertRuns.one(LiteWords.enumNames(j.a(), j.e(), LiteWords.asVariants(j.a(), af.values())), "assertEq actual");
         // eq's non-primitive identity rule throws LOUD here (P2-5); a primitive under its side's declared kind where that
         // is numeric, as assertEquals' typedSide reads it (PR #118 fix round, 2026-11-18, G2)
         com.legend.error.ErrorRecord d = com.legend.testexec.PureAsserts.eqHolds(ee, j.e().declared(), aa, j.a().declared(), rules) ? null

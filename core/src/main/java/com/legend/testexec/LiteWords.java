@@ -106,6 +106,13 @@ public final class LiteWords {
     /** A Variant side's values as both judges carry them, each its JSON text; a NULL there is JSON {@code null} (a
      *  Variant side holds no absent value: an empty side has no row; the audit of 8477c703, H2 and SQLite read JSON
      *  null back as NULL). */
+    /** {@code carried} as a Variant side's values ({@link #variantTexts}) where {@code side} is one, else as they
+     *  are. */
+    static List<Object> asVariants(com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts side,
+            List<Object> carried) {
+        return AssertRecords.variant(side) ? variantTexts(carried) : carried;
+    }
+
     public static List<Object> variantTexts(List<Object> carried) {
         List<Object> out = new java.util.ArrayList<>(carried.size());
         for (Object v : carried) {
