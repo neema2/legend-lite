@@ -106,6 +106,14 @@ final class Equalities {
         if (inv != null) {
             return inv;
         }
+        boolean many0 = n.args().get(0).info().multiplicity().isMany();
+        boolean many1 = n.args().get(1).info().multiplicity().isMany();
+        if (many0 != many1 && Scalars.isToOne(n.args().get(many0 ? 1 : 0))) {
+            // one value against a list: the value as the list of it, so the two are compared as lists (equal where
+            // the list holds that one value; until the edition program's step 6 a value was compared with an array,
+            // which a database refuses)
+            cargs = List.of(PureSql.asList(cargs.get(0), many0), PureSql.asList(cargs.get(1), many1));
+        }
         // nullable col-vs-col equality is NULL-SAFE (engine
         // isEqualsFromFilter; task #62's equal-side arm)
         return nullArms(n, cargs);

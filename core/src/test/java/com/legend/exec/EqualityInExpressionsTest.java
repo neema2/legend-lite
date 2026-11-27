@@ -31,6 +31,13 @@ class EqualityInExpressionsTest {
     }
 
     @Test
+    void oneValueEqualsAListThatHoldsItAlone() throws Exception {
+        // for each x, the elements of [1, 2] from it up: [1, 2] for 1, [2] for 2, none for 6
+        assertEquals(List.of(List.of(2L)), rows("|[1, 2, 6]->filter(x | $x == [1, 2]->filter(y | $y >= $x))"));
+        assertEquals(List.of(List.of(2L)), rows("|[1, 2, 6]->filter(x | [1, 2]->filter(y | $y >= $x) == $x)"));
+    }
+
+    @Test
     void aComputedListOfNoElementEqualsTheEmptyList() throws Exception {
         // for each x, the elements of [1, 2] above it: none for 2 and for 6
         assertEquals(List.of(List.of(2L), List.of(6L)),
