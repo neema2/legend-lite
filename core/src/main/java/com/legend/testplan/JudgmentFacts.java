@@ -29,7 +29,7 @@ final class JudgmentFacts {
     }
 
     /** An equality pair's TYPED kinds (item 3's S4): the kinds the database judge compares its two sides as -- each
-     *  side's typed class ({@code VerdictSql.typedClass}; two number kinds then the same only where both are empty,
+     *  side's typed class ({@code SideEqualities.typedClass}; two number kinds then the same only where both are empty,
      *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair has no typed form here
      *  (the caller refuses it by name). A Decimal literal is typed: its written scale rides its
      *  SQL type, which the reader restores where a driver drops it (SQLite's, as BigQuery's). */
@@ -148,8 +148,8 @@ final class JudgmentFacts {
             // database's DATE or TIMESTAMP, which the pair compares (S399)
             return new TypedPair(e, a, TypedPair.Form.DATES);
         }
-        e = com.legend.lowering.VerdictSql.typedClass(eKind);
-        a = com.legend.lowering.VerdictSql.typedClass(aKind);
+        e = com.legend.lowering.SideEqualities.typedClass(eKind);
+        a = com.legend.lowering.SideEqualities.typedClass(aKind);
         if (e != null && a != null) {
             return new TypedPair(e, a, TypedPair.Form.VALUES);
         }
@@ -185,7 +185,7 @@ final class JudgmentFacts {
      *  riding the failure as the host's reader reads them; null where its plan types no value column (a tagged value
      *  lists its kinds' values: its own member). */
     static @Nullable Type emptyKind(@Nullable Type kind, com.legend.sql.SqlQuery plan) {
-        Type typed = com.legend.lowering.VerdictSql.typedClass(kind);
+        Type typed = com.legend.lowering.SideEqualities.typedClass(kind);
         if (typed != null || kind == null || plan.outputs().isEmpty()) {
             return typed;
         }
@@ -228,7 +228,7 @@ final class JudgmentFacts {
     /** A side's typed kind: its date kind ({@link #dateKind}), else its typed class; null where it has neither. */
     private static @Nullable Type sideKind(TypedSpec spec, Type kind, com.legend.sql.SqlQuery plan) {
         Type d = dateKind(spec, kind, plan);
-        return d != null ? d : com.legend.lowering.VerdictSql.typedClass(kind);
+        return d != null ? d : com.legend.lowering.SideEqualities.typedClass(kind);
     }
 
     /** A date side's kind under register S399 (the user's ruling of 2026-11-22: the product compares a date by its
