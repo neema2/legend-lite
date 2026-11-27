@@ -64,6 +64,30 @@ in `step-6-one-equality-2026-11-27.md` (same folder).
 | B19 | **(review)** The compatibility doors share the product's equality code under their number rule, so three answers moved at the doors without being listed: the empty ladder for computed lists, a date-time carried as text compared by its instant, one value against a list. | Read each against upstream (run, not recalled); listed in the landing summary with what moved. |
 | B20 | **(review)** Older than step 6, found on the way: a test body's seed queries are typed with lite's setting whatever door admitted the test; `indexOf` has no door row; a keyed sort's ties at a door are lite's; a lowerer made with no planner takes the database's list comparison silently. | The last is built (refused by name). The first three recorded for the edition program's closing steps. |
 
+## Probed before the build (RUN 2026-11-27 at `5713d5158`, DuckDB, H2 and SQLite; a temporary test, never committed)
+
+SQLite answered as DuckDB on every row; H2 differed only where it holds no list (refused by name, as before).
+
+| Row | Written | Lite today | Pure | So |
+|---|---|---|---|---|
+| B2 | `[1, 2]->map(x \| [1, 2]->at($x + 5))->size()` | the database's error (an element past the list's end) | raises | the list does raise when it is evaluated |
+| B2 | `x::sameNums(<that list>, [1.5, 2.5])` (parameters declared `Number[*]`); `x::sameAnys(<that list>, ['a', 'b'])` | **false**, quietly | raises | confirmed |
+| B2 | `x::among(1.5, <that list>)`; `x::whereIn(1.5, <that list>)` | **false**; **-1**, quietly | raises | confirmed |
+| B2, wider | `<that list>->cast(@Number) == [1.5, 2.5]->cast(@Number)` written in the QUERY | **false**, quietly | raises | not only a function's comparison: the planner answers two held number kinds with a constant, evaluating neither side (the first review's B18 is the same place). The build covers both. |
+| A9 | `($o.nick == 'a') == false` as a column, `nick` empty | no value | true | confirmed wrong |
+| A9 | `($o.nick == 'a')->toString()` as a column; `([1, 2]->filter(x \| $x > 5)->first() == 1)->toString()` | no value | `'false'` | confirmed wrong |
+| A9 | a window column `extend(over(~id), ~e: {p, w, r \| $r.nick == 'a'})` | no value | false | confirmed wrong (a plain `extend` answers false) |
+| A9 | `groupBy(~[], ~[c: r \| $r.nick == 'a' : y \| $y->count()])` over three rows, one `nick` empty | 2 | 3 | confirmed wrong |
+| A9 | `[1, 2]->map(x \| [1]->filter(y \| $y == $x)->first() == 1)` | one element, `[true]` | `[true, false]` | confirmed wrong: an element is lost |
+| A9 | `$o.nick == $o.alias` (two plain columns, both may be empty); `->map(o \| $o.nick == 'a')`; a `let` of the comparison | right | | already right |
+| B16 | `$o.nick == $o.alias->toUpper()` | a compile error (`toUpper` takes one value) | the same | the first review's example is no program; the row needs another shape, found in the build's tests |
+| B17 | `{names: String[*] \| $names == ['a', 'b']}` | refused: "its first side's order is not defined (a store or frame read ...)" | | wrong words: a parameter's order is the caller's. The order rule must know a parameter. |
+| B17 | the same inside an `if` | refused: "list parameter 'names' is bound only as a whole list (in, contains)" | | a refusal by name on both paths, never a wrong answer; the one entry gives both the same words |
+| 2.1 | `let a = <list>; $a == [1, 2]`, and a `let` of a sorted table compared with itself, as the last statement and inside an `if` | true / `same` on both paths | | the regression cases for the one entry |
+| B4 | `let ks = [3, 1, 2]->sort(); $ks->filter(k \| $k == $ks->at(0))`; a comparison of lists inside the lambda | `[1]`; 1 | the same | right |
+| B4 | `let g = generateGuid(); $g == $g` | refused by name (drawn afresh, read twice) | true | a named refusal |
+| B4 | `let ks = [generateGuid(), generateGuid()]; $ks->filter(k \| $k == $ks->at(0))->size()` | **0** | 1 | confirmed wrong: the fresh-draw check sees a value that IS a draw, not a list HOLDING draws. Build: the same refusal. |
+
 ## C. Not yet verified, or housekeeping
 
 | # | What |
