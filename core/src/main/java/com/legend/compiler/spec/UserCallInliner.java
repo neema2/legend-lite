@@ -472,6 +472,52 @@ public final class UserCallInliner {
                         : reads[0] + " times") + ": each reading would draw again, where the binding is one value;"
                         + " not supported yet");
             }
+            // a value HOLDING draws (a list of them), one of which is read again beside it: an element taken out by
+            // its place ($ks->at(0), which the unroll answers with the element as it is written) is the bound draw
+            // written a second time (the closing batch of step 6, measured 2026-11-27: let ks = [generateGuid(),
+            // generateGuid()]; $ks->filter(k | $k == $ks->at(0))->size() answered 0 where Pure's one list answers 1)
+            List<TypedSpec> held = new ArrayList<>();
+            draws(e.getValue(), held);
+            for (TypedSpec draw : held) {
+                int[] beside = {0};
+                boolean[] besideRow = {false};
+                countBeside(reduced, e.getValue(), draw, false, beside, besideRow);
+                if (draw != e.getValue() && (beside[0] > 1 || besideRow[0] || beside[0] == 1 && reads[0] > 0)) {
+                    throw new NotImplementedException("$" + e.getKey() + " holds values drawn afresh where they are"
+                            + " written (random(), generateGuid()), and one of them is read again by its place:"
+                            + " each reading would draw again, where the binding is one value; not supported yet");
+                }
+            }
+        }
+    }
+
+    /** The calls in {@code t} that draw afresh at each place they are written, into {@code out}. */
+    private static void draws(TypedSpec t, List<TypedSpec> out) {
+        if (t instanceof TypedNativeCall c && (com.legend.builtin.Pure.AT_MATH_RANDOM.contains(c.callee().id())
+                || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(c.callee().id()))) {
+            out.add(t);
+            return;
+        }
+        for (TypedSpec k : t.children()) {
+            draws(k, out);
+        }
+    }
+
+    /** The places {@code draw} stands in {@code t} (by reference) BESIDE {@code term}, the bound value that holds it
+     *  (a place inside a reading of the whole value is that reading's), and whether one is under a lambda. */
+    private static void countBeside(TypedSpec t, TypedSpec term, TypedSpec draw, boolean underLambda, int[] reads,
+            boolean[] perRow) {
+        if (t == term) {
+            return;
+        }
+        if (t == draw) {
+            reads[0]++;
+            perRow[0] |= underLambda;
+            return;
+        }
+        boolean lambda = underLambda || t instanceof TypedLambda;
+        for (TypedSpec k : t.children()) {
+            countBeside(k, term, draw, lambda, reads, perRow);
         }
     }
 

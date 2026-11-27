@@ -180,6 +180,12 @@ final class RootComparison {
                 }
                 return plan(lets, comparison, false, seededLets, parameters, lowered, ctx);
             }
+
+            @Override
+            public @Nullable SqlQuery everyValueRead(TypedSpec side) {
+                return readable.containsAll(com.legend.compiler.spec.typed.FreeVars.of(side))
+                        ? SideEqualities.everyValueRead(lowered.apply(with(lets, side))) : null;
+            }
         };
     }
 

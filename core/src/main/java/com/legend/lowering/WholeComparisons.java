@@ -34,4 +34,11 @@ public interface WholeComparisons {
      *  operand of {@code &&}, a column's value); null as {@link #asTheStatement}, and where a side reads the row or
      *  the element the comparison stands in (no statement of its own answers that). */
     @Nullable SqlQuery insideAnExpression(TypedNativeCall comparison);
+
+    /** A statement whose one value is read from EVERY value of {@code side}, a computed list (NULL where it holds
+     *  none): what a comparison of two types, answered "never equal" by the types alone, still evaluates of that
+     *  side -- Pure evaluates both sides before it compares them, so a side that fails raises
+     *  ({@code SideEqualities.everyValueRead}). Null where {@code side} reads the row or the element the comparison
+     *  stands in, or its values have no typed column: no statement of its own reads it. */
+    @Nullable SqlQuery everyValueRead(com.legend.compiler.spec.typed.TypedSpec side);
 }

@@ -3765,25 +3765,25 @@ public final class Lowerer {
     }
 
     /** A comparison kept for the types its sides hold ({@code TypedRunTimeComparison}): one the rule answered "never
-     *  equal" is false (an index: -1) with its sides still evaluated; any other is its comparison. */
+     *  equal" is false (an index: -1) with its sides still evaluated -- a single value where it stands, a computed
+     *  list by the planner's statement that reads its every value ({@link #everyValueRead}); any other is its
+     *  comparison. */
     private SqlExpr runTimeComparison(com.legend.compiler.spec.typed.TypedRunTimeComparison x,
             ColumnResolver columns) {
         if (x.neverEqual() && x.comparison() instanceof TypedNativeCall never && never.args().size() == 2) {
-            if (x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.MEMBERSHIP
-                    || x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX) {
-                // never among them: false (an index: -1), each single value among the sides evaluated
-                List<SqlExpr> singles = new ArrayList<>();
-                for (TypedSpec side : never.args()) {
-                    if (!side.info().multiplicity().isMany()) {
-                        singles.add(scalarInner(side, columns));
-                    }
+            // answered by its sides' types, each side evaluated (a side that may raise still raises)
+            List<SqlExpr> read = new ArrayList<>();
+            for (TypedSpec side : never.args()) {
+                SqlExpr value = side.info().multiplicity().isMany() ? everyValueRead(side, x.operator())
+                        : scalarInner(side, columns);
+                if (value != null) {
+                    read.add(value);
                 }
-                return Equalities.neverAmongButEvaluated(singles,
-                        x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX);
             }
-            // answered by its sides' types: false, both sides evaluated (a side that may raise still raises)
-            return Equalities.neverEqualButEvaluated(scalarInner(never.args().get(0), columns),
-                    scalarInner(never.args().get(1), columns));
+            boolean equality = x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.EQUALITY;
+            return equality && read.size() == 2 ? Equalities.neverEqualButEvaluated(read.get(0), read.get(1))
+                    : Equalities.neverAmongButEvaluated(read,
+                            x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX);
         }
         if (x.fixedByTheCall()) {
             throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()
@@ -3791,6 +3791,46 @@ public final class Lowerer {
                     + " that answers it at the call did not run over this body");
         }
         return scalarInner(x.comparison(), columns);
+    }
+
+    /** Every value of {@code side}, a list on one side of a comparison answered "never equal", READ: null where the
+     *  list is written or read where it stands (nothing computes, so nothing may raise); else the planner's
+     *  statement that folds its every value to one ({@link WholeComparisons#everyValueRead}), as one value. Where no
+     *  statement of its own reads the list (it is computed from the row or the element the comparison stands in),
+     *  refused by name: never the quiet false it was. */
+    private @com.legend.base.Nullable SqlExpr everyValueRead(TypedSpec side, String operator) {
+        if (!computes(side)) {
+            return null;
+        }
+        @com.legend.base.Nullable SqlQuery read = wholeComparisons == null ? null : wholeComparisons.everyValueRead(side);
+        if (read == null) {
+            throw new com.legend.error.NotImplementedException(operator + " over values of two types, which are never"
+                    + " equal, where one side is a list computed from the row or the element it stands in: Pure"
+                    + " computes the list before it answers (so a list that fails raises), and no statement of its"
+                    + " own computes it here; not supported yet");
+        }
+        return new SqlExpr.ScalarSubquery(read);
+    }
+
+    /** Whether {@code side} computes: anything but a written value, a variable, a property read, a list of those, or
+     *  an upcast of one (to {@code Any}, {@code Number}, the abstract {@code Date}; a cast down can fail). */
+    private static boolean computes(TypedSpec side) {
+        return switch (side) {
+            case TypedVariable v -> false;
+            case TypedPropertyAccess p -> p.children().stream().anyMatch(Lowerer::computes);
+            case TypedCollection list -> list.elements().stream().anyMatch(Lowerer::computes);
+            case com.legend.compiler.spec.typed.TypedCast cast -> !(cast.wire() || PlatformTypes.isAny(cast.target())
+                    || cast.target() == Type.Primitive.NUMBER || cast.target() == Type.Primitive.DATE)
+                    || computes(cast.source());
+            case com.legend.compiler.spec.typed.TypedCInteger i -> false;
+            case com.legend.compiler.spec.typed.TypedCFloat f -> false;
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> false;
+            case com.legend.compiler.spec.typed.TypedCString t -> false;
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> false;
+            case com.legend.compiler.spec.typed.TypedCDate d -> false;
+            case com.legend.compiler.spec.typed.TypedEnumValue e -> false;
+            default -> true;
+        };
     }
 
     private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {

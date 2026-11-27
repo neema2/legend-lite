@@ -40,6 +40,9 @@ class RunTimeComparisonTest {
             function x::sameAny(a: Any[1], b: Any[1]): Boolean[1] { $a == $b }
             function x::sameAsOne(a: Number[1]): Boolean[1] { x::same($a, 1) }
             function x::whereIn(a: Number[1], b: Number[*]): Integer[1] { $b->indexOf($a) }
+            function x::sameNums(a: Number[*], b: Number[*]): Boolean[1] { $a == $b }
+            function x::sameAnys(a: Any[*], b: Any[*]): Boolean[1] { $a == $b }
+            function x::among(a: Number[1], b: Number[*]): Boolean[1] { $a->in($b) }
             function x::sameT<T,U>(a: T[1], b: U[1]): Boolean[1] { $a == $b }
             function x::isZeroT<T>(a: T[1]): Boolean[1] { $a == 0 }
             ###Relational
@@ -270,6 +273,68 @@ class RunTimeComparisonTest {
                         e instanceof com.legend.error.NotImplementedException
                                 || e instanceof com.legend.error.ModelException, raises + ": " + e);
             }
+        }
+    }
+
+    /** A COMPUTED LIST on a side of a comparison of two types is still computed (the closing batch; the user,
+     *  2026-11-27: "Build 3"). Pure evaluates both sides before it compares them, so a list whose computation fails
+     *  raises, whatever the types say. Until then the types alone answered -- false, or -1 for an index -- and the
+     *  list was never computed (measured 2026-11-27: each "raises" case below answered a quiet false). Now every
+     *  value of such a list is read by a statement of its own; two sides that both hold no value are the same, as
+     *  {@code [] == []} is. */
+    @Test
+    void aComparisonOfTwoTypesStillComputesAListThatFails() throws Exception {
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        String fails = "[1, 2]->map(x | [1, 2]->at($x + 5))";
+        String quiet = "[1, 2]->map(x | [1, 2]->at($x - 1))";
+        java.util.Map<String, Object> answered = new java.util.LinkedHashMap<>();
+        answered.put("|x::sameNums(" + quiet + ", [1.5, 2.5])", false);
+        answered.put("|x::sameAnys(" + quiet + ", ['a', 'b'])", false);
+        answered.put("|x::among(1.5, " + quiet + ")", false);
+        answered.put("|x::whereIn(1.5, " + quiet + ")", -1L);
+        answered.put("|" + quiet + "->cast(@Number) == [1.5, 2.5]->cast(@Number)", false);
+        answered.put("|[1, 2]->filter(x | $x > 5)->cast(@Number) == [1.5]->filter(x | $x > 5.0)->cast(@Number)", true);
+        for (java.util.Map.Entry<String, Object> c : answered.entrySet()) {
+            try (Connection connection = backend.open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                assertEquals(List.of(List.of(c.getValue())), r.rows(), c.getKey() + "\n" + r.text());
+            }
+        }
+        for (String raises : List.of("|x::sameNums(" + fails + ", [1.5, 2.5])",
+                "|x::sameAnys(" + fails + ", ['a', 'b'])",
+                "|x::among(1.5, " + fails + ")",
+                "|x::whereIn(1.5, " + fails + ")",
+                "|" + fails + "->cast(@Number) == [1.5, 2.5]->cast(@Number)")) {
+            try (Connection connection = backend.open()) {
+                RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                        () -> Lean.established(model, raises, "p::RT", connection), raises);
+                org.junit.jupiter.api.Assertions.assertFalse(
+                        e instanceof com.legend.error.NotImplementedException
+                                || e instanceof com.legend.error.ModelException, raises + ": " + e);
+            }
+        }
+    }
+
+    /** A list HOLDING values drawn afresh, one of which is read again by its place, is refused by name, as one such
+     *  value read twice is: each reading would draw again, where Pure's binding is one list (measured 2026-11-27: the
+     *  filter below answered no element, where the list's first is equal to itself). */
+    @Test
+    void aListOfFreshDrawsReadAgainByItsPlaceIsRefused() throws Exception {
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        String query = "{| let ks = [generateGuid(), generateGuid()]; $ks->filter(k | $k == $ks->at(0))->size(); }";
+        try (Connection connection = backend.open()) {
+            com.legend.error.NotImplementedException e = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.error.NotImplementedException.class,
+                    () -> Lean.established(model, query, "p::RT", connection));
+            org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(e.getMessage()).contains("drawn afresh"),
+                    e.getMessage());
+        }
+        // the list read whole, once, is the program's own draws: answered
+        try (Connection connection = backend.open()) {
+            assertEquals(List.of(List.of(2L)), Lean.established(model,
+                    "{| let ks = [generateGuid(), generateGuid()]; $ks->size(); }", "p::RT", connection).rows());
         }
     }
 }

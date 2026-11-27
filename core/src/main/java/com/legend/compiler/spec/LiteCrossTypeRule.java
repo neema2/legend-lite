@@ -166,22 +166,21 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
             throw crossing.refusalAtTheCall(marked.function());
         }
         return switch (c.kind()) {
-            // (the constant only where neither side is a computation that may raise: Pure evaluates both sides
-            // before it compares them, so [1, 2]->at(5)->cast(@Number) == 1.0 raises there -- the false that still
-            // evaluates its sides otherwise; the user, 2026-11-27, "agreed")
-            // (over a many-valued side the constant stands: evaluated, the side would be a list value inside an
-            // expression, which not every database holds -- recorded with membership and index below)
+            // (the constant only where no side is a computation that may raise: Pure evaluates both sides before it
+            // compares them, so [1, 2]->at(5)->cast(@Number) == 1.0 raises there -- the false that still evaluates
+            // its sides otherwise; the user, 2026-11-27, "agreed". A side that is a computed LIST too, since the
+            // closing batch ("Build 3"): the lowering reads its every value by a statement of the planner's, or
+            // refuses by name where it cannot -- until then the constant stood for a list, and a list whose
+            // computation fails answered a quiet false)
             case EQUALITY -> !neverEmpty(call) ? call
-                    : unevaluatedIsHarmless(call) || manyValued(call)
+                    : unevaluatedIsHarmless(call)
                             ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
                     : marked.answeredNeverEqual();
-            // membership and index the same (the user, 2026-11-27: "why cant we do the work we promised"): the constant
-            // only where no single value among the sides is a computation that may raise --
-            // [1, 2]->at(5)->cast(@Number)->in([1.5]) raises in Pure. (A computed LIST that may raise keeps the
-            // constant: evaluated, it would be a list value inside an expression; recorded.)
-            case MEMBERSHIP -> singleValuesAreHarmless(call)
+            // membership and index the same (the user, 2026-11-27: "why cant we do the work we promised"):
+            // [1, 2]->at(5)->cast(@Number)->in([1.5]) raises in Pure, and so does a list that fails
+            case MEMBERSHIP -> unevaluatedIsHarmless(call)
                     ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info()) : marked.answeredNeverEqual();
-            case INDEX -> singleValuesAreHarmless(call)
+            case INDEX -> unevaluatedIsHarmless(call)
                     ? new com.legend.compiler.spec.typed.TypedCInteger(-1L, call.info()) : marked.answeredNeverEqual();
             case ORDERING -> byValueThenType(call, c, ctx);
             case ASSERT -> call;
@@ -213,16 +212,6 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
                     .allMatch(LiteCrossTypeRule::harmless);
             default -> false;
         };
-    }
-
-    /** Whether every side of {@code call} that is one value (not a list) is {@link #harmless}. */
-    private static boolean singleValuesAreHarmless(com.legend.compiler.spec.typed.TypedNativeCall call) {
-        return call.args().stream().filter(side -> !side.info().multiplicity().isMany())
-                .allMatch(LiteCrossTypeRule::harmless);
-    }
-
-    private static boolean manyValued(com.legend.compiler.spec.typed.TypedNativeCall call) {
-        return call.args().stream().anyMatch(side -> side.info().multiplicity().isMany());
     }
 
     /** {@code equal([], [])} is true: only a side that is never empty makes the answer the types' alone. */
