@@ -95,11 +95,39 @@ in `step-6-one-equality-2026-11-27.md` (same folder).
   guessing the door; a yes/no on the door's own table is step 5's ruled design, and it is already built. Faithful to
   both costs one line more (legend-engine's door answers false outside a database query) and two test cases. The
   expensive part is the rule's holes (row A9), the same under either answer. **Awaiting the user's word.**
-- **3 (A7):** "what does this mean clearly" -- explained; awaiting their word.
-- **4 (B1):** "will this get fixed in next followup?" -- yes: row D8 of the database follow-up's work list
-  (`docs/records/database-recheck-2026-11-26/START_HERE.md`), added the same hour; in step 6 a named refusal where
-  the database's own comparison is not the rule. Awaiting their word on the refusal.
-- **5:** "what are 6 limits" -- listed for them; awaiting their word.
+- **2 (A3, A9), ruled:** "1 okay" (to: faithful to both doors, with the mark turned around). The door's table keeps
+  its yes/no; legend-engine's door answers false outside a database query; conditions are the closed list.
+- **A8, ruled:** "2 okay" (to: the planner's older reads of the door go at the end of the edition program, not in
+  step 6).
+- **3 (A7), ruled:** "Java checker seems ok for now".
+- **4 (B1), ruled:** "per row refused okay".
+- **B2:** "3 size before we decide". Sized below; awaiting their word.
+- **5 (B6, B7, B9, B10, B13):** "other 5 do you suggest to keep for now" -- the author's answer: yes, all five, with
+  a register row for B9's `max` tie and for B10, written in the batch and shown in the landing summary. Awaiting
+  their word.
+
+### B2, sized (read in the code, not run)
+
+- **What it is.** A function whose author declared its inputs loosely (`Any`, `Number`, the abstract `Date`), called
+  with two different types, where `==`, `in`, `contains` or `indexOf` has a LIST side that is a computation which can
+  fail. Pure computes both sides first, so the failure raises. Lite sees "two types, never equal" and answers false
+  (or -1) without computing the list (`LiteCrossTypeRule.atTheCall`: the constant where `manyValued`). Single values
+  are evaluated already.
+- **The build.**
+  1. The type-checker stops taking the shortcut for a list side that computes (about 5 lines).
+  2. A list side standing on its own: the planner builds each side as rows, as it does for a whole-side comparison,
+     and one new small statement form reads every element of each side and answers false (the single-value form's
+     marked-text trick, one aggregate a side, each side written once). About 100 lines across `SideEqualities`,
+     `RootComparison` and `Lowerer.runTimeComparison`, through the one entry the batch builds anyway (design 2.1).
+  3. A list side that reads the row it stands in, or whose elements have no text form (class instances): refused by
+     name, the refusal ruled for B1. Never a quiet false.
+  4. Tests: five cases in `RunTimeComparisonTest` on the in-process databases.
+- **Cost.** Two to three hours in the batch; no SQL changes outside this exact shape; covered by the batch's one
+  verification. Risks: a corpus or PCT body that takes the quiet false today over a per-row list would become a named
+  refusal (the verification shows any); `Lowerer`'s method-length guard is tight.
+- **The alternative.** The user's explicit exception to "never accepted for cost: a NULL where Pure raises", a
+  register row, no work.
+- **Recommended: build.**
 
 ## What the user rules
 
