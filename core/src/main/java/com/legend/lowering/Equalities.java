@@ -63,8 +63,8 @@ final class Equalities {
                 || n.args().size() != 2) {
             return compared;
         }
-        boolean first = NullSemantics.isOptional(n.args().get(0).info().multiplicity());
-        boolean second = NullSemantics.isOptional(n.args().get(1).info().multiplicity());
+        boolean first = mayHoldNoValue(n.args().get(0), c.args().get(0));
+        boolean second = mayHoldNoValue(n.args().get(1), c.args().get(1));
         if (first && second) {
             return NullSemantics.enumInvolved(n) ? compared : new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, c.args());
         }
@@ -72,6 +72,22 @@ final class Equalities {
             return compared;
         }
         return SqlExpr.Call.of(SqlFn.COALESCE, compared, new SqlExpr.BoolLit(false));
+    }
+
+    /** Whether {@code side}, written as {@code lowered}, is ONE SQL value that may be no value: declared to hold at
+     *  most one and possibly none; or declared many and possibly none where the SQL carries one value a row (a row's
+     *  column read under a {@code forAll} over the rows is typed many, measured 2026-11-27: read by its declaration
+     *  alone it was never guarded, and the {@code forAll} answered true over a row whose comparison had no value).
+     *  A list value is no such side: it is empty as a list, which its own comparison answers. */
+    private static boolean mayHoldNoValue(TypedSpec side, SqlExpr lowered) {
+        if (!(side.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b)
+                || b.lower() != 0) {
+            return false;
+        }
+        return Integer.valueOf(1).equals(b.upper())
+                || lowered.type() instanceof com.legend.sql.TypeFact.Typed held
+                        && (held.type() instanceof SqlType.Decimal
+                                || held.type() instanceof SqlType.Scalar one && one != SqlType.Scalar.JSON);
     }
 
     /** The two sides of an equality {@link #emptySidesAsPure} wrote as "false where a side is empty", or null where
