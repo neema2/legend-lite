@@ -419,7 +419,8 @@ public final class ProductStatements {
         // and compared by the product's equality over two sides (RootComparison; the edition program's step 6)
         SqlQuery compared = RootComparison.plan(p.body(), side -> lowerer(query, side, p.env(), temporal, false, slots,
                 sites).sharingRelations(!p.env().postProcessors().extractCtes()).lower(seeded(side, p.env(),
-                query.context())), query.context());
+                query.context())), comparison -> lowerer(query, p, temporal, false, slots, sites)
+                        .numbersOf(comparison), query.context());
         if (compared != null) {
             return postProcessed(compared, p.env());
         }

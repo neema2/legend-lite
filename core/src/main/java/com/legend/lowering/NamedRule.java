@@ -95,5 +95,12 @@ public enum NamedRule {
      *  written of a tie, the least the FIRST ({@code [3, 3.0]->least()} is the Integer). Not the product's, which
      *  keeps the element whose type orders it so (the greatest of equal numbers the Decimal, then the Float; the
      *  least the Integer). */
-    EXTREME_KEEPS_THE_FOLDS_TIE
+    EXTREME_KEEPS_THE_FOLDS_TIE,
+
+    /** {@code ==}, {@code eq}, {@code contains}, {@code in} and {@code removeDuplicates} with an Integer, a Float and
+     *  a Decimal THREE TYPES never equal to one another inside a mixed list: {@code [3, 'a']->contains(3D)} is false
+     *  and {@code [3, 3D]->removeDuplicates()} keeps both. Not the product's, which calls an Integer and a Decimal of
+     *  one value equal (two exact numbers; the user's ruling of 2026-11-27). A call that meets no mixed list is
+     *  written by its own rule, unchanged. */
+    MIXED_NUMBERS_OF_THREE_TYPES
 }

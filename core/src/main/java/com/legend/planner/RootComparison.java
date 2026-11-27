@@ -43,7 +43,7 @@ final class RootComparison {
      *  one side), or null where its last statement is no comparison of two whole sides, or the sides have no typed
      *  comparison (the statement is then lowered as any expression is). */
     static @Nullable SqlQuery plan(List<TypedSpec> body, Function<List<TypedSpec>, SqlQuery> lowered,
-            ModelContext ctx) {
+            Function<TypedNativeCall, com.legend.lowering.NumberFamilies> numbersOf, ModelContext ctx) {
         if (body.isEmpty()) {
             return null;
         }
@@ -66,8 +66,10 @@ final class RootComparison {
         if (known(left.info().type()) && known(right.info().type())
                 && !java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
                         SideEqualities.typedClass(right.info().type()))
-                // (an Integer side against a Decimal side is one comparison, by value: two exact numbers)
-                && !(SideEqualities.exactNumber(left.info().type())
+                // (an Integer side against a Decimal side is one comparison, by value: two exact numbers -- under the
+                // product's rule; a door that keeps three number types made the comparison what it is already)
+                && !(numbersOf.apply(equal) == com.legend.lowering.NumberFamilies.TWO_FAMILIES
+                        && SideEqualities.exactNumber(left.info().type())
                         && SideEqualities.exactNumber(right.info().type()))) {
             // two known types: the comparison is whatever the door that admitted the code made of it (refused on
             // lite's own, the database's by value on legend-engine's), which stands as it is lowered
@@ -82,7 +84,10 @@ final class RootComparison {
         SqlQuery rightPlan = lowered.apply(with(lets, right));
         SideEqualities.Pair pair = SideEqualities.pair(left, kind(left, leftPlan), leftPlan, right,
                 kind(right, rightPlan), rightPlan, ctx);
-        SideEqualities.Compared compared = pair == null ? null : pair.compared(leftPlan, rightPlan, false);
+        // (numbers of different types by the rule this comparison takes at the door that admitted it: the product's
+        // two families, or the three types a compatibility door's table names)
+        SideEqualities.Compared compared = pair == null ? null
+                : pair.under(numbersOf.apply(equal)).compared(leftPlan, rightPlan, false);
         if (compared == null) {
             return null;
         }

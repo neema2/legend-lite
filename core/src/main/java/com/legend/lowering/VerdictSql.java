@@ -321,7 +321,7 @@ public final class VerdictSql {
      *  ({@code Family.EMPTY_TAGGED}). Null where the side has no kinded reading. */
     public static @com.legend.base.Nullable TypedRow typedEmptyTagged(SqlQuery wrapped, Type kind, boolean wantEmpty) {
         java.util.TreeMap<String, SqlType> held = new java.util.TreeMap<>();
-        SqlQuery h = SideEqualities.kindsOf(wrapped, kind, held, true) ? SideEqualities.kindedRows(wrapped, kind, held, true) : null;
+        SqlQuery h = SideEqualities.kindsOf(wrapped, kind, held, true, NumberFamilies.TWO_FAMILIES) ? SideEqualities.kindedRows(wrapped, kind, held, true, NumberFamilies.TWO_FAMILIES) : null;
         if (h == null) {
             return null;
         }
@@ -483,7 +483,7 @@ public final class VerdictSql {
         SqlQuery vList;
         if (valWrapped.outputs().get(0).type() instanceof SqlType.Tagged) {
             java.util.TreeMap<String, SqlType> held = new java.util.TreeMap<>();
-            SqlQuery h = SideEqualities.kindsOf(valWrapped, kind, held, true) ? SideEqualities.kindedRows(valWrapped, kind, held, true) : null;
+            SqlQuery h = SideEqualities.kindsOf(valWrapped, kind, held, true, NumberFamilies.TWO_FAMILIES) ? SideEqualities.kindedRows(valWrapped, kind, held, true, NumberFamilies.TWO_FAMILIES) : null;
             if (h == null) {
                 return null;
             }

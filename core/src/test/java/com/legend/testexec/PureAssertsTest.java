@@ -47,7 +47,7 @@ class PureAssertsTest {
     /** assertSameElements' failure: the product's decision over both sides sorted (Pure's sort), each side's values
      *  in its own order in the words. */
     private static String sameMsg(List<Object> e, List<Object> a, HostRules rules) {
-        return PureAsserts.holds(sorted(e), sorted(a), rules) ? null
+        return PureAsserts.holds(sorted(e, rules), sorted(a, rules), rules) ? null
                 : AssertRecords.sameElements(e, a, null, null).sentence();
     }
 
@@ -63,9 +63,9 @@ class PureAssertsTest {
 
     /** Pure's sort over Any (numbers by value, then strings, then booleans, temporals by instant): Equality's order
      *  (PureAsserts.sorted until item 3's S2, which went with the edge's legend-pure words, its one caller). */
-    private static List<Object> sorted(List<Object> values) {
+    private static List<Object> sorted(List<Object> values, HostRules rules) {
         List<Object> out = new java.util.ArrayList<>(values.size());
-        for (Equality.Typed t : Equality.sorted(Equality.Typed.all(values, null))) {
+        for (Equality.Typed t : Equality.sorted(Equality.Typed.all(values, null), rules)) {
             out.add(t.value());
         }
         return out;

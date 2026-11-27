@@ -310,6 +310,15 @@ public final class Lowerer {
     /** Whether a relation the statement reads more than once is written once ({@code on}), or at each read as
      *  legend-engine writes it: a frame whose post-processor extracts the statement's subqueries as common table
      *  expressions of its own spelling. */
+    /** How numbers of different types compare for {@code comparison} here: the product's two families, unless this
+     *  door's table names the three types for the call ({@link NamedRule#MIXED_NUMBERS_OF_THREE_TYPES}). Asked by the
+     *  planner for a comparison it plans over two whole sides ({@code planner.RootComparison}), so the sides compare
+     *  by the rule the same comparison takes inside an expression. */
+    public NumberFamilies numbersOf(TypedNativeCall comparison) {
+        return styled().edition().lowersAs(comparison, features) == NamedRule.MIXED_NUMBERS_OF_THREE_TYPES
+                ? NumberFamilies.THREE_TYPES : NumberFamilies.TWO_FAMILIES;
+    }
+
     public Lowerer sharingRelations(boolean on) {
         this.shareRelations = on;
         return this;

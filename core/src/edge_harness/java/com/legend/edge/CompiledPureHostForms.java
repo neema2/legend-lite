@@ -39,6 +39,14 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
         return ok;
     }
 
+    /** The edge's asserts keep an Integer, a Float and a Decimal three types never equal, as they were judged before
+     *  the product's numbers became two families (the user's ruling of 2026-11-27: the other two modes keep their
+     *  own behaviour). */
+    @Override
+    public boolean exactNumbersByValue() {
+        return false;
+    }
+
     /** legend-pure's words of a caught error (K10 of the edge audit, 2026-11-18): a raise of a planned site worded
      *  from its site's record, after the run (stage B's B1, 2026-11-20: {@link PureMessages#worded}); any other error
      *  its own message -- the edge's one wording of an error, the pure/v1 routes' too. */

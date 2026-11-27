@@ -167,8 +167,9 @@ public final class Equality {
             // 1.5 == 1.5D false) -- but for two EXACT numbers, an Integer and a Decimal, which are equal by their value
             // (the user's ruling of 2026-11-27, "Yes I like the rule": exact with exact by value, a Float only with a
             // Float; until then, by the ruling of 2026-11-04, 1D == 1 was false too). On every route
-            return ek != Kind.FLOAT && ak != Kind.FLOAT && isNumericKind(ek) && isNumericKind(ak)
-                    && e instanceof Number en && a instanceof Number an && decimal(en).compareTo(decimal(an)) == 0;
+            return rules.forms().exactNumbersByValue() && ek != Kind.FLOAT && ak != Kind.FLOAT && isNumericKind(ek)
+                    && isNumericKind(ak) && e instanceof Number en && a instanceof Number an
+                    && decimal(en).compareTo(decimal(an)) == 0;
         }
         if (ek == Kind.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -239,7 +240,7 @@ public final class Equality {
      *  their text (the instances design's HIGH, 2026-11-22: two instances whose fields are one value written two ways,
      *  {@code 1.5D} and {@code 1.50D}, sorted apart by their text and failed a pair the database judge holds). */
     public static boolean sameElements(List<Typed> e, List<Typed> a, HostRules rules) {
-        List<Typed> es = sorted(e), as = sorted(a);
+        List<Typed> es = sorted(e, rules), as = sorted(a, rules);
         int k = (int) es.stream().takeWhile(t -> !(t.value() instanceof Map<?, ?>)).count();
         return e.size() == a.size() && k == as.stream().takeWhile(t -> !(t.value() instanceof Map<?, ?>)).count()
                 && ordered(es.subList(0, k), as.subList(0, k), rules)
@@ -287,7 +288,7 @@ public final class Equality {
         return rows;
     }
 
-    static List<Typed> sorted(List<Typed> values) {
+    static List<Typed> sorted(List<Typed> values, HostRules rules) {
         List<Typed> out = new ArrayList<>(values);
         // equal values of two families (3 and 3.0) in one place on both sides, whatever order each was written in: the
         // family breaks the tie, an exact number before a Float (two lists are matched element by element after this
@@ -295,7 +296,8 @@ public final class Equality {
         out.sort(java.util.Comparator.comparingInt((Typed t) -> typeRank(t.value()))
                 .thenComparing(t -> withinRank(t.value()))
                 .thenComparingInt(t -> java.util.Optional.ofNullable(effectiveKind(t))
-                        .map(k -> k == Kind.DECIMAL ? Kind.INTEGER.ordinal() : k.ordinal()).orElse(-1)));
+                        .map(k -> k == Kind.DECIMAL && rules.forms().exactNumbersByValue() ? Kind.INTEGER.ordinal()
+                                : k.ordinal()).orElse(-1)));
         return out;
     }
 

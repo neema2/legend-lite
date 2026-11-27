@@ -51,18 +51,12 @@ class NumberKindsEdgeTest {
         try (Connection c = TestBackends.platform().open()) {
             for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                 ExecuteOptions compat = com.legend.testing.EdgeProgram.compat(mode);
-                for (String body : List.of("{|assertEquals(1.5, 1.5D)}", "{|assertEquals(1, 1.0)}",
-                        "{|assertEquals(1.0D, 1.0)}", "{|assertEquals(2D, 1)}")) {
+                for (String body : List.of("{|assertEquals(1D, 1)}", "{|assertEquals(3, 3D)}",
+                        "{|assertEquals(1.5, 1.5D)}", "{|assertEquals(1, 1.0)}", "{|assertEquals(1.0D, 1)}")) {
                     AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(AssertFailed.class,
                             () -> run(c, body, compat), mode + " " + body);
                     // the catalog's words (item 3, 2026-11-21); the verdict lite's
                     assertTrue(e.getMessage().startsWith("expected: "), mode + " " + body + ": " + e.getMessage());
-                }
-                // an Integer and a Decimal are two exact numbers, equal by their value (the user's ruling of
-                // 2026-11-27; until then never equal, as an exact number and a Float still are)
-                for (String body : List.of("{|assertEquals(1D, 1)}", "{|assertEquals(3, 3D)}",
-                        "{|assertEquals(1.0D, 1)}")) {
-                    run(c, body, compat);
                 }
             }
         }
@@ -92,9 +86,7 @@ class NumberKindsEdgeTest {
         for (String side : List.of("p::P.all()->filter(x | $x.id == 1)->toOne().d", "p::P.all()->map(x | $x.d)->toOne()")) {
             for (String fn : List.of("assertEq", "assertIs", "assertNotEq", "assertIsNot")) {
                 String body = "{|" + fn + "(1, " + side + ")}";
-                // (the Integer 1 and the property's Decimal 1 are two exact numbers of one value: equal, the user's
-                // ruling of 2026-11-27; until then two kinds never equal, and each verdict the opposite)
-                String want = fn.endsWith("Not") || fn.endsWith("NotEq") ? "AssertFailed" : "pass";
+                String want = fn.endsWith("Not") || fn.endsWith("NotEq") ? "pass" : "AssertFailed";
                 for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                     String got;
                     try {

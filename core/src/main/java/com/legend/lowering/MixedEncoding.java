@@ -444,14 +444,6 @@ final class MixedEncoding {
         return writtenDigits(kind) != null ? "DateTime" : kind;
     }
 
-    /** Whether a value of kind {@code a} can equal one of kind {@code b}: the two are of one family ({@link #family}),
-     *  or both are EXACT numbers -- an Integer and a Decimal are equal by their value, whichever of the two types
-     *  holds it (the user's ruling of 2026-11-27, "Yes I like the rule": exact with exact by value, a Float only with
-     *  a Float). The database compares the two values; the kinds only say that it may. */
-    static boolean sameFamily(String a, String b) {
-        return family(a).equals(family(b)) || exactNumber(a) && exactNumber(b);
-    }
-
     /** Whether {@code kind} is an exact number's: an Integer's or a Decimal's. */
     static boolean exactNumber(String kind) {
         String family = family(kind);
@@ -461,10 +453,10 @@ final class MixedEncoding {
     /** The channels of a tagged list that hold values of {@code kind}'s family (a needle's static kind), in channel
      *  order: a family with no channel is a member of nothing in the list. Several where the list holds Decimals at
      *  two scales or date-times at two written precisions (one channel per slot). */
-    static List<Integer> channelsOf(SqlExpr.TaggedList tl, String kind) {
+    static List<Integer> channelsOf(SqlExpr.TaggedList tl, String kind, NumberFamilies numbers) {
         List<Integer> out = new ArrayList<>();
         for (int k = 0; k < tl.channels().size(); k++) {
-            if (sameFamily(tl.channels().get(k).kind(), kind)) {
+            if (numbers.canEqual(tl.channels().get(k).kind(), kind)) {
                 out.add(k);
             }
         }

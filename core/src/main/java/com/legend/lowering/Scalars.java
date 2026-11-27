@@ -1465,68 +1465,7 @@ final class Scalars {
         // singleton-wrapped elements (the accumulator IS the kept list), the
         // candidate dropped when any KEPT element satisfies eq(kept, candidate).
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_REMOVE_DUPLICATES) {
-            RULES.put(f, (n, args) -> {
-                // a TO-ONE value is its own dedup — but the output is
-                // [*]-typed, so it must stay LIST-shaPED for consumers
-                // (the root UNNEST, downstream list ops)
-                if (isToOne(n.args().get(0))) {
-                    return new SqlExpr.ArrayLit(List.of(args.get(0)));
-                }
-                if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
-                    // Variants deduplicated by equality (the elements, or a key's values): only identity decides
-                    // (register S401), refused by name
-                    com.legend.compiler.spec.typed.VariantEquality.refuseAmong(n.args().size() == 3
-                            && n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedLambda k
-                            && !k.body().isEmpty() ? k.body().get(k.body().size() - 1) : n.args().get(0));
-                }
-                // a MIXED list (track L, 2026-10-29): the first position of each element kept -- by the element's
-                // kind and value, or by the comparator over the elements at two positions (the binding convention:
-                // the lambda's parameters are the elements at the positions it ranges over)
-                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
-                if (mixed != null) {
-                    int depth = Dedup.countDedups(n.args().get(n.args().size() - 1));
-                    if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
-                        return TaggedLists.dedup(mixed, depth, (p, q) -> TaggedLists.sameElement(mixed, p, q));
-                    }
-                    if (!(args.get(args.size() - 1) instanceof SqlExpr.Lambda eq) || eq.params().size() != 2) {
-                        throw new IllegalStateException("removeDuplicates comparator must be a 2-parameter function");
-                    }
-                    UnaryOperator<SqlExpr> key = args.size() == 3 && args.get(1) instanceof SqlExpr.Lambda k
-                            && k.params().size() == 1
-                            ? v -> substituteRef(k.body(), k.params().get(0), v) : UnaryOperator.identity();
-                    return TaggedLists.dedup(mixed, depth, (prior, cand) -> substituteRef(
-                            substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
-                            eq.params().get(1), key.apply(cand)));
-                }
-                if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
-                    return ListEncodings.orderedDedup(args.get(0));
-                }
-                if (!(args.get(args.size() - 1) instanceof SqlExpr.Lambda eq)
-                        || eq.params().size() != 2) {
-                    throw new IllegalStateException("removeDuplicates comparator"
-                            + " must be a 2-parameter function");
-                }
-                UnaryOperator<SqlExpr> key =
-                        args.size() == 3 && args.get(1) instanceof SqlExpr.Lambda k
-                                && k.params().size() == 1
-                        ? v -> substituteRef(k.body(), k.params().get(0), v)
-                        : UnaryOperator.identity();
-                // NESTED dedups reuse these accumulator names — an inner
-                // comparator's lambdas would CAPTURE the outer's refs
-                // (audit). The suffix is the count of dedup calls inside
-                // this one's own subtree: deterministic, and strictly
-                // larger for the outer of any nested pair.
-                int depth = Dedup.countDedups(n.args().get(n.args().size() - 1));
-                // empty/NULL lists conform to the pure element's array
-                // (§4bZ-U — the typedList door: the dedup encoding's own
-                // param doors then stamp everything downstream)
-                return Dedup.keptDedup(
-                        PureSql.typedList(args.get(0),
-                                n.args().get(0).info().type()),
-                        depth, (prior, cand) -> substituteRef(
-                        substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
-                        eq.params().get(1), key.apply(cand)));
-            });
+            RULES.put(f, removeDuplicatesRule(NumberFamilies.TWO_FAMILIES));
         }
         // lite's isKind(variant, 'kind'): the database's JSON kind test, the kind a literal named as Cypher
         // names them (a kind of no such name, or not a literal, is the translator's bug: loud)
@@ -2059,125 +1998,7 @@ final class Scalars {
         }
         StringPredicates.register(RULES);   // isAlphaNumeric (character-class predicates)
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_COLLECTION_CONTAINS, Pure.AT_STRING_CONTAINS)) {
-            RULES.put(f, (n, args) -> {
-                // dispatch by the RESOLVED CALLEE's param mult (C1
-                // indexOf pattern) — string::contains keeps the scalar.
-                // The COLLECTION callee over a to-one value (a [0..1]
-                // column, a c1-collapsed literal) is membership in a list
-                // of at most one: it boxes, so the SQL is list membership
-                // (`$x.qty->contains(1)` wrote list_contains(t0.qty, 1),
-                // which DuckDB refuses). A [0..1] STRING source no longer
-                // reaches this callee: it resolves to engine's
-                // contains(String[0..1], String[1]) (stringExtension.pure:21).
-                boolean collCallee = !(n.callee().parameters().get(0)
-                        .multiplicity() instanceof Multiplicity.Bounded pb0
-                        && pb0.upper() != null && pb0.upper() <= 1);
-                if (collCallee && args.size() == 2 && com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0),
-                        n.args().get(1)) == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
-                    // a Variant's membership by equality: among Variants only identity decides (register S401),
-                    // refused by name (VariantEquality.between); among values of other types alone, never a member
-                    return new SqlExpr.BoolLit(false);
-                }
-                if (collCallee) {
-                    args = new java.util.ArrayList<>(args);
-                    args.set(0, PureSql.asList(args.get(0),
-                            !isToOne(n.args().get(0))));
-                }
-                // contains(coll, val, comparator): filter by the comparator
-                // against the needle, then non-empty. SQL lambdas are
-                // positional and list_filter is 1-param — the needle
-                // parameter closes over by SUBSTITUTION.
-                if (args.size() == 3 && args.get(2) instanceof SqlExpr.Lambda comp
-                        && comp.params().size() == 2 && args.get(0) instanceof SqlExpr.TaggedList tlc) {
-                    // a mixed list (track L): the comparator over the needle and the element at each position
-                    return TaggedLists.containsBy(tlc, args.get(1), comp);
-                }
-                if (args.size() == 3 && args.get(2) instanceof SqlExpr.Lambda comp
-                        && comp.params().size() == 2) {
-                    // pure contains.pure: exists(x | $comparator->eval($value, $x))
-                    // — the FIRST comparator param binds the NEEDLE, the
-                    // second each element (C1.5b; the reversed binding sent
-                    // [1,2,3]->contains(5, {v,e|$v>$e}) the wrong way)
-                    SqlExpr needle = args.get(1);
-                    SqlExpr body = substituteRef(comp.body(), comp.params().get(0), needle);
-                    return new SqlExpr.Call(SqlFn.GREATER, List.of(
-                            SqlExpr.Call.of(SqlFn.LIST_LENGTH,
-                                    SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
-                                            new SqlExpr.Lambda(
-                                                    List.of(comp.params().get(1)), body))),
-                            new SqlExpr.IntLit(0)));
-                }
-                // TO-ONE singleton-literal needle (['ISIN2']) unwraps
-                if (args.get(1) instanceof SqlExpr.ArrayLit al
-                        && al.elements().size() == 1
-                        && isToOne(n.args().get(1))) {
-                    args = List.of(args.get(0), al.elements().get(0));
-                }
-                Type elem = n.args().get(0).info().type();
-                Type val = n.args().get(1).info().type();
-                // a ^TDSNull()-TYPED needle (TDSNull is DATA): membership
-                // of the null cell is an IS NULL scan — the ctor lowers
-                // to the SQL NULL literal, and list containment of NULL
-                // is never true under three-valued equality (resolver-bug
-                // burn follow-on: the right-outer-join goldens assert
-                // contains(^TDSNull()) over the null-fanned key column)
-                if (val instanceof Type.ClassType nc0
-                        && PlatformTypes.TDS_NULL_FQN.equals(nc0.fqn())) {
-                    return CollectionLanes.nullMembership(args.get(0));
-                }
-                // the TDSNull sentinel (^TDSNull() travels as the literal
-                // string 'TDSNull' on the wire) probes for a NULL cell —
-                // against a NON-string element list the string could never
-                // match anyway (today it dies as a cross-type comparison)
-                if (args.get(1) instanceof SqlExpr.StringLit snl
-                        && "TDSNull".equals(snl.value())
-                        && elem != Type.Primitive.STRING) {
-                    return CollectionLanes.nullMembership(args.get(0));
-                }
-                if (!collCallee) {
-                    // string::contains, [1] or engine's [0..1] overload
-                    // (stringExtension.pure:21: isNotEmpty && contains) —
-                    // same guard as startsWith/endsWith; STRPOS' accidental
-                    // NULL>0 was filter-equivalent but NULL != false in value
-                    // position
-                    return NullSemantics.optionalOperandGuards(n, args,
-                            new SqlExpr.Call(SqlFn.GREATER, List.of(
-                                    new SqlExpr.Call(SqlFn.STRPOS, args),
-                                    new SqlExpr.IntLit(0))));
-                }
-                // a MIXED list (track L, 2026-10-29; an Any-LUB literal, or a Number-LUB literal mix read as one):
-                // membership by the needle's kind's channel, a tagged needle by element; a kind the list has no
-                // channel for (an instance, another kind) is a member of nothing
-                SqlExpr.TaggedList mixedColl = asTaggedList(n.args().get(0), args.get(0));
-                if (mixedColl != null) {
-                    return args.get(1) instanceof SqlExpr.Tagged needleT
-                            ? TaggedLists.containsElement(mixedColl, needleT)
-                            : TaggedLists.contains(mixedColl,
-                                    MixedEncoding.kindOfValue(n.args().get(1), args.get(1)), args.get(1),
-                                    n.args().get(1).info().type());
-                }
-                // A heterogeneous (Any) list is variant-wrapped — wrap the
-                // needle the same way so containment compares JSON to JSON.
-                // This MUST precede the cross-kind rule: an Any list can
-                // legitimately contain an instance (audit: class-in-mixed-list
-                // containment was constant FALSE).
-                if (PlatformTypes.isAny(elem)) {
-                    return new SqlExpr.Membership(
-                            SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1)),
-                            args.get(0));
-                }
-                // Pure equality never relates an instance to a primitive —
-                // CONCRETE cross-kind containment is statically FALSE (SQL
-                // list_contains would refuse to even type it).
-                if (isClassish(elem) != isClassish(val)) {
-                    return new SqlExpr.BoolLit(false);
-                }
-                // NULL-safe: containment in a NULL list (toMany over JSON
-                // null) is pure's empty-collection FALSE, not SQL NULL.
-                return SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.Membership(args.get(1), args.get(0)),
-                        new SqlExpr.BoolLit(false));
-            });
+            RULES.put(f, containsRule(NumberFamilies.TWO_FAMILIES));
         }
         // format('%s...', [args]) -> printf(fmt, args...): the array spreads.
         // Two directives printf cannot honor rewrite to %s over a literal
@@ -2503,82 +2324,7 @@ final class Scalars {
                                         "in-rule must be registered")
                                         .apply(n, args),
                                 new SqlExpr.BoolLit(false)));
-        RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY), (n, args) -> {
-            // a Variant's membership: among Variants only identity decides (register S401), refused by name; among
-            // values of other types alone, never a member
-            if (com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1))
-                    == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
-                return new SqlExpr.BoolLit(false);
-            }
-            // TYPE-aware membership: a kind-mismatched needle is never a
-            // member — static FALSE, not a DB error.
-            if (MixedEncoding.kindMismatch(n.args().get(0).info().type(),
-                    n.args().get(1).info().type())) {
-                return new SqlExpr.BoolLit(false);
-            }
-            // in(x, []) is FALSE in pure; empty lowers to NULL and
-            // `x IN (NULL)` would drop rows under negation (audit).
-            if (args.get(1) instanceof SqlExpr.NullLit) {
-                return new SqlExpr.BoolLit(false);
-            }
-            // Any-collection variant wrap decided by LOWERED shape
-            // (ListShapes rule): plain-lowered literal lists compare plain.
-            boolean collVariant = PlatformTypes.isAny(
-                    n.args().get(1).info().type())
-                    && !(args.get(1) instanceof SqlExpr.ArrayLit al
-                            && al.elements().stream().noneMatch(
-                                    MixedEncoding::variantWrapped))
-                    // a SCALAR-STAMPED RHS compares PLAIN — one element,
-                    // no variant harmonization (to_json(needle) IN
-                    // ('John') did not bind). Stamp-read (burn-to-zero;
-                    // was wrap-by-proof).
-                    && !isToOne(n.args().get(1));
-            SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
-                    n.args().get(1));
-            // a MIXED list (track L, 2026-10-29): membership by the needle's kind's channel
-            SqlExpr.TaggedList tl = asTaggedList(n.args().get(1), args.get(1));
-            if (tl != null) {
-                return raw instanceof SqlExpr.Tagged needleT
-                        ? TaggedLists.containsElement(tl, needleT)
-                        : TaggedLists.contains(tl, MixedEncoding.kindOfValue(n.args().get(0), raw), raw,
-                                n.args().get(0).info().type());
-            }
-            SqlExpr needle = collVariant
-                    ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
-            // A RELATION-shaped collection = LIST-aggregated subquery;
-            // membership is list containment (NULL list = empty = FALSE).
-            if (Type.relationValued(n.args().get(1).info())) {
-                return SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.Membership(needle, args.get(1)),
-                        new SqlExpr.BoolLit(false));
-            }
-            // a COLLECTION-VALUED expression RHS (split(...) etc.) is
-            // MEMBERSHIP, never a 2-element literal list — the flat IN
-            // collapsed to '=' downstream (ledger cluster 35: silent
-            // wrong rows, 'LEGALNAME = string_split(...)')
-            if (!(args.get(1) instanceof SqlExpr.ArrayLit)
-                    && !(args.get(1) instanceof SqlExpr.PlanParam)
-                    && n.args().get(1).info().multiplicity().isMany()) {
-                return SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.Membership(needle, args.get(1)),
-                        new SqlExpr.BoolLit(false));
-            }
-            List<SqlExpr> flat = new ArrayList<>();
-            flat.add(needle);
-            if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
-                flat.addAll(arr.elements());
-            } else {
-                flat.add(args.get(1));
-            }
-            // pure in() is TOTAL (Boolean[1] — false over an empty needle,
-            // never empty): coalesce the SQL three-valued NULL to false so
-            // a [0..1] read's in() projects pure's false, not TDSNull.
-            // (not(in) stays correct: not(coalesce(NULL->false)) = true =
-            // the engine's processNotIn 'OR IS NULL' outcome.)
-            return SqlExpr.Call.of(SqlFn.COALESCE,
-                    new SqlExpr.Call(SqlFn.IN, flat),
-                    new SqlExpr.BoolLit(false));
-        });
+        RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY), inRule(NumberFamilies.TWO_FAMILIES));
     }
 
     private static void castFamily(Type target, List<com.legend.model.FunctionId> ids) {
@@ -3802,6 +3548,299 @@ final class Scalars {
     // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
     static {
         RULES.seal();
+    }
+
+    /** {@code removeDuplicates}' rule, with how numbers of different types compare inside a mixed list
+     *  ({@link NumberFamilies}: the product's, or the one a compatibility door's table names). */
+    static Rule removeDuplicatesRule(NumberFamilies numbers) {
+        return (n, args) -> {
+                // a TO-ONE value is its own dedup — but the output is
+                // [*]-typed, so it must stay LIST-shaPED for consumers
+                // (the root UNNEST, downstream list ops)
+                if (isToOne(n.args().get(0))) {
+                    return new SqlExpr.ArrayLit(List.of(args.get(0)));
+                }
+                if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
+                    // Variants deduplicated by equality (the elements, or a key's values): only identity decides
+                    // (register S401), refused by name
+                    com.legend.compiler.spec.typed.VariantEquality.refuseAmong(n.args().size() == 3
+                            && n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedLambda k
+                            && !k.body().isEmpty() ? k.body().get(k.body().size() - 1) : n.args().get(0));
+                }
+                // a MIXED list (track L, 2026-10-29): the first position of each element kept -- by the element's
+                // kind and value, or by the comparator over the elements at two positions (the binding convention:
+                // the lambda's parameters are the elements at the positions it ranges over)
+                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
+                if (mixed != null) {
+                    int depth = Dedup.countDedups(n.args().get(n.args().size() - 1));
+                    if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
+                        return TaggedLists.dedup(mixed, depth, (p, q) -> TaggedLists.sameElement(mixed, p, q, numbers));
+                    }
+                    if (!(args.get(args.size() - 1) instanceof SqlExpr.Lambda eq) || eq.params().size() != 2) {
+                        throw new IllegalStateException("removeDuplicates comparator must be a 2-parameter function");
+                    }
+                    UnaryOperator<SqlExpr> key = args.size() == 3 && args.get(1) instanceof SqlExpr.Lambda k
+                            && k.params().size() == 1
+                            ? v -> substituteRef(k.body(), k.params().get(0), v) : UnaryOperator.identity();
+                    return TaggedLists.dedup(mixed, depth, (prior, cand) -> substituteRef(
+                            substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
+                            eq.params().get(1), key.apply(cand)));
+                }
+                if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
+                    return ListEncodings.orderedDedup(args.get(0));
+                }
+                if (!(args.get(args.size() - 1) instanceof SqlExpr.Lambda eq)
+                        || eq.params().size() != 2) {
+                    throw new IllegalStateException("removeDuplicates comparator"
+                            + " must be a 2-parameter function");
+                }
+                UnaryOperator<SqlExpr> key =
+                        args.size() == 3 && args.get(1) instanceof SqlExpr.Lambda k
+                                && k.params().size() == 1
+                        ? v -> substituteRef(k.body(), k.params().get(0), v)
+                        : UnaryOperator.identity();
+                // NESTED dedups reuse these accumulator names — an inner
+                // comparator's lambdas would CAPTURE the outer's refs
+                // (audit). The suffix is the count of dedup calls inside
+                // this one's own subtree: deterministic, and strictly
+                // larger for the outer of any nested pair.
+                int depth = Dedup.countDedups(n.args().get(n.args().size() - 1));
+                // empty/NULL lists conform to the pure element's array
+                // (§4bZ-U — the typedList door: the dedup encoding's own
+                // param doors then stamp everything downstream)
+                return Dedup.keptDedup(
+                        PureSql.typedList(args.get(0),
+                                n.args().get(0).info().type()),
+                        depth, (prior, cand) -> substituteRef(
+                        substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
+                        eq.params().get(1), key.apply(cand)));
+            };
+    }
+
+    /** {@code contains}' rule (a collection's and a String's), with how numbers of different types compare inside
+     *  a mixed list ({@link NumberFamilies}). */
+    static Rule containsRule(NumberFamilies numbers) {
+        return (n, args) -> {
+                // dispatch by the RESOLVED CALLEE's param mult (C1
+                // indexOf pattern) — string::contains keeps the scalar.
+                // The COLLECTION callee over a to-one value (a [0..1]
+                // column, a c1-collapsed literal) is membership in a list
+                // of at most one: it boxes, so the SQL is list membership
+                // (`$x.qty->contains(1)` wrote list_contains(t0.qty, 1),
+                // which DuckDB refuses). A [0..1] STRING source no longer
+                // reaches this callee: it resolves to engine's
+                // contains(String[0..1], String[1]) (stringExtension.pure:21).
+                boolean collCallee = !(n.callee().parameters().get(0)
+                        .multiplicity() instanceof Multiplicity.Bounded pb0
+                        && pb0.upper() != null && pb0.upper() <= 1);
+                if (collCallee && args.size() == 2 && com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0),
+                        n.args().get(1)) == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
+                    // a Variant's membership by equality: among Variants only identity decides (register S401),
+                    // refused by name (VariantEquality.between); among values of other types alone, never a member
+                    return new SqlExpr.BoolLit(false);
+                }
+                if (collCallee) {
+                    args = new java.util.ArrayList<>(args);
+                    args.set(0, PureSql.asList(args.get(0),
+                            !isToOne(n.args().get(0))));
+                }
+                // contains(coll, val, comparator): filter by the comparator
+                // against the needle, then non-empty. SQL lambdas are
+                // positional and list_filter is 1-param — the needle
+                // parameter closes over by SUBSTITUTION.
+                if (args.size() == 3 && args.get(2) instanceof SqlExpr.Lambda comp
+                        && comp.params().size() == 2 && args.get(0) instanceof SqlExpr.TaggedList tlc) {
+                    // a mixed list (track L): the comparator over the needle and the element at each position
+                    return TaggedLists.containsBy(tlc, args.get(1), comp);
+                }
+                if (args.size() == 3 && args.get(2) instanceof SqlExpr.Lambda comp
+                        && comp.params().size() == 2) {
+                    // pure contains.pure: exists(x | $comparator->eval($value, $x))
+                    // — the FIRST comparator param binds the NEEDLE, the
+                    // second each element (C1.5b; the reversed binding sent
+                    // [1,2,3]->contains(5, {v,e|$v>$e}) the wrong way)
+                    SqlExpr needle = args.get(1);
+                    SqlExpr body = substituteRef(comp.body(), comp.params().get(0), needle);
+                    return new SqlExpr.Call(SqlFn.GREATER, List.of(
+                            SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                                    SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
+                                            new SqlExpr.Lambda(
+                                                    List.of(comp.params().get(1)), body))),
+                            new SqlExpr.IntLit(0)));
+                }
+                // TO-ONE singleton-literal needle (['ISIN2']) unwraps
+                if (args.get(1) instanceof SqlExpr.ArrayLit al
+                        && al.elements().size() == 1
+                        && isToOne(n.args().get(1))) {
+                    args = List.of(args.get(0), al.elements().get(0));
+                }
+                Type elem = n.args().get(0).info().type();
+                Type val = n.args().get(1).info().type();
+                // a ^TDSNull()-TYPED needle (TDSNull is DATA): membership
+                // of the null cell is an IS NULL scan — the ctor lowers
+                // to the SQL NULL literal, and list containment of NULL
+                // is never true under three-valued equality (resolver-bug
+                // burn follow-on: the right-outer-join goldens assert
+                // contains(^TDSNull()) over the null-fanned key column)
+                if (val instanceof Type.ClassType nc0
+                        && PlatformTypes.TDS_NULL_FQN.equals(nc0.fqn())) {
+                    return CollectionLanes.nullMembership(args.get(0));
+                }
+                // the TDSNull sentinel (^TDSNull() travels as the literal
+                // string 'TDSNull' on the wire) probes for a NULL cell —
+                // against a NON-string element list the string could never
+                // match anyway (today it dies as a cross-type comparison)
+                if (args.get(1) instanceof SqlExpr.StringLit snl
+                        && "TDSNull".equals(snl.value())
+                        && elem != Type.Primitive.STRING) {
+                    return CollectionLanes.nullMembership(args.get(0));
+                }
+                if (!collCallee) {
+                    // string::contains, [1] or engine's [0..1] overload
+                    // (stringExtension.pure:21: isNotEmpty && contains) —
+                    // same guard as startsWith/endsWith; STRPOS' accidental
+                    // NULL>0 was filter-equivalent but NULL != false in value
+                    // position
+                    return NullSemantics.optionalOperandGuards(n, args,
+                            new SqlExpr.Call(SqlFn.GREATER, List.of(
+                                    new SqlExpr.Call(SqlFn.STRPOS, args),
+                                    new SqlExpr.IntLit(0))));
+                }
+                // a MIXED list (track L, 2026-10-29; an Any-LUB literal, or a Number-LUB literal mix read as one):
+                // membership by the needle's kind's channel, a tagged needle by element; a kind the list has no
+                // channel for (an instance, another kind) is a member of nothing
+                SqlExpr.TaggedList mixedColl = asTaggedList(n.args().get(0), args.get(0));
+                if (mixedColl != null) {
+                    return args.get(1) instanceof SqlExpr.Tagged needleT
+                            ? TaggedLists.containsElement(mixedColl, needleT, numbers)
+                            : TaggedLists.contains(mixedColl,
+                                    MixedEncoding.kindOfValue(n.args().get(1), args.get(1)), args.get(1),
+                                    n.args().get(1).info().type(), numbers);
+                }
+                // A heterogeneous (Any) list is variant-wrapped — wrap the
+                // needle the same way so containment compares JSON to JSON.
+                // This MUST precede the cross-kind rule: an Any list can
+                // legitimately contain an instance (audit: class-in-mixed-list
+                // containment was constant FALSE).
+                if (PlatformTypes.isAny(elem)) {
+                    return new SqlExpr.Membership(
+                            SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1)),
+                            args.get(0));
+                }
+                // Pure equality never relates an instance to a primitive —
+                // CONCRETE cross-kind containment is statically FALSE (SQL
+                // list_contains would refuse to even type it).
+                if (isClassish(elem) != isClassish(val)) {
+                    return new SqlExpr.BoolLit(false);
+                }
+                // NULL-safe: containment in a NULL list (toMany over JSON
+                // null) is pure's empty-collection FALSE, not SQL NULL.
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Membership(args.get(1), args.get(0)),
+                        new SqlExpr.BoolLit(false));
+            };
+    }
+
+    /** {@code in}'s rule, with how numbers of different types compare inside a mixed list
+     *  ({@link NumberFamilies}). */
+    static Rule inRule(NumberFamilies numbers) {
+        return (n, args) -> {
+            // a Variant's membership: among Variants only identity decides (register S401), refused by name; among
+            // values of other types alone, never a member
+            if (com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1))
+                    == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
+                return new SqlExpr.BoolLit(false);
+            }
+            // TYPE-aware membership: a kind-mismatched needle is never a
+            // member — static FALSE, not a DB error.
+            if (MixedEncoding.kindMismatch(n.args().get(0).info().type(),
+                    n.args().get(1).info().type())) {
+                return new SqlExpr.BoolLit(false);
+            }
+            // in(x, []) is FALSE in pure; empty lowers to NULL and
+            // `x IN (NULL)` would drop rows under negation (audit).
+            if (args.get(1) instanceof SqlExpr.NullLit) {
+                return new SqlExpr.BoolLit(false);
+            }
+            // Any-collection variant wrap decided by LOWERED shape
+            // (ListShapes rule): plain-lowered literal lists compare plain.
+            boolean collVariant = PlatformTypes.isAny(
+                    n.args().get(1).info().type())
+                    && !(args.get(1) instanceof SqlExpr.ArrayLit al
+                            && al.elements().stream().noneMatch(
+                                    MixedEncoding::variantWrapped))
+                    // a SCALAR-STAMPED RHS compares PLAIN — one element,
+                    // no variant harmonization (to_json(needle) IN
+                    // ('John') did not bind). Stamp-read (burn-to-zero;
+                    // was wrap-by-proof).
+                    && !isToOne(n.args().get(1));
+            SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
+                    n.args().get(1));
+            // a MIXED list (track L, 2026-10-29): membership by the needle's kind's channel
+            SqlExpr.TaggedList tl = asTaggedList(n.args().get(1), args.get(1));
+            if (tl != null) {
+                return raw instanceof SqlExpr.Tagged needleT
+                        ? TaggedLists.containsElement(tl, needleT, numbers)
+                        : TaggedLists.contains(tl, MixedEncoding.kindOfValue(n.args().get(0), raw), raw,
+                                n.args().get(0).info().type(), numbers);
+            }
+            SqlExpr needle = collVariant
+                    ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
+            // A RELATION-shaped collection = LIST-aggregated subquery;
+            // membership is list containment (NULL list = empty = FALSE).
+            if (Type.relationValued(n.args().get(1).info())) {
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Membership(needle, args.get(1)),
+                        new SqlExpr.BoolLit(false));
+            }
+            // a COLLECTION-VALUED expression RHS (split(...) etc.) is
+            // MEMBERSHIP, never a 2-element literal list — the flat IN
+            // collapsed to '=' downstream (ledger cluster 35: silent
+            // wrong rows, 'LEGALNAME = string_split(...)')
+            if (!(args.get(1) instanceof SqlExpr.ArrayLit)
+                    && !(args.get(1) instanceof SqlExpr.PlanParam)
+                    && n.args().get(1).info().multiplicity().isMany()) {
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Membership(needle, args.get(1)),
+                        new SqlExpr.BoolLit(false));
+            }
+            List<SqlExpr> flat = new ArrayList<>();
+            flat.add(needle);
+            if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
+                flat.addAll(arr.elements());
+            } else {
+                flat.add(args.get(1));
+            }
+            // pure in() is TOTAL (Boolean[1] — false over an empty needle,
+            // never empty): coalesce the SQL three-valued NULL to false so
+            // a [0..1] read's in() projects pure's false, not TDSNull.
+            // (not(in) stays correct: not(coalesce(NULL->false)) = true =
+            // the engine's processNotIn 'OR IS NULL' outcome.)
+            return SqlExpr.Call.of(SqlFn.COALESCE,
+                    new SqlExpr.Call(SqlFn.IN, flat),
+                    new SqlExpr.BoolLit(false));
+        };
+    }
+
+    /** {@link NamedRule#MIXED_NUMBERS_OF_THREE_TYPES}: the call's own rule with an Integer, a Float and a Decimal
+     *  three types never equal inside a mixed list. A call that meets no mixed list is written exactly as its own
+     *  rule writes it. */
+    static SqlExpr mixedNumbersOfThreeTypes(TypedNativeCall n, List<SqlExpr> args) {
+        com.legend.model.FunctionId id = n.callee().id();
+        NumberFamilies three = NumberFamilies.THREE_TYPES;
+        if (com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ).contains(id)) {
+            return Equalities.equal(n, args, three);
+        }
+        if (Pure.AT_COLLECTION_CONTAINS.contains(id)) {
+            return containsRule(three).apply(n, args);
+        }
+        if (id.equals(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY))) {
+            return inRule(three).apply(n, args);
+        }
+        if (Pure.AT_COLLECTION_REMOVE_DUPLICATES.contains(id)) {
+            return removeDuplicatesRule(three).apply(n, args);
+        }
+        throw new IllegalStateException("no rule of three number types for " + id + ": an edition's row named one");
     }
 
     /** {@link NamedRule#SORT_TIES_AS_WRITTEN}: a mixed list's plain sort with equal numbers of different types in

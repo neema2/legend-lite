@@ -59,6 +59,16 @@ final class UpstreamTies {
                 Pure.AT_COLLECTION_LEAST)) {
             rules.put(extreme, NamedRule.EXTREME_KEEPS_THE_FOLDS_TIE);
         }
+        // numbers of different types inside a mixed list: three types never equal, at both doors, as both answered
+        // before the product's rule became two families (the user's ruling of 2026-11-27: "legend-pure's and
+        // legend-engine's modes keep their own behaviour"). Interpreted legend-pure's answer on every pair
+        // (answers.md, group A); compiled legend-pure and legend-engine differ from it on some, as recorded (S127).
+        // The optional-needle in is the one-value in under a null guard, so it carries no row of its own
+        for (FunctionId compared : FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ,
+                Pure.AT_COLLECTION_CONTAINS, Pure.AT_COLLECTION_REMOVE_DUPLICATES,
+                java.util.List.of(FunctionId.of(Pure.IN__ANY_1__ANY_MANY)))) {
+            rules.put(compared, NamedRule.MIXED_NUMBERS_OF_THREE_TYPES);
+        }
         RULES = java.util.Collections.unmodifiableMap(rules);
     }
 

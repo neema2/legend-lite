@@ -209,6 +209,30 @@ class UpstreamTiesTest {
     }
 
     @Test
+    @DisplayName("numbers of different types in a mixed list: lite's two families; the compatibility doors keep three"
+            + " types never equal")
+    void mixedNumbersKeepThreeTypesAtTheCompatibilityDoors() throws Exception {
+        // the user's ruling of 2026-11-27: lite's numbers are of two families (an Integer and a Decimal equal by
+        // value), and "legend-pure's and legend-engine's modes keep their own behaviour" -- each door answers what it
+        // answered before the ruling, interpreted legend-pure's answer on every row (answers.md, group A: A1, A4,
+        // A5, A7; compiled legend-pure says true on the first three and legend-engine on the third, as recorded)
+        Map<String, String[]> rows = new java.util.LinkedHashMap<>();
+        rows.put("|[3, 'a']->contains(3D)", new String[] {"Boolean true", "Boolean false"});
+        rows.put("|3->in([3D, 'a'])", new String[] {"Boolean true", "Boolean false"});
+        rows.put("|[3, 'a'] == [3D, 'a']", new String[] {"Boolean true", "Boolean false"});
+        rows.put("|[3, 3D]->removeDuplicates()->size()", new String[] {"Integer 1", "Integer 2"});
+        // and what no rule moves: an exact number never equals a Float, at any door
+        rows.put("|[1, 'a']->contains(1.0)", new String[] {"Boolean false", "Boolean false"});
+        rows.put("|[1, 1.0]->removeDuplicates()->size()", new String[] {"Integer 2", "Integer 2"});
+        for (Map.Entry<String, String[]> e : rows.entrySet()) {
+            assertEquals(List.of(e.getValue()[0]), answer(Door.LITE, e.getKey()), "lite " + e.getKey());
+            for (Door door : UPSTREAMS) {
+                assertEquals(List.of(e.getValue()[1]), answer(door, e.getKey()), door + " " + e.getKey());
+            }
+        }
+    }
+
+    @Test
     @DisplayName("of several arguments the compatibility doors keep the first of a tie: max(3, 3.0) is the Integer")
     void ofSeveralArgumentsTheCompatibilityDoorsKeepTheFirst() throws Exception {
         for (Door door : UPSTREAMS) {

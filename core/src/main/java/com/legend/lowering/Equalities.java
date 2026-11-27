@@ -38,6 +38,13 @@ final class Equalities {
      *  true; the guard would spell it false). The residual both-NULL divergence (SQL NULL where Pure says true) is
      *  the reference engine's own behaviour (a bare {@code =}). */
     static SqlExpr equal(TypedNativeCall n, List<SqlExpr> args) {
+        return equal(n, args, NumberFamilies.TWO_FAMILIES);
+    }
+
+    /** {@link #equal(TypedNativeCall, List)} with how numbers of different types compare inside a mixed list
+     *  ({@link NumberFamilies}: the product's two families, or the three types a compatibility door's table
+     *  names). */
+    static SqlExpr equal(TypedNativeCall n, List<SqlExpr> args, NumberFamilies numbers) {
         // ENGINE-VERBATIM empty ladder (pureToSQLQuery.pure
         // nullSafeEqualsOperation: "a literal empty ([])
         // operand degenerates to a null check on the other
@@ -71,7 +78,7 @@ final class Equalities {
         // a TAGGED value or list on a side (track L, 2026-10-29): equality by kind and value -- two
         // elements the same channel's values, an element against a value of a static kind that
         // channel's value, two lists element by element; a kind no channel holds is never equal
-        SqlExpr taggedEq = taggedEquality(n.args().get(0), args.get(0), n.args().get(1), args.get(1));
+        SqlExpr taggedEq = taggedEquality(n.args().get(0), args.get(0), n.args().get(1), args.get(1), numbers);
         if (taggedEq != null) {
             return taggedEq;
         }
@@ -131,20 +138,21 @@ final class Equalities {
     }
 
     /** Equality where a side is a tagged value or a tagged list (track L); null where neither is. */
-    private static @com.legend.base.Nullable SqlExpr taggedEquality(TypedSpec s0, SqlExpr a, TypedSpec s1, SqlExpr b) {
+    private static @com.legend.base.Nullable SqlExpr taggedEquality(TypedSpec s0, SqlExpr a, TypedSpec s1, SqlExpr b,
+            NumberFamilies numbers) {
         if (a instanceof SqlExpr.Tagged x && b instanceof SqlExpr.Tagged y) {
-            return TaggedLists.sameElement(x, y);
+            return TaggedLists.sameElement(x, y, numbers);
         }
         if (a instanceof SqlExpr.Tagged x) {
-            return TaggedLists.sameElement(x, MixedEncoding.kindOfValue(s1, b), b, s1.info().type());
+            return TaggedLists.sameElement(x, MixedEncoding.kindOfValue(s1, b), b, s1.info().type(), numbers);
         }
         if (b instanceof SqlExpr.Tagged y) {
-            return TaggedLists.sameElement(y, MixedEncoding.kindOfValue(s0, a), a, s0.info().type());
+            return TaggedLists.sameElement(y, MixedEncoding.kindOfValue(s0, a), a, s0.info().type(), numbers);
         }
         SqlExpr.TaggedList la = Scalars.asTaggedList(s0, a);
         SqlExpr.TaggedList lb = Scalars.asTaggedList(s1, b);
         if (la != null && lb != null) {
-            return sameTaggedLists(s0, la, s1, lb);
+            return sameTaggedLists(s0, la, s1, lb, numbers);
         }
         if (la != null || lb != null) {
             // a mixed list against a list of ONE kind: equal where every element is of that kind and equals the
@@ -161,7 +169,7 @@ final class Equalities {
                 if (other instanceof SqlExpr.ArrayLit oal && oal.elements().size() == oc.elements().size()) {
                     SqlExpr.TaggedList ot = MixedEncoding.taggedList(oc, oal.elements());
                     if (ot != null) {
-                        return sameTaggedLists(la != null ? s0 : s1, tl, otherSpec, ot);
+                        return sameTaggedLists(la != null ? s0 : s1, tl, otherSpec, ot, numbers);
                     }
                 }
                 // a list of ONE static kind (one family: a date-time at any written precision is a DateTime)
@@ -175,7 +183,7 @@ final class Equalities {
                 }
             }
             if (kind != null) {
-                return TaggedLists.sameListOfKind(tl, kind, other);
+                return TaggedLists.sameListOfKind(tl, kind, other, numbers);
             }
             if (variantList(other)) {
                 // against a list on the VARIANT carrier (a row's cells read in a lambda, an Any value): the mixed
@@ -194,15 +202,16 @@ final class Equalities {
      *  by position, no list in the SQL ({@link TaggedLists#sameWrittenLists}); two lists in their own order whose
      *  families are each one array compare array by array (no lambda: every database); any other pair element by
      *  element. */
-    private static SqlExpr sameTaggedLists(TypedSpec s0, SqlExpr.TaggedList la, TypedSpec s1, SqlExpr.TaggedList lb) {
+    private static SqlExpr sameTaggedLists(TypedSpec s0, SqlExpr.TaggedList la, TypedSpec s1, SqlExpr.TaggedList lb,
+            NumberFamilies numbers) {
         if (everyElementWritten(s0) && everyElementWritten(s1)) {
-            SqlExpr written = TaggedLists.sameWrittenLists(la, lb);
+            SqlExpr written = TaggedLists.sameWrittenLists(la, lb, numbers);
             if (written != null) {
                 return written;
             }
         }
-        return la.identityPositions() && lb.identityPositions() && TaggedLists.oneChannelPerFamily(la, lb)
-                ? TaggedLists.sameListByKinds(la, lb) : TaggedLists.sameList(la, lb);
+        return la.identityPositions() && lb.identityPositions() && TaggedLists.oneChannelPerFamily(numbers, la, lb)
+                ? TaggedLists.sameListByKinds(la, lb) : TaggedLists.sameList(la, lb, numbers);
     }
 
     /** Whether the SQL carries {@code e} as a list: its type says an array. */
