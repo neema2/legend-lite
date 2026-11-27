@@ -1606,17 +1606,16 @@ public final class SideEqualities {
      * {@code assertEquals} of two tables is judged by ({@link #grids}) over each side's plan as the product planned it --
      * the same columns by name, then the same rows in order, each cell by its column's type -- its rows numbered where
      * the plan defines their order ({@link SideOrdinal}). The two tables' columns have the same names ({@link
-     * #columnsDiffer}, answered by the caller from the types alone). Null where a side's plan does not carry exactly
-     * its declared columns, or a column has no typed comparison.
+     * #columnsDiffer}, answered by the caller from the types alone), and each side's columns are given with the kinds
+     * its plan's outputs decide ({@code compiler.spec.VerdictQueries.wireDecidedKinds}, the caller's too: the lowering
+     * reaches no compiler class but the typed tree's). Null where a side's plan does not carry exactly its declared
+     * columns, or a column has no typed comparison.
      */
-    public static @com.legend.base.Nullable Compared tables(SqlQuery left, Type.RelationType leftColumns,
-            SqlQuery right, Type.RelationType rightColumns, NumberFamilies numbers) {
-        if (left.outputs().size() != leftColumns.columns().size()
-                || right.outputs().size() != rightColumns.columns().size()) {
+    public static @com.legend.base.Nullable Compared tables(SqlQuery left, Type.RelationType l,
+            SqlQuery right, Type.RelationType r, NumberFamilies numbers) {
+        if (left.outputs().size() != l.columns().size() || right.outputs().size() != r.columns().size()) {
             return null;
         }
-        Type.RelationType l = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(leftColumns, left.outputs());
-        Type.RelationType r = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(rightColumns, right.outputs());
         return grids(tableSide(left, l.columns().size()), l.columns().stream().map(Type.Column::type).toList(),
                 tableSide(right, r.columns().size()), r.columns().stream().map(Type.Column::type).toList(), false,
                 false, l, r, numbers);

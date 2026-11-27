@@ -120,8 +120,16 @@ final class RootComparison {
                     VALUE)), false, new com.legend.sql.SqlSource.Dual(), null, List.of(), null, null, List.of(), null,
                     null, List.of(VALUE));
         }
-        SideEqualities.Compared compared = SideEqualities.tables(lowered.apply(with(lets, left)), l,
-                lowered.apply(with(lets, right)), r, numbers);
+        SqlQuery leftPlan = lowered.apply(with(lets, left));
+        SqlQuery rightPlan = lowered.apply(with(lets, right));
+        if (leftPlan.outputs().size() != l.columns().size() || rightPlan.outputs().size() != r.columns().size()) {
+            return null;
+        }
+        // each column by the kind its plan's output decides where its declaration leaves it open (a String, a Number,
+        // an Any: the reading an assert's judge gives a table's cells)
+        SideEqualities.Compared compared = SideEqualities.tables(leftPlan,
+                com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(l, leftPlan.outputs()), rightPlan,
+                com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(r, rightPlan.outputs()), numbers);
         return compared == null ? null : answer(compared, negated);
     }
 
