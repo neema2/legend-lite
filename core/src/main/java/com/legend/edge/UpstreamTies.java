@@ -18,13 +18,16 @@ import java.util.Map;
  *
  * <p>Lite's own rule places equal numbers by their type (Integer, Float, Decimal). Upstream's is the order they were
  * written in, run on interpreted legend-pure, compiled legend-pure and legend-engine's own Java the same day, all three
- * agreeing on every case (docs/records/edition-homework/upstream-step6/answers.md, group B):
+ * agreeing on every case (docs/records/edition-homework/upstream-step6/answers.md, groups B and E):
  * <ul>
  *   <li>a sort is stable and compares {@code 3} and {@code 3.0} as equal, so they keep the written order:
  *       {@code [3.0, 3, 1]->sort()} is {@code [1, 3.0, 3]} ({@link NamedRule#SORT_TIES_AS_WRITTEN});</li>
- *   <li>{@code max}, {@code min}, {@code greatest} and {@code least} keep the element their left fold keeps: over a
- *       list the last written of a tie ({@code [3, 3.0]->max()} is the Float), of several arguments the first
- *       ({@code max(3, 3.0)} is the Integer) ({@link NamedRule#EXTREME_KEEPS_THE_FOLDS_TIE}).</li>
+ *   <li>{@code max}, {@code min}, {@code greatest} and {@code least} keep the element the function's own Pure body
+ *       keeps ({@link NamedRule#EXTREME_KEEPS_THE_FOLDS_TIE}). A number list's {@code max} and {@code min} are a
+ *       left fold: the last written of a tie ({@code [3, 3.0]->max()} is the Float), of several arguments the first
+ *       ({@code max(3, 3.0)} is the Integer). {@code greatest}, {@code least} and the generic {@code max} and
+ *       {@code min} are an end of that stable sort: the greatest the last written of a tie, the least the first
+ *       ({@code [3, 3.0]->least()} is the Integer).</li>
  * </ul>
  * These rows are not "the database's own function": the answer is the same on every database, and the same for a call
  * inside a store query and outside one. So a table asks here before it reads a call's stamp or its database, and no

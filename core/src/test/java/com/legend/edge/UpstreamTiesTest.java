@@ -38,11 +38,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Integer 3 and a Float 3.0 are different answers here, though both print as a three.
  *
  * <p>Upstream's answers are not recalled. Each is taken from
- * {@code docs/records/edition-homework/upstream-step6/answers.md}, group B, where interpreted legend-pure, compiled
- * legend-pure and legend-engine's own Java were each RUN on 2026-11-26 and agree on every row; the two-argument
- * {@code min} and {@code greatest} are READ in the pinned source, and say so where they are held. Lite's own answers
- * are its rule: equal numbers are placed by their type (Integer, Float, Decimal), and two written values of two
- * types are never compared.
+ * {@code docs/records/edition-homework/upstream-step6/answers.md}, groups B and E, where interpreted legend-pure,
+ * compiled legend-pure and legend-engine's own Java were each RUN on 2026-11-26 and agree on every row; the
+ * two-argument {@code min} alone is READ, in the pinned source, and says so where it is held. Lite's own answers are
+ * its rule: equal numbers are placed by their type (Integer, Float, Decimal), and two written values of two types
+ * are never compared.
  */
 class UpstreamTiesTest {
 
@@ -206,30 +206,32 @@ class UpstreamTiesTest {
         }
     }
 
-    /** READ in the pinned source, not run (legend-engine-pure-functions-standard-pure 4.145.0,
-     *  {@code core_functions_standard/collection}): {@code greatest} is {@code max($values)} over a generic list
-     *  ({@code greatest.pure:22-35}), which is the generic {@code max}, {@code $values->sort()->last()}
-     *  ({@code max.pure:22-35}). The sort keeps equal numbers as written (B5 to B9x, run), so {@code greatest} keeps
-     *  the last written of a tie.
-     *
-     *  <p>{@code least} and the generic {@code min} are not held here. The same files read
-     *  {@code $values->sort()->first()} for them ({@code least.pure:22-35}, {@code min.pure:22-35}), the FIRST written
-     *  of a tie, and the rule the doors' row names keeps the last: reported to the step's owner on 2026-11-26 with the
-     *  failing cases, to be run on upstream before either answer is held by a test. */
-    private static final Map<String, String> READ_GREATEST = Map.of(
-            "|[3, 3.0]->greatest()", F3,
-            "|[3.0, 3]->greatest()", I3);
+    /** Group E (run on all three runtimes the same day, after this session read the functions' bodies in the pinned
+     *  source): {@code greatest} and {@code least} are the generic {@code max} and {@code min} over a list, a sort's
+     *  last and a sort's first ({@code core_functions_standard/collection/max.pure:22-35}, {@code min.pure:22-35}).
+     *  The sort keeps equal numbers as written, so {@code greatest} keeps the LAST written of a tie and
+     *  {@code least}, with the generic {@code min} of a list that is not all numbers, the FIRST. Only the number
+     *  {@code min} is the fold that keeps the last (B3, B4). */
+    private static final List<Case> BY_THE_SORT = List.of(
+            new Case("E1", "|[3, 3.0]->least()", List.of(I3), List.of(I3)),
+            new Case("E2", "|[3.0, 3]->least()", List.of(F3), List.of(I3)),
+            new Case("E3", "|[3, 3.0]->greatest()", List.of(F3), List.of(F3)),
+            new Case("E4", "|[3.0, 3]->greatest()", List.of(I3), List.of(F3)),
+            new Case("E5", "|[3, 3.0, 'a']->min()", List.of(I3), List.of(I3)),
+            new Case("E6", "|[3.0, 3, 'a']->min()", List.of(F3), List.of(I3)),
+            new Case("E7", "|[3, 3.0, 'a']->max()", List.of("String a"), List.of("String a")),
+            new Case("E8", "|[3.0, 3, 'a']->max()", List.of("String a"), List.of("String a")));
 
     @Test
-    @DisplayName("greatest keeps the last written of a tie at the compatibility doors (read in the pinned source)")
-    void greatestKeepsTheLastWritten() throws Exception {
-        for (Door door : UPSTREAMS) {
-            for (Map.Entry<String, String> e : READ_GREATEST.entrySet()) {
-                assertEquals(List.of(e.getValue()), answer(door, e.getKey()), door + " " + e.getKey());
+    @DisplayName("greatest keeps the last written of a tie and least the first at the compatibility doors, as the"
+            + " sort they are written with does; lite's door keeps the one its type orders so")
+    void greatestAndLeastFollowTheSort() throws Exception {
+        for (Case c : BY_THE_SORT) {
+            for (Door door : UPSTREAMS) {
+                assertEquals(c.upstream(), answer(door, c.query()), door + " " + c.id() + " " + c.query());
             }
+            assertEquals(c.lite(), answer(Door.LITE, c.query()), c.id() + " " + c.query());
         }
-        assertEquals(List.of(F3), answer(Door.LITE, "|[3, 3.0]->greatest()"));
-        assertEquals(List.of(F3), answer(Door.LITE, "|[3.0, 3]->greatest()"));
     }
 
     @Test
