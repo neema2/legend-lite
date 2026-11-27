@@ -496,18 +496,21 @@ class UpstreamTiesTest {
         // run 2026-11-27 (docs/records/edition-homework/upstream-step6/answers-request-3-2026-11-27.md): inside its
         // store query legend-engine writes a plain '=' for a column against a value (no value where the column is
         // empty), and outside any store query its own Java answers false, as Pure does
+        // (the guard is one COALESCE, spelled in the database's case)
+        java.util.function.BiFunction<Door, String, Boolean> guarded =
+                (door, query) -> sql(door, door.style, query).toUpperCase(java.util.Locale.ROOT).contains("COALESCE(");
         String inside = "|#>{s::DB.T}#->extend(~e: r | $r.I == 1)->select(~[e])->from(s::RT)";
         String outside = "|[1, 2]->filter(x | $x > 5)->first() == 1";
-        assertTrue(sql(Door.LITE, PlanStyle.PRODUCT, inside).contains("COALESCE("), "lite, a column's value");
-        assertTrue(sql(Door.LEGEND_PURE, PureText.UPSTREAM, inside).contains("COALESCE("), "legend-pure, the same");
-        assertFalse(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, inside).contains("COALESCE("),
+        assertTrue(guarded.apply(Door.LITE, inside), "lite, a column's value");
+        assertTrue(guarded.apply(Door.LEGEND_PURE, inside), "legend-pure, the same");
+        assertFalse(guarded.apply(Door.LEGEND_ENGINE, inside),
                 "legend-engine inside a store query: the database's own answer");
-        assertTrue(sql(Door.LEGEND_ENGINE, PureText.PURE_V1, outside).contains("COALESCE("),
+        assertTrue(guarded.apply(Door.LEGEND_ENGINE, outside),
                 "legend-engine outside any store query: false, as its own Java answers");
         // a filter is a positive condition at every door: as written
         String filtered = "|#>{s::DB.T}#->filter(r | $r.I == 1)->select(~[ID])->from(s::RT)";
         for (Door door : List.of(Door.LITE, Door.LEGEND_PURE, Door.LEGEND_ENGINE)) {
-            assertFalse(sql(door, door.style, filtered).contains("COALESCE("), door + ": a filter's condition");
+            assertFalse(guarded.apply(door, filtered), door + ": a filter's condition");
         }
     }
 

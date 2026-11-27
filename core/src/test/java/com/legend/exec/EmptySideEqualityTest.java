@@ -86,9 +86,12 @@ class EmptySideEqualityTest {
                 List.of(List.of(2L)));
         cases.put("|p::O.all()->filter(o|!($o.nick == 'a' && $o.id == 1))->project(~[id: o|$o.id])",
                 List.of(List.of(2L)));
-        // every row's comparison must hold: the row whose nick is empty answers false
-        cases.put("|p::O.all()->forAll(o|$o.nick == 'a')", List.of(List.of(false)));
-        cases.put("|p::O.all()->exists(o|$o.nick == 'a')", List.of(List.of(true)));
+        // every row's comparison must hold: the row whose NICK is empty answers false, so no row passes the filter
+        // (it was "no value", which a NOT EXISTS of the rows that fail did not count: both rows passed)
+        String rows = "#>{p::DB.OPT}#";
+        cases.put("|" + rows + "->filter(r | " + rows + "->forAll(o | $o.NICK == 'a'))->select(~[ID])", List.of());
+        cases.put("|" + rows + "->filter(r | " + rows + "->exists(o | $o.NICK == 'a'))->select(~[ID])"
+                + "->sort(~ID->ascending())", List.of(List.of(1L), List.of(2L)));
         // as a query's answer
         Map<String, Object> answers = new LinkedHashMap<>();
         answers.put("|[1, 2]->filter(x | $x > 5)->first() == 1", List.of(List.of(false)));

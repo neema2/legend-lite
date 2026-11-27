@@ -110,11 +110,11 @@ class EqualityWorldsConformanceTest {
         // product refuses 1 == 1.0 as a compile error (World 2); the judge's own rule says false (World 1). Until then
         // World 2 answered SQL's numeric coercion, true (legend-engine's door still does: EngineComparisons)
         refusedByTheProduct(false, "1", "1.0", 1L, 1.0d);
-        // SQL three-valued logic: empty == empty through a runtime read
-        // is SQL NULL where pure says TRUE (the recorded residual; the
-        // STATIC [] == [] arm answers true, this pins the RUNTIME path)
-        diverge(true, null, "[]->head()", "[]->head()", null, null,
-                "SQL NULL vs pure true — recorded Phase-2 residual");
+        // empty == empty through a runtime read: TRUE in both worlds, as Pure says. Until the closing batch of the
+        // edition program's step 6 (2026-11-27) this was a declared divergence, the recorded Phase-2 residual: SQL's
+        // three-valued "no value" where Pure says true. Two sides that may both be empty are now compared null-safe
+        // (lowering.Equalities.emptySidesAsPure); the STATIC [] == [] arm answered true already
+        agree(true, "[]->head()", "[]->head()", null, null);
         // register S20 (the user's ruling "yes on IEEE", 2026-11-05; built 2026-11-17, Phase 5b): a Float literal is the
         // double in the product, so the database adds 0.1 + 0.2 as legend-pure's compiled runtime does
         // (0.30000000000000004), and clean mode compares a Float EXACTLY (S15/S132): the two worlds agree. Until S20 the

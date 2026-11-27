@@ -106,6 +106,11 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
 
 ## D. Outside step 6, as already agreed
 
+- Found on the way (2026-11-27, piece 3's run), older than step 6: a class's rows under `exists` or `forAll` as a
+  query's own answer (`|p::O.all()->exists(o | $o.nick == 'a')`) is a raw database error on DuckDB ("Invalid LIST
+  argument during lambda function binding"), a refusal by name on H2, and answered on SQLite. A task for after the
+  batch; the row-level forms inside a filter work and are what the batch's tests use.
+
 - Lists on a database with no list type (H2; partly SQLite, MySQL, MariaDB): the database program.
 - SQLite's date-time text: its own slice right after step 6.
 - A table's cell count in `assertSize`: step 10. A third date-time type: after Stage B. A Float's text at
