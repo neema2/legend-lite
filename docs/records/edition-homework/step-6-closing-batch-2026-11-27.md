@@ -118,6 +118,10 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
   query's own answer (`|p::O.all()->exists(o | $o.nick == 'a')`) is a raw database error on DuckDB ("Invalid LIST
   argument during lambda function binding"), a refusal by name on H2, and answered on SQLite. A task for after the
   batch; the row-level forms inside a filter work and are what the batch's tests use.
+- Found on the way (2026-11-27), older than step 6 and wider than equality: a `forAll` writes its predicate under a
+  NOT, so ANY predicate that answers "no value" for a row (an ordering or a membership over an empty value, not only
+  an equality) is not counted against it. The batch fixes the equality (its guard, and "is distinct from" under the
+  NOT); the general form (the predicate "is not true", one operator most databases have) is a task for after.
 
 - Lists on a database with no list type (H2; partly SQLite, MySQL, MariaDB): the database program.
 - SQLite's date-time text: its own slice right after step 6.

@@ -343,18 +343,22 @@ class UpstreamTiesTest {
     void anAssertOfEqualsOverUnsortedRowsIsTheAnyOrderAssertAtTheTestsDoor() {
         String rows = "#>{s::DB.T}#->select(~[ID])->from(s::RT)";
         String sorted = "#>{s::DB.T}#->select(~[ID])->sort(~ID->ascending())->from(s::RT)";
-        java.util.function.Function<String, String> admitted = body -> String.valueOf(
-                UpstreamTestBodies.admitted(Compiler.query(CONTEXT, body)).body());
-        // unsorted: the two forms are one assert once admitted
-        assertEquals(admitted.apply("{|assertSameElements(" + rows + ", " + rows + ");}"),
-                admitted.apply("{|assert(" + rows + " == " + rows + ");}"));
-        assertEquals(admitted.apply("{|assertEquals(" + rows + ", " + rows + ");}"),
-                admitted.apply("{|assert(" + rows + " == " + rows + ");}"));
+        // the assert a body is admitted as: its function, and how many arguments it takes
+        java.util.function.Function<String, String> admitted = body -> {
+            List<com.legend.compiler.spec.typed.TypedSpec> statements =
+                    UpstreamTestBodies.admitted(Compiler.query(CONTEXT, body)).body();
+            com.legend.compiler.spec.typed.TypedNativeCall last = (com.legend.compiler.spec.typed.TypedNativeCall)
+                    statements.get(statements.size() - 1);
+            return last.callee().qualifiedName() + "/" + last.args().size();
+        };
+        String anyOrder = "meta::pure::functions::asserts::assertSameElements";
+        // unsorted: the any-order assert of the two sides, as assertEquals of them is admitted
+        assertEquals(anyOrder + "/2", admitted.apply("{|assert(" + rows + " == " + rows + ");}"));
+        assertEquals(anyOrder + "/2", admitted.apply("{|assertEquals(" + rows + ", " + rows + ");}"));
         // a message is carried
-        assertEquals(admitted.apply("{|assertSameElements(" + rows + ", " + rows + ", 'the rows');}"),
-                admitted.apply("{|assert(" + rows + " == " + rows + ", 'the rows');}"));
+        assertEquals(anyOrder + "/3", admitted.apply("{|assert(" + rows + " == " + rows + ", 'the rows');}"));
         // sorted: as written, an ordered comparison
-        assertNotEquals(admitted.apply("{|assertSameElements(" + sorted + ", " + sorted + ");}"),
+        assertEquals("meta::pure::functions::asserts::assert/1",
                 admitted.apply("{|assert(" + sorted + " == " + sorted + ");}"));
     }
 

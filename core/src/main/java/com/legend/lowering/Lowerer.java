@@ -5096,7 +5096,10 @@ public final class Lowerer {
             pred = predicateOrThrow(sub, lambda, "exists/forAll", !negate);
         }
         if (negate) {
-            pred = SqlExpr.Call.of(SqlFn.NOT, pred);
+            // (an equality answered false for its empty side negates to ONE null-safe operator, "is distinct from":
+            // NullSemantics.negate; any other predicate is negated as it was)
+            SqlExpr twoValued = Equalities.guardedSides(pred) == null ? null : NullSemantics.negate(pred, false);
+            pred = twoValued != null ? twoValued : SqlExpr.Call.of(SqlFn.NOT, pred);
         }
         // the exists PREDICATE is user-zone: it seeds the subselect's
         // conjuncts (engine buildExistsPredicate), correlation and
