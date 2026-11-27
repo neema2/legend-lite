@@ -524,9 +524,10 @@ public final class DatabaseJudge {
         com.legend.compiler.element.type.Type ck = com.legend.lowering.SideEqualities.typedClass(oneKind(cr));
         String cf = com.legend.compiler.element.EqualityKeys.fqnOf(coll.info().type());
         com.legend.lowering.VerdictSql.TypedRow typed = literal || cr.tdsWrapped() ? null
-                : ck != null && ck.equals(com.legend.lowering.SideEqualities.typedClass(oneKind(vr)))
+                // (an Integer among Decimals, a Decimal among Integers: two exact numbers, the same by their value)
+                : ck != null && com.legend.lowering.SideEqualities.oneValueKind(ck, com.legend.lowering.SideEqualities.typedClass(oneKind(vr)))
                 ? com.legend.lowering.VerdictSql.typedContains(java.util.Objects.requireNonNull(c.side()).plan(), ck,
-                        java.util.Objects.requireNonNull(v.side()).plan(), ck, !negated)
+                        java.util.Objects.requireNonNull(v.side()).plan(), java.util.Objects.requireNonNull(com.legend.lowering.SideEqualities.typedClass(oneKind(vr))), !negated)
                 : cf != null && cf.equals(com.legend.compiler.element.EqualityKeys.fqnOf(val.info().type()))
                 ? com.legend.lowering.VerdictSql.typedContainsInstances(java.util.Objects.requireNonNull(c.side()).plan(),
                         coll.info().type(), java.util.Objects.requireNonNull(v.side()).plan(), val.info().type(),
@@ -613,7 +614,7 @@ public final class DatabaseJudge {
                 return unjudged(name, "forAll-contains: no literal channel");
             }
             if (!literal && com.legend.lowering.SideEqualities.typedClass(oneKind(nr)) instanceof com.legend.compiler.element.type.Type nk
-                    && nk.equals(com.legend.lowering.SideEqualities.typedClass(oneKind(hr))) && need.side() != null && have.side() != null) {
+                    && com.legend.lowering.SideEqualities.oneValueKind(nk, com.legend.lowering.SideEqualities.typedClass(oneKind(hr))) && need.side() != null && have.side() != null) {
                 // TYPED (item 3's S4): no needed value without a have not distinct from it; the condition's record
                 com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedSubset(
                         need.side().plan(), have.side().plan(), nk, wantTrue);
@@ -877,7 +878,7 @@ public final class DatabaseJudge {
                 // TYPED (item 3's S4): each element's two operands as their kinds type them, the first failing one's
                 // index and operands riding the failure; its record the host's row arm's
                 com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedPerElement(
-                        vector.side().plan(), pe, pa, !pe.equals(pa));
+                        vector.side().plan(), pe, pa, !com.legend.lowering.SideEqualities.oneValueKind(pe, pa));
                 if (typed != null) {
                     return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
                             com.legend.testexecutionplan.RootLoop.Family.PER_ELEMENT, true, null, null, null, -1),

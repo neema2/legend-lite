@@ -1057,6 +1057,12 @@ public final class SideEqualities {
         return kind == Type.Primitive.INTEGER || kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal;
     }
 
+    /** Whether values of kind {@code a} and of kind {@code b} are compared by their value: one kind, or two exact
+     *  numbers' (an Integer's and a Decimal's; the user's ruling of 2026-11-27). Any other two kinds are never equal. */
+    public static boolean oneValueKind(Type a, @com.legend.base.Nullable Type b) {
+        return a.equals(b) || b != null && exactNumber(a) && exactNumber(b);
+    }
+
     private static boolean wholeNumber(SqlType t) {
         return t == SqlType.Scalar.INTEGER || t == SqlType.Scalar.BIGINT;
     }
