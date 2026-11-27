@@ -137,7 +137,9 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
         if (!(marked.comparison() instanceof com.legend.compiler.spec.typed.TypedNativeCall call)) {
             return marked.comparison();
         }
-        java.util.Optional<EqualityClasses.Crossing> known = EqualityClasses.crossing(call.callee(), call.args(), ctx);
+        // (by the types the sides' values hold: an upcast written over one is the value as it was)
+        java.util.Optional<EqualityClasses.Crossing> known = EqualityClasses.heldCrossing(call.callee(), call.args(),
+                ctx);
         if (known.isEmpty()) {
             return call;
         }
@@ -153,7 +155,8 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
                 return read;
             }
         }
-        if (marked.fixedByTheCall()) {
+        if (marked.fixedByTheCall() && !EqualityClasses.declaredOpen(call.args().get(0).info().type())
+                && !EqualityClasses.declaredOpen(call.args().get(1).info().type())) {
             // the caller's own columns, a type variable's values: this call makes the function compare two types,
             // which is the mistake a comparison written in the query is -- refused here, where the types are known
             throw crossing.refusalAtTheCall(marked.function());

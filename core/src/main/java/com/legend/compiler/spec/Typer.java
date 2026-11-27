@@ -247,8 +247,18 @@ final class Typer {
         java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);
         if (crossing.isEmpty()) {
             // a comparison in a function's body whose sides' types are known only where the function is used
-            return compared == Compared.BODY ? EqualityClasses.atRunTime(call, chosen, args)
-                    .map(kept -> crossTypes.atRunTime(kept.in(comparedIn))).orElse(call) : call;
+            if (compared == Compared.BODY) {
+                return EqualityClasses.atRunTime(call, chosen, args)
+                        .map(kept -> crossTypes.atRunTime(kept.in(comparedIn))).orElse(call);
+            }
+            if (compared == Compared.QUERY && EqualityClasses.heldCrossing(chosen, args, ctx).isPresent()) {
+                // an upcast written in the query hides the type its value holds ([1, 2]->cast(@Number)->contains(1.0)):
+                // the setting answers the comparison by the types held, here, where they stand
+                TypedSpec kept = EqualityClasses.atRunTime(call, chosen, args).map(crossTypes::atRunTime).orElse(call);
+                return kept instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison k
+                        ? crossTypes.atTheCall(k, ctx) : kept;
+            }
+            return call;
         }
         EqualityClasses.Crossing c = crossing.get();
         com.legend.compiler.spec.typed.TypedCrossTypeComparison written =

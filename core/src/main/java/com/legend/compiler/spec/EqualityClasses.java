@@ -75,15 +75,35 @@ public final class EqualityClasses {
     /** The crossing {@code chosen} applied to {@code args} makes, if it is a comparison whose sides' types are known and
      *  differ. */
     public static Optional<Crossing> crossing(TypedFunction chosen, List<TypedSpec> args, ModelContext ctx) {
-        if (chosen.definition() == null || args.size() != 2) {
-            return Optional.empty();
+        return chosen.definition() == null || args.size() != 2 ? Optional.empty()
+                : crossing(chosen, args.get(0).info().type(), args.get(1).info().type(), ctx);
+    }
+
+    /** {@link #crossing} by the types the two sides' values HOLD, where an upcast written over a side hides it:
+     *  {@code 1->cast(@Number)} is the Integer it was, {@code 'a'->cast(@Any)} the String -- a widening cast is the
+     *  value as it is. So a comparison one side of which is declared {@code Number}, the abstract {@code Date} or
+     *  {@code Any} by such a cast is still known to be between two types (the equality rule's run-time item: equal
+     *  means the same type and the same value). */
+    static Optional<Crossing> heldCrossing(TypedFunction chosen, List<TypedSpec> args, ModelContext ctx) {
+        return chosen.definition() == null || args.size() != 2 ? Optional.empty()
+                : crossing(chosen, held(args.get(0)), held(args.get(1)), ctx);
+    }
+
+    private static Type held(TypedSpec side) {
+        Type t = side.info().type();
+        if (side instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire() && c.target().equals(t)
+                && declaredOpen(t)) {
+            // (a cast DOWN from Any names no held type either: its source's is Any, which has no class here)
+            return held(c.source());
         }
+        return t;
+    }
+
+    private static Optional<Crossing> crossing(TypedFunction chosen, Type l, Type r, ModelContext ctx) {
         Comparison comparison = COMPARISONS.get(chosen.id());
         if (comparison == null) {
             return Optional.empty();
         }
-        Type l = args.get(0).info().type();
-        Type r = args.get(1).info().type();
         Optional<Type> lc = of(l);
         Optional<Type> rc = of(r);
         if (lc.isEmpty() || rc.isEmpty() || lc.get().equals(rc.get())) {
@@ -115,7 +135,7 @@ public final class EqualityClasses {
 
     /** Whether {@code t} is a type its author declared open: any number, any date, anything -- values compared by
      *  the types they hold when the query runs. */
-    private static boolean declaredOpen(Type t) {
+    static boolean declaredOpen(Type t) {
         return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE
                 || t instanceof Type.ClassType c && PlatformTypes.isAny(c);
     }

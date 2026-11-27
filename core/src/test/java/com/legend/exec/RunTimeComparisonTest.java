@@ -118,6 +118,43 @@ class RunTimeComparisonTest {
     }
 
     @Test
+    void anUpcastValueIsComparedByTheTypeItHolds() throws Exception {
+        // a value upcast to Number or Any in the query is the value it was (a widening cast changes nothing): it is
+        // compared by the type it holds, as a function's Number parameter is -- until the edition program's step 6
+        // the database compared the two by value, and [1, 2]->cast(@Number)->contains(1.0) answered true
+        Map<String, Object> cases = new LinkedHashMap<>();
+        cases.put("|1->cast(@Number) == 1.0", false);
+        cases.put("|1->cast(@Number) == 1", true);
+        cases.put("|1->cast(@Number) == 1D", true);
+        cases.put("|'a'->cast(@Any) == 1", false);
+        cases.put("|'a'->cast(@Any) == 'a'", true);
+        cases.put("|1->cast(@Number) < 1.0", true);
+        cases.put("|1.0->cast(@Number) < 1", false);
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (Map.Entry<String, Object> c : cases.entrySet()) {
+                try (Connection connection = backend.open()) {
+                    Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                    assertEquals(List.of(List.of(c.getValue())), r.rows(), backend.type() + ": " + c.getKey() + "\n"
+                            + r.text());
+                }
+            }
+        }
+        Map<String, Object> lists = new LinkedHashMap<>();
+        lists.put("|[1, 2]->cast(@Number)->contains(1.0)", false);
+        lists.put("|[1, 2]->cast(@Number)->contains(1)", true);
+        lists.put("|[1, 2]->cast(@Number)->contains(2D)", true);
+        lists.put("|1.0->in([1, 2]->cast(@Number))", false);
+        String model = MODEL.formatted(TestBackends.platform().type());
+        for (Map.Entry<String, Object> c : lists.entrySet()) {
+            try (Connection connection = TestBackends.platform().open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                assertEquals(List.of(List.of(c.getValue())), r.rows(), c.getKey() + "\n" + r.text());
+            }
+        }
+    }
+
+    @Test
     void whereTheCallFixesTheTypesTwoTypesAreThatCallsMistake() throws Exception {
         // the user's ruling of 2026-11-27 ("the split with compile error when we know"): a side declared Number, Date
         // or Any is compared when the query runs (above); a type variable's values are whatever each call passes, so
