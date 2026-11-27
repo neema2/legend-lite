@@ -69,10 +69,10 @@ in `step-6-one-equality-2026-11-27.md` (same folder).
 | # | What |
 |---|---|
 | C1 | Not run: the rename to `hasSameElements`; the JSON wording fix. |
-| C2 | The time-series bundle budget (the user: "Time series budget fine"): the pin moves with the measured size. |
+| C2 | The time-series bundle budget (the user: "Time series budget fine", to 148,500 from 148,200). Measured at `83cb22ae2`: **148,502** bytes gzipped (148,728 before the comments were shortened), two bytes over the ruled figure. The pin moves to 148,500 and no further: the batch trims the model's comments to fit, and the pin's comment names the ruling and the measured size. |
 | C3 | The acceptance measure was re-run at `89e51a7dc`: 99 bodies differ (176 at the start); row B15. Run once more at the batch's end. |
 | C6 | The full round at `89e51a7dc`: 89 of 91 targets pass, 1 skipped, 1 the bundle budget (C2). All ten database lanes and the relational corpus on `83cb22ae2`: no test's outcome differs from the base (MariaDB's channel B is the flake it was). A mid-point reading. |
-| C4 | Seven database lanes, the local gate and the stress suites are still running on `83cb22ae2`, which predates the batch. Back so far on that commit: the relational corpus (10 of 10, nothing moved), SQLite, MongoDB, BigQuery (no outcome differs). |
+| C4 | **All back on `83cb22ae2`** (a mid-point reading; it predates the batch). The local gate (`//gates:local`, lock file checked): 572 tests, 556 pass, 1 skipped (arm64 only), 15 fail -- 14 only because the container runs as root (all 14 pass run unprivileged), and the bundle budget (C2). The stress suites: DuckDB 5,699 pass and 340 fail of 6,087, H2 5,603 and 436, both identical to the base's. The relational corpus 10 of 10, nothing moved. All ten database lanes: no outcome differs from the base. |
 | C5 | The parser ratchet's history line; the differences page and the plain-words page brought to the batch's end state. |
 
 ## D. Outside step 6, as already agreed
