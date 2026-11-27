@@ -32,6 +32,8 @@ class NumberFamiliesTest {
             Class p::Party { id: Integer[1]; amount: Decimal[1]; ratio: Float[1]; }
             Class p::Loose { n: Number[1]; k: Number[1]; m: Number[1]; }
             function p::where<T>(r: Relation<T>[1], f: Function<{T[1]->Boolean[1]}>[1]): Relation<T>[1] { $r->filter($f) }
+            function p::whereBoth<T>(r: Relation<T>[1], f: Function<{T[1]->Boolean[1]}>[1]): Relation<T>[1]
+            { $r->filter(x | $f->eval($x) && $f->eval($x)) }
             ###Relational
             Database p::DB ( Table PARTY (ID INTEGER PRIMARY KEY, AMOUNT DECIMAL(10, 2), RATIO DOUBLE) )
             ###Mapping
@@ -156,7 +158,9 @@ class NumberFamiliesTest {
         String model = MODEL.formatted(TestBackends.platform().type());
         String loose = "|p::Loose.all()->project(~[n: x|$x.n, m: x|$x.m])";
         // two values typed only by their columns, an INTEGER's against a DOUBLE's: refused where the query is planned
-        for (String q : List.of(loose + "->filter(r|$r.n == $r.m)", loose + "->p::where(r|$r.n == $r.m)")) {
+        // (and where the function applies the lambda inside one of its own: the statement is its author's still)
+        for (String q : List.of(loose + "->filter(r|$r.n == $r.m)", loose + "->p::where(r|$r.n == $r.m)",
+                loose + "->p::whereBoth(r|$r.n == $r.m)")) {
             try (Connection connection = TestBackends.platform().open()) {
                 RuntimeException e = assertThrows(RuntimeException.class,
                         () -> Lean.established(model, q, "p::RT", connection), q);

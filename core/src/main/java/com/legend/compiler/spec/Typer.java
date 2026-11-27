@@ -239,8 +239,13 @@ final class Typer {
     }
 
     private void markLambdas(ValueSpecification v, Author author) {
-        if (v instanceof LambdaFunction) {
+        if (v instanceof LambdaFunction written) {
             callerLambdas.putIfAbsent(v, author);
+            // its statements too: a desugaring that rebuilds the lambda around them (a project's or a groupBy's
+            // column, a join's condition, a body split at a let, a lambda applied inside another) carries them as
+            // they were, and they are its author's code still (authorOf; the closing batch of step 6, 2026-11-27:
+            // the mark was the lambda's alone and was lost at each such rebuild)
+            written.body().forEach(statement -> callerLambdas.putIfAbsent(statement, author));
         }
         for (ValueSpecification c : v.children()) {
             markLambdas(c, author);
@@ -249,17 +254,30 @@ final class Typer {
 
     /** {@code now} is {@code was} rebuilt (the static fold's lambda): the same author's. */
     void sameAuthor(ValueSpecification was, ValueSpecification now) {
-        Author author = callerLambdas.isEmpty() ? null : callerLambdas.get(was);
+        Author author = callerLambdas.isEmpty() ? null
+                : was instanceof LambdaFunction lambda ? authorOf(lambda) : callerLambdas.get(was);
         if (author != null) {
             callerLambdas.put(now, author);
         }
     }
 
+    /** Whose code {@code lambda} is where a caller wrote it: the lambda's own mark, or -- the lambda rebuilt around
+     *  its statements -- a statement's ({@link #markLambdas}); null where it is the body's own. */
+    private @com.legend.base.Nullable Author authorOf(LambdaFunction lambda) {
+        if (callerLambdas.isEmpty()) {
+            return null;
+        }
+        Author author = callerLambdas.get(lambda);
+        for (int i = 0; author == null && i < lambda.body().size(); i++) {
+            author = callerLambdas.get(lambda.body().get(i));
+        }
+        return author;
+    }
+
     /** {@code body}, the typing of {@code lambda}, as its author's code where a caller wrote it into a body typed
      *  into its call ({@link #callerLambdas}). */
     <R> R asItsAuthors(LambdaFunction lambda, java.util.function.Supplier<R> body) {
-        Author author = compared != Compared.GENERIC_BODY || callerLambdas.isEmpty() ? null
-                : callerLambdas.get(lambda);
+        Author author = compared != Compared.GENERIC_BODY ? null : authorOf(lambda);
         return author == null ? body.get() : comparing(author.whose(), author.function(), body);
     }
 
@@ -405,8 +423,7 @@ final class Typer {
             return comparing(Compared.UNREAD, () -> synth(vs, env));
         }
         // a lambda its caller wrote, met in a body typed into its call: its author's code (callerLambdas)
-        if (compared == Compared.GENERIC_BODY && vs instanceof LambdaFunction written && !callerLambdas.isEmpty()
-                && callerLambdas.containsKey(written)) {
+        if (compared == Compared.GENERIC_BODY && vs instanceof LambdaFunction written && authorOf(written) != null) {
             return asItsAuthors(written, () -> synth(vs, env));
         }
         return switch (vs) {
