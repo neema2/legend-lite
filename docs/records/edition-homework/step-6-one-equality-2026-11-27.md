@@ -487,6 +487,9 @@ files; the work to one equality and the third review's fixes in it), as they rep
 | SQLite, MongoDB (PCT channels A and B; MongoDB channel A) | every suite passes; no test's outcome differs from the base or from round 1, and no line of any test's log differs (each plan's SQL text or pipeline and every result the same) |
 | BigQuery (PCT channels A and B) | no test's outcome differs from the base or from round 1; channel B's 19 failures are the same tests with the same lines as at the base ("UNION ALL has incompatible types": the queued task) |
 | The relational corpus (`//spec:corpus_duckdb //spec:corpus_h2`) | 10 of 10 targets pass; no roster or golden out of date; no test's outcome differs from round 1 or the base |
+| Snowflake (PCT channels A and B) | channel A 1,249 pass; channel B's five suites pass; no test's outcome differs from the base or from round 1 |
+| Databricks (PCT channels A and B) | channel A 1,249 pass; channel B 1,228 pass and the same 21 errors as at the base, the same tests with the same lines; nothing differs |
+| Postgres, Trino (PCT channels A and B) | all 20 suite targets pass; no test's outcome differs from the base or from round 1 |
 
 **The lanes so far** (each at the stack before the fixes of this section): Postgres, Trino, MariaDB, MySQL,
 ClickHouse, SQLite, MongoDB, Snowflake and BigQuery show no test whose outcome differs from the base. Databricks and
