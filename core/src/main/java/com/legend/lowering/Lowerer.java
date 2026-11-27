@@ -3707,6 +3707,35 @@ public final class Lowerer {
         return r;
     }
 
+    /** A comparison kept for the types its sides hold ({@code TypedRunTimeComparison}): one the rule answered "never
+     *  equal" is false (an index: -1) with its sides still evaluated; any other is its comparison. */
+    private SqlExpr runTimeComparison(com.legend.compiler.spec.typed.TypedRunTimeComparison x,
+            ColumnResolver columns) {
+        if (x.neverEqual() && x.comparison() instanceof TypedNativeCall never && never.args().size() == 2) {
+            if (x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.MEMBERSHIP
+                    || x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX) {
+                // never among them: false (an index: -1), each single value among the sides evaluated
+                List<SqlExpr> singles = new ArrayList<>();
+                for (TypedSpec side : never.args()) {
+                    if (!side.info().multiplicity().isMany()) {
+                        singles.add(scalarInner(side, columns));
+                    }
+                }
+                return Equalities.neverAmongButEvaluated(singles,
+                        x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX);
+            }
+            // answered by its sides' types: false, both sides evaluated (a side that may raise still raises)
+            return Equalities.neverEqualButEvaluated(scalarInner(never.args().get(0), columns),
+                    scalarInner(never.args().get(1), columns));
+        }
+        if (x.fixedByTheCall()) {
+            throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()
+                    == null ? "" : " in " + x.function()) + ") reached the lowering unanswered: the pass"
+                    + " that answers it at the call did not run over this body");
+        }
+        return scalarInner(x.comparison(), columns);
+    }
+
     private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // a RAW GRID's column names or row-major cells (the planner-driver seam program's S3c, 2026-10-30): the
@@ -3727,31 +3756,7 @@ public final class Lowerer {
             // types are known only when the query runs, and the database compares the values it holds. One whose
             // types its CALL fixes is answered at that call or not at all: reaching here unanswered it would be two
             // known types compared by the database, so it is refused (invariant 4; the outside audit of 2026-11-27)
-            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> {
-                if (x.neverEqual() && x.comparison() instanceof TypedNativeCall never && never.args().size() == 2) {
-                    if (x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.MEMBERSHIP
-                            || x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX) {
-                        // never among them: false (an index: -1), each single value among the sides evaluated
-                        List<SqlExpr> singles = new ArrayList<>();
-                        for (TypedSpec side : never.args()) {
-                            if (!side.info().multiplicity().isMany()) {
-                                singles.add(scalarInner(side, columns));
-                            }
-                        }
-                        yield Equalities.neverAmongButEvaluated(singles,
-                                x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX);
-                    }
-                    // answered by its sides' types: false, both sides evaluated (a side that may raise still raises)
-                    yield Equalities.neverEqualButEvaluated(scalarInner(never.args().get(0), columns),
-                            scalarInner(never.args().get(1), columns));
-                }
-                if (x.fixedByTheCall()) {
-                    throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()
-                            == null ? "" : " in " + x.function()) + ") reached the lowering unanswered: the pass"
-                            + " that answers it at the call did not run over this body");
-                }
-                yield scalarInner(x.comparison(), columns);
-            }
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> runTimeComparison(x, columns);
             case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.
