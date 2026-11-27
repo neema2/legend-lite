@@ -52,26 +52,42 @@ cloud database, once the tool runs there).
 
 ## The baseline B starts from (slice 0, 2026-11-27, at A's product code)
 
-The measure was widened the same night: every comparison now carries the answer the equality rule gives it, and 13
-comparisons read a store's row (two columns, a column and a literal, an empty value on either side), each asked as a
-filter's condition and as a kept value, plain, negated, under `&&`, under `if` and inside a function. 4,416 runs in
-about 45 seconds. Counted per comparison and database (`tools/equality-measure/positions-baseline.tsv`; the full
-report is `positions/baseline-slice-0-b546a3282.md`):
+The measure was widened and then reviewed independently the same night (`review-2-of-the-measure.md`; its findings
+applied are listed below). It now asks 86 comparisons of values in 18 places and 18 comparisons that read a store's
+row in 9 places, each with the answer the equality rule gives it: 5,646 runs in about 50 seconds. Per comparison and
+database (`tools/equality-measure/positions-baseline.tsv`; the full report is
+`positions/baseline-slice-0-5dae42452.md`):
 
-| | one answer, the expected one | one answer, not the expected one | refused everywhere | answered only in some places | contradicts |
-|---|---|---|---|---|---|
-| DuckDB | 49 | 0 | 0 | 27 | 9 |
-| H2 | 64 | 0 | 12 | 4 | 5 |
-| SQLite | 60 | 0 | 1 | 12 | 12 |
+| | right everywhere | refused by name everywhere | answered only in some places | fails somewhere | a wrong answer somewhere | contradicts | places left out |
+|---|---|---|---|---|---|---|---|
+| DuckDB | 62 | 0 | 2 | 29 | 2 | 9 | 0 |
+| H2 | 78 | 9 | 3 | 7 | 1 | 6 | 4 |
+| SQLite | 71 | 2 | 12 | 4 | 3 | 12 | 0 |
 
-- **The 13 store comparisons are one expected answer in all eight places on all three databases.** A's work on the
-  empty side holds for single values read from columns. B's failures are all among lists, values typed only at run
-  time, dates at a written precision, maps, and the list-lambda places.
-- No comparison agrees everywhere on a wrong answer.
-- Two comparisons' expected answers are not plain from the rule and are for the user: two `list([1, 2])` values, and
-  `pair(1, 1D) == pair(1, 1)`.
-- Not yet built: the test that holds these counts (it is the first task of slice 1); the two compatibility doors; the
-  other comparing functions; the server and cloud databases.
+"Right everywhere" may only rise; every other column may only fall. **B is done when the other columns read zero on
+DuckDB and H2** (H2's four places left out are its missing list lambdas, not B's).
+
+What the stricter reading surfaced, that the first version of the measure called right:
+- A comparison over a computed column value (`$r.i->map(x | $x + 1) == 2`) kept as a value answers NULL, not false,
+  for a row whose value is empty, on all three databases.
+- Two columns of two types that can never be equal are refused by a compile error where the comparison is written,
+  but inside a function whose parameters are `Any` the comparison is refused as "not supported yet", where the rule
+  says false.
+- `t::sameT(t::E.A, 'A')` (a function over one type variable, given an enumeration and a String) answers false where
+  the rule says a compile error.
+
+What of the review was applied: a NULL kept value is no answer; "never true" expects a compile error where the types
+are written and false where they are known at run; a crash is a failure, not a refusal; a wrong answer beside
+refusals is counted; an assert passes on exactly one verdict; `!=` as a place; operands the database computes under
+`&&` and `||`; a false row for each kind; a written literal against a column; the side that reads the element no
+longer passes through an equality.
+
+Not applied yet, each a row to add when its slice comes: `contains`, `in`, `indexOf`, the deduplications, ordering
+and `hasSameElements` (slice 5); the other asserts (slices 5 and 6); joins and the relation API; derived properties
+and mapping code; the two compatibility doors (slice 7); Postgres and the both-ways test on DuckDB (slices 1 and 3);
+a digest of the model files beside the counts; the test that holds the counts in CI (the first task of slice 1).
+Two expected answers are for the user: two `list([1, 2])` values, and whether an Integer and a Decimal of one value
+typed `Number` are the same value (the rule's two bullets can be read both ways; counted as true today).
 
 ## What step 6 makes worse (found here, after the landing checks)
 
