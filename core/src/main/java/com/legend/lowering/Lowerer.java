@@ -439,6 +439,13 @@ public final class Lowerer {
         if (verbatimEquality || legacyNullUnsafeEquals) {
             return NullSemantics.verbatim(true, e);
         }
+        if (isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
+                && Scalars.doorsRule(call, features, styled()) == null) {
+            // the product's own == of two lists of one compared kind: the one "same values" instruction over the
+            // two side values (step 6B, slice 1); a door's rule keeps its own writing
+            WholeComparisons planner = wholeComparisons;
+            e = Equalities.asSameValues(call, e, side -> planner == null ? null : planner.sideRows(side));
+        }
         return isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
                 && styled().edition().emptySideIsFalse(call)
                 ? Equalities.emptySidesAsPure(call, e, positiveConditions.contains(call)) : e;

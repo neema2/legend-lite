@@ -98,6 +98,32 @@ final class Equalities {
                         || held.type() instanceof SqlType.Scalar one && one != SqlType.Scalar.JSON);
     }
 
+    /**
+     * THE "SAME VALUES" INSTRUCTION OVER TWO SIDE VALUES (step 6B, slice 1, 2026-11-27; the user: "isn't that just a
+     * dialect rendering of single representation of rules? Isn't that what the dialect is for?"). {@code compared} is
+     * {@code n}'s plain {@code =} of two values the SQL carries as lists, of exact numbers or of Strings
+     * ({@link SideEqualities#comparedAsValues}): it becomes ONE instruction, {@code SAME_IN_ORDER}, over the two
+     * list VALUES, wherever the comparison stands -- a query's answer, an {@code if}, a lambda, a filter. Each
+     * dialect writes it: a database that compares lists writes the two values ({@code AnsiSqlRenderer.sameLists});
+     * one that compares rows reads the two sides' rows, which ride as the third and fourth arguments where the
+     * lowering has them ({@code sideRows}: a side that reads nothing of the row, from the planner), and without them
+     * writes the comparison of the two values it wrote before this slice ({@code AnsiSqlRenderer.sameValues}).
+     * Anything else is left as it is.
+     */
+    static SqlExpr asSameValues(TypedNativeCall n, SqlExpr compared,
+            java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows) {
+        if (!(compared instanceof SqlExpr.Call c) || c.fn() != SqlFn.EQUAL || c.args().size() != 2
+                || n.args().size() != 2 || !aList(c.args().get(0)) || !aList(c.args().get(1))
+                || !SideEqualities.comparedAsValues(n.args().get(0).info().type(), n.args().get(1).info().type())) {
+            return compared;
+        }
+        com.legend.sql.SqlQuery left = sideRows.apply(n.args().get(0));
+        com.legend.sql.SqlQuery right = left == null ? null : sideRows.apply(n.args().get(1));
+        return new SqlExpr.Call(SqlFn.SAME_IN_ORDER, left == null || right == null ? c.args()
+                : List.of(c.args().get(0), c.args().get(1), new SqlExpr.ScalarSubquery(left),
+                        new SqlExpr.ScalarSubquery(right)));
+    }
+
     /** The two sides of an equality {@link #emptySidesAsPure} wrote as "false where a side is empty", or null where
      *  {@code e} is no such form: its negation is the null-safe not-equal of the two ({@link NullSemantics#negate}),
      *  as an unguarded equality's is. */

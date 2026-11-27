@@ -1147,6 +1147,21 @@ public final class SideEqualities {
                 == (a.outputs().get(0).type() == SqlType.Scalar.DECIMAL_TEXT);
     }
 
+    /** A side's typed rows ({@link #valueRows}: {@code __o} each value as its plan types it, {@code __rn} its place
+     *  in the side's own order), for a reader outside this package ({@code planner.RootComparison}). */
+    public static @com.legend.base.Nullable SqlQuery typedRows(SqlQuery wrapped) {
+        return valueRows(wrapped);
+    }
+
+    /** Whether two sides whose values are of these types are compared by the one "same values" instruction over the
+     *  two side VALUES, wherever the comparison stands (step 6B, slice 1): exact numbers on both sides (an Integer
+     *  and a Decimal are one family, equal by their value), or Strings on both. The other kinds join slice by
+     *  slice (docs/records/edition-homework/step-6b/PLAN-OF-RECORD-2026-11-27.md). */
+    public static boolean comparedAsValues(Type left, Type right) {
+        return exactNumber(left) && exactNumber(right)
+                || left == Type.Primitive.STRING && right == Type.Primitive.STRING;
+    }
+
     /** Whether {@code kind} is an exact number's: an Integer's or a Decimal's (the two are equal by their value). */
     public static boolean exactNumber(Type kind) {
         return kind == Type.Primitive.INTEGER || kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal;

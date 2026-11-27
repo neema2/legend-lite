@@ -41,4 +41,11 @@ public interface WholeComparisons {
      *  ({@code SideEqualities.everyValueRead}). Null where {@code side} reads the row or the element the comparison
      *  stands in, or its values have no typed column: no statement of its own reads it. */
     @Nullable SqlQuery everyValueRead(com.legend.compiler.spec.typed.TypedSpec side);
+
+    /** {@code side}'s values as typed rows, a statement of its own ({@code SideEqualities.typedRows}: each value and
+     *  its place in the side's order): what a dialect that compares two sides as rows reads for the one "same
+     *  values" instruction (step 6B, slice 1; {@code Equalities.asSameValues}). Null where {@code side} reads the row
+     *  or the element the comparison stands in, draws a value afresh where it is written, or its values have no
+     *  typed column: no statement of its own gives its rows. */
+    @Nullable SqlQuery sideRows(com.legend.compiler.spec.typed.TypedSpec side);
 }

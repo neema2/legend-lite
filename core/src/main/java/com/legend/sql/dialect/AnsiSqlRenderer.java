@@ -1395,6 +1395,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** {@link SqlFn#SAME_IN_ORDER} / {@link SqlFn#SAME_IN_ANY_ORDER} in the PORTABLE form: the Boolean select over the
      *  two sides' rows (its third and fourth arguments), as a scalar subquery ({@link SameValuesForm}). */
     protected final SqlWriter sameValues(SqlWriter writer, SqlExpr.Call c) {
+        if (c.args().size() == 2 && c.fn() == SqlFn.SAME_IN_ORDER) {
+            // the two side VALUES alone (step 6B, slice 1: a side reads the row it stands in, so no rows of its own
+            // ride with it): this database's own comparison of the two values, as it was written before the slice
+            return writer.expr(new SqlExpr.Call(SqlFn.EQUAL, c.args()), 4);
+        }
+        if (c.args().size() < 4) {
+            throw new com.legend.sql.DialectCapability("a comparison of two lists in any order, of sides that read the"
+                    + " row they stand in, has no form on a database that compares rows: refused");
+        }
         if (!(c.args().get(2) instanceof SqlExpr.ScalarSubquery e) || !(c.args().get(3) instanceof SqlExpr.ScalarSubquery a)) {
             throw new IllegalStateException(c.fn() + ": its third and fourth arguments are the sides' rows");
         }
