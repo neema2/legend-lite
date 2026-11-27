@@ -59,13 +59,10 @@ final class Equalities {
             if (le && re) {
                 return new SqlExpr.BoolLit(true);
             }
-            SqlExpr.TaggedList full = Scalars.asTaggedList(n.args().get(le ? 1 : 0), args.get(le ? 1 : 0));
-            if (full != null) {
-                // a mixed list against []: equal where it holds nothing (the L1 audit, 2026-10-29)
-                return SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(full), new SqlExpr.IntLit(0));
-            }
-            return SqlExpr.Call.of(SqlFn.IS_NULL,
-                    args.get(le ? 1 : 0));
+            // equal to [] where it holds nothing: a mixed list's size, a list's length (a computed list of no element
+            // is an empty list, never NULL: until the edition program's step 6 this was a NULL test, which answered
+            // false for [1, 2]->filter(x | $x > 5) == []), one value's absence
+            return Scalars.emptiness(n.args().get(le ? 1 : 0), args.get(le ? 1 : 0));
         }
         // a TAGGED value or list on a side (track L, 2026-10-29): equality by kind and value -- two
         // elements the same channel's values, an element against a value of a static kind that

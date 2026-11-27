@@ -335,11 +335,8 @@ class SqlFnSortedTest {
                     "com.legend.lowering.TaggedLists", "com.legend.lowering.VariantShapes",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.LateralExplodeToUnion", "com.legend.testdatagen.TestDataPlanner")),
-            // IS_NULL: + lowering.Equalities (2026-11-27, slice 6.4a of the edition program's step 6): a literal [] against a
-            // value is the other side's null check, moved with the == rule from Scalars as it stood
             Map.entry("IS_NULL", Set.of(
                     "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
-                    "com.legend.lowering.Equalities",
                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CheckedEnvelope",
                     "com.legend.lowering.Coercions", "com.legend.lowering.CollectionLanes",
