@@ -2363,7 +2363,7 @@ function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpe
 // beside its default, gsWhole a window gs-quant takes as the whole line ('w: default': its default, None, percentile's;
 // 'w: unsized': any window of no size, zscores' `if not w.w`; 'w: always': whatever it is told, winsorize's -- the
 // builders write whole, the look-ahead seen); gsTold a gs-quant parameter the builders take in every call, its default
-// none the language says (none now: vol_swap_volatility's n_days was, until its default became gs-quant's, 2026-11-08). On a rows form, when: the argument it computes alone, compared as spelled ('mode: truncate': a
+// none the language says (none now). On a rows form, when: the argument it computes alone, compared as spelled ('mode: truncate': a
 // lag past the line's end is no column of its table).
 Profile timeseries::Words
 {
