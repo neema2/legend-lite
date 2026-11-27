@@ -94,7 +94,9 @@ final class RootComparison {
     }
 
     /** The statement's one row: whether the two sides are the same, or (under a {@code !}) are not. */
-    private static SqlQuery answer(SideEqualities.Compared compared, boolean negated) {
+    private static SqlQuery answer(SideEqualities.Compared judged, boolean negated) {
+        // (a query lists no failure's record: the comparison without the rows only a record reads)
+        SideEqualities.Compared compared = judged.answerOnly();
         SqlSelect row = new SqlSelect(List.of(new SqlSelect.Projection(compared.holds(!negated), "value", VALUE)),
                 false, compared.from(), null, List.of(), null, null, List.of(), null, null, List.of(VALUE));
         return SqlWith.prepend(compared.ctes(), row);

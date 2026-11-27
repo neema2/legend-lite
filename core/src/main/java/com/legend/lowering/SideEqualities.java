@@ -50,10 +50,25 @@ public final class SideEqualities {
     /** Two sides compared: the CTEs that hold each side's rows, the source the comparison's one row reads,
      *  {@code same} whether the two sides are the same, and {@code held} each side's values as a record may list them
      *  (the expected's, then the actual's; then any other the member names). */
-    public record Compared(List<SqlWith.Cte> ctes, SqlSource from, SqlExpr same, List<Held> held) {
+    public record Compared(List<SqlWith.Cte> ctes, SqlSource from, SqlExpr same, List<Held> held,
+            @com.legend.base.Nullable Compared alone) {
+        /** A comparison whose record's values are the values compared: nothing to leave out ({@link #answerOnly}). */
+        public Compared(List<SqlWith.Cte> ctes, SqlSource from, SqlExpr same, List<Held> held) {
+            this(ctes, from, same, held, null);
+        }
+
         /** The comparison as asked: whether the two sides are the same ({@code want}), or are not. */
         public SqlExpr holds(boolean want) {
             return want ? same : SqlExpr.Call.of(SqlFn.NOT, same);
+        }
+
+        /** The comparison with none of what only a failure's record reads ({@code alone}): for a reader that asks
+         *  whether the two sides are the same and lists nothing -- a query's answer ({@code planner.RootComparison}).
+         *  A member that reads its record's values apart from the values it compares (a mixed list's by kind and SQL
+         *  type, an instance's restricted to its keys, a list's as it is held) gives the form without them; measured
+         *  2026-11-27, they were a third to a half of such a query's statement. */
+        public Compared answerOnly() {
+            return alone == null ? this : alone;
         }
     }
 
@@ -177,7 +192,11 @@ public final class SideEqualities {
                         null)), new SqlSource.Subselect(eHeld, "xe", null)), new SqlSource.Subselect(aHeld, "xa",
                         null)),
                 same, List.of(
-                        held("xe", eHeld, eKind), held("xa", aHeld, aKind)));
+                        held("xe", eHeld, eKind), held("xa", aHeld, aKind)),
+                new Compared(List.of(new SqlWith.Cte("__xe", eRaw), new SqlWith.Cte("__xa", aRaw),
+                        new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
+                        cross(new SqlSource.Subselect(eList, "e", null), new SqlSource.Subselect(aList, "a", null)),
+                        same, List.of()));
     }
 
     /** Whether {@code t} is a scalar value's type (a collection's element a typed member compares as it is). */
@@ -270,7 +289,12 @@ public final class SideEqualities {
                 cross(cross(cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null)),
                         new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a", null)),
                 same, List.of(
-                        held("e", eList, eKind), held("a", aList, aKind)));
+                        held("e", eList, eKind), held("a", aList, aKind)),
+                new Compared(List.of(new SqlWith.Cte("__ce", eCells), new SqlWith.Cte("__ca", aCells),
+                        new SqlWith.Cte("__ke", structRows(cteRows("__ce", eCells))),
+                        new SqlWith.Cte("__ka", structRows(cteRows("__ca", aCells)))),
+                        cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null)),
+                        same, List.of()));
     }
 
     /**
@@ -320,7 +344,13 @@ public final class SideEqualities {
                 cross(cross(cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null)),
                         new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a", null)),
                 same, List.of(
-                        held("e", eList, eKind), held("a", aList, aKind)));
+                        held("e", eList, eKind), held("a", aList, aKind)),
+                new Compared(List.of(new SqlWith.Cte("__ie", eRows), new SqlWith.Cte("__ia", aRows),
+                        new SqlWith.Cte("__ce", ce), new SqlWith.Cte("__ca", ca),
+                        new SqlWith.Cte("__ke", structRows(cteRows("__ce", ce))),
+                        new SqlWith.Cte("__ka", structRows(cteRows("__ca", ca)))),
+                        cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null)),
+                        same, List.of()));
     }
 
     /**
@@ -1564,13 +1594,16 @@ public final class SideEqualities {
                 SqlExpr.Column.of("ke", eCmp.outputs(), LISTED), SqlExpr.Column.of("ka", aCmp.outputs(), LISTED),
                 new SqlExpr.ScalarSubquery(cteRows("__ce", ce)), new SqlExpr.ScalarSubquery(cteRows("__ca", ca)));
         SqlSource from = cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null));
+        Compared alone = null;
         if (anyTagged) {
+            // (the record's rows are read apart: the comparison alone is the six CTEs and the two lists before them)
+            alone = new Compared(List.copyOf(ctes.subList(0, 6)), from, same, List.of());
             from = cross(cross(from, new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a",
                     null));
         }
         return new Compared(ctes, from, same, List.of(
                 held(anyTagged ? "e" : "ke", eList, eRows),
-                held(anyTagged ? "a" : "ka", aList, aRows)));
+                held(anyTagged ? "a" : "ka", aList, aRows)), alone);
     }
 
     /** The SQL type of a grid's {@code i}th data column. */
