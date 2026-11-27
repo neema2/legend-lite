@@ -504,6 +504,21 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Why:** one set of values should give one answer, whatever order they happened to be written or read in.
 - **Register:** S428.
 
+### 24. A Float literal written into a Decimal's arithmetic is read as a Decimal (the edition program, 2026-11-27)
+- **You write** arithmetic that mixes a Decimal with a written Float: `$p.amount * 0.1`, `$p.amount + 0.2`, where
+  `amount` is a Decimal.
+- **legend-pure** computes it as a Decimal, exactly: `0.10D * 0.1` is `0.010`.
+- **legend-engine** sends it to the database with the literal as its extension for that database writes it, so the
+  answer depends on the database: exact where the literal is written bare (DuckDB, Postgres, Databricks, Trino), a
+  double's where it is written as a float (H2, SQLite, MariaDB, MySQL), for example `0.010000000000000002`.
+  (Read from its literal processors; not run.)
+- **Lite answers Pure's way on every database and at every door:** a Float literal in a sum, a difference or a
+  product whose other operands are exact numbers, one of them a Decimal, is read as the Decimal its digits write.
+- **Not covered:** a Float column (not a literal) in such arithmetic is still computed by the database as a double;
+  a division is a Float whatever its operands, as in Pure; SQLite has no exact decimal and refuses a Decimal's
+  arithmetic by name.
+- Register row S429.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,
