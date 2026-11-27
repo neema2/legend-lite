@@ -175,4 +175,24 @@ class RootComparisonTest {
             }
         }
     }
+
+    /** Two maps are the same where they hold the same entries, whatever order the entries were written in (Pure's
+     *  map; the comparison an assert of two maps is judged by). On the platform's database: H2 holds no map. */
+    @Test
+    void twoMapsAreTheSameWhateverOrderTheirEntriesWereWrittenIn() throws Exception {
+        Map<String, Boolean> cases = new LinkedHashMap<>();
+        cases.put("|newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('b', 2), pair('a', 1)])", true);
+        cases.put("|newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('a', 1), pair('b', 2)])", true);
+        cases.put("|newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('a', 1), pair('b', 3)])", false);
+        cases.put("|newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('a', 1)])", false);
+        cases.put("|!(newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('b', 2), pair('a', 1)]))", false);
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        for (Map.Entry<String, Boolean> c : cases.entrySet()) {
+            try (Connection connection = backend.open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                assertEquals(List.of(List.of(c.getValue())), r.rows(), c.getKey() + "\n" + r.text());
+            }
+        }
+    }
 }

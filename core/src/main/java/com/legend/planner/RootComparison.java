@@ -142,16 +142,19 @@ final class RootComparison {
     }
 
     /** Whether {@code side} is compared as a whole side, never as a value inside an expression: a computed list
-     *  (a database may hold none as a value, or hold it as text), or values whose type is known only when the query
-     *  runs. A side written in the query (a literal, a collection of literals, the empty list) is a value everywhere:
+     *  (a database may hold none as a value, or hold it as text), a map, or values whose type is known only when the
+     *  query runs. A side written in the query (a literal, a collection of literals, the empty list) is a value everywhere:
      *  the plain comparison reads it exactly. */
     private static boolean whole(TypedSpec side) {
         if (written(side)) {
             return false;
         }
         Type t = side.info().type();
+        // (a map too: its entries are compared whatever order they were written in, which no database's own map
+        // comparison promises -- measured 2026-11-27, newMap([a, b]) == newMap([b, a]) answered false on DuckDB and
+        // SQLite where an assert of the two passes)
         return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE || PlatformTypes.isAny(t)
-                || side.info().multiplicity().isMany();
+                || PlatformTypes.isMapCarrier(t) || side.info().multiplicity().isMany();
     }
 
     private static boolean written(TypedSpec side) {

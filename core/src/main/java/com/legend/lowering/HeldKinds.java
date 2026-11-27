@@ -87,17 +87,22 @@ final class HeldKinds {
         }
         TypedSpec l = call.args().get(0);
         TypedSpec r = call.args().get(1);
-        if (!open(l.info().type()) && !open(r.info().type())) {
-            return;   // two declared types: the typer's rule answered it
-        }
         String lk = MixedEncoding.kindOfValue(l, args.get(0));
         String rk = MixedEncoding.kindOfValue(r, args.get(1));
         if (lk == null || rk == null || NumberFamilies.TWO_FAMILIES.canEqual(lk, rk)) {
             return;
         }
         boolean numbers = MixedEncoding.numberTypePlace(lk) >= 0 && MixedEncoding.numberTypePlace(rk) >= 0;
-        if (!numbers && !(dayOrDateTime(lk) && dayOrDateTime(rk))) {
+        boolean dates = dayOrDateTime(lk) && dayOrDateTime(rk);
+        if (!numbers && !dates) {
             return;   // (kinds this rule does not read: a text against a number through an Any, a partial date)
+        }
+        if (!open(l.info().type()) && !open(r.info().type()) && !dates) {
+            // two declared types: the typer's rule answered it. (A day against a date-time is read here even so: a
+            // property declared the abstract Date reaches the lowering typed as its column -- the store's resolution
+            // gives it the day or the date-time its column holds -- and two dates the query's author WROTE as a day
+            // and a date-time never reach it, refused when the query was compiled.)
+            return;
         }
         if (!numbers && read.kind() == TypedCrossTypeComparison.Kind.ORDERING) {
             // which of a day and a date-time is the later is a question of their values, the answer the run-time rule
