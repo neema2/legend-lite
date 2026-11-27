@@ -104,6 +104,34 @@ public final class EqualityClasses {
         if (comparison == null) {
             return Optional.empty();
         }
+        return differing(l, r, ctx).map(d -> new Crossing(comparison.kind(), comparison.operator(), d[0], d[1]));
+    }
+
+    /**
+     * The two types by which {@code l} and {@code r} differ, or empty where they are one type or one of them is known
+     * only when the query runs. A PAIR, a LIST and a MAP are compared by the types INSIDE them (the edition program's
+     * step 6, the plan's 6.3): {@code Pair<Integer, String>} against {@code Pair<Float, String>} differs as an
+     * Integer does from a Float, so the answer names those two. Where several of the types inside differ, a pair of
+     * two exact numbers (an Integer against a Decimal, which a setting may compare by value) is named only if no
+     * other pair differs.
+     */
+    private static Optional<Type[]> differing(Type l, Type r, ModelContext ctx) {
+        if (l instanceof Type.GenericType gl && r instanceof Type.GenericType gr) {
+            if (!gl.rawFqn().equals(gr.rawFqn()) || gl.arguments().size() != gr.arguments().size()
+                    || !(PlatformTypes.isPairCarrier(l) || PlatformTypes.isListCarrier(l)
+                            || PlatformTypes.isMapCarrier(l))) {
+                return Optional.empty();
+            }
+            Optional<Type[]> exactOnly = Optional.empty();
+            for (int i = 0; i < gl.arguments().size(); i++) {
+                Optional<Type[]> inside = differing(gl.arguments().get(i), gr.arguments().get(i), ctx);
+                if (inside.isPresent() && !(exactNumber(inside.get()[0]) && exactNumber(inside.get()[1]))) {
+                    return inside;
+                }
+                exactOnly = inside.isPresent() ? inside : exactOnly;
+            }
+            return exactOnly;
+        }
         Optional<Type> lc = of(l);
         Optional<Type> rc = of(r);
         if (lc.isEmpty() || rc.isEmpty() || lc.get().equals(rc.get())) {
@@ -112,7 +140,11 @@ public final class EqualityClasses {
         if (l instanceof Type.ClassType lt && r instanceof Type.ClassType rt && related(lt.fqn(), rt.fqn(), ctx)) {
             return Optional.empty();
         }
-        return Optional.of(new Crossing(comparison.kind(), comparison.operator(), lc.get(), rc.get()));
+        return Optional.of(new Type[] {lc.get(), rc.get()});
+    }
+
+    private static boolean exactNumber(Type t) {
+        return t == Type.Primitive.INTEGER || t == Type.Primitive.DECIMAL;
     }
 
     /** {@code call}, the application of {@code chosen} to {@code args}, as a comparison whose sides' types are known

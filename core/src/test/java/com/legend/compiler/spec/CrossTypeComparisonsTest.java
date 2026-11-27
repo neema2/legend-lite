@@ -71,6 +71,25 @@ class CrossTypeComparisonsTest {
     }
 
     @Test
+    @DisplayName("a pair is compared by the types inside it: two types inside are marked as two types are; an Integer"
+            + " against a Decimal inside is by value")
+    void aPairIsComparedByTheTypesInsideIt() {
+        // the edition program's step 6 (the plan's 6.3): until it a pair's own type was "known only when the query
+        // runs", and pair(1, 'a') == pair(1.0, 'a') was the database's comparison of two structs
+        for (String q : List.of("|pair(1, 'a') == pair(1.0, 'a')", "|pair('a', 1) == pair('a', 'b')",
+                "|pair(1, pair('a', 2)) == pair(1, pair('a', 2.5))")) {
+            assertEquals(1, crossings(q).size(), q);
+        }
+        TypedCrossTypeComparison inside = crossings("|pair(1, 'a') == pair(1.0, 'a')").get(0);
+        assertEquals(com.legend.compiler.element.type.Type.Primitive.INTEGER, inside.left());
+        assertEquals(com.legend.compiler.element.type.Type.Primitive.FLOAT, inside.right());
+        for (String q : List.of("|pair(1, 'a') == pair(2, 'b')", "|pair(1, 'a') == pair(1D, 'a')",
+                "|pair(1.5D, pair('a', 2)) == pair(1, pair('a', 2.0D))")) {
+            assertEquals(List.of(), crossings(q), q);
+        }
+    }
+
+    @Test
     @DisplayName("step 5a's review: a function's own body unmarked; two classes one value can be of unmarked; an"
             + " argument of an inlined call keeps its marker")
     void theReviewsCases() {
