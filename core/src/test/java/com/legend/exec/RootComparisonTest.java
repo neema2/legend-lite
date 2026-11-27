@@ -110,9 +110,11 @@ class RootComparisonTest {
         // a sorted table against the rows written in that order
         out.put("|#TDS\n id, s\n 2, y\n 1, x\n#->sort(~id->ascending()) == " + ab, true);
         out.put("|#TDS\n id, s\n 2, y\n 1, x\n#->sort(~id->descending()) == " + ab, false);
-        // a store's rows against written ones
-        out.put("|p::Party.all()->project(~[id: p|$p.id, name: p|$p.name]) == #TDS\n id, name\n 1, Meridian\n#", true);
-        out.put("|p::Party.all()->project(~[id: p|$p.id, name: p|$p.name]) == #TDS\n id, name\n 1, Other\n#", false);
+        // a store's rows, sorted, against written ones
+        out.put("|p::Party.all()->project(~[id: p|$p.id, name: p|$p.name])->sort(~id->ascending())"
+                + " == #TDS\n id, name\n 1, Meridian\n#", true);
+        out.put("|p::Party.all()->project(~[id: p|$p.id, name: p|$p.name])->sort(~id->ascending())"
+                + " == #TDS\n id, name\n 1, Other\n#", false);
         return out;
     }
 
@@ -229,5 +231,20 @@ class RootComparisonTest {
             }
         }
         assertEquals(List.of(), wrong, "every case");
+    }
+
+    /** {@code ==} compares two tables in order: a side whose order the query does not define is refused, naming the
+     *  two fixes, as {@code assertEquals} refuses it (the user, 2026-11-27). */
+    @Test
+    void anUnsortedTableIsRefusedUnderEquals() throws Exception {
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        try (Connection connection = backend.open()) {
+            RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> Lean.established(model, "|p::Party.all()->project(~[id: p|$p.id]) == #TDS\n id\n 1\n#",
+                            "p::RT", connection));
+            org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(e.getMessage()).contains("== compares two"
+                    + " tables in order") && e.getMessage().contains("sameElements"), e.getMessage());
+        }
     }
 }

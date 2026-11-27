@@ -118,7 +118,8 @@ final class RootComparison {
     /**
      * Two TABLES: the same where their columns have the same names in the same order and their rows are the same,
      * each cell by its column's type ({@link SideEqualities#tables}, the comparison an assert of two tables is judged
-     * by) -- in order where the query defines both tables' order, else as a multiset of rows. Two tables whose columns differ in name or number are never equal, a fact of their
+     * by), in order. A side whose order the query does not define is refused by name: {@code sameElements} is the
+     * comparison of rows in any order. Two tables whose columns differ in name or number are never equal, a fact of their
      * types: answered with no read. Null (the statement is lowered as any expression is) where a side is no table,
      * a table's columns exist only when the query runs, or a column has no typed comparison.
      */
@@ -138,12 +139,20 @@ final class RootComparison {
         if (leftPlan.outputs().size() != l.columns().size() || rightPlan.outputs().size() != r.columns().size()) {
             return null;
         }
-        // rows in order only where both tables' rows have an order the query defines (a sort, written rows); a table
-        // with none (a store's rows, a DISTINCT, a grouping) has no order to compare, so the two are compared as a
-        // multiset of rows -- never by the order a database happened to return them in (the outside audit of
-        // 2026-11-27, MEDIUM 7: two DISTINCTs of one table need not arrive alike)
-        boolean multiset = com.legend.compiler.spec.OrderedAsserts.unorderedRows(left, lets)
-                || com.legend.compiler.spec.OrderedAsserts.unorderedRows(right, lets);
+        // == compares two tables' rows IN ORDER, as assertEquals does, and a table whose order the query does not
+        // define (a store's rows, a DISTINCT, a grouping) has none to compare: refused, naming the two fixes, as the
+        // assert refuses it (the user, 2026-11-27: strict ==, and "sameElements" for the rows in any order; for one
+        // afternoon an unsorted side was compared as a multiset here, one operator with two meanings). Never by the
+        // order a database happened to return them in (the outside audit of 2026-11-27, MEDIUM 7).
+        boolean leftUnordered = com.legend.compiler.spec.OrderedAsserts.unorderedRows(left, lets);
+        if (leftUnordered || com.legend.compiler.spec.OrderedAsserts.unorderedRows(right, lets)) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
+                    "== compares two tables in order, and its " + (leftUnordered ? "first" : "second")
+                            + " side's order is not defined (a store or frame read with no sort, or past a grouping, a"
+                            + " join or a union): the database's arrival order would decide the answer -- sort both"
+                            + " sides, or say sameElements when the order does not matter");
+        }
+        boolean multiset = false;
         // each column by the kind its plan's output decides where its declaration leaves it open (a String, a Number,
         // an Any: the reading an assert's judge gives a table's cells)
         SideEqualities.Compared compared = SideEqualities.tables(leftPlan,
