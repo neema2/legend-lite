@@ -271,7 +271,7 @@ public final class EqualityMeasure {
                 new Position("list-exists", false, false, (l, r) -> "{|[1]->exists(x | " + eq.apply(l, r) + ")}"),
                 new Position("list-forAll", false, false, (l, r) -> "{|[1]->forAll(x | " + eq.apply(l, r) + ")}"),
                 new Position("reads-element", false, false,
-                        (l, r) -> "{|[0]->map(x | (" + l + ")->drop($x) == (" + r + "))->at(0)}"),
+                        (l, r) -> "{|[0]->map(x | (" + l + ")->filter(e | $x > -1) == (" + r + "))->at(0)}"),
                 new Position("function-any", false, false, (l, r) -> "{|t::sameAny(" + l + ", " + r + ")}"),
                 new Position("function-generic", false, false, (l, r) -> "{|t::sameT(" + l + ", " + r + ")}"),
                 new Position("table-filter", false, false,
@@ -439,7 +439,9 @@ public final class EqualityMeasure {
     }
 
     /** One comparison over a store's row {@code $r}: its name, the ids of the rows it is true for by the equality
-     *  rule (of rows 1 to 5; {@code N}: never true), and its two sides. */
+     *  rule (of rows 1 to 5; {@code N}: never true; {@code a@b}: {@code a}, but {@code b} inside a function whose
+     *  parameters are {@code Any} -- a number literal reads as the column's type only where it is written against
+     *  the column), and its two sides. */
     private record StoreSides(String id, String expected, String left, String right) {
     }
 
@@ -465,7 +467,7 @@ public final class EqualityMeasure {
                 new StoreSides("day column and literal", "1,2", "$r.day", "%2020-01-01"),
                 new StoreSides("date-time column and literal", "2", "$r.at", "%2020-01-01T10:00:00"),
                 new StoreSides("day and date-time columns", "N", "$r.day", "$r.at"),
-                new StoreSides("float column and whole-number literal", "1,4", "$r.f", "1"),
+                new StoreSides("float column and whole-number literal", "1,4@", "$r.f", "1"),
                 new StoreSides("decimal column and whole-number literal", "1,3", "$r.d", "1"),
                 new StoreSides("integer column and literal with a fraction", "N", "$r.i", "1.5"),
                 new StoreSides("date-time column and day literal", "N", "$r.at", "%2020-01-01"),

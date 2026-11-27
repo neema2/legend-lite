@@ -85,6 +85,10 @@ def is_answer(v, store):
 
 def judge(v, expected, place, store):
     """What one place's outcome is against the expected answer: 'right', 'wrong', 'refused' (by name) or 'failed'."""
+    if '@' in expected:
+        # a@b: a where the comparison is written, b inside a function whose parameters are Any
+        written, at_run = expected.split('@', 1)
+        expected = at_run if place.split(' ')[0] in RUN_TIME_PLACES else written
     if expected == 'N':
         if place.split(' ')[0] in RUN_TIME_PLACES:
             want = '' if store else 'F'
