@@ -129,6 +129,8 @@ final class Overloads {
         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
             // a function's body typed into the call: a body the query reaches, for the comparison setting (the edition
             // program's step 2b, 2026-11-26; until then never read, B3 step 5)
+            // (a lambda the caller wrote into the call stays the caller's code inside the body: Typer.callerLambdas)
+            af.parameters().forEach(t::writtenHere);
             return t.comparing(t.bodyOf(a.chosen()) == Typer.Compared.UNREAD ? Typer.Compared.UNREAD
                     : Typer.Compared.GENERIC_BODY, a.chosen().qualifiedName(), () -> inlineNormalized(af, a, env));
         }
@@ -1067,6 +1069,11 @@ final class Overloads {
 
     /** Type a lambda argument against its function-type parameter, with type vars partly solved in {@code b}. */
     TypedSpec typeLambda(LambdaFunction lam, Type functionParamType, Bindings b, Env env) {
+        // (a lambda its caller wrote into a body typed into its call is typed as its author's code)
+        return t.asItsAuthors(lam, () -> typeLambdaHere(lam, functionParamType, b, env));
+    }
+
+    private TypedSpec typeLambdaHere(LambdaFunction lam, Type functionParamType, Bindings b, Env env) {
         Type.FunctionType ftype = extractFunctionType(functionParamType);
         boolean multiStatement = false;
         // the objects a let splice evaluates apart (docs/OBJECT_IDENTITY_2026_10_20.md §4.4)

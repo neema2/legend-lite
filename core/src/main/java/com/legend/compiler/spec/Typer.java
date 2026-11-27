@@ -214,6 +214,55 @@ final class Typer {
     /** The function whose body is being typed now, where one is: a comparison kept for its call names it. */
     private @com.legend.base.Nullable String comparedIn;
 
+    /** Whose code a lambda is: the code that was being typed where it was written. */
+    private record Author(Compared whose, @com.legend.base.Nullable String function) {
+    }
+
+    /** The lambdas a caller wrote into a call whose function's body is typed into the call
+     *  ({@code Overloads.inlineNormalized}), by node, each with whose code it is. Such a body is typed with the
+     *  caller's arguments in it, so a lambda the query's author wrote is met again inside the function's body: it is
+     *  still the query's code, and its comparisons the query's -- they keep their position (a planning-time refusal
+     *  reads it, {@code lowering.HeldKinds}), an upcast in them is answered by the types held, and a refusal names
+     *  the query, never the function (the outside audit of 2026-11-27, MEDIUM 12: typed as the function's body, none
+     *  of the three held). The static fold rebuilds a lambda it reads; the mark follows ({@link #sameAuthor}). */
+    private final java.util.IdentityHashMap<ValueSpecification, Author> callerLambdas =
+            new java.util.IdentityHashMap<>();
+
+    /** Every lambda in {@code argument}, written in the code being typed now, is that code's wherever it is typed
+     *  after: the query's, or a function's body's. (A lambda met while a body typed into its call is being typed
+     *  carries its author already, or is that body's own; an island's translation is typed as it was.) */
+    void writtenHere(ValueSpecification argument) {
+        if (compared != Compared.QUERY && compared != Compared.BODY) {
+            return;
+        }
+        markLambdas(argument, new Author(compared, comparedIn));
+    }
+
+    private void markLambdas(ValueSpecification v, Author author) {
+        if (v instanceof LambdaFunction) {
+            callerLambdas.putIfAbsent(v, author);
+        }
+        for (ValueSpecification c : v.children()) {
+            markLambdas(c, author);
+        }
+    }
+
+    /** {@code now} is {@code was} rebuilt (the static fold's lambda): the same author's. */
+    void sameAuthor(ValueSpecification was, ValueSpecification now) {
+        Author author = callerLambdas.isEmpty() ? null : callerLambdas.get(was);
+        if (author != null) {
+            callerLambdas.put(now, author);
+        }
+    }
+
+    /** {@code body}, the typing of {@code lambda}, as its author's code where a caller wrote it into a body typed
+     *  into its call ({@link #callerLambdas}). */
+    <R> R asItsAuthors(LambdaFunction lambda, java.util.function.Supplier<R> body) {
+        Author author = compared != Compared.GENERIC_BODY || callerLambdas.isEmpty() ? null
+                : callerLambdas.get(lambda);
+        return author == null ? body.get() : comparing(author.whose(), author.function(), body);
+    }
+
     /** {@code body} typed as {@code whose} code, the body of {@code function}, for the comparison setting. */
     <R> R comparing(Compared whose, @com.legend.base.Nullable String function, java.util.function.Supplier<R> body) {
         String was = comparedIn;
@@ -339,6 +388,11 @@ final class Typer {
         // an island's translation compares by the island's language's rule (B3 step 5): never the setting's
         if (compared != Compared.UNREAD && !islandOutput.isEmpty() && islandOutput.contains(vs)) {
             return comparing(Compared.UNREAD, () -> synth(vs, env));
+        }
+        // a lambda its caller wrote, met in a body typed into its call: its author's code (callerLambdas)
+        if (compared == Compared.GENERIC_BODY && vs instanceof LambdaFunction written && !callerLambdas.isEmpty()
+                && callerLambdas.containsKey(written)) {
+            return asItsAuthors(written, () -> synth(vs, env));
         }
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as

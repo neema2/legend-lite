@@ -182,9 +182,9 @@ became of it (fixed in `ad1e546a6` and `2d28215ea` unless said otherwise):
 | 9 | MEDIUM | legend-pure's door changed its answer for two pairs whose types differ inside them; legend-pure's answer for them was not read | fixed: that door keeps the database's comparison for pairs, lists and maps |
 | 10 | MEDIUM | A comparison kept for its call, reaching the lowering unanswered, was lowered as its bare call | fixed: one whose types the call fixes is refused there |
 | 11 | MEDIUM | `TypeInferenceIntegrationTest.testMinNumbers` accepted a refusal on any database | fixed: on H2 and SQLite alone |
-| 12 | MEDIUM | A lambda the query writes and hands to a function generic over a relation's columns is typed again as that function's body: its comparison loses its position (the planning-time refusal skips it), an upcast in it is the database's comparison, and a refusal names the generic function | **left, for the user**: a gap, not a regression (none of the three was checked before step 6) |
+| 12 | MEDIUM | A lambda the query writes and hands to a function generic over a relation's columns is typed again as that function's body: its comparison loses its position (the planning-time refusal skips it), an upcast in it is the database's comparison, and a refusal names the generic function | **fixed 2026-11-27, after the user's decisions** (`Typer.callerLambdas`: a lambda its caller wrote into the call is typed as its author's code inside the body; `NumberFamiliesTest.aLambdaHandedToAGenericFunctionIsStillTheQuerys`) |
 | 13 | MEDIUM | Where a function's author declared a side open and the caller's two types differ, the answer is the constant false, so a side that would raise (`[1, 2]->at(5)->cast(@Number) == 1.0`) no longer raises | **left, for the user**: the answer needs a form that still evaluates both sides |
-| 14 | MEDIUM | A function generic over a relation whose other parameters are declared `Number`, called with `1` and `1.0`: refused at the call where the rule says false (the parameters' declarations are gone once the body is typed into the call) | **left, for the user**: a refusal that names the fix, never a wrong answer |
+| 14 | MEDIUM | A function generic over a relation whose other parameters are declared `Number`, called with `1` and `1.0`: refused at the call where the rule says false (the parameters' declarations are gone once the body is typed into the call) | **carried** (looked at again 2026-11-27): the body is typed with the caller's `1` and `1.0` in it, so nothing there says the parameters were declared `Number`. Giving the arguments their declared type would type every such function's arithmetic as `Number` (the time-series library's among them), a change far wider than this case; marking the two sides alone needs their identity carried through the fold and the typing, for a call that is rare. Stays a refusal that names the fix, never a wrong answer |
 | 15 | MEDIUM | The arithmetic rule (S429) changes legend-engine's door on the databases where legend-engine computes a double, and legend-engine's answer was read from its literal processors, not run | **for the user's word** before it lands: it is Pure's answer, which the fidelity tenet takes where legend-engine departs from Pure, posted first |
 | 16 | MEDIUM | Size pins raised by regenerated files with no dated reason per row | the rows that go up are brought to the user with their reasons before the regenerated files join the branch |
 | 17 | LOW | `date(2015, 4)` against a date-time reaches the instant cast (an error, as before step 6) | left, recorded |
@@ -299,14 +299,19 @@ query compared two whole numbers and already raised. The case that answered a qu
 adapt (`== 1.5`) or two computed sides of different types; the test now uses those
 (`RunTimeComparisonTest.aComparisonOfTwoTypesStillRaisesWhatItsSideRaises`).
 
-**Built since the audits and not yet run:** the always-false fix; one value read twice is one evaluation
-(`UserCallInliner.finish`, `ff19de458`); strict `==` on tables (`2d4edec3f`).
+**Run 2026-11-27 at `5e9ed346c`** (16 targets: core's exec, compiler, lowering, planner, integration and test-plan
+suites, the time-series documents and island, the guards and the census, PCT on DuckDB essential and grammar, PCT
+channel B's three lite suites): all 16 pass. That run covers the back-out above, the always-false fix, one value
+read twice is one evaluation (`UserCallInliner.finish`, `ff19de458`) and strict `==` on tables (`2d4edec3f`).
+
+**Built after that run, not yet run:** `sameElements`; a caller's lambda in a generic function's body.
 
 **Left to do, in order:**
 1. `sameElements(a, b)`: built (above); to run, with its generated lists (`native-claims.tsv`). Upstream's answer
    for `==` on two tables is still to be run on the engine runner.
-2. The two type-checker leftovers of the audit (a query's lambda handed to a function generic over a relation's
-   columns; such a function's `Number` parameters refused where the rule says false).
+2. The two type-checker leftovers of the audit: the first is fixed (a query's lambda handed to a function generic
+   over a relation's columns is the query's code: `Typer.callerLambdas`), to run; the second is carried with its
+   reason (the audits' table, row 14).
 3. `max`/`min` of two arguments at legend-engine's door in the database's promoted type.
 4. The test checker's small items: the two judges' wording for a Variant read through `Any`; the tolerance assert as
    its formula; the asserts the database judge cannot judge, read one by one.

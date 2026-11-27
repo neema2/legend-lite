@@ -151,8 +151,11 @@ final class StaticFold {
                     fold(ap.receiver(), scope), ap.property());
             case LambdaFunction lf -> {
                 Map<String, Object> inner = shadow(scope, lf.parameters());
-                yield new LambdaFunction(lf.parameters(),
+                LambdaFunction folded = new LambdaFunction(lf.parameters(),
                         lf.body().stream().map(b -> fold(b, inner)).toList());
+                // (the lambda rebuilt is its author's still: Typer.callerLambdas)
+                typer.sameAuthor(lf, folded);
+                yield folded;
             }
             case PureCollection pc -> new PureCollection(
                     pc.values().stream().map(x -> fold(x, scope)).toList());

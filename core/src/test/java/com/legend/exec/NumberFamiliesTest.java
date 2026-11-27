@@ -31,6 +31,7 @@ class NumberFamiliesTest {
             ###Pure
             Class p::Party { id: Integer[1]; amount: Decimal[1]; ratio: Float[1]; }
             Class p::Loose { n: Number[1]; k: Number[1]; m: Number[1]; }
+            function p::where<T>(r: Relation<T>[1], f: Function<{T[1]->Boolean[1]}>[1]): Relation<T>[1] { $r->filter($f) }
             ###Relational
             Database p::DB ( Table PARTY (ID INTEGER PRIMARY KEY, AMOUNT DECIMAL(10, 2), RATIO DOUBLE) )
             ###Mapping
@@ -137,6 +138,36 @@ class NumberFamiliesTest {
                 assertTrue(String.valueOf(e.getMessage()).contains(c.getValue())
                         && e.getMessage().contains("the types of the columns its two sides read"),
                         c.getKey() + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /** A comparison the query's author writes inside a lambda handed to a function generic over a table's columns is
+     *  still the query's own (the outside audit of 2026-11-27, MEDIUM 12): the function's body is typed into the call
+     *  with the lambda in it, and until this fix the lambda was typed there as the function's code -- its comparison
+     *  of two columns' types skipped the planning-time refusal, and an upcast in it was the database's comparison.
+     *  Each case answers as the same lambda does in a plain {@code filter}. */
+    @Test
+    void aLambdaHandedToAGenericFunctionIsStillTheQuerys() throws Exception {
+        String model = MODEL.formatted(TestBackends.platform().type());
+        String loose = "|p::Loose.all()->project(~[n: x|$x.n, m: x|$x.m])";
+        // two values typed only by their columns, an INTEGER's against a DOUBLE's: refused where the query is planned
+        for (String q : List.of(loose + "->filter(r|$r.n == $r.m)", loose + "->p::where(r|$r.n == $r.m)")) {
+            try (Connection connection = TestBackends.platform().open()) {
+                RuntimeException e = assertThrows(RuntimeException.class,
+                        () -> Lean.established(model, q, "p::RT", connection), q);
+                assertTrue(String.valueOf(e.getMessage()).contains("== compares Integer with Float"),
+                        q + ": " + e.getMessage());
+            }
+        }
+        // an upcast the query's author wrote: answered by the types the two values hold (an Integer and a Float are
+        // never equal), not by the database's comparison of 1 and 1.0
+        String held = "$r.n->toOne()->cast(@Number) == $r.f->toOne()->cast(@Number)";
+        for (String q : List.of("|#TDS\nn, f\n1, 1.0\n#->filter(r|" + held + ")->size()",
+                "|#TDS\nn, f\n1, 1.0\n#->p::where(r|" + held + ")->size()")) {
+            try (Connection connection = TestBackends.platform().open()) {
+                Lean.Result r = Lean.established(model, q, "p::RT", connection);
+                assertEquals(List.of(List.of(0L)), r.rows(), q + "\n" + r.text());
             }
         }
     }
