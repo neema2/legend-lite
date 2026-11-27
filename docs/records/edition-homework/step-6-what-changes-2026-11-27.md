@@ -27,6 +27,11 @@ disagree. Now one rule answers both.
 | 15 | `date(2015, 4, 16, 14) == %2015-04-16T14` inside an expression | a database error | compared by the instant | a defect fixed |
 | 16 | a list mixing days and date-times, passed through `map`, then `contains` | a wrong "true" on DuckDB | refused by name, as the assert already did | a defect fixed |
 
+A note on row 8. It is about a type that only a COLUMN gives. Where the query's author said "decide when the query
+runs" (a parameter declared `Date`, or a written `->cast(@Date)`), nothing can be refused in advance: a day and a
+date-time are then never equal, and are ordered by value, the one ordering ruled on 2026-11-26 for values typed
+only at run time.
+
 Two fixes that are not about equality but were found by it:
 - "First day of the week / month / quarter / year" is a day. The database always returned a day; lite had it
   recorded as a date-time.
@@ -84,8 +89,10 @@ Two fixes that are not about equality but were found by it:
 ## 6. How it was checked
 
 - The full focused run (88 targets: core, the guards, PCT on DuckDB and H2 at all three doors, the time-series
-  library, the parser checks): 87 pass, none fail, one skipped, at the commit with the reviewers' fixes. A final run
-  at the last commit is in progress.
+  library, the parser checks): 87 pass, none fail, one skipped, at the commit with the reviewers' fixes. Run again
+  after the date rule was put back to strict: 86 pass and one planner test fails (a day upcast to `Date`, carried by
+  a variable, ordered against a date-time); fixed, and the planner, exec and time-series targets pass at the last
+  commit (`6cf58b522`).
 - Two outside reviews of the whole diff (read-only): 2 serious and 14 medium findings; both serious ones and 8 of
   the medium ones fixed, the other 6 in sections 4 and 5.
 - Database lanes (Postgres, Trino, MariaDB, MySQL, ClickHouse): running. Cloud lanes (Snowflake, Databricks,
