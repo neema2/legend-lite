@@ -500,7 +500,7 @@ class RootComparisonTest {
     void aComparisonNoStatementAnswersIsRefusedByNameWhereTheDatabasesOwnIsNotTheRule() throws Exception {
         List<String> wrong = new java.util.ArrayList<>();
         String maps = "|[1, 2]->map(x | newMap([pair('a', $x)]) == newMap([pair('a', 1)]))";
-        String decimals = "|[1, 2]->map(x | [1.0D * $x, 2.0D] == [1.00D, 2.00D])";
+        String decimals = "|[1, 2]->map(x | [$x->toDecimal(), 2.0D] == [1.00D, 2.00D])";
         for (var backend : TestBackends.inProcess()) {
             String model = MODEL.formatted(backend.type());
             try (Connection connection = backend.open()) {
