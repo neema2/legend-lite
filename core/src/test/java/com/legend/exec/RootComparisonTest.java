@@ -88,4 +88,66 @@ class RootComparisonTest {
             }
         }
     }
+
+    /** Two tables (step 6, 2026-11-27): the same where their columns have the same names in the same order and their
+     *  rows are the same in order, the comparison an {@code assertEquals} of two tables is judged by. Until then a
+     *  query's {@code ==} read neither the columns' names nor the rows' order. */
+    private static Map<String, Boolean> tables() {
+        Map<String, Boolean> out = new LinkedHashMap<>();
+        String ab = "#TDS\n id, s\n 1, x\n 2, y\n#";
+        out.put("|" + ab + " == " + ab, true);
+        out.put("|!(" + ab + " == " + ab + ")", false);
+        // the rows in another order: another table
+        out.put("|" + ab + " == #TDS\n id, s\n 2, y\n 1, x\n#", false);
+        // a cell that differs; a row more
+        out.put("|" + ab + " == #TDS\n id, s\n 1, x\n 2, z\n#", false);
+        out.put("|" + ab + " == #TDS\n id, s\n 1, x\n#", false);
+        // a column of another name, or a column more: never equal, by the types alone
+        out.put("|#TDS\n id\n 1\n# == #TDS\n ix\n 1\n#", false);
+        out.put("|!(#TDS\n id\n 1\n# == #TDS\n ix\n 1\n#)", true);
+        out.put("|#TDS\n id\n 1\n# == #TDS\n id, s\n 1, x\n#", false);
+        // a sorted table against the rows written in that order
+        out.put("|#TDS\n id, s\n 2, y\n 1, x\n#->sort(~id->ascending()) == " + ab, true);
+        out.put("|#TDS\n id, s\n 2, y\n 1, x\n#->sort(~id->descending()) == " + ab, false);
+        // a store's rows against written ones
+        out.put("|p::Party.all()->project(~[id: p|$p.id, name: p|$p.name]) == #TDS\n id, name\n 1, Meridian\n#", true);
+        out.put("|p::Party.all()->project(~[id: p|$p.id, name: p|$p.name]) == #TDS\n id, name\n 1, Other\n#", false);
+        return out;
+    }
+
+    @Test
+    void twoTablesAreTheSameByTheirColumnsAndTheirRowsInOrder() throws Exception {
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (Map.Entry<String, Boolean> c : tables().entrySet()) {
+                try (Connection connection = backend.open()) {
+                    Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                    assertEquals(List.of(List.of(c.getValue())), r.rows(), backend.type() + ": " + c.getKey() + "\n"
+                            + r.text());
+                }
+            }
+        }
+    }
+
+    /** A column of Integers against a column of Decimals is compared by value (two exact numbers; the user's ruling
+     *  of 2026-11-27); against a column of Floats never equal. */
+    @Test
+    void aTablesNumbersAreComparedByTheTwoFamilies() throws Exception {
+        Map<String, Boolean> cases = new LinkedHashMap<>();
+        String one = "#TDS\n id\n 1\n#";
+        cases.put("|" + one + "->extend(~v: x|2) == " + one + "->extend(~v: x|2D)", true);
+        cases.put("|" + one + "->extend(~v: x|2) == " + one + "->extend(~v: x|2.50D)", false);
+        cases.put("|" + one + "->extend(~v: x|2.5D) == " + one + "->extend(~v: x|2.50D)", true);
+        cases.put("|" + one + "->extend(~v: x|2) == " + one + "->extend(~v: x|2.0)", false);
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (Map.Entry<String, Boolean> c : cases.entrySet()) {
+                try (Connection connection = backend.open()) {
+                    Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                    assertEquals(List.of(List.of(c.getValue())), r.rows(), backend.type() + ": " + c.getKey() + "\n"
+                            + r.text());
+                }
+            }
+        }
+    }
 }

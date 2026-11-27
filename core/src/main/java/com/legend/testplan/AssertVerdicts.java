@@ -274,8 +274,7 @@ public final class AssertVerdicts {
     /** Whether two grids' columns differ in number or in name, in order (the host's {@code TdsCompare.grids}). */
     static boolean gridSchemasDiffer(com.legend.compiler.element.type.Type.RelationType re,
             com.legend.compiler.element.type.Type.RelationType ra) {
-        return re.columns().size() != ra.columns().size() || java.util.stream.IntStream.range(0, re.columns().size())
-                .anyMatch(i -> !re.columns().get(i).name().equals(ra.columns().get(i).name()));
+        return com.legend.lowering.SideEqualities.columnsDiffer(re, ra);
     }
 
     /** Whether a RENDERED-TEXT pair's database arm plans without a read: a rendered grid is a {@link #staticGrid}, or a

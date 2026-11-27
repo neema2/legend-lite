@@ -32,7 +32,9 @@ import java.util.function.Function;
  * <p>Not planned here, each the plain comparison it was: two sides an expression compares exactly on every database
  * (values of known scalar types, instances, anything written in the query itself); two known types that differ (the
  * comparison is whatever the door that admitted the code made of it, a compile error on lite's own); {@code eq},
- * which is identity; two tables.
+ * which is identity.
+ *
+ * <p>Two tables are compared as two tables ({@link #tables}): their columns' names, then their rows in order.
  */
 final class RootComparison {
 
@@ -60,8 +62,9 @@ final class RootComparison {
         }
         TypedSpec left = equal.args().get(0);
         TypedSpec right = equal.args().get(1);
+        List<TypedSpec> lets = body.subList(0, body.size() - 1);
         if (Type.isRelation(left.info().type()) || Type.isRelation(right.info().type())) {
-            return null;
+            return tables(left, right, lets, negated, lowered, numbersOf.apply(equal));
         }
         if (known(left.info().type()) && known(right.info().type())
                 && !java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
@@ -79,7 +82,6 @@ final class RootComparison {
             // two values an expression compares exactly on every database: the plain comparison
             return null;
         }
-        List<TypedSpec> lets = body.subList(0, body.size() - 1);
         SqlQuery leftPlan = lowered.apply(with(lets, left));
         SqlQuery rightPlan = lowered.apply(with(lets, right));
         SideEqualities.Pair pair = SideEqualities.pair(left, kind(left, leftPlan), leftPlan, right,
@@ -88,13 +90,39 @@ final class RootComparison {
         // two families, or the three types a compatibility door's table names)
         SideEqualities.Compared compared = pair == null ? null
                 : pair.under(numbersOf.apply(equal)).compared(leftPlan, rightPlan, false);
-        if (compared == null) {
+        return compared == null ? null : answer(compared, negated);
+    }
+
+    /** The statement's one row: whether the two sides are the same, or (under a {@code !}) are not. */
+    private static SqlQuery answer(SideEqualities.Compared compared, boolean negated) {
+        SqlSelect row = new SqlSelect(List.of(new SqlSelect.Projection(compared.holds(!negated), "value", VALUE)),
+                false, compared.from(), null, List.of(), null, null, List.of(), null, null, List.of(VALUE));
+        return SqlWith.prepend(compared.ctes(), row);
+    }
+
+    private static final OutputCol VALUE = new OutputCol("value", SqlType.Scalar.BOOLEAN, false);
+
+    /**
+     * Two TABLES: the same where their columns have the same names in the same order and their rows are the same in
+     * order, each cell by its column's type ({@link SideEqualities#tables}, the comparison an {@code assertEquals} of
+     * two tables is judged by). Two tables whose columns differ in name or number are never equal, a fact of their
+     * types: answered with no read. Null (the statement is lowered as any expression is) where a side is no table,
+     * a table's columns exist only when the query runs, or a column has no typed comparison.
+     */
+    private static @Nullable SqlQuery tables(TypedSpec left, TypedSpec right, List<TypedSpec> lets, boolean negated,
+            Function<List<TypedSpec>, SqlQuery> lowered, com.legend.lowering.NumberFamilies numbers) {
+        if (!(Type.schemaView(left.info().type()) instanceof Type.RelationType l) || l.isLateBound()
+                || !(Type.schemaView(right.info().type()) instanceof Type.RelationType r) || r.isLateBound()) {
             return null;
         }
-        OutputCol out = new OutputCol("value", SqlType.Scalar.BOOLEAN, false);
-        SqlSelect row = new SqlSelect(List.of(new SqlSelect.Projection(compared.holds(!negated), "value", out)), false,
-                compared.from(), null, List.of(), null, null, List.of(), null, null, List.of(out));
-        return SqlWith.prepend(compared.ctes(), row);
+        if (SideEqualities.columnsDiffer(l, r)) {
+            return new SqlSelect(List.of(new SqlSelect.Projection(new com.legend.sql.SqlExpr.BoolLit(negated), "value",
+                    VALUE)), false, new com.legend.sql.SqlSource.Dual(), null, List.of(), null, null, List.of(), null,
+                    null, List.of(VALUE));
+        }
+        SideEqualities.Compared compared = SideEqualities.tables(lowered.apply(with(lets, left)), l,
+                lowered.apply(with(lets, right)), r, numbers);
+        return compared == null ? null : answer(compared, negated);
     }
 
     /** Whether {@code t} names its values' type: a primitive that is no supertype of others, or an enumeration. */

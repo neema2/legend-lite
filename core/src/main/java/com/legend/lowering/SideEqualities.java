@@ -1101,15 +1101,19 @@ public final class SideEqualities {
      *  {@code LiteralSpelling.decimalText}: no fractional trailing zero, no bare point, then {@code D}), this side's
      *  whole numbers or typed Decimals as that text -- two such texts are the same exactly where the two numbers are;
      *  an Integer side beside typed Decimals as Decimals at their scale ({@link #wideEnough}). Read over the side's
-     *  rows once, from {@code cte}. Any other side as it is. Null where a side holds no number. */
-    private static @com.legend.base.Nullable SqlQuery besideDecimals(String cte, SqlQuery rows, SqlQuery other) {
+     *  rows once, from {@code cte}. Any other side as it is. */
+    private static SqlQuery besideDecimals(String cte, SqlQuery rows, SqlQuery other) {
         SqlType own = rows.outputs().get(0).type();
         SqlType theirs = other.outputs().get(0).type();
         boolean ownNumber = wholeNumber(own) || own instanceof SqlType.Decimal;
         boolean theirText = theirs == SqlType.Scalar.DECIMAL_TEXT;
         if (!(ownNumber || own == SqlType.Scalar.DECIMAL_TEXT)
                 || !(wholeNumber(theirs) || theirs instanceof SqlType.Decimal || theirText)) {
-            return null;
+            // a carrier this reading does not know (an Integer past 64 bits, DuckDB's HUGEINT): the side as it is;
+            // whether the two sides' carriers compare is the caller's question (oneCarrier). (2026-11-27: answered
+            // "no typed form" here, two Integer sides one of which was a HUGEINT lost the comparison they had --
+            // PCT's testLargePlus, testLargeMinus, testLargeTimes, testSum_Integers on channel B)
+            return rows;
         }
         boolean asText = ownNumber && theirText;
         if (!asText && !(wholeNumber(own) && theirs instanceof SqlType.Decimal)) {
@@ -1445,6 +1449,15 @@ public final class SideEqualities {
      */
     static SqlQuery typedCells(GridSide grid, String named, List<Type> kinds,
             @com.legend.base.Nullable List<Boolean> tagged) {
+        return typedCells(grid, named, kinds, tagged, null);
+    }
+
+    /** {@link #typedCells(GridSide, String, List, List)}, and where {@code carried} names a column's type, its cells
+     *  carried as that type ({@link #besideExact}: an exact number's column beside the other table's, an Integer's and
+     *  a Decimal's compared by their value). */
+    static SqlQuery typedCells(GridSide grid, String named, List<Type> kinds,
+            @com.legend.base.Nullable List<Boolean> tagged,
+            @com.legend.base.Nullable List<@com.legend.base.Nullable SqlType> carried) {
         List<SqlSelect.Projection> data = grid.wrapped() instanceof SqlSelect ws
                 ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size())) : List.of();
         List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -1456,6 +1469,10 @@ public final class SideEqualities {
                 cell = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, cell),
                         new SqlExpr.NullLit())), new SqlExpr.StringLit(kindText(kinds.get(i))), SqlExpr.Reason.JUDGE);
                 type = SqlType.Scalar.VARCHAR;
+            } else if (carried != null && i < carried.size() && carried.get(i) != null) {
+                type = java.util.Objects.requireNonNull(carried.get(i));
+                cell = type == SqlType.Scalar.DECIMAL_TEXT ? LiteralSpelling.decimalText(cell)
+                        : new SqlExpr.Cast(cell, type, SqlExpr.Reason.JUDGE);
             }
             OutputCol out = new OutputCol("c" + i, type, true);
             ps.add(new SqlSelect.Projection(cell, out.name(), out));
@@ -1486,17 +1503,39 @@ public final class SideEqualities {
      */
     public static @com.legend.base.Nullable Compared grids(GridSide e, List<Type> eKinds, GridSide a,
             List<Type> aKinds, boolean multiset, boolean schemasDiffer, Type eRows, Type aRows) {
+        return grids(e, eKinds, a, aKinds, multiset, schemasDiffer, eRows, aRows, NumberFamilies.TWO_FAMILIES);
+    }
+
+    /** {@link #grids(GridSide, List, GridSide, List, boolean, boolean, Type, Type)} under {@code numbers}: where an
+     *  Integer and a Decimal are equal by their value (the user's ruling of 2026-11-27), an Integer column against a
+     *  Decimal one is compared by value, each side's cells carried as one type ({@link #besideExact}); where the two
+     *  are two types, by its kind tag, as any two kinds are. */
+    public static @com.legend.base.Nullable Compared grids(GridSide e, List<Type> eKinds, GridSide a,
+            List<Type> aKinds, boolean multiset, boolean schemasDiffer, Type eRows, Type aRows,
+            NumberFamilies numbers) {
         if (!typedGrid(e, eKinds) || !typedGrid(a, aKinds)) {
             return null;
         }
         List<Boolean> tagged = new ArrayList<>();
+        List<@com.legend.base.Nullable SqlType> eCarried = new ArrayList<>();
+        List<@com.legend.base.Nullable SqlType> aCarried = new ArrayList<>();
         for (int i = 0; i < eKinds.size(); i++) {
-            tagged.add(!schemasDiffer && i < aKinds.size()
-                    && !java.util.Objects.equals(typedClass(eKinds.get(i)), typedClass(aKinds.get(i))));
+            boolean twoKinds = !schemasDiffer && i < aKinds.size()
+                    && !java.util.Objects.equals(typedClass(eKinds.get(i)), typedClass(aKinds.get(i)));
+            boolean exact = twoKinds && numbers == NumberFamilies.TWO_FAMILIES && exactNumber(eKinds.get(i))
+                    && exactNumber(aKinds.get(i));
+            tagged.add(twoKinds && !exact);
+            SqlType eType = exact ? cellType(e, i) : null;
+            SqlType aType = exact ? cellType(a, i) : null;
+            eCarried.add(eType == null || aType == null ? null : besideExact(eType, aType));
+            aCarried.add(eType == null || aType == null ? null : besideExact(aType, eType));
         }
-        boolean anyTagged = tagged.contains(true);
-        SqlQuery ce = typedCells(e, GRID_E, eKinds, tagged);
-        SqlQuery ca = typedCells(a, GRID_A, aKinds, tagged);
+        // a column read as something other than its cells (a kind tag, an exact number carried as the other side's
+        // type): the record's rows are read apart, as the cells themselves
+        boolean anyTagged = tagged.contains(true) || eCarried.stream().anyMatch(java.util.Objects::nonNull)
+                || aCarried.stream().anyMatch(java.util.Objects::nonNull);
+        SqlQuery ce = typedCells(e, GRID_E, eKinds, tagged, eCarried);
+        SqlQuery ca = typedCells(a, GRID_A, aKinds, tagged, aCarried);
         List<SqlWith.Cte> ctes = new ArrayList<>(List.of(new SqlWith.Cte(GRID_E, e.wrapped()),
                 new SqlWith.Cte(GRID_A, a.wrapped()), new SqlWith.Cte("__ce", ce), new SqlWith.Cte("__ca", ca),
                 new SqlWith.Cte("__ke", structRows(cteRows("__ce", ce))),
@@ -1524,6 +1563,73 @@ public final class SideEqualities {
         return new Compared(ctes, from, same, List.of(
                 held(anyTagged ? "e" : "ke", eList, eRows),
                 held(anyTagged ? "a" : "ka", aList, aRows)));
+    }
+
+    /** The SQL type of a grid's {@code i}th data column. */
+    private static SqlType cellType(GridSide grid, int i) {
+        return java.util.Objects.requireNonNull(((SqlSelect) grid.wrapped()).projections().get(i).out(),
+                "a grid's data column with no type").type();
+    }
+
+    /** The type an exact number's cells held as {@code own} are carried as beside cells held as {@code theirs}, so the
+     *  two compare by their value: beside a Decimal's canonical text (a store-read Decimal's,
+     *  {@code LiteralSpelling.decimalText}) that text; a whole number and a typed Decimal both as the Decimal that
+     *  holds every Integer at the Decimal's scale ({@link #wideEnough}). Null where the cells compare as they are. */
+    private static @com.legend.base.Nullable SqlType besideExact(SqlType own, SqlType theirs) {
+        if (theirs == SqlType.Scalar.DECIMAL_TEXT) {
+            return wholeNumber(own) || own instanceof SqlType.Decimal ? SqlType.Scalar.DECIMAL_TEXT : null;
+        }
+        if (wholeNumber(own) && theirs instanceof SqlType.Decimal d) {
+            return wideEnough(d);
+        }
+        return own instanceof SqlType.Decimal d && wholeNumber(theirs) ? wideEnough(d) : null;
+    }
+
+    /** Whether two tables' columns differ in number or in name, in order: such two tables are never equal, a fact of
+     *  their types (the host's {@code TdsCompare.grids}). */
+    public static boolean columnsDiffer(Type.RelationType left, Type.RelationType right) {
+        return left.columns().size() != right.columns().size() || java.util.stream.IntStream.range(0,
+                left.columns().size()).anyMatch(i -> !left.columns().get(i).name().equals(right.columns().get(i)
+                        .name()));
+    }
+
+    /**
+     * Two TABLES compared by {@code ==} (the edition program's step 6, the one equality, 2026-11-27): the comparison an
+     * {@code assertEquals} of two tables is judged by ({@link #grids}) over each side's plan as the product planned it --
+     * the same columns by name, then the same rows in order, each cell by its column's type -- its rows numbered where
+     * the plan defines their order ({@link SideOrdinal}). The two tables' columns have the same names ({@link
+     * #columnsDiffer}, answered by the caller from the types alone). Null where a side's plan does not carry exactly
+     * its declared columns, or a column has no typed comparison.
+     */
+    public static @com.legend.base.Nullable Compared tables(SqlQuery left, Type.RelationType leftColumns,
+            SqlQuery right, Type.RelationType rightColumns, NumberFamilies numbers) {
+        if (left.outputs().size() != leftColumns.columns().size()
+                || right.outputs().size() != rightColumns.columns().size()) {
+            return null;
+        }
+        Type.RelationType l = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(leftColumns, left.outputs());
+        Type.RelationType r = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(rightColumns, right.outputs());
+        return grids(tableSide(left, l.columns().size()), l.columns().stream().map(Type.Column::type).toList(),
+                tableSide(right, r.columns().size()), r.columns().stream().map(Type.Column::type).toList(), false,
+                false, l, r, numbers);
+    }
+
+    /** A table's plan as a grid side: its rows' ordinal as its last output, and its data columns named and typed
+     *  projections of one select (a plan that is a union, or reads its source's columns by a star, is read through one
+     *  more select). */
+    private static GridSide tableSide(SqlQuery plan, int width) {
+        SqlQuery ordered = SideOrdinal.withOrdinal(plan);
+        boolean cells = ordered instanceof SqlSelect s && s.projections().size() >= width
+                && s.projections().subList(0, width).stream().allMatch(p -> p.alias() != null && p.out() != null);
+        if (!cells) {
+            List<SqlSelect.Projection> ps = new ArrayList<>(ordered.outputs().size());
+            for (OutputCol o : ordered.outputs()) {
+                ps.add(new SqlSelect.Projection(SqlExpr.Column.of("__t", o), o.name(), o));
+            }
+            ordered = new SqlSelect(ps, false, new SqlSource.Subselect(ordered, "__t", null), null, List.of(), null,
+                    null, List.of(), null, null, ordered.outputs());
+        }
+        return new GridSide(ordered, width, List.of());
     }
 
     /** Whether a grid's plan names and types each of its data columns, the cells a typed member reads. */

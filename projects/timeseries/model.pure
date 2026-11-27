@@ -2038,13 +2038,17 @@ function timeseries::lines::timed<T,D,OP,OO>(t: Relation<T>[1], date: ColSpec<D�
 // trade at its day's rate); where both have several, no pairing is right, and the meeting is refused while the query
 // runs (the time model's D1, ruled 2026-11-03: a join would multiply them, 3 against 2 giving 6).
 // (A line's keys and periods are never empty, so they meet by a plain equality the database can hash: toOne. B2, F6.)
+// (The two dates are compared as dates, cast(@Date): which is the later is a question of their values, whatever each
+// line's grain -- a word of several lines meets them on a period typed Date, where lines of two grains are refused
+// while the query runs (helpers::grain); written between the two columns' own types the comparison was a day against
+// a date-time there, a mistake at the call since the equality rule's 2026-11-27 ruling, which pre-empted that refusal.)
 function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
 {
   $x->timeseries::lines::perPeriod($key, $period, ~mx)
     ->join($y->timeseries::lines::perPeriod($yKey, $yPeriod, ~my), meta::pure::functions::relation::JoinKind.INNER, {a,b|($a->read($period)->toOne() == $b->read($yPeriod)->toOne()) && ($a->read($key)->toOne() == $b->read($yKey)->toOne())})
     ->filter(r|timeseries::lines::single($r.mx, $r.my))
     ->without(~[mx, my])
-    ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
+    ->extend(~o:r|if($r->read($at)->toOne()->cast(@Date) >= $r->read($yAt)->toOne()->cast(@Date), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
 }
 
 // LINES OF TWO GRAINS MEETING (the time model's D4, ruled 2026-11-03): a line of moments (its period a date-time)
@@ -2112,7 +2116,7 @@ function timeseries::lines::meet<T,U,K,P,A,Q,B,O>(x: Relation<T>[1], key: ColSpe
   $x->timeseries::lines::perPeriod($key, $period, ~mx)
     ->join($y->timeseries::lines::perPeriod($yKey, $yPeriod, ~my), meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($period)->toOne() == $b->read($yPeriod)->toOne()})
     ->filter(r|timeseries::lines::single($r.mx, $r.my))->without(~[mx, my])
-    ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
+    ->extend(~o:r|if($r->read($at)->toOne()->cast(@Date) >= $r->read($yAt)->toOne()->cast(@Date), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
 }
 
 // How a line's values are put onto the periods of another's it has none at (R6, FILL): its last value at or before
