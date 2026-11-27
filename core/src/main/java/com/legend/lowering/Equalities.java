@@ -31,9 +31,10 @@ final class Equalities {
     private Equalities() {
     }
 
-    /** The rule of {@code equal} and {@code eq}. It is PRECISION-AWARE over dates: a partial-date literal equals only
-     *  a same-precision value (decided statically: partial precision is literal-only; columns are full-precision);
-     *  same-precision partials compare as ISO-prefix strings. {@code eq} is strict equality, the {@code =} operator
+    /** The rule of {@code equal} and {@code eq}. It is PRECISION-AWARE over dates: a partial-date literal (a year, a
+     *  year-month) equals only a same-precision value: another literal's by the two precisions, a computed value's
+     *  (carried as the text it prints) by the two texts; a column and any day or date-time is full-precision, never
+     *  equal to one; same-precision partials compare as ISO-prefix strings. {@code eq} is strict equality, the {@code =} operator
      *  here. It takes NO optional-operand guards deliberately (T1.4): equal is a total native ({@code [] == []} is
      *  true; the guard would spell it false). The residual both-NULL divergence (SQL NULL where Pure says true) is
      *  the reference engine's own behaviour (a bare {@code =}). */
@@ -147,8 +148,18 @@ final class Equalities {
             if (Objects.equals(p0, p1)) {
                 return new SqlExpr.Call(SqlFn.EQUAL, args);
             }
-            Type other = (p0 != null ? n.args().get(1) : n.args().get(0))
-                    .info().type();
+            int o = p0 != null ? 1 : 0;
+            Type other = n.args().get(o).info().type();
+            // a year or a year-month COMPUTED (date(1973), a partial's datePart, a partial moved by years or by
+            // months) is typed the abstract Date and carried, as the literal is, as the text it prints
+            // (TEMPORAL_TEXT): the two texts are compared, equal at the same precision and value alone. Until the
+            // closing batch of the edition program's step 6 "a partial is a literal only" answered false here with
+            // no read (measured 2026-11-27: %1973 == date(1973) false where an assert of the two passes; six of
+            // legend-pure's own date tests, on every database)
+            if (other == Type.Primitive.DATE && (p0 == null || p1 == null)
+                    && carriedAs(args.get(o), SqlType.Scalar.TEMPORAL_TEXT)) {
+                return new SqlExpr.Call(SqlFn.EQUAL, args);
+            }
             // Covers both a full-precision opposite side AND a
             // different-precision partial (whose static type is
             // also Date) — never equal.

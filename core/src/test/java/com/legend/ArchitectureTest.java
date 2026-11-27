@@ -3623,6 +3623,88 @@ final class ArchitectureTest {
         bites(NAMED_RULES_ARE_THE_TABLES, com.legend.lowering.PlantedNamedRule.class);
     }
 
+    /**
+     * THE PLANNER'S READS OF THE DOOR'S EDITION ARE ITS LISTED ONES (the closing batch of the edition program's step 6,
+     * 2026-11-27). The user, that day: "We shouldn't land with the planner knowing editions". The comparison of two
+     * whole sides ({@code planner.RootComparison}) read which number rule the door's table had named, and stood aside
+     * by it; it now reads nothing of the door, and the lowering asks it only for a comparison the door's table named
+     * no rule for. What is left are the reads that were there before step 6, each named here: where a door's code is
+     * stamped as outside any store query ({@code ProductStatements}, {@code BodyPlanner}, {@code FramePlanner}) and
+     * the making of the door's table for the statement's database ({@code PlanEnv}). The user ruled the same day
+     * ("2 okay") that they go at the end of the edition program, when only the typer reads the edition (tenet 6 of
+     * the six). Until then the list may only SHRINK: an entry is added with the user's word alone, dated here.
+     *
+     * <p>Read over core, the hosts' doors and the edge: a question asked of {@code planner.Edition}, or of the
+     * door's table {@code lowering.EditionTable}, from outside the lowering (whose table it is) and the edge (whose
+     * doors make both). Named limit: an access is a method call; an edition passed on unread is not one.
+     */
+    @Test
+    void thePlannersReadsOfTheEditionAreItsListedOnes() {
+        EDITION_READS_ARE_LISTED.check(coreAndTheHostsDoors());
+    }
+
+    /** Each read of the door's edition outside the lowering and the edge: the asking class, and what it asks. */
+    static final java.util.Set<String> EDITION_READS = java.util.Set.of(
+            "com.legend.planner.BodyPlanner stampsTestBodies",
+            "com.legend.planner.FramePlanner stampsTestBodies",
+            "com.legend.planner.ProductStatements stampsTestBodies",
+            "com.legend.planner.ProductStatements stampsOutsideStore",
+            "com.legend.planner.ProductStatements constraintsOutsideStore",
+            "com.legend.planner.ProductStatements transformsOutsideStore",
+            "com.legend.planner.ProductStatements writtenFlagsRead",
+            "com.legend.planner.PlanEnv rowsByDatabase",
+            "com.legend.planner.PlanEnv table");
+
+    /** The rule of {@link #thePlannersReadsOfTheEditionAreItsListedOnes}. */
+    static final com.tngtech.archunit.lang.ArchRule EDITION_READS_ARE_LISTED = noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a question asked of the door's edition, or of its"
+                    + " table, outside the lowering, the edge and the listed reads") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    boolean edition = access.getTargetOwner().isEquivalentTo(com.legend.planner.Edition.class);
+                    boolean table = access.getTargetOwner().isEquivalentTo(com.legend.lowering.EditionTable.class);
+                    if (!edition && !table) {
+                        return false;
+                    }
+                    com.tngtech.archunit.core.domain.JavaClass owner = access.getOrigin().getOwner();
+                    String at = owner.getPackageName();
+                    if (at.equals("com.legend.edge") || at.startsWith("com.legend.edge.")
+                            || at.equals("com.legend.lowering")) {
+                        return false;
+                    }
+                    // (a lambda's or an inner class's read is its outer class's)
+                    String asking = owner.getName().replaceAll("\\$.*", "");
+                    return !(edition && EDITION_READS.contains(asking + " " + access.getName()));
+                }
+            })
+            .as("the planner's reads of the door's edition are its listed ones (ArchitectureTest.EDITION_READS)");
+
+    /** {@link #thePlannersReadsOfTheEditionAreItsListedOnes} fails on a class of the planner's package that asks the
+     *  edition a question ({@code planner.PlantedEditionReader}, a test class planted for this alone). */
+    @Test
+    void theEditionReadRuleBitesAPlantedReader() {
+        bites(EDITION_READS_ARE_LISTED, com.legend.planner.PlantedEditionReader.class);
+    }
+
+    /** Every entry of {@link #EDITION_READS} is still a read the product makes: a read that goes takes its entry
+     *  with it, so the list only shrinks. */
+    @Test
+    void everyListedEditionReadIsStillMade() {
+        java.util.Set<String> made = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
+            for (com.tngtech.archunit.core.domain.JavaAccess<?> access : c.getAccessesFromSelf()) {
+                if (access.getTargetOwner().isEquivalentTo(com.legend.planner.Edition.class)) {
+                    made.add(c.getName().replaceAll("\\$.*", "") + " " + access.getName());
+                }
+            }
+        }
+        java.util.Set<String> gone = new java.util.TreeSet<>(EDITION_READS);
+        gone.removeAll(made);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of(), gone,
+                "a listed read of the door's edition is no longer made: take its entry off EDITION_READS");
+    }
+
     /** A JDBC member that sends a statement: one made, prepared or called ({@code Connection.createStatement},
      *  {@code prepareStatement}, {@code prepareCall}), or one executed in any form or batched ({@code Statement}'s and its
      *  subtypes' {@code execute*}, {@code addBatch}). */

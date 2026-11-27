@@ -337,6 +337,49 @@ class UpstreamTiesTest {
         }
     }
 
+    /** Two properties declared {@code Number}, one over an INTEGER column and one over a FLOAT: their types are the
+     *  columns', known only where the query is planned. */
+    private static final ModelContext LOOSE = Compiler.compileModel("""
+            ###Pure
+            Class u::Loose { n: Number[1]; m: Number[1]; }
+            ###Relational
+            Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, I INTEGER, F FLOAT ) )
+            ###Mapping
+            Mapping u::M ( u::Loose: Relational { ~mainTable [s::DB] T n: T.I, m: T.F } )
+            ###Connection
+            RelationalDatabaseConnection s::Conn { store: s::DB; type: %s; specification: LocalH2 { };
+                auth: DefaultH2; }
+            ###Runtime
+            Runtime s::RT { mappings: [u::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
+            """.formatted(Databases.PLATFORM.name()));
+
+    /**
+     * EVERY COMPARISON THE PRODUCT REFUSES OVER TWO COLUMNS' TYPES IS THE DOOR'S OWN AT A DOOR (the closing batch of
+     * the edition program's step 6, 2026-11-27; its design note, 5.2). The product's own rule for a comparison holds
+     * more than the comparison: the refusal of two column types that are never equal ({@code lowering.HeldKinds})
+     * and the plan of two whole sides. A door's row REPLACES that rule ({@code EditionTable.lowersAs}), so the
+     * product's refusal never reaches a compatibility door -- as long as every door has a row for every comparison
+     * the refusal reads. Each of them here: refused at lite's own door, planned at each of the three upstream doors.
+     * A comparison added to the product's refusal with no row at a door fails here.
+     */
+    @Test
+    @DisplayName("a comparison lite refuses over two columns' types is planned at every compatibility door")
+    void everyComparisonTheProductRefusesOverColumnsIsTheDoorsOwnAtADoor() {
+        for (String compared : List.of("$x.n == $x.m", "eq($x.n, $x.m)", "$x.n->in([1.5, 2.5])",
+                "[1.5, 2.5]->contains($x.n)", "$x.n < $x.m", "$x.n <= $x.m", "$x.n > $x.m", "$x.n >= $x.m")) {
+            String query = "|u::Loose.all()->filter(x|" + compared + ")->project(~[n: x|$x.n])";
+            RuntimeException refused = assertThrows(RuntimeException.class, () -> Door.LITE.admitted(
+                    Compiler.query(LOOSE, query)).executionPlan("s::RT", java.util.Set.of(), Door.LITE.style), query);
+            assertTrue(String.valueOf(refused.getMessage()).contains("the types of the columns its two sides read"),
+                    query + ": " + refused.getMessage());
+            for (Door door : UPSTREAMS) {
+                assertFalse(door.admitted(Compiler.query(LOOSE, query))
+                        .executionPlan("s::RT", java.util.Set.of(), door.style).answerSql().text().isEmpty(),
+                        door + ": " + query);
+            }
+        }
+    }
+
     @Test
     @DisplayName("a date built to the hour against a date-time: upstream reads the written precision as part of the"
             + " value, lite compares the two by their instant")

@@ -56,6 +56,22 @@ class OneValueWithinOneTypeTest {
     }
 
     @Test
+    @DisplayName("a year or a year-month written against one computed: equal at the same precision and value")
+    void aWrittenYearEqualsAComputedOne() throws Exception {
+        // measured 2026-11-27 (the acceptance measure of step 6's closing batch): each of these answered false with
+        // no read, where an assert of the two passes -- "a partial date is a literal only" (lowering.Equalities)
+        assertEquals(List.of("true", "true", "true", "true", "true", "false", "false", "false"), values("|["
+                + "%1973 == date(1973), "
+                + "date(1973, 11) == %1973-11, "
+                + "%1973-11 == %1973-11->datePart(), "
+                + "%2015-03 == %2012-03->adjust(36, meta::pure::functions::date::DurationUnit.MONTHS), "
+                + "%2016 == %2015->adjust(1, meta::pure::functions::date::DurationUnit.YEARS), "
+                + "%1973 == date(1974), "
+                + "%1973 == date(1973, 11), "
+                + "%1973-11 == %1973]"));
+    }
+
+    @Test
     @DisplayName("two Decimal literals: equal by their number, at any written scale")
     void decimalLiteralsCompareByNumber() throws Exception {
         assertEquals(List.of("true", "true", "false"), values("|["
