@@ -120,6 +120,20 @@ public final class OrderedAsserts {
         return unorderedRows(actual, lets) ? 1 : -1;
     }
 
+    /** The lets the order rule reads for a comparison planned outside any body walk: {@code parameters}, each a
+     *  value its caller gives in the caller's order ({@link OrderView#unseen}); {@code bound}, the lets an
+     *  environment seeds, each its value; then the statement's own {@code lets}. */
+    public static List<TypedSpec> scope(java.util.Collection<String> parameters,
+            java.util.Map<String, TypedSpec> bound, List<TypedSpec> lets, TypedSpec at) {
+        List<TypedSpec> out = new ArrayList<>();
+        for (String parameter : parameters) {
+            out.add(OrderView.unseen(parameter, at));
+        }
+        bound.forEach((name, value) -> out.add(new TypedLet(name, value, value.info())));
+        out.addAll(lets);
+        return out;
+    }
+
     /** Whether {@code side} is rows whose order the program does not define: a relation or a collection (not one
      *  value) whose order view is {@link OrderView#INCIDENTAL}. A printed or joined text is the lift's and the join
      *  rewrite's; the same rule for a text that prints or joins such rows is deferred (B3 step 4's measurement,

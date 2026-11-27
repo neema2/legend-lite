@@ -82,14 +82,7 @@ final class RootComparison {
         // what the order rule reads beside the statement's own lets: the lets the environment seeds, each its value,
         // and the query's parameters, each a value the caller gives in its order (2026-11-27: a parameter, bound by
         // no let, had been taken for an execution frame's rows and refused as unordered)
-        List<TypedSpec> named = new ArrayList<>();
-        for (String parameter : parameters) {
-            named.add(new com.legend.compiler.spec.typed.TypedLet(parameter, new com.legend.compiler.spec.typed
-                    .TypedCollection(List.of(), equal.info(), false, false), equal.info()));
-        }
-        seeded.forEach((name, value) -> named.add(new com.legend.compiler.spec.typed.TypedLet(name, value,
-                value.info())));
-        named.addAll(lets);
+        List<TypedSpec> named = com.legend.compiler.spec.OrderedAsserts.scope(parameters, seeded, lets, equal);
         if (table(left) || table(right)) {
             return tables(left, right, lets, named, negated, lowered, anyOrder);
         }
@@ -158,7 +151,8 @@ final class RootComparison {
             lambdaBound(body.get(body.size() - 1), bound);
         }
         readable.removeAll(bound);
-        java.util.Map<String, TypedSpec> seededLets = java.util.Map.copyOf(seeded);
+        java.util.Map<String, TypedSpec> seededLets =
+                java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(seeded));
         return new WholeComparisons() {
             @Override
             public @Nullable SqlQuery asTheStatement(TypedNativeCall comparison, boolean negated) {

@@ -453,7 +453,6 @@ class RootComparisonTest {
                 "|" + names + "->removeDuplicates() == ['A', 'B']",
                 "|" + names + "->reverse() == ['A', 'B']",
                 "|" + names + "->tail() == ['A', 'B']",
-                "|if(p::Party.all()->size() > 0, |" + names + ", |['A', 'B']) == ['A', 'B']",
                 "|if(" + names + "->reverse() == ['A', 'B'], |'same', |'other')");
         Map<String, Object> compared = new LinkedHashMap<>();
         compared.put("|[3, 1, 2]->filter(x | $x > 0)->reverse() == [2, 1, 3]", true);

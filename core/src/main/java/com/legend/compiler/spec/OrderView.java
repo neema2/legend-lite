@@ -40,7 +40,7 @@ public enum OrderView {
             "meta::pure::functions::relation::sort",
             // the legacy table's sort (named 2026-11-27: until the fallback read its input it answered DEFINED,
             // which a sorted table is)
-            "meta::pure::tds::sort");
+            com.legend.builtin.Pure.SORT__TDS_1__STRING_1__SORT_DIRECTION_1.qualifiedName());
 
     /** Natives after which SQL leaves no order (GROUP BY, joins, UNION,
      * pivots): the chain's order is incidental past them. EXACT identities
@@ -272,16 +272,14 @@ public enum OrderView {
                 || s instanceof com.legend.compiler.spec.typed.TypedNavigate
                 || s instanceof com.legend.compiler.spec.typed
                         .TypedMilestonedAccess) {
+            // (a to-many property read of ONE object picked from a sorted read -- $sorted->toOne().addresses -- is
+            // answered by the parents' sort, which does not order the children: recorded, register S431. It cannot
+            // be told here from the rows of a sorted result read through its envelope, $result.values.rows, which
+            // ARE in the sort's order: an attempt to tell them by "many read from one" refused every sorted frame
+            // read, 2026-11-27)
             List<TypedSpec> ch = s.children();
-            if (ch.isEmpty()) {
-                return OrderView.DEFINED;
-            }
-            OrderView source = of(ch.get(0), lets, seen, hook);
-            // MANY values read from ONE (a to-many property of the first of a sorted read): their order is the
-            // property's own, which a sort of the parents does not give -- in arrival order where the parent came
-            // from a sort (a store's, in practice), the language's where it is a value (2026-11-27: it had been
-            // SORTED, by the parents' sort)
-            return source == OrderView.SORTED && !oneValue(s) && oneValue(ch.get(0)) ? OrderView.INCIDENTAL : source;
+            return ch.isEmpty() ? OrderView.DEFINED
+                    : of(ch.get(0), lets, seen, hook);
         }
         // a node the rule does not name: as ordered as what it was made of
         return leastOrdered(s, s.children(), lets, seen, hook);
@@ -299,20 +297,36 @@ public enum OrderView {
         if (oneValue(s)) {
             return OrderView.DEFINED;
         }
+        // the names the node itself binds are values the walk cannot see (a match's parameter, its extra one): read as
+        // a literal, never as a frame's rows -- a variable no let binds is taken for an execution frame's
+        List<TypedSpec> own = lets;
+        if (s instanceof com.legend.compiler.spec.typed.TypedMatch m) {
+            own = new java.util.ArrayList<>(lets);
+            own.add(unseen(m.param(), s));
+            for (String extra : m.extraParam().stream().toList()) {
+                own.add(unseen(extra, s));
+            }
+        } else if (s instanceof com.legend.compiler.spec.typed.TypedMatchRuntime mr) {
+            own = new java.util.ArrayList<>(lets);
+            for (var arm : mr.arms()) {
+                own.add(unseen(arm.param(), s));
+            }
+            for (String extra : mr.extraParam().stream().toList()) {
+                own.add(unseen(extra, s));
+            }
+        }
         for (TypedSpec input : inputs) {
             TypedSpec read = input;
-            List<TypedSpec> scope = lets;
+            List<TypedSpec> scope = own;
             if (input instanceof com.legend.compiler.spec.typed.TypedLambda lambda) {
                 if (lambda.body().isEmpty()) {
                     continue;
                 }
                 read = lambda.body().get(lambda.body().size() - 1);
-                scope = new java.util.ArrayList<>(lets);
+                scope = new java.util.ArrayList<>(own);
                 for (String p : lambda.parameters()) {
-                    // a parameter is a value the walk cannot see: read as a literal, never as a frame's rows (the
-                    // rule OrderedAsserts.rewrite has for a lambda it walks into)
-                    scope.add(new com.legend.compiler.spec.typed.TypedLet(p, new com.legend.compiler.spec.typed
-                            .TypedCollection(List.of(), lambda.info(), false, false), lambda.info()));
+                    // (the rule OrderedAsserts.rewrite has for a lambda it walks into)
+                    scope.add(unseen(p, lambda));
                 }
                 scope.addAll(lambda.body().subList(0, lambda.body().size() - 1));
             }
@@ -321,6 +335,13 @@ public enum OrderView {
             }
         }
         return OrderView.DEFINED;
+    }
+
+    /** {@code name} bound to a value the walk cannot see (a lambda's or a match's parameter, a query's): read as a
+     *  written value, whose order is the language's. */
+    static TypedSpec unseen(String name, TypedSpec at) {
+        return new com.legend.compiler.spec.typed.TypedLet(name, new com.legend.compiler.spec.typed.TypedCollection(
+                List.of(), at.info(), false, false), at.info());
     }
 
     /** Whether {@code s} is one value at most: to-one or zero-to-one, and no relation. */
