@@ -5,6 +5,11 @@ comparison codes are there" with a count anyone can rerun: **does `L == R` answe
 
 ## What it is
 
+*The tool's code is on the scratch branch `claude/step-6-numbers` (commit `6bf041cb6`), not on the program branch:
+its model text entered the parser-equivalence corpus and turned `//parser-equivalence:parser_parity` red, so it was
+taken off the program branch the same evening. It comes back with step 6B's first slice, with that corpus's
+recorded files regenerated.*
+
 `tools/equality-measure` (its README, "The position matrix"): 72 comparisons, each asked in 17 places, on DuckDB, H2
 and SQLite; an assert under each checker, so 19 outcomes a comparison and database; 4,104 runs in about 40 seconds.
 
