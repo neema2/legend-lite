@@ -64,7 +64,7 @@ def kept(row):
         if set(int(i) for i in re.findall(r'"id"\s*:\s*(\d+)', text)) != set(ALL_ROWS):
             return 'other answer'
     else:
-        ids = {int(i) for i in re.findall(r'"value"\s*:\s*(\d+)', text)}
+        ids = {int(i) for i in re.findall(r'"id"\s*:\s*(\d+)', text)}
     if row['negated'] == 'true':
         ids = set(ALL_ROWS) - ids
     return ','.join(str(i) for i in sorted(ids))

@@ -456,15 +456,15 @@ public final class EqualityMeasure {
         String all = "t::R.all()";
         return List.of(
                 new StorePosition("filter", false,
-                        (l, r) -> "{|" + all + "->filter(r | " + eq.apply(l, r) + ")->map(r | $r.id)}"),
+                        (l, r) -> "{|" + all + "->filter(r | " + eq.apply(l, r) + ")->project([r | $r.id], ['id'])}"),
                 new StorePosition("filter-not", true,
-                        (l, r) -> "{|" + all + "->filter(r | !(" + eq.apply(l, r) + "))->map(r | $r.id)}"),
+                        (l, r) -> "{|" + all + "->filter(r | !(" + eq.apply(l, r) + "))->project([r | $r.id], ['id'])}"),
                 new StorePosition("filter-and", false,
-                        (l, r) -> "{|" + all + "->filter(r | (" + eq.apply(l, r) + ") && true)->map(r | $r.id)}"),
+                        (l, r) -> "{|" + all + "->filter(r | (" + eq.apply(l, r) + ") && true)->project([r | $r.id], ['id'])}"),
                 new StorePosition("filter-if", false, (l, r) -> "{|" + all + "->filter(r | if(" + eq.apply(l, r)
-                        + ", |true, |false))->map(r | $r.id)}"),
+                        + ", |true, |false))->project([r | $r.id], ['id'])}"),
                 new StorePosition("filter-function-any", false,
-                        (l, r) -> "{|" + all + "->filter(r | t::sameAny(" + l + ", " + r + "))->map(r | $r.id)}"),
+                        (l, r) -> "{|" + all + "->filter(r | t::sameAny(" + l + ", " + r + "))->project([r | $r.id], ['id'])}"),
                 new StorePosition("value", false, (l, r) -> "{|" + all + "->project([r | $r.id, r | " + eq.apply(l, r)
                         + "], ['id', 'same'])}"),
                 new StorePosition("value-not", true, (l, r) -> "{|" + all + "->project([r | $r.id, r | !("
