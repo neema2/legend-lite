@@ -224,8 +224,10 @@ public final class EqualityMeasure {
             java.util.function.BinaryOperator<String> body) {
     }
 
-    /** One comparison: its name and its two sides, as Pure text. */
-    private record Sides(String id, String left, String right) {
+    /** One comparison: its name, the answer the equality rule gives it ({@code T}, {@code F}; {@code N}: never
+     *  true -- a compile error where the two types are written, false where they are known only when the query
+     *  runs; {@code ?}: not plain from the rule, for the user), and its two sides, as Pure text. */
+    private record Sides(String id, String expected, String left, String right) {
     }
 
     /** The position matrix's model, read from {@code tools/equality-measure/positions-model.txt} of the workspace
@@ -280,92 +282,92 @@ public final class EqualityMeasure {
         String ab = "#TDS\n id, s\n 1, x\n 2, y\n#";
         List<Sides> out = new ArrayList<>();
         // single values of one type
-        out.add(new Sides("int same", "1", "1"));
-        out.add(new Sides("int differ", "1", "2"));
-        out.add(new Sides("int computed", "1 + 1", "2"));
-        out.add(new Sides("float same", "1.5", "1.5"));
-        out.add(new Sides("string same", "'a'", "'a'"));
-        out.add(new Sides("string differ", "'a'", "'b'"));
-        out.add(new Sides("boolean same", "true", "true"));
-        out.add(new Sides("enum same", "t::E.A", "t::E.A"));
-        out.add(new Sides("enum differ", "t::E.A", "t::E.B"));
+        out.add(new Sides("int same", "T", "1", "1"));
+        out.add(new Sides("int differ", "F", "1", "2"));
+        out.add(new Sides("int computed", "T", "1 + 1", "2"));
+        out.add(new Sides("float same", "T", "1.5", "1.5"));
+        out.add(new Sides("string same", "T", "'a'", "'a'"));
+        out.add(new Sides("string differ", "F", "'a'", "'b'"));
+        out.add(new Sides("boolean same", "T", "true", "true"));
+        out.add(new Sides("enum same", "T", "t::E.A", "t::E.A"));
+        out.add(new Sides("enum differ", "F", "t::E.A", "t::E.B"));
         // exact numbers of two types and two scales
-        out.add(new Sides("int and decimal", "1", "1D"));
-        out.add(new Sides("decimal two scales", "1.0D", "1.00D"));
-        out.add(new Sides("decimal computed two scales", "1.0D + 1.0D", "2.00D"));
-        out.add(new Sides("int and float", "1", "1.0"));
+        out.add(new Sides("int and decimal", "T", "1", "1D"));
+        out.add(new Sides("decimal two scales", "T", "1.0D", "1.00D"));
+        out.add(new Sides("decimal computed two scales", "T", "1.0D + 1.0D", "2.00D"));
+        out.add(new Sides("int and float", "N", "1", "1.0"));
         // dates
-        out.add(new Sides("day same", "%2020-01-01", "%2020-01-01"));
-        out.add(new Sides("day and date-time", "%2020-01-01", "%2020-01-01T00:00:00"));
-        out.add(new Sides("date-time two written precisions", "%2020-01-01T10:00:00.000", "%2020-01-01T10:00:00"));
-        out.add(new Sides("date-time hour and minute", "%2020-01-01T10", "%2020-01-01T10:00"));
-        out.add(new Sides("year same", "%2020", "%2020"));
-        out.add(new Sides("year and computed year", "%2020", "date(2020)"));
-        out.add(new Sides("year-month same", "%2020-01", "%2020-01"));
-        out.add(new Sides("year and year-month", "%2020", "%2020-01"));
-        out.add(new Sides("built to the hour and literal", "date(2015, 4, 16, 14)", "%2015-04-16T14:00:00"));
-        out.add(new Sides("day computed", "%2020-01-01->adjust(1, DurationUnit.DAYS)", "%2020-01-02"));
+        out.add(new Sides("day same", "T", "%2020-01-01", "%2020-01-01"));
+        out.add(new Sides("day and date-time", "N", "%2020-01-01", "%2020-01-01T00:00:00"));
+        out.add(new Sides("date-time two written precisions", "T", "%2020-01-01T10:00:00.000", "%2020-01-01T10:00:00"));
+        out.add(new Sides("date-time hour and minute", "T", "%2020-01-01T10", "%2020-01-01T10:00"));
+        out.add(new Sides("year same", "T", "%2020", "%2020"));
+        out.add(new Sides("year and computed year", "T", "%2020", "date(2020)"));
+        out.add(new Sides("year-month same", "T", "%2020-01", "%2020-01"));
+        out.add(new Sides("year and year-month", "F", "%2020", "%2020-01"));
+        out.add(new Sides("built to the hour and literal", "T", "date(2015, 4, 16, 14)", "%2015-04-16T14:00:00"));
+        out.add(new Sides("day computed", "T", "%2020-01-01->adjust(1, DurationUnit.DAYS)", "%2020-01-02"));
         // a type known only when the query runs
-        out.add(new Sides("Number same", "1->cast(@Number)", "1->cast(@Number)"));
-        out.add(new Sides("Number int and float", "1->cast(@Number)", "1.0->cast(@Number)"));
-        out.add(new Sides("Number int and decimal", "1->cast(@Number)", "1D->cast(@Number)"));
-        out.add(new Sides("Any same", "1->cast(@Any)", "1->cast(@Any)"));
-        out.add(new Sides("Any int and string", "1->cast(@Any)", "'1'->cast(@Any)"));
-        out.add(new Sides("Any day and date-time", "%2020-01-01->cast(@Any)", "%2020-01-01T00:00:00->cast(@Any)"));
-        out.add(new Sides("Date day and date-time", "%2020-01-01->cast(@Date)", "%2020-01-01T00:00:00->cast(@Date)"));
-        out.add(new Sides("max of a mixed list", "[1, 2.0]->max()", "2.0"));
+        out.add(new Sides("Number same", "T", "1->cast(@Number)", "1->cast(@Number)"));
+        out.add(new Sides("Number int and float", "F", "1->cast(@Number)", "1.0->cast(@Number)"));
+        out.add(new Sides("Number int and decimal", "T", "1->cast(@Number)", "1D->cast(@Number)"));
+        out.add(new Sides("Any same", "T", "1->cast(@Any)", "1->cast(@Any)"));
+        out.add(new Sides("Any int and string", "F", "1->cast(@Any)", "'1'->cast(@Any)"));
+        out.add(new Sides("Any day and date-time", "F", "%2020-01-01->cast(@Any)", "%2020-01-01T00:00:00->cast(@Any)"));
+        out.add(new Sides("Date day and date-time", "F", "%2020-01-01->cast(@Date)", "%2020-01-01T00:00:00->cast(@Date)"));
+        out.add(new Sides("max of a mixed list", "T", "[1, 2.0]->max()", "2.0"));
         // empty sides
-        out.add(new Sides("empty and empty", "[]", "[]"));
-        out.add(new Sides("empty and value", "[]", "1"));
-        out.add(new Sides("computed empty and written empty", "[1, 2]->filter(x | $x > 5)", "[]"));
-        out.add(new Sides("two computed empties", "[1, 2]->filter(x | $x > 5)", "[3]->filter(x | $x > 5)"));
-        out.add(new Sides("computed empty and value", "[1, 2]->filter(x | $x > 5)", "1"));
-        out.add(new Sides("optional none and value", "[1, 2]->filter(x | $x > 5)->first()", "1"));
-        out.add(new Sides("two optionals none", "[1, 2]->filter(x | $x > 5)->first()",
+        out.add(new Sides("empty and empty", "T", "[]", "[]"));
+        out.add(new Sides("empty and value", "F", "[]", "1"));
+        out.add(new Sides("computed empty and written empty", "T", "[1, 2]->filter(x | $x > 5)", "[]"));
+        out.add(new Sides("two computed empties", "T", "[1, 2]->filter(x | $x > 5)", "[3]->filter(x | $x > 5)"));
+        out.add(new Sides("computed empty and value", "F", "[1, 2]->filter(x | $x > 5)", "1"));
+        out.add(new Sides("optional none and value", "F", "[1, 2]->filter(x | $x > 5)->first()", "1"));
+        out.add(new Sides("two optionals none", "T", "[1, 2]->filter(x | $x > 5)->first()",
                 "[3]->filter(x | $x > 5)->first()"));
-        out.add(new Sides("optional one and value", "[1, 2]->filter(x | $x > 1)->first()", "2"));
+        out.add(new Sides("optional one and value", "T", "[1, 2]->filter(x | $x > 1)->first()", "2"));
         // lists
-        out.add(new Sides("written lists same", "[1, 2]", "[1, 2]"));
-        out.add(new Sides("written lists other order", "[1, 2]", "[2, 1]"));
-        out.add(new Sides("computed list same", "[1, 2]->map(x | $x + 1)", "[2, 3]"));
-        out.add(new Sides("computed list other order", "[1, 2]->map(x | $x + 1)", "[3, 2]"));
-        out.add(new Sides("two computed lists", "[1, 2]->map(x | $x + 1)", "[2, 3]->filter(x | $x > 0)"));
-        out.add(new Sides("computed list shorter", "[1, 2]->filter(x | $x > 1)", "[1, 2]"));
-        out.add(new Sides("list int and decimal", "[1, 2]->filter(x | $x > 0)", "[1.0D, 2.00D]"));
-        out.add(new Sides("list decimal two scales", "[1.0D, 10.125D]->filter(x | $x > 0D)", "[1.000D, 10.125D]"));
-        out.add(new Sides("written list decimal two scales", "[1.0D, 10.125D]", "[1.000D, 10.125D]"));
-        out.add(new Sides("list strings computed", "['a', 'b']->map(s | $s + 'x')", "['ax', 'bx']"));
-        out.add(new Sides("list date-times two precisions", "[%2020-01-01T10:00:00.000]->filter(d | true)",
+        out.add(new Sides("written lists same", "T", "[1, 2]", "[1, 2]"));
+        out.add(new Sides("written lists other order", "F", "[1, 2]", "[2, 1]"));
+        out.add(new Sides("computed list same", "T", "[1, 2]->map(x | $x + 1)", "[2, 3]"));
+        out.add(new Sides("computed list other order", "F", "[1, 2]->map(x | $x + 1)", "[3, 2]"));
+        out.add(new Sides("two computed lists", "T", "[1, 2]->map(x | $x + 1)", "[2, 3]->filter(x | $x > 0)"));
+        out.add(new Sides("computed list shorter", "F", "[1, 2]->filter(x | $x > 1)", "[1, 2]"));
+        out.add(new Sides("list int and decimal", "T", "[1, 2]->filter(x | $x > 0)", "[1.0D, 2.00D]"));
+        out.add(new Sides("list decimal two scales", "T", "[1.0D, 10.125D]->filter(x | $x > 0D)", "[1.000D, 10.125D]"));
+        out.add(new Sides("written list decimal two scales", "T", "[1.0D, 10.125D]", "[1.000D, 10.125D]"));
+        out.add(new Sides("list strings computed", "T", "['a', 'b']->map(s | $s + 'x')", "['ax', 'bx']"));
+        out.add(new Sides("list date-times two precisions", "T", "[%2020-01-01T10:00:00.000]->filter(d | true)",
                 "[%2020-01-01T10:00:00]"));
-        out.add(new Sides("list days computed", "[%2020-01-01, %2020-01-02]->filter(d | true)",
+        out.add(new Sides("list days computed", "T", "[%2020-01-01, %2020-01-02]->filter(d | true)",
                 "[%2020-01-01, %2020-01-02]"));
-        out.add(new Sides("one value and list of one", "1", "[1, 2]->filter(x | $x < 2)"));
-        out.add(new Sides("mixed list written same", "[1, 'a']", "[1, 'a']"));
-        out.add(new Sides("mixed list int and float", "[1, 'a']", "[1.0, 'a']"));
-        out.add(new Sides("mixed list decimal two scales", "[1.0D, 'a']", "[1.00D, 'a']"));
-        out.add(new Sides("mixed list computed", "[1, 'a']->filter(x | true)", "[1, 'a']"));
-        out.add(new Sides("mixed list with dates", "[%2020-01-01, 'a']", "[%2020-01-01T00:00:00, 'a']"));
-        out.add(new Sides("Number lists int and float", "[1, 2]->cast(@Number)", "[1.0, 2.0]->cast(@Number)"));
-        out.add(new Sides("Number lists int and decimal", "[1, 2]->cast(@Number)", "[1D, 2D]->cast(@Number)"));
-        out.add(new Sides("Any lists same", "[1, 2]->cast(@Any)", "[1, 2]->cast(@Any)"));
-        out.add(new Sides("nested lists", "list([1, 2])", "list([1, 2])"));
+        out.add(new Sides("one value and list of one", "T", "1", "[1, 2]->filter(x | $x < 2)"));
+        out.add(new Sides("mixed list written same", "T", "[1, 'a']", "[1, 'a']"));
+        out.add(new Sides("mixed list int and float", "F", "[1, 'a']", "[1.0, 'a']"));
+        out.add(new Sides("mixed list decimal two scales", "T", "[1.0D, 'a']", "[1.00D, 'a']"));
+        out.add(new Sides("mixed list computed", "T", "[1, 'a']->filter(x | true)", "[1, 'a']"));
+        out.add(new Sides("mixed list with dates", "F", "[%2020-01-01, 'a']", "[%2020-01-01T00:00:00, 'a']"));
+        out.add(new Sides("Number lists int and float", "F", "[1, 2]->cast(@Number)", "[1.0, 2.0]->cast(@Number)"));
+        out.add(new Sides("Number lists int and decimal", "T", "[1, 2]->cast(@Number)", "[1D, 2D]->cast(@Number)"));
+        out.add(new Sides("Any lists same", "T", "[1, 2]->cast(@Any)", "[1, 2]->cast(@Any)"));
+        out.add(new Sides("nested lists", "?", "list([1, 2])", "list([1, 2])"));
         // maps, pairs, instances
-        out.add(new Sides("maps same order", "newMap([pair('a', 1), pair('b', 2)])",
+        out.add(new Sides("maps same order", "T", "newMap([pair('a', 1), pair('b', 2)])",
                 "newMap([pair('a', 1), pair('b', 2)])"));
-        out.add(new Sides("maps other order", "newMap([pair('a', 1), pair('b', 2)])",
+        out.add(new Sides("maps other order", "T", "newMap([pair('a', 1), pair('b', 2)])",
                 "newMap([pair('b', 2), pair('a', 1)])"));
-        out.add(new Sides("maps a value differs", "newMap([pair('a', 1), pair('b', 2)])",
+        out.add(new Sides("maps a value differs", "F", "newMap([pair('a', 1), pair('b', 2)])",
                 "newMap([pair('a', 1), pair('b', 3)])"));
-        out.add(new Sides("pairs same", "pair(1, 'a')", "pair(1, 'a')"));
-        out.add(new Sides("pairs int and decimal", "pair(1, 1D)", "pair(1, 1)"));
-        out.add(new Sides("list of pairs computed", "[pair(1, 'a'), pair(2, 'b')]->filter(p | true)",
+        out.add(new Sides("pairs same", "T", "pair(1, 'a')", "pair(1, 'a')"));
+        out.add(new Sides("pairs int and decimal", "?", "pair(1, 1D)", "pair(1, 1)"));
+        out.add(new Sides("list of pairs computed", "T", "[pair(1, 'a'), pair(2, 'b')]->filter(p | true)",
                 "[pair(1, 'a'), pair(2, 'b')]"));
-        out.add(new Sides("instances written alike", "^t::K(id=1, name='a')", "^t::K(id=1, name='a')"));
+        out.add(new Sides("instances written alike", "F", "^t::K(id=1, name='a')", "^t::K(id=1, name='a')"));
         // tables
-        out.add(new Sides("tables same", ab, ab));
-        out.add(new Sides("tables rows other order", ab, "#TDS\n id, s\n 2, y\n 1, x\n#"));
-        out.add(new Sides("tables a cell differs", ab, "#TDS\n id, s\n 1, x\n 2, z\n#"));
-        out.add(new Sides("tables a column's name differs", "#TDS\n id\n 1\n#", "#TDS\n ix\n 1\n#"));
+        out.add(new Sides("tables same", "T", ab, ab));
+        out.add(new Sides("tables rows other order", "F", ab, "#TDS\n id, s\n 2, y\n 1, x\n#"));
+        out.add(new Sides("tables a cell differs", "F", ab, "#TDS\n id, s\n 1, x\n 2, z\n#"));
+        out.add(new Sides("tables a column's name differs", "F", "#TDS\n id\n 1\n#", "#TDS\n ix\n 1\n#"));
         return out;
     }
 
@@ -391,7 +393,7 @@ public final class EqualityMeasure {
         int runs = 0;
         try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(out.resolve("positions.tsv"),
                 StandardCharsets.UTF_8))) {
-            w.println("comparison\tleft\tright\tposition\tnegated\tdatabase\tjudge\toutcome\tanswer");
+            w.println("comparison\texpected\tleft\tright\tposition\tnegated\tdatabase\tjudge\toutcome\tanswer");
             for (Sides s : sidesList()) {
                 if (only != null && !only.matcher(s.id()).find()) {
                     continue;
@@ -404,7 +406,7 @@ public final class EqualityMeasure {
                             Outcome o = timed(pool, () -> p.asserted()
                                     ? run(ctx, body, List.of(), StorelessRuntime.RUNTIME, db, judge)
                                     : answer(ctx, body, db));
-                            w.println(String.join("\t", s.id(), clean(s.left()), clean(s.right()), p.id(),
+                            w.println(String.join("\t", s.id(), s.expected(), clean(s.left()), clean(s.right()), p.id(),
                                     String.valueOf(p.negated()), db.name(), p.asserted() ? judge.name() : "-",
                                     o.kind(), clean(o.detail())));
                             runs++;
@@ -415,21 +417,114 @@ public final class EqualityMeasure {
             }
         }
         System.err.printf("positions: %d runs in %.0f s%n", runs, (System.nanoTime() - t0) / 1e9);
+        storePositions(out, pool, only);
+    }
+
+    /** One comparison over a store's row {@code $r}: its name, the ids of the rows it is true for by the equality
+     *  rule (of rows 1 to 5; {@code N}: never true), and its two sides. */
+    private record StoreSides(String id, String expected, String left, String right) {
+    }
+
+    /** One place a row's comparison can stand: the body it makes of the two sides' texts; whether it answers the
+     *  comparison's negation. Every body answers rows that hold a row's id, and for {@code value} places the
+     *  comparison's answer beside it. */
+    private record StorePosition(String id, boolean negated, java.util.function.BinaryOperator<String> body) {
+    }
+
+    private static List<StoreSides> storeSidesList() {
+        // the rows (positions-store-model.txt): 1 = (i 1, i2 1, d 1.00, f 1.0, s a, s2 a, day 2020-01-01, at that
+        // midnight); 2 = (1, 2, 1.50, 1.5, a, b, 2020-01-01, 10:00 that day); 3 = (none, 1, 1.00, none, none, a,
+        // none, none); 4 = (1, none, none, 1.0, a, none, 2020-01-02, none); 5 = every value none
+        return List.of(
+                new StoreSides("two integer columns", "1,5", "$r.i", "$r.i2"),
+                new StoreSides("integer column and literal", "1,2,4", "$r.i", "1"),
+                new StoreSides("integer and decimal columns", "1,5", "$r.i", "$r.d"),
+                new StoreSides("decimal column and literal at another scale", "1,3", "$r.d", "1D"),
+                new StoreSides("integer and float columns", "N", "$r.i", "$r.f"),
+                new StoreSides("float column and literal", "1,4", "$r.f", "1.0"),
+                new StoreSides("two string columns", "1,5", "$r.s", "$r.s2"),
+                new StoreSides("string column and literal", "1,2,4", "$r.s", "'a'"),
+                new StoreSides("day column and literal", "1,2", "$r.day", "%2020-01-01"),
+                new StoreSides("date-time column and literal", "2", "$r.at", "%2020-01-01T10:00:00"),
+                new StoreSides("day and date-time columns", "N", "$r.day", "$r.at"),
+                new StoreSides("column and the empty list", "3,5", "$r.i", "[]"),
+                new StoreSides("computed column value and literal", "1,2,4", "$r.i->map(x | $x + 1)", "2"));
+    }
+
+    private static List<StorePosition> storePositionList() {
+        java.util.function.BinaryOperator<String> eq = (l, r) -> "(" + l + ") == (" + r + ")";
+        String all = "t::R.all()";
+        return List.of(
+                new StorePosition("filter", false,
+                        (l, r) -> "{|" + all + "->filter(r | " + eq.apply(l, r) + ")->map(r | $r.id)}"),
+                new StorePosition("filter-not", true,
+                        (l, r) -> "{|" + all + "->filter(r | !(" + eq.apply(l, r) + "))->map(r | $r.id)}"),
+                new StorePosition("filter-and", false,
+                        (l, r) -> "{|" + all + "->filter(r | (" + eq.apply(l, r) + ") && true)->map(r | $r.id)}"),
+                new StorePosition("filter-if", false, (l, r) -> "{|" + all + "->filter(r | if(" + eq.apply(l, r)
+                        + ", |true, |false))->map(r | $r.id)}"),
+                new StorePosition("filter-function-any", false,
+                        (l, r) -> "{|" + all + "->filter(r | t::sameAny(" + l + ", " + r + "))->map(r | $r.id)}"),
+                new StorePosition("value", false, (l, r) -> "{|" + all + "->project([r | $r.id, r | " + eq.apply(l, r)
+                        + "], ['id', 'same'])}"),
+                new StorePosition("value-not", true, (l, r) -> "{|" + all + "->project([r | $r.id, r | !("
+                        + eq.apply(l, r) + ")], ['id', 'same'])}"),
+                new StorePosition("value-if", false, (l, r) -> "{|" + all + "->project([r | $r.id, r | if("
+                        + eq.apply(l, r) + ", |true, |false)], ['id', 'same'])}"));
+    }
+
+    /** THE POSITION MATRIX OVER A STORE'S ROWS: a comparison that reads the row it stands in ({@code $r.i == $r.i2},
+     *  a column against a literal, an empty value on either side), asked as a filter's condition and as a kept value,
+     *  plain, negated, under {@code &&}, under {@code if} and inside a function, per database. {@code
+     *  positions-store.tsv} holds each outcome; the report compares, per comparison, the rows each place says it is
+     *  true for with one another and with the rows the rule gives. */
+    private static void storePositions(Path out, ExecutorService[] pool, @com.legend.base.Nullable Pattern only)
+            throws IOException {
+        String workspace = java.util.Objects.requireNonNull(System.getenv("BUILD_WORKSPACE_DIRECTORY"));
+        String text = Files.readString(Path.of(workspace, "tools", "equality-measure", "positions-store-model.txt"),
+                StandardCharsets.UTF_8);
+        long t0 = System.nanoTime();
+        int runs = 0;
+        try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(out.resolve("positions-store.tsv"),
+                StandardCharsets.UTF_8))) {
+            w.println("comparison\texpected\tleft\tright\tposition\tnegated\tdatabase\toutcome\tanswer");
+            for (DatabaseType db : DATABASES) {
+                ModelContext ctx = Compiler.compileModel(text.replace("%s", db.name()));
+                for (StoreSides s : storeSidesList()) {
+                    if (only != null && !only.matcher(s.id()).find()) {
+                        continue;
+                    }
+                    for (StorePosition p : storePositionList()) {
+                        String body = p.body().apply(s.left(), s.right());
+                        Outcome o = timed(pool, () -> answer(ctx, body, db, "t::RT"));
+                        w.println(String.join("\t", s.id(), s.expected(), clean(s.left()), clean(s.right()), p.id(),
+                                String.valueOf(p.negated()), db.name(), o.kind(), clean(o.detail())));
+                        runs++;
+                    }
+                }
+                w.flush();
+            }
+        }
+        System.err.printf("store positions: %d runs in %.0f s%n", runs, (System.nanoTime() - t0) / 1e9);
     }
 
     /** {@code body}'s answer on {@code db}: a body with no assert, which the test planner plans as a product query
      *  (as {@link #probes} runs its expressions). A refusal where it is planned is {@code REFUSED}. */
     private static Outcome answer(ModelContext ctx, String body, DatabaseType db) {
+        return answer(ctx, body, db, StorelessRuntime.RUNTIME);
+    }
+
+    private static Outcome answer(ModelContext ctx, String body, DatabaseType db, String runtime) {
         TypedQuery typed;
         try {
             typed = typed(ctx, body, List.of());
-            TestExecution.planBody(typed, StorelessRuntime.RUNTIME, ExecuteOptions.NONE.withJudgeMode(JudgeMode.HOST));
+            TestExecution.planBody(typed, runtime, ExecuteOptions.NONE.withJudgeMode(JudgeMode.HOST));
         } catch (Throwable t) {
             return outcomeOf(t, "REFUSED");
         }
         StringWriter answer = new StringWriter();
         try {
-            TestExecution.runProgram(typed, StorelessRuntime.RUNTIME, new SessionSource.Fresh(TestBackends.of(db)::open),
+            TestExecution.runProgram(typed, runtime, new SessionSource.Fresh(TestBackends.of(db)::open),
                     null, NoEdgeRun.NONE, ExecuteOptions.NONE.withJudgeMode(JudgeMode.HOST),
                     new Output.JsonRows(answer));
         } catch (Throwable t) {

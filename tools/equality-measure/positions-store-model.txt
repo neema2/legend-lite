@@ -1,0 +1,42 @@
+###Pure
+Class t::R
+{
+  id: Integer[1];
+  i: Integer[0..1];
+  i2: Integer[0..1];
+  d: Decimal[0..1];
+  f: Float[0..1];
+  s: String[0..1];
+  s2: String[0..1];
+  day: StrictDate[0..1];
+  at: DateTime[0..1];
+}
+function t::sameAny(a: Any[*], b: Any[*]): Boolean[1] { $a == $b }
+###Relational
+Database t::DB
+(
+  Table R (ID INTEGER PRIMARY KEY, I INTEGER, I2 INTEGER, D DECIMAL(10, 2), F DOUBLE, S VARCHAR(20), S2 VARCHAR(20), DAY DATE, AT TIMESTAMP)
+)
+###Mapping
+Mapping t::M
+(
+  t::R: Relational
+  {
+    ~mainTable [t::DB] R
+    id: R.ID, i: R.I, i2: R.I2, d: R.D, f: R.F, s: R.S, s2: R.S2, day: R.DAY, at: R.AT
+  }
+)
+###Connection
+RelationalDatabaseConnection t::C
+{
+  store: t::DB;
+  type: %s;
+  specification: LocalH2 { testDataSetupCSV: 'default\nR\nID,I,I2,D,F,S,S2,DAY,AT\n1,1,1,1.00,1.0,a,a,2020-01-01,2020-01-01 00:00:00\n2,1,2,1.50,1.5,a,b,2020-01-01,2020-01-01 10:00:00\n3,,1,1.00,,,a,,\n4,1,,,1.0,a,,2020-01-02,\n5,,,,,,,,\n'; };
+  auth: DefaultH2;
+}
+###Runtime
+Runtime t::RT
+{
+  mappings: [t::M];
+  connections: [ t::DB: [ c0: t::C ] ];
+}
