@@ -41,8 +41,8 @@ final class UpstreamTies {
     private UpstreamTies() {
     }
 
-    /** Each function to the rule that lowers it at a compatibility door. The extremes' ids are the ones the rule
-     *  itself accepts ({@code lowering.Scalars.extremeKeepingTheFoldsTie}); a lookup table, never iterated,
+    /** Each function to the rule that lowers it at a compatibility door. The extremes' ids are the number and
+     *  generic ones the rule accepts ({@code lowering.Scalars.extremeKeepingTheFoldsTie}); a lookup table, never iterated,
      *  unmodifiable in declaration order all the same. */
     private static final Map<FunctionId, NamedRule> RULES;
 
@@ -51,8 +51,11 @@ final class UpstreamTies {
         for (FunctionId sort : Pure.AT_COLLECTION_SORT) {
             rules.put(sort, NamedRule.SORT_TIES_AS_WRITTEN);
         }
-        for (FunctionId extreme : FunctionId.all(Pure.AT_DATE_MIN, Pure.AT_MATH_MIN, Pure.AT_COLLECTION_MIN,
-                Pure.AT_DATE_MAX, Pure.AT_MATH_MAX, Pure.AT_COLLECTION_MAX, Pure.AT_COLLECTION_GREATEST,
+        // the date max and min are NOT rows: upstream has no tie among dates to keep (a day is smaller than its own
+        // midnight date-time, answers.md group E), and lite refuses that one pair by name at every door, so a date's
+        // extreme keeps its own rule here as at lite's doors
+        for (FunctionId extreme : FunctionId.all(Pure.AT_MATH_MIN, Pure.AT_COLLECTION_MIN,
+                Pure.AT_MATH_MAX, Pure.AT_COLLECTION_MAX, Pure.AT_COLLECTION_GREATEST,
                 Pure.AT_COLLECTION_LEAST)) {
             rules.put(extreme, NamedRule.EXTREME_KEEPS_THE_FOLDS_TIE);
         }
