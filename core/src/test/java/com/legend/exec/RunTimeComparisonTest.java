@@ -41,7 +41,6 @@ class RunTimeComparisonTest {
             function x::sameAsOne(a: Number[1]): Boolean[1] { x::same($a, 1) }
             function x::whereIn(a: Number[1], b: Number[*]): Integer[1] { $b->indexOf($a) }
             function x::sameT<T,U>(a: T[1], b: U[1]): Boolean[1] { $a == $b }
-            function x::lessT<T,U>(a: T[1], b: U[1]): Boolean[1] { $a < $b }
             function x::isZeroT<T>(a: T[1]): Boolean[1] { $a == 0 }
             ###Relational
             Database p::DB ( Table PARTY (ID INTEGER PRIMARY KEY, RATIO DOUBLE) )
@@ -123,13 +122,17 @@ class RunTimeComparisonTest {
         // compared by the type it holds, as a function's Number parameter is -- until the edition program's step 6
         // the database compared the two by value, and [1, 2]->cast(@Number)->contains(1.0) answered true
         Map<String, Object> cases = new LinkedHashMap<>();
-        cases.put("|1->cast(@Number) == 1.0", false);
+        cases.put("|1->cast(@Number) == 1.0->cast(@Number)", false);
+        cases.put("|1->cast(@Number) == 1->cast(@Number)", true);
+        cases.put("|1->cast(@Number) == 1D->cast(@Number)", true);
         cases.put("|1->cast(@Number) == 1", true);
-        cases.put("|1->cast(@Number) == 1D", true);
         cases.put("|'a'->cast(@Any) == 1", false);
         cases.put("|'a'->cast(@Any) == 'a'", true);
-        cases.put("|1->cast(@Number) < 1.0", true);
-        cases.put("|1.0->cast(@Number) < 1", false);
+        cases.put("|1->cast(@Number) < 1.0->cast(@Number)", true);
+        cases.put("|1.0->cast(@Number) < 1->cast(@Number)", false);
+        // a number literal written against it still reads as the type the value holds (decision D5): by value
+        cases.put("|1->cast(@Number) == 1.0", true);
+        cases.put("|1->cast(@Number) == 1.5", false);
         for (var backend : TestBackends.inProcess()) {
             String model = MODEL.formatted(backend.type());
             for (Map.Entry<String, Object> c : cases.entrySet()) {
@@ -141,10 +144,12 @@ class RunTimeComparisonTest {
             }
         }
         Map<String, Object> lists = new LinkedHashMap<>();
-        lists.put("|[1, 2]->cast(@Number)->contains(1.0)", false);
+        lists.put("|[1, 2]->cast(@Number)->contains(1.0->cast(@Number))", false);
         lists.put("|[1, 2]->cast(@Number)->contains(1)", true);
         lists.put("|[1, 2]->cast(@Number)->contains(2D)", true);
-        lists.put("|1.0->in([1, 2]->cast(@Number))", false);
+        lists.put("|1.0->cast(@Number)->in([1, 2]->cast(@Number))", false);
+        // (a written literal reads as the type the list's values hold: by value, decision D5)
+        lists.put("|[1, 2]->cast(@Number)->contains(1.0)", true);
         String model = MODEL.formatted(TestBackends.platform().type());
         for (Map.Entry<String, Object> c : lists.entrySet()) {
             try (Connection connection = TestBackends.platform().open()) {
@@ -164,8 +169,6 @@ class RunTimeComparisonTest {
         holds.put("|x::sameT(1, 1)", true);
         holds.put("|x::sameT('a', 'b')", false);
         holds.put("|x::sameT(1, 1D)", true);
-        holds.put("|x::lessT(1, 2)", true);
-        holds.put("|x::lessT(1, 1.5D)", true);
         holds.put("|x::isZeroT(0.0)", true);
         holds.put("|x::isZeroT(0)", true);
         holds.put("|x::isZeroT(2.5D)", false);
@@ -183,7 +186,6 @@ class RunTimeComparisonTest {
         Map<String, String> refused = new LinkedHashMap<>();
         refused.put("|x::sameT(1, 1.0)", "== compares Integer with Float in x::sameT");
         refused.put("|x::sameT(1, 'a')", "== compares Integer with String in x::sameT");
-        refused.put("|x::lessT(1, 1.5)", "< compares Integer with Float in x::lessT");
         refused.put("|x::isZeroT('a')", "== compares String with Integer in x::isZeroT");
         refused.put("|p::Party.all()->project(~[same: p|x::sameT($p.id, $p.ratio)])",
                 "== compares Integer with Float in x::sameT");

@@ -1434,6 +1434,10 @@ final class ArchitectureTest {
             // as legend-pure and legend-engine do, named in ONE class of the edge that both compatibility doors' tables
             // read (edge.UpstreamTies; EngineTable and the new PureTable ask it and name no rule of these themselves)
             "lowering.NamedRule#EXTREME_KEEPS_THE_FOLDS_TIE", "com.legend.edge.UpstreamTies",
+            // 2026-11-27 (the edition program's step 6; the user's ruling of that day: lite's numbers are of two
+            // families, and "legend-pure's and legend-engine's modes keep their own behaviour"): the rule under which
+            // an Integer, a Float and a Decimal stay three types, named in the same class for both doors' tables
+            "lowering.NamedRule#NUMBERS_OF_THREE_TYPES", "com.legend.edge.UpstreamTies",
             "lowering.NamedRule#SORT_TIES_AS_WRITTEN", "com.legend.edge.UpstreamTies",
             // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)

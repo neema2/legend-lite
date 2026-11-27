@@ -145,6 +145,9 @@ class UpstreamTiesTest {
         if (value instanceof String text) {
             return "String " + text;
         }
+        if (value instanceof Boolean truth) {
+            return "Boolean " + truth;
+        }
         throw new AssertionError("a value of a kind this test reads none of: " + value.getClass().getName());
     }
 

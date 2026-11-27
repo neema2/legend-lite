@@ -56,6 +56,10 @@ class CodeShapeGuardrailTest {
             // setting never reads (an island) -- set and restored around each by Typer.comparing, one instance per
             // query's typing
             "Typer.compared",
+            // 2026-11-27 (the edition program's step 6; the user's ruling "the split with compile error when we know"):
+            // the function whose body is being typed, set and restored with Typer.compared by the same Typer.comparing,
+            // so a comparison kept for its call can name the function in its refusal
+            "Typer.comparedIn",
             // 2026-11-11 (B4, the audit's finding 2): one program's decision of its model's registration on the
             // process's catalog, a latch set once by the program's planning (ProgramState.registerOnTheCatalog), and the
             // load it decided, placed ahead of every step that reads the catalog -- one instance per program pass

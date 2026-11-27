@@ -135,9 +135,9 @@ public final class EqualityClasses {
      */
     private static Optional<Type[]> differing(Type l, Type r, ModelContext ctx) {
         if (l instanceof Type.GenericType gl && r instanceof Type.GenericType gr) {
-            if (!gl.rawFqn().equals(gr.rawFqn()) || gl.arguments().size() != gr.arguments().size()
-                    || !(PlatformTypes.isPairCarrier(l) || PlatformTypes.isListCarrier(l)
-                            || PlatformTypes.isMapCarrier(l))) {
+            if (!(PlatformTypes.isPairCarrier(l) && PlatformTypes.isPairCarrier(r)
+                    || PlatformTypes.isListCarrier(l) && PlatformTypes.isListCarrier(r)
+                    || PlatformTypes.isMapCarrier(l) && PlatformTypes.isMapCarrier(r))) {
                 return Optional.empty();
             }
             Optional<Type[]> exactOnly = Optional.empty();

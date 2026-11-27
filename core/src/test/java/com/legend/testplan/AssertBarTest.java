@@ -176,7 +176,10 @@ class AssertBarTest {
                     "expected: \"x=1.0000000000000002\", actual: \"x=1.0\""),
             new Probe("decimal-scale", "{|assertEquals(3.0D, 3.00D)}", null),
             new Probe("decimal-value", "{|assertEquals(3.0D, 3.10D)}", "expected: 3.0, actual: 3.10"),
-            new Probe("integer-vs-float", "{|assertEquals(1, 1.0)}", "expected: 1, actual: 1.0"),
+            // (two written types are a compile error on lite's own door: anAssertOfTwoKnownTypesIsRefused...; the judge's
+            // rule is held here by sides typed only when the test runs)
+            new Probe("integer-vs-float", "{|assertEquals(1->cast(@Number), 1.0->cast(@Number))}",
+                    "expected: 1, actual: 1.0"),
             // the ledger audit's D4 (2026-11-16): a list of Integers against the same numbers as Floats fails, as the
             // one-value probe above does; the message is the failed typed comparison's, never an untyped re-compare
             // that held (which passed the assertSameElements and raised "verdict/message divergence" on assertEquals)
@@ -244,8 +247,8 @@ class AssertBarTest {
                     "{|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:01]->at(0))}",
                     "expected: 2020-01-01T10:00:00.000000000Z, actual: 2020-01-01T10:00:01.000000000Z"),
             // the kinds stay apart (S399, as legend-pure): a day is no date-time, a year no year-month
-            new Probe("strictdate-is-no-datetime", "{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}",
-                    "expected: 2020-01-01, actual: 2020-01-01T00:00:00.000000000Z"),
+            // (a written day against a written date-time is a compile error on lite's own door:
+            // anAssertOfTwoKnownTypesIsRefused...)
             new Probe("strictdate-against-computed", "{|assertEquals(%2020-01-02, [%2020-01-01, %2020-01-02]->at(1))}",
                     null),
             new Probe("assertEquals-datetime-hour-message", "{|assertEquals(%2020-01-01T10, %2020-01-01T11)}",
@@ -428,6 +431,9 @@ class AssertBarTest {
         refused.put("{|assertEquals(1, 1.0, 'mine')}", "assertEquals compares Integer with Float");
         refused.put("{|assertContains([1, 2], 1.0)}", "assertContains compares Integer with Float");
         refused.put("{|let x = 1; assertEquals(1.5, $x);}", "assertEquals compares Float with Integer");
+        refused.put("{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}", "assertEquals compares StrictDate with DateTime");
+        refused.put("{|assertEquals('1', 1)}", "assertEquals compares String with Integer");
+        refused.put("{|assertEquals('1'->fromJson(), 1)}", "assertEquals compares " + "meta::pure::metamodel::variant::Variant" + " with Integer");
         java.util.Map<String, String> judged = new java.util.LinkedHashMap<>();
         judged.put("{|assertEquals(1D, 1)}", "pass");
         judged.put("{|assertEquals([1, 2], [1D, 2.00D])}", "pass");
@@ -680,11 +686,12 @@ class AssertBarTest {
             "{|assertFalse(1 == 1)}", "{|assertInstanceOf(1, String)}", "{|assert(1 == 2, | 'my message')}",
             "{|assertEquals([1, 'a'], [1, 'b'])}", "{|assertJsonStringsEqual('{\"a\":1}', '{\"a\":2}')}",
             "{|[1, 2]->forAll(i | assertEquals(1, $i))}",
-            "{|assertEquals('1'->fromJson(), 2)}",
+            "{|assertEquals('1'->fromJson()->cast(@Any), 2)}",
             // two primitives of different kinds, and an enumeration against its name's String (the final audit of
-            // c758fe95: the database judge's cross-kind gate had failed with a planned sentence and no record)
-            "{|assertEquals('1', 1)}", "{|assertSameElements(['1'], [1])}", "{|assertEq(true, 1)}",
-            "{|assertEquals(p::E.A, 'A')}",
+            // c758fe95: the database judge's cross-kind gate had failed with a planned sentence and no record), each
+            // typed only when the test runs: two WRITTEN types are a compile error on lite's own door (2026-11-27)
+            "{|assertEquals('1'->cast(@Any), 1)}", "{|assertSameElements(['1']->cast(@Any), [1])}",
+            "{|assertEq(true->cast(@Any), 1)}", "{|assertEquals(p::E.A->cast(@Any), 'A')}",
             "{|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue,"
                     + " []).values, [1, 3])}");
 
@@ -1050,6 +1057,11 @@ class AssertBarTest {
                 "{|assert(pair(1, '1'->fromJson()->cast(@Any)) == pair(1, 1->cast(@Any)))}")) {
             want.put(two, refused);
         }
+        // a pair and a list are compared by the types inside them (2026-11-27): a Variant against an Integer inside is
+        // the compile error it is outside
+        want.put("{|assert(pair(1, '1'->fromJson()) == pair(1, 1))}", "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
+        want.put("{|assertEquals(list(['1'->fromJson()]), list([1]))}",
+                "ModelException: assertEquals compares meta::pure::metamodel::variant::Variant with Integer");
         // an object literal holding a Variant in a property its equality never reads: a keyed class by its keys (the
         // review of a39883f3: every property had been read, and the comparison refused); H2 has no list encoding for
         // the keyed instances' rows, as before the change
@@ -1069,8 +1081,12 @@ class AssertBarTest {
                 + "|H2/DATABASE=AssertFailed|H2/BOTH=JudgesDisagree");
         want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected: [], actual: [1]");
         // a Variant is never a value of another type, its text's included (the audit of c2217801; S401)
-        want.put("{|assertEquals('\"abc\"'->fromJson(), 'abc')}", "AssertFailed");
-        want.put("{|assertEquals('1'->fromJson(), 1)}", "AssertFailed");
+        want.put("{|assertEquals('\"abc\"'->fromJson()->cast(@Any), 'abc')}", "AssertFailed");
+        want.put("{|assertEquals('1'->fromJson()->cast(@Any), 1)}", "AssertFailed");
+        // written as two types, the assert is the compile error a comparison of them is (the user's ruling of
+        // 2026-11-26, "yes compile error", built 2026-11-27; until then judged, as above)
+        want.put("{|assertEquals('\"abc\"'->fromJson(), 'abc')}", "ModelException: assertEquals compares meta::pure::metamodel::variant::Variant with String");
+        want.put("{|assertEquals('1'->fromJson(), 1)}", "ModelException: assertEquals compares meta::pure::metamodel::variant::Variant with Integer");
         // a Variant and an Integer or a String are two types: the comparison is a compile error (B3 step 5, the one
         // equality; the user's ruling of 2026-11-24 -- until then false by the types, S401)
         want.put("{|assert('1'->fromJson() == 1)}", "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
@@ -1078,10 +1094,11 @@ class AssertBarTest {
         // decided by the types under every judge, read through casts, the record writing a Variant as JSON with its kind
         // (the audit of 581a93cb and 386db8fe: the database judge had answered UNJUDGED, the host "got \"1\" (String)")
         String variantOne = "AssertFailed: expected: 1 (Integer), actual: 1 (Variant)";
-        want.put("{|assertEquals(1, '1'->fromJson())}", variantOne);
+        want.put("{|assertEquals(1, '1'->fromJson())}", "ModelException: assertEquals compares Integer with meta::pure::metamodel::variant::Variant");
         want.put("{|assertEquals(1, '1'->fromJson()->cast(@Any))}", variantOne);
         want.put("{|assertEquals(1->cast(@Any), '1'->fromJson())}", variantOne);
-        want.put("{|assertEq(1, '1'->fromJson())}", variantOne);
+        want.put("{|assertEq(1, '1'->fromJson())}", "ModelException: assertEq compares Integer with meta::pure::metamodel::variant::Variant");
+        want.put("{|assertEq(1, '1'->fromJson()->cast(@Any))}", variantOne);
         want.put("{|assertNotEquals(1, '1'->fromJson())}", "pass");
         want.put("{|assertNotEquals(true, 'true'->fromJson())}", "pass");
         want.put("{|assert(!'1'->fromJson()->in([1, 2]))}",
@@ -1099,12 +1116,19 @@ class AssertBarTest {
                 "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
         // two primitives of different kinds: one record under every judge (the database judge's typed pair, never a
         // planned sentence); an enumeration is never its name's String (register S169, the user's "false, matching")
-        want.put("{|assertEquals('1', 1)}", "AssertFailed: expected: \"1\", actual: 1");
-        want.put("{|assertEquals(true, 1)}", "AssertFailed: expected: true, actual: 1");
-        want.put("{|assertNotEquals('1', 1)}", "pass");
-        want.put("{|assertEquals(p::E.A, 'A')}", "AssertFailed: expected: A, actual: \"A\"");
-        want.put("{|assertNotEquals(p::E.A, 'A')}", "pass");
-        want.put("{|assertEq(p::E.A, 'A')}", "AssertFailed: expected: A, actual: \"A\"");
+        want.put("{|assertEquals('1'->cast(@Any), 1)}", "AssertFailed: expected: \"1\", actual: 1");
+        want.put("{|assertEquals(true->cast(@Any), 1)}", "AssertFailed: expected: true, actual: 1");
+        want.put("{|assertNotEquals('1'->cast(@Any), 1)}", "pass");
+        want.put("{|assertEquals(p::E.A->cast(@Any), 'A')}", "AssertFailed: expected: A, actual: \"A\"");
+        want.put("{|assertNotEquals(p::E.A->cast(@Any), 'A')}", "pass");
+        want.put("{|assertEq(p::E.A->cast(@Any), 'A')}", "AssertFailed: expected: A, actual: \"A\"");
+        // written as two types: the compile error (2026-11-27)
+        want.put("{|assertEquals('1', 1)}", "ModelException: assertEquals compares String with Integer");
+        want.put("{|assertEquals(true, 1)}", "ModelException: assertEquals compares Boolean with Integer");
+        want.put("{|assertNotEquals('1', 1)}", "ModelException: assertNotEquals compares String with Integer");
+        want.put("{|assertEquals(p::E.A, 'A')}", "ModelException: assertEquals compares p::E with String");
+        want.put("{|assertNotEquals(p::E.A, 'A')}", "ModelException: assertNotEquals compares p::E with String");
+        want.put("{|assertEq(p::E.A, 'A')}", "ModelException: assertEq compares p::E with String");
         want.put("{|assertEquals([p::E.A, p::E.B], [p::E.A, p::E.B])}", "pass");
         // a multiset of enumerations sorts them (the host's sort had no order for them: legend-engine's corpus on H2)
         want.put("{|assertSameElements([p::E.A, p::E.B], [p::E.B, p::E.A])}", "pass");
@@ -1119,9 +1143,11 @@ class AssertBarTest {
         // a Variant's membership among values of other types: the host's answer; the database judge has no typed form
         // for it, refused by name (recorded, register S401)
         String noTypedForm = "AssertFailed: assertNotContains: UNJUDGED in database mode";
-        want.put("{|assertNotContains([1, 2], '1'->fromJson())}", "pass|DuckDB/DATABASE=" + noTypedForm + "|DuckDB/BOTH="
+        want.put("{|assertNotContains([1, 2], '1'->fromJson()->cast(@Any))}", "pass|DuckDB/DATABASE=" + noTypedForm + "|DuckDB/BOTH="
                 + noTypedForm + "|H2/DATABASE=" + noTypedForm + "|H2/BOTH=" + noTypedForm + "|SQLite/DATABASE="
                 + noTypedForm + "|SQLite/BOTH=" + noTypedForm);
+        want.put("{|assertNotContains([1, 2], '1'->fromJson())}",
+                "ModelException: assertNotContains compares Integer with meta::pure::metamodel::variant::Variant");
         want.put("{|assertEquals(1.0, (0.5 + 0.5)->cast(@Any))}", "pass");
         want.put("{|assertEquals(true, 'true'->fromJson()->to(@Boolean))}", "pass");
         // a graph's size and emptiness (its root objects): typed, its failures the host's records

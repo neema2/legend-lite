@@ -263,31 +263,39 @@ public final class LiteralSpelling {
             if (!columnRooted(e)) {
                 return null;
             }
-            SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
-            // strip FRACTIONAL trailing zeros only (a dotless spelling
-            // has no wire scale to erase), then a bare trailing dot
-            SqlExpr stripped = new SqlExpr.Case(List.of(
-                    new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.GREATER,
-                                    SqlExpr.Call.of(SqlFn.STRPOS, text,
-                                            new SqlExpr.StringLit(".")),
-                                    new SqlExpr.IntLit(0)),
-                            SqlExpr.Call.of(SqlFn.RTRIM,
-                                    SqlExpr.Call.of(SqlFn.RTRIM, text,
-                                            new SqlExpr.StringLit("0")),
-                                    new SqlExpr.StringLit(".")))),
-                    text, SqlExpr.Reason.PRINT);
-            // NULL-preserving by hand: DuckDB concat treats NULL as ''
-            // (a NULL cell must egress NULL, not a bare 'D')
-            return new SqlExpr.Cast(new SqlExpr.Case(List.of(
-                    new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.IS_NULL, e),
-                            new SqlExpr.NullLit())),
-                    SqlExpr.Call.of(SqlFn.CONCAT, stripped,
-                            new SqlExpr.StringLit("D")), SqlExpr.Reason.PRINT),
-                    SqlType.Scalar.DECIMAL_TEXT, SqlExpr.Reason.PRINT);
+            return decimalText(e);
         }
         return null;
+    }
+
+    /** A Decimal (or a whole number) as the canonical text a store-read Decimal is carried in ({@code DECIMAL_TEXT}):
+     *  its digits with no fractional trailing zero and no bare point, then {@code D}; NULL of NULL. Two such texts
+     *  are the same exactly where the two numbers are, so the product's comparison of two sides reads a typed
+     *  Decimal beside a store-read one through it ({@code SideEqualities}). */
+    static SqlExpr.Cast decimalText(SqlExpr e) {
+        SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
+        // strip FRACTIONAL trailing zeros only (a dotless spelling
+        // has no wire scale to erase), then a bare trailing dot
+        SqlExpr stripped = new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER,
+                                SqlExpr.Call.of(SqlFn.STRPOS, text,
+                                        new SqlExpr.StringLit(".")),
+                                new SqlExpr.IntLit(0)),
+                        SqlExpr.Call.of(SqlFn.RTRIM,
+                                SqlExpr.Call.of(SqlFn.RTRIM, text,
+                                        new SqlExpr.StringLit("0")),
+                                new SqlExpr.StringLit(".")))),
+                text, SqlExpr.Reason.PRINT);
+        // NULL-preserving by hand: DuckDB concat treats NULL as ''
+        // (a NULL cell must egress NULL, not a bare 'D')
+        return new SqlExpr.Cast(new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                        new SqlExpr.NullLit())),
+                SqlExpr.Call.of(SqlFn.CONCAT, stripped,
+                        new SqlExpr.StringLit("D")), SqlExpr.Reason.PRINT),
+                SqlType.Scalar.DECIMAL_TEXT, SqlExpr.Reason.PRINT);
     }
 
     /** A column-rooted egress expression (possibly cast-wrapped): a
