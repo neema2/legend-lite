@@ -40,6 +40,9 @@ class RunTimeComparisonTest {
             function x::sameAny(a: Any[1], b: Any[1]): Boolean[1] { $a == $b }
             function x::sameAsOne(a: Number[1]): Boolean[1] { x::same($a, 1) }
             function x::whereIn(a: Number[1], b: Number[*]): Integer[1] { $b->indexOf($a) }
+            function x::sameT<T,U>(a: T[1], b: U[1]): Boolean[1] { $a == $b }
+            function x::lessT<T,U>(a: T[1], b: U[1]): Boolean[1] { $a < $b }
+            function x::isZeroT<T>(a: T[1]): Boolean[1] { $a == 0 }
             ###Relational
             Database p::DB ( Table PARTY (ID INTEGER PRIMARY KEY, RATIO DOUBLE) )
             ###Mapping
@@ -110,6 +113,51 @@ class RunTimeComparisonTest {
                     assertEquals(List.of(List.of(c.getValue())), r.rows(), backend.type() + ": " + c.getKey() + "\n"
                             + r.text());
                 }
+            }
+        }
+    }
+
+    @Test
+    void whereTheCallFixesTheTypesTwoTypesAreThatCallsMistake() throws Exception {
+        // the user's ruling of 2026-11-27 ("the split with compile error when we know"): a side declared Number, Date
+        // or Any is compared when the query runs (above); a type variable's values are whatever each call passes, so
+        // the compiler knows both types at the call -- one type compares, an Integer and a Decimal compare by value,
+        // a written literal reads as the call's type, and two types are refused, naming the function
+        Map<String, Object> holds = new LinkedHashMap<>();
+        holds.put("|x::sameT(1, 1)", true);
+        holds.put("|x::sameT('a', 'b')", false);
+        holds.put("|x::sameT(1, 1D)", true);
+        holds.put("|x::lessT(1, 2)", true);
+        holds.put("|x::lessT(1, 1.5D)", true);
+        holds.put("|x::isZeroT(0.0)", true);
+        holds.put("|x::isZeroT(0)", true);
+        holds.put("|x::isZeroT(2.5D)", false);
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (Map.Entry<String, Object> c : holds.entrySet()) {
+                try (Connection connection = backend.open()) {
+                    Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                    assertEquals(List.of(List.of(c.getValue())), r.rows(), backend.type() + ": " + c.getKey() + "\n"
+                            + r.text());
+                }
+            }
+        }
+        String model = MODEL.formatted(TestBackends.platform().type());
+        Map<String, String> refused = new LinkedHashMap<>();
+        refused.put("|x::sameT(1, 1.0)", "== compares Integer with Float in x::sameT");
+        refused.put("|x::sameT(1, 'a')", "== compares Integer with String in x::sameT");
+        refused.put("|x::lessT(1, 1.5)", "< compares Integer with Float in x::lessT");
+        refused.put("|x::isZeroT('a')", "== compares String with Integer in x::isZeroT");
+        refused.put("|p::Party.all()->project(~[same: p|x::sameT($p.id, $p.ratio)])",
+                "== compares Integer with Float in x::sameT");
+        for (Map.Entry<String, String> c : refused.entrySet()) {
+            try (Connection connection = TestBackends.platform().open()) {
+                com.legend.error.ModelException e = org.junit.jupiter.api.Assertions.assertThrows(
+                        com.legend.error.ModelException.class,
+                        () -> Lean.established(model, c.getKey(), "p::RT", connection), c.getKey());
+                org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().startsWith(c.getValue())
+                        && e.getMessage().contains("between values whose types this call gives"),
+                        c.getKey() + ": " + e.getMessage());
             }
         }
     }

@@ -1839,6 +1839,37 @@ class UserFunctionIntegrationTest {
             assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(3)).doubleValue()).toList());
         }
 
+        /** A function generic over any table that compares two of the caller's columns. */
+        private static final String SAME_COLS = """
+                function test::sameCols<T,A,B>(r: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1]): Relation<T>[1]
+                {
+                    $r->filter(x|$x->read($a)->toOne() == $x->read($b)->toOne())
+                }
+                """;
+
+        @Test
+        @DisplayName("a body compares two of the caller's columns: one type compares, two types are that call's mistake")
+        void comparesTheCallersColumns() throws SQLException {
+            // the user's ruling of 2026-11-27 ("the split with compile error when we know"): the function's author
+            // cannot know the columns' types, each call fixes them, so two different types are refused where the
+            // function is used, naming it -- as the same comparison written in the query is -- never answered by an
+            // empty table
+            var same = exec(modelWith(SAME_COLS), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::sameCols(~FIRST_NAME, ~LAST_NAME)");
+            assertEquals(0, same.rows().size());
+            for (String[] c : new String[][] {
+                    {"->test::sameCols(~FIRST_NAME, ~AGE_VAL)", "== compares String with Integer in test::sameCols"},
+                    {"->extend(~half:x|$x.AGE_VAL->toOne() / 2.0)->test::sameCols(~AGE_VAL, ~half)",
+                            "== compares Integer with Float in test::sameCols"}}) {
+                RuntimeException refused = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                        () -> exec(modelWith(SAME_COLS), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                                + c[0]), c[0]);
+                assertTrue(String.valueOf(refused.getMessage()).contains(c[1])
+                        && refused.getMessage().contains("between values whose types this call gives"),
+                        c[0] + ": " + refused.getMessage());
+            }
+        }
+
         @Test
         @DisplayName("hygiene: a caller's columns named as the body's working ones are the caller's, untouched")
         void callerColumnsOfWorkingNames() throws SQLException {

@@ -130,7 +130,7 @@ final class Overloads {
             // a function's body typed into the call: a body the query reaches, for the comparison setting (the edition
             // program's step 2b, 2026-11-26; until then never read, B3 step 5)
             return t.comparing(t.bodyOf(a.chosen()) == Typer.Compared.UNREAD ? Typer.Compared.UNREAD
-                    : Typer.Compared.GENERIC_BODY, () -> inlineNormalized(af, a, env));
+                    : Typer.Compared.GENERIC_BODY, a.chosen().qualifiedName(), () -> inlineNormalized(af, a, env));
         }
         TypedSpec shadow = derivedShadow(af, a, env);
         if (shadow != null) {

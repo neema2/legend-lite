@@ -156,8 +156,8 @@ final class Typer {
         rigid.addAll(fn.multiplicityParameters());
         // a function's body is a body the query reaches: its comparisons across types are the door's setting's for a
         // body (the edition program's step 2b, 2026-11-26; until then never read, B3 step 5)
-        return comparing(bodyOf(fn), () -> annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid,
-                body)));
+        return comparing(bodyOf(fn), fn.qualifiedName(), () -> annotations.inFrame(fn.typeParameters(),
+                () -> kernel.withRigid(rigid, body)));
     }
 
     /** Whose code {@code fn}'s body is, for the comparison setting: a body the query reaches, unless it is the
@@ -211,6 +211,20 @@ final class Typer {
         islandOutput.add(node);
     }
 
+    /** The function whose body is being typed now, where one is: a comparison kept for its call names it. */
+    private @com.legend.base.Nullable String comparedIn;
+
+    /** {@code body} typed as {@code whose} code, the body of {@code function}, for the comparison setting. */
+    <R> R comparing(Compared whose, @com.legend.base.Nullable String function, java.util.function.Supplier<R> body) {
+        String was = comparedIn;
+        comparedIn = function;
+        try {
+            return comparing(whose, body);
+        } finally {
+            comparedIn = was;
+        }
+    }
+
     /** {@code body} typed as {@code whose} code, for the comparison setting. */
     <R> R comparing(Compared whose, java.util.function.Supplier<R> body) {
         Compared was = compared;
@@ -234,7 +248,7 @@ final class Typer {
         if (crossing.isEmpty()) {
             // a comparison in a function's body whose sides' types are known only where the function is used
             return compared == Compared.BODY ? EqualityClasses.atRunTime(call, chosen, args)
-                    .map(crossTypes::atRunTime).orElse(call) : call;
+                    .map(kept -> crossTypes.atRunTime(kept.in(comparedIn))).orElse(call) : call;
         }
         EqualityClasses.Crossing c = crossing.get();
         com.legend.compiler.spec.typed.TypedCrossTypeComparison written =
@@ -244,7 +258,9 @@ final class Typer {
             return crossTypes.inBody(written);
         }
         if (compared == Compared.GENERIC_BODY) {
-            return crossTypes.inGenericBody(written);
+            TypedSpec answer = crossTypes.inGenericBody(written);
+            return answer instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison kept
+                    ? kept.in(comparedIn) : answer;
         }
         TypedSpec answer = crossTypes.inQuery(written);
         queryAnswers.add(answer);

@@ -49,6 +49,18 @@ public record TypedCrossTypeComparison(TypedSpec comparison, Kind kind, String o
                 + " one type (1.0 for 1, toFloat(), toString(), an enumeration's own value)");
     }
 
+    /** Lite's refusal of this comparison where it is written in {@code function} between values whose types the
+     *  CALL gives (the caller's own columns, a type variable's values): the same mistake as one written in the query,
+     *  found where the function is used, so the message names the function and says the fix is the caller's (the
+     *  user's ruling of 2026-11-27, "the split with compile error when we know"). */
+    public com.legend.error.ModelException refusalAtTheCall(@com.legend.base.Nullable String function) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE, operator
+                + " compares " + left.typeName() + " with " + right.typeName() + " in "
+                + (function == null ? "a function this query calls" : function) + ", between values whose types this"
+                + " call gives: two values are equal only when they have the same type and the same value, so this call"
+                + " is a mistake -- pass values of one type (toFloat(), toString(), an enumeration's own value)");
+    }
+
     @Override
     public ExprType info() {
         return comparison.info();

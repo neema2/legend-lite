@@ -106,8 +106,18 @@ public final class EqualityClasses {
                 && !filledAtTheCall(args.get(1).info().type())) {
             return Optional.empty();
         }
+        // compared when the query runs where the author declared a side so (Number, the abstract Date, Any); else the
+        // sides are a type variable's values, which each call fixes
         return Optional.of(new com.legend.compiler.spec.typed.TypedRunTimeComparison(call, comparison.kind(),
-                comparison.operator(), NumberLiterals.written(args.get(0)), NumberLiterals.written(args.get(1))));
+                comparison.operator(), NumberLiterals.written(args.get(0)), NumberLiterals.written(args.get(1)),
+                !declaredOpen(args.get(0).info().type()) && !declaredOpen(args.get(1).info().type()), null));
+    }
+
+    /** Whether {@code t} is a type its author declared open: any number, any date, anything -- values compared by
+     *  the types they hold when the query runs. */
+    private static boolean declaredOpen(Type t) {
+        return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE
+                || t instanceof Type.ClassType c && PlatformTypes.isAny(c);
     }
 
     private static boolean filledAtTheCall(Type t) {

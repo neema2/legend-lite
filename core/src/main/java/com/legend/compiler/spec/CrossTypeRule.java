@@ -67,8 +67,9 @@ public interface CrossTypeRule {
 
     /** One met in a body typed INTO ITS CALL, over the caller's own columns (a function generic over relations: its
      *  column types are type parameters, which the type-checker fills in at each call). In the function as written
-     *  such a comparison is between generic positions, whose types are known only when the query runs; that this
-     *  call's columns happen to differ is no statement of the function's author. Asked only where
+     *  such a comparison is between generic positions, whose types each call gives; that this call's columns differ
+     *  is no statement of the function's author (lite's setting keeps it for the call, and refuses it there). Asked
+     *  only where
      *  {@link #readsBodies}; a body's answer unless a setting says otherwise. */
     default TypedSpec inGenericBody(TypedCrossTypeComparison crossing) {
         return inBody(crossing);

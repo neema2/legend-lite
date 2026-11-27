@@ -24,9 +24,22 @@ import java.util.List;
  * @param leftWritten  whether the first side is number literals written in the function itself (a literal has no
  *                     type of its own: it reads as the type of the value it is written against, the literal rule)
  * @param rightWritten the same of the second side
+ * @param fixedByTheCall whether each call FIXES the two sides' types: neither side is declared {@code Number}, the
+ *                     abstract {@code Date} or {@code Any} -- the author's word that it is compared when the query
+ *                     runs -- so the sides are the caller's own columns or a type variable's values, known where the
+ *                     function is used. Two different types there are a mistake of that call, refused when the query
+ *                     is compiled (the user's ruling of 2026-11-27: "the split with compile error when we know")
+ * @param function     the function the comparison is written in, for a message; null where the typer names none
  */
 public record TypedRunTimeComparison(TypedSpec comparison, TypedCrossTypeComparison.Kind kind, String operator,
-        boolean leftWritten, boolean rightWritten) implements TypedSpec {
+        boolean leftWritten, boolean rightWritten, boolean fixedByTheCall,
+        @com.legend.base.Nullable String function) implements TypedSpec {
+
+    /** This record, written in {@code function}. */
+    public TypedRunTimeComparison in(@com.legend.base.Nullable String function) {
+        return new TypedRunTimeComparison(comparison, kind, operator, leftWritten, rightWritten, fixedByTheCall,
+                function);
+    }
 
     @Override
     public ExprType info() {
@@ -41,11 +54,13 @@ public record TypedRunTimeComparison(TypedSpec comparison, TypedCrossTypeCompari
     @Override
     public TypedSpec withChildren(List<TypedSpec> kids) {
         TypedSpec.expectChildren(kids, 1, "TypedRunTimeComparison");
-        return new TypedRunTimeComparison(kids.get(0), kind, operator, leftWritten, rightWritten);
+        return new TypedRunTimeComparison(kids.get(0), kind, operator, leftWritten, rightWritten, fixedByTheCall,
+                function);
     }
 
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedRunTimeComparison(comparison.withInfo(info), kind, operator, leftWritten, rightWritten);
+        return new TypedRunTimeComparison(comparison.withInfo(info), kind, operator, leftWritten, rightWritten,
+                fixedByTheCall, function);
     }
 }

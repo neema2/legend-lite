@@ -15,7 +15,12 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * of 2026-11-26), so {@code $x.qty > 0} over a Float is {@code > 0.0}.
  *
  * <p>A function generic over relations is typed into each call, over that call's columns: its column positions are
- * generic, so a comparison of two of them is never a mistake of the code as written ({@link #inGenericBody}).
+ * generic, so a comparison of two of them is never a mistake of the code as written ({@link #inGenericBody}) -- it is
+ * the CALL's, where that call's columns are of two types, and is refused there, once the functions the query reaches
+ * stand in the query ({@link #atTheCall}; the user's ruling of 2026-11-27, "the split with compile error when we
+ * know"). The same of a comparison between a type variable's values. A side its author declared {@code Number}, the
+ * abstract {@code Date} or {@code Any} is the author's word that the values are compared when the query runs: two
+ * types there are never equal, and nothing is refused.
  *
  * <p>Every other comparison across types is typed as its marker, never raised where it is typed (the type-checker
  * tries a call's overloads in turn, and a comparison met in a candidate it then drops was never the program's). The
@@ -77,21 +82,24 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
         return inQuery(crossing);
     }
 
-    /** A generic position is typed only when the query runs (the equality rule's second item), so a comparison of
-     *  two of them is no compile error, whatever this call's columns are: it is answered by the types the two have at
-     *  this call, as any comparison between values whose types a caller gives ({@link #atTheCall}; until the edition
-     *  program's step 6 it was the database's comparison). A number literal against a generic position still reads as
-     *  this call's column type, which is what a literal is for. Found by step 4's measurement, 2026-11-26: the
-     *  timeseries library's meeting of two lines compares their period columns, and refuses a day against a date-time
-     *  itself, when the query runs, naming the fix; a compile error here pre-empted that refusal. */
+    /** A generic position's type is the call's, so a comparison of two of them is no mistake of the function as
+     *  written, and is never raised where the body is typed: it is kept for its call ({@link #atTheCall}), where two
+     *  different types are that call's mistake and are refused, naming the function (the user's ruling of 2026-11-27;
+     *  from the edition program's step 4 to its step 6 it was the database's comparison). A number literal against a
+     *  generic position still reads as this call's column type, which is what a literal is for. Kept, not raised
+     *  here, because the type-checker types a function's candidates in turn: found by step 4's measurement,
+     *  2026-11-26, the timeseries library's meeting of two lines compares their period columns, and refuses a day
+     *  against a date-time itself, by an overload of its own, when the query runs, naming the fix; a compile error
+     *  raised while the general overload was typed pre-empted that refusal. */
     @Override
     public TypedSpec inGenericBody(TypedCrossTypeComparison crossing) {
         if (exact(crossing)) {
             return crossing.comparison();
         }
         TypedSpec read = NumberLiterals.read(crossing);
+        // (a body typed into its call: its sides are the caller's own columns, fixed by this call)
         return read != null ? read : new com.legend.compiler.spec.typed.TypedRunTimeComparison(crossing.comparison(),
-                crossing.kind(), crossing.operator(), false, false);
+                crossing.kind(), crossing.operator(), false, false, true, null);
     }
 
     /** Kept as its record until the function it is written in stands in the query ({@link #atTheCall}): a comparison
@@ -110,7 +118,10 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
      *   <li>a number literal the function's author wrote against a value of another number type: the literal reads
      *       as that type where it is exact there (decision D5: {@code $x->in([0, 1])} over a Float is by value),
      *       else it is no value of that type and the answer is the types';</li>
-     *   <li>two values of two types: never equal ({@code ==} and {@code eq} false where a side is never empty,
+     *   <li>two values of two types where the CALL fixes them (the caller's own columns, a type variable's values;
+     *       no side declared {@code Number}, the abstract {@code Date} or {@code Any}): this call's mistake, refused
+     *       by name, as the same comparison written in the query is (the user's ruling of 2026-11-27);</li>
+     *   <li>two values of two types where the author declared a side open: never equal ({@code ==} and {@code eq} false where a side is never empty,
      *       {@code in} and {@code contains} false, {@code indexOf} -1), and ordered by value, then by family, an
      *       exact number below a Float (decision D3: {@code <} and {@code <=} are both {@code <=} where the first
      *       side is the exact one, both {@code <} where it is the Float; {@code >} and {@code >=} the mirror), a fact
@@ -141,6 +152,11 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
             if (read != null) {
                 return read;
             }
+        }
+        if (marked.fixedByTheCall()) {
+            // the caller's own columns, a type variable's values: this call makes the function compare two types,
+            // which is the mistake a comparison written in the query is -- refused here, where the types are known
+            throw crossing.refusalAtTheCall(marked.function());
         }
         return switch (c.kind()) {
             case EQUALITY -> neverEmpty(call) ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
