@@ -1158,8 +1158,19 @@ public final class SideEqualities {
      *  and a Decimal are one family, equal by their value), or Strings on both. The other kinds join slice by
      *  slice (docs/records/edition-homework/step-6b/PLAN-OF-RECORD-2026-11-27.md). */
     public static boolean comparedAsValues(Type left, Type right) {
+        // (slice 3's first kinds, 2026-11-28: a Boolean, a Float, a day and a date-time on both sides -- a
+        // database's typed list of each compares its values, a date-time by its instant; and a side the types say
+        // holds nothing, the written empty list, against a list of any of these kinds)
         return exactNumber(left) && exactNumber(right)
-                || left == Type.Primitive.STRING && right == Type.Primitive.STRING;
+                || left.equals(right) && plainKind(left)
+                || PlatformTypes.isNil(left) && plainKind(right) || PlatformTypes.isNil(right) && plainKind(left);
+    }
+
+    /** A kind whose values a database's typed list holds as the values themselves. */
+    private static boolean plainKind(Type kind) {
+        return exactNumber(kind) || kind == Type.Primitive.STRING || kind == Type.Primitive.BOOLEAN
+                || kind == Type.Primitive.FLOAT || kind == Type.Primitive.STRICT_DATE
+                || kind == Type.Primitive.DATE_TIME;
     }
 
     /** Whether {@code kind} is an exact number's: an Integer's or a Decimal's (the two are equal by their value). */
