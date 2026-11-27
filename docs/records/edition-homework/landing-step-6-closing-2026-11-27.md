@@ -174,6 +174,23 @@ New and extended tests: `exec/RootComparisonTest`, `RunTimeComparisonTest`, `Num
 - SQLite's date-times as text; H2's missing list forms; H2's `ascii('')`: the database follow-up.
 - The planner's older reads of the door (nine, listed and shrink-only) and its other per-door forms: steps 10 and 11.
 
+## Found after the landing checks, by a new measure (2026-11-27, 20:20 UTC)
+
+While CI's third run went, the working session built a measure that asks one comparison in 17 places of a query on
+DuckDB, H2 and SQLite and counts the comparisons whose answer depends on the place
+(`docs/records/edition-homework/step-6b/measure-positions-2026-11-27.md`). Against the program branch before step 6:
+comparisons that are true in one place and false in another go from 19 to 9 on DuckDB, 13 to 5 on H2 and 33 to 12
+on SQLite. It also found one thing this landing makes worse:
+
+- **On DuckDB, a comparison of two computed lists or maps inside a list's lambda, reading nothing of the lambda's
+  element, is a database error when the query runs** (`Binder Error: subqueries in lambda expressions are not
+  supported`), where it answered before step 6. Example:
+  `[1]->map(x | [1, 2]->map(y | $y + 1) == [2, 3])->at(0)`. It is an error, never a wrong answer; no test of core,
+  PCT or either corpus holds the shape. Trino, Databricks and Snowflake also write list lambdas and were not measured
+  for it.
+- **Not fixed in this landing.** The fix (the comparison computed once outside the lambda and read by name) is the
+  first piece of step 6B, checked by the same measure. Nothing of step 6 goes to `main` before 6B.
+
 ## What judged it
 
 *(filled in as each check reports; nothing is claimed before it has run)*

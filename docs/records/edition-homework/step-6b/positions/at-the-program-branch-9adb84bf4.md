@@ -1,0 +1,431 @@
+# The position matrix: one comparison asked in every place
+
+72 comparisons, 19 places (asserts under both judges), 4104 runs.
+
+| database | one answer | refused everywhere | refused everywhere, for different reasons | ANSWERED ONLY IN SOME PLACES | CONTRADICTS |
+|---|---|---|---|---|---|
+| DuckDB | 47 | 0 | 0 | 6 | 19 |
+| H2 | 31 | 9 | 3 | 16 | 13 |
+| SQLite | 23 | 1 | 0 | 15 | 33 |
+
+## Places a database cannot answer even for `1 == 1` (left out of the counts above)
+
+- DuckDB: reads-element (error DataError)
+- H2: kept-in-map (refused DialectCapability), list-exists (refused DialectCapability), list-forAll (refused DialectCapability), reads-element (refused DialectCapability)
+- SQLite: none
+
+## Comparisons whose answer depends on where they stand
+
+- **int same**: `1` == `1`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **int computed**: `1 + 1` == `2`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **float same**: `1.5` == `1.5`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **string same**: `'a'` == `'a'`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **string differ**: `'a'` == `'b'`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **boolean same**: `true` == `true`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **enum same**: `t::E.A` == `t::E.A`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **enum differ**: `t::E.A` == `t::E.B`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **int and decimal**: `1` == `1D`
+  - **DuckDB: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assert (host), assert (database)
+    - `T`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, list-filter, table-filter, table-column, assert (host), assert (database)
+    - `T`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, table-filter, table-column, assert (host), assert (database)
+    - `T`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+- **decimal two scales**: `1.0D` == `1.00D`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **int and float**: `1` == `1.0`
+  - **DuckDB: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assert (host), assert (database)
+    - `T`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, list-filter, table-filter, table-column, assert (host), assert (database)
+    - `T`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assert (host), assert (database)
+    - `F`: reads-element, assertEquals (host), assertEquals (database)
+    - `T`: function-any, function-generic
+- **day same**: `%2020-01-01` == `%2020-01-01`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **day and date-time**: `%2020-01-01` == `%2020-01-01T00:00:00`
+  - **DuckDB: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assert (host), assert (database)
+    - `T`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, list-filter, table-filter, table-column, assert (host), assert (database)
+    - `T`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `refused ModelException`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, table-filter, table-column, assert (host), assert (database)
+    - `F`: function-any, function-generic, assertEquals (host), assertEquals (database)
+- **date-time two written precisions**: `%2020-01-01T10:00:00.000` == `%2020-01-01T10:00:00`
+  - **SQLite: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `error DataError`: reads-element
+    - `T`: assertEquals (host), assertEquals (database)
+- **date-time hour and minute**: `%2020-01-01T10` == `%2020-01-01T10:00`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **year same**: `%2020` == `%2020`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **year and computed year**: `%2020` == `date(2020)`
+  - **DuckDB: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **year-month same**: `%2020-01` == `%2020-01`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **built to the hour and literal**: `date(2015, 4, 16, 14)` == `%2015-04-16T14:00:00`
+  - **DuckDB: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `error DataError`: reads-element
+    - `T`: assertEquals (host), assertEquals (database)
+- **day computed**: `%2020-01-01->adjust(1, DurationUnit.DAYS)` == `%2020-01-02`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **Number same**: `1->cast(@Number)` == `1->cast(@Number)`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **Number int and float**: `1->cast(@Number)` == `1.0->cast(@Number)`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: reads-element, assertEquals (host), assertEquals (database)
+- **Number int and decimal**: `1->cast(@Number)` == `1D->cast(@Number)`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: reads-element, assertEquals (host), assertEquals (database)
+- **Any same**: `1->cast(@Any)` == `1->cast(@Any)`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **Any int and string**: `1->cast(@Any)` == `'1'->cast(@Any)`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+- **Any day and date-time**: `%2020-01-01->cast(@Any)` == `%2020-01-01T00:00:00->cast(@Any)`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **Date day and date-time**: `%2020-01-01->cast(@Date)` == `%2020-01-01T00:00:00->cast(@Date)`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: reads-element
+- **max of a mixed list**: `[1, 2.0]->max()` == `2.0`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `refused DialectCapability`: reads-element
+- **empty and value**: `[]` == `1`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `other answer`: reads-element
+- **computed empty and written empty**: `[1, 2]->filter(x | $x > 5)` == `[]`
+  - **DuckDB: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **two computed empties**: `[1, 2]->filter(x | $x > 5)` == `[3]->filter(x | $x > 5)`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **computed empty and value**: `[1, 2]->filter(x | $x > 5)` == `1`
+  - **DuckDB: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+- **optional none and value**: `[1, 2]->filter(x | $x > 5)->first()` == `1`
+  - **DuckDB: CONTRADICTS**
+    - `other answer`: statement, and, or, lets, kept-in-map, function-any, function-generic, table-column
+    - `F`: not, if, list-filter, list-exists, table-filter, assertEquals (host), assertEquals (database), assert (database)
+    - `T`: list-forAll
+    - `error IllegalStateException`: assert (host)
+  - **SQLite: CONTRADICTS**
+    - `other answer`: statement, and, or, lets, kept-in-map, function-any, function-generic, table-column
+    - `F`: not, if, list-filter, list-exists, reads-element, table-filter, assertEquals (host), assertEquals (database), assert (database)
+    - `T`: list-forAll
+    - `error IllegalStateException`: assert (host)
+- **two optionals none**: `[1, 2]->filter(x | $x > 5)->first()` == `[3]->filter(x | $x > 5)->first()`
+  - **DuckDB: CONTRADICTS**
+    - `other answer`: statement, and, or, lets, kept-in-map, function-any, function-generic, table-column
+    - `T`: not, list-forAll, assertEquals (host), assertEquals (database)
+    - `F`: if, list-filter, list-exists, table-filter, assert (database)
+    - `error IllegalStateException`: assert (host)
+  - **SQLite: CONTRADICTS**
+    - `other answer`: statement, and, or, lets, kept-in-map, reads-element, function-any, function-generic, table-column
+    - `T`: not, list-forAll, assertEquals (host), assertEquals (database)
+    - `F`: if, list-filter, list-exists, table-filter, assert (database)
+    - `error IllegalStateException`: assert (host)
+- **optional one and value**: `[1, 2]->filter(x | $x > 1)->first()` == `2`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: list-filter, reads-element
+- **computed list same**: `[1, 2]->map(x | $x + 1)` == `[2, 3]`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: list-filter
+- **two computed lists**: `[1, 2]->map(x | $x + 1)` == `[2, 3]->filter(x | $x > 0)`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: list-filter
+- **computed list shorter**: `[1, 2]->filter(x | $x > 1)` == `[1, 2]`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+- **list int and decimal**: `[1, 2]->filter(x | $x > 0)` == `[1.0D, 2.00D]`
+  - **DuckDB: CONTRADICTS**
+    - `refused ModelException`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assert (host), assert (database)
+    - `T`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused ModelException`: statement, not, if, and, or, lets, list-filter, table-filter, table-column, assert (host), assert (database)
+    - `refused DialectCapability`: function-any, function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `refused ModelException`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, table-filter, table-column, assert (host), assert (database)
+    - `F`: function-any, function-generic, assertEquals (host), assertEquals (database)
+- **list decimal two scales**: `[1.0D, 10.125D]->filter(x | $x > 0D)` == `[1.000D, 10.125D]`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **written list decimal two scales**: `[1.0D, 10.125D]` == `[1.000D, 10.125D]`
+  - **H2: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **list date-times two precisions**: `[%2020-01-01T10:00:00.000]->filter(d | true)` == `[%2020-01-01T10:00:00]`
+  - **DuckDB: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: not
+    - `refused DialectCapability`: assertEquals (host), assertEquals (database)
+- **list days computed**: `[%2020-01-01, %2020-01-02]->filter(d | true)` == `[%2020-01-01, %2020-01-02]`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **one value and list of one**: `1` == `[1, 2]->filter(x | $x < 2)`
+  - **DuckDB: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: reads-element, assertEquals (host), assertEquals (database)
+- **mixed list computed**: `[1, 'a']->filter(x | true)` == `[1, 'a']`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **Number lists int and float**: `[1, 2]->cast(@Number)` == `[1.0, 2.0]->cast(@Number)`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+- **Number lists int and decimal**: `[1, 2]->cast(@Number)` == `[1D, 2D]->cast(@Number)`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+- **nested lists**: `list([1, 2])` == `list([1, 2])`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `error DataError`: assertEquals (host)
+    - `refused DialectCapability`: assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+    - `F`: reads-element
+    - `refused DialectCapability`: assertEquals (database)
+- **maps same order**: `newMap([pair('a', 1), pair('b', 2)])` == `newMap([pair('a', 1), pair('b', 2)])`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+    - `F`: reads-element
+    - `refused DialectCapability`: assertEquals (database)
+- **maps other order**: `newMap([pair('a', 1), pair('b', 2)])` == `newMap([pair('b', 2), pair('a', 1)])`
+  - **DuckDB: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host)
+    - `refused DialectCapability`: assertEquals (database)
+- **maps a value differs**: `newMap([pair('a', 1), pair('b', 2)])` == `newMap([pair('a', 1), pair('b', 3)])`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+    - `refused DialectCapability`: assertEquals (database)
+- **pairs same**: `pair(1, 'a')` == `pair(1, 'a')`
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `F`: reads-element
+- **pairs int and decimal**: `pair(1, 1D)` == `pair(1, 1)`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host)
+    - `unjudged a pair with no typed form (Pair<Integer, Decimal(38,0)> against Pair<Integer, Integer>) | assertEquals`: assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host)
+    - `unjudged a pair with no typed form (Pair<Integer, Decimal(38,0)> against Pair<Integer, Integer>) | assertEquals`: assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: reads-element, assertEquals (host)
+    - `unjudged a pair with no typed form (Pair<Integer, Decimal(38,0)> against Pair<Integer, Integer>) | assertEquals`: assertEquals (database)
+- **list of pairs computed**: `[pair(1, 'a'), pair(2, 'b')]->filter(p | true)` == `[pair(1, 'a'), pair(2, 'b')]`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **instances written alike**: `^t::K(id=1, name='a')` == `^t::K(id=1, name='a')`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `F`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column
+    - `refused DialectCapability`: assertEquals (host), assertEquals (database), assert (host), assert (database)
+- **tables same**: `#TDS  id, s  1, x  2, y #` == `#TDS  id, s  1, x  2, y #`
+  - **DuckDB: ANSWERED ONLY IN SOME PLACES**
+    - `T`: statement, not, if, and, or, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: kept-in-map, list-filter, list-exists, list-forAll
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `T`: assertEquals (host), assertEquals (database)
+- **tables rows other order**: `#TDS  id, s  1, x  2, y #` == `#TDS  id, s  2, y  1, x #`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `error DataError`: kept-in-map, list-filter, list-exists, list-forAll
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+- **tables a cell differs**: `#TDS  id, s  1, x  2, y #` == `#TDS  id, s  1, x  2, z #`
+  - **DuckDB: ANSWERED ONLY IN SOME PLACES**
+    - `F`: statement, not, if, and, or, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+    - `error DataError`: kept-in-map, list-filter, list-exists, list-forAll
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `error DataError`: statement, not, if, and, or, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+    - `F`: assertEquals (host), assertEquals (database)
+- **tables a column's name differs**: `#TDS  id  1 #` == `#TDS  ix  1 #`
+  - **DuckDB: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, function-any, table-filter, table-column, assert (host), assert (database)
+    - `error DataError`: kept-in-map, list-filter, list-exists, list-forAll
+    - `refused TypeInferenceException`: function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **H2: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, list-filter, function-any, table-filter, table-column, assert (host), assert (database)
+    - `refused TypeInferenceException`: function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `T`: statement, not, if, and, or, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, table-filter, table-column, assert (host), assert (database)
+    - `refused TypeInferenceException`: function-generic
+    - `F`: assertEquals (host), assertEquals (database)
+
+## One place, two databases, two answers
+
+- **day and date-time**: function-any (DuckDB T, H2 T, SQLite F); function-generic (DuckDB T, H2 T, SQLite F)
+- **date-time two written precisions**: statement (DuckDB T, H2 T, SQLite F); not (DuckDB T, H2 T, SQLite F); if (DuckDB T, H2 T, SQLite F); and (DuckDB T, H2 T, SQLite F); or (DuckDB T, H2 T, SQLite F); lets (DuckDB T, H2 T, SQLite F); list-filter (DuckDB T, H2 T, SQLite F); function-any (DuckDB T, H2 T, SQLite F); function-generic (DuckDB T, H2 T, SQLite F); table-filter (DuckDB T, H2 T, SQLite F); table-column (DuckDB T, H2 T, SQLite F); assert (host) (DuckDB T, H2 T, SQLite F); assert (database) (DuckDB T, H2 T, SQLite F); kept-in-map (DuckDB T, SQLite F); list-exists (DuckDB T, SQLite F); list-forAll (DuckDB T, SQLite F)
+- **Any int and string**: statement (DuckDB T, H2 T, SQLite F); not (DuckDB T, H2 T, SQLite F); if (DuckDB T, H2 T, SQLite F); and (DuckDB T, H2 T, SQLite F); or (DuckDB T, H2 T, SQLite F); lets (DuckDB T, H2 T, SQLite F); list-filter (DuckDB T, H2 T, SQLite F); function-any (DuckDB T, H2 T, SQLite F); function-generic (DuckDB T, H2 T, SQLite F); table-filter (DuckDB T, H2 T, SQLite F); table-column (DuckDB T, H2 T, SQLite F); assert (host) (DuckDB T, H2 T, SQLite F); assert (database) (DuckDB T, H2 T, SQLite F); kept-in-map (DuckDB T, SQLite F); list-exists (DuckDB T, SQLite F); list-forAll (DuckDB T, SQLite F)
+- **Any day and date-time**: statement (DuckDB T, H2 T, SQLite F); not (DuckDB T, H2 T, SQLite F); if (DuckDB T, H2 T, SQLite F); and (DuckDB T, H2 T, SQLite F); or (DuckDB T, H2 T, SQLite F); lets (DuckDB T, H2 T, SQLite F); list-filter (DuckDB T, H2 T, SQLite F); function-any (DuckDB T, H2 T, SQLite F); function-generic (DuckDB T, H2 T, SQLite F); table-filter (DuckDB T, H2 T, SQLite F); table-column (DuckDB T, H2 T, SQLite F); assert (host) (DuckDB T, H2 T, SQLite F); assert (database) (DuckDB T, H2 T, SQLite F); kept-in-map (DuckDB T, SQLite F); list-exists (DuckDB T, SQLite F); list-forAll (DuckDB T, SQLite F)
+- **Date day and date-time**: statement (DuckDB T, H2 T, SQLite F); not (DuckDB T, H2 T, SQLite F); if (DuckDB T, H2 T, SQLite F); and (DuckDB T, H2 T, SQLite F); or (DuckDB T, H2 T, SQLite F); lets (DuckDB T, H2 T, SQLite F); list-filter (DuckDB T, H2 T, SQLite F); function-any (DuckDB T, H2 T, SQLite F); function-generic (DuckDB T, H2 T, SQLite F); table-filter (DuckDB T, H2 T, SQLite F); table-column (DuckDB T, H2 T, SQLite F); assert (host) (DuckDB T, H2 T, SQLite F); assert (database) (DuckDB T, H2 T, SQLite F); kept-in-map (DuckDB T, SQLite F); list-exists (DuckDB T, SQLite F); list-forAll (DuckDB T, SQLite F)
+- **optional one and value**: list-filter (DuckDB T, SQLite F)
+- **computed list same**: list-filter (DuckDB T, SQLite F)
+- **two computed lists**: list-filter (DuckDB T, SQLite F)
+- **list int and decimal**: function-any (DuckDB T, SQLite F); function-generic (DuckDB T, SQLite F)
+- **list decimal two scales**: statement (DuckDB T, SQLite F); not (DuckDB T, SQLite F); if (DuckDB T, SQLite F); and (DuckDB T, SQLite F); or (DuckDB T, SQLite F); lets (DuckDB T, SQLite F); kept-in-map (DuckDB T, SQLite F); list-filter (DuckDB T, SQLite F); list-exists (DuckDB T, SQLite F); list-forAll (DuckDB T, SQLite F); function-any (DuckDB T, SQLite F); function-generic (DuckDB T, SQLite F); table-filter (DuckDB T, SQLite F); table-column (DuckDB T, SQLite F); assert (host) (DuckDB T, SQLite F); assert (database) (DuckDB T, SQLite F)
+- **written list decimal two scales**: statement (DuckDB T, H2 F, SQLite F); not (DuckDB T, H2 F, SQLite F); if (DuckDB T, H2 F, SQLite F); and (DuckDB T, H2 F, SQLite F); or (DuckDB T, H2 F, SQLite F); lets (DuckDB T, H2 F, SQLite F); list-filter (DuckDB T, H2 F, SQLite F); function-any (DuckDB T, H2 F, SQLite F); function-generic (DuckDB T, H2 F, SQLite F); table-filter (DuckDB T, H2 F, SQLite F); table-column (DuckDB T, H2 F, SQLite F); assert (host) (DuckDB T, H2 F, SQLite F); assert (database) (DuckDB T, H2 F, SQLite F); kept-in-map (DuckDB T, SQLite F); list-exists (DuckDB T, SQLite F); list-forAll (DuckDB T, SQLite F)
+- **Number lists int and float**: statement (DuckDB T, H2 F, SQLite F); not (DuckDB T, H2 F, SQLite F); if (DuckDB T, H2 F, SQLite F); and (DuckDB T, H2 F, SQLite F); or (DuckDB T, H2 F, SQLite F); lets (DuckDB T, H2 F, SQLite F); list-filter (DuckDB T, H2 F, SQLite F); function-any (DuckDB T, H2 F, SQLite F); function-generic (DuckDB T, H2 F, SQLite F); table-filter (DuckDB T, H2 F, SQLite F); table-column (DuckDB T, H2 F, SQLite F); assert (host) (DuckDB T, H2 F, SQLite F); assert (database) (DuckDB T, H2 F, SQLite F); kept-in-map (DuckDB T, SQLite F); list-exists (DuckDB T, SQLite F); list-forAll (DuckDB T, SQLite F)
