@@ -150,3 +150,16 @@ New and extended tests: `exec/RootComparisonTest`, `RunTimeComparisonTest`, `Num
 ## What judged it
 
 *(filled in as each check reports; nothing is claimed before it has run)*
+
+The final commit is `3bee40e22` (the code of `508aaef6f`, the regenerated files, the records).
+
+| Check | Where | Result |
+|---|---|---|
+| The full round, 91 targets (core, the guards, PCT on DuckDB and H2 at every door, channel B, parser equivalence, the time-series library) | here, at `38a12c97a` (before the final review's fixes) | 87 pass, 1 skipped, 3 fail: the bundle 2 bytes over its pin and the parser count, both fixed by the regeneration; no product code |
+| Three independent reviews, each given the diff and the rules, never the author's conclusions | subagents | the code audit of pieces 1 to 5 (2 blockers, fixed); the architecture audit ("partly": the verdict this landing is named by); the final review of the last fixes (2 blockers and 7 smaller, each read in the code, fixed or recorded: the batch list) |
+| The final review's fixes, narrow: exec, edge, lowering, sql, the guards, the census, the two SQLite integration targets | here, at `508aaef6f` | 10 of 10 targets pass; each new test seen to have run |
+| Regeneration (seven update targets) | here, on `0dd18a3ee` | three files move, each as predicted (the commit names them); no SQL size row, no PCT ratchet |
+| The confirming round (the same 91 targets) and the acceptance measure | here, at `3bee40e22` | running |
+| CI on the draft pull request #141: every per-push lane on Linux, macOS and Windows (the product build, core, the guards, both corpora, PCT on DuckDB, H2 and Postgres, channel B, parser equivalence, stress, the warehouse, DataCube, the UI) | GitHub | running |
+| The database lanes: PCT's two channels on Trino, MariaDB, MySQL, ClickHouse, SQLite, Snowflake, BigQuery, Databricks; channel A on MongoDB; channel B on Postgres; the time-series replays on Postgres, ClickHouse and Snowflake; MongoDB's plan test | six sessions, measure only, at `3bee40e22` | running |
+| The manual tests no lane holds: lite's own PCT channel A, channel B on H2, channel B twice | the heavy session, at `3bee40e22` | running |
