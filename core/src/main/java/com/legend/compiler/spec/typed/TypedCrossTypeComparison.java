@@ -75,7 +75,8 @@ public record TypedCrossTypeComparison(TypedSpec comparison, Kind kind, String o
         return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER, operator
                 + " compares " + left.typeName() + " with " + right.typeName() + ", the types of the columns its two"
                 + " sides read: two values are equal only when they have the same type and the same value, so this"
-                + " comparison is a mistake -- convert one side (toFloat(), toDecimal(), toString())");
+                + " comparison is a mistake -- convert one side (toFloat(), toDecimal(), toString(); for a day against a"
+                + " date-time, write the instant, as %2020-01-01T00:00:00, or compare the date-time's day, datePart())");
     }
 
     @Override

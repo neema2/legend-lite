@@ -103,7 +103,7 @@ public enum NamedRule {
      *  {@code [3, 3D]->removeDuplicates()} keeps both. Where the two sides' types are known only when the query runs
      *  (a {@code Number}, an {@code Any}) the comparison is the database's, and nothing is refused. Not the
      *  product's, which calls an Integer and a Decimal of one value equal (two exact numbers; the user's ruling of
-     *  2026-11-27) and refuses a comparison of an exact number's column with a Float's ({@code HeldNumbers}). A call
+     *  2026-11-27) and refuses a comparison of an exact number's column with a Float's ({@code HeldKinds}). A call
      *  that meets neither is written by its own rule, unchanged. */
     NUMBERS_OF_THREE_TYPES
 }

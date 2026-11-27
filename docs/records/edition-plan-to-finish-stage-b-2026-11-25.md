@@ -1247,6 +1247,18 @@ legend-engine's door: **"I think it would be great to match engine but only if n
 so"**. 3, the size rows that go up: **"great def want to see/understand the growth"**. 2, the two compatibility
 doors kept as they were by a rule of their own: **"okay great"**.
 
+**The abstract Date, the same day** (put to the user as a question of its own: should a written day adapt to a
+date-time, as a number literal adapts?). The orchestrator's answer: no -- `1` and `1.0` are one number written two
+ways, a day is no instant, and reading it as midnight invents a time and a zone (`$x.at == %2020-01-01` almost always
+means "on that day"); the fix is the instant or `datePart()`. The user: "Is the abstract date rule going to break
+lots of things though" (a quick count: 76 abstract `Date` declarations in lite's own Pure files against 1,493
+`StrictDate` and 417 `DateTime`, most of the 76 function parameters, which the rule does not read), then: **"You can
+do the error way if it's only for lite mode"**. Built so: a property declared the abstract `Date` takes its column's
+kind where the query is planned, and a day against a date-time is refused there, a comparison the author wrote alone,
+lite's rule alone (`lowering.HeldKinds`). Also that day: the timeseries library's own refusal for a line of moments
+met with a line of days, which the compile error at the call pre-empted in two functions: **"Library fix for
+sure"**; the outside audit: **"Wait for audit until we are ready"**.
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:

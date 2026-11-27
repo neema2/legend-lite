@@ -21,21 +21,28 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A COMPARISON OF NUMBERS WHOSE TYPES ONLY THEIR COLUMNS GIVE (the edition program's step 6; the user's ruling of
- * 2026-11-27, "great do it"): a side declared {@code Number} or {@code Any} has no type the query's author wrote, but
- * the column it reads holds one, and the lowering knows it. Where the two sides' columns are of two number families
- * (an exact number's and a Float's) the comparison can never hold, so it is refused when the query is planned, as a
- * comparison of two known types is refused when it is compiled -- never answered false for every row. A written
- * number literal still reads as the column's type where nothing is lost ({@code $p.weight == 1} over a DOUBLE
- * column), and an Integer against a Decimal is by value (two exact numbers).
+ * A COMPARISON OF VALUES WHOSE TYPES ONLY THEIR COLUMNS GIVE (the edition program's step 6; the user's rulings of
+ * 2026-11-27, "great do it" for numbers and "You can do the error way if it's only for lite mode" for dates): a side
+ * declared {@code Number}, {@code Any} or the abstract {@code Date} has no type the query's author wrote, but the
+ * column it reads holds one, and the lowering knows it. Where the two sides can never be equal -- an exact number's
+ * column against a Float's, a day's against a date-time's -- the comparison is refused when the query is planned, as
+ * a comparison of two known types is refused when it is compiled: never answered false for every row, never the
+ * database's own conversion.
  *
- * <p>The product's own rule alone: a compatibility door's table names its own rule for these calls
- * ({@link NamedRule#NUMBERS_OF_THREE_TYPES}), under which such a comparison is the database's, as it was. Dates are
- * not read here: an abstract {@code Date} over a day's column against a date-time is the dates' own item.
+ * <p>A written number literal still reads as the column's type where nothing is lost ({@code $p.weight == 1} over a
+ * DOUBLE column), and an Integer against a Decimal is by value (two exact numbers). A written DAY does not read as a
+ * date-time: a day is no instant, and reading it as midnight would invent a time and a zone its author did not
+ * write ({@code $x.at == %2020-01-01} almost always means "on that day"; the fix is the instant, or the day of the
+ * date-time).
+ *
+ * <p>Only a comparison the query's author wrote (one with a source position): a comparison lite writes itself (a
+ * mapping's translation, a milestoning filter) is no mistake of theirs. And the product's own rule alone: a
+ * compatibility door's table names its own rule for these calls ({@link NamedRule#NUMBERS_OF_THREE_TYPES}), under
+ * which such a comparison is the database's, as it was.
  */
-final class HeldNumbers {
+final class HeldKinds {
 
-    private HeldNumbers() {
+    private HeldKinds() {
     }
 
     /** A comparison this rule reads: its kind and its operator as a message writes it. */
@@ -66,11 +73,11 @@ final class HeldNumbers {
         }
     }
 
-    /** Refuses {@code call} where it compares, through a side typed only when the query runs, numbers of two
-     *  families that the SQL its sides lowered to ({@code args}) names; any other call passes. */
-    static void refuseAcrossFamilies(TypedNativeCall call, List<SqlExpr> args) {
-        Read read = call.callee().definition() == null || call.args().size() != 2 || args.size() != 2 ? null
-                : READ.get(call.callee().id());
+    /** Refuses {@code call} where it compares, through a side typed only when the query runs, values of two kinds
+     *  never equal that the SQL its sides lowered to ({@code args}) names; any other call passes. */
+    static void refuseAcrossKinds(TypedNativeCall call, List<SqlExpr> args) {
+        Read read = call.callee().definition() == null || call.pos() == null || call.args().size() != 2
+                || args.size() != 2 ? null : READ.get(call.callee().id());
         if (read == null) {
             return;
         }
@@ -81,11 +88,14 @@ final class HeldNumbers {
         }
         String lk = MixedEncoding.kindOfValue(l, args.get(0));
         String rk = MixedEncoding.kindOfValue(r, args.get(1));
-        if (lk == null || rk == null || MixedEncoding.numberTypePlace(lk) < 0 || MixedEncoding.numberTypePlace(rk) < 0
-                || NumberFamilies.TWO_FAMILIES.canEqual(lk, rk)) {
+        if (lk == null || rk == null || NumberFamilies.TWO_FAMILIES.canEqual(lk, rk)) {
             return;
         }
-        if (readsAs(l, rk) || readsAs(r, lk)) {
+        boolean numbers = MixedEncoding.numberTypePlace(lk) >= 0 && MixedEncoding.numberTypePlace(rk) >= 0;
+        if (!numbers && !(dayOrDateTime(lk) && dayOrDateTime(rk))) {
+            return;   // (kinds this rule does not read: a text against a number through an Any, a partial date)
+        }
+        if (numbers && (readsAs(l, rk) || readsAs(r, lk))) {
             return;   // a written literal against a column of the other family: the database reads it as the column's
         }
         throw new TypedCrossTypeComparison(call, read.kind(), read.operator(), MixedEncoding.kindType(lk),
@@ -93,7 +103,14 @@ final class HeldNumbers {
     }
 
     private static boolean open(Type t) {
-        return t == Type.Primitive.NUMBER || t instanceof Type.ClassType c && PlatformTypes.isAny(c);
+        return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE
+                || t instanceof Type.ClassType c && PlatformTypes.isAny(c);
+    }
+
+    /** Whether {@code kind} is a day's or a date-time's (at any written precision). */
+    private static boolean dayOrDateTime(String kind) {
+        String family = MixedEncoding.family(kind);
+        return family.equals("StrictDate") || family.equals("DateTime");
     }
 
     /** Whether {@code side} is number literals written in the query, each exact as a value of {@code kind}'s family:

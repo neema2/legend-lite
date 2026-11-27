@@ -64,7 +64,7 @@ final class UpstreamTies {
         // legend-engine's modes keep their own behaviour"). Interpreted legend-pure's answer on every pair
         // (answers.md, group A); compiled legend-pure and legend-engine differ from it on some, as recorded (S127).
         // The orderings carry the row too: a value typed only when the query runs is the database's comparison at a
-        // door, where the product refuses an exact number's column against a Float's (lowering.HeldNumbers)
+        // door, where the product refuses an exact number's column against a Float's (lowering.HeldKinds)
         for (FunctionId compared : FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ,
                 Pure.AT_COLLECTION_CONTAINS, Pure.AT_COLLECTION_REMOVE_DUPLICATES, Pure.AT_COLLECTION_IN,
                 Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,

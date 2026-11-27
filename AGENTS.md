@@ -217,6 +217,21 @@
 >   a sort places a tie of value by family, an exact number before a Float, and two
 >   equal exact numbers keep the order they were written in. Until this ruling
 >   Integer, Float and Decimal were three types never equal (2026-11-24).
+> - **A type only a column gives** (the user, 2026-11-27: "great do it"; for dates,
+>   "You can do the error way if it's only for lite mode"): a property declared
+>   `Number`, `Any` or the abstract `Date` takes the type its column holds once the
+>   query is planned. Two that can never be equal there (an exact number's column
+>   against a Float's, a day's against a date-time's) are refused where the query is
+>   planned, in lite's mode alone (`lowering.HeldKinds`). A written number literal
+>   still adapts; a written day does not read as a date-time (a day is no instant).
+> - **Inside a function whose types the caller gives** (the user, 2026-11-27: "the
+>   split with compile error when we know"): a parameter declared `Any`, `Number` or
+>   the abstract `Date` is compared when the query runs; a comparison between the
+>   caller's own columns or a type variable's values is that call's compile error
+>   where the two types differ, naming the function.
+> - **An assert is the comparison it means** (the user, 2026-11-26: "yes compile
+>   error"): on lite's own door an assert of two written types is refused when the
+>   body is compiled.
 > - **A number literal reads as the type of the value it is written against** (the
 >   user, 2026-11-26: "okay for float/decimal literal compare"): `$x.qty > 0` over a
 >   Float is `> 0.0`, `$x.salary < 50000` over a Decimal is `< 50000D`, when the

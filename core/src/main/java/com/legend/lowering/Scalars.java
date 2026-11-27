@@ -2393,7 +2393,7 @@ final class Scalars {
         }
         // the product's own comparison of numbers whose types only their columns give: two families are refused
         // here, where the columns are known (a door's row names its own rule for these calls, above)
-        HeldNumbers.refuseAcrossFamilies(call, loweredArgs);
+        HeldKinds.refuseAcrossKinds(call, loweredArgs);
         Rule rule = FeatureRules.select(key, features);
         if (rule != null) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR-FEATURE");
