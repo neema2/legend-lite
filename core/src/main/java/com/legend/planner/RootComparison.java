@@ -93,27 +93,18 @@ final class RootComparison {
         if (table(left) || table(right)) {
             return tables(left, right, lets, named, negated, lowered, anyOrder);
         }
-        if (anyOrder) {
-            // the equality rule: different types never compare, a compile error naming the two -- the type-checker's
-            // own question (two unrelated classes too: the third review of 2026-11-27, M6)
-            java.util.Optional<Type[]> two = com.legend.compiler.spec.EqualityClasses.neverEqual(valueType(left),
-                    valueType(right), ctx);
-            if (two.isPresent()) {
-                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
-                        "hasSameElements compares elements of one type, and its sides hold "
-                                + two.get()[0].typeName() + " and " + two.get()[1].typeName()
-                                + ": two types are never equal -- convert one side");
-            }
-        }
         if (known(valueType(left)) && known(valueType(right))
                 && !java.util.Objects.equals(SideEqualities.typedClass(valueType(left)),
                         SideEqualities.typedClass(valueType(right)))
                 // (an Integer side against a Decimal side is one comparison, by value: two exact numbers)
                 && !(SideEqualities.exactNumber(valueType(left))
                         && SideEqualities.exactNumber(valueType(right)))) {
-            // two known types: the comparison is whatever the door that admitted the code made of it (refused on
-            // lite's own, the database's by value on legend-engine's), which stands as it is lowered
-            return null;
+            // two known types: == is whatever the door that admitted the code made of it (refused on lite's own, the
+            // database's by value on legend-engine's), which stands as it is lowered. hasSameElements of two known
+            // types is refused where it is typed, at every door (EqualityClasses.litesOwn); one that reached here
+            // another way has no plan
+            return unplanned(anyOrder, "its sides hold " + valueType(left).typeName() + " and "
+                    + valueType(right).typeName() + ", two types, which are never equal");
         }
         if (!anyOrder && !whole(left) && !whole(right)) {
             // two values an expression compares exactly on every database: the plain comparison

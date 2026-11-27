@@ -338,11 +338,13 @@ class RootComparisonTest {
         var backend = TestBackends.platform();
         String model = MODEL.formatted(backend.type());
         Map<String, String> refused = new LinkedHashMap<>();
-        refused.put("|hasSameElements([1, 2], ['a', 'b'])", "hasSameElements compares elements of one type");
-        refused.put("|hasSameElements([1, 2], [1.0, 2.0])", "hasSameElements compares elements of one type");
-        // two unrelated classes: the type-checker's own question (the third review of 2026-11-27, M6)
+        // two types: the type-checker's refusal, by the words == has (the closing batch: it is checked where == is)
+        refused.put("|hasSameElements([1, 2], ['a', 'b'])", "hasSameElements compares Integer with String");
+        refused.put("|hasSameElements([1, 2], [1.0, 2.0])", "hasSameElements compares Integer with Float");
+        refused.put("|if(hasSameElements([1, 2], ['a', 'b']), |1, |2)", "hasSameElements compares Integer with String");
+        // two unrelated classes (the third review of 2026-11-27, M6)
         refused.put("|hasSameElements([^p::K(name='a')], [^p::Party(id=1, name='a')])",
-                "hasSameElements compares elements of one type");
+                "hasSameElements compares p::K with p::Party");
         refused.put("|[1, 2]->map(x | hasSameElements([$x, 2], [2, 1]))", "hasSameElements over values of the row or element");
         refused.put("|hasSameElements(#TDS\n id\n 1\n#, [1])", "hasSameElements: a table against a side that is no table");
         for (Map.Entry<String, String> c : refused.entrySet()) {
@@ -352,6 +354,16 @@ class RootComparisonTest {
                 org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(e.getMessage()).contains(c.getValue()),
                         c.getKey() + " -> " + e.getMessage());
             }
+        }
+        // in a function's body it is the model's compile error, as == of two types is: no query need plan it
+        List<String> errors = com.legend.Compiler.compileErrors(model
+                + "\n###Pure\nfunction p::bad(): Boolean[1] { hasSameElements([1, 2], ['a', 'b']) }\n");
+        org.junit.jupiter.api.Assertions.assertTrue(errors.stream()
+                .anyMatch(e -> e.contains("hasSameElements compares Integer with String")), String.valueOf(errors));
+        // two exact numbers are one family: compared by value, in any order
+        try (Connection connection = backend.open()) {
+            assertEquals(List.of(List.of(true)), Lean.established(model, "|hasSameElements([1, 2], [2.0D, 1D])",
+                    "p::RT", connection).rows());
         }
     }
 

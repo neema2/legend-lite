@@ -123,7 +123,10 @@ def plain(name, a):
         return "assert(" + (cmp if name == "assertEquals" else "!(" + cmp + ")") + message(a[2:]) + ")"
     if name == "assertSameElements":
         need(2)
-        return "assert(" + p(a[0]) + "->sort() == " + p(a[1]) + "->sort()" + message(a[2:]) + ")"
+        # the any-order comparison the product has since step 6 (hasSameElements, register S430): the assert and it
+        # are one comparison, so the pair is measured as assertEquals and == are (until the closing batch,
+        # 2026-11-27, this wrote a sort of each side and ==, from before the function existed)
+        return "assert(hasSameElements(" + a[0] + ", " + a[1] + ")" + message(a[2:]) + ")"
     if name in ("assertEq", "assertNotEq"):
         need(2)
         return "assert(" + ("" if name == "assertEq" else "!") + "eq(" + a[0] + ", " + a[1] + ")" + message(a[2:]) + ")"

@@ -290,35 +290,43 @@ final class Typer {
      *  setting's answer for it. */
     TypedSpec compared(TypedSpec call, com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
-        if (compared == Compared.UNREAD && crossTypes.readsBodies()) {
+        // lite's own comparison (hasSameElements) means what lite's setting says, whichever door admitted the code
+        CrossTypeRule rule = ruleFor(chosen);
+        if (compared == Compared.UNREAD && rule.readsBodies()) {
             // code the setting is never asked about (an island's translation, a planner's own frame) is not the
             // query's own either: its comparison without the position the planning-time refusal reads
             // (EqualityClasses.notTheQuerys; the third review of 2026-11-27, L7)
             return EqualityClasses.notTheQuerys(call);
         }
-        if (compared == Compared.UNREAD || compared != Compared.QUERY && !crossTypes.readsBodies()) {
+        if (compared == Compared.UNREAD || compared != Compared.QUERY && !rule.readsBodies()) {
             return call;
         }
-        TypedSpec answer = comparedWhereItStands(call, chosen, args, pos);
+        TypedSpec answer = comparedWhereItStands(call, chosen, args, pos, rule);
         // (a comparison in a function's body is the function's, not the query's: EqualityClasses.notTheQuerys)
         return compared == Compared.QUERY ? answer : EqualityClasses.notTheQuerys(answer);
     }
 
+    /** The setting that answers a comparison by {@code chosen}: the door's, or lite's own for lite's own function
+     *  ({@link EqualityClasses#litesOwn}). */
+    private CrossTypeRule ruleFor(com.legend.compiler.element.TypedFunction chosen) {
+        return EqualityClasses.litesOwn(chosen) ? LiteCrossTypeRule.INSTANCE : crossTypes;
+    }
+
     private TypedSpec comparedWhereItStands(TypedSpec call, com.legend.compiler.element.TypedFunction chosen,
-            List<TypedSpec> args, com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
+            List<TypedSpec> args, com.legend.protocol.@com.legend.base.Nullable SourceInfo pos, CrossTypeRule rule) {
         java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);
         if (crossing.isEmpty()) {
             // a comparison in a function's body whose sides' types are known only where the function is used
             if (compared == Compared.BODY) {
                 return EqualityClasses.atRunTime(call, chosen, args)
-                        .map(kept -> crossTypes.atRunTime(kept.in(comparedIn))).orElse(call);
+                        .map(kept -> rule.atRunTime(kept.in(comparedIn))).orElse(call);
             }
             if (compared == Compared.QUERY && EqualityClasses.heldCrossing(chosen, args, ctx).isPresent()) {
                 // an upcast written in the query hides the type its value holds ([1, 2]->cast(@Number)->contains(1.0)):
                 // the setting answers the comparison by the types held, here, where they stand
-                TypedSpec kept = EqualityClasses.atRunTime(call, chosen, args).map(crossTypes::atRunTime).orElse(call);
+                TypedSpec kept = EqualityClasses.atRunTime(call, chosen, args).map(rule::atRunTime).orElse(call);
                 return kept instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison k
-                        ? crossTypes.atTheCall(k, ctx) : kept;
+                        ? rule.atTheCall(k, ctx) : kept;
             }
             return call;
         }
@@ -327,21 +335,22 @@ final class Typer {
                 new com.legend.compiler.spec.typed.TypedCrossTypeComparison(call, c.kind(), c.operator(), c.left(),
                         c.right(), pos);
         if (compared == Compared.BODY) {
-            return crossTypes.inBody(written);
+            return rule.inBody(written);
         }
         if (compared == Compared.GENERIC_BODY) {
-            TypedSpec answer = crossTypes.inGenericBody(written);
+            TypedSpec answer = rule.inGenericBody(written);
             return answer instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison kept
                     ? kept.in(comparedIn) : answer;
         }
-        TypedSpec answer = crossTypes.inQuery(written);
+        TypedSpec answer = rule.inQuery(written);
         queryAnswers.add(answer);
         return answer;
     }
 
     /** {@code comparison} answered by the setting once its function stands in the query. */
     TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison) {
-        return crossTypes.atTheCall(comparison, ctx);
+        return (EqualityClasses.litesOwn(comparison.comparison()) ? LiteCrossTypeRule.INSTANCE : crossTypes)
+                .atTheCall(comparison, ctx);
     }
 
     /** Whether {@code n} holds the setting's answer for a comparison across types written in the query. */

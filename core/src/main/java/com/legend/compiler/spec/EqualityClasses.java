@@ -71,6 +71,9 @@ public final class EqualityClasses {
         java.util.Map<FunctionId, Comparison> all = new java.util.LinkedHashMap<>();
         put(all, Pure.AT_BOOLEAN_EQUAL, TypedCrossTypeComparison.Kind.EQUALITY, "==");
         put(all, Pure.AT_BOOLEAN_EQ, TypedCrossTypeComparison.Kind.EQUALITY, "eq");
+        // lite's own comparison of two sides in any order (register S430): held to the rule where == is, by lite's
+        // setting at every door (litesOwn)
+        put(all, Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS, TypedCrossTypeComparison.Kind.EQUALITY, "hasSameElements");
         put(all, Pure.AT_COLLECTION_IN, TypedCrossTypeComparison.Kind.MEMBERSHIP, "in");
         put(all, List.of(FunctionId.of(Pure.CONTAINS__ANY_MANY__ANY_1)), TypedCrossTypeComparison.Kind.MEMBERSHIP,
                 "contains");
@@ -95,6 +98,20 @@ public final class EqualityClasses {
         put(all, Pure.AT_ASSERTS_ASSERT_CONTAINS, TypedCrossTypeComparison.Kind.ASSERT, "assertContains");
         put(all, Pure.AT_ASSERTS_ASSERT_NOT_CONTAINS, TypedCrossTypeComparison.Kind.ASSERT, "assertNotContains");
         return java.util.Collections.unmodifiableMap(all);
+    }
+
+    /** Whether {@code chosen} is LITE'S OWN comparison ({@code hasSameElements}, register S430): no upstream
+     *  function, so no compatibility door's setting has an answer for it -- lite's rule is its meaning whichever door
+     *  admitted the code that calls it (two known types never compare: its marker, refused by name where a query is
+     *  planned and where a body is compiled; the closing batch of step 6, 2026-11-27: until then the planner checked
+     *  it, when the comparison was planned, and a model's compile check did not see it). */
+    static boolean litesOwn(TypedFunction chosen) {
+        return chosen.definition() != null && Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(chosen.id());
+    }
+
+    /** {@link #litesOwn(TypedFunction)} of the function {@code comparison} calls. */
+    static boolean litesOwn(TypedSpec comparison) {
+        return comparison instanceof com.legend.compiler.spec.typed.TypedNativeCall call && litesOwn(call.callee());
     }
 
     private static void put(java.util.Map<FunctionId, Comparison> all, List<FunctionId> ids,

@@ -39,7 +39,9 @@ public final class CrossTypeComparisons {
     }
 
     /** Every marker of a comparison across types in {@code body}, in order: what a setting left for the planner to
-     *  refuse (lite's every one; legend-pure's the one it cannot answer yet, which its door refuses by name). */
+     *  refuse (lite's every one; legend-pure's the one it cannot answer yet, which its door refuses by name). Not the
+     *  marker of lite's own comparison ({@link EqualityClasses#litesOwn}): no door's setting left that one, and the
+     *  core refuses it by its own words wherever the code is planned ({@link #refuse}). */
     public static List<TypedCrossTypeComparison> in(List<? extends TypedSpec> body) {
         List<TypedCrossTypeComparison> out = new ArrayList<>();
         for (TypedSpec statement : body) {
@@ -62,7 +64,7 @@ public final class CrossTypeComparisons {
     }
 
     private static void collect(TypedSpec n, List<TypedCrossTypeComparison> out) {
-        if (n instanceof TypedCrossTypeComparison c) {
+        if (n instanceof TypedCrossTypeComparison c && !EqualityClasses.litesOwn(c.comparison())) {
             out.add(c);
         }
         for (TypedSpec k : n.children()) {
