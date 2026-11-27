@@ -3658,6 +3658,11 @@ public final class Lowerer {
             // types its CALL fixes is answered at that call or not at all: reaching here unanswered it would be two
             // known types compared by the database, so it is refused (invariant 4; the outside audit of 2026-11-27)
             case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> {
+                if (x.neverEqual() && x.comparison() instanceof TypedNativeCall never && never.args().size() == 2) {
+                    // answered by its sides' types: false, both sides evaluated (a side that may raise still raises)
+                    yield Equalities.neverEqualButEvaluated(scalarInner(never.args().get(0), columns),
+                            scalarInner(never.args().get(1), columns));
+                }
                 if (x.fixedByTheCall()) {
                     throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()
                             == null ? "" : " in " + x.function()) + ") reached the lowering unanswered: the pass"

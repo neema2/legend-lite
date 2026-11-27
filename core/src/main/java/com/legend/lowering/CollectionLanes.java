@@ -136,6 +136,12 @@ final class CollectionLanes {
             // a comparison across types (B3 step 5): refused before the lowering; its call's lane if it is met
             case com.legend.compiler.spec.typed.TypedCrossTypeComparison x -> valueLane(x.comparison());
             case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> {
+                if (x.neverEqual()) {
+                    // (answered "never equal, its sides evaluated": Lowerer.scalarInner writes it; no value lane does)
+                    throw new com.legend.error.NotImplementedException("a comparison of two types whose side may"
+                            + " raise (" + x.operator() + ") stands where a collection's value lane reads it: not"
+                            + " supported yet");
+                }
                 if (x.fixedByTheCall()) {
                     // (as Lowerer.scalarInner: one whose types its call fixes is answered there or not at all)
                     throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()

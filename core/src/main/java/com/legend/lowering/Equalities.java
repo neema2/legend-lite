@@ -38,7 +38,39 @@ final class Equalities {
      *  true; the guard would spell it false). The residual both-NULL divergence (SQL NULL where Pure says true) is
      *  the reference engine's own behaviour (a bare {@code =}). */
     static SqlExpr equal(TypedNativeCall n, List<SqlExpr> args) {
-        return equal(n, args, NumberFamilies.TWO_FAMILIES);
+        return emptySideIsFalse(n, equal(n, args, NumberFamilies.TWO_FAMILIES));
+    }
+
+    /**
+     * The product's own rule for ONE side that may be empty (the user, 2026-11-27: "Yes do the empty side fix";
+     * "okay fix for lite if small"): {@code $x.nick == 'a'} where {@code nick} holds no value is false, as Pure says
+     * ({@code [] == 'a'}), wherever the comparison stands. Left a bare {@code =}, the database's NULL was right
+     * inside a filter, an {@code if} and under a {@code !} (each reads NULL as "not so") and wrong as a VALUE: a
+     * projected comparison showed no value where Pure says false (measured 2026-11-27 on DuckDB, H2 and SQLite).
+     * Written as the guard an ordering's optional operand already takes ({@link NullSemantics#optionalOperandGuards}:
+     * {@code x IS NOT NULL AND x = v}), so a filter keeps a plain comparison a database can use an index for.
+     *
+     * <p>Only where exactly one side may be empty and it is a plain column: two sides that may both be empty are the
+     * null-safe arm's ({@link #nullArms}: empty equals empty), and a computed side is not written twice (it stays the
+     * bare comparison, a recorded gap). A compatibility door keeps the comparison it had: legend-engine writes the
+     * bare {@code =} there ({@code Scalars.numbersOfThreeTypes} does not pass through here).
+     */
+    private static SqlExpr emptySideIsFalse(TypedNativeCall n, SqlExpr compared) {
+        if (!(compared instanceof SqlExpr.Call c) || c.fn() != SqlFn.EQUAL || c.args().size() != 2
+                || n.args().size() != 2) {
+            return compared;
+        }
+        boolean first = NullSemantics.isOptional(n.args().get(0).info().multiplicity());
+        boolean second = NullSemantics.isOptional(n.args().get(1).info().multiplicity());
+        if (first == second) {
+            return compared;
+        }
+        SqlExpr mayBeEmpty = c.args().get(first ? 0 : 1);
+        if (!(mayBeEmpty instanceof SqlExpr.Column)) {
+            return compared;
+        }
+        return new SqlExpr.Group(new SqlExpr.Call(SqlFn.AND, List.of(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, mayBeEmpty),
+                compared)));
     }
 
     /** {@link #equal(TypedNativeCall, List)} with how numbers of different types compare inside a mixed list
@@ -140,6 +172,21 @@ final class Equalities {
         // nullable col-vs-col equality is NULL-SAFE (engine
         // isEqualsFromFilter; task #62's equal-side arm)
         return nullArms(n, cargs);
+    }
+
+    /**
+     * The false of two sides that hold two types, both sides still evaluated ({@code TypedRunTimeComparison
+     * .answeredNeverEqual}): each side's text behind a mark of its own, compared -- two texts that differ at their
+     * first character, so the answer is false whatever the sides hold, and no database can know that without
+     * computing them; a side that holds no value makes the comparison NULL, which is false too. A constant false
+     * here would let the database, and lite, leave a side unevaluated, and an error it raises unraised.
+     */
+    static SqlExpr neverEqualButEvaluated(SqlExpr left, SqlExpr right) {
+        SqlExpr l = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("l"), new SqlExpr.Cast(left,
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR));
+        SqlExpr r = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("r"), new SqlExpr.Cast(right,
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR));
+        return SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Call.of(SqlFn.EQUAL, l, r), new SqlExpr.BoolLit(false));
     }
 
     /** Whether {@code e}'s SQL type is known to be {@code type}. */

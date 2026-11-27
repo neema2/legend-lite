@@ -135,6 +135,9 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
     @Override
     public TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison marked,
             com.legend.compiler.element.ModelContext ctx) {
+        if (marked.neverEqual()) {
+            return marked;   // answered already (a pass that meets it again leaves it)
+        }
         if (!(marked.comparison() instanceof com.legend.compiler.spec.typed.TypedNativeCall call)) {
             return marked.comparison();
         }
@@ -163,12 +166,41 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
             throw crossing.refusalAtTheCall(marked.function());
         }
         return switch (c.kind()) {
-            case EQUALITY -> neverEmpty(call) ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
-                    : call;
+            // (the constant only where neither side is a computation that may raise: Pure evaluates both sides
+            // before it compares them, so [1, 2]->at(5)->cast(@Number) == 1.0 raises there -- the false that still
+            // evaluates its sides otherwise; the user, 2026-11-27, "agreed")
+            case EQUALITY -> !neverEmpty(call) ? call
+                    : unevaluatedIsHarmless(call) ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
+                    : marked.answeredNeverEqual();
             case MEMBERSHIP -> new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info());
             case INDEX -> new com.legend.compiler.spec.typed.TypedCInteger(-1L, call.info());
             case ORDERING -> byValueThenType(call, c, ctx);
             case ASSERT -> call;
+        };
+    }
+
+    /** Whether leaving {@code call}'s sides unevaluated loses nothing: each is a written value, a variable, a
+     *  property read or an upcast of one -- nothing that computes, so nothing that may raise. */
+    private static boolean unevaluatedIsHarmless(com.legend.compiler.spec.typed.TypedNativeCall call) {
+        return call.args().stream().allMatch(LiteCrossTypeRule::harmless);
+    }
+
+    private static boolean harmless(TypedSpec side) {
+        return switch (side) {
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> true;
+            case com.legend.compiler.spec.typed.TypedCInteger i -> true;
+            case com.legend.compiler.spec.typed.TypedCFloat f -> true;
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> true;
+            case com.legend.compiler.spec.typed.TypedCString t -> true;
+            case com.legend.compiler.spec.typed.TypedCDate d -> true;
+            case com.legend.compiler.spec.typed.TypedEnumValue e -> true;
+            case com.legend.compiler.spec.typed.TypedVariable v -> true;
+            case com.legend.compiler.spec.typed.TypedPropertyAccess p -> p.children().stream()
+                    .allMatch(LiteCrossTypeRule::harmless);
+            case com.legend.compiler.spec.typed.TypedCast cast -> harmless(cast.source());
+            case com.legend.compiler.spec.typed.TypedCollection list -> list.elements().stream()
+                    .allMatch(LiteCrossTypeRule::harmless);
+            default -> false;
         };
     }
 
