@@ -139,7 +139,8 @@ each keeps to its files.
    `UpstreamPrints.orderFree` takes `makeString`, a relation's `toString` and `toCSV` for order-free), and one for
    the records (answers moved by the DateTime narrowing with no words in S429). Each with a test both ways.
 2. **Verify the lane probe here** on DuckDB, H2 and SQLite (STATE note, "Not done" item 3): it must print its
-   `PROBE CASE` lines before anyone runs it on a lane.
+   `PROBE CASE` lines before anyone runs it on a lane. Then run it on D10's six databases through your lane sessions
+   (section 8) and put the answers in the D10 draft.
 3. **The full measurement** of everything after `5e9a8879b`: the STATE note's "exact next action" block. Every
    recorded line that moves is named and explained. The narrowed rule R1 lifts more than the measured repair did and
    the DateTime rule lifts less: expect moves in both directions.
@@ -168,11 +169,15 @@ each keeps to its files.
   before calling one a regression.
 - **A single failure** goes through the narrowest runner first: `bazel run //spec:corpus_one -- <duckdb|h2> host
   <test>`, or the test's own target with `--test_filter`.
-- **Database lanes.** Your account probably has no cloud credentials (they come from the orchestrator's environment),
-  so you cannot run Snowflake, Databricks or BigQuery. You can run the embedded servers (Postgres through
-  `tools/postgres/as_unprivileged.sh`, Trino, ClickHouse, MariaDB, MySQL): `bazel test //pct:pct_<name>
-  //pct:pct_channel_b_<name> --keep_going --test_timeout=3600 --cache_test_results=no`. For D10's six databases, run
-  the three you can and say in the landing note which three are left for the orchestrator's lanes.
+- **Database lanes.** Your account has its own warm database lane sessions, with credentials (the user,
+  2026-11-27: "It has warm database sessions it can use with creds"). Use them as AGENTS.md's "The fast setup" says:
+  one session per group of databases, **measure only** (no tracked file edited, no commit, no push), started once, on
+  your FINAL commit, each told the commit to check out, the targets to run (`bazel test //pct:pct_<name>
+  //pct:pct_channel_b_<name> --keep_going --test_timeout=3600 --cache_test_results=no`) and exactly what to report.
+  Run every database a print could differ on, the cloud ones included, and D10's probe on all six of its databases
+  (Postgres, Trino, Snowflake, ClickHouse, Databricks, BigQuery) once the probe prints its lines here. Nobody pastes
+  a key into a session, a message or the repository, and no session prints one. A lane you could not reach is named
+  in the landing note as not run.
 - **Independent review:** before the non-scratch commit, give a fresh subagent the diff and the rules (never your
   conclusion) and apply or answer each finding.
 - **SQL size pins only go down.** A pin that would go up is a question for the user, not an edit.
@@ -184,8 +189,8 @@ each keeps to its files.
    recorded answer that moved, as a table** (the expression, legend-pure's answer, legend-engine's, lite's before,
    lite's now, its register row); the decision drafts; what you ran and its result, with anything not run named; and
    any file of section 6's "B's" list you needed and did not touch.
-3. Tell the user the branch and the commit. The user passes it to the orchestrator, who reviews it, merges it into the
-   program branch and runs the lanes you could not. You never push to the program branch or the pull request's branch.
+3. Tell the user the branch and the commit. The user passes it to the orchestrator, who reviews it and merges it into the
+   program branch (and runs any lane you named as not run). You never push to the program branch or the pull request's branch.
 4. If the program branch has moved when you reach a milestone (B lands in slices), merge it again first, by section
    4's rules, and re-run the fast set and the recordings.
 
