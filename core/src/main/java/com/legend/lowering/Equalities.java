@@ -113,11 +113,17 @@ final class Equalities {
     static SqlExpr asSameValues(TypedNativeCall n, SqlExpr compared,
             java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows) {
         if (!(compared instanceof SqlExpr.Call c) || c.fn() != SqlFn.EQUAL || c.args().size() != 2
-                || n.args().size() != 2 || !aList(c.args().get(0)) || !aList(c.args().get(1))
+                || n.args().size() != 2 || !plainList(c.args().get(0)) || !plainList(c.args().get(1))
                 || !SideEqualities.comparedAsValues(n.args().get(0).info().type(), n.args().get(1).info().type())) {
             return compared;
         }
-        com.legend.sql.SqlQuery left = sideRows.apply(n.args().get(0));
+        // the rows ride where a database that compares rows needs them: a computed side; or two written lists the
+        // SQL types differently (a Decimal at two scales, an Integer against a Decimal), whose JSON texts are not
+        // their values. Two written lists of one SQL type are compared as they were (Strings among them: a
+        // database's comparison of two String COLUMNS follows its collation, its comparison of two lists does not)
+        boolean written = n.args().get(0) instanceof TypedCollection && n.args().get(1) instanceof TypedCollection;
+        boolean rows = !written || !Objects.equals(c.args().get(0).type(), c.args().get(1).type());
+        com.legend.sql.SqlQuery left = rows ? sideRows.apply(n.args().get(0)) : null;
         com.legend.sql.SqlQuery right = left == null ? null : sideRows.apply(n.args().get(1));
         return new SqlExpr.Call(SqlFn.SAME_IN_ORDER, left == null || right == null ? c.args()
                 : List.of(c.args().get(0), c.args().get(1), new SqlExpr.ScalarSubquery(left),
@@ -424,6 +430,15 @@ final class Equalities {
         }
         return la.identityPositions() && lb.identityPositions() && TaggedLists.oneChannelPerFamily(numbers, la, lb)
                 ? TaggedLists.sameListByKinds(la, lb) : TaggedLists.sameList(la, lb, numbers);
+    }
+
+    /** Whether the SQL carries {@code e} as a list of plain typed values: an array whose elements are a scalar type
+     *  that is the value itself (no JSON, no Decimal or date written as its text). */
+    private static boolean plainList(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array a
+                && (a.element() instanceof SqlType.Decimal || a.element() instanceof SqlType.Scalar s
+                        && s != SqlType.Scalar.JSON && s != SqlType.Scalar.DECIMAL_TEXT
+                        && s != SqlType.Scalar.TEMPORAL_TEXT);
     }
 
     /** Whether the SQL carries {@code e} as a list: its type says an array. */

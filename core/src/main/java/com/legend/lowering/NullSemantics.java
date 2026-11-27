@@ -163,6 +163,9 @@ final class NullSemantics {
             case EQUAL -> enumInvolved
                     ? notEqualExpandedArms(c.args())
                     : notEqualNullArms(c.args());
+            // two side values alone (Equalities.asSameValues with no rows): negated as the plain equality it stands
+            // for was, the null-safe not-equal of the two values; with its rows it is two-valued, and NOT suffices
+            case SAME_IN_ORDER -> c.args().size() == 2 ? notEqualNullArms(c.args()) : null;
             case NULL_SAFE_EQUAL ->
                     new SqlExpr.Call(SqlFn.NULL_SAFE_NOT_EQUAL, c.args());
             case NULL_SAFE_NOT_EQUAL ->

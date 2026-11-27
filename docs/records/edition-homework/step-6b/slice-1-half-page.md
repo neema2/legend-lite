@@ -85,3 +85,19 @@ refuses the computed list at the product's door before and after (its missing li
 writes the comparisons both ways on DuckDB; the test that holds the measure's counts; an independent review of the
 diff; the size pins read; then the corpus and PCT lanes, one push to the pull request, the lanes once, and the
 program branch moves.
+
+## The independent review of the diff (`review-3-of-slice-1.md`) and what became of it
+
+| Finding | What it was | Done |
+|---|---|---|
+| B1 | BigQuery wrote the two-value form as "not equal" (its null-safe arm read the instruction as a null-safe comparison) | fixed: the instruction goes to the base arm first |
+| B2 | A value drawn afresh in a `let` the side reads was drawn again for the side's rows | fixed: the same transitive check the planner's statement had |
+| S1 | `!` of the two-value form was a bare `NOT`, where the plain equality's negation was null-safe | fixed in `NullSemantics.negate` |
+| S2 | The two-value form ignored its parent's precedence (`a = b = TRUE`) | fixed: written in parentheses |
+| S3 | MongoDB refused the two-value form it used to answer as an equality | fixed |
+| S4 | The guard on how a list is carried was gone | fixed: plain typed lists only (no JSON, no Decimal or date as its text) |
+| S5 | DuckDB compares the list values as they are, where the rows form drops an empty element | a row of the measure asks it ("list with an empty element") |
+| N6 | Two written String lists would have been compared as rows, by a database's collation | fixed: rows ride only for a computed side, or two written lists the SQL types differently |
+| N1 | The instruction is typed "never NULL", and its two-value form can be | open: read with the round's result |
+| N3 | An unreachable refusal with the wrong words | fixed: a malformed call is a defect |
+| N4 | The planner's rows are lowered on DuckDB too, where nothing writes them | open: measured cost first |

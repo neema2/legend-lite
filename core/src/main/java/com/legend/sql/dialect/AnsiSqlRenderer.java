@@ -1398,11 +1398,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (c.args().size() == 2 && c.fn() == SqlFn.SAME_IN_ORDER) {
             // the two side VALUES alone (step 6B, slice 1: a side reads the row it stands in, so no rows of its own
             // ride with it): this database's own comparison of the two values, as it was written before the slice
-            return writer.expr(new SqlExpr.Call(SqlFn.EQUAL, c.args()), 4);
+            return writer.append("(").expr(new SqlExpr.Call(SqlFn.EQUAL, c.args()), 0).append(")");
         }
-        if (c.args().size() < 4) {
-            throw new com.legend.sql.DialectCapability("a comparison of two lists in any order, of sides that read the"
-                    + " row they stand in, has no form on a database that compares rows: refused");
+        if (c.args().size() != 4) {
+            throw new IllegalStateException(c.fn() + ": two side values, or two side values and the two sides' rows");
         }
         if (!(c.args().get(2) instanceof SqlExpr.ScalarSubquery e) || !(c.args().get(3) instanceof SqlExpr.ScalarSubquery a)) {
             throw new IllegalStateException(c.fn() + ": its third and fourth arguments are the sides' rows");

@@ -1879,6 +1879,11 @@ public class BigQuery extends AnsiSqlRenderer {
     /** The null-safe arms of {@link #call}: a NULL composite's JSON text is 'null', no composite value's is. */
     private SqlWriter nullSafeArm(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
+        if (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER) {
+            // (its two-value form is this database's own = of the two values, written by the equality's arm; read
+            // here as a null-safe comparison it was written as "not equal": the review of step 6B's slice 1, B1)
+            return nullSafe(writer, c);
+        }
         boolean equal = c.fn() == SqlFn.NULL_SAFE_EQUAL;
         if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
             return writer.append("(TO_JSON_STRING(").expr(a.get(0), 0).append(equal ? ") = " : ") <> ")

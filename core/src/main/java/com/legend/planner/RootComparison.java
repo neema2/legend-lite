@@ -205,8 +205,10 @@ final class RootComparison {
 
             @Override
             public @Nullable SqlQuery sideRows(TypedSpec side) {
+                // (a value drawn afresh, in the side or in a let it reads, would be drawn again for its rows: the
+                // review of step 6B's slice 1, B2)
                 return readable.containsAll(com.legend.compiler.spec.typed.FreeVars.of(side))
-                        && !com.legend.compiler.spec.UserCallInliner.drawsAfresh(side)
+                        && !drawsAfresh(side, lets, seededLets)
                         ? SideEqualities.typedRows(lowered.apply(with(lets, side))) : null;
             }
 
@@ -220,7 +222,7 @@ final class RootComparison {
 
     /** Whether {@code equal}, or a let it reads (its own, or one the environment seeds; each through the lets it
      *  reads in turn), holds a value drawn afresh where it is written. */
-    private static boolean drawsAfresh(TypedNativeCall equal, List<TypedSpec> lets,
+    private static boolean drawsAfresh(TypedSpec equal, List<TypedSpec> lets,
             java.util.Map<String, TypedSpec> seeded) {
         if (com.legend.compiler.spec.UserCallInliner.drawsAfresh(equal)) {
             return true;
