@@ -51,6 +51,10 @@ public final class SideEqualities {
      *  {@code same} whether the two sides are the same, and {@code held} each side's values as a record may list them
      *  (the expected's, then the actual's; then any other the member names). */
     public record Compared(List<SqlWith.Cte> ctes, SqlSource from, SqlExpr same, List<Held> held) {
+        /** The comparison as asked: whether the two sides are the same ({@code want}), or are not. */
+        public SqlExpr holds(boolean want) {
+            return want ? same : SqlExpr.Call.of(SqlFn.NOT, same);
+        }
     }
 
     /** A side's values as a record lists them: the expression that reads them, its SQL type, the Pure kind they are

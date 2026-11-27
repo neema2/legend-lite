@@ -1666,6 +1666,12 @@ class JavaEvalLedgerTest {
                     // one owner. Planning, no session; nothing evaluated: a constant is the literal's, the model's or
                     // the plan-time text's
                     "ProductStatements.java",
+                    // a statement whose answer is a comparison of two whole sides (the edition program's step 6, the
+                    // one equality, 2026-11-27): it reads the statement's typed shape (an equal call at its root, the
+                    // two sides' declared types and multiplicities), has each side lowered as the statement it is, and
+                    // asks the product's equality over two sides to compare them. Planning, no session; no value
+                    // compared or computed here: the comparison is SQL the database runs
+                    "RootComparison.java",
                     // the query door and the program road's state (the test-is-the-product plan's M3c, B12 items 1-3,
                     // 2026-10-31): the door scans a typed body once for the kinds only a test's program holds and
                     // refuses them by name (the compiler's own reach scans; no value computed); the one planning

@@ -13,8 +13,6 @@ import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.lowering.SideEqualities;
 import com.legend.sql.OutputCol;
-import com.legend.sql.SqlExpr;
-import com.legend.sql.SqlFn;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlType;
@@ -84,11 +82,10 @@ final class RootComparison {
         if (compared == null) {
             return null;
         }
-        SqlExpr same = negated ? SqlExpr.Call.of(SqlFn.NOT, compared.same()) : compared.same();
         OutputCol out = new OutputCol("value", SqlType.Scalar.BOOLEAN, false);
-        SqlSelect row = new SqlSelect(List.of(new SqlSelect.Projection(same, "value", out)), false, compared.from(),
-                null, List.of(), null, null, List.of(), null, null, List.of(out));
-        return compared.ctes().isEmpty() ? row : new SqlWith(compared.ctes(), row);
+        SqlSelect row = new SqlSelect(List.of(new SqlSelect.Projection(compared.holds(!negated), "value", out)), false,
+                compared.from(), null, List.of(), null, null, List.of(), null, null, List.of(out));
+        return SqlWith.prepend(compared.ctes(), row);
     }
 
     /** Whether {@code t} names its values' type: a primitive that is no supertype of others, or an enumeration. */

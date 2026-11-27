@@ -105,8 +105,7 @@ public final class VerdictSql {
             SideEqualities.Held held = compared.held().get(i);
             values.add(new Valued(HELD.get(i), held.value(), held.type(), held.kind(), held.many()));
         }
-        return typedRow(compared.ctes(), compared.from(), want ? compared.same()
-                : SqlExpr.Call.of(SqlFn.NOT, compared.same()), values);
+        return typedRow(compared.ctes(), compared.from(), compared.holds(want), values);
     }
 
     /** {@code assertContains}'s member over instances of one class ({@link SideEqualities#containsInstances}). */
