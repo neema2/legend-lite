@@ -187,6 +187,21 @@ final class Equalities {
         return SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Call.of(SqlFn.EQUAL, l, r), new SqlExpr.BoolLit(false));
     }
 
+    /** {@link #neverEqualButEvaluated} for a membership or an index of two types ({@code in}, {@code contains},
+     *  {@code indexOf}): false, or -1 for {@code index}, each of {@code singles} -- the single values among the
+     *  comparison's sides -- still evaluated, their texts joined behind a mark and compared with another. */
+    static SqlExpr neverAmongButEvaluated(List<SqlExpr> singles, boolean index) {
+        SqlExpr read = new SqlExpr.StringLit("l");
+        for (SqlExpr single : singles) {
+            read = SqlExpr.Call.of(SqlFn.CONCAT, read, new SqlExpr.Cast(single, SqlType.Scalar.VARCHAR,
+                    SqlExpr.Reason.OPERATOR));
+        }
+        SqlExpr never = SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Call.of(SqlFn.EQUAL, read, new SqlExpr.StringLit("r")),
+                new SqlExpr.BoolLit(false));
+        return !index ? never : new SqlExpr.Case(List.of(new SqlExpr.Case.When(never, new SqlExpr.IntLit(0))),
+                new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
+    }
+
     /** Whether {@code e}'s SQL type is known to be {@code type}. */
     private static boolean carriedAs(SqlExpr e, SqlType type) {
         return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == type;

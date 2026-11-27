@@ -175,8 +175,14 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
                     : unevaluatedIsHarmless(call) || manyValued(call)
                             ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info())
                     : marked.answeredNeverEqual();
-            case MEMBERSHIP -> new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info());
-            case INDEX -> new com.legend.compiler.spec.typed.TypedCInteger(-1L, call.info());
+            // membership and index the same (the user, 2026-11-27: "why cant we do the work we promised"): the constant
+            // only where no single value among the sides is a computation that may raise --
+            // [1, 2]->at(5)->cast(@Number)->in([1.5]) raises in Pure. (A computed LIST that may raise keeps the
+            // constant: evaluated, it would be a list value inside an expression; recorded.)
+            case MEMBERSHIP -> singleValuesAreHarmless(call)
+                    ? new com.legend.compiler.spec.typed.TypedCBoolean(false, call.info()) : marked.answeredNeverEqual();
+            case INDEX -> singleValuesAreHarmless(call)
+                    ? new com.legend.compiler.spec.typed.TypedCInteger(-1L, call.info()) : marked.answeredNeverEqual();
             case ORDERING -> byValueThenType(call, c, ctx);
             case ASSERT -> call;
         };
@@ -207,6 +213,12 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
                     .allMatch(LiteCrossTypeRule::harmless);
             default -> false;
         };
+    }
+
+    /** Whether every side of {@code call} that is one value (not a list) is {@link #harmless}. */
+    private static boolean singleValuesAreHarmless(com.legend.compiler.spec.typed.TypedNativeCall call) {
+        return call.args().stream().filter(side -> !side.info().multiplicity().isMany())
+                .allMatch(LiteCrossTypeRule::harmless);
     }
 
     private static boolean manyValued(com.legend.compiler.spec.typed.TypedNativeCall call) {

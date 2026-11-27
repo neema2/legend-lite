@@ -242,4 +242,34 @@ class RunTimeComparisonTest {
             }
         }
     }
+
+    /** The same for a membership and an index of two types (the user, 2026-11-27: "why cant we do the work we
+     *  promised to get to one equality?"): never among them, and a single value that would raise still raises, as
+     *  Pure evaluates it before it looks. Until then the answer was the constant, whatever the value's computation. */
+    @Test
+    void aMembershipOfTwoTypesStillRaisesWhatItsValueRaises() throws Exception {
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        java.util.Map<String, Object> answered = new java.util.LinkedHashMap<>();
+        answered.put("|[1, 2]->at(1)->cast(@Number)->in([1.5, 2.5])", false);
+        answered.put("|[1.5, 2.5]->contains([1, 2]->at(1)->cast(@Number))", false);
+        answered.put("|[1.5, 2.5]->indexOf([1, 2]->at(1)->cast(@Number))", -1L);
+        for (java.util.Map.Entry<String, Object> c : answered.entrySet()) {
+            try (Connection connection = backend.open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                assertEquals(List.of(List.of(c.getValue())), r.rows(), c.getKey() + "\n" + r.text());
+            }
+        }
+        for (String raises : List.of("|[1, 2]->at(5)->cast(@Number)->in([1.5, 2.5])",
+                "|[1.5, 2.5]->contains([1, 2]->at(5)->cast(@Number))",
+                "|[1.5, 2.5]->indexOf([1, 2]->at(5)->cast(@Number))")) {
+            try (Connection connection = backend.open()) {
+                RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                        () -> Lean.established(model, raises, "p::RT", connection), raises);
+                org.junit.jupiter.api.Assertions.assertFalse(
+                        e instanceof com.legend.error.NotImplementedException
+                                || e instanceof com.legend.error.ModelException, raises + ": " + e);
+            }
+        }
+    }
 }
