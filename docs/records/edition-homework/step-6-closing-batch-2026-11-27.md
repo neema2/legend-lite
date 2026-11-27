@@ -182,6 +182,27 @@ So in ANSWERS too the two forms are not yet one: about ten bodies on DuckDB and 
 verdict or their refusal between an assert and its plain comparison, beyond the databases' missing list forms. The
 rows in bold are the product's own.
 
+### The bold rows, read body by body (2026-11-27; each comparison probed alone on DuckDB, H2 and SQLite)
+
+Against the measure before the batch (`99`), every answer the batch moved is for the better: twelve `hasSameElements`
+bodies on H2 that were refused now answer (and agree with their assert); `hasSameElements(['1']->cast(@Any), [1])`
+answered true and is now false, as its assert says; one of legend-engine's own tests (`testHashCodeAggregate`, an
+`assertEquals` of a list mapped from a grouping with no sort) is now refused by the order rule in both forms at lite's
+door (at legend-engine's door it is the any-order assert). No body moved the wrong way.
+
+| What still moves | Bodies | Cause, as probed | What becomes of it |
+|---|---|---|---|
+| a year or a year-month WRITTEN against one COMPUTED: `%1973 == date(1973)`, `%1973-11 == %1973-11->datePart()`, `%2015-03 == %2012-03->adjust(36, MONTHS)` | 6 of legend-pure's own date tests, on all three databases | `==` answered `SELECT FALSE` with no read: an old rule of the lowering, "a partial date is a literal only" (`lowering.Equalities`). Both are carried as the text they print | **FIXED in the batch** (`80af007bf`): the two texts are compared. Test `OneValueWithinOneTypeTest.aWrittenYearEqualsAComputedOne` |
+| a day read out of a written list of days and date-times, against a date-time: `%2020-01-02T00:00 == [%2020-01-02, %2020-01-01T00:00]->at(0)` | 1, DuckDB and H2 | the list's element is unrolled to the day it is, and the database compares a day with a date-time as midnight: true, where the rule says a day is no date-time (the assert says so). Register S399's family: such a list is refused where it is compared whole, but "never a function's arguments", so `at(0)` passes | recorded under S399 as one more known gap; not built here |
+| two date-times of one instant written at two precisions, on SQLite: `%2020-01-01T10:00:00.5 == %2020-01-01T10:00:00.500` | 12, SQLite alone | SQLite holds a date-time as the text it was written in, and compares the texts | the database follow-up (SQLite's date-times) |
+| Decimals in a written list or pair at two scales, on H2 and SQLite: `[1, 2] == [1D, 2.00D]`, `pair(1, 1.50D) == pair(1, 1.5D)` | 3, H2 and SQLite | a list there is JSON text, which holds a Decimal by its spelling; and two WRITTEN sides are left to the database's own comparison, "which reads them exactly" -- true on DuckDB, false where a list is text | the cause of row D8 (a Decimal in a JSON list), now also measured for a query's own answer; the database follow-up |
+| `0 == ''->ascii()` returns no value on H2 | 1 (H2; SQLite's row was this body's other assert) | H2's `ASCII('')` is NULL where Pure says 0: the function, not the comparison | the database follow-up (H2's `ascii`) |
+| `hasSameElements(['p1', 40, 'p2', 30], $result.values.rows.values)` refused | 2, DuckDB | a frame's cells of several columns read as one list: the assert's judge reads them so, the function has no such form and refuses by name | a recorded limit of `hasSameElements` |
+
+Counting only what is lite's own and not a database's missing form: after the fix above, ONE body on DuckDB still
+moves its verdict between an assert and its plain comparison (the S399 gap), and two are refused where the assert
+answers. The measure is to be run again in the one verification.
+
 ## C. Not yet verified, or housekeeping
 
 | # | What |

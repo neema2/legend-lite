@@ -119,3 +119,67 @@ Fixed since the first version of this page:
   the medium ones fixed, the other 6 in sections 4 and 5.
 - Database lanes (Postgres, Trino, MariaDB, MySQL, ClickHouse): running. Cloud lanes (Snowflake, Databricks,
   BigQuery) and CI on every operating system: not yet run.
+
+## 7. The closing batch (later on 2026-11-27): what it added, and what is still not one
+
+Everything found after the first version of this page was put on ONE list, its design reviewed before any code, and
+built together (`step-6-closing-batch-2026-11-27.md`, `step-6-closing-design-2026-11-27.md`). Not yet verified as a
+whole: the full round, the corpus, the gate, the database lanes and the final review come once, on its last commit.
+
+**More rows for section 1 (lite's own route):**
+
+| # | What you write | Before the batch | Now |
+|---|---|---|---|
+| 19 | `$x.nick == 'a'` where `nick` has no value, anywhere its answer is KEPT: an operand, an aggregate's or a window's input, under `!`, inside a `forAll` | false only as a column or the query's answer (row 17); blank elsewhere | false everywhere, and two empty sides are equal everywhere. A filter's, a join's and an `if`'s own condition are as written (the database's "no value" already is that answer there) |
+| 20 | `==` over a list that came out of a function whose order lite does not know | compared in the order the rows arrived | refused when the query is compiled: sort both sides, or use `hasSameElements` (register S431) |
+| 21 | `hasSameElements` of two different known types (`[1]` and `['a']`) | answered false, or true by accident through `Any` | a compile error at every door, as `==` is on lite's own |
+| 22 | a comparison of two types where a side is a computed LIST that would raise an error | a quiet false | the error is raised (row 18, now for lists) |
+| 23 | two maps compared with `==` for each row of a query | the database's own comparison (wrong when the entries were written in another order) | refused by name: compare them as a query's answer, or in a `let` |
+| 24 | a year or a year-month written against one computed: `%1973 == date(1973)` | false, with nothing read | compared: true where the two are the same year or month |
+| 25 | a list holding values drawn afresh (`random()`), read twice by position | each read drew again | refused by name |
+
+**At the doors:** an empty side is answered as each audience answers it (legend-pure's way at its door;
+legend-engine's by where the comparison runs: inside a query sent to a database as the database does, outside it as
+its own Java does). A date built to the hour or the minute is compared by the precision it was written at, as
+upstream does (run on upstream, 2026-11-27). In an upstream-style test, `assert(a == b)` over a list with no sort is
+the any-order assert, as `assertEquals` there already was.
+
+**One code decides who answers a comparison.** The lowering looks the call up in the door's table in one place. A
+door's row replaces the product's whole rule for that call; with no row, the product's rule runs, and it alone asks
+the planner for a comparison of two whole sides. The planner's comparison code no longer reads which door is asking.
+The planner's OLDER reads of the door (where a door's code is stamped; the making of the door's table) are still
+there, each on a list a test holds, and go at the end of the edition program (your "2 okay").
+
+**What is still not one** (the architecture review of the batch, in its own words: "PARTLY"):
+- There are still two pieces of code in the product: one for a SINGLE value compared where it stands (the
+  database's `=`, with lite's rules written around it) and one for two WHOLE sides (a statement the planner plans).
+  They are meant to agree and the measure below says where they do not. Making them one piece is its own step,
+  about one to two weeks, with its design reviewed first.
+- The doors' row for `==` is named for numbers but also carries the doors' date rule, and switches the whole-side
+  plan off. It works; its name does not say what it does.
+
+**The measure** (every assert of lite's own tests against its plain comparison, 1,733 test bodies on DuckDB, H2 and
+SQLite): 176 differed when step 6's measuring began, 99 before the batch, **85 after it** (28 on DuckDB, 59 on H2, 54
+on SQLite; the table by cause is in the batch list). Read body by body:
+- Most are a database with no list form (H2 and SQLite), or a test checker saying "I cannot judge this form", or a
+  test body the planner does not plan: no answer differs. The database follow-up.
+- 9 bodies, on SQLite alone, are SQLite holding a date-time as the text it was written in. The database follow-up.
+- 6 bodies, on every database, were row 24: fixed after the measure was taken.
+- What is left of lite's own: 1 body where a day read out of a mixed list is compared with a date-time (register
+  S399's known gap, DuckDB and H2); 3 bodies on H2 and SQLite where a Decimal inside a written list or pair is
+  compared by its spelling; 2 where `hasSameElements` refuses a table's cells read as one list; 1 on H2 where
+  `''->ascii()` is no value (the function, not the comparison).
+- Nothing the batch moved went the wrong way: twelve `hasSameElements` bodies that were refused on H2 now answer,
+  and one that wrongly answered true now answers false.
+
+**Known gaps, replacing section 5's list where they overlap:**
+- A list compared per row: as in section 5. A map per row is now refused by name (row 23).
+- Whole lists of two column-held number kinds answer false, where two single values of those kinds are refused.
+- A comparison written inside a lambda the query's author hands to their own function is checked as that
+  function's code.
+- Two tables compared for each row of a query: the database's own comparison.
+- The order rule's two limits (register S431): values read out of one sorted value are trusted as sorted; a
+  `distinct` after a sort is read as sorted where the database does not promise it.
+- A variable no statement reads, whose `let` would raise, raises nothing.
+- Two date literals of different written precision are equal at every door (upstream not yet run for that pair).
+- `[3, 3D]->max()` keeps the first of the two; upstream keeps the last (register S428).
