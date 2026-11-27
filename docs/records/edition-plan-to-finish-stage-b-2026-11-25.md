@@ -1234,6 +1234,19 @@ equal in a mixed list, the assert's judge the same), as the rule put to the user
 legend-engine's modes keep their own behaviour"): a rule of the product's that each door's table asks for, and the
 host judge's forms.
 
+**The user's second answers that day, to what was put back on the six points asked back** (the words are the
+user's): 10 **"full audit good"**. 8 **"okay"** (the table's cells counted by an assert: carried, owned by step 10). 7,
+legend-pure's own answer inside a function's body at its door (`same(1, 1.0)` false there, the database's
+comparison in lite today): **"yes we should measure and hopefully fix"**. 6, a `Number`, `Any` or abstract `Date`
+value compared with another through columns of two types, an error where the query is planned in lite's mode, a
+written literal still adapting: **"great do it"**. 5, arithmetic with a written literal reading the literal as the
+other operand's type as a comparison does: **"good let's do it"** (the orchestrator had since corrected its own
+report: the typer already types a Decimal times a Float literal a Decimal, Pure's rule; what is to measure is whether
+the database computes it exactly, and the text). 4, the type of `max` and `min` of an Integer and a Float column at
+legend-engine's door: **"I think it would be great to match engine but only if not too complex and costly to do
+so"**. 3, the size rows that go up: **"great def want to see/understand the growth"**. 2, the two compatibility
+doors kept as they were by a rule of their own: **"okay great"**.
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
