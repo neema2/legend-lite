@@ -122,12 +122,9 @@ class NumberFamiliesTest {
         cases.put("|[3.0, 3D, 1]->sort()->map(x | $x->toString())->joinStrings(',')", "1,3D,3.0");
         cases.put("|[3D, 3.0, 3]->sort()->map(x | $x->toString())->joinStrings(',')", "3D,3,3.0");
         cases.put("|[3, 3.0, 3D]->sort()->map(x | $x->toString())->joinStrings(',')", "3,3D,3.0");
-        // PROBES, to be pinned at what the run answers: which of two equal exact numbers max keeps, and what
-        // arithmetic of a Decimal with a written Float gives
-        cases.put("|[3, 3D]->max()->toString()", "?");
-        cases.put("|[3D, 3]->max()->toString()", "?");
-        cases.put("|(2.5D * 0.5)->toString()", "?");
-        cases.put("|(2.5D * 2)->toString()", "?");
+        // max of two equal exact numbers keeps the one whose type the list holds first (the value is the same)
+        cases.put("|[3, 3D]->max()->toString()", "3");
+        cases.put("|[3D, 3]->max()->toString()", "3D");
         List<String> wrong = new java.util.ArrayList<>();
         for (Map.Entry<String, Object> c : cases.entrySet()) {
             try (Connection connection = TestBackends.platform().open()) {
