@@ -114,6 +114,53 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
 | B9 | `max(3, 3D)`, `min(3, 3D)` / `max(3D, 3)`, `min(3D, 3)` on lite's own door | the FIRST written (3 / 3D) | as upstream |
 | B9 | `[3, 3D]->max()`, `->min()` / `[3D, 3]->max()`, `->min()` on lite's own door | the FIRST written (3 / 3D) | upstream keeps the LAST (run, request 3, group M). Lite's own rule in lite's mode (register S428's ruling: two equal exact numbers keep the order they were written in); added to S428's row. |
 
+## The two audits of the build (2026-11-27; `step-6-closing-reviews/review-3-...` and `review-4-...`)
+
+**The code audit of pieces 1 to 5** (read-only, of `38e4fd7b8..d791f5242`): 2 blockers, 5 should-fix, 7 notes.
+
+| Finding | What it became |
+|---|---|
+| B1: the refusal of two lists of Decimal, Float or date values on SQLite, MariaDB and MySQL also refused two WRITTEN lists, answered rightly before | The refusal is removed. A list compared per row on a JSON-list database is the database's own comparison, as before: recorded for the database follow-up's row D8. Test: `RootComparisonTest.twoWrittenListsOfFloatsOrDatesAreCompared`. |
+| B2: the doors' date rule read the text CARRIER as "built to the hour or the minute"; a date built with a fraction of a second, and one against a literal of its own precision, answered false | The rule reads what is WRITTEN (the constructor's four or five parts, the literal's own precision); anything else is the shared equality, by the instant. |
+| S1: row B18 not built | Recorded (below). |
+| S2: the fresh-draw check read every let | Narrowed to what the comparison reads (`RootComparison.drawsAfresh`). |
+| S3: the lowering refused a list no statement reads; lowerers with no planner threw | No refusal: such a list is read where it stands (`Scalars.emptiness`). |
+| S4: a value cast to text whatever it holds | No text is made of a value (`SideEqualities.everyValueRead`, `Equalities.sameOnlyWhereBothEmpty` over each side's none-ness). |
+| S5: the door's `assert(a == b)` rewrite also read two tables as an any-order assert | Never over a relation-typed side. |
+| Notes | The shared-node mark: fixed (below). The legacy table's sort now SORTED: any door verdict that moves is listed from the corpus run. A variable counted harmless whose `let` computes: recorded, not probed. |
+
+**The architecture audit of step 6** (read-only, at `8b84e6a62`; the user: "make sure the code is adhering to our
+tenets and actually doing the real one equality work for real as real architecture/design"). Its verdict, for the
+user's decision:
+
+- "One equality" is REAL for one case: `==` and `hasSameElements` over two whole sides (computed lists, maps,
+  tables) at lite's own door -- the query's answer, the same comparison inside an expression, and the database
+  judge's `assertEquals` of the same sides reach one code (`SideEqualities.pair`).
+- It is NOT real elsewhere. The product has two SQL-level equalities with two representations: the VALUE form
+  (`Equalities`, `TaggedLists`, `MixedEncoding`, `InstanceEquality`, `NullSemantics`, the membership rules) for one
+  value, a list read per row, membership, an instance inside an expression; and the WHOLE-SIDE form
+  (`SideEqualities`). Only tests keep them in step.
+- Step 6's promises: "a value typed at run time carries its type" PARTLY (only mixed values carry a tag); "asserts
+  are planned as plain comparisons" FALSE (an `assertEquals` goes through the judge's machinery and shares the last
+  step with `==`, for whole sides only); "the judges' separate comparison code is deleted" FALSE (it moved:
+  `core/src/main` grew by about 3,500 lines net).
+- The right design, by the audit: one typed comparison over values that carry their kind, its meaning written
+  once; the planner decides only WHERE it is evaluated (an expression, or a statement). One to two weeks.
+
+| Its short list | What it became |
+|---|---|
+| 1. Two product equalities | **The user's decision** (land what is real and name it honestly, the unification its own step; or unify before landing). |
+| 2. The doors' meaning of `==` hangs off the row named for numbers, which also carries the date rule and switches the whole-side plan off | **The user's decision** with 1: about a day to name the row for what it is and decide the whole-side plan apart from it. |
+| 3. Positive-condition marks by node identity: a comparison placed at two reads (a function reading its argument twice) went unguarded where it stands as a value | Fixed: only an equality ALL of whose places in the condition are positive is left as written (`Lowerer.asCondition`). Test: `EmptySideEqualityTest` (`p::either`). |
+| 4. Silent fallbacks to the database's own comparison | Two maps with no typed comparison (Decimals written at two scales) are refused by name. The others recorded: a list read per row; lowerers made with no planner; `plan`'s null for two known types. |
+| 5. The whole-side form compares egress carriers with SQL chosen in the lowering | Recorded, with 1. |
+| A float literal against a `Number` column held as a Decimal is refused, where against a `Decimal` property it compiles | Not run; recorded for the user. |
+
+**Recorded, not built (for the user at landing):** B18 (two whole lists of a `Number` property, one held exact and
+one as Floats, answer false -- both computed -- where single values are refused); B5 (a caller's lambda applied
+inside a function's own lambda is the function's); a table against a table per row; the order rule's two limits
+(register S431); a variable counted harmless whose `let` computes.
+
 ## C. Not yet verified, or housekeeping
 
 | # | What |
