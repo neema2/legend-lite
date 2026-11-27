@@ -2052,10 +2052,7 @@ function timeseries::lines::timed<T,D,OP,OO>(t: Relation<T>[1], date: ColSpec<D�
 // trade at its day's rate); where both have several, no pairing is right, and the meeting is refused while the query
 // runs (the time model's D1, ruled 2026-11-03: a join would multiply them, 3 against 2 giving 6).
 // (A line's keys and periods are never empty, so they meet by a plain equality the database can hash: toOne. B2, F6.)
-// (The two dates are compared as dates, cast(@Date): which is the later is a question of their values, whatever each
-// line's grain -- a word of several lines meets them on a period typed Date, where lines of two grains are refused
-// while the query runs (helpers::grain); written between the two columns' own types the comparison was a day against
-// a date-time there, a mistake at the call since the equality rule's 2026-11-27 ruling, which pre-empted that refusal.)
+// (the two dates compared as dates, cast(@Date): lines of two grains are refused by helpers::grain)
 function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
 {
   $x->timeseries::lines::perPeriod($key, $period, ~mx)
@@ -2275,11 +2272,7 @@ function timeseries::lines::onto<T,U,K,P,Q,S,N>(spine: Relation<T>[1], key: ColS
     ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next)
 }
 
-// ... OF THE OTHER GRAIN (the time model's D4, as timeseries::lines::meet and union above): a line of moments onto
-// periods of days, or of days onto moments, pairs on no period -- a moment is no day -- so it is refused while the
-// query runs, naming the fix. Picked by the periods' types (2a), beside the spreadings of one grain; no period is
-// compared here, which a compiler that refuses a day against a date-time would refuse first, in its own words (lite's
-// equality rule at the call, 2026-11-27).
+// ... OF THE OTHER GRAIN (D4): refused while the query runs, naming the fix; no period is compared here.
 function timeseries::lines::onto<T,U,K,L,S,N>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:StrictDate)⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<(?:DateTime)⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1]): Relation<T+U+N>[1]
 {
   $spine->filter(r|timeseries::lines::oneGrain())

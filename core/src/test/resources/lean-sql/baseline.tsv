@@ -3461,7 +3461,7 @@ core	DuckDB	TypedTds	8	767	14658	0	0	0
 core	DuckDB	TypedUpdate	8	1172	8389	11	0	0
 core	DuckDB	TypedVariable	2	660	6950	0	120	0
 core	DuckDB	TypedWrite	34	4265	43674	10	115	0
-core	DuckDB	let	456	137762	4985796	245	26256	0
+core	DuckDB	let	457	138047	4991652	245	26367	0
 core	DuckDB	meta::legend::lite::deleteInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	2	118	1821	1	0	0
 core	DuckDB	meta::legend::lite::link_Relation_1__Class_1__ColSpec_1__ColSpec_1__Integer_1_	4	560	3968	2	0	0
 core	DuckDB	meta::legend::lite::mergeInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	4	601	4009	2	0	0
@@ -3668,7 +3668,7 @@ core	H2	TypedTableReference	1	87	4180	0	0	0
 core	H2	TypedUpdate	6	374	8987	0	0	0
 core	H2	TypedVariable	2	82	7236	0	0	0
 core	H2	TypedWrite	30	5459	48032	4	749	0
-core	H2	let	160	31661	1162065	16	7138	0
+core	H2	let	161	31784	1166803	16	7138	0
 core	H2	meta::legend::lite::deleteInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	2	148	2925	1	0	0
 core	H2	meta::legend::lite::link_Relation_1__Class_1__ColSpec_1__ColSpec_1__Integer_1_	4	676	6288	2	0	0
 core	H2	meta::legend::lite::mergeInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	2	312	3118	1	0	0
@@ -3717,7 +3717,7 @@ core	SQLite	TypedSelect	10	903	42679	0	0	0
 core	SQLite	TypedSerialize	2	281	7864	0	0	0
 core	SQLite	TypedSort	38	7514	179257	17	134	0
 core	SQLite	TypedVariable	2	62	4750	0	0	0
-core	SQLite	let	163	31050	1088279	115	6494	0
+core	SQLite	let	164	31150	1091755	115	6494	0
 core	SQLite	meta::pure::functions::boolean::equal_Any_MANY__Any_MANY__Boolean_1_	6	27271	196893	160	9241	0
 core	SQLite	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	1	1273	14946	10	76	0
 core	SQLite	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	1164	16155	6	76	0
@@ -3756,4 +3756,4 @@ core	constant	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_1_	
 core	constant	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	537	0	0	0
 core	constant	meta::pure::functions::multiplicity::toOne_T_MANY__T_1_	0	0	267	0	0	0
 core	constant	user	0	0	284	0	0	0
-core	refused	refused	0	0	0	0	0	29
+core	refused	refused	0	0	0	0	0	26
