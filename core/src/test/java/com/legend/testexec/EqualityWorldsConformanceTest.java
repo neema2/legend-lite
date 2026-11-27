@@ -61,17 +61,6 @@ class EqualityWorldsConformanceTest {
                 "World 2 moved: " + pureA + " == " + pureB);
     }
 
-    /** A DECLARED divergence: each world pinned at its OWN verdict, the
-     * reason on the record. */
-    private static void diverge(boolean world1, @com.legend.base.Nullable Object world2,
-            String pureA, String pureB, Object javaA, Object javaB,
-            String reason) throws Exception {
-        assertEquals(world1, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB), LITE),
-                "World 1 moved (" + reason + "): " + pureA + " == " + pureB);
-        assertEquals(world2, world2(pureA, pureB),
-                "World 2 moved (" + reason + "): " + pureA + " == " + pureB);
-    }
-
     /** A comparison across types (B3 step 5): the judge's rule answers {@code world1}; the product refuses it when the
      *  query is compiled, naming the two types. */
     private static void refusedByTheProduct(boolean world1, String pureA, String pureB, Object javaA, Object javaB) {
