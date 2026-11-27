@@ -74,6 +74,19 @@ in `step-6-one-equality-2026-11-27.md` (same folder).
 - The door's table read at the lowering's one lookup (step 5's ruled design) goes with the edition program's closing
   guards, when the type-checker's rewrite replaces it.
 
+## The user's rulings (2026-11-27, their words)
+
+- **1 (A1, A2):** "1 lowerer one lookup yes". The planner asks nothing; the lowering's one lookup decides; one path.
+- **2 (A3):** "2 is too hard / complex / not worth doing both upstreams faithfully". Read as: ONE answer for an
+  empty side, Pure's (false), at every door -- matching legend-pure and legend-engine each its own way is the
+  per-door question this batch removes. legend-engine's database's answer there becomes a recorded difference
+  (its own answer is being run, for the row). **Read back to the user to confirm.**
+- **3 (A7):** "what does this mean clearly" -- explained; awaiting their word.
+- **4 (B1):** "will this get fixed in next followup?" -- yes: row D8 of the database follow-up's work list
+  (`docs/records/database-recheck-2026-11-26/START_HERE.md`), added the same hour; in step 6 a named refusal where
+  the database's own comparison is not the rule. Awaiting their word on the refusal.
+- **5:** "what are 6 limits" -- listed for them; awaiting their word.
+
 ## What the user rules
 
 1. A1 and A2: the lowering's one lookup decides, the planner asks nothing, one path. (Recommended.)
