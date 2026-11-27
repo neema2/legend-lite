@@ -428,6 +428,58 @@ class RootComparisonTest {
         assertEquals(List.of(), wrong, "every case on every database");
     }
 
+    /** WHERE LITE CANNOT TELL A SIDE'S ORDER IS FIXED, IT SAYS SO (the closing batch; the user, 2026-11-27: "maybe
+     *  okay if sometimes says \"use hasSameElements\" when it doesn't know"). Store rows passed through a function
+     *  the order rule does not name -- {@code removeDuplicates}, {@code reverse}, {@code tail}, an {@code if} of two
+     *  reads -- are in arrival order still, and {@code ==} over them is refused, naming the two fixes. Until then the
+     *  rule answered "ordered" for every function it did not name, and the comparison was made in the order the rows
+     *  arrived. The same functions over a written or a sorted list are compared: their order is the language's. */
+    @Test
+    void aSideWhoseOrderLiteCannotTellIsRefusedUnderEquals() throws Exception {
+        String names = "p::Party.all()->map(p | $p.name)";
+        List<String> refused = List.of(
+                "|" + names + "->removeDuplicates() == ['A', 'B']",
+                "|" + names + "->reverse() == ['A', 'B']",
+                "|" + names + "->tail() == ['A', 'B']",
+                "|if(p::Party.all()->size() > 0, |" + names + ", |['A', 'B']) == ['A', 'B']",
+                "|if(" + names + "->reverse() == ['A', 'B'], |'same', |'other')");
+        Map<String, Object> compared = new LinkedHashMap<>();
+        compared.put("|[3, 1, 2]->filter(x | $x > 0)->reverse() == [2, 1, 3]", true);
+        compared.put("|[1, 1, 2]->filter(x | $x > 0)->removeDuplicates() == [1, 2]", true);
+        compared.put("|[1, 2, 3]->filter(x | $x > 0)->tail() == [2, 3]", true);
+        compared.put("|" + names + "->sort()->reverse() == ['B', 'A']", false);
+        compared.put("|" + names + "->removeDuplicates()->sort() == ['A', 'B']", false);
+        List<String> wrong = new java.util.ArrayList<>();
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        for (String q : refused) {
+            try (Connection connection = backend.open()) {
+                wrong.add(q + " -> " + Lean.established(model, q, "p::RT", connection).rows());
+            } catch (com.legend.error.ModelException e) {
+                if (!String.valueOf(e.getMessage()).contains("hasSameElements")) {
+                    wrong.add(q + " -> " + e.getMessage());
+                }
+            }
+        }
+        for (Map.Entry<String, Object> c : compared.entrySet()) {
+            String got = outcome(backend, model, c.getKey());
+            if (!String.valueOf(List.of(List.of(c.getValue()))).equals(got)) {
+                wrong.add(c.getKey() + " -> " + got);
+            }
+        }
+        // a query's PARAMETER is a list its caller gives, in the caller's order: never refused for its order (it was:
+        // a variable no let binds had been taken for an execution frame's rows)
+        try {
+            com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
+                    "{names: String[*] | $names == ['a', 'b']}").plan("p::RT");
+        } catch (RuntimeException e) {
+            if (String.valueOf(e.getMessage()).contains("order")) {
+                wrong.add("a parameter's side -> " + e.getMessage());
+            }
+        }
+        assertEquals(List.of(), wrong, "every case");
+    }
+
     /** {@code query}'s rows, or the name of what refused it. */
     private static String outcome(com.legend.testbackend.TestBackend backend, String model, String query)
             throws Exception {

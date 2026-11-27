@@ -57,7 +57,8 @@ final class RootComparison {
      *  {@code lets}; or null where the sides have no whole comparison (two single values, two known types): the
      *  comparison is then lowered as any expression is. */
     private static @Nullable SqlQuery plan(List<TypedSpec> lets, TypedNativeCall equal, boolean negated,
-            java.util.Collection<TypedSpec> seeded, Function<List<TypedSpec>, SqlQuery> lowered, ModelContext ctx) {
+            java.util.Map<String, TypedSpec> seeded, java.util.Set<String> parameters,
+            Function<List<TypedSpec>, SqlQuery> lowered, ModelContext ctx) {
         if (equal.args().size() != 2) {
             return null;
         }
@@ -70,7 +71,7 @@ final class RootComparison {
         TypedSpec right = equal.args().get(1);
         List<TypedSpec> body = with(lets, equal);
         if (body.stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)
-                || seeded.stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)) {
+                || seeded.values().stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)) {
             // a value drawn afresh where it is written (random(), generateGuid()): planned as two sides, a let both
             // sides read would be drawn twice (the outside audit of 2026-11-27): the plain comparison, which reads
             // it once or refuses. The lets the environment seeds are read too (the third review, L3: a seeded let
@@ -78,8 +79,19 @@ final class RootComparison {
             return unplanned(anyOrder, "a value drawn afresh where it is written (random, generateGuid) would be"
                     + " drawn once for each side");
         }
+        // what the order rule reads beside the statement's own lets: the lets the environment seeds, each its value,
+        // and the query's parameters, each a value the caller gives in its order (2026-11-27: a parameter, bound by
+        // no let, had been taken for an execution frame's rows and refused as unordered)
+        List<TypedSpec> named = new ArrayList<>();
+        for (String parameter : parameters) {
+            named.add(new com.legend.compiler.spec.typed.TypedLet(parameter, new com.legend.compiler.spec.typed
+                    .TypedCollection(List.of(), equal.info(), false, false), equal.info()));
+        }
+        seeded.forEach((name, value) -> named.add(new com.legend.compiler.spec.typed.TypedLet(name, value,
+                value.info())));
+        named.addAll(lets);
         if (table(left) || table(right)) {
-            return tables(left, right, lets, negated, lowered, anyOrder);
+            return tables(left, right, lets, named, negated, lowered, anyOrder);
         }
         if (anyOrder) {
             // the equality rule: different types never compare, a compile error naming the two -- the type-checker's
@@ -108,7 +120,7 @@ final class RootComparison {
             return null;
         }
         if (!anyOrder) {
-            refuseUnordered(left, right, lets, "lists");
+            refuseUnordered(left, right, named, "lists");
         }
         SqlQuery leftPlan = lowered.apply(with(lets, left));
         SqlQuery rightPlan = lowered.apply(with(lets, right));
@@ -155,11 +167,11 @@ final class RootComparison {
             lambdaBound(body.get(body.size() - 1), bound);
         }
         readable.removeAll(bound);
-        java.util.Collection<TypedSpec> seededValues = List.copyOf(seeded.values());
+        java.util.Map<String, TypedSpec> seededLets = java.util.Map.copyOf(seeded);
         return new WholeComparisons() {
             @Override
             public @Nullable SqlQuery asTheStatement(TypedNativeCall comparison, boolean negated) {
-                return plan(lets, comparison, negated, seededValues, lowered, ctx);
+                return plan(lets, comparison, negated, seededLets, parameters, lowered, ctx);
             }
 
             @Override
@@ -175,7 +187,7 @@ final class RootComparison {
                     // a side reads the row or the element the comparison stands in
                     return null;
                 }
-                return plan(lets, comparison, false, seededValues, lowered, ctx);
+                return plan(lets, comparison, false, seededLets, parameters, lowered, ctx);
             }
         };
     }
@@ -259,8 +271,8 @@ final class RootComparison {
      * types: answered with no read. Null (the statement is lowered as any expression is) where a side is no table,
      * a table's columns exist only when the query runs, or a column has no typed comparison.
      */
-    private static @Nullable SqlQuery tables(TypedSpec left, TypedSpec right, List<TypedSpec> lets, boolean negated,
-            Function<List<TypedSpec>, SqlQuery> lowered, boolean anyOrder) {
+    private static @Nullable SqlQuery tables(TypedSpec left, TypedSpec right, List<TypedSpec> lets,
+            List<TypedSpec> named, boolean negated, Function<List<TypedSpec>, SqlQuery> lowered, boolean anyOrder) {
         if (!(Type.schemaView(left.info().type()) instanceof Type.RelationType l) || l.isLateBound()
                 || !(Type.schemaView(right.info().type()) instanceof Type.RelationType r) || r.isLateBound()) {
             return unplanned(anyOrder, "a table against a side that is no table, or a table whose columns exist only"
@@ -277,7 +289,7 @@ final class RootComparison {
             return unplanned(anyOrder, "a table whose plan's columns are not its declared ones");
         }
         if (!anyOrder) {
-            refuseUnordered(left, right, lets, "tables");
+            refuseUnordered(left, right, named, "tables");
         }
         // each column by the kind its plan's output decides where its declaration leaves it open (a String, a Number,
         // an Any: the reading an assert's judge gives a table's cells); hasSameElements: the rows as a multiset
@@ -303,9 +315,10 @@ final class RootComparison {
         if (side >= 0) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
                     "== compares two " + what + " in order, and its " + (side == 0 ? "first" : "second")
-                            + " side's order is not defined (a store or frame read with no sort, or past a grouping, a"
-                            + " join or a union): the database's arrival order would decide the answer -- sort both"
-                            + " sides, or say hasSameElements when the order does not matter");
+                            + " side's order is not one lite can tell is fixed (a store or frame read with no sort, or"
+                            + " past a grouping, a join, a union or a function whose order lite does not know): the"
+                            + " database's arrival order would decide the answer -- sort both sides, or say"
+                            + " hasSameElements when the order does not matter");
         }
     }
 

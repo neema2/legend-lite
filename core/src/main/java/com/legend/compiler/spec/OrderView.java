@@ -15,6 +15,15 @@ import java.util.List;
  * INCIDENTAL (bottoms at a store source or an execution-frame read with no sort —
  * SQL arrival order, engine goldens encode H2's), DEFINED (pure values — the
  * language's own order). Nothing is evaluated.
+ *
+ * <p>WHERE THE RULE DOES NOT KNOW, IT DOES NOT SAY "ORDERED" (the edition program's step 6, its closing batch; the
+ * user, 2026-11-27: "maybe okay if sometimes says \"use hasSameElements\" when it doesn't know"). A function or a
+ * node the rule does not name is as ordered as the least ordered of what it was applied to ({@link #leastOrdered}):
+ * store rows passed through {@code removeDuplicates}, {@code reverse}, {@code tail}, an {@code if} of two reads are
+ * in arrival order still. Until then every unnamed function answered DEFINED without reading its input -- loud
+ * enough for a test (a strict assert over rows whose order varies fails, and the lists below grew that way), but a
+ * query's {@code ==} over such a side was answered quietly, in the order the rows arrived. A function found to be
+ * refused wrongly is NAMED below, with its test.
  */
 public enum OrderView {
     /** A side's order semantics: SORTED (ends in a sort through
@@ -28,7 +37,10 @@ public enum OrderView {
             "meta::pure::functions::collection::sort",
             "meta::pure::functions::collection::sortBy",
             "meta::pure::functions::collection::sortByReversed",
-            "meta::pure::functions::relation::sort");
+            "meta::pure::functions::relation::sort",
+            // the legacy table's sort (named 2026-11-27: until the fallback read its input it answered DEFINED,
+            // which a sorted table is)
+            "meta::pure::tds::sort");
 
     /** Natives after which SQL leaves no order (GROUP BY, joins, UNION,
      * pivots): the chain's order is incidental past them. EXACT identities
@@ -166,7 +178,8 @@ public enum OrderView {
                 }
                 return OrderView.DEFINED;
             }
-            return OrderView.DEFINED;
+            // a function the rule does not name: as ordered as what it was applied to
+            return leastOrdered(c, c.args(), lets, seen, hook);
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedGetAll
                 || s instanceof com.legend.compiler.spec.typed
@@ -174,7 +187,12 @@ public enum OrderView {
                 || s instanceof com.legend.compiler.spec.typed
                         .TypedRawSqlRelation
                 || s instanceof com.legend.compiler.spec.typed
-                        .TypedCatalogGrid) {
+                        .TypedCatalogGrid
+                // a store's view, a recursion (a UNION ALL of its steps) and a join's slot are rows in arrival order
+                // as a table's are (named 2026-11-27: each had fallen to DEFINED)
+                || s instanceof com.legend.compiler.spec.typed.TypedViewRelation
+                || s instanceof com.legend.compiler.spec.typed.TypedRecurse
+                || s instanceof com.legend.compiler.spec.typed.TypedJoinSlot) {
             return OrderView.INCIDENTAL;
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
@@ -255,9 +273,61 @@ public enum OrderView {
                 || s instanceof com.legend.compiler.spec.typed
                         .TypedMilestonedAccess) {
             List<TypedSpec> ch = s.children();
-            return ch.isEmpty() ? OrderView.DEFINED
-                    : of(ch.get(0), lets, seen, hook);
+            if (ch.isEmpty()) {
+                return OrderView.DEFINED;
+            }
+            OrderView source = of(ch.get(0), lets, seen, hook);
+            // MANY values read from ONE (a to-many property of the first of a sorted read): their order is the
+            // property's own, which a sort of the parents does not give -- in arrival order where the parent came
+            // from a sort (a store's, in practice), the language's where it is a value (2026-11-27: it had been
+            // SORTED, by the parents' sort)
+            return source == OrderView.SORTED && !oneValue(s) && oneValue(ch.get(0)) ? OrderView.INCIDENTAL : source;
+        }
+        // a node the rule does not name: as ordered as what it was made of
+        return leastOrdered(s, s.children(), lets, seen, hook);
+    }
+
+    /**
+     * The order of a function or node the rule does not name, {@code s}, applied to {@code inputs}: DEFINED where it
+     * is one value (one value has no order to compare); else INCIDENTAL where any many-valued input is -- a lambda
+     * read as its answer (an {@code if}'s branch, a thunk), its parameters values the walk cannot see -- and DEFINED
+     * otherwise. Never SORTED: {@code reverse} of a sorted list is ordered, not in its sort's order.
+     */
+    private static OrderView leastOrdered(TypedSpec s, List<TypedSpec> inputs, List<TypedSpec> lets,
+            java.util.Set<String> seen,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
+        if (oneValue(s)) {
+            return OrderView.DEFINED;
+        }
+        for (TypedSpec input : inputs) {
+            TypedSpec read = input;
+            List<TypedSpec> scope = lets;
+            if (input instanceof com.legend.compiler.spec.typed.TypedLambda lambda) {
+                if (lambda.body().isEmpty()) {
+                    continue;
+                }
+                read = lambda.body().get(lambda.body().size() - 1);
+                scope = new java.util.ArrayList<>(lets);
+                for (String p : lambda.parameters()) {
+                    // a parameter is a value the walk cannot see: read as a literal, never as a frame's rows (the
+                    // rule OrderedAsserts.rewrite has for a lambda it walks into)
+                    scope.add(new com.legend.compiler.spec.typed.TypedLet(p, new com.legend.compiler.spec.typed
+                            .TypedCollection(List.of(), lambda.info(), false, false), lambda.info()));
+                }
+                scope.addAll(lambda.body().subList(0, lambda.body().size() - 1));
+            }
+            if (!oneValue(read) && of(read, scope, new java.util.HashSet<>(seen), hook) == OrderView.INCIDENTAL) {
+                return OrderView.INCIDENTAL;
+            }
         }
         return OrderView.DEFINED;
+    }
+
+    /** Whether {@code s} is one value at most: to-one or zero-to-one, and no relation. */
+    private static boolean oneValue(TypedSpec s) {
+        com.legend.compiler.element.type.ExprType info = s.info();
+        return info.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.upper() != null && b.upper() <= 1
+                && !com.legend.compiler.element.type.Type.isRelation(info.type());
     }
 }
