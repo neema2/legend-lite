@@ -172,3 +172,32 @@ InstanceEquality, NullSemantics.negate, Lowerer.asCondition/written/withWholeCom
  kindMismatch -> constant FALSE (no read); else `SqlExpr.Membership(needle, list)` / flat IN = the DATABASE'S OWN
  membership with NO per-kind normaliser. SideEqualities.contains (test checker only) = instants() + join on
  NULL_SAFE_EQUAL. Two membership codes; the product uses only the first.
+
+## 9. Three probes of the SQL (DuckDB, `bazel-bin/core/equality_measure --sql '<body>'`, 2026-11-27 20:25 UTC)
+ 1. `let a = [1, 2]->map(y | $y + 1); [1]->map(x | $a->size() + $x)->at(0)` ->
+    `SELECT list_extract(list_transform([1], x -> coalesce(len(list_filter(list_transform([1, 2], y -> y + 1), ...)), 0) + x), 1)`.
+    => A LET IS INLINED where it is read: its expression is written again at every use. Nothing in the product
+       computes a value once and names it. "Each side computed once and named" is therefore a NEW mechanism (a named
+       value as a CTE or a cross-joined row), the same one the lean-SQL follow-up ranks first ("a list written more
+       than once per operation"), not something step 6B can assume exists.
+ 2. `[1]->map(x | [1, 2]->map(y | $y + 1) == [2, 3])->at(0)` -> inside the lambda:
+    `(WITH __e AS (SELECT w.value AS __o, ROW_NUMBER() OVER () AS __rn FROM (SELECT UNNEST(<list>) AS value) AS w WHERE
+    w.value IS NOT NULL), __a AS (... UNNEST([2, 3]) ...) SELECT (e.__l IS NOT DISTINCT FROM a.__l) AS value FROM (SELECT
+    LIST(__a.__o ORDER BY __a.__rn) AS __l FROM __a) AS a CROSS JOIN (SELECT LIST(__e.__o ORDER BY __e.__rn) AS __l FROM __e) AS e)`.
+    => On a database that HOLDS lists, the whole-side statement unnests each list into numbered rows and lists
+       them again, to compare the two lists. Unnest-then-list is the list itself (its NULLs dropped): the statement
+       is `<list a> IS NOT DISTINCT FROM <list b>` written the long way. It is also the subquery DuckDB's lambda
+       refuses.
+ 3. `let w = (...) == ([2, 3]); [1]->map(x | $w)->at(0)` -> the same SQL as 2 (the let inlined): a let does not hoist.
+
+MY CONCLUSION FOR THE DESIGN (to put to the user, not built):
+ - The whole-side code's DECISIONS (Pair.Form, the kinds, the per-value normalisers, the alignment of two exact
+   numbers) are the one comparison. Its ROW FRAMING (valueRows, __rn, CTEs, LIST) is an encoding of "a side".
+ - A side has two encodings: the rows of a statement, or the elements of a list value. Where a side already is a
+   list value on a database that holds typed lists, the framing collapses to an expression (normalise the elements,
+   then the database's null-safe list comparison): lean SQL, no subquery, usable inside a lambda and for a side that
+   reads the row. Where the database holds no typed list (H2, SQLite, MariaDB, MySQL: JSON) the side's elements are
+   read as rows by a correlated subquery, which those dialects already write for every list function.
+ - So "one code" = Equalities / TaggedLists / the scalar membership rules ask the SAME decisions (Pair + normalisers)
+   and differ from RootComparison only in the encoding of a side, chosen by the side's carrier, never by where the
+   comparison stands. The position matrix is the check.
