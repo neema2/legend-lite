@@ -80,8 +80,8 @@ library's comments were shortened three times to fit that figure and no higher o
 - No other recorded suite: PCT's expected failures on DuckDB and H2 and the corpus rosters are unchanged. What CI's corpus lanes and the database lanes show is under "What
   judged it".
 - The acceptance measure (every assert of lite's own tests against its plain comparison; 1,733 bodies on DuckDB, H2
-  and SQLite): 176 differed when step 6 began, 99 before the closing batch, 85 after it; read body by body in the
-  batch list. See "What judged it" for the last run.
+  and SQLite): 176 differed when step 6 began, 99 before the closing batch, 85 after it and 80 on the final code;
+  read body by body in the batch list.
 
 New and extended tests: `exec/RootComparisonTest`, `RunTimeComparisonTest`, `NumberFamiliesTest`,
 `EmptySideEqualityTest`, `EqualityInExpressionsTest`, `DatesTypedByTheirColumnsTest`, `OneValueWithinOneTypeTest`;
@@ -167,7 +167,7 @@ The final commit is `d0a70c4f5`: the code of `508aaef6f`, the regenerated files 
 | The final review's fixes, narrow: exec, edge, lowering, sql, the guards, the census, the two SQLite integration targets | here, at `508aaef6f` | 10 of 10 targets pass; each new test seen to have run |
 | Regeneration (seven update targets) | here, on `0dd18a3ee` | three files move, each as predicted (the commit names them); no SQL size row, no PCT ratchet |
 | The confirming round (the same 91 targets) | here, at `3bee40e22` | **90 pass, 1 skipped, none fail** |
-| The acceptance measure | here, at `3bee40e22` | running |
+| The acceptance measure | here, at `3bee40e22` | **80 of 1,733 bodies differ** (DuckDB 22, H2 53, SQLite 49), from 85 before the last fixes, 99 before the batch and 176 when step 6 began. The year and year-month fix took six bodies off every database ("dates and written precision": 7 to 1 on DuckDB and on H2, 14 to 8 on SQLite, those eight SQLite's date-times as text). On SQLite two of the Decimal list bodies are now refused by name where they answered a wrong false. The one verdict that still moves on DuckDB is register S399's known gap (a day read out of a mixed list against a date-time) |
 | CI on the draft pull request #141: every per-push lane on Linux, macOS and Windows (the product build, core, the guards, both corpora, PCT on DuckDB, H2 and Postgres, channel B, parser equivalence, stress, the warehouse, DataCube, the UI) | GitHub | first run, on `3bee40e22`: red on the corpus lanes alone (Linux H2 and DuckDB, Windows H2), each on the edge corpus golden's three lines (above: "Tests whose answer moves"); every other lane that finished was green (all of Linux but `core`, still running when the fix was pushed; Linux arm; eight Windows lanes). Second run, on `d0a70c4f5` (the same code and those three golden lines): running |
 | The database lanes: PCT's two channels on Trino, MariaDB, MySQL, ClickHouse, SQLite, Snowflake, BigQuery, Databricks; channel A on MongoDB; channel B on Postgres; the time-series replays on Postgres, ClickHouse and Snowflake; MongoDB's plan test | six sessions, measure only, at `3bee40e22` | as each reports, below |
 | -- MariaDB, MySQL, ClickHouse | | **no outcome differs** but for MariaDB channel B's known flake: channel A 1,251 cases pass on each; channel B on MySQL (18 not passing) and ClickHouse (9) the same ledgered sets; MariaDB's channel B fails on list ORDER alone, a different set of tests in each of its eight runs across four commits, the base included (the same 16 ledgered failures every time; never a value, a type or a compile error). The new refusal for lists of exact numbers at two scales touches no test. The time-series replay and documents on ClickHouse and the guarded-raise test pass |

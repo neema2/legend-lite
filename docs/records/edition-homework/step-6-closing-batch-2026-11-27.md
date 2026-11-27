@@ -203,6 +203,11 @@ Counting only what is lite's own and not a database's missing form: after the fi
 moves its verdict between an assert and its plain comparison (the S399 gap), and two are refused where the assert
 answers. The measure is to be run again in the one verification.
 
+**Run again on the final code (`3bee40e22`, 2026-11-27): 80 of 1,733** (DuckDB 22, H2 53, SQLite 49). "Dates and
+written precision" is 1 on DuckDB and on H2 (the S399 gap) and 8 on SQLite (its date-times as text); on SQLite two
+of the three Decimal list bodies are refused by name where they answered a wrong false; every other group is as it
+was. The two judges still never disagree verdict against verdict.
+
 ## The final review of the last fixes (2026-11-27, read-only, of `d791f5242..6dde398b0`; `step-6-closing-reviews/review-5-...`)
 
 Nobody but the author had read the fixes made after the two audits. The reviewer was given the diff and the rules.
