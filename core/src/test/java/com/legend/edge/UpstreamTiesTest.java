@@ -197,6 +197,16 @@ class UpstreamTiesTest {
     }
 
     @Test
+    @DisplayName("a sort that is read further keeps its door's order: the sorted list printed and joined")
+    void aSortReadFurtherKeepsItsDoorsOrder() throws Exception {
+        String query = "|[3.0, 3, 1]->sort()->map(x | $x->toString())->joinStrings(',')";
+        assertEquals(List.of("String 1,3,3.0"), answer(Door.LITE, query), "lite");
+        for (Door door : UPSTREAMS) {
+            assertEquals(List.of("String 1,3.0,3"), answer(door, query), door.toString());
+        }
+    }
+
+    @Test
     @DisplayName("of several arguments the compatibility doors keep the first of a tie: max(3, 3.0) is the Integer")
     void ofSeveralArgumentsTheCompatibilityDoorsKeepTheFirst() throws Exception {
         for (Door door : UPSTREAMS) {
