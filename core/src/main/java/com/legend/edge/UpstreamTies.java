@@ -69,7 +69,7 @@ final class UpstreamTies {
                 Pure.AT_COLLECTION_CONTAINS, Pure.AT_COLLECTION_REMOVE_DUPLICATES, Pure.AT_COLLECTION_IN,
                 Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,
                 Pure.AT_BOOLEAN_GREATER_THAN_EQUAL)) {
-            rules.put(compared, NamedRule.NUMBERS_OF_THREE_TYPES);
+            rules.put(compared, NamedRule.UPSTREAMS_COMPARISON);
         }
         RULES = java.util.Collections.unmodifiableMap(rules);
     }
