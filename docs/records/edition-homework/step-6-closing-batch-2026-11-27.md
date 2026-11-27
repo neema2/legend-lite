@@ -125,10 +125,10 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
   step 6).
 - **3 (A7), ruled:** "Java checker seems ok for now".
 - **4 (B1), ruled:** "per row refused okay".
-- **B2:** "3 size before we decide". Sized below; awaiting their word.
+- **B2, ruled:** "3 size before we decide", then, on the sizing and the probe: "Build 3". Built in the batch.
 - **5 (B6, B7, B9, B10, B13):** "other 5 do you suggest to keep for now" -- the author's answer: yes, all five, with
-  a register row for B9's `max` tie and for B10, written in the batch and shown in the landing summary. Awaiting
-  their word.
+  a register row for B9's `max` tie and for B10, written in the batch and shown in the landing summary. Put to the
+  user twice with no objection; the two register rows come back to them in the landing summary for their word.
 
 ### B2, sized (read in the code, not run)
 
