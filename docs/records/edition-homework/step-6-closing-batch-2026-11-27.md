@@ -203,6 +203,28 @@ Counting only what is lite's own and not a database's missing form: after the fi
 moves its verdict between an assert and its plain comparison (the S399 gap), and two are refused where the assert
 answers. The measure is to be run again in the one verification.
 
+## The final review of the last fixes (2026-11-27, read-only, of `d791f5242..6dde398b0`; `step-6-closing-reviews/review-5-...`)
+
+Nobody but the author had read the fixes made after the two audits. The reviewer was given the diff and the rules.
+Two blockers and seven smaller findings; each read in the code before anything was changed.
+
+| Finding | What it became |
+|---|---|
+| **X1 (blocker).** A column handed to a function whose parameter holds many (`x::sameNums($o.I, $o.F)` under a `forAll` over the rows) was asked for a list's length to tell whether it is empty: a number is "empty" on SQLite (two different numbers the same), a database error on DuckDB and H2. Came in with the fix of the code audit's S3 | **Fixed** (`508aaef6f`): "holds no value" is decided by what the SQL carries (`Equalities.oneValue`), as the empty-side rule already did. Test `RunTimeComparisonTest.aColumnHandedToAListParameterIsOneValueARow`, on DuckDB, H2 and SQLite |
+| **X2 (blocker).** The door test ran eight written comparisons and never read the product's own list, so a function added to the refusal with no row at a door stayed green | **Fixed**: `UpstreamTiesTest.everyFunctionTheProductsRefusalReadsHasARowAtTheDoors` reads `HeldKinds.READ` itself and asks the doors' one table for each function. The eight written comparisons stay as the end-to-end check |
+| **S1.** The list refusal on JSON-list databases had been REMOVED where the audit asked for it to be narrowed, so per-row Decimal lists were compared as their texts again while the record said "refused" | **Fixed, narrowed**: two lists of exact numbers written at two scales are refused by name on SQLite, MariaDB and MySQL (`SameValuesForm.refuseExactNumbersOfTwoScales`); two lists written alike are compared, as the audit asked. Test `RootComparisonTest.twoListsOfExactNumbersAtTwoScalesAreRefusedWhereAListIsText`. Still the texts' comparison: lists whose types state one scale or none, and H2 (the database follow-up's D8, its row corrected) |
+| **S2.** The doors' rule for a date built to the hour or the minute also applies INSIDE a query sent to a database at legend-engine's door, where upstream was never run | **Asked of the upstream runner** (request 5: the SQL legend-engine sends and the rows, on H2). Decided by its answer, never guessed; until then the behaviour stands and is listed in the landing summary as unmeasured |
+| **S3.** The planner guard could be passed by naming lite's own edition (`instanceof LiteEdition`, `LiteEdition.INSTANCE.x()`) | **Fixed**: any use of `planner.LiteEdition` or `lowering.LiteEditionTable` by name outside `PlanEnv` and the lowering fails the rule. Its named limits are written on the rule: an edition passed on unread; a public method of the lowering that answered a fact of the door's table (none exists); and the planner's older per-door forms (`ActivityTexts`, `RoutedQueries`, `ExecutedValues`), which are step 10's. So "the planner knows nothing of doors" is true of the comparison code, not yet of the planner |
+| **S4.** One comparison read in an `exists`' list and in its lambda kept its "positive condition" mark at the list's element | **Fixed**: the places are counted over everything the call lowers. Test: `EmptySideEqualityTest`, the `p::listed` case |
+| **S5.** The record said "no text is made of a value"; that is true of the list folds only: the false of two SINGLE values of two types still casts each to text behind a mark | **Record corrected here.** The form predates the batch (`neverEqualButEvaluated`); it goes with the two codes becoming one (step 6B) |
+| **S6.** Weak tests: the map test took any refusal; the year test ran on one database; a new case pinned SQL that had not changed | The map test reads the refusal's words; the year test runs on DuckDB, H2 and SQLite; the pin is kept as a pin. The touched test classes were run after `fba1bd300` (the focused 22 targets, all passing) and again in the full round (87 of 91) |
+| **S7.** `assert(t1 == t2)` over two TABLES in an upstream-style test body is no longer read as the any-order assert (the code audit's S5: a rewrite to `hasSameElements` over two tables changed their meaning) | **For the user's word in the landing summary**, with what the corpus and PCT show moved (CI's corpus lanes and the PCT lanes are its measure) |
+| The rename named the rule for who asks for it (`UPSTREAMS_COMPARISON`), which the rule type's own contract forbids | **Fixed**: `THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION`, what it writes |
+
+Checked by the reviewer and found right: the year and year-month branch (no wrong true found); the doors' date rule by
+what is written; the count of a comparison's places inside one condition; the negation of a guarded equality; the
+rewritten fold; the fresh-draw check; the map refusals.
+
 ## C. Not yet verified, or housekeeping
 
 | # | What |
