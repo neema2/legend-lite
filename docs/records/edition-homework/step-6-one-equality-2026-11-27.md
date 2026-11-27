@@ -387,8 +387,12 @@ goes up brought to the user first.
    with no equality key.
    The same session ran `max`/`min` inside legend-engine's H2 store query: two COLUMNS (3, 3.0) answer 3.0 whichever
    wins, as built; two WRITTEN values answer the winner in its own type (`max(3, 3.0)` is 3, `max(3.0, 3)` is 3.0),
-   so the rule now leaves two written values to the rule that keeps a tie's own element. A column against a written
-   value, and Integer/Decimal and Decimal/Float columns, are being run (asked 2026-11-27).
+   so the rule now leaves two written values to the rule that keeps a tie's own element. **The follow-up, RUN the
+   same day** (each statement's column type read over JDBC on legend-engine's H2 2.2.224): a column against a
+   written literal of the other type, and a computed Integer against a Float column, come back DOUBLE whichever wins,
+   as two columns do -- as built. An Integer column against a Decimal column comes back a Decimal (NUMERIC(12,2),
+   each value in its own scale) and a Decimal column against a Float column H2's DECFLOAT: lite keeps the winner's
+   own type there; recorded in S428, not built (one database's promotion, not guessed for the others).
 2. The two type-checker leftovers of the audit: the first is fixed (a query's lambda handed to a function generic
    over a relation's columns is the query's code: `Typer.callerLambdas`), to run; the second is carried with its
    reason (the audits' table, row 14).
