@@ -105,9 +105,14 @@ final class NumberLiterals {
 
     /** The arithmetic a written Float literal is read in ({@link #inExactArithmetic}): a sum, a difference, a
      *  product. (A quotient is a Float whatever its operands, Pure's {@code divide}.) */
-    private static final java.util.Set<String> EXACT_ARITHMETIC = java.util.Set.of(
-            "meta::pure::functions::math::plus", "meta::pure::functions::math::minus",
-            "meta::pure::functions::math::times");
+    private static final java.util.Set<com.legend.model.FunctionId> EXACT_ARITHMETIC = exactArithmetic();
+
+    private static java.util.Set<com.legend.model.FunctionId> exactArithmetic() {
+        java.util.Set<com.legend.model.FunctionId> all = new java.util.HashSet<>(Pure.AT_MATH_PLUS);
+        all.addAll(Pure.AT_MATH_MINUS);
+        all.addAll(Pure.AT_MATH_TIMES);
+        return java.util.Set.copyOf(all);
+    }
 
     /**
      * THE LITERAL RULE IN ARITHMETIC (the user, 2026-11-27: "shouldn't this match comparison?", then "good let's do
@@ -125,7 +130,7 @@ final class NumberLiterals {
      * a literal no Decimal holds. {@code args} as they are where the rule does not reach them.
      */
     static List<TypedSpec> inExactArithmetic(com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args) {
-        if (!chosen.isNative() || !EXACT_ARITHMETIC.contains(chosen.qualifiedName())) {
+        if (!chosen.isNative() || chosen.definition() == null || !EXACT_ARITHMETIC.contains(chosen.id())) {
             return args;
         }
         boolean decimal = false;

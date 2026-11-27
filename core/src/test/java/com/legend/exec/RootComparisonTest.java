@@ -164,16 +164,22 @@ class RootComparisonTest {
         cases.put("|if(%2015-04-16T15 == date(2015, 4, 16, 14), |'same', |'other')", "other");
         cases.put("|if(%2015-04-16T14:30 == date(2015, 4, 16, 14, 30), |'same', |'other')", "same");
         cases.put("|if(%2015-04-16T14:30:00 == date(2015, 4, 16, 14, 30), |'same', |'other')", "same");
+        List<String> wrong = new java.util.ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             String model = MODEL.formatted(backend.type());
             for (Map.Entry<String, Object> c : cases.entrySet()) {
                 try (Connection connection = backend.open()) {
                     Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
-                    assertEquals(List.of(List.of(c.getValue())), r.rows(), backend.type() + ": " + c.getKey() + "\n"
-                            + r.text());
+                    if (!List.of(List.of(c.getValue())).equals(r.rows())) {
+                        wrong.add(backend.type() + ": " + c.getKey() + " -> " + r.rows());
+                    }
+                } catch (RuntimeException e) {
+                    wrong.add(backend.type() + ": " + c.getKey() + " -> " + e.getClass().getSimpleName() + ": "
+                            + String.valueOf(e.getMessage()).lines().findFirst().orElse(""));
                 }
             }
         }
+        assertEquals(List.of(), wrong, "every case on every database");
     }
 
     /** Two maps are the same where they hold the same entries, whatever order the entries were written in (Pure's
