@@ -170,17 +170,18 @@ final class RootComparison {
                 }
                 if (!readable.containsAll(com.legend.compiler.spec.typed.FreeVars.of(comparison))) {
                     // a side reads the row or the element the comparison stands in: no statement of its own answers
-                    // it, and the lowering writes the database's own comparison of the two values. For a MAP or a
-                    // TABLE that is not the rule (a map's entries by the order they were written in; a table is no
-                    // value), so it is refused by name (the user, 2026-11-27: "per row refused okay"; the fix is
-                    // the database follow-up's row D8)
-                    if (!anyOrder && comparison.args().stream().anyMatch(side -> table(side)
-                            || PlatformTypes.isMapCarrier(side.info().type()))) {
-                        throw new com.legend.error.NotImplementedException("== over a map or a table read from the"
-                                + " row or the element it stands in: only a database's own comparison could answer"
-                                + " it there, which is not Pure's (a map's entries in any order, a table's columns"
-                                + " and rows); not supported yet -- compare them as a query's answer, or in a let"
-                                + " the comparison reads");
+                    // it, and the lowering writes the database's own comparison of the two values. For a MAP that
+                    // is not the rule (its entries by the order they were written in: measured 2026-11-27,
+                    // newMap([a, b]) == newMap([b, a]) false), so it is refused by name (the user, 2026-11-27: "per
+                    // row refused okay"; the fix is the database follow-up's row D8). A relation-typed side is NOT
+                    // refused: a row's cell, a frame's values and a navigation's rows are typed so and are compared
+                    // rightly where they stand (refused with the maps for one run, it stopped two such tests)
+                    if (!anyOrder && comparison.args().stream().anyMatch(side ->
+                            PlatformTypes.isMapCarrier(side.info().type()))) {
+                        throw new com.legend.error.NotImplementedException("== over a map read from the row or the"
+                                + " element it stands in: only a database's own comparison could answer it there,"
+                                + " which is not Pure's (a map's entries in any order); not supported yet -- compare"
+                                + " them as a query's answer, or in a let the comparison reads");
                     }
                     return null;
                 }
