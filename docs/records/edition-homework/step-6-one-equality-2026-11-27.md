@@ -238,3 +238,9 @@ shorter; no other test's judge SQL changed.
 - Shorter: `testEqualNonPrimitive` (106,026 to 99,821).
 So the suite pins that go up (Essential 901,459 to 903,151, Standard 780,331 to about 793,000) are these seven
 tests. For the user's word with the size table's rows.
+
+## The database lanes (2026-11-27, measure only)
+
+| Lane | Base | Head | Result |
+|---|---|---|---|
+| Postgres, Trino (PCT channels A and B, 20 suite targets) | `9adb84bf` | `43ab8f20a` | every target passes at both; no test's outcome differs between the two (channel A's test lists and channel B's per-body outcomes identical; Trino's query ids in four error messages aside); no ledger or ratchet line out of date |
