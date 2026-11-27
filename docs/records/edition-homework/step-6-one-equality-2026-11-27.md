@@ -195,6 +195,37 @@ became of it (fixed in `ad1e546a6` and `2d28215ea` unless said otherwise):
 | 22 | LOW | An assert's Integer literal is rewritten, so its failure records the literal as the type it was read as | recorded where the rule is written (`NumberLiterals`) |
 | 23 | LOW | Records and javadocs that said what the code no longer does | fixed |
 
+## The third review (2026-11-27, one reviewer at high effort, read-only, of `d3e81136a..b43dadcc9`)
+
+Everything changed since the two audits above, given the diff, the rules and the commits' claims as claims to test,
+never the author's conclusions. Nothing run. What it found and what became of each:
+
+| # | Severity | Finding | What became of it |
+|---|---|---|---|
+| H1 | HIGH | `==` answers differently by where it stands: the strict table rule, the any-order map comparison and the list-as-statements comparison existed only for a query's last statement; inside an `if`, a filter or a test body's `assert(...)` the old path ran (the test road never asked the planner) | **being fixed** (the user, 2026-11-27: "why cant we do the work we promised"): the lowering asks the planner for every `==` and `sameElements` inside an expression, on the product's road and the test body's (`RootComparison.inside`, `d535ced03`); `RootComparisonTest.aComparisonAnswersTheSameInsideAnExpression` |
+| M1 | MEDIUM | A LIST side whose order the query does not define (`p::Party.all()->map(p\|$p.name) == ['A', 'B']`) is compared in the order the database returned it; an assert of the same side is refused | fixed below (the refusal a table's side gets) |
+| M2 | MEDIUM | `HeldKinds` skipped any author's upcast, so a no-op upcast of a property already declared `Number` (`$a.n->cast(@Number) == $a.f`) escaped the planning-time refusal the same query gets without the cast; the same for dates | fixed below (the skip only where the cast's source has a known type) |
+| M3 | MEDIUM | The planner infers who is asking from the number rule a door named (tenet 6) | disclosed; question 4 to the user |
+| M4 | MEDIUM | The two pins for `sameElements` moved on words of the user's that named other spellings | disclosed; questions 2 and 3 to the user |
+| M5 | MEDIUM | The always-false fix turned two answers into refusals: a never-equal comparison inside a collection's value lane ("not supported yet"), and at the root over whole sides (a list cast to text, which H2, SQLite and BigQuery refuse) | fixed below (the collection lane lowers it as an expression does; over many-valued sides the constant stands, recorded) |
+| M6 | MEDIUM | `sameElements` checked two known types only for primitives and enumerations: two lists of unrelated classes were no compile error; and the check runs at planning, not at typing | fixed below for classes (the type-checker's own question); at planning still, recorded |
+| M7 | MEDIUM | The `max`/`min` commit was never run and its test reads SQL text alone; the regenerated size files predate ten SQL-changing commits | run since (`b59`, `b62`); the full round regenerates |
+| L1 | LOW | Two tables whose column names differ are answered false without evaluating either side | recorded |
+| L2 | LOW | `harmless()` took any cast as harmless, a downcast that can fail included; membership and index stay constants | the downcast fixed below; membership and index are piece 3 of the work under way |
+| L3 | LOW | "One value read twice is one evaluation" holds at one lambda depth only: a let read outside and inside a lambda is still two evaluations (`$ks->filter(k \| $k == $ks->at(0))`) | recorded, a gap (a suspicion, not run) |
+| L4 | LOW | The caller's mark on a lambda is lost where a desugaring rebuilds the lambda without carrying it (the fold's map unroll and static `if`, the legacy column forms, project's and groupBy's rebuilds) | recorded: there the lambda is typed as before the fix |
+| L5 | LOW | The two date facts (a truncation to week, month, quarter or year is a day; a day behind `Date` moved by days stays a day) apply at every door and are no register row | **to post to the user** with the corpus run's moved answers; register row to write |
+| L6 | LOW | GREATEST and LEAST answer NULL for a NULL argument on MySQL, MariaDB and Snowflake where legend-engine's CASE answers the other argument | fixed below (the CASE legend-engine writes, the Integer converted) |
+| L7 | LOW | A comparison typed as code the rule never reads (an island's translation) keeps its position, so the planning-time refusal could take it for the query's own | fixed below (only the query's own comparisons keep a position) |
+| L8 | LOW | The fresh-draw check reads the body, not the lets the environment seeds | recorded |
+| L9 | LOW | Weak or missing tests: the always-false test accepts any error; no root-against-expression test; none for unordered lists under `==`, `sameElements` over classes, the PCT door's `max`/`min` | the root-against-expression and PCT-door tests exist since; the others added below |
+| L10 | LOW | `RootComparison.whole`'s comment out of date; a parser ratchet moved with no dated line | fixed below |
+
+Checked and found sound by the same review: the empty-side back-out is complete; the host judge's tie-break is lite's
+door's alone; the `max`/`min` rule does not touch the PCT door; every dialect's truncation to those units delivers a
+DATE and Pure's `firstDayOf*` return a day (read in the pinned sources); the Decimal carrying is symmetric; the
+guard entries carry dated words; no upstream function is named `sameElements`.
+
 ## SQL size, measured (2026-11-27; the user: "def want to see/understand the growth")
 
 The size table regenerated at the stack (`core/src/test/resources/lean-sql/baseline.tsv`), against the program
