@@ -233,6 +233,11 @@
 >   the abstract `Date` is compared when the query runs; a comparison between the
 >   caller's own columns or a type variable's values is that call's compile error
 >   where the two types differ, naming the function.
+> - **Two tables** (the user, 2026-11-27, to "should we be strict with 2 table equals and have a separate operator
+>   or function for multiset compare?": "Yeah or ~= if want to be cute, or setCompare()"): `==` compares two tables'
+>   columns by name and their rows IN ORDER; a side whose order the query does not define is a compile error naming
+>   the fixes. `sameElements(a, b)` (lite's own function, register S430) compares two lists or two tables in any
+>   order, duplicates counted. One operator, one meaning.
 > - **An assert is the comparison it means** (the user, 2026-11-26: "yes compile
 >   error"): on lite's own door an assert of two written types is refused when the
 >   body is compiled.
