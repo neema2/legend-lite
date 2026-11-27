@@ -60,7 +60,7 @@ class OneValueWithinOneTypeTest {
     void aWrittenYearEqualsAComputedOne() throws Exception {
         // measured 2026-11-27 (the acceptance measure of step 6's closing batch): each of these answered false with
         // no read, where an assert of the two passes -- "a partial date is a literal only" (lowering.Equalities)
-        assertEquals(List.of("true", "true", "true", "true", "true", "false", "false", "false"), values("|["
+        String query = "|["
                 + "%1973 == date(1973), "
                 + "date(1973, 11) == %1973-11, "
                 + "%1973-11 == %1973-11->datePart(), "
@@ -68,7 +68,18 @@ class OneValueWithinOneTypeTest {
                 + "%2016 == %2015->adjust(1, meta::pure::functions::date::DurationUnit.YEARS), "
                 + "%1973 == date(1974), "
                 + "%1973 == date(1973, 11), "
-                + "%1973-11 == %1973]"));
+                + "%1973-11 == %1973]";
+        assertEquals(List.of("true", "true", "true", "true", "true", "false", "false", "false"), values(query));
+        // each comparison alone on every in-process database (a list of answers is a form H2 holds none of)
+        for (var backend : TestBackends.inProcess()) {
+            for (String one : List.of("|%1973 == date(1973)", "|date(1973, 11) == %1973-11",
+                    "|%1973-11 == %1973-11->datePart()", "|%1973 == date(1974)")) {
+                try (Connection c = backend.open()) {
+                    Lean.Result r = Lean.run(StorelessRuntime.with("", backend.type()), one, StorelessRuntime.RUNTIME, c);
+                    assertEquals(List.of(List.of(!one.contains("1974"))), r.rows(), backend.type() + ": " + one);
+                }
+            }
+        }
     }
 
     @Test

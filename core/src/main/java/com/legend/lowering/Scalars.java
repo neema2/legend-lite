@@ -2397,7 +2397,7 @@ final class Scalars {
      * product's own rule is more than its SQL
      * operator: the whole-side statement for two computed lists, maps or tables ({@link WholeComparisons}), and the
      * refusal of two column types that can never be equal ({@link HeldKinds}). A door that names a rule for
-     * {@code ==} ({@link NamedRule#UPSTREAMS_COMPARISON}) gets neither; nothing else decides that.
+     * {@code ==} ({@link NamedRule#THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION}) gets neither; nothing else decides that.
      */
     static @com.legend.base.Nullable NamedRule doorsRule(TypedNativeCall call, Set<Feature> features, Styled styled) {
         return styled.edition().lowersAs(call, features);
@@ -3849,11 +3849,11 @@ final class Scalars {
                 : SqlExpr.Call.of(SqlFn.COALESCE, inRule(numbers).apply(n, args), new SqlExpr.BoolLit(false));
     }
 
-    /** {@link NamedRule#UPSTREAMS_COMPARISON}: the call's own rule with an Integer, a Float and a Decimal three
+    /** {@link NamedRule#THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION}: the call's own rule with an Integer, a Float and a Decimal three
      *  types -- never equal inside a mixed list, and, where their types are known only when the query runs, compared
      *  by the database with nothing refused. A call that meets neither is written exactly as its own rule writes
      *  it. */
-    static SqlExpr upstreamsComparison(TypedNativeCall n, List<SqlExpr> args) {
+    static SqlExpr threeNumberTypesAndWrittenDatePrecision(TypedNativeCall n, List<SqlExpr> args) {
         com.legend.model.FunctionId id = n.callee().id();
         NumberFamilies three = NumberFamilies.THREE_TYPES;
         if (id.equals(com.legend.model.FunctionId.of(Pure.IN__ANY_0_1__ANY_MANY))) {

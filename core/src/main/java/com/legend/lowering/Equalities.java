@@ -85,10 +85,17 @@ final class Equalities {
                 || b.lower() != 0) {
             return false;
         }
-        return Integer.valueOf(1).equals(b.upper())
-                || lowered.type() instanceof com.legend.sql.TypeFact.Typed held
-                        && (held.type() instanceof SqlType.Decimal
-                                || held.type() instanceof SqlType.Scalar one && one != SqlType.Scalar.JSON);
+        return Integer.valueOf(1).equals(b.upper()) || oneValue(lowered);
+    }
+
+    /** Whether the SQL carries {@code lowered} as ONE value, whatever its side is declared to hold: its type says a
+     *  scalar that is no JSON (a JSON value may be a list). A list, a mixed list and a value that states no type
+     *  are not known to be one. */
+    static boolean oneValue(SqlExpr lowered) {
+        return !(lowered instanceof SqlExpr.TaggedList)
+                && lowered.type() instanceof com.legend.sql.TypeFact.Typed held
+                && (held.type() instanceof SqlType.Decimal
+                        || held.type() instanceof SqlType.Scalar one && one != SqlType.Scalar.JSON);
     }
 
     /** The two sides of an equality {@link #emptySidesAsPure} wrote as "false where a side is empty", or null where
@@ -279,7 +286,7 @@ final class Equalities {
      * reason (one built with a fraction of a second, a literal past the database's precision, the latest-date
      * sentinel) is a full date-time (the code audit of the closing batch, B2: read by its carrier, it had been
      * answered "never equal" to a literal of its own precision). The compatibility doors'
-     * ({@code NamedRule.UPSTREAMS_COMPARISON}); the product compares the two by their instant (register S399).
+     * ({@code NamedRule.THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION}); the product compares the two by their instant (register S399).
      */
     static @com.legend.base.Nullable SqlExpr upstreamsPartialDateTime(TypedNativeCall n, List<SqlExpr> args) {
         if (args.size() != 2 || n.args().size() != 2) {

@@ -42,7 +42,7 @@ final class NamedRules {
             case SORT_TIES_AS_WRITTEN -> Scalars.sortTiesAsWritten(call, args);
             case EXTREME_KEEPS_THE_FOLDS_TIE -> Scalars.extremeKeepingTheFoldsTie(call, args);
             case EXTREME_OF_TWO_IN_THE_DATABASES_TYPE -> Scalars.extremeOfTwoInTheDatabasesType(call, args);
-            case UPSTREAMS_COMPARISON -> Scalars.upstreamsComparison(call, args);
+            case THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION -> Scalars.threeNumberTypesAndWrittenDatePrecision(call, args);
         };
     }
 

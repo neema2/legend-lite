@@ -69,13 +69,18 @@ final class UpstreamTies {
                 Pure.AT_COLLECTION_CONTAINS, Pure.AT_COLLECTION_REMOVE_DUPLICATES, Pure.AT_COLLECTION_IN,
                 Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,
                 Pure.AT_BOOLEAN_GREATER_THAN_EQUAL)) {
-            rules.put(compared, NamedRule.UPSTREAMS_COMPARISON);
+            rules.put(compared, NamedRule.THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION);
         }
         RULES = java.util.Collections.unmodifiableMap(rules);
     }
 
     /** The rule that lowers {@code call} with upstream's ties, or null where the call is none of these functions. */
     static @Nullable NamedRule rule(TypedNativeCall call) {
-        return RULES.get(call.callee().id());
+        return rule(call.callee().id());
+    }
+
+    /** The rule both doors' tables name for the function {@code id}, or null where they name none. */
+    static @Nullable NamedRule rule(FunctionId id) {
+        return RULES.get(id);
     }
 }

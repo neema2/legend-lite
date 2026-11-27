@@ -360,7 +360,8 @@ class UpstreamTiesTest {
      * and the plan of two whole sides. A door's row REPLACES that rule ({@code EditionTable.lowersAs}), so the
      * product's refusal never reaches a compatibility door -- as long as every door has a row for every comparison
      * the refusal reads. Each of them here: refused at lite's own door, planned at each of the three upstream doors.
-     * A comparison added to the product's refusal with no row at a door fails here.
+     * These eight are the comparisons written; {@link #everyFunctionTheProductsRefusalReadsHasARowAtTheDoors} holds
+     * the list itself to the doors' rows.
      */
     @Test
     @DisplayName("a comparison lite refuses over two columns' types is planned at every compatibility door")
@@ -377,6 +378,32 @@ class UpstreamTiesTest {
                         .executionPlan("s::RT", java.util.Set.of(), door.style), door + ": " + query);
             }
         }
+    }
+
+    /**
+     * EVERY FUNCTION THE PRODUCT'S REFUSAL READS HAS A ROW AT THE DOORS (the final review of the closing batch, X2:
+     * the test above runs eight written comparisons and never read the product's list, so a function added to it
+     * with no row at a door stayed green). The list is the product's own, {@code lowering.HeldKinds.READ}, read
+     * here by reflection (a private table of the lowering's, which no product code outside it may read); each of
+     * its functions must have a row in the one table both doors ask ({@link UpstreamTies#rule}). A function added to
+     * the refusal with no row fails here, and so does the table renamed or reshaped.
+     */
+    @Test
+    @DisplayName("every function lite's column-type refusal reads has a row at both compatibility doors")
+    void everyFunctionTheProductsRefusalReadsHasARowAtTheDoors() throws Exception {
+        java.lang.reflect.Field read = Class.forName("com.legend.lowering.HeldKinds").getDeclaredField("READ");
+        read.setAccessible(true);
+        Map<?, ?> functions = (Map<?, ?>) read.get(null);
+        assertTrue(functions.size() >= 8, "the refusal reads ==, eq, in, contains and the four orderings at least: "
+                + functions.keySet());
+        List<String> without = new ArrayList<>();
+        for (Object function : functions.keySet()) {
+            if (UpstreamTies.rule((com.legend.model.FunctionId) function) == null) {
+                without.add(String.valueOf(function));
+            }
+        }
+        assertEquals(List.of(), without, "a function lite refuses over two columns' types has no row at the doors:"
+                + " there the product's refusal would run for legend-pure's and legend-engine's code");
     }
 
     @Test

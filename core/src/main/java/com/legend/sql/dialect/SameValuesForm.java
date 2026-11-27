@@ -108,6 +108,48 @@ final class SameValuesForm {
     }
 
     /** A side's value columns: every column but its place ({@code __rn}), in order. */
+    /**
+     * Refuses an equality of TWO LISTS OF EXACT NUMBERS WRITTEN AT TWO SCALES (a Decimal list against a list of
+     * whole numbers, or two Decimal lists of two scales), on a database that carries a list as its JSON text: the
+     * two TEXTS would be compared, {@code [1.0]} against {@code [1.00]} not the same, where the rule says a Decimal
+     * is its number (register S139). The comparison of two whole sides never reaches here (it is a statement over
+     * typed rows); this is the comparison of two list values where they stand, which only the database's own
+     * comparison answers (the edition program's step 6, its closing batch; the user, 2026-11-27: "per row refused
+     * okay"). Narrowed from the batch's first form, which refused every list of Decimals, Floats or dates and so
+     * two lists written alike, answered rightly (its code audit, B1); removed outright for one commit, which put
+     * the wrong answer back (its final review, S1). Lists whose types state one scale, and an operand that states
+     * no type, are compared as their texts, as before step 6 (recorded: the database follow-up's row D8).
+     */
+    static void refuseExactNumbersOfTwoScales(List<SqlExpr> operands) {
+        if (operands.size() != 2) {
+            return;
+        }
+        Integer left = textScale(operands.get(0).type());
+        Integer right = textScale(operands.get(1).type());
+        if (left != null && right != null && !left.equals(right)) {
+            throw new com.legend.sql.DialectCapability("a comparison of two lists of exact numbers written at two"
+                    + " scales (" + left + " and " + right + " decimal places) has no typed form on a database that"
+                    + " carries a list as JSON text, where it would compare the two texts: refused -- compare their"
+                    + " elements, or convert both sides' values to one type (toFloat())");
+        }
+    }
+
+    /** The decimal places a list's exact numbers are written with in its JSON text, by the type it states: a
+     *  Decimal's scale, none for a whole number; null for anything else. */
+    private static @com.legend.base.Nullable Integer textScale(com.legend.sql.TypeFact fact) {
+        if (!(fact instanceof com.legend.sql.TypeFact.Typed held && held.type() instanceof SqlType.Array list)) {
+            return null;
+        }
+        SqlType of = list.element();
+        while (of instanceof SqlType.Array inner) {
+            of = inner.element();
+        }
+        if (of instanceof SqlType.Decimal exact) {
+            return exact.scale();
+        }
+        return of == SqlType.Scalar.INTEGER || of == SqlType.Scalar.BIGINT || of == SqlType.Scalar.HUGEINT ? 0 : null;
+    }
+
     private static List<OutputCol> values(SqlQuery rows) {
         return rows.outputs().stream().filter(o -> !o.name().equals(RN)).toList();
     }

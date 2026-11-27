@@ -363,6 +363,16 @@ public final class Lowerer {
      * let's value is one node wherever its name is read).
      */
     private <T> T asCondition(TypedSpec condition, java.util.function.Supplier<T> lowered) {
+        return asCondition(condition, condition, lowered);
+    }
+
+    /** {@link #asCondition(TypedSpec, java.util.function.Supplier)} where {@code lowered} lowers MORE than the
+     *  condition: {@code within} is everything it lowers (a list's {@code exists}: the list too), so a node that
+     *  stands in the condition and also outside it (one argument read in the list and in the lambda) has a place
+     *  that is no positive one, and is guarded (the final review of the closing batch, S4: counted over the
+     *  condition alone, {@code [$b]->exists(x | $x == false || $b)} over {@code $r.nick == 'a'} left the list's
+     *  element unguarded). */
+    private <T> T asCondition(TypedSpec condition, TypedSpec within, java.util.function.Supplier<T> lowered) {
         java.util.IdentityHashMap<TypedSpec, int[]> positiveAt = new java.util.IdentityHashMap<>();
         countPositive(condition, positiveAt);
         if (positiveAt.isEmpty()) {
@@ -375,7 +385,7 @@ public final class Lowerer {
         // architecture audit of step 6: marked by identity alone, the value place went unguarded too)
         java.util.IdentityHashMap<TypedSpec, int[]> places = new java.util.IdentityHashMap<>();
         positiveAt.keySet().forEach(node -> places.put(node, new int[1]));
-        countPlaces(condition, places);
+        countPlaces(within, places);
         List<TypedSpec> marked = new ArrayList<>();
         positiveAt.forEach((node, positive) -> {
             if (positive[0] == java.util.Objects.requireNonNull(places.get(node))[0] && positiveConditions.add(node)) {
@@ -444,7 +454,8 @@ public final class Lowerer {
     private List<SqlExpr> nativeArgs(TypedNativeCall n, ColumnResolver columns) {
         if (n.args().size() == 2 && n.args().get(1) instanceof TypedLambda test && !test.body().isEmpty()
                 && POSITIVE_LIST_PREDICATES.contains(n.callee().id())) {
-            return asCondition(LambdaBinding.last(test), () -> LambdaBinding.lowerNativeArgs(n, columns, this::scalar));
+            return asCondition(LambdaBinding.last(test), n,
+                    () -> LambdaBinding.lowerNativeArgs(n, columns, this::scalar));
         }
         return LambdaBinding.lowerNativeArgs(n, columns, this::scalar);
     }
@@ -3816,8 +3827,7 @@ public final class Lowerer {
                 } else if (computes(side)) {
                     // (a list written or read where it stands computes nothing: nothing to evaluate)
                     @com.legend.base.Nullable SqlExpr folded = everyValueRead(side);
-                    read.add(folded != null ? folded
-                            : Equalities.noneOrSome(Scalars.emptiness(side, scalarInner(side, columns))));
+                    read.add(folded != null ? folded : readWhereItStands(side, scalarInner(side, columns)));
                 }
             }
             return equality && read.size() == 2 ? Equalities.neverEqualButEvaluated(read.get(0), read.get(1))
@@ -3841,7 +3851,21 @@ public final class Lowerer {
             return Equalities.isNone(scalarInner(side, columns));
         }
         @com.legend.base.Nullable SqlExpr folded = everyValueRead(side);
-        return folded != null ? Equalities.isNone(folded) : Scalars.emptiness(side, scalarInner(side, columns));
+        if (folded != null) {
+            return Equalities.isNone(folded);
+        }
+        SqlExpr where = scalarInner(side, columns);
+        // by what the SQL carries, never by the declaration alone: a row's column read under a forAll over the rows
+        // is declared many and is ONE value a row (Equalities.oneValue). The final review of the closing batch, X1:
+        // asked for a list's length, a number was "empty" on SQLite (its JSON length is 0) and a database error on
+        // DuckDB and H2
+        return Equalities.oneValue(where) ? Equalities.isNone(where) : Scalars.emptiness(side, where);
+    }
+
+    /** {@code side}, declared many and read by no statement of its own, evaluated where it stands: the one value
+     *  the SQL carries it as, or "none, or some" of the list it is. */
+    private static SqlExpr readWhereItStands(TypedSpec side, SqlExpr where) {
+        return Equalities.oneValue(where) ? where : Equalities.noneOrSome(Scalars.emptiness(side, where));
     }
 
     /** Every value of {@code side}, a computed list, READ by the planner's statement that folds them to one

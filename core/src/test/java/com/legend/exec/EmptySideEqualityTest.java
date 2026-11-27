@@ -37,6 +37,7 @@ class EmptySideEqualityTest {
             ###Pure
             Class p::O { id: Integer[1]; nick: String[0..1]; n: Integer[0..1]; }
             function p::either(b: Boolean[1]): Boolean[1] { $b || ($b == false) }
+            function p::listed(b: Boolean[1]): Boolean[1] { [$b]->exists(x | $x == false || $b) }
             ###Relational
             Database p::DB ( Table OPT (ID INTEGER PRIMARY KEY, NICK VARCHAR(20), N INTEGER) )
             ###Mapping
@@ -107,6 +108,10 @@ class EmptySideEqualityTest {
         answers.put("|[1, 2]->map(x | [1]->filter(y | $y == $x)->first() == 1)", List.of(List.of(true), List.of(false)));
         answers.put("|[1, 2]->forAll(x | [1]->filter(y | $y == $x)->first() == 1)", List.of(List.of(false)));
         answers.put("|[1, 2]->exists(x | [1]->filter(y | $y == $x)->first() == 1)", List.of(List.of(true)));
+        // ONE comparison read in an exists' list and in its lambda (the final review of the closing batch, S4): the
+        // list's element is a kept value, false where nick is empty, so [false]->exists(x | $x == false || ...) holds
+        answers.put("|p::O.all()->filter(o|p::listed($o.nick == 'a'))->project(~[id: o|$o.id])->sort(~id->ascending())",
+                List.of(List.of(1L), List.of(2L)));
         cases.putAll(answers);
         // as a condition: as it was
         cases.put("|p::O.all()->filter(o|$o.nick == 'a')->project(~[id: o|$o.id])", List.of(List.of(1L)));

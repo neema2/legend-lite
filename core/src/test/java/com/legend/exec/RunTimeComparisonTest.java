@@ -365,4 +365,33 @@ class RunTimeComparisonTest {
             }
         }
     }
+
+    /** A COLUMN READ UNDER A forAll OR AN exists OVER THE ROWS IS ONE VALUE A ROW, however its side is declared (the
+     *  final review of the closing batch, X1): handed to a function whose parameters hold many, each side's "holds
+     *  no value" is its NULL, never a list's length -- asked for a length, a number was "empty" on SQLite (its JSON
+     *  length is 0, so two different numbers were the same) and a database error on DuckDB and H2. ID is an INTEGER
+     *  and RATIO a DOUBLE: an exact number and a Float are never equal, so no row's comparison holds. */
+    @Test
+    void aColumnHandedToAListParameterIsOneValueARow() throws Exception {
+        String rows = "#>{p::DB.PARTY}#";
+        List<String> wrong = new java.util.ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (String q : List.of(
+                    "|" + rows + "->filter(r | " + rows + "->forAll(o | x::sameNums($o.ID, $o.RATIO)))->select(~[ID])",
+                    "|" + rows + "->filter(r | " + rows + "->exists(o | x::sameNums($o.ID, $o.RATIO)))->select(~[ID])",
+                    "|" + rows + "->filter(r | " + rows + "->exists(o | x::sameAnys($o.ID, $o.RATIO)))->select(~[ID])")) {
+                try (Connection connection = backend.open()) {
+                    Lean.Result r = Lean.established(model, q, "p::RT", connection);
+                    if (!List.of().equals(r.rows())) {
+                        wrong.add(backend.type() + ": " + q + " -> " + r.rows());
+                    }
+                } catch (RuntimeException e) {
+                    wrong.add(backend.type() + ": " + q + " -> " + e.getClass().getSimpleName() + ": "
+                            + String.valueOf(e.getMessage()).lines().findFirst().orElse(""));
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "no row on any database");
+    }
 }

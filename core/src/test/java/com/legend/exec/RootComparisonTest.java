@@ -507,7 +507,11 @@ class RootComparisonTest {
                 wrong.add(backend.type() + ": " + perElement + " -> "
                         + Lean.established(model, perElement, "p::RT", connection).rows());
             } catch (com.legend.error.NotImplementedException | com.legend.sql.DialectCapability e) {
-                // refused by name
+                // refused by name: the map's own refusal, or a database that holds no map where the element is read
+                if (e instanceof com.legend.error.NotImplementedException
+                        && !String.valueOf(e.getMessage()).contains("== over a map read from the row")) {
+                    wrong.add(backend.type() + ": " + perElement + " -> " + e.getMessage());
+                }
             }
             // the same two maps written at two scales: the same (Pure's answer), or refused by name -- never false
             String got = outcome(backend, model, scales);
@@ -516,6 +520,30 @@ class RootComparisonTest {
             }
         }
         assertEquals(List.of(), wrong, "refused by name, or right");
+    }
+
+    /** TWO LISTS OF EXACT NUMBERS WRITTEN AT TWO SCALES, COMPARED WHERE THEY READ THE ELEMENT THEY STAND IN, are
+     *  refused by name on a database that carries a list as JSON text (the user, 2026-11-27: "per row refused
+     *  okay"), never compared as their texts ({@code [1.0, 2.0]} against {@code [1.00, 2.00]} not the same). The
+     *  refusal was removed outright for one commit and the wrong answer came back (the final review of the closing
+     *  batch, S1); it is the narrowed one now. On a database that holds lists as values the answer is Pure's. */
+    @Test
+    void twoListsOfExactNumbersAtTwoScalesAreRefusedWhereAListIsText() throws Exception {
+        String query = "|[1, 2]->map(x | [$x->toDecimal(), 2.0D] == [1.00D, 2.00D])";
+        List<String> wrong = new java.util.ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            try (Connection connection = backend.open()) {
+                String got = String.valueOf(Lean.established(model, query, "p::RT", connection).rows());
+                // answered: only rightly (never the texts' answer, false for both)
+                if (!got.equals(String.valueOf(List.of(List.of(true), List.of(false))))) {
+                    wrong.add(backend.type() + ": " + query + " -> " + got);
+                }
+            } catch (com.legend.sql.DialectCapability | com.legend.error.NotImplementedException e) {
+                // refused by name (SQLite: this refusal; H2: no list form where an element is read)
+            }
+        }
+        assertEquals(List.of(), wrong, "right, or refused by name");
     }
 
     /** TWO WRITTEN LISTS ARE COMPARED ON EVERY DATABASE (the code audit of the closing batch, B1: a refusal meant

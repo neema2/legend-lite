@@ -111,9 +111,12 @@ public enum NamedRule {
     EXTREME_OF_TWO_IN_THE_DATABASES_TYPE,
 
     /** A comparison ({@code ==}, {@code eq}, {@code contains}, {@code in}, {@code removeDuplicates}, {@code <},
-     *  {@code <=}, {@code >}, {@code >=}) AS UPSTREAM COMPARES, at both compatibility doors. It is three things, and
-     *  was named for the first alone until 2026-11-27 ({@code NUMBERS_OF_THREE_TYPES}; the architecture audit of step
-     *  6's closing batch: the name hid the other two): (1) numbers, below; (2) two dates, the last paragraph; (3) a
+     *  {@code <=}, {@code >}, {@code >=}) with numbers of THREE TYPES and a date's WRITTEN PRECISION part of its
+     *  value: what both compatibility doors' tables name. It was named for the numbers alone until 2026-11-27
+     *  ({@code NUMBERS_OF_THREE_TYPES}; the architecture audit of step 6's closing batch: the name hid the rest; the
+     *  user's word on the rename that day), and for one commit for who asks for it, which this type's own contract
+     *  forbids (a rule is named by what it writes). It is three things: (1) numbers, below; (2) two dates, the last
+     *  paragraph; (3) a
      *  door's row REPLACES the product's whole rule for the call ({@code EditionTable.lowersAs}), so the product's
      *  plan of two whole sides ({@code WholeComparisons}) and its refusal of two column types that are never equal
      *  ({@code HeldKinds}) do not run at a door. Splitting the three is step 6B's.
@@ -129,5 +132,5 @@ public enum NamedRule {
      *  <p>Upstream's equality of two DATES goes with it: a date's written precision is part of its value, so one
      *  built to the hour or the minute is never equal to a full date-time (run 2026-11-27), where the product
      *  compares the two by their instant (register S399). */
-    UPSTREAMS_COMPARISON
+    THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION
 }

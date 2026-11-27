@@ -1442,10 +1442,10 @@ final class ArchitectureTest {
             // 2026-11-27 (the edition program's step 6; the user's ruling of that day: lite's numbers are of two
             // families, and "legend-pure's and legend-engine's modes keep their own behaviour"): the rule under which
             // an Integer, a Float and a Decimal stay three types, named in the same class for both doors' tables
-            // NamedRule#NUMBERS_OF_THREE_TYPES -> #UPSTREAMS_COMPARISON (2026-11-27, the closing batch of step 6, the
-            // user's word on the rename): the same entry, renamed -- the rule also carries the doors' date rule and
-            // replaces the product's whole rule for the call, which its first name did not say
-            "lowering.NamedRule#UPSTREAMS_COMPARISON", "com.legend.edge.UpstreamTies",
+            // NamedRule#NUMBERS_OF_THREE_TYPES -> #THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION (2026-11-27, the closing
+            // batch of step 6, the user's word on the rename): the same entry, renamed -- the rule also carries the
+            // doors' date rule and replaces the product's whole rule for the call, which its first name did not say
+            "lowering.NamedRule#THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION", "com.legend.edge.UpstreamTies",
             "lowering.NamedRule#SORT_TIES_AS_WRITTEN", "com.legend.edge.UpstreamTies",
             // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
@@ -3639,7 +3639,13 @@ final class ArchitectureTest {
      *
      * <p>Read over core, the hosts' doors and the edge: a question asked of {@code planner.Edition}, or of the
      * door's table {@code lowering.EditionTable}, from outside the lowering (whose table it is) and the edge (whose
-     * doors make both). Named limit: an access is a method call; an edition passed on unread is not one.
+     * doors make both); and any use at all of the product's own edition and table by name
+     * ({@code planner.LiteEdition}, {@code lowering.LiteEditionTable}: a test of "is this lite's?" is a question
+     * too) outside {@code PlanEnv}, which hands the product's edition out, and the lowering. Named limits (the final
+     * review of the closing batch, S3): an edition passed on unread is no read; a public method of the lowering
+     * that answered a fact of the door's table for the planner would not be seen here (none exists:
+     * {@code Lowerer} has no method returning one); and the planner's other per-door forms, older than the
+     * edition ({@code ActivityTexts}, {@code RoutedQueries}, {@code ExecutedValues}), are step 10's.
      */
     @Test
     void thePlannersReadsOfTheEditionAreItsListedOnes() {
@@ -3667,11 +3673,20 @@ final class ArchitectureTest {
                 public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
                     boolean edition = access.getTargetOwner().isEquivalentTo(com.legend.planner.Edition.class);
                     boolean table = access.getTargetOwner().isEquivalentTo(com.legend.lowering.EditionTable.class);
-                    if (!edition && !table) {
+                    boolean litesOwn = access.getTargetOwner().isEquivalentTo(com.legend.planner.LiteEdition.class)
+                            || access.getTargetOwner().isEquivalentTo(com.legend.lowering.LiteEditionTable.class);
+                    if (!edition && !table && !litesOwn) {
                         return false;
                     }
                     com.tngtech.archunit.core.domain.JavaClass owner = access.getOrigin().getOwner();
                     String at = owner.getPackageName();
+                    if (litesOwn) {
+                        // the two classes themselves, PlanEnv (the product's edition where a door set none) and the
+                        // lowering (its own table where a lowerer is made with none)
+                        String who = owner.getName().replaceAll("\\$.*", "");
+                        return !(who.equals("com.legend.planner.LiteEdition") || who.equals("com.legend.planner.PlanEnv")
+                                || at.equals("com.legend.lowering"));
+                    }
                     if (at.equals("com.legend.edge") || at.startsWith("com.legend.edge.")
                             || at.equals("com.legend.lowering")) {
                         return false;
