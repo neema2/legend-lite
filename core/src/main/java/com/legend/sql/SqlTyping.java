@@ -477,13 +477,22 @@ public final class SqlTyping {
             // written from the 1.5.0 JDBC probe, the executing backend.)
             // The NULL value propagates; H2's DATE delivery rides the
             // TIMESTAMP<-DATE subsumption arm at the wire.
+            // (A truncation to the year, the quarter, the month or the week is a DAY: every dialect delivers a DATE
+            // there, its own contract -- AnsiSqlRenderer.dateTruncDateGrained and each dialect's dateTrunc cast the
+            // database's TIMESTAMP back -- and it is Pure's answer: firstDayOfMonth, firstDayOfQuarter and
+            // firstDayOfYear are date(y, m, 1), firstDayOfWeek the most recent Monday of the date (dateExtension.pure,
+            // read 2026-11-27). Recorded as a TIMESTAMP at every part until that day, the fact contradicted what
+            // the database holds: a comparison of such a day with a day was read as a date-time against a day.)
             case DATE_TRUNC -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }
-                yield a.stream().anyMatch(
-                        x -> x.type() instanceof TypeFact.Bottom)
-                        ? BOTTOM : T_TIMESTAMP;
+                if (a.stream().anyMatch(x -> x.type() instanceof TypeFact.Bottom)) {
+                    yield BOTTOM;
+                }
+                yield a.get(0) instanceof SqlExpr.DatePartLit p && (p.part() == DatePart.YEAR
+                        || p.part() == DatePart.QUARTER || p.part() == DatePart.MONTH || p.part() == DatePart.WEEK)
+                        ? T_DATE : T_TIMESTAMP;
             }
             // the day's date (datePart; the day comparisons): a DATE, as DuckDb renders it (CAST(x AS DATE)) and
             // the legacy route reads it; a value root's TDS text prints it date-only (the MongoDB line's burn-down,

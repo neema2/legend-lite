@@ -468,8 +468,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
       compile error, naming the function. A parameter its author declared `Number`, `Any` or `Date` is compared
       when the query runs instead (two types are then never equal).
     - A property declared `Number`, `Any` or `Date` takes the type of the column it reads. A comparison the query
-      writes between two such that can never be equal (a whole-number column against a floating-point one; for
-      `==`, `in` and `contains`, a day against a date-time) is refused when the query is planned.
+      writes between two such that can never be equal (a whole-number column against a floating-point one; a day
+      against a date-time), an ordering included, is refused when the query is planned.
     - lite's own SDLC uses the same check, so a tree holding such a comparison in a function does not land there.
       A way for a project to be taken with legend-engine's meaning instead is planned, not built.
   - **A number literal is not a mistake:** written against a number of another type it reads as that type when it

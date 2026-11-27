@@ -222,10 +222,10 @@
 >   `Number`, `Any` or the abstract `Date` takes the type its column holds once the
 >   query is planned. Two that can never be equal there (an exact number's column
 >   against a Float's, a day's against a date-time's) are refused where the query is
->   planned, in lite's mode alone (`lowering.HeldKinds`): numbers in an ordering too;
->   a day against a date-time only where the question is whether they are the same
->   (`==`, `eq`, `in`, `contains`), which is the later being by their values. Only a
->   comparison the query's author wrote: one in a function's body is the function's.
+>   planned, in lite's mode alone (`lowering.HeldKinds`), for "the same" and for an
+>   ordering alike (the user, 2026-11-27: "We don't really want date vs datetime to
+>   work for greater than/less than vs not for equal"). Only a comparison the
+>   query's author wrote: one in a function's body is the function's.
 >   A written number literal still adapts; a written day does not read as a
 >   date-time (a day is no instant).
 > - **Inside a function whose types the caller gives** (the user, 2026-11-27: "the

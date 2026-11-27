@@ -198,8 +198,14 @@ final class DateShifts {
                 }
                 // SQL date+interval widens to TIMESTAMP; a StrictDate input
                 // adjusted by a DAY-or-coarser unit stays a StrictDate.
+                // (a value typed only the abstract Date that the database holds as a day is a day too: its column
+                // fixes its kind, as lowering.MixedEncoding.kindOfValue reads it -- the time-series library's
+                // "latest - 2y" over a line of days was a date-time until 2026-11-27)
                 boolean strictIn = n.args().get(0).info().type()
-                        == Type.Primitive.STRICT_DATE;
+                        == Type.Primitive.STRICT_DATE
+                        || n.args().get(0).info().type() == Type.Primitive.DATE
+                                && args.get(0).type() instanceof com.legend.sql.TypeFact.Typed held
+                                && held.type() == SqlType.Scalar.DATE;
                 boolean coarse = switch (Scalars.enumName(n.args().get(2))) {
                     case "YEARS", "MONTHS", "WEEKS", "DAYS" -> true;
                     default -> false;
