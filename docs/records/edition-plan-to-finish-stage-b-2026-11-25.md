@@ -1199,6 +1199,21 @@ Decimal (`$amount * 0.5`).
 
 Built on `claude/step-6-numbers` (the typer's rule, mixed lists, both judges); register S127 and S428 amended.
 
+**Two rulings of 2026-11-27 on what is left of step 6** (put to the user with examples after the user's "That's all
+that's remaining for all of step 6? Everything? What about all the rows you told me have not moved to new equal?",
+which the orchestrator's first list had left out):
+
+- **A comparison inside a function whose types the caller gives:** "Decision 2 - yes so the split with compile error
+  when we know". The split: a parameter the author declared `Any`, `Number` or the abstract `Date` is compared when
+  the query runs (two types never equal, as built); a comparison between positions whose types a call fixes (the
+  caller's columns, a type variable) is a compile error at that call where the two types differ, naming the
+  function, the two types and the fix. A written literal still reads as the caller's type; an Integer against a
+  Decimal is by value.
+- **Two lists compared inside an expression on a database with no list type (H2; the JSON-carried lists of SQLite,
+  MySQL, MariaDB):** "Decision 1 let's build everything else first, then we look at that and maybe SQLite at that
+  point when everything else is done". So it is neither in step 6's build now nor closed: it is looked at again,
+  with SQLite's date-time text, when everything else of step 6 is done.
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
