@@ -270,8 +270,9 @@ tests. For the user's word with the size table's rows.
 - The date rule: strict for "the same" and for an ordering alike ("We don't really want date vs datetime to work for
   greater than/less than vs not for equal").
 
-**Not yet decided by the user:** a Float COLUMN combined with a Decimal -- record it as a known difference, or (the
-recommendation put to them) type it a Float in lite's own mode, as a whole number with a Float already is.
+**A Float COLUMN combined with a Decimal:** kept as it is ("Okay keep the float thing then as is"): the database's
+double under a type that says Decimal, recorded in register S429. Not typed a Float in lite's own mode (the
+recommendation put to them), not converted through text.
 
 **Built since the audits and not yet run** (the run of `261ee728d` covers the first two): the empty-side fix; the
 always-false fix; one value read twice is one evaluation (`UserCallInliner.finish`, `ff19de458`); strict `==` on
