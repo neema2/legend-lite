@@ -63,6 +63,12 @@ class RootComparisonTest {
         // a value typed only when the query runs is compared by the type it holds
         out.put("|[1, 2]->cast(@Number) == [1, 2]->cast(@Number)", true);
         out.put("|[1, 2]->cast(@Number) == [1.0, 2.0]->cast(@Number)", false);
+        // an Integer side against a Decimal side: two exact numbers, by value (the user's ruling of 2026-11-27)
+        out.put("|[1, 2]->filter(x | $x > 0) == [1.0D, 2.00D]", true);
+        out.put("|[1, 2]->filter(x | $x > 0) == [1.0D, 2.50D]", false);
+        out.put("|[1.0D, 2.00D]->filter(x | $x > 0D) == [1, 2]->filter(x | $x > 0)", true);
+        out.put("|[1, 2]->cast(@Number) == [1D, 2D]->cast(@Number)", true);
+        out.put("|[1, 2]->cast(@Number) == [1D, 2.5D]->cast(@Number)", false);
         // two values of one known type stay the plain comparison
         out.put("|1 == 1", true);
         out.put("|'a' == 'b'", false);

@@ -1053,7 +1053,7 @@ public final class SideEqualities {
     }
 
     /** Whether {@code kind} is an exact number's: an Integer's or a Decimal's (the two are equal by their value). */
-    static boolean exactNumber(Type kind) {
+    public static boolean exactNumber(Type kind) {
         return kind == Type.Primitive.INTEGER || kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal;
     }
 

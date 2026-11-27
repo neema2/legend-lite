@@ -131,8 +131,12 @@ class EqualityWorldsConformanceTest {
         // numeric in both worlds" row MIS-CITED testIntToDecimal (that
         // test is Decimal×Decimal) — the engine assert seam rules
         // cross-primitive-kind FALSE; SQL '=' coerces TRUE
-        // B3 step 5: an Integer and a Decimal are two types -- refused by the product, false by the judge's rule
-        refusedByTheProduct(false, "8", "8D", 8L, new java.math.BigDecimal("8"));
+        // an Integer and a Decimal are two exact numbers, equal by their value in both worlds (the user's ruling of
+        // 2026-11-27, "Yes I like the rule"; from B3 step 5 until then two types: refused by the product, false by the
+        // judge's rule), as an exact number and a Float still are not
+        agree(true, "8", "8D", 8L, new java.math.BigDecimal("8"));
+        agree(false, "8", "8.5D", 8L, new java.math.BigDecimal("8.5"));
+        refusedByTheProduct(false, "8.0", "8D", 8.0d, new java.math.BigDecimal("8"));
         // register S139 (the user's ruling, 2026-11-05): a Decimal by value, so the two worlds agree -- on every route
         // since B3 step 1a (2026-11-24; until then the edge kept the engine assert seam's scale-sensitive equals)
         agree(true, "3.0d", "3.00d", new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));

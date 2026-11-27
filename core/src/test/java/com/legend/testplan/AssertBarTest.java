@@ -101,8 +101,10 @@ class AssertBarTest {
             new Probe("forAll-decimal-scale", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.00D))}", null),
             new Probe("forAll-decimal-value", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.10D))}",
                     "expected: 3.0, actual: 3.10 at index 0"),
+            // an Integer and a Decimal are two exact numbers, equal by their value (the user's ruling of 2026-11-27;
+            // until then two kinds never equal: "expected: 1 (Decimal), actual: 1 (Integer) at index 0")
             new Probe("forAll-decimal-vs-integer", "{|range(1, 3)->forAll(i | assertEquals(1D, $i))}",
-                    "expected: 1 (Decimal), actual: 1 (Integer) at index 0"),
+                    "expected: 1, actual: 2 at index 1"),
             new Probe("forAll-over-nothing", "{|[1, 2]->filter(x | $x > 5)->forAll(i | assertEquals($i, 99))}", null),
             // an element's own caller's message (item 3's S4 step 3, the user's decision 4, 2026-11-22): read only where
             // THAT element fails, the failure whole as upstream raises it -- the element 1 holds, so its message, which
@@ -184,9 +186,11 @@ class AssertBarTest {
                     "expected the elements [2, 1] in any order, got [2.0, 1.0]"),
             // the type is part of the value in lite's own runs (register S127, the user's ruling of 2026-11-04;
             // backwards-compatibility mode compares an Integer and a Decimal by text: below)
-            new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", "expected: 1 (Decimal), actual: 1 (Integer)"),
+            // (an Integer and a Decimal of one value are equal: two exact numbers, the user's ruling of 2026-11-27)
+            new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", null),
+            new Probe("decimal-vs-integer-values", "{|assertEquals(1.5D, 1)}", "expected: 1.5, actual: 1"),
             new Probe("float-vs-decimal", "{|assertEquals(1.5, 1.5D)}", "expected: 1.5 (Float), actual: 1.5 (Decimal)"),
-            new Probe("assertNotEquals-across-kinds", "{|assertNotEquals(3, 3D)}", null),
+            new Probe("assertNotEquals-across-kinds", "{|assertNotEquals(3, 3.0)}", null),
             new Probe("mixed-list", "{|assertEquals([1, 'a', 2.5], [1, 'a', 2.5])}", null),
             new Probe("empty-vs-filtered", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
             new Probe("assertError-let-message", "{|let m = 'boom'; assertError(|fail($m), $m);}", null),

@@ -65,7 +65,10 @@ final class RootComparison {
         }
         if (known(left.info().type()) && known(right.info().type())
                 && !java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
-                        SideEqualities.typedClass(right.info().type()))) {
+                        SideEqualities.typedClass(right.info().type()))
+                // (an Integer side against a Decimal side is one comparison, by value: two exact numbers)
+                && !(SideEqualities.exactNumber(left.info().type())
+                        && SideEqualities.exactNumber(right.info().type()))) {
             // two known types: the comparison is whatever the door that admitted the code made of it (refused on
             // lite's own, the database's by value on legend-engine's), which stands as it is lowered
             return null;
