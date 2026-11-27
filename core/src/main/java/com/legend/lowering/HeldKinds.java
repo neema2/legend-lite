@@ -27,7 +27,9 @@ import java.util.Map;
  * column it reads holds one, and the lowering knows it. Where the two sides can never be equal -- an exact number's
  * column against a Float's, a day's against a date-time's -- the comparison is refused when the query is planned, as
  * a comparison of two known types is refused when it is compiled: never answered false for every row, never the
- * database's own conversion.
+ * database's own conversion. Numbers are refused in an ordering too (the two families' ruling: "keep ordering
+ * strict"); a day against a date-time only where the question is whether they are the same ({@code ==}, {@code eq},
+ * {@code in}, {@code contains}): which is the later is by their values, as the run-time rule orders two dates.
  *
  * <p>A written number literal still reads as the column's type where nothing is lost ({@code $p.weight == 1} over a
  * DOUBLE column), and an Integer against a Decimal is by value (two exact numbers). A written DAY does not read as a
@@ -94,6 +96,14 @@ final class HeldKinds {
         boolean numbers = MixedEncoding.numberTypePlace(lk) >= 0 && MixedEncoding.numberTypePlace(rk) >= 0;
         if (!numbers && !(dayOrDateTime(lk) && dayOrDateTime(rk))) {
             return;   // (kinds this rule does not read: a text against a number through an Any, a partial date)
+        }
+        if (!numbers && read.kind() == TypedCrossTypeComparison.Kind.ORDERING) {
+            // which of a day and a date-time is the later is a question of their values, the answer the run-time rule
+            // gives two dates behind an abstract Date (decision D3: ordered by value): the database's comparison, as
+            // it was. Only "the same" between the two is the certain mistake. (Refused too on 2026-11-27, for a
+            // day: four of the time-series documents' own queries stopped planning -- FILTER date >= '2024-01-01'
+            // and date > latest - 2y over a sampled line, whose date is a date-time behind a Date.)
+            return;
         }
         if (numbers && (readsAs(l, rk) || readsAs(r, lk))) {
             return;   // a written literal against a column of the other family: the database reads it as the column's

@@ -20,9 +20,10 @@ import org.junit.jupiter.api.Test;
 /**
  * A PROPERTY DECLARED AS THE ABSTRACT DATE TAKES ITS COLUMN'S KIND (the edition program's step 6; the user's ruling
  * of 2026-11-27, "You can do the error way if it's only for lite mode"): a day's column or a date-time's. A day
- * against a date-time is the mistake it is between two declared types, refused where the query is planned -- a
- * written day does not read as a date-time, because a day is no instant ({@code $x.at == %2020-01-01} would mean
- * "at midnight exactly"). The fix is the instant, or the day of the date-time. Lite's own mode alone
+ * against a date-time, asked whether they are the same, is the mistake it is between two declared types, refused
+ * where the query is planned -- a written day does not read as a date-time, because a day is no instant
+ * ({@code $x.at == %2020-01-01} would mean "at midnight exactly"). The fix is the instant, or the day of the
+ * date-time. Which of the two is the later is by their values, as it was. Lite's own mode alone
  * ({@code lowering.HeldKinds}).
  */
 class DatesTypedByTheirColumnsTest {
@@ -54,6 +55,10 @@ class DatesTypedByTheirColumnsTest {
                 List.of(List.of(2L)));
         holds.put("|p::Trade.all()->filter(x|$x.at >= %2020-01-02T00:00:00)->project(~[id: x|$x.id])",
                 List.of(List.of(2L)));
+        // which is the later is by their values, a day against a date-time too (the run-time rule's ordering of two
+        // dates; refusing it stopped the time-series documents' FILTER date >= '2024-01-01' over a sampled line)
+        holds.put("|p::Trade.all()->filter(x|$x.at >= %2020-01-02)->project(~[id: x|$x.id])", List.of(List.of(2L)));
+        holds.put("|p::Trade.all()->filter(x|$x.day < $x.at)->project(~[id: x|$x.id])", List.of(List.of(2L)));
         for (Map.Entry<String, Object> c : holds.entrySet()) {
             try (Connection connection = TestBackends.platform().open()) {
                 Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
@@ -64,8 +69,6 @@ class DatesTypedByTheirColumnsTest {
         Map<String, String> refused = new LinkedHashMap<>();
         refused.put("|p::Trade.all()->filter(x|$x.at == %2020-01-01)->project(~[id: x|$x.id])",
                 "== compares DateTime with StrictDate");
-        refused.put("|p::Trade.all()->filter(x|$x.at >= %2020-01-01)->project(~[id: x|$x.id])",
-                ">= compares DateTime with StrictDate");
         refused.put("|p::Trade.all()->filter(x|$x.day == %2020-01-01T00:00:00)->project(~[id: x|$x.id])",
                 "== compares StrictDate with DateTime");
         refused.put("|p::Trade.all()->filter(x|$x.day == $x.at)->project(~[id: x|$x.id])",
