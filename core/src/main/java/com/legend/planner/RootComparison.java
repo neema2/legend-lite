@@ -23,8 +23,8 @@ import java.util.function.Function;
 
 /**
  * A STATEMENT WHOSE ANSWER IS A COMPARISON OF TWO WHOLE SIDES (the edition program's step 6, 2026-11-27: the one
- * equality): {@code |$a == $b} or {@code |!($a == $b)} where a side is a list, an optional value, an instance, or a
- * value whose type is known only when the query runs. Each side is planned once, as the statement it is, and the
+ * equality): {@code |$a == $b} or {@code |!($a == $b)} where a side is a computed list (of values, of instances,
+ * of values typed only when the query runs), a map or a table. Each side is planned once, as the statement it is, and the
  * product's equality over two sides compares them ({@link SideEqualities}): the same code that judges a test's
  * {@code assertEquals}, so what an assert judges is what a query answers, and a side's rows are a statement's on every
  * database (no list is compared where a database has no list equality).
@@ -34,7 +34,9 @@ import java.util.function.Function;
  * comparison is whatever the door that admitted the code made of it, a compile error on lite's own); {@code eq},
  * which is identity.
  *
- * <p>Two tables are compared as two tables ({@link #tables}): their columns' names, then their rows in order.
+ * <p>Two tables are compared as two tables ({@link #tables}): their columns' names, then their rows.
+ *
+ * <p>The product's own rule alone: a comparison a compatibility door admitted is the plain comparison it was.
  */
 final class RootComparison {
 
@@ -62,17 +64,28 @@ final class RootComparison {
         }
         TypedSpec left = equal.args().get(0);
         TypedSpec right = equal.args().get(1);
+        com.legend.lowering.NumberFamilies numbers = numbersOf.apply(equal);
+        if (numbers != com.legend.lowering.NumberFamilies.TWO_FAMILIES) {
+            // a comparison a compatibility door admitted (its table names its own rule for ==): the plain comparison
+            // it was before this class, so the door keeps every answer it had -- the database's for two sides typed
+            // Number or Any (1->cast(@Number) == 1D->cast(@Number) is true at legend-engine's door), no refusal the
+            // plain path did not make, two tables as they were (the outside audit of 2026-11-27, HIGH 1)
+            return null;
+        }
+        if (body.stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)) {
+            // a value drawn afresh where it is written (random(), generateGuid()): planned as two sides, a let both
+            // sides read would be drawn twice (the same audit): the plain comparison, which reads it once or refuses
+            return null;
+        }
         List<TypedSpec> lets = body.subList(0, body.size() - 1);
         if (Type.isRelation(left.info().type()) || Type.isRelation(right.info().type())) {
-            return tables(left, right, lets, negated, lowered, numbersOf.apply(equal));
+            return tables(left, right, lets, negated, lowered, numbers);
         }
         if (known(left.info().type()) && known(right.info().type())
                 && !java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
                         SideEqualities.typedClass(right.info().type()))
-                // (an Integer side against a Decimal side is one comparison, by value: two exact numbers -- under the
-                // product's rule; a door that keeps three number types made the comparison what it is already)
-                && !(numbersOf.apply(equal) == com.legend.lowering.NumberFamilies.TWO_FAMILIES
-                        && SideEqualities.exactNumber(left.info().type())
+                // (an Integer side against a Decimal side is one comparison, by value: two exact numbers)
+                && !(SideEqualities.exactNumber(left.info().type())
                         && SideEqualities.exactNumber(right.info().type()))) {
             // two known types: the comparison is whatever the door that admitted the code made of it (refused on
             // lite's own, the database's by value on legend-engine's), which stands as it is lowered
@@ -86,10 +99,8 @@ final class RootComparison {
         SqlQuery rightPlan = lowered.apply(with(lets, right));
         SideEqualities.Pair pair = SideEqualities.pair(left, kind(left, leftPlan), leftPlan, right,
                 kind(right, rightPlan), rightPlan, ctx);
-        // (numbers of different types by the rule this comparison takes at the door that admitted it: the product's
-        // two families, or the three types a compatibility door's table names)
         SideEqualities.Compared compared = pair == null ? null
-                : pair.under(numbersOf.apply(equal)).compared(leftPlan, rightPlan, false);
+                : pair.under(numbers).compared(leftPlan, rightPlan, false);
         return compared == null ? null : answer(compared, negated);
     }
 
@@ -105,9 +116,9 @@ final class RootComparison {
     private static final OutputCol VALUE = new OutputCol("value", SqlType.Scalar.BOOLEAN, false);
 
     /**
-     * Two TABLES: the same where their columns have the same names in the same order and their rows are the same in
-     * order, each cell by its column's type ({@link SideEqualities#tables}, the comparison an {@code assertEquals} of
-     * two tables is judged by). Two tables whose columns differ in name or number are never equal, a fact of their
+     * Two TABLES: the same where their columns have the same names in the same order and their rows are the same,
+     * each cell by its column's type ({@link SideEqualities#tables}, the comparison an assert of two tables is judged
+     * by) -- in order where the query defines both tables' order, else as a multiset of rows. Two tables whose columns differ in name or number are never equal, a fact of their
      * types: answered with no read. Null (the statement is lowered as any expression is) where a side is no table,
      * a table's columns exist only when the query runs, or a column has no typed comparison.
      */
@@ -127,11 +138,17 @@ final class RootComparison {
         if (leftPlan.outputs().size() != l.columns().size() || rightPlan.outputs().size() != r.columns().size()) {
             return null;
         }
+        // rows in order only where both tables' rows have an order the query defines (a sort, written rows); a table
+        // with none (a store's rows, a DISTINCT, a grouping) has no order to compare, so the two are compared as a
+        // multiset of rows -- never by the order a database happened to return them in (the outside audit of
+        // 2026-11-27, MEDIUM 7: two DISTINCTs of one table need not arrive alike)
+        boolean multiset = com.legend.compiler.spec.OrderedAsserts.unorderedRows(left, lets)
+                || com.legend.compiler.spec.OrderedAsserts.unorderedRows(right, lets);
         // each column by the kind its plan's output decides where its declaration leaves it open (a String, a Number,
         // an Any: the reading an assert's judge gives a table's cells)
         SideEqualities.Compared compared = SideEqualities.tables(leftPlan,
                 com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(l, leftPlan.outputs()), rightPlan,
-                com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(r, rightPlan.outputs()), numbers);
+                com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(r, rightPlan.outputs()), multiset, numbers);
         return compared == null ? null : answer(compared, negated);
     }
 
@@ -153,8 +170,12 @@ final class RootComparison {
         // (a map too: its entries are compared whatever order they were written in, which no database's own map
         // comparison promises -- measured 2026-11-27, newMap([a, b]) == newMap([b, a]) answered false on DuckDB and
         // SQLite where an assert of the two passes)
-        return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE || PlatformTypes.isAny(t)
-                || PlatformTypes.isMapCarrier(t) || side.info().multiplicity().isMany();
+        // (ONE value typed Number, Any or the abstract Date is no whole side: it is compared where it stands, by the
+        // one rule an expression's comparison has -- the type-checker's for an upcast, lowering.HeldKinds for a type
+        // only a column gives -- so the same comparison answers the same as a query's answer and inside an if; the
+        // outside audit of 2026-11-27, MEDIUM 3: planned as a side, $row.n == 1.0 over an INTEGER column answered
+        // false here and true inside an expression)
+        return PlatformTypes.isMapCarrier(t) || side.info().multiplicity().isMany();
     }
 
     private static boolean written(TypedSpec side) {

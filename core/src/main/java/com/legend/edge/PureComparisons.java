@@ -95,7 +95,27 @@ public final class PureComparisons implements CrossTypeRule {
         return answered == c ? c.comparison() : answered;
     }
 
+    private static boolean insideAContainer(TypedCrossTypeComparison c) {
+        if (!(c.comparison() instanceof com.legend.compiler.spec.typed.TypedNativeCall call)
+                || call.args().size() < 2) {
+            return false;
+        }
+        return container(call.args().get(0).info().type()) || container(call.args().get(1).info().type());
+    }
+
+    private static boolean container(com.legend.compiler.element.type.Type t) {
+        return com.legend.compiler.element.type.PlatformTypes.isPairCarrier(t)
+                || com.legend.compiler.element.type.PlatformTypes.isListCarrier(t)
+                || com.legend.compiler.element.type.PlatformTypes.isMapCarrier(t);
+    }
+
     private static TypedSpec answer(TypedCrossTypeComparison c) {
+        if (insideAContainer(c)) {
+            // two pairs, lists or maps whose types differ only inside them (pair(1, 'a') == pair(1D, 'a')): what
+            // legend-pure answers for these was not read, so the comparison stays the database's, as it was at this
+            // door (the outside audit of 2026-11-27; lite's own rule reads inside a container, this door's does not)
+            return c.comparison();
+        }
         return switch (c.kind()) {
             // equal([], []) is true in legend-pure: only a side that is never empty makes the answer the types' alone
             case EQUALITY -> neverEmpty(c) ? falseOf(c) : c;

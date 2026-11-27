@@ -1159,14 +1159,18 @@ public final class SideEqualities {
             // PCT's testLargePlus, testLargeMinus, testLargeTimes, testSum_Integers on channel B)
             return rows;
         }
-        boolean asText = ownNumber && theirText;
+        // (an Integer beside a Decimal whose scale leaves no room for every Integer: both as the canonical text,
+        // exact at any size -- holdsEveryInteger)
+        boolean tooWide = wholeNumber(own) && theirs instanceof SqlType.Decimal td && !holdsEveryInteger(td)
+                || own instanceof SqlType.Decimal od && wholeNumber(theirs) && !holdsEveryInteger(od);
+        boolean asText = ownNumber && theirText || tooWide;
         if (!asText && !(wholeNumber(own) && theirs instanceof SqlType.Decimal)) {
             return rows;
         }
         SqlQuery read = cteRows(cte, rows);
         SqlExpr value = SqlExpr.Column.of("t", read.outputs(), O);
-        OutputCol oOut = new OutputCol(O, theirs instanceof SqlType.Decimal d ? wideEnough(d) : theirs,
-                read.outputs().get(0).nullable());
+        OutputCol oOut = new OutputCol(O, asText ? SqlType.Scalar.DECIMAL_TEXT
+                : theirs instanceof SqlType.Decimal d ? wideEnough(d) : theirs, read.outputs().get(0).nullable());
         OutputCol rnOut = read.outputs().get(1);
         SqlExpr beside = asText ? LiteralSpelling.decimalText(value)
                 : new SqlExpr.Cast(value, oOut.type(), SqlExpr.Reason.JUDGE);
@@ -1564,13 +1568,18 @@ public final class SideEqualities {
         List<@com.legend.base.Nullable SqlType> eCarried = new ArrayList<>();
         List<@com.legend.base.Nullable SqlType> aCarried = new ArrayList<>();
         for (int i = 0; i < eKinds.size(); i++) {
-            boolean twoKinds = !schemasDiffer && i < aKinds.size()
+            boolean both = !schemasDiffer && i < aKinds.size();
+            boolean twoKinds = both
                     && !java.util.Objects.equals(typedClass(eKinds.get(i)), typedClass(aKinds.get(i)));
-            boolean exact = twoKinds && numbers == NumberFamilies.TWO_FAMILIES && exactNumber(eKinds.get(i))
-                    && exactNumber(aKinds.get(i));
+            boolean bothExact = both && exactNumber(eKinds.get(i)) && exactNumber(aKinds.get(i));
+            boolean exact = twoKinds && numbers == NumberFamilies.TWO_FAMILIES && bothExact;
             tagged.add(twoKinds && !exact);
-            SqlType eType = exact ? cellType(e, i) : null;
-            SqlType aType = exact ? cellType(a, i) : null;
+            // carried as one type: an Integer column beside a Decimal one (two exact numbers), and two Decimal
+            // columns one of which a store read carries as its text beside one the plan types (a Decimal by its
+            // number, S139; the outside audit of 2026-11-27, MEDIUM 6: text against a number had no comparison)
+            boolean carry = exact || bothExact && !twoKinds;
+            SqlType eType = carry ? cellType(e, i) : null;
+            SqlType aType = carry ? cellType(a, i) : null;
             eCarried.add(eType == null || aType == null ? null : besideExact(eType, aType));
             aCarried.add(eType == null || aType == null ? null : besideExact(aType, eType));
         }
@@ -1627,9 +1636,19 @@ public final class SideEqualities {
             return wholeNumber(own) || own instanceof SqlType.Decimal ? SqlType.Scalar.DECIMAL_TEXT : null;
         }
         if (wholeNumber(own) && theirs instanceof SqlType.Decimal d) {
-            return wideEnough(d);
+            return holdsEveryInteger(d) ? wideEnough(d) : SqlType.Scalar.DECIMAL_TEXT;
         }
-        return own instanceof SqlType.Decimal d && wholeNumber(theirs) ? wideEnough(d) : null;
+        return own instanceof SqlType.Decimal d && wholeNumber(theirs)
+                ? holdsEveryInteger(d) ? wideEnough(d) : SqlType.Scalar.DECIMAL_TEXT : null;
+    }
+
+    /** Whether a Decimal at {@code d}'s scale has digits enough before the point for every Integer (19) within a
+     *  Decimal's 38: past that scale an Integer beside it is compared as the canonical text instead ({@code
+     *  LiteralSpelling.decimalText}), which is exact at any size -- a cast that cannot hold the Integer is an error
+     *  on most databases but a silent clamp on some (the outside audit of 2026-11-27, MEDIUM 5: MySQL and MariaDB,
+     *  from their documentation, not run). */
+    private static boolean holdsEveryInteger(SqlType.Decimal d) {
+        return 19 + d.scale() <= 38;
     }
 
     /** Whether two tables' columns differ in number or in name, in order: such two tables are never equal, a fact of
@@ -1643,7 +1662,8 @@ public final class SideEqualities {
     /**
      * Two TABLES compared by {@code ==} (the edition program's step 6, the one equality, 2026-11-27): the comparison an
      * {@code assertEquals} of two tables is judged by ({@link #grids}) over each side's plan as the product planned it --
-     * the same columns by name, then the same rows in order, each cell by its column's type -- its rows numbered where
+     * the same columns by name, then the same rows, in order or as a multiset ({@code multiset}: the caller's, by
+     * whether the query defines both tables' order), each cell by its column's type -- its rows numbered where
      * the plan defines their order ({@link SideOrdinal}). The two tables' columns have the same names ({@link
      * #columnsDiffer}, answered by the caller from the types alone), and each side's columns are given with the kinds
      * its plan's outputs decide ({@code compiler.spec.VerdictQueries.wireDecidedKinds}, the caller's too: the lowering
@@ -1651,13 +1671,13 @@ public final class SideEqualities {
      * columns, or a column has no typed comparison.
      */
     public static @com.legend.base.Nullable Compared tables(SqlQuery left, Type.RelationType l,
-            SqlQuery right, Type.RelationType r, NumberFamilies numbers) {
+            SqlQuery right, Type.RelationType r, boolean multiset, NumberFamilies numbers) {
         if (left.outputs().size() != l.columns().size() || right.outputs().size() != r.columns().size()) {
             return null;
         }
         return grids(tableSide(left, l.columns().size()), l.columns().stream().map(Type.Column::type).toList(),
-                tableSide(right, r.columns().size()), r.columns().stream().map(Type.Column::type).toList(), false,
-                false, l, r, numbers);
+                tableSide(right, r.columns().size()), r.columns().stream().map(Type.Column::type).toList(),
+                multiset, false, l, r, numbers);
     }
 
     /** A table's plan as a grid side: its rows' ordinal as its last output, and its data columns named and typed

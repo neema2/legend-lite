@@ -62,7 +62,10 @@ final class HeldKinds {
         put(all, Pure.AT_BOOLEAN_EQUAL, TypedCrossTypeComparison.Kind.EQUALITY, "==");
         put(all, Pure.AT_BOOLEAN_EQ, TypedCrossTypeComparison.Kind.EQUALITY, "eq");
         put(all, Pure.AT_COLLECTION_IN, TypedCrossTypeComparison.Kind.MEMBERSHIP, "in");
-        put(all, Pure.AT_COLLECTION_CONTAINS, TypedCrossTypeComparison.Kind.MEMBERSHIP, "contains");
+        // (the one overload the type-checker's rule reads, compiler.spec.EqualityClasses: the two tables name the
+        // same comparisons, so one written in a function's body is marked the function's for every call read here)
+        put(all, List.of(FunctionId.of(Pure.CONTAINS__ANY_MANY__ANY_1)), TypedCrossTypeComparison.Kind.MEMBERSHIP,
+                "contains");
         put(all, Pure.AT_BOOLEAN_LESS_THAN, TypedCrossTypeComparison.Kind.ORDERING, "<");
         put(all, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, TypedCrossTypeComparison.Kind.ORDERING, "<=");
         put(all, Pure.AT_BOOLEAN_GREATER_THAN, TypedCrossTypeComparison.Kind.ORDERING, ">");

@@ -2248,7 +2248,7 @@ function timeseries::lines::within<T,U,K,P,A,L,Q,B,S,N,OA>(spine: Relation<T>[1]
 {
   $spine->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a->read($period)->toOne() == $b->read($linePeriod)->toOne()) && ($a->read($key)->toOne() == $b->read($lineKey)->toOne())})
     ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
-    ->extend(~[on:r|timeseries::lines::most($r->read($seen), $r.ol), oa:r|if($r->read($lineAt)->isEmpty() || ($r->read($at)->toOne() >= $r->read($lineAt)->toOne()), |$r->read($at), |$r->read($lineAt))])
+    ->extend(~[on:r|timeseries::lines::most($r->read($seen), $r.ol), oa:r|if($r->read($lineAt)->isEmpty() || ($r->read($at)->toOne()->cast(@Date) >= $r->read($lineAt)->toOne()->cast(@Date)), |$r->read($at), |$r->read($lineAt))])
     ->without(~[ol])->rename(~on, $next)->rename(~oa, $outAt)
 }
 

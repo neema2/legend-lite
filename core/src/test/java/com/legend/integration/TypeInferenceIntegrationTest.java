@@ -987,9 +987,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                         // database lite writes no list on (H2) or that holds no exact decimal (SQLite) refuses by
                         // name, never answers approximately (found by the stack's full run, 2026-11-27; the list
                         // forms are the database follow-up's)
-                        assertTrue(String.valueOf(refused.getMessage()).contains("without a list encoding")
-                                        || String.valueOf(refused.getMessage()).contains("holds no exact decimal"),
-                                        refused.getMessage());
+                        // only there: a database that should answer must answer (the outside audit of 2026-11-27)
+                        String lane = com.legend.testing.LaneFloor.backend().name();
+                        assertTrue(lane.equals("h2") && String.valueOf(refused.getMessage()).contains(
+                                        "without a list encoding") || lane.equals("sqlite") && String.valueOf(
+                                        refused.getMessage()).contains("holds no exact decimal"),
+                                        lane + ": " + refused.getMessage());
                 }
                 // an exact number against a Float is still refused
                 com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(

@@ -3654,8 +3654,17 @@ public final class Lowerer {
             case com.legend.compiler.spec.typed.TypedCrossTypeComparison x
                     -> throw x.refusal();
             // a comparison kept for its function's call that met none (a body lowered where it stands): its sides'
-            // types are known only when the query runs, and the database compares the values it holds
-            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> scalarInner(x.comparison(), columns);
+            // types are known only when the query runs, and the database compares the values it holds. One whose
+            // types its CALL fixes is answered at that call or not at all: reaching here unanswered it would be two
+            // known types compared by the database, so it is refused (invariant 4; the outside audit of 2026-11-27)
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> {
+                if (x.fixedByTheCall()) {
+                    throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()
+                            == null ? "" : " in " + x.function()) + ") reached the lowering unanswered: the pass"
+                            + " that answers it at the call did not run over this body");
+                }
+                yield scalarInner(x.comparison(), columns);
+            }
             case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.

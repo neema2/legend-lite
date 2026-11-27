@@ -135,7 +135,14 @@ final class CollectionLanes {
             case TypedCast c -> valueLane(c.source());
             // a comparison across types (B3 step 5): refused before the lowering; its call's lane if it is met
             case com.legend.compiler.spec.typed.TypedCrossTypeComparison x -> valueLane(x.comparison());
-            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> valueLane(x.comparison());
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> {
+                if (x.fixedByTheCall()) {
+                    // (as Lowerer.scalarInner: one whose types its call fixes is answered there or not at all)
+                    throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()
+                            == null ? "" : " in " + x.function()) + ") reached the lowering unanswered");
+                }
+                yield valueLane(x.comparison());
+            }
             // meta::json navigation: the SOURCE decides; a result envelope is
             // one scalar string value
             case com.legend.compiler.spec.typed.TypedJsonAccess ja -> valueLane(ja.source());

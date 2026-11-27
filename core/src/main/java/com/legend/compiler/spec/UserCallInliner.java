@@ -475,7 +475,7 @@ public final class UserCallInliner {
     }
 
     /** Whether {@code t} holds a call that draws afresh at each place it is written. */
-    private static boolean drawsAfresh(TypedSpec t) {
+    public static boolean drawsAfresh(TypedSpec t) {
         if (t instanceof TypedNativeCall c && (com.legend.builtin.Pure.AT_MATH_RANDOM.contains(c.callee().id())
                 || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(c.callee().id()))) {
             return true;
