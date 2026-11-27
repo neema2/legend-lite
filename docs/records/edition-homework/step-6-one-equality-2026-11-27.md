@@ -368,8 +368,31 @@ tests, the census, the catalog tests, PCT on DuckDB (essential, grammar), PCT ch
 one failure was a guard: `Lowerer.scalarInner` at 257 lines of its 250 (the run-time comparison's arm is its own
 method since `89e51a7dc`).
 
-**The full round** (regeneration, every test group with Cypher parity and the bundle budget, the acceptance
-measure) was started at `89e51a7dc`.
+**The full round at `89e51a7dc`** (2026-11-27; regeneration, then 91 targets: core, the guards, PCT on DuckDB and
+H2 at all three doors, PCT channel B, the time-series library, the parser checks, the catalog tests, Cypher parity,
+the bundle budget): **89 pass, 1 skipped, 1 fails** -- the time-series bundle over its budget of 148,200, which is
+the user's to move and was ruled the same day ("Time series budget fine"; the pin moves in the closing batch).
+Cypher parity passes (the harness's NUMBER procedure converts). It predates the rename to `hasSameElements`, the
+JSON wording fix and the closing batch.
+
+**The acceptance measure, run again at that commit** (`tools/equality-measure/run.sh`; the same body written as an
+assert and as a plain comparison, under both judges, on three databases):
+
+| | at the start of step 6 | at `89e51a7dc` |
+|---|---|---|
+| bodies whose two forms differ, on at least one database | 176 of 1,704 | **99 of 1,733** |
+| DuckDB | 91 | 29 |
+| H2 | 131 | 74 |
+| SQLite | 119 | 56 |
+| the two judges disagreeing on a VERDICT (pass against fail) | 0 | 0 |
+
+What the 99 are, by the measure's own groups: H2's missing list forms (42 on H2) and SQLite's list and map forms
+(16): the database follow-up; the database judge's forms it cannot judge (7, 3, 7); bodies the program road does not
+plan (4, 1, 4); H2's mixed-list syntax error (9); and the groups that are **verdicts that still move between the two
+forms**, which the closing batch reads one by one: dates and written precision (7, 7, 14), number types (0, 3, 3 --
+`assertEquals([1, 2], [1D, 2.00D])` passes as an assert and fails as a comparison on H2 and SQLite), one Variant
+date-time on SQLite, `assertSameElements(['1']->cast(@Any), [1])`, and one body that `==` now refuses for an
+unordered side where the assert's rule let it through.
 
 **Put to the user 2026-11-27, on their question "any more deferrals or open decisions or worries ... did we actually
 get to real one equality ... did we stick to our tenets?" -- awaiting their word:**

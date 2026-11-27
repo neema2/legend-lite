@@ -52,7 +52,8 @@ in `step-6-one-equality-2026-11-27.md` (same folder).
 | B11 | The two test checkers' wording for a JSON value read through `Any`: three of four defects fixed in code, not run; `assertSameElements` prints two identical texts without types. | Run the fix in the batch; the fourth recorded. |
 | B12 | The two date facts (first day of week, month, quarter, year is a day; a day moved by days stays a day) apply at every door with no register row. The corpus shows no test moved. | Register row; in the landing summary. |
 | B13 | The tolerance assert is the database checker's own formula, not the product's. | Record as a cleanup (no answer changes). |
-| B14 | The bodies the database checker cannot judge (6, 2, 6 in the measurement) are not read one by one. | Read them from the batch's acceptance measure. |
+| B14 | The bodies the database checker cannot judge (7, 3, 7 in the measure of `89e51a7dc`) are not read one by one. | Read them from the batch's acceptance measure. |
+| B15 | **The acceptance measure still shows verdicts that move between the assert and the plain comparison** (run 2026-11-27 at `89e51a7dc`: 99 bodies differ, from 176): dates and written precision (7 on DuckDB, 7 on H2, 14 on SQLite); number types (3 on H2, 3 on SQLite: `assertEquals([1, 2], [1D, 2.00D])` passes as an assert and fails as a comparison there); one Variant date-time on SQLite; `assertSameElements(['1']->cast(@Any), [1])`; one body `==` refuses for an unordered side where the assert lets it through. Each is a place the two are not yet one equality. | Read every one; build the ones that are the product's (not a database's missing list form); the measure is the batch's acceptance: no verdict moves between the two forms except for a named database limit. |
 
 ## C. Not yet verified, or housekeeping
 
@@ -60,7 +61,8 @@ in `step-6-one-equality-2026-11-27.md` (same folder).
 |---|---|
 | C1 | Not run: the rename to `hasSameElements`; the JSON wording fix. |
 | C2 | The time-series bundle budget (the user: "Time series budget fine"): the pin moves with the measured size. |
-| C3 | The acceptance measure (176 differing bodies at the start) has not been re-run. |
+| C3 | The acceptance measure was re-run at `89e51a7dc`: 99 bodies differ (176 at the start); row B15. Run once more at the batch's end. |
+| C6 | The full round at `89e51a7dc`: 89 of 91 targets pass, 1 skipped, 1 the bundle budget (C2). All ten database lanes and the relational corpus on `83cb22ae2`: no test's outcome differs from the base (MariaDB's channel B is the flake it was). A mid-point reading. |
 | C4 | Seven database lanes, the local gate and the stress suites are still running on `83cb22ae2`, which predates the batch. Back so far on that commit: the relational corpus (10 of 10, nothing moved), SQLite, MongoDB, BigQuery (no outcome differs). |
 | C5 | The parser ratchet's history line; the differences page and the plain-words page brought to the batch's end state. |
 
