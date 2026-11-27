@@ -162,3 +162,35 @@ Built since (2026-11-27, the user's "yes we should measure and hopefully fix"): 
 written in the query (`1->cast(@Number) == 1.0`) is answered there as legend-pure answers it too (false; answers.md
 C10b). Pairs, lists and maps whose types differ only inside them stay the database's comparison at that door:
 legend-pure's answer for them was not read.
+
+## The outside audits of 2026-11-27 (two reviewers, read-only, of `claude/compat-b3-nufdlk..d3e81136a`)
+
+One reviewer read the type-checker, the two compatibility doors, the host judge, the guards and the records; the
+other the lowering, the planner, the SQL and the database judge. Nothing was run by either. What each found, and what
+became of it (fixed in `ad1e546a6` and `2d28215ea` unless said otherwise):
+
+| # | Severity | Finding | What became of it |
+|---|---|---|---|
+| 1 | HIGH | The host judge's sort broke a tie by family whatever the forms, so at a compatibility door `assertSameElements([3, 3.0], [3.0, 3])` passed where legend-pure's stable sort fails it | fixed: lite's rule alone (`testexec/Equality.sorted`; `PureAssertsTest.sameElementsAtADoorKeepATieAsWritten`). The ledger's stated reason for the pin is true now |
+| 2 | HIGH | The root comparison changed a door's answer for sides typed `Number` or `Any` (`1->cast(@Number) == 1D->cast(@Number)`: the database's true before, false after), and refused at a door what the plain path answered | fixed: `planner/RootComparison` is the product's own rule alone; a comparison a door admitted is the plain comparison it was |
+| 3 | MEDIUM | A let holding `random()` or `generateGuid()` was planned into both sides, drawn twice | fixed: left to the plain path |
+| 4 | MEDIUM | One value typed `Number` compared as a query's answer and inside an `if` answered differently (`$row.n == 1.0` over an INTEGER column: false at the root, true inside) | fixed: one value is never a whole side; only a list, a map or a table is |
+| 5 | MEDIUM | Two tables compared row by row in the order a database returned them where no sort defines one | fixed: in order only where the query defines both tables' order, else as a multiset of rows |
+| 6 | MEDIUM | Two tables' Decimal columns, one a store's text and one typed, had no common carrier | fixed (`SideEqualities.grids`) |
+| 7 | MEDIUM | An Integer cast beside a Decimal of a scale past 19 can overflow, a silent clamp on MySQL and MariaDB (from their documentation, not run) | fixed for a pair of sides and for two tables: compared as the canonical text. **Left** for a mixed list's compare column (finding 8) |
+| 8 | MEDIUM | An Integer beside Decimals of two scales in one mixed list is compared in the first Decimal's column | **left, recorded**: needs a mixed list holding an Integer and Decimals more than 38 digits apart |
+| 9 | MEDIUM | legend-pure's door changed its answer for two pairs whose types differ inside them; legend-pure's answer for them was not read | fixed: that door keeps the database's comparison for pairs, lists and maps |
+| 10 | MEDIUM | A comparison kept for its call, reaching the lowering unanswered, was lowered as its bare call | fixed: one whose types the call fixes is refused there |
+| 11 | MEDIUM | `TypeInferenceIntegrationTest.testMinNumbers` accepted a refusal on any database | fixed: on H2 and SQLite alone |
+| 12 | MEDIUM | A lambda the query writes and hands to a function generic over a relation's columns is typed again as that function's body: its comparison loses its position (the planning-time refusal skips it), an upcast in it is the database's comparison, and a refusal names the generic function | **left, for the user**: a gap, not a regression (none of the three was checked before step 6) |
+| 13 | MEDIUM | Where a function's author declared a side open and the caller's two types differ, the answer is the constant false, so a side that would raise (`[1, 2]->at(5)->cast(@Number) == 1.0`) no longer raises | **left, for the user**: the answer needs a form that still evaluates both sides |
+| 14 | MEDIUM | A function generic over a relation whose other parameters are declared `Number`, called with `1` and `1.0`: refused at the call where the rule says false (the parameters' declarations are gone once the body is typed into the call) | **left, for the user**: a refusal that names the fix, never a wrong answer |
+| 15 | MEDIUM | The arithmetic rule (S429) changes legend-engine's door on the databases where legend-engine computes a double, and legend-engine's answer was read from its literal processors, not run | **for the user's word** before it lands: it is Pure's answer, which the fidelity tenet takes where legend-engine departs from Pure, posted first |
+| 16 | MEDIUM | Size pins raised by regenerated files with no dated reason per row | the rows that go up are brought to the user with their reasons before the regenerated files join the branch |
+| 17 | LOW | `date(2015, 4)` against a date-time reaches the instant cast (an error, as before step 6) | left, recorded |
+| 18 | LOW | The canonical Decimal text on SQLite (a REAL's exponent) and for an H2 parameter (a DECFLOAT's) | left, recorded: older than step 6 |
+| 19 | LOW | `[3, 3D]->max()` keeps the Integer written out and the Decimal computed | left, recorded: which of two equal exact numbers an extreme keeps is not ruled |
+| 20 | LOW | The planning-time refusal and the type-checker's rule read different `contains` overloads | fixed |
+| 21 | LOW | The library's `within` compared its two dates by their own types, as `meet` did | fixed |
+| 22 | LOW | An assert's Integer literal is rewritten, so its failure records the literal as the type it was read as | recorded where the rule is written (`NumberLiterals`) |
+| 23 | LOW | Records and javadocs that said what the code no longer does | fixed |
