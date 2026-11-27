@@ -59,10 +59,14 @@ final class Equalities {
             if (le && re) {
                 return new SqlExpr.BoolLit(true);
             }
-            // equal to [] where it holds nothing: a mixed list's size, a list's length (a computed list of no element
-            // is an empty list, never NULL: until the edition program's step 6 this was a NULL test, which answered
-            // false for [1, 2]->filter(x | $x > 5) == []), one value's absence
-            return Scalars.emptiness(n.args().get(le ? 1 : 0), args.get(le ? 1 : 0));
+            // equal to [] where it holds nothing. A value the SQL carries as a list (a mixed list, a computed list): its
+            // size or its length -- a computed list of no element is an empty list, never NULL (until the edition
+            // program's step 6 this was a NULL test for every side, which answered false for
+            // [1, 2]->filter(x | $x > 5) == []). Anything else, a to-many navigation's column among them (one value a
+            // row, whatever its declared multiplicity): its absence, as before
+            SqlExpr other = args.get(le ? 1 : 0);
+            return other instanceof SqlExpr.TaggedList || aList(other)
+                    ? Scalars.emptiness(n.args().get(le ? 1 : 0), other) : SqlExpr.Call.of(SqlFn.IS_NULL, other);
         }
         // a TAGGED value or list on a side (track L, 2026-10-29): equality by kind and value -- two
         // elements the same channel's values, an element against a value of a static kind that
@@ -106,13 +110,14 @@ final class Equalities {
         if (inv != null) {
             return inv;
         }
-        boolean many0 = n.args().get(0).info().multiplicity().isMany();
-        boolean many1 = n.args().get(1).info().multiplicity().isMany();
-        if (many0 != many1 && Scalars.isToOne(n.args().get(many0 ? 1 : 0))) {
-            // one value against a list: the value as the list of it, so the two are compared as lists (equal where
-            // the list holds that one value; until the edition program's step 6 a value was compared with an array,
-            // which a database refuses)
-            cargs = List.of(PureSql.asList(cargs.get(0), many0), PureSql.asList(cargs.get(1), many1));
+        boolean list0 = aList(cargs.get(0));
+        boolean list1 = aList(cargs.get(1));
+        if (list0 != list1 && Scalars.isToOne(n.args().get(list0 ? 1 : 0))) {
+            // one value against a value the SQL carries as a list: the value as the list of it, so the two are
+            // compared as lists (equal where the list holds that one value; until the edition program's step 6 a
+            // value was compared with an array, which a database refuses). By the SQL fact, never the declared
+            // multiplicity: a to-many navigation's column is one value a row
+            cargs = List.of(PureSql.asList(cargs.get(0), list0), PureSql.asList(cargs.get(1), list1));
         }
         // nullable col-vs-col equality is NULL-SAFE (engine
         // isEqualsFromFilter; task #62's equal-side arm)
@@ -198,6 +203,11 @@ final class Equalities {
         }
         return la.identityPositions() && lb.identityPositions() && TaggedLists.oneChannelPerFamily(la, lb)
                 ? TaggedLists.sameListByKinds(la, lb) : TaggedLists.sameList(la, lb);
+    }
+
+    /** Whether the SQL carries {@code e} as a list: its type says an array. */
+    private static boolean aList(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array;
     }
 
     /** A collection written in the query whose every element is exactly one value: its length is its element count
