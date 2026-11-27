@@ -415,6 +415,14 @@ public final class ProductStatements {
         // a relation read more than once written once, but where the engine's cteExtractionPostProcessor names the
         // statement's subqueries itself (legend-engine's text: SharedRelations, 2026-11-04; the merge of main on
         // 2026-11-06 kept it on the test road alone, BodyPlanner.lowererFor -- the second review's finding 1)
+        // a statement whose answer is a comparison of two whole sides: each side planned once, as the statement it is,
+        // and compared by the product's equality over two sides (RootComparison; the edition program's step 6)
+        SqlQuery compared = RootComparison.plan(p.body(), side -> lowerer(query, side, p.env(), temporal, false, slots,
+                sites).sharingRelations(!p.env().postProcessors().extractCtes()).lower(seeded(side, p.env(),
+                query.context())), query.context());
+        if (compared != null) {
+            return postProcessed(compared, p.env());
+        }
         Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites)
                 .sharingRelations(!p.env().postProcessors().extractCtes());
         SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
