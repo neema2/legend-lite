@@ -3645,6 +3645,9 @@ public final class Lowerer {
             // function the planner inlined, or in a mapping): refused here by the same words (B3 step 5)
             case com.legend.compiler.spec.typed.TypedCrossTypeComparison x
                     -> throw x.refusal();
+            // a comparison kept for its function's call that met none (a body lowered where it stands): its sides'
+            // types are known only when the query runs, and the database compares the values it holds
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> scalarInner(x.comparison(), columns);
             case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.

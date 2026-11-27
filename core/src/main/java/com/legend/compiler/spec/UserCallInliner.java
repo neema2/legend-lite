@@ -435,8 +435,16 @@ public final class UserCallInliner {
             // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
             TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);
             readOnce(scope.terms, result);
-            return List.of(finish(result, List.of(), List.of(), false));
+            return List.of(atTheCall(finish(result, List.of(), List.of(), false)));
         }
+    }
+
+    /** {@code n} with each comparison a function's body kept for its call ({@code TypedRunTimeComparison}) answered:
+     *  every function the query reaches stands in it now, each argument in its parameter's place, so the types the
+     *  comparison's sides have here are the types they have. */
+    private TypedSpec atTheCall(TypedSpec n) {
+        TypedSpec kids = n.mapChildren(this::atTheCall);
+        return kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c ? specs.atTheCall(c) : kids;
     }
 
     /**

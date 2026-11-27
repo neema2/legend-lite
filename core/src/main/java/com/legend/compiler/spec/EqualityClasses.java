@@ -95,6 +95,26 @@ public final class EqualityClasses {
         return Optional.of(new Crossing(comparison.kind(), comparison.operator(), lc.get(), rc.get()));
     }
 
+    /** {@code call}, the application of {@code chosen} to {@code args}, as a comparison whose sides' types are known
+     *  only where its function is used: a comparison the rule reads with a side declared {@code Number}, the abstract
+     *  {@code Date}, {@code Any} or a type variable -- a type a parameter's argument fills in. Empty for any other
+     *  call. */
+    static Optional<com.legend.compiler.spec.typed.TypedRunTimeComparison> atRunTime(TypedSpec call,
+            TypedFunction chosen, List<TypedSpec> args) {
+        Comparison comparison = chosen.definition() == null || args.size() != 2 ? null : COMPARISONS.get(chosen.id());
+        if (comparison == null || !filledAtTheCall(args.get(0).info().type())
+                && !filledAtTheCall(args.get(1).info().type())) {
+            return Optional.empty();
+        }
+        return Optional.of(new com.legend.compiler.spec.typed.TypedRunTimeComparison(call, comparison.kind(),
+                comparison.operator(), NumberLiterals.written(args.get(0)), NumberLiterals.written(args.get(1))));
+    }
+
+    private static boolean filledAtTheCall(Type t) {
+        return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE || t instanceof Type.TypeVar
+                || t instanceof Type.ClassType c && PlatformTypes.isAny(c);
+    }
+
     /** Whether one value can be of both classes: one is the other's subtype, or they share a subclass (B3 step 5a's
      *  review, M4, 2026-11-25: a class with two supertypes). */
     private static boolean related(String l, String r, ModelContext ctx) {

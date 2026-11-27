@@ -232,7 +232,9 @@ final class Typer {
         }
         java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);
         if (crossing.isEmpty()) {
-            return call;
+            // a comparison in a function's body whose sides' types are known only where the function is used
+            return compared == Compared.BODY ? EqualityClasses.atRunTime(call, chosen, args)
+                    .map(crossTypes::atRunTime).orElse(call) : call;
         }
         EqualityClasses.Crossing c = crossing.get();
         com.legend.compiler.spec.typed.TypedCrossTypeComparison written =
@@ -247,6 +249,11 @@ final class Typer {
         TypedSpec answer = crossTypes.inQuery(written);
         queryAnswers.add(answer);
         return answer;
+    }
+
+    /** {@code comparison} answered by the setting once its function stands in the query. */
+    TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison) {
+        return crossTypes.atTheCall(comparison, ctx);
     }
 
     /** Whether {@code n} holds the setting's answer for a comparison across types written in the query. */

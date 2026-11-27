@@ -73,4 +73,20 @@ public interface CrossTypeRule {
     default TypedSpec inGenericBody(TypedCrossTypeComparison crossing) {
         return inBody(crossing);
     }
+
+    /** A comparison written in a body whose sides' types are known only where the function is used: a parameter
+     *  declared {@code Number}, the abstract {@code Date}, {@code Any} or a type variable (the edition program's step
+     *  6). Asked only where {@link #readsBodies}. The call itself unless a setting says otherwise; a setting that
+     *  answers such a comparison by the types its sides have at the call returns the record, and is asked again
+     *  once they are known ({@link #atTheCall}). */
+    default TypedSpec atRunTime(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison) {
+        return comparison.comparison();
+    }
+
+    /** {@code comparison} (one {@link #atRunTime} kept) once the functions the query reaches stand in the query, each
+     *  argument in its parameter's place. The call itself unless a setting says otherwise. */
+    default TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison,
+            com.legend.compiler.element.ModelContext ctx) {
+        return comparison.comparison();
+    }
 }

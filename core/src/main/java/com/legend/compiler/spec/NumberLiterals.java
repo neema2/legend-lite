@@ -60,6 +60,25 @@ final class NumberLiterals {
             // two literals (a Decimal literal is one: 1D == 1), or none: nothing gives one side the other's type
             return null;
         }
+        return read(crossing, call, leftWritten);
+    }
+
+    /** {@link #read} where the literal side is known by where it was written, not by its shape: {@code crossing} is a
+     *  comparison written in a function between a number literal ({@code leftWritten}: its first side) and a value
+     *  whose type the function's caller gave, which may itself be a literal the caller passed. Null where the rule
+     *  does not reach it. */
+    static @Nullable TypedSpec readWritten(TypedCrossTypeComparison crossing, boolean leftWritten) {
+        if (!(crossing.comparison() instanceof TypedNativeCall call) || call.args().size() != 2
+                || !number(crossing.left()) || !number(crossing.right())) {
+            return null;
+        }
+        return read(crossing, call, leftWritten);
+    }
+
+    private static @Nullable TypedSpec read(TypedCrossTypeComparison crossing, TypedNativeCall call,
+            boolean leftWritten) {
+        TypedSpec l = call.args().get(0);
+        TypedSpec r = call.args().get(1);
         // read where every literal of the side is an Integer or a Float literal, exact in the other type; a Decimal
         // literal is never reread (as() answers null for it)
         TypedSpec read = leftWritten ? as(l, (Type.Primitive) crossing.right())
@@ -85,7 +104,7 @@ final class NumberLiterals {
 
     /** Whether {@code side} is written as number literals alone, of any number type: one, signed or not, or a
      *  collection of them. */
-    private static boolean written(TypedSpec side) {
+    static boolean written(TypedSpec side) {
         if (side instanceof TypedCollection c) {
             return !c.elements().isEmpty() && c.elements().stream().allMatch(NumberLiterals::literal);
         }
