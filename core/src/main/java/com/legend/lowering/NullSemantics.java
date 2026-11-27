@@ -33,6 +33,39 @@ final class NullSemantics {
      * inlined overload body reaching SQL as
      * {@code X is not null and X > 30} (engine testFilters golden).
      */
+    /**
+     * {@code predicate}, a filter's or a join's condition, with each equality of its top-level conjunction written
+     * plain: {@code x IS NOT NULL AND x = v} there is {@code x = v} (a condition reads a NULL as "not so", so the guard
+     * says nothing, and a plain equality is the one a database hashes or uses an index for). The guard is what an
+     * equality with a side that may be empty takes as a VALUE ({@code Equalities.emptySideIsFalse}); under an OR or
+     * a NOT it stays, where a NULL would not read as false.
+     */
+    static SqlExpr plainInCondition(SqlExpr predicate) {
+        if (predicate instanceof SqlExpr.Group g) {
+            SqlExpr inner = plainInCondition(g.inner());
+            return inner == g.inner() ? predicate : inner instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL ? inner
+                    : new SqlExpr.Group(inner);
+        }
+        if (!(predicate instanceof SqlExpr.Call and) || and.fn() != SqlFn.AND) {
+            return predicate;
+        }
+        List<SqlExpr> conjuncts = and.args();
+        if (conjuncts.size() == 2 && conjuncts.get(0) instanceof SqlExpr.Call notNull
+                && notNull.fn() == SqlFn.IS_NOT_NULL && notNull.args().size() == 1
+                && conjuncts.get(1) instanceof SqlExpr.Call equal && equal.fn() == SqlFn.EQUAL
+                && equal.args().contains(notNull.args().get(0))) {
+            return equal;
+        }
+        List<SqlExpr> plain = new java.util.ArrayList<>(conjuncts.size());
+        boolean changed = false;
+        for (SqlExpr c : conjuncts) {
+            SqlExpr p = plainInCondition(c);
+            changed |= p != c;
+            plain.add(p);
+        }
+        return changed ? new SqlExpr.Call(SqlFn.AND, plain) : predicate;
+    }
+
     static SqlExpr optionalOperandGuards(
             com.legend.compiler.spec.typed.TypedNativeCall n,
             List<SqlExpr> loweredArgs, SqlExpr cmp) {
