@@ -159,3 +159,114 @@ Single values only; many-valued sides are the planned form's already.
 - 2.3: store-reading shapes missing from the matrix.
 - 2.5: is refusing at the dialect by the elements' type fact reliable (are the facts present on both operands)?
 - Anything in the batch list that should be "build" and is marked "record", or the reverse.
+
+## 5. After the independent review (2026-11-27, read-only, of `4d98b6709`; nothing built)
+
+The reviewer was given this note and the rules, not the author's conclusions. Its verdict: 2.1's direction is sound
+(the planner implementing an interface of the lowering; `numbersOf` deleted; the column-type refusal behind the
+lookup; every compatibility door has a row for `==`, the orderings, `contains`, `in`, `removeDuplicates`, `sort`,
+`max`/`min`). Four things would have shipped a wrong answer or a bad design as written. Each section below REPLACES
+the matching part above.
+
+### 5.1 Section 0, restated honestly (the user's to rule)
+
+- What this batch achieves: **no decision about a comparison is made by door anywhere but the lowering's lookup of
+  the door's table.**
+- What is still there after it, all older than step 6 (steps 2 and 3 of the edition program) and removed only by the
+  program's closing guards (E7): the planner builds the door's table and reads its policy for stamping a test body's
+  code (`planner/PlanEnv.edition()` and `editionTable()`; `ProductStatements`' written flags and stamps; `BodyPlanner`;
+  `FramePlanner` -- at least nine read sites); the lowering reads the door's forms object (`Styled.forms()`) and its
+  text facets.
+- So the user's sentence "We shouldn't land with the planner knowing editions", read literally, is NOT met by step 6
+  alone. Put to the user as it is.
+- The guard, reworded so it can be checked: every read of `Edition` or `EditionTable` from `com.legend.planner` is
+  listed by class and method; a new one fails. `Lowerer` has no public method returning a fact of the door's table.
+
+### 5.2 Amendments to 2.1
+
+1. **One helper for the lookup** (`Lowerer.doorsRule(call)`), called by `Scalars.lower`, `wholeSides` and the root
+   check, so "one lookup" is one piece of code, asked in three places.
+2. **Written down where it lives** (`EditionTable.lowersAs`, `NamedRule.NUMBERS_OF_THREE_TYPES`): a row REPLACES the
+   call's own rule, and the product's own rule for `==` includes the whole-side plan and the column-type refusal.
+   Without that sentence the lowering would be inferring "no whole-side plan" from a number row -- A1's side signal
+   one layer down. A test: every compatibility table returns a row for every function `HeldKinds.READ` lists, and for
+   `equal` and `eq`.
+3. **The merged function's readable names** are the statement's lets, the lets the environment seeds (this settles
+   B8), AND the query's parameters; a name a lambda binds inside the comparison is not readable. Today the root path
+   has no such check and the inside path has, so `{names: String[*] | $names == ['a','b']}` is planned at the root and
+   left to the database inside an `if`. Probe both before building.
+4. **The test road.** A judged side `$a == $b` becomes the planned statement itself (a top-level `WITH`), where today
+   it is a scalar wrapping a subquery that then goes through let binding and pruning. Probe the database checker's
+   reading of that shape, and a `WITH` nested as a derived table on H2, MySQL and MariaDB. The entry returns before
+   the shared lowering and before pruning; say so in the code.
+5. The number-rule parameters threaded through `SideEqualities` only ever receive the product's rule: deleted.
+6. Lowerers made with no planner (`Compiler.lowerResolved`, `edge/EnginePlans`, the seedable-lets probe) take the
+   database's plain list comparison silently today. Refused by name instead (invariant 4).
+
+### 5.3 The empty side (replaces 2.2)
+
+- **The fallback written in 2.2 is struck.** "Guard only where the lookup named no rule" keys the empty-side meaning
+  on whether a number row exists (A1's side signal again) and takes the fix away from legend-pure's door, which has
+  it today.
+- **Faithful to both doors** (recommended to the user): the question stays on the door's table, the same kind as the
+  existing `checks`. `EngineTable.emptySideIsFalse` answers `comparison.outsideStore()` (false outside a database
+  query, as legend-engine's own Java was measured to answer; the database's no-value inside one). Cost: that line
+  and two test cases.
+- **The rule itself has holes, the same under either ruling.** Today the lowering marks the places a value is KEPT,
+  from two call sites (the query's answer, a computed column) and through `&&`, `||`, `!` and an `if`'s branches. Not
+  reached: an aggregate's input (`count` of the comparison drops the row Pure counts as false); a window column; a
+  list lambda's result (`->map(x | $x.nick == 'a')`: the element can be lost); a comparison used as an operand
+  (`($p.nick == 'a') == false`); one inside `toString`, a collection, a pair; a query-level let's value; the
+  never-equal marker's wrapper.
+- **Proposed: turn the mark around.** Kept values are an open list, and a miss is a wrong answer. Conditions are a
+  closed list: a filter's predicate, a join's condition, an `if`'s or CASE's condition, an assert's, and `&&`, `||`,
+  `!` beneath those. The lowering marks the equalities standing as CONDITIONS and guards every other. A miss then
+  costs a few characters of SQL, which the size pins catch, never a wrong answer. Version 1 (the guard inside every
+  comparison, conditions included) broke five targets; those five are the probe for this form.
+- **Which sides.** Exactly one side that may be empty: as today. Both sides `[0..1]` and not both plain columns
+  (`$p.nick == $p.alias->toUpper()`: today a bare `=`, no value where Pure says false, or true when both are empty):
+  the null-safe equality, each side written once, which IS Pure's answer for all three cases. To settle on reading
+  each dialect's render arm: whether one form (null-safe) serves both cases. A `[*]` side that is one value per row
+  (a to-many navigation): probe.
+- At legend-engine's door inside a database query its own rule is read first in the pinned source
+  (`pureToSQLQuery.pure`, `nullSafeEqualsOperation`: both lower bounds 0 is null-safe there), never recalled.
+
+### 5.4 The order of a side (replaces 2.3; the reviewer's blocker)
+
+The permissive default covers far more than lite's internal natives:
+
+- natives: `reverse`, `removeDuplicates`, `tail`, `init`, the legacy table functions, lite's own (`joinWithPrefix`,
+  `without`);
+- typed nodes: a store view, a frame read, a recursion, a join, a file source, a flatten, an `if`, a `match`, an
+  `eval`, a written collection of many-valued elements;
+- answered SORTED when it is not: a to-many property read after a sorted parent;
+- DISTINCT is listed as keeping order, and the lowering can drop a sorted source's order under it.
+
+So: **no default.** The rule is a switch over every typed node kind (sealed, so the compiler checks it) and a table
+over every native whose first parameter is many-valued or a table; a test fails for one left out. The matrix gains
+`sort()->distinct()`, `reverse`, `removeDuplicates`, a view, a frame read, a join, an `if`, a to-many read after a
+sort. The same rule drives the assert's refusal and the compatibility doors' rewrite to an any-order assert, so the
+matrix runs the asserts too, and every corpus or PCT outcome that moves at a door is listed for the user.
+
+### 5.5 `hasSameElements` in the type rule (replaces 2.4; the reviewer's blocker)
+
+Routing it through each door's comparison setting would make lite's own function mean different things by door
+(`hasSameElements([1,2],[1D,2D])` true at lite's door, false at legend-pure's), against 2.1 and register S430. It is
+lite's function with lite's meaning at EVERY door: the type-checker applies lite's rule to it whatever the door's
+setting, and the planner's fallback words name the two types.
+
+### 5.6 Per-row comparisons (amends 2.5)
+
+Probe each database before building: how a JSON-text database spells a Boolean and a whole number in a list;
+BigQuery (no `=` over arrays); Snowflake (arrays of variants). The refusal sits in `sql/dialect` beside
+`SameValuesForm`, covers equal, not-equal, both null-safe forms and membership over lists, and an operand with no
+type fact is refused, not passed.
+
+### 5.7 Two types that may both be empty (amends 2.6)
+
+Each side written once (a CASE over the two emptiness tests), never the doubled text form; never a cast to text of an
+`Any` side that may hold an instance.
+
+### 5.8 What the review adds to the batch list
+
+Rows A8, A9 and B16 to B20 of `step-6-closing-batch-2026-11-27.md`; B2, B9 and B10 change standing.
