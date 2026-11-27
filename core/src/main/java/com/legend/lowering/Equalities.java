@@ -248,6 +248,15 @@ final class Equalities {
                 new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
     }
 
+    /** Whether {@code args} are a date-time carried as its written text (one built to the hour or the minute, which
+     *  keeps how it prints) against one the database holds: two precisions of one instant. */
+    static boolean aPartialDateTimeAgainstAFullOne(List<SqlExpr> args) {
+        return args.size() == 2
+                && (carriedAs(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(args.get(1), SqlType.Scalar.TIMESTAMP)
+                        || carriedAs(args.get(1), SqlType.Scalar.TEMPORAL_TEXT)
+                                && carriedAs(args.get(0), SqlType.Scalar.TIMESTAMP));
+    }
+
     /** Whether {@code e}'s SQL type is known to be {@code type}. */
     private static boolean carriedAs(SqlExpr e, SqlType type) {
         return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == type;

@@ -3862,6 +3862,16 @@ final class Scalars {
             return ownRule(n).apply(n, args);
         }
         if (com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ).contains(id)) {
+            // upstream's equality of two dates reads a date's WRITTEN PRECISION as part of its value: a date built
+            // to the hour or the minute is never equal to a full date-time (run 2026-11-27 on interpreted and
+            // compiled legend-pure and legend-engine's own Java, all three false:
+            // docs/records/edition-homework/upstream-step6/answers-request-3-2026-11-27.md, group D). The product's
+            // own rule compares the two by their instant (register S399), which the shared equality below would
+            // answer here too -- and did, from step 6's instant arm until its closing batch (true at both doors,
+            // where it had been a database error before)
+            if (Equalities.aPartialDateTimeAgainstAFullOne(args)) {
+                return Equalities.neverEqualButEvaluated(args.get(0), args.get(1));
+            }
             return Equalities.equal(n, args, three);
         }
         if (Pure.AT_COLLECTION_CONTAINS.contains(id)) {

@@ -117,6 +117,10 @@ public enum NamedRule {
      *  (a {@code Number}, an {@code Any}) the comparison is the database's, and nothing is refused. Not the
      *  product's, which calls an Integer and a Decimal of one value equal (two exact numbers; the user's ruling of
      *  2026-11-27) and refuses a comparison of an exact number's column with a Float's ({@code HeldKinds}). A call
-     *  that meets neither is written by its own rule, unchanged. */
+     *  that meets neither is written by its own rule, unchanged.
+     *
+     *  <p>Upstream's equality of two DATES goes with it: a date's written precision is part of its value, so one
+     *  built to the hour or the minute is never equal to a full date-time (run 2026-11-27), where the product
+     *  compares the two by their instant (register S399). */
     NUMBERS_OF_THREE_TYPES
 }
