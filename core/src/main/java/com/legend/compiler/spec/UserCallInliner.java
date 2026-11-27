@@ -435,6 +435,7 @@ public final class UserCallInliner {
             // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
             TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);
             readOnce(scope.terms, result);
+            finishedOnce.clear();
             return List.of(atTheCall(finish(result, List.of(), List.of(), false)));
         }
     }
@@ -549,6 +550,33 @@ public final class UserCallInliner {
      *  fold the database runs evaluates its lambdas once per element too, and reads no position: a construction in
      *  them is {@code untracked} (§4.3). */
     private TypedSpec finish(TypedSpec n, List<Integer> at, List<String> iterations, boolean untracked) {
+        if (n instanceof TypedLambda || n.children().isEmpty()) {
+            return finishHere(n, at, iterations, untracked);
+        }
+        // ONE VALUE READ TWICE IS ONE EVALUATION (the edition program's step 6, 2026-11-27): a let's value, or an
+        // argument's, stands in the reduced tree at each place it is read, the same node. It was evaluated once, so
+        // the objects it built are the same objects at every reading: finished once, its constructions one site.
+        // Finished at each place, every lambda in it took a new instantiation there, so
+        // `let xs = [1, 2]->map(x|^C(...)); $xs->at(0) == $xs->at(0)` compared two objects (measured: false on
+        // DuckDB and SQLite, where Pure and an assert of the two say true). A LAMBDA read twice is not one
+        // evaluation -- it is applied at each place -- so a lambda itself is never shared here.
+        Finished was = finishedOnce.get(n);
+        if (was != null && was.at().equals(at) && was.iterations().equals(iterations) && was.untracked() == untracked) {
+            return was.result();
+        }
+        TypedSpec result = finishHere(n, at, iterations, untracked);
+        finishedOnce.put(n, new Finished(List.copyOf(at), List.copyOf(iterations), untracked, result));
+        return result;
+    }
+
+    /** A node finished where it stood ({@link #finish}): the place it was finished at, and what it became. */
+    private record Finished(List<Integer> at, List<String> iterations, boolean untracked, TypedSpec result) {
+    }
+
+    /** Each value node the current {@link #finish} has finished, by identity. */
+    private final java.util.IdentityHashMap<TypedSpec, Finished> finishedOnce = new java.util.IdentityHashMap<>();
+
+    private TypedSpec finishHere(TypedSpec n, List<Integer> at, List<String> iterations, boolean untracked) {
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1) {
             List<String> inner = new ArrayList<>(iterations);
             inner.add(m.mapper().parameters().get(0));

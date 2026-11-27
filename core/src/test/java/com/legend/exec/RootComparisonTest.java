@@ -28,6 +28,7 @@ class RootComparisonTest {
     private static final String MODEL = """
             ###Pure
             Class p::Party { id: Integer[1]; name: String[1]; }
+            Class p::K { name: String[1]; }
             ###Relational
             Database p::DB ( Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(64)) )
             ###Mapping
@@ -200,5 +201,33 @@ class RootComparisonTest {
                 assertEquals(List.of(List.of(c.getValue())), r.rows(), c.getKey() + "\n" + r.text());
             }
         }
+    }
+
+    /** One value read twice is one evaluation (2026-11-27): the objects a let's value built are the same objects at
+     *  every reading of the let, so an object with no key is equal to itself, and to no other object. Until then each
+     *  reading numbered its objects anew and the first two cases answered false. */
+    @Test
+    void anObjectWithNoKeyIsEqualToItselfAndToNoOther() throws Exception {
+        Map<String, Boolean> cases = new LinkedHashMap<>();
+        String xs = "|let xs = [1, 2]->map(x|^p::K(name=$x->toString())); ";
+        cases.put(xs + "$xs->at(0) == $xs->at(0);", true);
+        cases.put(xs + "$xs == $xs;", true);
+        cases.put(xs + "$xs->at(0) == $xs->at(1);", false);
+        cases.put("|^p::K(name='a') == ^p::K(name='a')", false);
+        var backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.type());
+        List<String> wrong = new java.util.ArrayList<>();
+        for (Map.Entry<String, Boolean> c : cases.entrySet()) {
+            try (Connection connection = backend.open()) {
+                Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                if (!List.of(List.of(c.getValue())).equals(r.rows())) {
+                    wrong.add(c.getKey() + " -> " + r.rows());
+                }
+            } catch (RuntimeException e) {
+                wrong.add(c.getKey() + " -> " + e.getClass().getSimpleName() + ": "
+                        + String.valueOf(e.getMessage()).lines().findFirst().orElse(""));
+            }
+        }
+        assertEquals(List.of(), wrong, "every case");
     }
 }
