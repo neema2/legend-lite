@@ -48,16 +48,17 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
     }
 
     /** A generic position is typed only when the query runs (the equality rule's second item), so a comparison of
-     *  two of them is no compile error, whatever this call's columns are: it is the call, compared when the query
-     *  runs (the database's comparison until the run-time comparison is built, step 6). A number literal against a
-     *  generic position still reads as this call's column type, which is what a literal is for. Found by step 4's
-     *  measurement, 2026-11-26: the timeseries library's meeting of two lines compares their period columns, and
-     *  refuses a day against a date-time itself, when the query runs, naming the fix; a compile error here pre-empted
-     *  that refusal. */
+     *  two of them is no compile error, whatever this call's columns are: it is answered by the types the two have at
+     *  this call, as any comparison between values whose types a caller gives ({@link #atTheCall}; until the edition
+     *  program's step 6 it was the database's comparison). A number literal against a generic position still reads as
+     *  this call's column type, which is what a literal is for. Found by step 4's measurement, 2026-11-26: the
+     *  timeseries library's meeting of two lines compares their period columns, and refuses a day against a date-time
+     *  itself, when the query runs, naming the fix; a compile error here pre-empted that refusal. */
     @Override
     public TypedSpec inGenericBody(TypedCrossTypeComparison crossing) {
         TypedSpec read = NumberLiterals.read(crossing);
-        return read != null ? read : crossing.comparison();
+        return read != null ? read : new com.legend.compiler.spec.typed.TypedRunTimeComparison(crossing.comparison(),
+                crossing.kind(), crossing.operator(), false, false);
     }
 
     /** Kept as its record until the function it is written in stands in the query ({@link #atTheCall}): a comparison
