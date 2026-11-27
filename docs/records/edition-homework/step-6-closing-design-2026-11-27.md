@@ -71,6 +71,24 @@ Today the pre-pass never lowers the lets as values; the new entry must keep that
 - If the user rules against it: the guard is applied only where the lookup named no rule (lite's own code), and
   legend-pure's door keeps the gap it had.
 
+**Upstream's own answers, RUN 2026-11-27** (a worker session; legend-engine 4.145.0 on its H2 2.2.224, each
+statement's column read over JDBC; interpreted and compiled legend-pure 5.99.0; a table `P (ID, NICK, N)` with rows
+`(1, 'a', 1)` and `(2, NULL, NULL)`):
+
+| Written | legend-engine inside its store query (SQL it wrote; the NULL row) | Store-less: interpreted legend-pure, compiled legend-pure, legend-engine's own Java |
+|---|---|---|
+| `$r.NICK == 'a'`, `'a' == $r.NICK`, `$r.N == $r.ID` as a column | `NICK = 'a'`: **NULL** (no value) | an empty side against a value: **false** on all three |
+| `!($r.NICK == 'a')`, `$r.NICK != 'a'` as a column | `NICK is distinct from 'a'`: **true** (its `not(equal)` is written null-safe, `dbExtension.pure:1133-1161`) | **true** on all three |
+| `($r.NICK == 'a') \|\| ($r.ID == 7)` as a column | `NICK = 'a' or ID = 7`: **NULL** | false |
+| the same as a FILTER | `==` drops the NULL row; `!(==)` and `!=` keep it | -- |
+| `[] == []` | -- | true on all three |
+
+So Pure's answer is two-valued everywhere, and legend-engine's store query is three-valued for `==` alone: its `==`
+and its `!(==)` are not each other's negation there. Under 2.2 lite answers Pure's way at every door; the recorded
+difference at legend-engine's door is exactly the first and third rows (a column of `==`, or of `==` under `||`,
+with one side empty: false where legend-engine's database answers no value). Under `!`, as `!=`, and in every
+filter, the two agree.
+
 ### 2.3 The order of a side (row A4)
 
 Read again before designing: the miss that started this row was NOT the order rule. `OrderView` answered INCIDENTAL
