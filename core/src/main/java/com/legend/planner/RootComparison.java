@@ -6,15 +6,12 @@ package com.legend.planner;
 import com.legend.base.Nullable;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
-import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.lowering.SideEqualities;
 import com.legend.sql.OutputCol;
-import com.legend.sql.SqlExpr;
-import com.legend.sql.SqlFn;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlType;
@@ -32,9 +29,10 @@ import java.util.function.Function;
  * {@code assertEquals}, so what an assert judges is what a query answers, and a side's rows are a statement's on every
  * database (no list is compared where a database has no list equality).
  *
- * <p>Not planned here, each the plain comparison it was: two values of known scalar types (one type: the database's
- * {@code =}; two types: whatever the door that admitted the code made of it, a compile error on lite's own);
- * {@code eq}, which is identity; two tables.
+ * <p>Not planned here, each the plain comparison it was: two sides an expression compares exactly on every database
+ * (values of known scalar types, instances, anything written in the query itself); two known types that differ (the
+ * comparison is whatever the door that admitted the code made of it, a compile error on lite's own); {@code eq},
+ * which is identity; two tables.
  */
 final class RootComparison {
 
@@ -65,15 +63,16 @@ final class RootComparison {
         if (Type.isRelation(left.info().type()) || Type.isRelation(right.info().type())) {
             return null;
         }
-        if (known(left.info().type()) && known(right.info().type())) {
-            // two known types: one type, two values are the database's plain comparison; two types, the comparison is
-            // whatever the door that admitted the code made of it (refused on lite's own, the database's by value
-            // on legend-engine's), which stands as it is lowered
-            boolean oneType = java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
-                    SideEqualities.typedClass(right.info().type()));
-            if (!oneType || one(left) && one(right)) {
-                return null;
-            }
+        if (known(left.info().type()) && known(right.info().type())
+                && !java.util.Objects.equals(SideEqualities.typedClass(left.info().type()),
+                        SideEqualities.typedClass(right.info().type()))) {
+            // two known types: the comparison is whatever the door that admitted the code made of it (refused on
+            // lite's own, the database's by value on legend-engine's), which stands as it is lowered
+            return null;
+        }
+        if (!whole(left) && !whole(right)) {
+            // two values an expression compares exactly on every database: the plain comparison
+            return null;
         }
         List<TypedSpec> lets = body.subList(0, body.size() - 1);
         SqlQuery leftPlan = lowered.apply(with(lets, left));
@@ -84,11 +83,10 @@ final class RootComparison {
         if (compared == null) {
             return null;
         }
-        SqlExpr same = negated ? SqlExpr.Call.of(SqlFn.NOT, compared.same()) : compared.same();
         OutputCol out = new OutputCol("value", SqlType.Scalar.BOOLEAN, false);
-        SqlSelect row = new SqlSelect(List.of(new SqlSelect.Projection(same, "value", out)), false, compared.from(),
-                null, List.of(), null, null, List.of(), null, null, List.of(out));
-        return compared.ctes().isEmpty() ? row : new SqlWith(compared.ctes(), row);
+        SqlSelect row = new SqlSelect(List.of(new SqlSelect.Projection(compared.holds(!negated), "value", out)), false,
+                compared.from(), null, List.of(), null, null, List.of(), null, null, List.of(out));
+        return SqlWith.prepend(compared.ctes(), row);
     }
 
     /** Whether {@code t} names its values' type: a primitive that is no supertype of others, or an enumeration. */
@@ -97,8 +95,32 @@ final class RootComparison {
                 || t instanceof Type.PrecisionDecimal || t instanceof Type.EnumType;
     }
 
-    private static boolean one(TypedSpec side) {
-        return Multiplicity.Bounded.ONE.equals(side.info().multiplicity());
+    /** Whether {@code side} is compared as a whole side, never as a value inside an expression: a computed list
+     *  (a database may hold none as a value, or hold it as text), or values whose type is known only when the query
+     *  runs. A side written in the query (a literal, a collection of literals, the empty list) is a value everywhere:
+     *  the plain comparison reads it exactly. */
+    private static boolean whole(TypedSpec side) {
+        if (written(side)) {
+            return false;
+        }
+        Type t = side.info().type();
+        return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE || PlatformTypes.isAny(t)
+                || side.info().multiplicity().isMany();
+    }
+
+    private static boolean written(TypedSpec side) {
+        return switch (side) {
+            case com.legend.compiler.spec.typed.TypedCollection c -> c.elements().stream()
+                    .allMatch(RootComparison::written);
+            case com.legend.compiler.spec.typed.TypedCInteger i -> true;
+            case com.legend.compiler.spec.typed.TypedCFloat f -> true;
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> true;
+            case com.legend.compiler.spec.typed.TypedCString t -> true;
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> true;
+            case com.legend.compiler.spec.typed.TypedCDate d -> true;
+            case com.legend.compiler.spec.typed.TypedEnumValue e -> true;
+            default -> false;
+        };
     }
 
     /** The kind a side's values are compared as: its type, a {@code Number} side's the number type its plan's column

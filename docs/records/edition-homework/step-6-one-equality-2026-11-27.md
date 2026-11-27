@@ -36,10 +36,13 @@ judge's way works on every database (H2 included) because rows need no list func
 2. **The database judge keeps no comparison of its own.** It plans each side, asks the product's equality to compare
    them, and builds the failure's record from the values the comparison read. Its size pins: `VerdictSql` 2,263 to
    1,120, `JudgmentFacts` 355 to 237.
-3. **A query whose answer is a comparison of two whole sides is planned the same way** (`|$a == $b` over lists,
-   instances, tables, values typed at run time): the product planner plans each side once and the same code compares
-   them. So an assert is the plain comparison it means, planned like any query, and what a test judges is what a user
-   gets. Two values of one known scalar type keep the plain `a = b`.
+3. **A query whose answer is a comparison of two whole sides is planned the same way** where a side is a computed
+   list or is typed only when the query runs (`planner/RootComparison`): the product planner plans each side once and
+   the same code compares them. Two sides an expression compares exactly on every database keep the plain comparison:
+   values of known scalar types, instances, anything written in the query itself. *Measured on the first run
+   (2026-11-27): planning EVERY root comparison over sides made trivial ones (`[] == 1`, `%2014 == %2014`) about twenty
+   times longer (the size baseline's `equal` family on DuckDB 1,073 to 20,933 characters), so it is narrowed to the
+   sides an expression cannot compare.*
 4. **Not done here:** comparing two lists inside an expression on every database (a list in a filter's condition on
    H2, MySQL, BigQuery). That needs each database's own way of turning a list into rows; it is the lean-SQL follow-up's
    work (`docs/records/database-recheck-2026-11-26/START_HERE.md`), which the user deferred to after Stage B. Until
@@ -70,6 +73,25 @@ and H2 and channel B, and both corpora run on it; then the equality measurement 
 - Carried, not built here: SQLite's one date-time text (its work is on `claude/sqlite-datetime-form`, `626b330`,
   unverified; low priority by the user's word), so on SQLite two date-times written at different precisions still
   compare as texts inside an expression.
+
+## The same meaning inside an expression (the user's question, 2026-11-27)
+
+The user, on being told the judge's comparison had moved: "Did we merged the meaning of equality? So like if a filter
+or join condition or any other lambda uses an == that is the same meaning as assert?" Not yet: inside a filter or a
+lambda `==` compares two values in one SQL expression, and differed from a comparison of two whole sides in the rows
+below. Each is being brought to the one meaning; held by `exec/EqualityInExpressionsTest` and the tests named.
+
+| Case | Inside an expression before | Now | State |
+|---|---|---|---|
+| a computed list of no element against `[]` | false on DuckDB and SQLite (a NULL test), an error on H2 | true: the other side's emptiness (`Scalars.emptiness`) | built 2026-11-27 |
+| one value against a computed list | a database error (a value against an array) | the value as the list of it | built 2026-11-27 |
+| two instances of one declared class | a text of the keys (`1.0D` differs from `1.00D`; the declared class, not the actual one) | typed leaves: the actual class, then the keys by value or the identity (`SideEqualities.sameInstance`; `InstanceIdentityTest.aKeyIsComparedByItsValueInACondition`) | built 2026-11-27; a to-many key and lists of instances keep the text |
+| one side empty (`$x.opt == 1`) | SQL's NULL, so `!($x.opt == 1)` drops the row | open: a total `==` changes answers and lengthens SQL | **put to the user 2026-11-27** |
+| a computed list on a database with no list comparison in an expression (H2; JSON-carried lists on SQLite, MySQL, MariaDB) | refused, or compared as text | needs each database's list-to-rows form | the database follow-up (deferred by the user to after Stage B) |
+| two tables | column names and row order ignored | not built | open |
+| a `Number` or `Any` column against another | the database's comparison | not built (the type is not known when the query is planned) | recorded |
+
+A join written in a mapping's own store language is the database's `=` by definition and is not part of this.
 
 ## The typer's part: comparisons whose types a caller gives (built 2026-11-27, branch `claude/step-6-3`)
 
