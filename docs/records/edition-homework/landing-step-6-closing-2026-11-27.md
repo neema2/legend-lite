@@ -158,7 +158,7 @@ New and extended tests: `exec/RootComparisonTest`, `RunTimeComparisonTest`, `Num
 
 *(filled in as each check reports; nothing is claimed before it has run)*
 
-The final commit is `3bee40e22` (the code of `508aaef6f`, the regenerated files, the records).
+The final commit is `d0a70c4f5`: the code of `508aaef6f`, the regenerated files (`3bee40e22`), the three edge corpus golden lines CI's first run named, and the records. The lanes ran at `3bee40e22`: the three lines are a compatibility door's recorded file, read by no lane.
 
 | Check | Where | Result |
 |---|---|---|
@@ -166,8 +166,9 @@ The final commit is `3bee40e22` (the code of `508aaef6f`, the regenerated files,
 | Three independent reviews, each given the diff and the rules, never the author's conclusions | subagents | the code audit of pieces 1 to 5 (2 blockers, fixed); the architecture audit ("partly": the verdict this landing is named by); the final review of the last fixes (2 blockers and 7 smaller, each read in the code, fixed or recorded: the batch list) |
 | The final review's fixes, narrow: exec, edge, lowering, sql, the guards, the census, the two SQLite integration targets | here, at `508aaef6f` | 10 of 10 targets pass; each new test seen to have run |
 | Regeneration (seven update targets) | here, on `0dd18a3ee` | three files move, each as predicted (the commit names them); no SQL size row, no PCT ratchet |
-| The confirming round (the same 91 targets) and the acceptance measure | here, at `3bee40e22` | running |
-| CI on the draft pull request #141: every per-push lane on Linux, macOS and Windows (the product build, core, the guards, both corpora, PCT on DuckDB, H2 and Postgres, channel B, parser equivalence, stress, the warehouse, DataCube, the UI) | GitHub | running |
+| The confirming round (the same 91 targets) | here, at `3bee40e22` | **90 pass, 1 skipped, none fail** |
+| The acceptance measure | here, at `3bee40e22` | running |
+| CI on the draft pull request #141: every per-push lane on Linux, macOS and Windows (the product build, core, the guards, both corpora, PCT on DuckDB, H2 and Postgres, channel B, parser equivalence, stress, the warehouse, DataCube, the UI) | GitHub | first run, on `3bee40e22`: red on the corpus lanes alone (Linux H2 and DuckDB, Windows H2), each on the edge corpus golden's three lines (above: "Tests whose answer moves"); every other lane that finished was green (all of Linux but `core`, still running when the fix was pushed; Linux arm; eight Windows lanes). Second run, on `d0a70c4f5` (the same code and those three golden lines): running |
 | The database lanes: PCT's two channels on Trino, MariaDB, MySQL, ClickHouse, SQLite, Snowflake, BigQuery, Databricks; channel A on MongoDB; channel B on Postgres; the time-series replays on Postgres, ClickHouse and Snowflake; MongoDB's plan test | six sessions, measure only, at `3bee40e22` | as each reports, below |
 | -- MariaDB, MySQL, ClickHouse | | **no outcome differs** but for MariaDB channel B's known flake: channel A 1,251 cases pass on each; channel B on MySQL (18 not passing) and ClickHouse (9) the same ledgered sets; MariaDB's channel B fails on list ORDER alone, a different set of tests in each of its eight runs across four commits, the base included (the same 16 ledgered failures every time; never a value, a type or a compile error). The new refusal for lists of exact numbers at two scales touches no test. The time-series replay and documents on ClickHouse and the guarded-raise test pass |
 | -- Postgres and Trino | | **no outcome differs**: Trino channel A 1,249 cases pass, its test lists identical to the last round's and the base's; channel B on Postgres and on Trino the same line for line; the time-series replay on Postgres passes ("215 of 215 series as on DuckDB") |
