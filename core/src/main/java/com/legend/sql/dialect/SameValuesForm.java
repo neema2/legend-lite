@@ -34,6 +34,37 @@ final class SameValuesForm {
     private SameValuesForm() {
     }
 
+    /**
+     * {@link #of} with each side's rows BOUND ONCE (step 6B, slice 1): the portable form reads a side's rows more
+     * than once (its count, then its rows), so rows that are a query of their own -- a side's rows riding the
+     * instruction as a sub-query -- are named in a WITH and read by name; rows that already read a named table (the
+     * statement's own, as an assert's are) are read as they are. Measured 2026-11-27 on SQLite: without the names
+     * one comparison of two short lists grew from 2,371 characters to 3,541.
+     */
+    static SqlQuery boundOnce(SqlQuery eRows, SqlQuery aRows, boolean ordered) {
+        if (named(eRows) && named(aRows)) {
+            return of(eRows, aRows, ordered);
+        }
+        return com.legend.sql.SqlWith.prepend(List.of(new com.legend.sql.SqlWith.Cte("__se", eRows),
+                new com.legend.sql.SqlWith.Cte("__sa", aRows)), of(read("__se", eRows), read("__sa", aRows), ordered));
+    }
+
+    /** Whether {@code rows} only reads a table by its name. */
+    private static boolean named(SqlQuery rows) {
+        return rows instanceof SqlSelect s && s.from() instanceof com.legend.sql.SqlSource.Table && s.where() == null;
+    }
+
+    /** The rows of the named table {@code cte}, which holds {@code rows}, read back column by column. */
+    private static SqlQuery read(String cte, SqlQuery rows) {
+        List<SqlSelect.Projection> ps = new java.util.ArrayList<>();
+        for (OutputCol o : rows.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of(cte, rows.outputs(), o.name()), o.name(), o));
+        }
+        return new SqlSelect(ps, false, new com.legend.sql.SqlSource.Table(cte, cte, rows.outputs(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null,
+                null, rows.outputs());
+    }
+
     /** The Boolean select comparing {@code eRows} and {@code aRows}. A value column holding a list or a map is refused
      *  by name: this form compares scalar columns, and a database without the collection type carries one as its JSON
      *  text, whose comparison would be of texts, not values (item 3's S4, 2026-11-22: typed values only). */

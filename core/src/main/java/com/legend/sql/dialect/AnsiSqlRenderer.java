@@ -1408,7 +1408,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             throw new IllegalStateException(c.fn() + ": its third and fourth arguments are the sides' rows");
         }
         writer.append("(");
-        inline(writer, SameValuesForm.of(e.subquery(), a.subquery(), c.fn() == SqlFn.SAME_IN_ORDER));
+        inline(writer, SameValuesForm.boundOnce(e.subquery(), a.subquery(), c.fn() == SqlFn.SAME_IN_ORDER));
         return writer.append(")");
     }
 
