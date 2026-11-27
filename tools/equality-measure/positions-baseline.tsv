@@ -1,0 +1,4 @@
+database	one answer, the expected one	one answer, NOT the expected one	refused everywhere	ANSWERED ONLY IN SOME PLACES	CONTRADICTS
+DuckDB	49	0	0	27	9
+H2	64	0	12	4	5
+SQLite	60	0	1	12	12

@@ -50,6 +50,29 @@ The two full reports are in `positions/`. Step 6 more than halves the contradict
 done when "contradicts" and "answered only in some places" read zero on every database** (and on each server and
 cloud database, once the tool runs there).
 
+## The baseline B starts from (slice 0, 2026-11-27, at A's product code)
+
+The measure was widened the same night: every comparison now carries the answer the equality rule gives it, and 13
+comparisons read a store's row (two columns, a column and a literal, an empty value on either side), each asked as a
+filter's condition and as a kept value, plain, negated, under `&&`, under `if` and inside a function. 4,416 runs in
+about 45 seconds. Counted per comparison and database (`tools/equality-measure/positions-baseline.tsv`; the full
+report is `positions/baseline-slice-0-b546a3282.md`):
+
+| | one answer, the expected one | one answer, not the expected one | refused everywhere | answered only in some places | contradicts |
+|---|---|---|---|---|---|
+| DuckDB | 49 | 0 | 0 | 27 | 9 |
+| H2 | 64 | 0 | 12 | 4 | 5 |
+| SQLite | 60 | 0 | 1 | 12 | 12 |
+
+- **The 13 store comparisons are one expected answer in all eight places on all three databases.** A's work on the
+  empty side holds for single values read from columns. B's failures are all among lists, values typed only at run
+  time, dates at a written precision, maps, and the list-lambda places.
+- No comparison agrees everywhere on a wrong answer.
+- Two comparisons' expected answers are not plain from the rule and are for the user: two `list([1, 2])` values, and
+  `pair(1, 1D) == pair(1, 1)`.
+- Not yet built: the test that holds these counts (it is the first task of slice 1); the two compatibility doors; the
+  other comparing functions; the server and cloud databases.
+
 ## What step 6 makes worse (found here, after the landing checks)
 
 **On DuckDB, a comparison of two computed lists or maps that stands inside a list's lambda and reads nothing of the
