@@ -125,11 +125,15 @@ final class HeldKinds {
         if (!numbers && !dates) {
             return;   // (kinds this rule does not read: a text against a number through an Any, a partial date)
         }
-        if (!open(l.info().type()) && !open(r.info().type()) && !dates) {
-            // two declared types: the typer's rule answered it. (A day against a date-time is read here even so: a
-            // property declared the abstract Date reaches the lowering typed as its column -- the store's resolution
-            // gives it the day or the date-time its column holds -- and two dates the query's author WROTE as a day
-            // and a date-time never reach it, refused when the query was compiled.)
+        boolean aColumn = args.get(0) instanceof SqlExpr.Column || args.get(1) instanceof SqlExpr.Column;
+        if (!open(l.info().type()) && !open(r.info().type()) && !(dates && aColumn)) {
+            // two declared types: the typer's rule answered it. (A day against a date-time is read here even so
+            // where a side is a COLUMN: a property declared the abstract Date reaches the lowering typed as its
+            // column -- the store's resolution gives it the day or the date-time its column holds. Two written
+            // values never are: a day and a date-time the author wrote as such were refused when the query was
+            // compiled, and the two that reach here came through an upcast the author wrote and a let carried --
+            // let d = %9999-12-31->cast(@Date); ... $d > %2024-01-02T10:30:00, planner.PlanMakerTest -- which is
+            // the type-checker's to answer, as above.)
             return;
         }
         if (numbers && (readsAs(l, rk) || readsAs(r, lk))) {
