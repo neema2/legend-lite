@@ -93,7 +93,7 @@ New and extended tests: `exec/RootComparisonTest`, `RunTimeComparisonTest`, `Num
 | `NativeCatalogGovernanceTest` | lite's own surface 9 to 10 | `hasSameElements` (register S430) |
 | `spec/.../ratchets.tsv` | intrinsics 738 to 739 | the same function |
 | `parser-equivalence/.../ratchets.tsv` | own-corpus matched 3,361 to 3,364 | three test models added by step 6 join and match (the last: the door test's) |
-| `builtin/native-claims.tsv` | twelve lines | the rule's new name |
+| `builtin/native-claims.tsv` | twelve lines | which classes name each native: `EqualityClasses` reads `hasSameElements`; `Lowerer` reads `exists` and `find` (a positive condition); `Equalities` reads the date constructor (a date built to the hour); `OrderView` reads the table sort; `RootComparison` no longer reads `not` |
 | `datacube` bundle pin | 148,200 to 148,500 | above |
 
 ## Recorded differences (register, `docs/SEMANTICS_REGISTER.md`; the page `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`)
