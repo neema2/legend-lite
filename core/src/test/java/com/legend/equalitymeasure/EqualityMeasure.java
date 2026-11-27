@@ -75,6 +75,20 @@ public final class EqualityMeasure {
             one[0].shutdownNow();
             System.exit(0);
         }
+        if (args.length >= 2 && args[0].equals("--sql")) {
+            // the product's SQL for one body over the position matrix's model, per database: probe, don't guess
+            for (DatabaseType db : DATABASES) {
+                String sql;
+                try {
+                    sql = typed(Compiler.compileModel(StorelessRuntime.with(POSITION_MODEL, db)), args[1], List.of())
+                            .plan(StorelessRuntime.RUNTIME).sql();
+                } catch (RuntimeException e) {
+                    sql = e.getClass().getSimpleName() + ": " + e.getMessage();
+                }
+                System.out.println("@@ " + db.name() + "\n" + sql + "\n");
+            }
+            System.exit(0);
+        }
         Path in = Path.of(args[0]);
         Path out = Path.of(args[1]);
         Pattern only = args.length > 2 ? Pattern.compile(args[2]) : null;
