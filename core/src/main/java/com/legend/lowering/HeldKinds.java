@@ -107,6 +107,14 @@ final class HeldKinds {
                 SideEqualities.refuseMixedDays(r);
             }
         }
+        if (upcast(l) || upcast(r)) {
+            // an upcast the query's author wrote (%2024-01-02->cast(@Date), 1->cast(@Number)) is the author's word
+            // that the value is compared when the query runs, as a parameter declared so is: the type-checker's rule
+            // answered it by the type the value holds (never equal to another type's, ordered by value). This rule is
+            // for a type only a COLUMN gives. (Found by the round of 83367543e: planner.PlanMakerTest's
+            // %9999-12-31->cast(@Date) > %2024-01-02T10:30:00, which a Date parameter of that value answers.)
+            return;
+        }
         String lk = MixedEncoding.kindOfValue(l, args.get(0));
         String rk = MixedEncoding.kindOfValue(r, args.get(1));
         if (lk == null || rk == null || NumberFamilies.TWO_FAMILIES.canEqual(lk, rk)) {
@@ -129,6 +137,10 @@ final class HeldKinds {
         }
         throw new TypedCrossTypeComparison(call, read.kind(), read.operator(), MixedEncoding.kindType(lk),
                 MixedEncoding.kindType(rk), call.pos()).refusalOverColumns();
+    }
+
+    private static boolean upcast(TypedSpec side) {
+        return side instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire();
     }
 
     private static boolean open(Type t) {
