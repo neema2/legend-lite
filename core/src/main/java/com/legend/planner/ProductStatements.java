@@ -457,8 +457,15 @@ public final class ProductStatements {
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
         // the environment's time zone and relation-text facet (PlanEnv.configure, B17 2026-11-17)
-        return env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites))
-                .withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
+        Lowerer made = env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body),
+                sites)).withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
+        // a comparison of two whole sides inside an expression is the statement that answers it as a query's last
+        // (RootComparison.inside): each side lowered as the statement it is, by a lowerer made as this one
+        return made.withWholeComparisons(RootComparison.inside(body, env.queryLets().keySet(),
+                side -> lowerer(query, side, env, temporal, false, slots, sites)
+                        .sharingRelations(!env.postProcessors().extractCtes())
+                        .lower(seeded(side, env, query.context())),
+                made::numbersOf, query.context()));
     }
 
     /**

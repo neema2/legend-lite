@@ -3935,13 +3935,13 @@ final class Scalars {
         return !Pure.AT_COLLECTION_MIN.contains(n.callee().id());
     }
 
-    /** {@code sameElements} anywhere but a query's last statement: refused by name (Pure.Lite.SAME_ELEMENTS). Two
-     *  whole sides are two statements' rows; inside an expression they would be two list values, which not every
-     *  database holds (the lists-inside-an-expression follow-up). */
+    /** {@code sameElements} over sides that read the row or the element it stands in: refused by name
+     *  (Pure.Lite.SAME_ELEMENTS). Two whole sides are two statements' rows ({@code planner.RootComparison}); per row
+     *  they would be two list values, which not every database holds (the lists-inside-an-expression follow-up). */
     static com.legend.error.NotImplementedException sameElementsInsideAnExpression() {
-        return new com.legend.error.NotImplementedException("sameElements inside an expression: it is answered as a"
-                + " query's last statement, |sameElements($a, $b) or |!sameElements($a, $b) -- compute the two sides"
-                + " with let, then compare them last");
+        return new com.legend.error.NotImplementedException("sameElements over values of the row or element it stands"
+                + " in: it compares two whole sides (lists or tables computed apart from that row) -- compute the two"
+                + " sides with let, outside the lambda, then compare them");
     }
 
     /** The product's own rule for {@code n}, which a named rule falls back to for the calls it does not rewrite. */

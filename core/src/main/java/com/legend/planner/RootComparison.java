@@ -124,6 +124,85 @@ final class RootComparison {
                 + right.info().type().typeName() + ") have no typed comparison") : answer(compared, negated);
     }
 
+    /**
+     * THE SAME COMPARISON INSIDE AN EXPRESSION (the edition program's step 6; the user, 2026-11-27: "why cant we do
+     * the work we promised to get to one equality?"): the lowering asks here for every {@code ==} and
+     * {@code sameElements} it meets inside an expression -- an {@code if}'s condition, an operand of {@code &&},
+     * {@code ||} or {@code !}, an assert's condition, a column's value. Where the two sides are whole (a computed list,
+     * a map, a table) and read nothing of the row or element the comparison stands in (only the statement's own lets,
+     * {@code body}'s statements before its last, and the lets the environment seeds), the answer is {@link #plan}'s
+     * statement, which the lowering reads as one
+     * value: the code that answers the comparison as a query's last statement, and judges an assert of the two. So
+     * the comparison answers the same wherever it stands. Until then it was the database's own comparison of two
+     * list values there (two tables' column names and row order unread, two maps' entries by the order they were
+     * written in, a Decimal list by its text where a list is JSON, a database error where a database has no lists:
+     * measured 2026-11-27).
+     *
+     * <p>Null where this class does not plan the comparison: the plain comparison it was (two single values; a side
+     * that reads the row it stands in, which only a database's own list values compare -- the database follow-up).
+     */
+    static Function<TypedNativeCall, @Nullable SqlQuery> inside(List<TypedSpec> body, java.util.Set<String> seedable,
+            Function<List<TypedSpec>, SqlQuery> lowered,
+            Function<TypedNativeCall, com.legend.lowering.NumberFamilies> numbersOf, ModelContext ctx) {
+        // what a side may read beside itself: the statement's own lets (its statements before the last) and the lets
+        // the environment seeds; never a name some lambda of the statement binds too (a side that reads a row or an
+        // element is that row's, and a name bound twice is not told apart here: left to the plain comparison)
+        List<TypedSpec> lets = body.isEmpty() ? List.of() : List.copyOf(body.subList(0, body.size() - 1));
+        java.util.Set<String> readable = new java.util.LinkedHashSet<>(seedable);
+        for (TypedSpec let : lets) {
+            if (let instanceof com.legend.compiler.spec.typed.TypedLet named) {
+                readable.add(named.name());
+            }
+        }
+        java.util.Set<String> bound = new java.util.LinkedHashSet<>();
+        if (!body.isEmpty()) {
+            lambdaBound(body.get(body.size() - 1), bound);
+        }
+        readable.removeAll(bound);
+        return call -> {
+            if (call.args().size() != 2) {
+                return null;
+            }
+            boolean anyOrder = Pure.AT_LEGEND_LITE_SAME_ELEMENTS.contains(call.callee().id());
+            if (!anyOrder && !Pure.AT_BOOLEAN_EQUAL.contains(call.callee().id())) {
+                return null;
+            }
+            TypedSpec left = call.args().get(0);
+            TypedSpec right = call.args().get(1);
+            if (!anyOrder && !wholeOrTable(left) && !wholeOrTable(right)) {
+                return null;
+            }
+            if (!readable.containsAll(com.legend.compiler.spec.typed.FreeVars.of(call))) {
+                // a side reads the row or the element the comparison stands in
+                return null;
+            }
+            return plan(with(lets, call), lowered, numbersOf, ctx);
+        };
+    }
+
+    /** Every name a lambda or a match beneath {@code n} binds. */
+    private static void lambdaBound(TypedSpec n, java.util.Set<String> out) {
+        switch (n) {
+            case com.legend.compiler.spec.typed.TypedLambda l -> out.addAll(l.parameters());
+            case com.legend.compiler.spec.typed.TypedMatch m -> {
+                out.add(m.param());
+                m.extraParam().ifPresent(out::add);
+            }
+            case com.legend.compiler.spec.typed.TypedMatchRuntime mr -> {
+                mr.arms().forEach(arm -> out.add(arm.param()));
+                mr.extraParam().ifPresent(out::add);
+            }
+            default -> { }
+        }
+        for (TypedSpec c : n.children()) {
+            lambdaBound(c, out);
+        }
+    }
+
+    private static boolean wholeOrTable(TypedSpec side) {
+        return Type.isRelation(side.info().type()) || whole(side);
+    }
+
     /** A statement this class does not plan: the plain comparison for {@code ==} (null: lowered as any expression
      *  is), a refusal by name for {@code sameElements}, which has no other form. */
     private static @Nullable SqlQuery unplanned(boolean anyOrder, String why) {

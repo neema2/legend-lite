@@ -303,7 +303,7 @@ class RootComparisonTest {
     }
 
     /** What {@code sameElements} refuses, each by name: two sides of two known types (the equality rule: different
-     *  types never compare), and any place but a query's last statement. */
+     *  types never compare), a table against a list, and sides that read the row or element it stands in. */
     @Test
     void sameElementsRefusesTwoTypesAndAnyPlaceButTheAnswer() throws Exception {
         var backend = TestBackends.platform();
@@ -311,7 +311,7 @@ class RootComparisonTest {
         Map<String, String> refused = new LinkedHashMap<>();
         refused.put("|sameElements([1, 2], ['a', 'b'])", "sameElements compares elements of one type");
         refused.put("|sameElements([1, 2], [1.0, 2.0])", "sameElements compares elements of one type");
-        refused.put("|if(sameElements([1, 2], [2, 1]), |'same', |'other')", "sameElements inside an expression");
+        refused.put("|[1, 2]->map(x | sameElements([$x, 2], [2, 1]))", "sameElements over values of the row or element");
         refused.put("|sameElements(#TDS\n id\n 1\n#, [1])", "sameElements: a table against a side that is no table");
         for (Map.Entry<String, String> c : refused.entrySet()) {
             try (Connection connection = backend.open()) {
@@ -320,6 +320,60 @@ class RootComparisonTest {
                 org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(e.getMessage()).contains(c.getValue()),
                         c.getKey() + " -> " + e.getMessage());
             }
+        }
+    }
+
+    /** ONE EQUALITY WHEREVER THE COMPARISON STANDS (the user, 2026-11-27: "why cant we do the work we promised to get
+     *  to one equality?"): a comparison of two whole sides answers the same as a query's last statement, as an
+     *  {@code if}'s condition and as an operand of {@code &&}. Inside an expression it is the same statement, read
+     *  as one value ({@code planner.RootComparison.inside}). Until then it was the database's own comparison of two
+     *  list values there: measured 2026-11-27, two tables with other column names or rows in another order answered
+     *  "the same" on DuckDB and SQLite, two maps written in another order "not the same", two Decimal lists of other
+     *  written scales "not the same" on SQLite, and H2 answered a database error or refused. Where a database refuses
+     *  the comparison as an answer (a map on H2 and SQLite), it refuses it inside an expression too, by the same
+     *  name. Collected, so one run shows every case that differs. */
+    @Test
+    void aComparisonAnswersTheSameInsideAnExpression() throws Exception {
+        java.util.Set<String> comparisons = new java.util.LinkedHashSet<>();
+        for (String q : cases().keySet()) {
+            comparisons.add(q.substring(1));
+        }
+        for (String q : tables().keySet()) {
+            comparisons.add(q.substring(1));
+        }
+        comparisons.add("newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('b', 2), pair('a', 1)])");
+        comparisons.add("newMap([pair('a', 1)]) == newMap([pair('a', 2)])");
+        comparisons.add("[1.0D, 2.5D]->filter(x | $x > 0D) == [1.00D, 2.50D]");
+        comparisons.add("[1, 'a']->filter(x | true) == [1, 'a']");
+        comparisons.add("[1, 'a']->filter(x | true) == [1, 'b']");
+        comparisons.add("sameElements([1, 2, 3], [3, 1, 2])");
+        comparisons.add("sameElements([1, 1, 2], [1, 2, 2])");
+        comparisons.add("sameElements(#TDS\n id, s\n 1, x\n 2, y\n#, #TDS\n id, s\n 2, y\n 1, x\n#)");
+        List<String> differs = new java.util.ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (String comparison : comparisons) {
+                String root = outcome(backend, model, "|" + comparison);
+                for (String inside : List.of("|if(" + comparison + ", |true, |false)",
+                        "|(" + comparison + ") && true")) {
+                    String got = outcome(backend, model, inside);
+                    if (!root.equals(got)) {
+                        differs.add(backend.type() + ": " + comparison.replace('\n', ' ') + " -> " + root
+                                + ", but " + inside.replace('\n', ' ') + " -> " + got);
+                    }
+                }
+            }
+        }
+        assertEquals(List.of(), differs, "the same comparison, the same answer");
+    }
+
+    /** {@code query}'s rows, or the name of what refused it. */
+    private static String outcome(com.legend.testbackend.TestBackend backend, String model, String query)
+            throws Exception {
+        try (Connection connection = backend.open()) {
+            return String.valueOf(Lean.established(model, query, "p::RT", connection).rows());
+        } catch (RuntimeException e) {
+            return e.getClass().getSimpleName();
         }
     }
 }

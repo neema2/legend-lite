@@ -351,6 +351,36 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
+    /** The planner's answer for a comparison of two whole sides met inside an expression ({@link
+     *  #withWholeComparisons}); null where no planner gave one (a lowerer made outside the planner's roads). */
+    private java.util.function.@com.legend.base.Nullable Function<TypedNativeCall, SqlQuery> wholeComparisons;
+
+    /** The comparison last asked of {@link #wholeComparisons} and its answer: a switch's guard asks, its arm reads. */
+    private @com.legend.base.Nullable TypedNativeCall wholeAsked;
+    private @com.legend.base.Nullable SqlExpr wholeAnswer;
+
+    /** A comparison of two WHOLE sides (computed lists, maps, tables) inside an expression is answered by
+     *  {@code planner}'s statement for it, read here as one value: the statement that answers the same comparison as
+     *  a query's last, so it answers the same wherever it stands ({@code planner.RootComparison.inside}; the edition
+     *  program's step 6, 2026-11-27). {@code planner} answers null for a comparison it does not plan. */
+    public Lowerer withWholeComparisons(Function<TypedNativeCall, SqlQuery> planner) {
+        this.wholeComparisons = planner;
+        return this;
+    }
+
+    /** {@code n} as the planner's statement for a comparison of two whole sides, one value; null where it has none. */
+    private @com.legend.base.Nullable SqlExpr wholeSides(TypedNativeCall n) {
+        if (wholeComparisons == null) {
+            return null;
+        }
+        if (wholeAsked != n) {
+            SqlQuery planned = wholeComparisons.apply(n);
+            wholeAnswer = planned == null ? null : new SqlExpr.ScalarSubquery(planned);
+            wholeAsked = n;
+        }
+        return wholeAnswer;
+    }
+
     /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
      *  keys ({@link LoweringForms#existsJoin}; the edge audit's J19: the product's form keeps the EXISTS). */
     public Lowerer withExistsJoinable() {
@@ -4325,11 +4355,21 @@ public final class Lowerer {
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
                 ProductRelationText.of(tc, this::relation, nextAlias());
-            // sameElements (the edition program's step 6, 2026-11-27): two whole sides compared in any order, planned
-            // as a query's last statement (planner.RootComparison); anywhere else it is refused by name, before a side
-            // is lowered as a value (a table has none)
-            case TypedNativeCall n when Pure.AT_LEGEND_LITE_SAME_ELEMENTS.contains(n.callee().id()) ->
-                throw Scalars.sameElementsInsideAnExpression();
+            // sameElements (the edition program's step 6, 2026-11-27): two whole sides compared in any order, the
+            // planner's statement for them read as one value (planner.RootComparison.inside); over sides that read
+            // the row it stands in it is refused by name, before a side is lowered as a value (a table has none)
+            case TypedNativeCall n when Pure.AT_LEGEND_LITE_SAME_ELEMENTS.contains(n.callee().id()) -> {
+                SqlExpr planned = wholeSides(n);
+                if (planned == null) {
+                    throw Scalars.sameElementsInsideAnExpression();
+                }
+                yield planned;
+            }
+            // == over two whole sides (computed lists, maps, tables) that read nothing of the row they stand in: the
+            // statement that answers the comparison as a query's last, read as one value -- one equality wherever
+            // the comparison stands (planner.RootComparison.inside)
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && wholeSides(n) != null ->
+                java.util.Objects.requireNonNull(wholeSides(n));
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
