@@ -202,10 +202,21 @@
 > matching upstream's answers (the user: "We just should decide our tenets").
 > - **Different types never compare.** Where the types are known when the query is
 >   compiled (literals, columns, parameters, computed expressions), comparing two
->   different types is a compile error naming the fix: Integer, Float and Decimal are
->   three types; a day and a date-time; an enumeration and a String; two unrelated
+>   different types is a compile error naming the fix: an exact number and a Float
+>   (below); a day and a date-time; an enumeration and a String; two unrelated
 >   classes. `==`, `!=`, `in`, `contains`, `indexOf`, the deduplications, joins and
 >   ordering (`<`, `max`, `min`, `sort`) all hold to it.
+> - **Numbers are of two families** (the user, 2026-11-27: "Yes I like the rule, keep
+>   ordering strict"; the rule is the user's own, "exact with exact (int and decimal
+>   when fits) vs approx (float) only and let untyped literals only when lossless"):
+>   exact (Integer, Decimal) and approximate (Float). Within a family a comparison is
+>   by value: `1 == 1D` is true, `2 < 2.5D` is true. Across the two the writer
+>   converts: an exact number against a Float is the compile error above, ordering
+>   included, and at run time the two are never equal. In a mixed list an Integer and
+>   a Decimal of one value are one element (a duplicate, a member, the same position);
+>   a sort places a tie of value by family, an exact number before a Float, and two
+>   equal exact numbers keep the order they were written in. Until this ruling
+>   Integer, Float and Decimal were three types never equal (2026-11-24).
 > - **A number literal reads as the type of the value it is written against** (the
 >   user, 2026-11-26: "okay for float/decimal literal compare"): `$x.qty > 0` over a
 >   Float is `> 0.0`, `$x.salary < 50000` over a Decimal is `< 50000D`, when the

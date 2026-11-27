@@ -456,6 +456,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   database as written, legend-engine's answer, with no setting.
 - **You write**, on lite's own route: `$x.kind == 'CITY'` where `kind` is an enumeration, `$x.day == $x.stamp` (a day
   against a date-time), `$x.count == $x.ratio` (an Integer against a Float).
+  - **An Integer against a Decimal is not a mistake** (the user's ruling of 2026-11-27): the two are exact numbers,
+    compared by value, so `$x.count == $x.amount` compiles and `1 == 1D` is true. Numbers are of two families,
+    exact (Integer, Decimal) and approximate (Float); only a comparison across the two is refused.
 - **legend-engine** sends the comparison to the database, which converts one side by its own rules.
 - **lite** refuses to compile it and names the two types and the fix: write both sides in one type (an enumeration's
   own value, `toFloat()`, `toString()`). Two values are equal only when they have the same type and the same value.
@@ -475,7 +478,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Why:** a comparison across types usually hides a mistake, and each database converts differently, so the same
   query would answer differently on two databases. Refusing it when the code is compiled is the one answer that is
   the same everywhere.
-- **Register:** S127 (as amended 2026-11-25 and 2026-11-26).
+- **Register:** S127 (as amended 2026-11-25, 2026-11-26 and 2026-11-27).
 
 ### 23. Equal numbers of different types: where a sort puts them, which one `max` and `min` keep (the edition program, 2026-11-26)
 - **Which meaning you get depends on the door,** as in item 1.
@@ -492,10 +495,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - One difference stays at legend-engine's door: inside a query sent to a database, legend-engine lets the database
     choose the result's type, so `max` of an Integer column and a Float column comes back a Float even when the
     Integer was kept (`3.0`, where lite answers `3`). The number is the same; its type is not.
-- **On lite's own route** the type is part of the value, so a tie of value is placed by type: Integer, then Float,
-  then Decimal. `[3.0, 3, 1]->sort()` is `[1, 3, 3.0]` however it was written; `max` and `greatest` of a tie keep
-  the higher type, `min` and `least` the lower. `max(3, 3.0)` written with two values of two types is a compile
-  error (item 22).
+- **On lite's own route** numbers are of two families, exact (Integer, Decimal) and approximate (Float), and a tie
+  of value is placed by family: an exact number, then a Float. `[3.0, 3, 1]->sort()` is `[1, 3, 3.0]` however it
+  was written; `max` and `greatest` of a tie keep the Float, `min` and `least` the exact number. An Integer and a
+  Decimal of one value are equal, so they keep the order they were written in (`[3D, 3.0, 3]->sort()` is
+  `[3D, 3, 3.0]`). `max(3, 3.0)` written with two values of the two families is a compile error (item 22). (The
+  user's ruling of 2026-11-27; until then the order was Integer, Float, Decimal.)
 - **Why:** one set of values should give one answer, whatever order they happened to be written or read in.
 - **Register:** S428.
 

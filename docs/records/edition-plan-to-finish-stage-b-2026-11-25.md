@@ -1171,6 +1171,34 @@ way"**.
 Also asked by the user that hour, and done: **"Let's just focus on step 6 right now ... I would stop everything else
 for right now"** (steps 8 and 9 paused, section 5a).
 
+**The ruling of 2026-11-27 on numbers (step 6): two families.** Asked by the user while the one equality was being
+built: "I wonder philosophically if we should change lite product to have all numbers equal by value and maybe even
+date/datetime as well ... I don't love it personally, but isn't it what basically all databases do/mean
+essentially", then "Clean sheet, no bias, what do you think we should do for numbers in lite/product?", then the
+user's own proposal: **"There is another school of thought on numbers which is allow exact with exact (int and
+decimal when fits) vs approx (float) only and let untyped literals only when lossless"**. The orchestrator put it
+back as a rule (below) with its consequences; the user: "I think we are getting to the right place for numbers ...
+And then untyped literals like 0.5 will work for float and decimal?" (yes: the literal rule of 2026-11-26 stands),
+and then: **"Yes I like the rule, keep ordering strict"**.
+
+| | Settled |
+|---|---|
+| Families | numbers are of two families: exact (Integer, Decimal) and approximate (Float) |
+| Within a family | a comparison is by value: `1 == 1D` true, `2 < 2.5D` true, `in`, `contains`, `indexOf`, joins and deduplication the same |
+| Across the two | the writer converts: a compile error where both types are known (`==`, `in`, `contains`, `indexOf`, and ordering: "keep ordering strict"); at run time never equal, ordered by value then family |
+| Literals | a written literal reads as the other side's type only where nothing is lost (the rule of 2026-11-26, unchanged): `0.5` works against a Float and against a Decimal |
+| Mixed lists | an Integer and a Decimal of one value are one element; a Float never equals an exact number; sort, `max`, `min` by value, an exact number before an equal Float, equal exact numbers in the written order |
+| The other modes | legend-pure's and legend-engine's doors keep their own behaviour for a query's comparison |
+
+Not ruled, the orchestrator's recommendations of the same exchange, recorded as open: a Float stays the database's
+double (no DECFLOAT conversion and no new number type; DECFLOAT only as a carrier for Decimal where a database has
+one, later); a third date-time type (a wall-clock time with no zone) as an addition after Stage B, the date kinds
+staying strict in step 6. Still to define and measure: "when fits" (an Integer beside a Decimal of a scale past 19:
+the comparison is exact or the database's overflow error, never a wrong answer); arithmetic of a literal over a
+Decimal (`$amount * 0.5`).
+
+Built on `claude/step-6-numbers` (the typer's rule, mixed lists, both judges); register S127 and S428 amended.
+
 ## 8. Decisions still to come
 
 Each arrives with what was measured:
