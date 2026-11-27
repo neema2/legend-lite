@@ -244,6 +244,13 @@ final class Typer {
         if (compared == Compared.UNREAD || compared != Compared.QUERY && !crossTypes.readsBodies()) {
             return call;
         }
+        TypedSpec answer = comparedWhereItStands(call, chosen, args, pos);
+        // (a comparison in a function's body is the function's, not the query's: EqualityClasses.notTheQuerys)
+        return compared == Compared.QUERY ? answer : EqualityClasses.notTheQuerys(answer);
+    }
+
+    private TypedSpec comparedWhereItStands(TypedSpec call, com.legend.compiler.element.TypedFunction chosen,
+            List<TypedSpec> args, com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);
         if (crossing.isEmpty()) {
             // a comparison in a function's body whose sides' types are known only where the function is used

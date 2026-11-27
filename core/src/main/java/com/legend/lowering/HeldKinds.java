@@ -38,7 +38,9 @@ import java.util.Map;
  * date-time).
  *
  * <p>Only a comparison the query's author wrote (one with a source position): a comparison lite writes itself (a
- * mapping's translation, a milestoning filter) is no mistake of theirs. And the product's own rule alone: a
+ * mapping's translation, a milestoning filter) is no mistake of theirs, and one written in a function's body is the
+ * function's ({@code compiler.spec.EqualityClasses.notTheQuerys}: its author declared the side open, the word that
+ * the values are compared when the query runs, and a library may refuse such a pair itself). And the product's own rule alone: a
  * compatibility door's table names its own rule for these calls ({@link NamedRule#NUMBERS_OF_THREE_TYPES}), under
  * which such a comparison is the database's, as it was.
  */

@@ -38,6 +38,28 @@ public final class EqualityClasses {
     public record Crossing(TypedCrossTypeComparison.Kind kind, String operator, Type left, Type right) {
     }
 
+    /**
+     * {@code answer}, a comparison written in a FUNCTION's body, marked as the function's and not the query's: the
+     * comparison without its source position. What the mark is for: a comparison of two values typed only by the
+     * columns they read is refused where the query is planned ({@code lowering.HeldKinds}) only when the query's
+     * author wrote it -- a function's author who declared a side {@code Number}, {@code Any} or the abstract
+     * {@code Date} said the values are compared when the query runs, and a library may refuse such a pair itself, in
+     * its own words (the time-series library's meeting of a line of days and a line of moments: found 2026-11-27, the
+     * planning-time refusal pre-empted it). The lowering reads "no position" as "not the query's own" already (a
+     * mapping's translation, a milestoning filter). An assert keeps its position (its failure's record names it), as
+     * does anything that is no plain comparison (a refusal's record, a comparison kept for its call).
+     */
+    static TypedSpec notTheQuerys(TypedSpec answer) {
+        if (!(answer instanceof com.legend.compiler.spec.typed.TypedNativeCall c) || c.pos() == null
+                || c.callee().definition() == null) {
+            return answer;
+        }
+        Comparison comparison = COMPARISONS.get(c.callee().id());
+        return comparison == null || comparison.kind() == TypedCrossTypeComparison.Kind.ASSERT ? answer
+                : new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(), c.args(), c.info(), null,
+                        c.outsideStore());
+    }
+
     /** A comparison the rule reads: its kind and its operator as a message writes it. */
     private record Comparison(TypedCrossTypeComparison.Kind kind, String operator) {
     }

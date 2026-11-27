@@ -444,7 +444,9 @@ public final class UserCallInliner {
      *  comparison's sides have here are the types they have. */
     private TypedSpec atTheCall(TypedSpec n) {
         TypedSpec kids = n.mapChildren(this::atTheCall);
-        return kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c ? specs.atTheCall(c) : kids;
+        // (answered as a plain comparison, it is still the function's own, not the query's)
+        return kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c
+                ? EqualityClasses.notTheQuerys(specs.atTheCall(c)) : kids;
     }
 
     /**
