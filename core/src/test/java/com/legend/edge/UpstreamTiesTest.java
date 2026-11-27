@@ -362,6 +362,26 @@ class UpstreamTiesTest {
                 admitted.apply("{|assert(" + sorted + " == " + sorted + ");}"));
     }
 
+    @Test
+    @DisplayName("a date built to the hour against a date-time: upstream reads the written precision as part of the"
+            + " value, lite compares the two by their instant")
+    void aDateBuiltToTheHourIsComparedByItsWrittenPrecisionAtTheDoors() {
+        // run 2026-11-27 on interpreted and compiled legend-pure and legend-engine's own Java
+        // (docs/records/edition-homework/upstream-step6/answers-request-3-2026-11-27.md, group D): against a full
+        // date-time false, against a date written to the same hour true
+        String full = "|date(2015, 4, 16, 14) == %2015-04-16T14:00:00";
+        String sameHour = "|date(2015, 4, 16, 14) == %2015-04-16T14";
+        for (Door door : List.of(Door.LEGEND_PURE, Door.LEGEND_ENGINE)) {
+            String never = sql(door, door.style, full).toLowerCase(java.util.Locale.ROOT);
+            assertTrue(never.contains("concat('l'") && never.contains("concat('r'"), door + ": never equal, both sides"
+                    + " read: " + never);
+            assertTrue(sql(door, door.style, sameHour).contains("= '2015-04-16T14'"),
+                    door + ": the same where the two are written alike: " + sql(door, door.style, sameHour));
+        }
+        // lite's own rule: by the instant (register S399), no mark of never-equal
+        assertFalse(sql(Door.LITE, PlanStyle.PRODUCT, full).toLowerCase(java.util.Locale.ROOT).contains("concat('l'"));
+    }
+
     // ---- the rows add nothing where no two number types meet ------------------------------------------------------
 
     /** {@code base} with the product's edition in its own's place: the same door's plan with no row at all. What a

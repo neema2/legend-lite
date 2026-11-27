@@ -3869,10 +3869,8 @@ final class Scalars {
             // own rule compares the two by their instant (register S399), which the shared equality below would
             // answer here too -- and did, from step 6's instant arm until its closing batch (true at both doors,
             // where it had been a database error before)
-            if (Equalities.aPartialDateTimeAgainstAFullOne(args)) {
-                return Equalities.neverEqualButEvaluated(args.get(0), args.get(1));
-            }
-            return Equalities.equal(n, args, three);
+            SqlExpr byPrecision = Equalities.upstreamsPartialDateTime(n, args);
+            return byPrecision != null ? byPrecision : Equalities.equal(n, args, three);
         }
         if (Pure.AT_COLLECTION_CONTAINS.contains(id)) {
             return containsRule(three).apply(n, args);

@@ -248,13 +248,34 @@ final class Equalities {
                 new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
     }
 
-    /** Whether {@code args} are a date-time carried as its written text (one built to the hour or the minute, which
-     *  keeps how it prints) against one the database holds: two precisions of one instant. */
-    static boolean aPartialDateTimeAgainstAFullOne(List<SqlExpr> args) {
-        return args.size() == 2
-                && (carriedAs(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(args.get(1), SqlType.Scalar.TIMESTAMP)
-                        || carriedAs(args.get(1), SqlType.Scalar.TEMPORAL_TEXT)
-                                && carriedAs(args.get(0), SqlType.Scalar.TIMESTAMP));
+    /**
+     * UPSTREAM'S equality of a date-time built to the hour or the minute (carried as its written text, which keeps
+     * how it prints) against a date-time the database holds: a date's WRITTEN PRECISION is part of its value there
+     * (run 2026-11-27, {@code upstream-step6/answers-request-3}, group D: {@code date(2015, 4, 16, 14) ==
+     * %2015-04-16T14:00:00} false, {@code == %2015-04-16T14} true). So against a date WRITTEN in the query to the
+     * hour or the minute the two are the same where their texts are (the literal's own text: the database holds a
+     * literal as a full timestamp, its precision gone); against any other date-time, never -- both sides still
+     * evaluated. Null where {@code args} are no such pair. The compatibility doors' ({@code NamedRule
+     * .NUMBERS_OF_THREE_TYPES}); the product compares the two by their instant (register S399).
+     */
+    static @com.legend.base.Nullable SqlExpr upstreamsPartialDateTime(TypedNativeCall n, List<SqlExpr> args) {
+        if (args.size() != 2 || n.args().size() != 2) {
+            return null;
+        }
+        int text = carriedAs(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) ? 0
+                : carriedAs(args.get(1), SqlType.Scalar.TEMPORAL_TEXT) ? 1 : -1;
+        if (text < 0 || !carriedAs(args.get(1 - text), SqlType.Scalar.TIMESTAMP)) {
+            return null;
+        }
+        if (n.args().get(1 - text) instanceof com.legend.compiler.spec.typed.TypedCDate written) {
+            com.legend.values.PureDateLiteral.Precision precision = written.value().precision();
+            if (precision == com.legend.values.PureDateLiteral.Precision.HOUR
+                    || precision == com.legend.values.PureDateLiteral.Precision.MINUTE) {
+                return SqlExpr.Call.of(SqlFn.EQUAL, args.get(text),
+                        new SqlExpr.StringLit(written.value().canonicalText()));
+            }
+        }
+        return neverEqualButEvaluated(args.get(0), args.get(1));
     }
 
     /** Whether {@code e}'s SQL type is known to be {@code type}. */

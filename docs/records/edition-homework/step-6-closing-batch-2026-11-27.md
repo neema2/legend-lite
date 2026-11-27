@@ -104,6 +104,16 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
 | the same with piece 6's first items | `d791f5242` | 20 pass, 2 fail | the refusal still caught two relation-typed sides that are no tables of rows: narrowed to maps. |
 | pieces 1 to 3 with the order rule | `e3f924ad9` | 16 pass, 6 fail | six causes, read together: (1) my correction "many values read from one sorted value are unordered" refused every sorted frame read (`$result.values.rows`): backed out, recorded as register S431's second limit; (2) a `match`'s parameter was taken for an execution frame's rows (two PCT tests refused): it is a value the walk cannot see; (3) the planner minted typed nodes for the rule's scope (an architecture rule): moved to the compiler; (4) a function's name written as a literal, and a `Map.copyOf` (two guards); (5) a test case of mine over a shape lite does not plan; (6) a row-level `forAll` still answers true where a row's comparison has an empty side: being probed. |
 
+## Probed in the build (RUN 2026-11-27 at `526ed2620`, DuckDB; temporary tests, never committed)
+
+| Row | Written | Answer | So |
+|---|---|---|---|
+| B22 | `date(2015, 4, 16, 14) == %2015-04-16T14:00:00` at the two doors | the never-equal form: false | upstream's answer |
+| B22 | `date(2015, 4, 16, 14) == %2015-04-16T14` at the two doors | false (the first form of the rule) | **wrong: upstream says true.** Lite holds the hour-precision LITERAL as a full timestamp, its written precision gone. Fixed in the batch: against a date written to the hour or the minute the two are compared by the literal's own text. |
+| older | `%2015-04-16T14 == %2015-04-16T14:00:00`, two literals of two written precisions, at every door | true (two full timestamps) | upstream's answer not run (precision is part of the value there, so likely false). Older than step 6 and outside it: recorded in section D. |
+| B9 | `max(3, 3D)`, `min(3, 3D)` / `max(3D, 3)`, `min(3D, 3)` on lite's own door | the FIRST written (3 / 3D) | as upstream |
+| B9 | `[3, 3D]->max()`, `->min()` / `[3D, 3]->max()`, `->min()` on lite's own door | the FIRST written (3 / 3D) | upstream keeps the LAST (run, request 3, group M). Lite's own rule in lite's mode (register S428's ruling: two equal exact numbers keep the order they were written in); added to S428's row. |
+
 ## C. Not yet verified, or housekeeping
 
 | # | What |
@@ -121,6 +131,9 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
   query's own answer (`|p::O.all()->exists(o | $o.nick == 'a')`) is a raw database error on DuckDB ("Invalid LIST
   argument during lambda function binding"), a refusal by name on H2, and answered on SQLite. A task for after the
   batch; the row-level forms inside a filter work and are what the batch's tests use.
+- Found on the way (2026-11-27), older than step 6: two date LITERALS written at two precisions
+  (`%2015-04-16T14 == %2015-04-16T14:00:00`) are compared as two full timestamps at every door, true; upstream reads
+  the written precision as part of the value. To be run upstream and put to the user as a task for after the batch.
 - Found on the way (2026-11-27), older than step 6 and wider than equality: a `forAll` writes its predicate under a
   NOT, so ANY predicate that answers "no value" for a row (an ordering or a membership over an empty value, not only
   an equality) is not counted against it. The batch fixes the equality (its guard, and "is distinct from" under the
