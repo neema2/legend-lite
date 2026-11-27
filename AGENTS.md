@@ -237,7 +237,16 @@
 >   or function for multiset compare?": "Yeah or ~= if want to be cute, or setCompare()"): `==` compares two tables'
 >   columns by name and their rows IN ORDER; a side whose order the query does not define is a compile error naming
 >   the fixes. `sameElements(a, b)` (lite's own function, register S430) compares two lists or two tables in any
->   order, duplicates counted. One operator, one meaning.
+>   order, duplicates counted. One operator, one meaning. A list whose order the query does not define is refused
+>   under `==` the same way.
+> - **Wherever it stands** (the user, 2026-11-27: "why cant we do the work we promised to get to one equality?"): a
+>   comparison of two whole sides (computed lists, maps, tables) answers the same as a query's last statement, as an
+>   `if`'s condition, under `&&`, `||` or `!`, and in a test's `assert(...)`: one statement plans it
+>   (`planner.RootComparison`). Only a comparison whose sides read the row it stands in is still the database's own.
+> - **An empty side** (the user, 2026-11-27: "Yes do the empty side fix"): `$x.nick == 'a'` where `nick` holds no
+>   value is false, as Pure says. A condition already read it so; where the comparison's VALUE is kept (a column, a
+>   query's answer) it now answers false too (`lowering.Equalities.falseWhereASideIsEmpty`), on lite's route and at
+>   legend-pure's door. Never a guard inside a filter, a join or a CASE.
 > - **An assert is the comparison it means** (the user, 2026-11-26: "yes compile
 >   error"): on lite's own door an assert of two written types is refused when the
 >   body is compiled.

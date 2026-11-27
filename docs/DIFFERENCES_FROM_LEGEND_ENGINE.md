@@ -539,9 +539,13 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   two fixes: sort both sides, or use `sameElements`.
 - **`sameElements(a, b)` is lite's own function** (upstream has none): two lists' elements, or two tables' rows under
   the same column names, the same in any order. Duplicates count: `[1, 1, 2]` and `[1, 2, 2]` are not the same.
-- **Not covered:** `sameElements` is answered as a query's last statement; inside an expression (an `if`, a
-  filter) it is refused by name. At legend-pure's and legend-engine's doors a `==` of two tables is the comparison
-  it was, by the tables' values: two identical written tables are equal there, where legend-pure says they are not.
+- **The same wherever the comparison stands:** as the query's answer, inside an `if`, under `&&`, `||` or `!`, in
+  a test's `assert(...)`. A list whose order the query does not define (a store's rows mapped to values) is refused
+  under `==` as a table is.
+- **Not covered:** a comparison of lists that reads the row it stands in (a filter comparing each row's list) is
+  still the database's own list comparison, and `sameElements` there is refused by name. At legend-pure's and
+  legend-engine's doors a `==` of two tables is the comparison it was, by the tables' values: two identical written
+  tables are equal there, where legend-pure says they are not.
 - Register row S430.
 
 ## Gaps lite has today (not differences by design)

@@ -338,7 +338,29 @@ read twice is one evaluation (`UserCallInliner.finish`, `ff19de458`) and strict 
 **Run 2026-11-27 at `38b367872`** (18 test targets: the 16 above with core's root suite and the time-series
 library): all 18 pass. That run covers `sameElements` and a caller's lambda in a generic function's body.
 
-**Built after that run, not yet run:** `max`/`min` of an Integer and a Float at legend-engine's door.
+**Built after that run:** `max`/`min` of an Integer and a Float at legend-engine's door (run since: `b62`, the
+edge tests).
+
+**The work to one equality (the user, 2026-11-27: "Why cant we do the work we promised to get to one equality?
+Too expensive?").** Not too expensive: about a day. Each piece, what it is and where it stands:
+
+| Piece | What | State |
+|---|---|---|
+| 1 | Two whole sides (computed lists, maps, tables) compared INSIDE an expression -- an `if`'s condition, under `&&`, `\|\|`, `!`, a test body's `assert(...)` -- are the statement that answers them as a query's last, read as one value (`Lowerer.withWholeComparisons`, `planner/RootComparison.inside`, on the product's road and the test body's). Sides that read the row they stand in keep the database's own comparison (the database follow-up); `sameElements` there is refused by name | **run 2026-11-27 at `43cf5e021`**: `RootComparisonTest.aComparisonAnswersTheSameInsideAnExpression` passes -- every case of the root tests, as an `if`'s condition and under `&&`, against its answer as a query's last, on DuckDB, H2 and SQLite |
+| 2 | An empty side answers false where the comparison's VALUE is kept (a column, a query's answer): the equalities such a value is made of are marked (`Lowerer.keepingItsValue`: reached through `&&`, `\|\|`, `!`, an `if`'s branches) and each is `COALESCE(l = r, FALSE)` where exactly one side may be empty (`Equalities.falseWhereASideIsEmpty`). No condition's statement changes. The door's table says whose answer it is (`EditionTable.emptySideIsFalse`): the product's and legend-pure's; legend-engine's door keeps what it had | **run at `43cf5e021`**: every column case passes on the three databases; the three query's-answer cases fail on H2 alone, for a reason older than step 6 (a filtered list's first element has no form inside an expression there): not asked of H2 since |
+| 3 | A membership or an index of two types (`in`, `contains`, `indexOf`) still raises what its single value raises (`LiteCrossTypeRule`, `Equalities.neverAmongButEvaluated`) | built, in the run of `0c027ad58` |
+| 4 | The two judges' wording for a Variant read through `Any` | probed, four wording defects, **not fixed** (the row above): verdicts right, not the product's equality |
+
+Still outside, with the reason: a list compared per row on a database with no list type (a list representation per
+database: the database program); a generic function's `Number` parameters called with `1` and `1.0` (the third
+review's table, and the audits' row 14).
+
+**The run of `43cf5e021`** (22 targets: the focused set with the edge tests, core's root and test-exec suites, the
+catalog tests): 19 pass. Five tests failed, each fixed in `ba62fafd0` or `0c027ad58`: the lowerer's one-element
+cache was mutable state (the guard); `BodyPlanner` grew past its pin (the hook's wiring moved to
+`RootComparison.asking`); the empty-side test asked H2 for a list inside an expression; `TaggedListTest` compared a
+raw grid's cells in order (refused now, as the assert of the same side is); and a store's rows mapped to values
+were read as a table, so the refusal of an unordered list never saw them (`RootComparison.valueType`).
 
 **Put to the user 2026-11-27, on their question "any more deferrals or open decisions or worries ... did we actually
 get to real one equality ... did we stick to our tenets?" -- awaiting their word:**
