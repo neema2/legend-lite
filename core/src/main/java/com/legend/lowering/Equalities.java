@@ -103,11 +103,22 @@ final class Equalities {
                 return new SqlExpr.BoolLit(false);
             }
         }
+        // a date-time carried as its written text (date(2015, 4, 16, 14): a date built to the hour or the minute keeps
+        // how it prints) against one the database holds as a TIMESTAMP: by its instant, the text read as the assert's
+        // judge reads it (register S399; SideEqualities.instantOfText). Until the edition program's step 6 the
+        // database was handed the text against a TIMESTAMP and refused it ("invalid timestamp field format")
+        List<SqlExpr> sides = args;
+        if (carriedAs(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(args.get(1), SqlType.Scalar.TIMESTAMP)) {
+            sides = List.of(SideEqualities.instantOfText(args.get(0)), args.get(1));
+        } else if (carriedAs(args.get(1), SqlType.Scalar.TEMPORAL_TEXT)
+                && carriedAs(args.get(0), SqlType.Scalar.TIMESTAMP)) {
+            sides = List.of(args.get(0), SideEqualities.instantOfText(args.get(1)));
+        }
         List<SqlExpr> cargs = List.of(
                 CastPolicy.comparisonWireOperand(n.args().get(0),
-                        args.get(0), n.args().get(1)),
+                        sides.get(0), n.args().get(1)),
                 CastPolicy.comparisonWireOperand(n.args().get(1),
-                        args.get(1), n.args().get(0)));
+                        sides.get(1), n.args().get(0)));
         // a literal side meeting a variant-carried side joins it there (the spelling carrier's
         // equality by emission left with track L's L2, 2026-10-29: a mixed value is tagged, above)
         cargs = VariantShapes.alignLiteralToJson(n.args(), cargs);
@@ -129,6 +140,11 @@ final class Equalities {
         // nullable col-vs-col equality is NULL-SAFE (engine
         // isEqualsFromFilter; task #62's equal-side arm)
         return nullArms(n, cargs);
+    }
+
+    /** Whether {@code e}'s SQL type is known to be {@code type}. */
+    private static boolean carriedAs(SqlExpr e, SqlType type) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == type;
     }
 
     /** A date type whose VALUES are always full-precision (columns, full literals). */

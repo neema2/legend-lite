@@ -150,4 +150,29 @@ class RootComparisonTest {
             }
         }
     }
+
+    /** A date built to the hour or the minute keeps how it prints (a text), and is compared by its instant (register
+     *  S399) wherever the comparison stands: as a query's answer, and inside an expression, where until step 6 the
+     *  database was handed the text against a TIMESTAMP and refused it. */
+    @Test
+    void aDateBuiltToTheHourIsComparedByItsInstant() throws Exception {
+        Map<String, Object> cases = new LinkedHashMap<>();
+        cases.put("|%2015-04-16T14 == date(2015, 4, 16, 14)", true);
+        cases.put("|%2015-04-16T15 == date(2015, 4, 16, 14)", false);
+        cases.put("|if(%2015-04-16T14 == date(2015, 4, 16, 14), |'same', |'other')", "same");
+        cases.put("|if(date(2015, 4, 16, 14) == %2015-04-16T14, |'same', |'other')", "same");
+        cases.put("|if(%2015-04-16T15 == date(2015, 4, 16, 14), |'same', |'other')", "other");
+        cases.put("|if(%2015-04-16T14:30 == date(2015, 4, 16, 14, 30), |'same', |'other')", "same");
+        cases.put("|if(%2015-04-16T14:30:00 == date(2015, 4, 16, 14, 30), |'same', |'other')", "same");
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (Map.Entry<String, Object> c : cases.entrySet()) {
+                try (Connection connection = backend.open()) {
+                    Lean.Result r = Lean.established(model, c.getKey(), "p::RT", connection);
+                    assertEquals(List.of(List.of(c.getValue())), r.rows(), backend.type() + ": " + c.getKey() + "\n"
+                            + r.text());
+                }
+            }
+        }
+    }
 }

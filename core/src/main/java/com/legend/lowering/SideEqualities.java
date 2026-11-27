@@ -1024,18 +1024,26 @@ public final class SideEqualities {
         // a stored one as it is held, a written one from its text: an hour's text read at its minute; a day's text (a
         // DateTime over a column that holds days: the egress writes its day alone, the dates audit's MEDIUM 4) read
         // at its midnight, as it is
-        SqlExpr written = carried == SqlType.Scalar.TIMESTAMP ? v : new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+        SqlExpr instant = carried == SqlType.Scalar.TIMESTAMP ? new SqlExpr.Cast(v, SqlType.Scalar.TIMESTAMP,
+                SqlExpr.Reason.JUDGE) : instantOfText(v);
+        OutputCol oOut = new OutputCol(O, SqlType.Scalar.TIMESTAMP, false);
+        OutputCol rnOut = rows.outputs().get(1);
+        return new SqlSelect(List.of(new SqlSelect.Projection(instant, O, oOut), new SqlSelect.Projection(
+                SqlExpr.Column.of("t", rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Subselect(rows, "t",
+                null), null, List.of(), null, null, List.of(), null, null, List.of(oOut, rnOut));
+    }
+
+    /** A date-time carried as its written text ({@code v}), read as the instant it writes ({@link #instants}'s
+     *  reading, one expression for a side's rows and for a value inside an expression, {@code Equalities.equal}): the
+     *  database parses it, an hour's text (no colon, past its day) at its minute, which no database parses bare. */
+    static SqlExpr instantOfText(SqlExpr v) {
+        SqlExpr written = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, v, new SqlExpr.StringLit(":")),
                         new SqlExpr.IntLit(0)), SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.LENGTH, v),
                         new SqlExpr.IntLit(10))),
                 SqlExpr.Call.of(SqlFn.CONCAT, v, new SqlExpr.StringLit(":00")))), v, SqlExpr.Reason.JUDGE);
-        OutputCol oOut = new OutputCol(O, SqlType.Scalar.TIMESTAMP, false);
-        OutputCol rnOut = rows.outputs().get(1);
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(written, SqlType.Scalar.TIMESTAMP,
-                SqlExpr.Reason.JUDGE), O, oOut), new SqlSelect.Projection(SqlExpr.Column.of("t", rows.outputs(), RN), RN,
-                rnOut)), false, new SqlSource.Subselect(rows, "t", null), null, List.of(), null, null, List.of(), null,
-                null, List.of(oOut, rnOut));
+        return new SqlExpr.Cast(written, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE);
     }
 
     /** Whether a side's typed rows CTE ({@code cte}) holds no row: emptiness by the rows, never by the list (a database's
