@@ -723,6 +723,24 @@ changes"): the embedded-server lanes, the cloud lanes and the heavy run (the loc
 started for each big step without asking, and run again after the fixes its checks bring. Saving tokens is no reason
 to leave one out.
 
+**No check twice** (the user, 2026-11-27: "do we need to remember to only run the subset of heavy and manual that we
+need/doesnt overlap with other stuff running?"; and, the same day, of lanes started before the code was final: "Don't
+start all the work if it's not done that mean we have to do it again"). The outside runs start once, on the FINAL
+commit: after the working session's own round and the audit of the last fixes are in and fixed. And each check has
+one runner:
+- **CI on the pull request** holds every per-push lane on every operating system (`gates/BUILD.bazel`, `lanes`): the
+  product build, core, the guards, both corpora, PCT on DuckDB, H2 and Postgres (channel A), channel B on DuckDB, parser
+  equivalence, stress, the warehouse, DataCube, the UI. With CI running, NO session reruns the local gate, the corpus
+  or the stress suites; a red CI lane is reproduced alone, by the session that will fix it.
+- **The database lanes** hold what CI cannot: PCT's two channels on the databases with no per-push lane (channel B alone
+  on Postgres), and each database's own manual tests the change can touch (the time-series replays on ClickHouse,
+  Postgres and Snowflake when the library's text moved; MongoDB's plan test).
+- **The heavy session** holds only the manual tests left over that the change can touch (`gates/BUILD.bazel`, `heavy`:
+  lite's own PCT channel A, channel B on H2, channel B twice). Measurements, benchmarks and probes that judge nothing
+  are not run for a landing.
+- **The working session** runs its focused round before the push (it overlaps CI's Linux lanes on purpose: a push that
+  is red on something a local run shows wastes a CI cycle) and the equality measure.
+
 The working session goes on to the next step meanwhile. What the checks find is fixed in the next commit. Every test
 whose answer moves and every new difference from legend-engine is gathered and brought to the user at the end of the
 step, with its register row.
