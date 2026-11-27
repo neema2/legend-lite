@@ -2138,7 +2138,6 @@ public class MariaDb extends AnsiSqlRenderer {
     private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
-            SameValuesForm.refuseTextOnlyLists(a);
             return writer.append("(").piece(compact(w -> w.expr(a.get(0), 0)))
                     .append(c.fn() == SqlFn.EQUAL ? " = " : " <> ").piece(compact(w -> w.expr(a.get(1), 0)))
                     .append(")");

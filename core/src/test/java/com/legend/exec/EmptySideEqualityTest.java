@@ -36,6 +36,7 @@ class EmptySideEqualityTest {
     private static final String MODEL = """
             ###Pure
             Class p::O { id: Integer[1]; nick: String[0..1]; n: Integer[0..1]; }
+            function p::either(b: Boolean[1]): Boolean[1] { $b || ($b == false) }
             ###Relational
             Database p::DB ( Table OPT (ID INTEGER PRIMARY KEY, NICK VARCHAR(20), N INTEGER) )
             ###Mapping
@@ -80,6 +81,10 @@ class EmptySideEqualityTest {
         cases.put("|p::O.all()->project(~[id: o|$o.id, e: o|" + either + "])->sort(~id->ascending())",
                 List.of(List.of(1L, true), List.of(2L, true)));
         cases.put("|p::O.all()->filter(o|" + either + ")->project(~[id: o|$o.id])->sort(~id->ascending())",
+                List.of(List.of(1L), List.of(2L)));
+        // ONE comparison read at two places, as a condition and as a value (a function reads its argument twice; the
+        // architecture audit of step 6): false || (false == false) is true, so the row whose nick is empty is kept
+        cases.put("|p::O.all()->filter(o|p::either($o.nick == 'a'))->project(~[id: o|$o.id])->sort(~id->ascending())",
                 List.of(List.of(1L), List.of(2L)));
         // under a negation "no value" is not false: the row whose nick is empty is kept, as Pure keeps it
         cases.put("|p::O.all()->filter(o|!($o.nick == 'a' || $o.id == 7))->project(~[id: o|$o.id])",

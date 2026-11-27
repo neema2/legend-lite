@@ -338,31 +338,6 @@ class UpstreamTiesTest {
     }
 
     @Test
-    @DisplayName("legend-engine's own tests' door: assert(a == b) over rows with no sort is the any-order assert, as"
-            + " assertEquals of the two is")
-    void anAssertOfEqualsOverUnsortedRowsIsTheAnyOrderAssertAtTheTestsDoor() {
-        String rows = "#>{s::DB.T}#->select(~[ID])->from(s::RT)";
-        String sorted = "#>{s::DB.T}#->select(~[ID])->sort(~ID->ascending())->from(s::RT)";
-        // the assert a body is admitted as: its function, and how many arguments it takes
-        java.util.function.Function<String, String> admitted = body -> {
-            List<com.legend.compiler.spec.typed.TypedSpec> statements =
-                    UpstreamTestBodies.admitted(Compiler.query(CONTEXT, body)).body();
-            com.legend.compiler.spec.typed.TypedNativeCall last = (com.legend.compiler.spec.typed.TypedNativeCall)
-                    statements.get(statements.size() - 1);
-            return last.callee().qualifiedName() + "/" + last.args().size();
-        };
-        String anyOrder = "meta::pure::functions::asserts::assertSameElements";
-        // unsorted: the any-order assert of the two sides, as assertEquals of them is admitted
-        assertEquals(anyOrder + "/2", admitted.apply("{|assert(" + rows + " == " + rows + ");}"));
-        assertEquals(anyOrder + "/2", admitted.apply("{|assertEquals(" + rows + ", " + rows + ");}"));
-        // a message is carried
-        assertEquals(anyOrder + "/3", admitted.apply("{|assert(" + rows + " == " + rows + ", 'the rows');}"));
-        // sorted: as written, an ordered comparison
-        assertEquals("meta::pure::functions::asserts::assert/1",
-                admitted.apply("{|assert(" + sorted + " == " + sorted + ");}"));
-    }
-
-    @Test
     @DisplayName("a date built to the hour against a date-time: upstream reads the written precision as part of the"
             + " value, lite compares the two by their instant")
     void aDateBuiltToTheHourIsComparedByItsWrittenPrecisionAtTheDoors() {
@@ -371,15 +346,24 @@ class UpstreamTiesTest {
         // date-time false, against a date written to the same hour true
         String full = "|date(2015, 4, 16, 14) == %2015-04-16T14:00:00";
         String sameHour = "|date(2015, 4, 16, 14) == %2015-04-16T14";
+        java.util.function.BiFunction<Door, String, Boolean> never = (door, query) -> {
+            String text = sql(door, door.style, query).toLowerCase(java.util.Locale.ROOT);
+            return text.contains("concat('l'") && text.contains("concat('r'");
+        };
         for (Door door : List.of(Door.LEGEND_PURE, Door.LEGEND_ENGINE)) {
-            String never = sql(door, door.style, full).toLowerCase(java.util.Locale.ROOT);
-            assertTrue(never.contains("concat('l'") && never.contains("concat('r'"), door + ": never equal, both sides"
-                    + " read: " + never);
+            assertTrue(never.apply(door, full), door + ": never equal, both sides read");
             assertTrue(sql(door, door.style, sameHour).contains("= '2015-04-16T14'"),
                     door + ": the same where the two are written alike: " + sql(door, door.style, sameHour));
+            // a date built to the hour against one written to the MINUTE: two written precisions, never equal
+            assertTrue(never.apply(door, "|date(2015, 4, 16, 14) == %2015-04-16T14:00"), door + ": two precisions");
+            // a date built with a fraction of a second is a FULL date-time, carried as text only for its digits: by
+            // the instant, as before (the code audit of the closing batch, B2: read by its carrier it was "never
+            // equal" to a literal of its own precision)
+            assertFalse(never.apply(door, "|date(2015, 4, 16, 14, 30, 15.5) == %2015-04-16T14:30:15.5"),
+                    door + ": a full date-time is compared by its instant");
         }
         // lite's own rule: by the instant (register S399), no mark of never-equal
-        assertFalse(sql(Door.LITE, PlanStyle.PRODUCT, full).toLowerCase(java.util.Locale.ROOT).contains("concat('l'"));
+        assertFalse(never.apply(Door.LITE, full));
     }
 
     // ---- the rows add nothing where no two number types meet ------------------------------------------------------

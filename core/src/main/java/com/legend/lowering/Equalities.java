@@ -218,19 +218,25 @@ final class Equalities {
 
     /**
      * Two sides of two types, which are never equal -- unless BOTH hold no value, which are ({@code [] == []} is
-     * true): each side's "no value, or a value" as one character, the two joined and compared with "none, none".
-     * Each side is written once and read (its emptiness is asked of the value itself), so a side that fails raises;
-     * no text is made of a value, so a side may hold anything. A side read from a list is its fold
-     * ({@code WholeComparisons.everyValueRead}), NULL where the list is empty.
+     * true): each side's "none, or some" as one character, the two joined and compared with "none, none".
+     * {@code leftNone} and {@code rightNone} say whether each side holds no value ({@link #isNone} of one value or
+     * of a list's fold, {@code Scalars.emptiness} of a list where it stands). Each is written once and read, so a
+     * side that fails raises; no text is made of a value, so a side may hold anything.
      */
-    static SqlExpr sameOnlyWhereBothEmpty(SqlExpr left, SqlExpr right) {
-        return SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.CONCAT, noneOrSome(left), noneOrSome(right)),
+    static SqlExpr sameOnlyWhereBothEmpty(SqlExpr leftNone, SqlExpr rightNone) {
+        return SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.CONCAT, noneOrSome(leftNone), noneOrSome(rightNone)),
                 new SqlExpr.StringLit("nn"));
     }
 
-    private static SqlExpr noneOrSome(SqlExpr side) {
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, side),
-                new SqlExpr.StringLit("n"))), new SqlExpr.StringLit("v"), SqlExpr.Reason.OPERATOR);
+    /** {@code none}, whether a side holds no value, as one character: {@code n}, or {@code v}. */
+    static SqlExpr noneOrSome(SqlExpr none) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(none, new SqlExpr.StringLit("n"))),
+                new SqlExpr.StringLit("v"), SqlExpr.Reason.OPERATOR);
+    }
+
+    /** Whether {@code value}, one SQL value, is no value. */
+    static SqlExpr isNone(SqlExpr value) {
+        return SqlExpr.Call.of(SqlFn.IS_NULL, value);
     }
 
     /** {@link #neverEqualButEvaluated} for a membership or an index of two types ({@code in}, {@code contains},
@@ -249,33 +255,43 @@ final class Equalities {
     }
 
     /**
-     * UPSTREAM'S equality of a date-time built to the hour or the minute (carried as its written text, which keeps
-     * how it prints) against a date-time the database holds: a date's WRITTEN PRECISION is part of its value there
-     * (run 2026-11-27, {@code upstream-step6/answers-request-3}, group D: {@code date(2015, 4, 16, 14) ==
-     * %2015-04-16T14:00:00} false, {@code == %2015-04-16T14} true). So against a date WRITTEN in the query to the
-     * hour or the minute the two are the same where their texts are (the literal's own text: the database holds a
-     * literal as a full timestamp, its precision gone); against any other date-time, never -- both sides still
-     * evaluated. Null where {@code args} are no such pair. The compatibility doors' ({@code NamedRule
-     * .NUMBERS_OF_THREE_TYPES}); the product compares the two by their instant (register S399).
+     * UPSTREAM'S equality of a date-time BUILT TO THE HOUR OR THE MINUTE ({@code date(y, m, d, h)},
+     * {@code date(y, m, d, h, mi)}) against a date-time the database holds: a date's WRITTEN PRECISION is part of
+     * its value there (run 2026-11-27, {@code upstream-step6/answers-request-3}, group D:
+     * {@code date(2015, 4, 16, 14) == %2015-04-16T14:00:00} false, {@code == %2015-04-16T14} true). So against a
+     * date WRITTEN in the query at the same precision the two are the same where their texts are (the literal's own
+     * text: the database holds a literal as a full timestamp, its precision gone); against a date written at another
+     * precision, or any other date-time, never -- both sides still evaluated.
+     *
+     * <p>Read from what is WRITTEN where the comparison stands: the constructor's four or five parts. Null for
+     * everything else, which the shared equality answers by the instant: a date-time carried as text for another
+     * reason (one built with a fraction of a second, a literal past the database's precision, the latest-date
+     * sentinel) is a full date-time (the code audit of the closing batch, B2: read by its carrier, it had been
+     * answered "never equal" to a literal of its own precision). The compatibility doors'
+     * ({@code NamedRule.NUMBERS_OF_THREE_TYPES}); the product compares the two by their instant (register S399).
      */
     static @com.legend.base.Nullable SqlExpr upstreamsPartialDateTime(TypedNativeCall n, List<SqlExpr> args) {
         if (args.size() != 2 || n.args().size() != 2) {
             return null;
         }
-        int text = carriedAs(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) ? 0
-                : carriedAs(args.get(1), SqlType.Scalar.TEMPORAL_TEXT) ? 1 : -1;
-        if (text < 0 || !carriedAs(args.get(1 - text), SqlType.Scalar.TIMESTAMP)) {
+        int built = partsWritten(n.args().get(0)) > 0 ? 0 : partsWritten(n.args().get(1)) > 0 ? 1 : -1;
+        if (built < 0 || !carriedAs(args.get(built), SqlType.Scalar.TEMPORAL_TEXT)
+                || !carriedAs(args.get(1 - built), SqlType.Scalar.TIMESTAMP)) {
             return null;
         }
-        if (n.args().get(1 - text) instanceof com.legend.compiler.spec.typed.TypedCDate written) {
-            com.legend.values.PureDateLiteral.Precision precision = written.value().precision();
-            if (precision == com.legend.values.PureDateLiteral.Precision.HOUR
-                    || precision == com.legend.values.PureDateLiteral.Precision.MINUTE) {
-                return SqlExpr.Call.of(SqlFn.EQUAL, args.get(text),
-                        new SqlExpr.StringLit(written.value().canonicalText()));
-            }
+        com.legend.values.PureDateLiteral.Precision precision = partsWritten(n.args().get(built)) == 4
+                ? com.legend.values.PureDateLiteral.Precision.HOUR : com.legend.values.PureDateLiteral.Precision.MINUTE;
+        if (n.args().get(1 - built) instanceof com.legend.compiler.spec.typed.TypedCDate written
+                && written.value().precision() == precision) {
+            return SqlExpr.Call.of(SqlFn.EQUAL, args.get(built), new SqlExpr.StringLit(written.value().canonicalText()));
         }
         return neverEqualButEvaluated(args.get(0), args.get(1));
+    }
+
+    /** 4 or 5 where {@code side} is a date built to the hour or the minute where it stands; else 0. */
+    private static int partsWritten(TypedSpec side) {
+        return side instanceof TypedNativeCall c && com.legend.builtin.Pure.AT_DATE_DATE.contains(c.callee().id())
+                && (c.args().size() == 4 || c.args().size() == 5) ? c.args().size() : 0;
     }
 
     /** Whether {@code e}'s SQL type is known to be {@code type}. */

@@ -363,8 +363,25 @@ public final class Lowerer {
      * let's value is one node wherever its name is read).
      */
     private <T> T asCondition(TypedSpec condition, java.util.function.Supplier<T> lowered) {
+        java.util.IdentityHashMap<TypedSpec, int[]> positiveAt = new java.util.IdentityHashMap<>();
+        countPositive(condition, positiveAt);
+        if (positiveAt.isEmpty()) {
+            return lowered.get();
+        }
+        // ONE node may stand at more than one place: the inliner puts a let's value, or an argument, at each of
+        // its reads by reference. Only an equality ALL of whose places in this condition are positive is left as
+        // written; one that also stands as a value (f(b) = $b || ($b == false) over $r.nick == 'a') is answered
+        // for its empty side at every place, which costs the positive place one wrapper and no answer (the
+        // architecture audit of step 6: marked by identity alone, the value place went unguarded too)
+        java.util.IdentityHashMap<TypedSpec, int[]> places = new java.util.IdentityHashMap<>();
+        positiveAt.keySet().forEach(node -> places.put(node, new int[1]));
+        countPlaces(condition, places);
         List<TypedSpec> marked = new ArrayList<>();
-        markPositive(condition, marked);
+        positiveAt.forEach((node, positive) -> {
+            if (positive[0] == java.util.Objects.requireNonNull(places.get(node))[0] && positiveConditions.add(node)) {
+                marked.add(node);
+            }
+        });
         try {
             return lowered.get();
         } finally {
@@ -372,15 +389,26 @@ public final class Lowerer {
         }
     }
 
-    private void markPositive(TypedSpec condition, List<TypedSpec> marked) {
+    /** The equalities reached from {@code condition} through {@code &&} and {@code ||} alone, each with how many
+     *  times it is so reached. */
+    private void countPositive(TypedSpec condition, java.util.IdentityHashMap<TypedSpec, int[]> out) {
         if (condition instanceof TypedNativeCall n) {
             if (isFamily(n, Pure.AT_BOOLEAN_EQUAL) && n.args().size() == 2) {
-                if (positiveConditions.add(n)) {
-                    marked.add(n);
-                }
+                out.computeIfAbsent(n, k -> new int[1])[0]++;
             } else if (isFamily(n, Pure.AT_BOOLEAN_AND) || isFamily(n, Pure.AT_BOOLEAN_OR)) {
-                n.args().forEach(a -> markPositive(a, marked));
+                n.args().forEach(a -> countPositive(a, out));
             }
+        }
+    }
+
+    /** Every place each of {@code counted}'s nodes stands beneath {@code t}, by reference. */
+    private static void countPlaces(TypedSpec t, java.util.IdentityHashMap<TypedSpec, int[]> counted) {
+        int[] here = counted.get(t);
+        if (here != null) {
+            here[0]++;
+        }
+        for (TypedSpec k : t.children()) {
+            countPlaces(k, counted);
         }
     }
 
@@ -3777,16 +3805,20 @@ public final class Lowerer {
             // an equality false outright)
             boolean bothMayBeEmpty = equality && never.args().stream().noneMatch(side ->
                     side.info().multiplicity() instanceof Multiplicity.Bounded b && b.lower() >= 1);
+            if (bothMayBeEmpty) {
+                return Equalities.sameOnlyWhereBothEmpty(none(never.args().get(0), columns),
+                        none(never.args().get(1), columns));
+            }
             List<SqlExpr> read = new ArrayList<>();
             for (TypedSpec side : never.args()) {
-                SqlExpr value = side.info().multiplicity().isMany()
-                        ? everyValueRead(side, x.operator(), bothMayBeEmpty) : scalarInner(side, columns);
-                if (value != null) {
-                    read.add(value);
+                if (!side.info().multiplicity().isMany()) {
+                    read.add(scalarInner(side, columns));
+                } else if (computes(side)) {
+                    // (a list written or read where it stands computes nothing: nothing to evaluate)
+                    @com.legend.base.Nullable SqlExpr folded = everyValueRead(side);
+                    read.add(folded != null ? folded
+                            : Equalities.noneOrSome(Scalars.emptiness(side, scalarInner(side, columns))));
                 }
-            }
-            if (bothMayBeEmpty) {
-                return Equalities.sameOnlyWhereBothEmpty(read.get(0), read.get(1));
             }
             return equality && read.size() == 2 ? Equalities.neverEqualButEvaluated(read.get(0), read.get(1))
                     : Equalities.neverAmongButEvaluated(read,
@@ -3800,24 +3832,23 @@ public final class Lowerer {
         return scalarInner(x.comparison(), columns);
     }
 
-    /** Every value of {@code side}, a list on one side of a comparison answered "never equal", READ: null where the
-     *  list is written or read where it stands (nothing computes, so nothing may raise) and its emptiness is not
-     *  asked ({@code always}: two sides that may both be empty are the same where both are); else the planner's
-     *  statement that folds its every value to one ({@link WholeComparisons#everyValueRead}), as one value. Where no
-     *  statement of its own reads the list (it is computed from the row or the element the comparison stands in),
-     *  refused by name: never the quiet false it was. */
-    private @com.legend.base.Nullable SqlExpr everyValueRead(TypedSpec side, String operator, boolean always) {
-        if (!always && !computes(side)) {
-            return null;
+    /** Whether {@code side} holds no value, as SQL: one value's NULL; a list's by the planner's statement that folds
+     *  its every value to one (NULL where it holds none), or -- where no statement of its own reads it (it reads the
+     *  row or the element the comparison stands in; a lowerer made with no planner) -- its emptiness where it
+     *  stands, which computes it there. */
+    private SqlExpr none(TypedSpec side, ColumnResolver columns) {
+        if (!side.info().multiplicity().isMany()) {
+            return Equalities.isNone(scalarInner(side, columns));
         }
+        @com.legend.base.Nullable SqlExpr folded = everyValueRead(side);
+        return folded != null ? Equalities.isNone(folded) : Scalars.emptiness(side, scalarInner(side, columns));
+    }
+
+    /** Every value of {@code side}, a computed list, READ by the planner's statement that folds them to one
+     *  ({@link WholeComparisons#everyValueRead}), as one value; null where no statement of its own reads it. */
+    private @com.legend.base.Nullable SqlExpr everyValueRead(TypedSpec side) {
         @com.legend.base.Nullable SqlQuery read = wholeComparisons == null ? null : wholeComparisons.everyValueRead(side);
-        if (read == null) {
-            throw new com.legend.error.NotImplementedException(operator + " over values of two types, which are never"
-                    + " equal, where one side is a list computed from the row or the element it stands in: Pure"
-                    + " computes the list before it answers (so a list that fails raises), and no statement of its"
-                    + " own computes it here; not supported yet");
-        }
-        return new SqlExpr.ScalarSubquery(read);
+        return read == null ? null : new SqlExpr.ScalarSubquery(read);
     }
 
     /** Whether {@code side} computes: anything but a written value, a variable, a property read, a list of those, or

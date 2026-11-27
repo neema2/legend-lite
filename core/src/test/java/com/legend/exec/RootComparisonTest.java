@@ -491,39 +491,54 @@ class RootComparisonTest {
         assertEquals(List.of(), wrong, "every case");
     }
 
-    /** WHERE NO STATEMENT OF ITS OWN ANSWERS A COMPARISON, AND THE DATABASE'S OWN IS NOT THE RULE, IT IS REFUSED BY
-     *  NAME (the closing batch; the user, 2026-11-27: "per row refused okay"). A map compared where it reads the
-     *  element it stands in was the database's own map comparison (its entries by the order they were written in);
-     *  two lists of Decimals there, on a database that carries a list as JSON, were compared as their texts (1.0
-     *  against 1.00 not the same). The fix is the database follow-up's; until then never a wrong answer. */
+    /** A MAP COMPARED WHERE NO STATEMENT OF ITS OWN ANSWERS IT IS REFUSED BY NAME (the closing batch; the user,
+     *  2026-11-27: "per row refused okay"): read from the element it stands in, it was the database's own map
+     *  comparison, its entries by the order they were written in. And two maps whose entries have no typed
+     *  comparison (Decimals written at two scales) are refused the same way, never answered by that comparison
+     *  (the architecture audit of step 6: it answered false where Pure says true). Never a wrong answer. */
     @Test
-    void aComparisonNoStatementAnswersIsRefusedByNameWhereTheDatabasesOwnIsNotTheRule() throws Exception {
+    void aMapNoStatementComparesIsRefusedByName() throws Exception {
         List<String> wrong = new java.util.ArrayList<>();
-        String maps = "|[1, 2]->map(x | newMap([pair('a', $x)]) == newMap([pair('a', 1)]))";
-        String decimals = "|[1, 2]->map(x | [$x->toDecimal(), 2.0D] == [1.00D, 2.00D])";
+        String perElement = "|[1, 2]->map(x | newMap([pair('a', $x)]) == newMap([pair('a', 1)]))";
+        String scales = "|newMap([pair('a', 1.5D), pair('b', 2.0D)]) == newMap([pair('b', 2.00D), pair('a', 1.50D)])";
         for (var backend : TestBackends.inProcess()) {
             String model = MODEL.formatted(backend.type());
             try (Connection connection = backend.open()) {
-                wrong.add(backend.type() + ": " + maps + " -> " + Lean.established(model, maps, "p::RT", connection)
-                        .rows());
-            } catch (RuntimeException e) {
-                if (!(e instanceof com.legend.error.NotImplementedException
-                        || e instanceof com.legend.sql.DialectCapability)) {
-                    wrong.add(backend.type() + ": " + maps + " -> " + e);
-                }
+                wrong.add(backend.type() + ": " + perElement + " -> "
+                        + Lean.established(model, perElement, "p::RT", connection).rows());
+            } catch (com.legend.error.NotImplementedException | com.legend.sql.DialectCapability e) {
+                // refused by name
             }
-            if ("SQLite".equals(String.valueOf(backend.type()))) {
-                try (Connection connection = backend.open()) {
-                    wrong.add("SQLite: " + decimals + " -> " + Lean.established(model, decimals, "p::RT", connection)
-                            .rows());
-                } catch (RuntimeException e) {
-                    if (!String.valueOf(e.getMessage()).contains("has no typed form")) {
-                        wrong.add("SQLite: " + decimals + " -> " + e);
-                    }
+            // the same two maps written at two scales: the same (Pure's answer), or refused by name -- never false
+            String got = outcome(backend, model, scales);
+            if (!got.equals("[[true]]") && !got.equals("NotImplementedException") && !got.equals("DialectCapability")) {
+                wrong.add(backend.type() + ": " + scales + " -> " + got);
+            }
+        }
+        assertEquals(List.of(), wrong, "refused by name, or right");
+    }
+
+    /** TWO WRITTEN LISTS ARE COMPARED ON EVERY DATABASE (the code audit of the closing batch, B1: a refusal meant
+     *  for two lists that read the row they stand in, on a database that carries a list as JSON, also refused two
+     *  lists written in the query, which are answered rightly; it was removed). */
+    @Test
+    void twoWrittenListsOfFloatsOrDatesAreCompared() throws Exception {
+        Map<String, Object> cases = new LinkedHashMap<>();
+        cases.put("|[1.5, 2.5] == [1.5, 2.5]", true);
+        cases.put("|[1.5, 2.5] == [1.5, 3.5]", false);
+        cases.put("|[%2020-01-01, %2020-01-02] == [%2020-01-01, %2020-01-02]", true);
+        cases.put("|[%2020-01-01, %2020-01-02] == [%2020-01-01, %2020-01-03]", false);
+        List<String> wrong = new java.util.ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            for (Map.Entry<String, Object> c : cases.entrySet()) {
+                String got = outcome(backend, model, c.getKey());
+                if (!String.valueOf(List.of(List.of(c.getValue()))).equals(got)) {
+                    wrong.add(backend.type() + ": " + c.getKey() + " -> " + got);
                 }
             }
         }
-        assertEquals(List.of(), wrong, "each refused by name");
+        assertEquals(List.of(), wrong, "every case on every database");
     }
 
     /** {@code query}'s rows, or the name of what refused it. */

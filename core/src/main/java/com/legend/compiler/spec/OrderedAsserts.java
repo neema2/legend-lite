@@ -73,7 +73,11 @@ public final class OrderedAsserts {
             // leaves it to =='s own refusal where it is planned (refused, below)
             if (fn == NativeFn.Verdict.ASSERT && !call.args().isEmpty()
                     && call.args().get(0) instanceof TypedNativeCall equal && equal.args().size() == 2
-                    && com.legend.builtin.Pure.AT_BOOLEAN_EQUAL.contains(equal.callee().id())) {
+                    && com.legend.builtin.Pure.AT_BOOLEAN_EQUAL.contains(equal.callee().id())
+                    // (two TABLES under == are compared by identity in legend-pure, register S430: never read as
+                    // an any-order assert of their rows -- the code audit of the closing batch, S5)
+                    && !com.legend.compiler.element.type.Type.isRelation(equal.args().get(0).info().type())
+                    && !com.legend.compiler.element.type.Type.isRelation(equal.args().get(1).info().type())) {
                 int side = unorderedSide(equal.args().get(0), equal.args().get(1), lets);
                 if (side >= 0) {
                     return at.apply(call, fn, side, lets);

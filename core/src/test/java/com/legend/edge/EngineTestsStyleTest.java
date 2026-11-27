@@ -109,4 +109,33 @@ class EngineTestsStyleTest {
                 + "$r.values->filter(x|$x.name == 'Acme');}";
         assertEquals(planned(body, PureText.UPSTREAM), planned(body, PureText.ENGINE_TESTS));
     }
+
+    /** {@code assert(a == b)} over two lists one of which has no defined order is read as the any-order assert of
+     *  the two, as {@code assertEquals} of them is (the user, 2026-11-27: "Assert( == ) only if it's simple/easy").
+     *  A sorted side is as written. Two TABLES are never read so: legend-pure compares two tables by identity
+     *  (register S430; the code audit of the closing batch, S5). */
+    @org.junit.jupiter.api.Test
+    void anAssertOfEqualsOverAnUnsortedListIsTheAnyOrderAssert() {
+        java.util.function.Function<String, String> admitted = body -> {
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> statements =
+                    UpstreamTestBodies.admitted(Compiler.query(Compiler.compileModel(MODEL), body)).body();
+            com.legend.compiler.spec.typed.TypedNativeCall last = (com.legend.compiler.spec.typed.TypedNativeCall)
+                    statements.get(statements.size() - 1);
+            return last.callee().qualifiedName() + "/" + last.args().size();
+        };
+        String names = "x::Firm.all()->map(f | $f.name)";
+        String anyOrder = "meta::pure::functions::asserts::assertSameElements";
+        String asWritten = "meta::pure::functions::asserts::assert";
+        org.junit.jupiter.api.Assertions.assertEquals(anyOrder + "/2",
+                admitted.apply("{|assert(" + names + " == ['Acme', 'Bolt']);}"));
+        org.junit.jupiter.api.Assertions.assertEquals(anyOrder + "/2",
+                admitted.apply("{|assertEquals(" + names + ", ['Acme', 'Bolt']);}"));
+        org.junit.jupiter.api.Assertions.assertEquals(anyOrder + "/3",
+                admitted.apply("{|assert(" + names + " == ['Acme', 'Bolt'], 'the names');}"));
+        org.junit.jupiter.api.Assertions.assertEquals(asWritten + "/1",
+                admitted.apply("{|assert(" + names + "->sort() == ['Acme', 'Bolt']);}"));
+        // two tables: as written
+        org.junit.jupiter.api.Assertions.assertEquals(asWritten + "/1",
+                admitted.apply("{|assert(" + NAMES + " == " + NAMES + ");}"));
+    }
 }

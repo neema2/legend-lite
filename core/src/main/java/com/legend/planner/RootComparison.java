@@ -69,13 +69,12 @@ final class RootComparison {
         }
         TypedSpec left = equal.args().get(0);
         TypedSpec right = equal.args().get(1);
-        List<TypedSpec> body = with(lets, equal);
-        if (body.stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)
-                || seeded.values().stream().anyMatch(com.legend.compiler.spec.UserCallInliner::drawsAfresh)) {
+        if (drawsAfresh(equal, lets, seeded)) {
             // a value drawn afresh where it is written (random(), generateGuid()): planned as two sides, a let both
             // sides read would be drawn twice (the outside audit of 2026-11-27): the plain comparison, which reads
-            // it once or refuses. The lets the environment seeds are read too (the third review, L3: a seeded let
-            // is as much the sides' as one the statement binds)
+            // it once or refuses. Only what the comparison READS, its own lets and the seeded ones, each through
+            // the lets it reads in turn (the code audit of the closing batch, S2: a draw in a let the comparison
+            // never read sent it to the plain comparison, past the order rule)
             return unplanned(anyOrder, "a value drawn afresh where it is written (random, generateGuid) would be"
                     + " drawn once for each side");
         }
@@ -111,6 +110,15 @@ final class RootComparison {
         SideEqualities.Pair pair = SideEqualities.pair(left, kind(left, leftPlan), leftPlan, right,
                 kind(right, rightPlan), rightPlan, ctx);
         SideEqualities.Compared compared = pair == null ? null : pair.compared(leftPlan, rightPlan, anyOrder);
+        if (compared == null && !anyOrder && (PlatformTypes.isMapCarrier(left.info().type())
+                || PlatformTypes.isMapCarrier(right.info().type()))) {
+            // two MAPS with no typed comparison here (their values carried as two SQL types: Decimals written at
+            // two scales): never the database's own map comparison, which is by the order the entries were written
+            // in -- refused by name (the architecture audit of step 6: it answered false where Pure says true)
+            throw new com.legend.error.NotImplementedException("== of two maps whose entries have no typed"
+                    + " comparison here (" + left.info().type().typeName() + " and " + right.info().type().typeName()
+                    + "): not supported yet -- write their values in one type");
+        }
         return compared == null ? unplanned(anyOrder, "its sides (" + valueType(left).typeName() + " and "
                 + valueType(right).typeName() + ") have no typed comparison") : answer(compared, negated);
     }
@@ -194,6 +202,30 @@ final class RootComparison {
                         ? SideEqualities.everyValueRead(lowered.apply(with(lets, side))) : null;
             }
         };
+    }
+
+    /** Whether {@code equal}, or a let it reads (its own, or one the environment seeds; each through the lets it
+     *  reads in turn), holds a value drawn afresh where it is written. */
+    private static boolean drawsAfresh(TypedNativeCall equal, List<TypedSpec> lets,
+            java.util.Map<String, TypedSpec> seeded) {
+        if (com.legend.compiler.spec.UserCallInliner.drawsAfresh(equal)) {
+            return true;
+        }
+        java.util.Set<String> read = new java.util.LinkedHashSet<>(com.legend.compiler.spec.typed.FreeVars.of(equal));
+        for (int i = lets.size() - 1; i >= 0; i--) {
+            if (lets.get(i) instanceof com.legend.compiler.spec.typed.TypedLet let && read.contains(let.name())) {
+                if (com.legend.compiler.spec.UserCallInliner.drawsAfresh(let.value())) {
+                    return true;
+                }
+                read.addAll(com.legend.compiler.spec.typed.FreeVars.of(let.value()));
+            }
+        }
+        for (java.util.Map.Entry<String, TypedSpec> e : seeded.entrySet()) {
+            if (read.contains(e.getKey()) && com.legend.compiler.spec.UserCallInliner.drawsAfresh(e.getValue())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Every name a lambda or a match beneath {@code n} binds. */

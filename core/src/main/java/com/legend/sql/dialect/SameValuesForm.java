@@ -49,35 +49,6 @@ final class SameValuesForm {
         return ordered ? inOrder(eRows, aRows) : anyOrder(eRows, aRows);
     }
 
-    /**
-     * Refuses an equality one operand of which is a LIST OF VALUES WHOSE TEXT IS NOT THE VALUE (a Decimal's written
-     * scale, a Float's digits, a date's precision), on a database that carries a list as its JSON text: the two
-     * texts would be compared, {@code [1.0]} against {@code [1.00]} not the same (the edition program's step 6, its
-     * closing batch; the user, 2026-11-27: "per row refused okay"). The comparison of two whole sides never reaches
-     * here (it is a statement over typed rows); this is the comparison of two list values that read the row they
-     * stand in, which only the database's own comparison answers. A list of whole numbers, texts or Booleans is
-     * compared as its text, as before; an operand that states no type is as before too (recorded).
-     */
-    static void refuseTextOnlyLists(java.util.List<SqlExpr> operands) {
-        for (SqlExpr operand : operands) {
-            if (operand.type() instanceof com.legend.sql.TypeFact.Typed held && textIsNotTheValue(held.type())) {
-                throw new com.legend.sql.DialectCapability("a comparison of two lists of Decimal, Float or date"
-                        + " values has no typed form on a database that carries a list as JSON, where its sides read"
-                        + " the row they stand in: refused (compare them as a query's answer, or sort and compare"
-                        + " their elements)");
-            }
-        }
-    }
-
-    private static boolean textIsNotTheValue(SqlType type) {
-        if (type instanceof SqlType.Array list) {
-            SqlType of = list.element();
-            return of instanceof SqlType.Decimal || of == SqlType.Scalar.DOUBLE || of == SqlType.Scalar.DATE
-                    || of == SqlType.Scalar.TIMESTAMP || of == SqlType.Scalar.TIMESTAMPTZ || textIsNotTheValue(of);
-        }
-        return false;
-    }
-
     private static SqlQuery inOrder(SqlQuery eRows, SqlQuery aRows) {
         SqlQuery ce = counted(eRows);
         SqlQuery ca = counted(aRows);

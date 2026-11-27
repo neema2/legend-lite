@@ -163,36 +163,31 @@ public final class SideEqualities {
      * both sides before it compares them, so a side whose computation fails raises, whatever the types say; the
      * assert's form tests only whether each side has a row ({@link #noRows}: an EXISTS reads no value), which
      * answered a quiet false for {@code [1, 2]->map(x | [1, 2]->at($x + 5))->cast(@Number) == [1.5]->cast(@Number)}
-     * (measured 2026-11-27). Here each side's values are folded by one aggregate over their texts, each behind a
-     * mark of its own ({@link #everyValueRead}): an aggregate reads every row; the two folds differ at their first
-     * character wherever both sides hold a value, so they are never equal and no database can know that without
-     * computing them; a side that holds no value folds to NULL, and two NULLs are the one case that is the same.
-     * Each side is written once.
+     * (measured 2026-11-27). Here each side's values are folded by one aggregate ({@link #everyValueRead}): an
+     * aggregate reads every row; a side that holds no value folds to NULL, and two NULLs are the one case that is
+     * the same ({@code Equalities.sameOnlyWhereBothEmpty}). Each side is written once, and no text is made of a
+     * value (a side may hold an instance, a JSON value, a tagged one: the code audit of the batch, S4).
      */
     private static Compared sameOnlyWhereBothEmpty(List<SqlWith.Cte> ctes, SqlQuery eRows, SqlQuery aRows) {
         SqlSelect e = everyValueRead("__e", eRows, "l");
         SqlSelect a = everyValueRead("__a", aRows, "r");
-        SqlExpr l = SqlExpr.Column.of("le", e.outputs(), READ);
-        SqlExpr r = SqlExpr.Column.of("ra", a.outputs(), READ);
-        SqlExpr same = new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, l, r), new SqlExpr.BoolLit(true)),
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.IS_NULL, l),
-                        SqlExpr.Call.of(SqlFn.IS_NULL, r)), new SqlExpr.BoolLit(true))),
-                new SqlExpr.BoolLit(false), SqlExpr.Reason.OPERATOR);
+        SqlExpr same = Equalities.sameOnlyWhereBothEmpty(
+                Equalities.isNone(SqlExpr.Column.of("le", e.outputs(), READ)),
+                Equalities.isNone(SqlExpr.Column.of("ra", a.outputs(), READ)));
         return new Compared(ctes, cross(new SqlSource.Subselect(a, "ra", null), new SqlSource.Subselect(e, "le", null)),
                 same, List.of());
     }
 
     private static final String READ = "__read";
 
-    /** Every value of the side whose typed rows are {@code rows} (the common table {@code cte}), READ: the least of
-     *  their texts, each behind {@code mark}; NULL where the side holds no value. */
+    /** Every value of the side whose typed rows are {@code rows} (the common table {@code cte}), READ: a mark for
+     *  each row, asked of the row's value, folded to one; NULL where the side holds no value. */
     private static SqlSelect everyValueRead(String cte, SqlQuery rows, String mark) {
         OutputCol o = rows.outputs().get(0);
         OutputCol read = new OutputCol(READ, SqlType.Scalar.VARCHAR, true);
-        SqlExpr text = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(mark), new SqlExpr.Cast(
-                SqlExpr.Column.of(cte, O, o.type(), false, OutputCol.Origin.DERIVED), SqlType.Scalar.VARCHAR,
-                SqlExpr.Reason.OPERATOR));
+        SqlExpr text = new SqlExpr.Case(List.of(new SqlExpr.Case.When(Equalities.isNone(
+                SqlExpr.Column.of(cte, O, o.type(), false, OutputCol.Origin.DERIVED)), new SqlExpr.StringLit("n"))),
+                new SqlExpr.StringLit(mark), SqlExpr.Reason.OPERATOR);
         return new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.MIN, List.of(text), false,
                 List.of()), READ, read)), false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
                 com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of(read));

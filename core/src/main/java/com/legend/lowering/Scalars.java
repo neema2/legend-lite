@@ -2392,7 +2392,9 @@ final class Scalars {
      * scalar native, and the {@code Lowerer} for a comparison of two whole sides, whose own rule is the planner's
      * statement ({@link WholeComparisons}).
      *
-     * <p>A ROW REPLACES THE CALL'S OWN RULE, ALL OF IT. For {@code ==} the product's own rule is more than its SQL
+     * <p>A ROW REPLACES THE CALL'S OWN RULE. (Beside it the lowering asks the door one more thing where an equality
+     * is written: how its audience answers an empty side, {@link EditionTable#emptySideIsFalse}.) For {@code ==} the
+     * product's own rule is more than its SQL
      * operator: the whole-side statement for two computed lists, maps or tables ({@link WholeComparisons}), and the
      * refusal of two column types that can never be equal ({@link HeldKinds}). A door that names a rule for
      * {@code ==} ({@link NamedRule#NUMBERS_OF_THREE_TYPES}) gets neither; nothing else decides that.

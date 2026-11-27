@@ -294,6 +294,8 @@ class RunTimeComparisonTest {
         answered.put("|x::sameAnys(" + quiet + ", ['a', 'b'])", false);
         answered.put("|x::among(1.5, " + quiet + ")", false);
         answered.put("|x::whereIn(1.5, " + quiet + ")", -1L);
+        // an empty computed list against a side of another type that holds values: not the same
+        answered.put("|x::sameNums([1, 2]->filter(x | $x > 5), [1.5, 2.5])", false);
         answered.put("|" + quiet + "->cast(@Number) == [1.5, 2.5]->cast(@Number)", false);
         answered.put("|[1, 2]->filter(x | $x > 5)->cast(@Number) == [1.5]->filter(x | $x > 5.0)->cast(@Number)", true);
         for (java.util.Map.Entry<String, Object> c : answered.entrySet()) {
