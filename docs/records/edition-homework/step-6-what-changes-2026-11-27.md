@@ -4,7 +4,9 @@ For the user's review before step 6 lands. The detail, the evidence and every ru
 `step-6-one-equality-2026-11-27.md` (same folder) and in `docs/SEMANTICS_REGISTER.md` rows S127, S428 and S429.
 
 **The idea of the step.** Before it, a query's `==` and a test's `assertEquals` were two pieces of code that could
-disagree. Now one rule answers both.
+disagree. Now one set of rules answers both, and for two whole lists, maps or tables it is one piece of code. For two
+single values it is still two pieces of code that are meant to agree (section 7 says where they are known not to).
+Making them one is the next step, 6B (the user, 2026-11-27: "let's do A and then fast follow with B").
 
 ## 1. What changes on lite's own route
 

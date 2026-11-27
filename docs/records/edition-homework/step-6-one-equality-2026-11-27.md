@@ -1,5 +1,12 @@
 # Step 6, the one equality: how it is built (2026-11-27)
 
+> **Status, 2026-11-27 (evening).** This record is how step 6 was built up to its closing batch. What the step
+> achieved and did not is in `step-6-closing-batch-2026-11-27.md` and, in plain words, section 7 of
+> `step-6-what-changes-2026-11-27.md`. The architecture audit of the batch
+> (`step-6-closing-reviews/review-4-architecture-audit-one-equality.md`) found the title's promise PARTLY kept: one
+> code compares two whole sides wherever they stand; a second code still compares two single values. The user ruled
+> that the step lands as that, named honestly, and that the two are made one right after (step 6B).
+
 *The edition program's step 6 after slice 6.2. Written by the orchestrator's session, where all of step 6's code is
 written from here on (the user, 2026-11-27: "all coding work is supposed to be done here"; "focus and get 6 done";
 SQLite's date-time text "super low priority").*

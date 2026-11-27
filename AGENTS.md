@@ -251,6 +251,13 @@
 >   under `!` or a `forAll` -- the equality answers for its empty side where it is written (`Lowerer.written`,
 >   `lowering.Equalities.emptySidesAsPure`). On lite's route and at legend-pure's door; legend-engine's door answers
 >   as legend-engine does, by where the comparison runs (`EditionTable.emptySideIsFalse`).
+> - **Two codes still, until step 6B** (the architecture audit of step 6's closing batch, 2026-11-27; the user:
+>   "let's do A and then fast follow with B"): two WHOLE sides are compared by one code wherever they stand
+>   (`planner.RootComparison` over `lowering.SideEqualities`, which the test checkers call too); two SINGLE values
+>   where they stand are lowered by another (`lowering.Equalities`). They hold the same rules and are meant to
+>   agree; where they are known not to is listed in
+>   `docs/records/edition-homework/step-6-closing-batch-2026-11-27.md`. Do not describe the product as having one
+>   comparison code until 6B lands, and do not add a third.
 > - **An assert is the comparison it means** (the user, 2026-11-26: "yes compile
 >   error"): on lite's own door an assert of two written types is refused when the
 >   body is compiled.
