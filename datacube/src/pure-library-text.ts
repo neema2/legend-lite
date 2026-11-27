@@ -2052,13 +2052,17 @@ function timeseries::lines::timed<T,D,OP,OO>(t: Relation<T>[1], date: ColSpec<D�
 // trade at its day's rate); where both have several, no pairing is right, and the meeting is refused while the query
 // runs (the time model's D1, ruled 2026-11-03: a join would multiply them, 3 against 2 giving 6).
 // (A line's keys and periods are never empty, so they meet by a plain equality the database can hash: toOne. B2, F6.)
+// (The two dates are compared as dates, cast(@Date): which is the later is a question of their values, whatever each
+// line's grain -- a word of several lines meets them on a period typed Date, where lines of two grains are refused
+// while the query runs (helpers::grain); written between the two columns' own types the comparison was a day against
+// a date-time there, a mistake at the call since the equality rule's 2026-11-27 ruling, which pre-empted that refusal.)
 function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
 {
   $x->timeseries::lines::perPeriod($key, $period, ~mx)
     ->join($y->timeseries::lines::perPeriod($yKey, $yPeriod, ~my), meta::pure::functions::relation::JoinKind.INNER, {a,b|($a->read($period)->toOne() == $b->read($yPeriod)->toOne()) && ($a->read($key)->toOne() == $b->read($yKey)->toOne())})
     ->filter(r|timeseries::lines::single($r.mx, $r.my))
     ->without(~[mx, my])
-    ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
+    ->extend(~o:r|if($r->read($at)->toOne()->cast(@Date) >= $r->read($yAt)->toOne()->cast(@Date), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
 }
 
 // LINES OF TWO GRAINS MEETING (the time model's D4, ruled 2026-11-03): a line of moments (its period a date-time)
@@ -2126,7 +2130,7 @@ function timeseries::lines::meet<T,U,K,P,A,Q,B,O>(x: Relation<T>[1], key: ColSpe
   $x->timeseries::lines::perPeriod($key, $period, ~mx)
     ->join($y->timeseries::lines::perPeriod($yKey, $yPeriod, ~my), meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($period)->toOne() == $b->read($yPeriod)->toOne()})
     ->filter(r|timeseries::lines::single($r.mx, $r.my))->without(~[mx, my])
-    ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
+    ->extend(~o:r|if($r->read($at)->toOne()->cast(@Date) >= $r->read($yAt)->toOne()->cast(@Date), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
 }
 
 // How a line's values are put onto the periods of another's it has none at (R6, FILL): its last value at or before
@@ -2258,7 +2262,7 @@ function timeseries::lines::within<T,U,K,P,A,L,Q,B,S,N,OA>(spine: Relation<T>[1]
 {
   $spine->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a->read($period)->toOne() == $b->read($linePeriod)->toOne()) && ($a->read($key)->toOne() == $b->read($lineKey)->toOne())})
     ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
-    ->extend(~[on:r|timeseries::lines::most($r->read($seen), $r.ol), oa:r|if($r->read($lineAt)->isEmpty() || ($r->read($at)->toOne() >= $r->read($lineAt)->toOne()), |$r->read($at), |$r->read($lineAt))])
+    ->extend(~[on:r|timeseries::lines::most($r->read($seen), $r.ol), oa:r|if($r->read($lineAt)->isEmpty() || ($r->read($at)->toOne()->cast(@Date) >= $r->read($lineAt)->toOne()->cast(@Date)), |$r->read($at), |$r->read($lineAt))])
     ->without(~[ol])->rename(~on, $next)->rename(~oa, $outAt)
 }
 
@@ -2269,6 +2273,61 @@ function timeseries::lines::onto<T,U,K,P,Q,S,N>(spine: Relation<T>[1], key: ColS
   $spine->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($period)->toOne() == $b->read($linePeriod)->toOne()})
     ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
     ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next)
+}
+
+// ... OF THE OTHER GRAIN (the time model's D4, as timeseries::lines::meet and union above): a line of moments onto
+// periods of days, or of days onto moments, pairs on no period -- a moment is no day -- so it is refused while the
+// query runs, naming the fix. Picked by the periods' types (2a), beside the spreadings of one grain; no period is
+// compared here, which a compiler that refuses a day against a date-time would refuse first, in its own words (lite's
+// equality rule at the call, 2026-11-27).
+function timeseries::lines::onto<T,U,K,L,S,N>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:StrictDate)⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<(?:DateTime)⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1]): Relation<T+U+N>[1]
+{
+  $spine->filter(r|timeseries::lines::oneGrain())
+    ->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($key)->toOne() == $b->read($lineKey)->toOne()})
+    ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+    ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next)
+}
+
+function timeseries::lines::onto<T,U,K,L,S,N>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:DateTime)⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<(?:StrictDate)⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1]): Relation<T+U+N>[1]
+{
+  $spine->filter(r|timeseries::lines::oneGrain())
+    ->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($key)->toOne() == $b->read($lineKey)->toOne()})
+    ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+    ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next)
+}
+
+function timeseries::lines::onto<T,U,K,S,N>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:StrictDate)⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<(?:timeseries::All)⊆U>[1], linePeriod: ColSpec<(?:DateTime)⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1]): Relation<T+U+N>[1]
+{
+  $spine->filter(r|timeseries::lines::oneGrain())
+    ->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$b.ol > 0})
+    ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+    ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next)
+}
+
+function timeseries::lines::onto<T,U,K,S,N>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:DateTime)⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<(?:timeseries::All)⊆U>[1], linePeriod: ColSpec<(?:StrictDate)⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1]): Relation<T+U+N>[1]
+{
+  $spine->filter(r|timeseries::lines::oneGrain())
+    ->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$b.ol > 0})
+    ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+    ->extend(~on:r|timeseries::lines::most($r->read($seen), $r.ol))->without(~[ol])->rename(~on, $next)
+}
+
+function timeseries::lines::within<T,U,K,A,L,B,S,N,OA>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:StrictDate)⊆T>[1], at: ColSpec<A⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<(?:DateTime)⊆U>[1], lineAt: ColSpec<B⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1], outAt: ColSpec<OA>[1]): Relation<T+U+N+OA>[1]
+{
+  $spine->filter(r|timeseries::lines::oneGrain())
+    ->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($key)->toOne() == $b->read($lineKey)->toOne()})
+    ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+    ->extend(~[on:r|timeseries::lines::most($r->read($seen), $r.ol), oa:r|$r->read($at)])
+    ->without(~[ol])->rename(~on, $next)->rename(~oa, $outAt)
+}
+
+function timeseries::lines::within<T,U,K,A,L,B,S,N,OA>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<(?:DateTime)⊆T>[1], at: ColSpec<A⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<(?:StrictDate)⊆U>[1], lineAt: ColSpec<B⊆U>[1], seen: ColSpec<S⊆T>[1], next: ColSpec<N>[1], outAt: ColSpec<OA>[1]): Relation<T+U+N+OA>[1]
+{
+  $spine->filter(r|timeseries::lines::oneGrain())
+    ->join($line->timeseries::lines::perPeriod($lineKey, $linePeriod, ~ol), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($key)->toOne() == $b->read($lineKey)->toOne()})
+    ->filter(r|timeseries::lines::single($r->read($seen), $r.ol))
+    ->extend(~[on:r|timeseries::lines::most($r->read($seen), $r.ol), oa:r|$r->read($at)])
+    ->without(~[ol])->rename(~on, $next)->rename(~oa, $outAt)
 }
 
 // The more rows of two counts on a period (none: a line with no row there, which spreads none).
