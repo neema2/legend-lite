@@ -22,7 +22,8 @@ disagree. Now one rule answers both.
 | 10 | a computed list compared as a query's answer: `[1, 2]->filter(...) == [1, 2]` | different answers or an error depending on the database | the same answer on every database | the step's design |
 | 11 | `[] == [1, 2]->filter(x \| $x > 5)` | false, or an error on H2 | true: an empty list is an empty list | the step's design |
 | 12 | two maps written in different orders, as a query's answer | not equal | equal, as Pure and the assert say | found by probing, 2026-11-27 |
-| 13 | two tables with `==`, as a query's answer | column names and row order ignored | column names must match; rows in order when both tables are sorted, otherwise as a set of rows | **not yet ruled by you** (see section 4) |
+| 13 | two tables with `==`, as a query's answer | column names and row order ignored | strict: the column names must match and the rows must be the same in order. A table with no defined order (no sort; or after a grouping, a join or a union) is refused when the query is compiled, naming the two fixes | yours ("Yeah or ~= if want to be cute, or setCompare()") |
+| 13b | `sameElements($a, $b)`, as a query's answer | did not exist | new: two lists or two tables compared in any order. Duplicates count (`[1, 1, 2]` and `[1, 2, 2]` are not the same). A function, not an operator; named after `assertSameElements` | same decision |
 | 14 | two instances with `==` | compared as one piece of text of their keys (`1.0D` differed from `1.00D`; the declared class, not the actual one) | the actual class, then each key by its value | the step's design |
 | 15 | `date(2015, 4, 16, 14) == %2015-04-16T14` inside an expression | a database error | compared by the instant | a defect fixed |
 | 16 | a list mixing days and date-times, passed through `map`, then `contains` | a wrong "true" on DuckDB | refused by name, as the assert already did | a defect fixed |
@@ -43,11 +44,14 @@ Two fixes that are not about equality but were found by it:
   `removeDuplicates`, the orderings, sort ties, `max`/`min`), for comparisons of whole lists, maps and tables, and for
   the Java checker's handling of ties. Two outside reviewers looked for any change there; the two they found are
   fixed.
-- Two things do change at a door:
+- Three things do change at a door:
   - legend-pure's door now answers a comparison written inside a function as legend-pure itself does (your "yes we
     should measure and hopefully fix").
-  - The exact-decimal arithmetic of row 9 currently applies at every door. At legend-engine's door that differs from
-    legend-engine on H2, SQLite, MariaDB and MySQL. **Needs your word** (section 4).
+  - The exact-decimal arithmetic of row 9 applies at every door ("2 okay A"). At legend-engine's door that differs
+    from legend-engine on H2, SQLite, MariaDB and MySQL: recorded as difference 24.
+  - At legend-engine's door, `max` and `min` of an Integer column and a Float column now answer a Float, as
+    legend-engine does inside a query sent to a database ("great to match engine but only if not too complex and
+    costly"). Only that pair: it is the one that was run on legend-engine.
 
 ## 3. SQL size
 
@@ -59,32 +63,43 @@ Two fixes that are not about equality but were found by it:
 - The test checker's own SQL on PCT goes up by 9,773 characters in all: six tests that sort or take the extreme of a
   list mixing number types (row 3), and one test that now runs.
 
-## 4. Decisions waiting for you
+## 4. What you decided on 2026-11-27, and what came of each
 
-1. **The size rows that go up** (section 3): accept?
-2. **Exact-decimal arithmetic at legend-engine's door:** keep Pure's answer there (a recorded difference from
-   legend-engine on four databases), or leave that door as it was?
-3. **Two tables with `==`** (row 13): is "names must match; in order when both are sorted, else as a set of rows" the
-   rule you want? (An assert of an unsorted table is refused today; a query's `==` is not.)
-4. **A comparison that is always false but whose side would raise an error**
-   (`[1, 2]->at(5)->cast(@Number) == 1.0`): today false; Pure raises. Fix now, or carry?
-5. **One side empty, shown as a column** (`$x.nick == 'a'` when `nick` has no value): blank today, Pure says false.
-   Inside a filter, an `if` or under `!` it is already right. Build the small fix?
-6. **`max`/`min` at legend-engine's door in the database's promoted type:** still suggested for when legend-engine's
-   table is widened.
+1. **The size rows that go up:** accepted ("1 okay on size").
+2. **Exact-decimal arithmetic at legend-engine's door:** Pure's answer there too ("2 okay A").
+3. **Two tables with `==`:** strict, with a separate function for "in any order". Built: rows 13 and 13b.
+4. **A comparison that is always false but whose side would raise an error:** fixed ("4 agreed"). One correction
+   to what I told you: my example, `[1, 2]->at(5)->cast(@Number) == 1.0`, was wrong. A written `1.0` against a
+   whole number is read as `1`, so that query already raised. The case that answered a quiet "false" is a literal
+   that cannot be read that way (`== 1.5`) or two computed sides.
+5. **One side empty, shown as a column:** you said "fix for lite if small". **It was not small, so it is backed
+   out.** I built it as a guard the comparison writes for itself. The same comparison is also what a filter, a
+   join, an `exists`, a `CASE` and an enumeration mapping use as their condition, and the guard showed up in all of
+   them (five test groups failed). The right fix adds the guard only where a comparison is shown as a column, by
+   the code that writes the column. That is a slice of its own; the answer today is what it was before step 6.
+6. **A Float column combined with a Decimal:** kept as it is ("Okay keep the float thing then as is"); recorded.
+7. **`max`/`min` at legend-engine's door:** built for an Integer and a Float (section 2).
+8. **The date rule:** strict for "the same" and for "the later" alike (row 8).
 
 ## 5. Known gaps, written down and not fixed in this step
 
-- An instance built in the query and compared with itself (`$xs->at(0) == $xs->at(0)`) answers false. The cause is
-  found (each reading of the variable is numbered as a separate object); the fix belongs with object identity.
+- **One side empty, shown as a column** (item 5 above): blank where Pure says false.
 - Lists, maps and tables compared inside an expression (not as the query's answer) on databases without a list type
-  (H2; partly SQLite, MySQL, MariaDB): deferred by you until everything else is done.
-- A query's own lambda handed to a function generic over a relation's columns is checked as that function's code:
-  its comparisons skip the planning-time check and an upcast in it is the database's comparison.
-- A function generic over a relation whose other parameters are declared `Number`, called with `1` and `1.0`: a
-  compile error where the rule says "false".
+  (H2; partly SQLite, MySQL, MariaDB): deferred by you until everything else is done. `sameElements` inside an
+  expression is refused by name for the same reason.
+- A function generic over a table whose other parameters are declared `Number`, called with `1` and `1.0`: a
+  compile error where the rule says "false". Looked at again; the fix would change how every such function's
+  arithmetic is typed, far wider than this rare call. The error names the fix.
+- `in`, `contains` and `indexOf` across two types with a side that would raise: still a quiet answer (only `==`
+  was fixed).
 - A mixed list holding an Integer and Decimals more than 38 digits apart; `date(2015, 4)` against a date-time (an
   error, as before); which of two equal exact numbers `max` keeps.
+- What legend-pure answers for `==` on two tables was read in its source (it has no table equality), not run.
+
+Fixed since the first version of this page:
+- An instance built in the query and compared with itself (`$xs->at(0) == $xs->at(0)`) now answers true.
+- A comparison the query's author writes inside a lambda handed to a generic function is now checked as the
+  query's own (it was checked as that function's code).
 
 ## 6. How it was checked
 
