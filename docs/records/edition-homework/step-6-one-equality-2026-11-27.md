@@ -248,3 +248,49 @@ tests. For the user's word with the size table's rows.
 | SQLite, MongoDB (PCT channel A on both, channel B on SQLite; 3 targets of 5 suites each) | `9adb84bf` | `d44222cab` | every suite passes at both; no test's outcome differs; no ledger or ratchet line out of date. (MongoDB's grouped results come back in another order from run to run, which no test reads; the plans are identical) |
 | Snowflake (PCT channels A and B) | `9adb84bf` | `d44222cab` | channel A 1,249 tests pass at both, none differs; channel B's five suites pass at both with the same per-body counts and outcome lines; no ledger or ratchet line out of date |
 | BigQuery (PCT channels A and B) | `9adb84bf` | `d44222cab` | no test's outcome differs. Channel A: every suite passes at both. Channel B: grammar, relation and standard pass at both; essential (16 tests) and unclassified (3 tests) fail at BOTH, the same tests with the same text ("Column N in UNION ALL has incompatible types: INT64, STRING"): older than step 6, the queued task "Fix BigQuery channel B: untyped NULL in the batch union" |
+
+## The user's decisions of 2026-11-27 after the audits, and what is left (the working list)
+
+**Decided, in the user's words:**
+- The size rows that go up: "1 okay on size". The regenerated files are on the branch (`efe7bcfc7`).
+- Exact-decimal arithmetic at legend-engine's door: "2 okay A" (Pure's answer at every door, the difference recorded:
+  S429, differences item 24).
+- A comparison that is always false but whose side would raise: "4 agreed" -- built for `==`
+  (`TypedRunTimeComparison.answeredNeverEqual`, `Equalities.neverEqualButEvaluated`); `in`, `contains` and
+  `indexOf` with a side that may raise keep their constant (recorded).
+- One side empty: "Yes do the empty side fix", "okay fix for lite if small" -- built on lite's own rule
+  (`Equalities.emptySideIsFalse`: a plain column that may be empty against a value). The doors: each as its own
+  upstream answers (legend-pure false, legend-engine the database's NULL); legend-pure's door not yet checked.
+- Two tables under `==`: strict, an unsorted side refused, and a separate function for the rows in any order
+  ("Yeah or ~= if want to be cute, or setCompare()"; named `sameElements`, after `assertSameElements`: `~=` would be
+  a new operator in a grammar checked against upstream's, and "set" would say duplicates do not count). The strict
+  half is built (`2d4edec3f`); **`sameElements` is not built yet**.
+- The lanes: "Have to run the lanes always when making major changes" (in AGENTS.md).
+- The date rule: strict for "the same" and for an ordering alike ("We don't really want date vs datetime to work for
+  greater than/less than vs not for equal").
+
+**Not yet decided by the user:** a Float COLUMN combined with a Decimal -- record it as a known difference, or (the
+recommendation put to them) type it a Float in lite's own mode, as a whole number with a Float already is.
+
+**Built since the audits and not yet run** (the run of `261ee728d` covers the first two): the empty-side fix; the
+always-false fix; one value read twice is one evaluation (`UserCallInliner.finish`, `ff19de458`); strict `==` on
+tables (`2d4edec3f`).
+
+**Left to do, in order:**
+1. `sameElements(a, b)`: a lite function (`meta::legend::lite::`), tables and lists, the rows or elements in any
+   order -- over `SideEqualities.tables(..., multiset = true, ...)` and the lists' multiset member; the declaration
+   beside the other lite natives in `builtin/Pure.java` (`Lite.STAGE` is the nearest example), its generated lists.
+2. The two type-checker leftovers of the audit (a query's lambda handed to a function generic over a relation's
+   columns; such a function's `Number` parameters refused where the rule says false).
+3. `max`/`min` of two arguments at legend-engine's door in the database's promoted type.
+4. The test checker's small items: the two judges' wording for a Variant read through `Any`; the tolerance assert as
+   its formula; the asserts the database judge cannot judge, read one by one.
+5. legend-pure's door for an empty side (what it shows today).
+6. Run again: the full round, `tools/equality-measure/run.sh` (the step's acceptance measure), every lane and the
+   heavy run; then one follow-up review of everything changed since the two audits.
+7. Then: the regenerated files once more, the push to the pull request's branch for CI, the program branch. Nothing
+   to `main` without the user's word.
+
+**The lanes so far** (each at the stack before the fixes of this section): Postgres, Trino, MariaDB, MySQL,
+ClickHouse, SQLite, MongoDB, Snowflake and BigQuery show no test whose outcome differs from the base. Databricks and
+the heavy run (the local gate, the relational corpus) have not reported.
