@@ -68,6 +68,17 @@ public final class OrderedAsserts {
                     return at.apply(call, fn, side, lets);
                 }
             }
+            // assert($a == $b): the comparison assertEquals makes, written with the operator (the user, 2026-11-27:
+            // "Assert( == ) only if it's simple/easy"). A door's to rewrite as it rewrites assertEquals; the product
+            // leaves it to =='s own refusal where it is planned (refused, below)
+            if (fn == NativeFn.Verdict.ASSERT && !call.args().isEmpty()
+                    && call.args().get(0) instanceof TypedNativeCall equal && equal.args().size() == 2
+                    && com.legend.builtin.Pure.AT_BOOLEAN_EQUAL.contains(equal.callee().id())) {
+                int side = unorderedSide(equal.args().get(0), equal.args().get(1), lets);
+                if (side >= 0) {
+                    return at.apply(call, fn, side, lets);
+                }
+            }
         }
         if (n instanceof TypedLambda lambda) {
             List<TypedSpec> scope = new ArrayList<>(lets);
@@ -138,6 +149,11 @@ public final class OrderedAsserts {
 
     /** The planner's answer at an order-dependent assert: a TYPE-phase refusal naming the two fixes. */
     public static TypedSpec refused(TypedNativeCall call, NativeFn.Verdict fn, int side, List<TypedSpec> lets) {
+        if (fn == NativeFn.Verdict.ASSERT) {
+            // assert($a == $b): the product's == refuses an unordered side itself, by its own words, where the
+            // comparison is planned (planner.RootComparison)
+            return call;
+        }
         throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
                 fn.bareName() + " compares in order, and its " + (side == 0 ? "expected" : "actual")
                         + " side's order is not defined (a store or frame read with no sort, or past a grouping, a"

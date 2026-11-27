@@ -141,6 +141,13 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
   rule does not know, it refuses, naming the fixes. Design 5.4, revised: the fallback alone changes; nothing is
   classified wholesale.
 - **The handoff of steps 8 and 9 to another account:** "Wait on handoff".
+- **A plain `==` over an unsorted side in an upstream test body:** "what I meant to ask about upstream is that when
+  there is no sort order in upstream, we want to check multiset so will the doors now rewrite to hasSameElements when
+  finds no sort", then "Assert( == ) only if it's simple/easy". It was simple: the test door reads
+  `assert($a == $b, ...)` over an unsorted side as the `assertSameElements` of the two, by the walk that rewrites
+  `assertEquals` (`OrderedAsserts.rewrite`, `UpstreamTestBodies.assertOfEqualsOrderFree`). A `==` in a query at
+  legend-engine's door keeps upstream's ordered meaning. Lite's own `assertSameElements` and `hasSameElements` are one
+  comparison, and the acceptance measure now pairs them.
 - **B2, ruled:** "3 size before we decide", then, on the sizing and the probe: "Build 3". Built in the batch.
 - **5 (B6, B7, B9, B10, B13):** "other 5 do you suggest to keep for now" -- the author's answer: yes, all five, with
   a register row for B9's `max` tie and for B10, written in the batch and shown in the landing summary. Put to the

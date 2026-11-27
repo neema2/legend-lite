@@ -337,6 +337,27 @@ class UpstreamTiesTest {
         }
     }
 
+    @Test
+    @DisplayName("legend-engine's own tests' door: assert(a == b) over rows with no sort is the any-order assert, as"
+            + " assertEquals of the two is")
+    void anAssertOfEqualsOverUnsortedRowsIsTheAnyOrderAssertAtTheTestsDoor() {
+        String rows = "#>{s::DB.T}#->select(~[ID])->from(s::RT)";
+        String sorted = "#>{s::DB.T}#->select(~[ID])->sort(~ID->ascending())->from(s::RT)";
+        java.util.function.Function<String, String> admitted = body -> String.valueOf(
+                UpstreamTestBodies.admitted(Compiler.query(CONTEXT, body)).body());
+        // unsorted: the two forms are one assert once admitted
+        assertEquals(admitted.apply("{|assertSameElements(" + rows + ", " + rows + ");}"),
+                admitted.apply("{|assert(" + rows + " == " + rows + ");}"));
+        assertEquals(admitted.apply("{|assertEquals(" + rows + ", " + rows + ");}"),
+                admitted.apply("{|assert(" + rows + " == " + rows + ");}"));
+        // a message is carried
+        assertEquals(admitted.apply("{|assertSameElements(" + rows + ", " + rows + ", 'the rows');}"),
+                admitted.apply("{|assert(" + rows + " == " + rows + ", 'the rows');}"));
+        // sorted: as written, an ordered comparison
+        assertNotEquals(admitted.apply("{|assertSameElements(" + sorted + ", " + sorted + ");}"),
+                admitted.apply("{|assert(" + sorted + " == " + sorted + ");}"));
+    }
+
     // ---- the rows add nothing where no two number types meet ------------------------------------------------------
 
     /** {@code base} with the product's edition in its own's place: the same door's plan with no row at all. What a

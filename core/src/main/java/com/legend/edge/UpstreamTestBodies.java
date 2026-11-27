@@ -84,6 +84,8 @@ public final class UpstreamTestBodies {
                                     () -> EngineSubstitutes.call(typed.context(),
                                             com.legend.builtin.Pure.AT_ASSERTS_ASSERT_SAME_ELEMENTS, call.args(),
                                             call.pos()))
+                            // assert($a == $b): the same comparison written with the operator, the same twin
+                            : fn == NativeFn.Verdict.ASSERT ? assertOfEqualsOrderFree(typed, call)
                             // assertNotEquals has no order-free twin in Pure: left as written, so lite's planner refuses
                             // it by name (none in the corpus or PCT, measured 2026-11-24)
                             : call);
@@ -92,6 +94,23 @@ public final class UpstreamTestBodies {
             lets.add(r);
         }
         return changed ? out : body;
+    }
+
+    /** {@code assert($a == $b, ...)} one of whose sides has no defined order, as {@code assertSameElements($a, $b,
+     *  ...)}: the comparison {@code assertEquals} makes, written with the operator, so the door reads it as it reads
+     *  that assert (the user, 2026-11-27: "what I meant to ask about upstream is that when there is no sort order in
+     *  upstream, we want to check multiset", then "Assert( == ) only if it's simple/easy"). The message's form is
+     *  carried as it is (none, a text, a format and its values, a function): {@code assert} and
+     *  {@code assertSameElements} take the same four, the typer choosing the twin. Only a {@code ==} standing
+     *  directly in a test body's {@code assert}: a {@code ==} in a query keeps upstream's ordered meaning. */
+    private static TypedSpec assertOfEqualsOrderFree(com.legend.TypedQuery typed,
+            com.legend.compiler.spec.typed.TypedNativeCall call) {
+        com.legend.compiler.spec.typed.TypedNativeCall equal =
+                (com.legend.compiler.spec.typed.TypedNativeCall) call.args().get(0);
+        List<TypedSpec> args = new java.util.ArrayList<>(equal.args());
+        args.addAll(call.args().subList(1, call.args().size()));
+        return EngineSubstitutes.call(typed.context(), com.legend.builtin.Pure.AT_ASSERTS_ASSERT_SAME_ELEMENTS, args,
+                call.pos());
     }
 
     /** Upstream's {@code assertEquals} of a golden list and a TDS's flattened cells ({@code X.rows.values}, or
