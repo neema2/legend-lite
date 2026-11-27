@@ -304,7 +304,31 @@ suites, the time-series documents and island, the guards and the census, PCT on 
 channel B's three lite suites): all 16 pass. That run covers the back-out above, the always-false fix, one value
 read twice is one evaluation (`UserCallInliner.finish`, `ff19de458`) and strict `==` on tables (`2d4edec3f`).
 
-**Built after that run, not yet run:** `sameElements`; a caller's lambda in a generic function's body.
+**Run 2026-11-27 at `38b367872`** (18 test targets: the 16 above with core's root suite and the time-series
+library): all 18 pass. That run covers `sameElements` and a caller's lambda in a generic function's body.
+
+**Built after that run, not yet run:** `max`/`min` of an Integer and a Float at legend-engine's door.
+
+**Put to the user 2026-11-27, on their question "any more deferrals or open decisions or worries ... did we actually
+get to real one equality ... did we stick to our tenets?" -- awaiting their word:**
+1. *The answer can depend on where the comparison stands.* As a query's answer two maps written in different orders
+   are equal and two tables compare column names and row order; inside an `if` or a filter the old path still runs
+   (reordered maps false on DuckDB and SQLite; tables as before step 6). Proposed: refuse maps and tables inside an
+   expression by name on lite's own route until they are built, after measuring which of our own tests rely on it
+   (the probe `TempProbeTest6`, same comparison at the root and inside an `if`, is written and to run).
+2. *The name `sameElements`* (the user offered `~=` or `setCompare()`): a public name, to confirm.
+3. *The two pins moved for it* (lite's surface 9 to 10; functions upstream does not declare 76 to 77): to confirm.
+4. *The planner tells lite's own code from a door's by the number rule the door named*
+   (`RootComparison`: `numbersOf != TWO_FAMILIES`; `HeldKinds` the product's rule alone by the same signal): the
+   core inferring who asks, a strain on tenet 6. Proposed: recorded debt for the edition's guard phase, where the
+   type-checker's rewrite replaces the question.
+5. *The empty-side fix* (with `in`/`contains`/`indexOf` and a side that would raise): its own slice right after
+   landing, before step 8?
+
+**What the landing waits for, all on the final commit:** the full round; the relational corpus (never run on this
+stack); the acceptance measure, every remaining difference explained; every database lane and the heavy run; one
+independent review of everything changed since the two audits; CI on every operating system; any SQL size row that
+goes up brought to the user first.
 
 **Left to do, in order:**
 1. `sameElements(a, b)`: built (above); to run, with its generated lists (`native-claims.tsv`). Upstream's answer
