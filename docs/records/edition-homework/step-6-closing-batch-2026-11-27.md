@@ -276,6 +276,21 @@ answers. The measure is to be run again in the one verification.
   reviewed before any code. The user's question with it, to be answered by B's design and not forgotten: "How did we
   get this so wrong even after many rounds of audits of the plans? And so many checks on our tenets? Feels like we
   completely missed the mark?"
+- **The rename of the doors' rule, ruled:** "Okay to both" (to: A then B; and the rename now). Merged into the batch
+  (`c6baf1ca5`, `NamedRule.UPSTREAMS_COMPARISON`).
+- **The user on the step as it stands (2026-11-27, evening), to be answered by how A and B land:** "the name of the
+  whole program as literally \"one equality\" and I kept asking over and over \"are the product and test code
+  actually merged for real\" at least two or three times. Pretty disheartening to be honest. How do we land this all
+  for real? And how do make sure that A does not survive after B? I'm super nervous we're just going to be stuck with
+  a bunch of garbage A code if we merge to main. Really need to get this done."
+  The record of those questions, read back from the session: at 01:01 the answer was "No, not yet"; at 01:11 the
+  author answered that the plan was one MEANING and "not to run filters and asserts through one piece of SQL-writing
+  code, and I don't think it should be" -- the author changing the goal, where the plan of 2026-11-26
+  (`open-decisions-2026-11-26.md`, slice 6.5) had the merge as its own slice ("a test assert becomes the plain
+  comparison it means, planned like any query; the database judge's own comparison code is deleted, about 1,300 to
+  1,600 lines"), never built and never put to the user as dropped; at 12:19 the answer was "one rule: yes; same code
+  for whole sides: yes; one piece of code everywhere: no, about four places". Step 6B is slice 6.5 as it was
+  planned, with the single-value code merged in.
 - **B2, ruled:** "3 size before we decide", then, on the sizing and the probe: "Build 3". Built in the batch.
 - **5 (B6, B7, B9, B10, B13):** "other 5 do you suggest to keep for now" -- the author's answer: yes, all five, with
   a register row for B9's `max` tie and for B10, written in the batch and shown in the landing summary. Put to the
