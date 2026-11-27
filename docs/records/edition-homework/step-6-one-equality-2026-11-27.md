@@ -432,6 +432,28 @@ goes up brought to the user first.
 7. Then: the regenerated files once more, the push to the pull request's branch for CI, the program branch. Nothing
    to `main` without the user's word.
 
+**The heavy run's report (2026-11-27, a worker session, at `1de4d981d`: the stack of `d44222cab` with its
+regenerated files; base `9adb84bf`).**
+- *The relational corpus* (`//spec:corpus_duckdb //spec:corpus_h2`): 10 of 10 targets pass, no roster or golden out of
+  date, no moved test. *The stress suites*: pass on DuckDB (5,699 of 6,087) and H2 (5,603), above their floors.
+- *The local gate* (`//gates:local`): 572 tests, 552 pass, 1 skipped (arm64 only). Of the 19 failures, 13 are the
+  root-only targets, which pass unprivileged; one (`shrink_only_check`) was the shallow clone's and passes
+  unshallowed. Three are step 6's, each passing at the base:
+  1. **Cypher parity** (`cypher_parity_test`, the native and Postgres lanes too): three cases read no row --
+     `Call3/[1]` and `[2]` ("a procedure with an argument of type NUMBER accepts a value of type INTEGER") and
+     `lite/procedures/a_number_input_takes_an_integer_or_a_float`. The harness writes each procedure as a lite Pure
+     function over a table whose NUMBER column holds Floats, and filters it by `$r.in == $in` with `$in` declared
+     `Number`: an Integer argument against a Float cell, which lite's two families never call equal; until step 6
+     the database's comparison did it unasked. Cypher compares the two by value, so the harness's function now
+     converts (`$in->map(n | $n->toFloat())`), as the rule asks of the writer of lite's Pure. **Fixed, to run.**
+  2. `lean_sql_baseline_test`: the refused queries shrank 29 to 26 (three more queries run): the re-pin the
+     regeneration makes.
+  3. **`datacube:bundle_budget_test`: the first time-series fetch is 148,728 bytes gzipped, 528 over its budget of
+     148,200.** The library's text grew by 590 bytes gzipped in step 6: the six functions that refuse a line of
+     the other grain (the library fix the user agreed to) are about 290, the casts 20, and two comment blocks of
+     mine 280. The comments are shortened (the growth is 346 now), which leaves the bundle about 280 over. **The
+     budget is the user's to move** (its history names their word each time): 148,200 to 148,500 is asked for.
+
 **The lanes so far** (each at the stack before the fixes of this section): Postgres, Trino, MariaDB, MySQL,
 ClickHouse, SQLite, MongoDB, Snowflake and BigQuery show no test whose outcome differs from the base. Databricks and
 the heavy run (the local gate, the relational corpus) have not reported.
