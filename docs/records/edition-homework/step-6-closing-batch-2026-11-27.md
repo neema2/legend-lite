@@ -125,6 +125,12 @@ SQLite answered as DuckDB on every row; H2 differed only where it holds no list 
   step 6).
 - **3 (A7), ruled:** "Java checker seems ok for now".
 - **4 (B1), ruled:** "per row refused okay".
+- **A4 (the order rule), the user's direction:** "Weren't we checking this for compatibility already?", "shouldn't
+  it match what assertEqual means for same thing? Obviously fix the bugs but maybe okay if sometimes says \"use
+  hasSameElements\" when it doesn't know?" -- one rule for `==` and `assertEquals` (it is: one function); where the
+  rule does not know, it refuses, naming the fixes. Design 5.4, revised: the fallback alone changes; nothing is
+  classified wholesale.
+- **The handoff of steps 8 and 9 to another account:** "Wait on handoff".
 - **B2, ruled:** "3 size before we decide", then, on the sizing and the probe: "Build 3". Built in the batch.
 - **5 (B6, B7, B9, B10, B13):** "other 5 do you suggest to keep for now" -- the author's answer: yes, all five, with
   a register row for B9's `max` tie and for B10, written in the batch and shown in the landing summary. Put to the

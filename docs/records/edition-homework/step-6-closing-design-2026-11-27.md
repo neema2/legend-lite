@@ -231,22 +231,44 @@ the matching part above.
 - At legend-engine's door inside a database query its own rule is read first in the pinned source
   (`pureToSQLQuery.pure`, `nullSafeEqualsOperation`: both lower bounds 0 is null-safe there), never recalled.
 
-### 5.4 The order of a side (replaces 2.3; the reviewer's blocker)
+### 5.4 The order of a side (replaces 2.3; REVISED 2026-11-27 after the user's questions)
 
-The permissive default covers far more than lite's internal natives:
+The user: "We don't know list of sorted stuff?  Weren't we checking this for compatibility already?", then "shouldn't
+it match what assertEqual means for same thing? ... maybe okay if sometimes says \"use hasSameElements\" when it
+doesn't know?"
 
-- natives: `reverse`, `removeDuplicates`, `tail`, `init`, the legacy table functions, lite's own (`joinWithPrefix`,
-  `without`);
-- typed nodes: a store view, a frame read, a recursion, a join, a file source, a flatten, an `if`, a `match`, an
-  `eval`, a written collection of many-valued elements;
-- answered SORTED when it is not: a to-many property read after a sorted parent;
-- DISTINCT is listed as keeping order, and the lowering can drop a sorted source's order under it.
+Read again in the code (`compiler/spec/OrderView.java`): the rule already names the sorts, the store reads, the
+order-destroying steps (a grouping, a join, a table's concatenate, a pivot) and about forty order-keeping functions,
+and it is ONE rule for `==` and for `assertEquals` on lite's door: both ask `OrderedAsserts.unorderedSide`. It stays
+one rule. The first version of this section (classify every node and native, no default) is withdrawn as far larger
+than the hole.
 
-So: **no default.** The rule is a switch over every typed node kind (sealed, so the compiler checks it) and a table
-over every native whose first parameter is many-valued or a table; a test fails for one left out. The matrix gains
-`sort()->distinct()`, `reverse`, `removeDuplicates`, a view, a frame read, a join, an `if`, a to-many read after a
-sort. The same rule drives the assert's refusal and the compatibility doors' rewrite to an any-order assert, so the
-matrix runs the asserts too, and every corpus or PCT outcome that moves at a door is listed for the user.
+The hole is the fallback alone: a function or node the rule does not name is answered DEFINED without reading what
+it was applied to, so store rows passed through `removeDuplicates`, `reverse`, `tail`, an `if` are called ordered.
+Harmless enough for a test (a strict assert over rows whose order varies fails loudly, and the list was grown that
+way); not for a query's answer, which is returned quietly.
+
+**The fix: where the rule does not know, it does not say "ordered".**
+
+- An unnamed function or node with one value: DEFINED (one value has no order to compare).
+- An unnamed function or node with many values: as ordered as the LEAST ordered of its many-valued inputs, the rule
+  a list's `concatenate` already has. Over store rows: INCIDENTAL, so `==` and lite's `assertEquals` refuse it,
+  naming the two fixes (sort both sides, or `hasSameElements`), and say that lite cannot tell the order is fixed.
+  Over a written or a sorted list: as today.
+- Three corrections found on the way: a query's PARAMETER is DEFINED (its order is the caller's; today a variable
+  no `let` binds is taken for an execution frame's rows and refused); a to-many property read after a sort is not
+  SORTED by that sort; `sort()` then `distinct()` is RUN first, and `distinct` leaves the order-keeping list if its
+  SQL does not keep the order.
+- A function found to be refused wrongly is added to the named lists, with its test: the list grows by evidence, as
+  it always has.
+
+What moves, to be listed for the user from the corpus and PCT runs: on lite's door, an `assertEquals` or `==` over
+store rows passed through an unnamed function becomes a refusal; at the two compatibility doors the same assert
+becomes the any-order check (weaker, never a new failure). Nothing else.
+
+Tests: the matrix of 2.3 (each way a side is made from a store, unsorted refused and sorted compared, as a query's
+answer, inside an `if`, and under `assertEquals`), plus `reverse`, `removeDuplicates`, `tail`, an `if` of two lists,
+a parameter, a to-many read after a sort, `sort()->distinct()`.
 
 ### 5.5 `hasSameElements` in the type rule (replaces 2.4; the reviewer's blocker)
 
@@ -270,3 +292,19 @@ Each side written once (a CASE over the two emptiness tests), never the doubled 
 ### 5.8 What the review adds to the batch list
 
 Rows A8, A9 and B16 to B20 of `step-6-closing-batch-2026-11-27.md`; B2, B9 and B10 change standing.
+
+### 5.9 What upstream's answers of 2026-11-27 add (`upstream-step6/answers-request-3-2026-11-27.md`, all RUN)
+
+- **A date built to the hour or the minute against a date-time** is FALSE on all three upstream runtimes (the
+  precision is part of the value). Lite's own rule is register S399 (by the instant). Step 6's shared equality code
+  now reads such a text by its instant at every door: what lite's two compatibility doors answer for
+  `date(2015, 4, 16, 14) == %2015-04-16T14:00:00` is to be RUN in the build; if it is true there, the doors keep
+  upstream's answer (a row of the doors' tables, or the door's rewrite), or it is a new recorded difference the
+  user rules. Batch row B19.
+- **An empty computed list against `[]`, and one value against a list of one**, answer at upstream as lite answers
+  since step 6: the doors moved TOWARD upstream there.
+- **Inside legend-engine's store query:** two plain nullable columns under `==` are null-safe (two empties equal);
+  with a computed side `==` is a plain `=` (no value for an empty side) and its negation is null-safe. Lite's
+  legend-engine door inside a store query must answer exactly that: three cases in the door's tests (5.3).
+- **A tie of an Integer and a Decimal** in `max`, `min`, `greatest`, `least`: register S428's pattern (a two-argument
+  call keeps its first, a list's fold its last, `least` its first). Row B9's register row is written from it.
