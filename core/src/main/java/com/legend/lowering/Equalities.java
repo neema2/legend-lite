@@ -279,7 +279,7 @@ final class Equalities {
      * reason (one built with a fraction of a second, a literal past the database's precision, the latest-date
      * sentinel) is a full date-time (the code audit of the closing batch, B2: read by its carrier, it had been
      * answered "never equal" to a literal of its own precision). The compatibility doors'
-     * ({@code NamedRule.NUMBERS_OF_THREE_TYPES}); the product compares the two by their instant (register S399).
+     * ({@code NamedRule.UPSTREAMS_COMPARISON}); the product compares the two by their instant (register S399).
      */
     static @com.legend.base.Nullable SqlExpr upstreamsPartialDateTime(TypedNativeCall n, List<SqlExpr> args) {
         if (args.size() != 2 || n.args().size() != 2) {
