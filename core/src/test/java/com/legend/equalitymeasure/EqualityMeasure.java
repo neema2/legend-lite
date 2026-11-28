@@ -105,6 +105,40 @@ public final class EqualityMeasure {
             }
             System.exit(0);
         }
+        if (args.length >= 2 && (args[0].equals("--run") || args[0].equals("--store-run"))) {
+            // one body's answer per database, over the position matrix's model (--run) or its store model
+            // (--store-run): probe, don't guess
+            boolean store = args[0].equals("--store-run");
+            String text = Files.readString(workspaceFile(store ? "positions-store-model.txt" : "positions-model.txt"),
+                    StandardCharsets.UTF_8);
+            for (DatabaseType db : DATABASES) {
+                Outcome o;
+                try {
+                    ModelContext ctx = Compiler.compileModel(store ? text.replace("%s", db.name())
+                            : StorelessRuntime.with(text, db));
+                    o = answer(ctx, args[1], db, store ? "t::RT" : StorelessRuntime.RUNTIME);
+                } catch (RuntimeException e) {
+                    o = new Outcome("MODEL", e.getClass().getSimpleName() + ": " + e.getMessage());
+                }
+                System.out.println("@@ " + db.name() + " " + o.kind() + " " + o.detail());
+            }
+            System.exit(0);
+        }
+        if (args.length >= 2 && args[0].equals("--store-sql")) {
+            // the product's SQL for one body over the store matrix's model (class t::R on table R), per database
+            String text = Files.readString(workspaceFile("positions-store-model.txt"), StandardCharsets.UTF_8);
+            for (DatabaseType db : DATABASES) {
+                String sql;
+                try {
+                    sql = typed(Compiler.compileModel(text.replace("%s", db.name())), args[1], List.of())
+                            .plan("t::RT").sql();
+                } catch (RuntimeException e) {
+                    sql = e.getClass().getSimpleName() + ": " + e.getMessage();
+                }
+                System.out.println("@@ " + db.name() + "\n" + sql + "\n");
+            }
+            System.exit(0);
+        }
         if (args.length >= 2 && args[0].equals("--assert-sql")) {
             // a test body's statements under the database judge, per database (its test plan's SQL texts, in the
             // plan's order): what an assert sends, to read beside --sql's product statement
