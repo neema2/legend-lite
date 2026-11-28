@@ -156,12 +156,16 @@ final class Equalities {
         // subtype navigations [0..0] that still read real
         // columns (the gate-4 mapping-family regression
         // pinned that narrowing at burn slice 4).
+        // (and a side whose TYPE says it holds nothing -- Nil, the type of [] alone: the written empty list passed
+        // through a filter or a map is still the empty list, and its SQL value is a NULL list no `=` answers for;
+        // step 6B, slice 3, 2026-11-28: two such sides compared inside a list's function answered no value. The
+        // type, never the multiplicity: the caution above stands)
         boolean le = n.args().get(0) instanceof
                 com.legend.compiler.spec.typed.TypedCollection lc
-                && lc.elements().isEmpty();
+                && lc.elements().isEmpty() || PlatformTypes.isNil(n.args().get(0).info().type());
         boolean re = n.args().get(1) instanceof
                 com.legend.compiler.spec.typed.TypedCollection rc
-                && rc.elements().isEmpty();
+                && rc.elements().isEmpty() || PlatformTypes.isNil(n.args().get(1).info().type());
         if (le || re) {
             if (le && re) {
                 return new SqlExpr.BoolLit(true);
@@ -226,22 +230,11 @@ final class Equalities {
         // how it prints) against one the database holds as a TIMESTAMP: by its instant, the text read as the assert's
         // judge reads it (register S399; SideEqualities.instantOfText). Until the edition program's step 6 the
         // database was handed the text against a TIMESTAMP and refused it ("invalid timestamp field format")
-        List<SqlExpr> sides = args;
-        // (a LIST of such texts against one held date-time: each text read as its instant, the held one as the list
-        // of its instant -- step 6B, 2026-11-28: a date built to the hour, passed through a filter, never equalled
-        // the literal it equals where it stands alone)
-        if (listOf(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(args.get(1), SqlType.Scalar.TIMESTAMP)) {
-            sides = List.of(instantsOfTexts(args.get(0)), PureSql.asList(SideEqualities.instantOfHeld(args.get(1)), false));
-        } else if (listOf(args.get(1), SqlType.Scalar.TEMPORAL_TEXT)
-                && carriedAs(args.get(0), SqlType.Scalar.TIMESTAMP)) {
-            sides = List.of(PureSql.asList(SideEqualities.instantOfHeld(args.get(0)), false), instantsOfTexts(args.get(1)));
-        } else
-        if (carriedAs(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(args.get(1), SqlType.Scalar.TIMESTAMP)) {
-            sides = List.of(SideEqualities.instantOfText(args.get(0)), SideEqualities.instantOfHeld(args.get(1)));
-        } else if (carriedAs(args.get(1), SqlType.Scalar.TEMPORAL_TEXT)
-                && carriedAs(args.get(0), SqlType.Scalar.TIMESTAMP)) {
-            sides = List.of(SideEqualities.instantOfHeld(args.get(0)), SideEqualities.instantOfText(args.get(1)));
-        }
+        // (a LIST of such texts too, against one held date-time or a list of them: each read as its instant -- step
+        // 6B, 2026-11-28: a date built to the hour, passed through a filter, never equalled the literal it equals
+        // where it stands alone)
+        List<SqlExpr> instants = asInstants(args);
+        List<SqlExpr> sides = instants == null ? args : instants;
         List<SqlExpr> cargs = List.of(
                 CastPolicy.comparisonWireOperand(n.args().get(0),
                         sides.get(0), n.args().get(1)),
@@ -466,6 +459,44 @@ final class Equalities {
         String x = "_dtx";
         return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, texts,
                 new SqlExpr.Lambda(List.of(x), SideEqualities.instantOfText(SqlExpr.Column.derived(null, x))));
+    }
+
+    /** A list of date-times the database holds, each as the instant compared with one read from its text
+     *  ({@link SideEqualities#instantOfHeld}). */
+    private static SqlExpr instantsOfHeld(SqlExpr held) {
+        String x = "_dth";
+        // (the element stated as the TIMESTAMP it is: the dialect's cast reads a value of no stated type as a text)
+        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, held, new SqlExpr.Lambda(List.of(x), SideEqualities.instantOfHeld(
+                SqlExpr.Column.of(null, x, SqlType.Scalar.TIMESTAMP, false, com.legend.sql.OutputCol.Origin.DERIVED))));
+    }
+
+    /** The two sides where a date-time carried as its written text (or a list of such texts) meets one the database
+     *  holds as a TIMESTAMP (or a list of them), each read as its instant, in the order given; null where the sides
+     *  are no such pair. One value against a list is the list of that value. */
+    private static @com.legend.base.Nullable List<SqlExpr> asInstants(List<SqlExpr> args) {
+        for (int t = 0; t < 2; t++) {
+            SqlExpr text = args.get(t);
+            SqlExpr held = args.get(1 - t);
+            SqlExpr a;
+            SqlExpr b;
+            if (listOf(text, SqlType.Scalar.TEMPORAL_TEXT) && listOf(held, SqlType.Scalar.TIMESTAMP)) {
+                a = instantsOfTexts(text);
+                b = instantsOfHeld(held);
+            } else if (listOf(text, SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(held, SqlType.Scalar.TIMESTAMP)) {
+                a = instantsOfTexts(text);
+                b = PureSql.asList(SideEqualities.instantOfHeld(held), false);
+            } else if (carriedAs(text, SqlType.Scalar.TEMPORAL_TEXT) && listOf(held, SqlType.Scalar.TIMESTAMP)) {
+                a = PureSql.asList(SideEqualities.instantOfText(text), false);
+                b = instantsOfHeld(held);
+            } else if (carriedAs(text, SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(held, SqlType.Scalar.TIMESTAMP)) {
+                a = SideEqualities.instantOfText(text);
+                b = SideEqualities.instantOfHeld(held);
+            } else {
+                continue;
+            }
+            return t == 0 ? List.of(a, b) : List.of(b, a);
+        }
+        return null;
     }
 
     /** Whether {@code e}'s SQL type is known to be {@code type}. */
