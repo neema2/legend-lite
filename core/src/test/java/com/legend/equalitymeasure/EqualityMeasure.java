@@ -155,7 +155,7 @@ public final class EqualityMeasure {
                     String json = com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(typed,
                             StorelessRuntime.RUNTIME, ExecuteOptions.NONE.withJudgeMode(JudgeMode.DATABASE)));
                     StringBuilder b = new StringBuilder();
-                    Matcher m = Pattern.compile("\"sql\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(json);
+                    Matcher m = Pattern.compile("\"(?:sql|statement)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(json);
                     while (m.find()) {
                         b.append(unesc(m.group(1))).append("\n--\n");
                     }

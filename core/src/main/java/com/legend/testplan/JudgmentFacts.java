@@ -70,6 +70,11 @@ final class JudgmentFacts {
             return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.DATES;
         }
 
+        /** Whether the pair is of plain values compared as values (no date, no tag, no instance, no "empty only"). */
+        boolean plainValues() {
+            return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.VALUES;
+        }
+
         boolean tagged() {
             return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.TAGGED;
         }

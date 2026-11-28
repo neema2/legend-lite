@@ -190,6 +190,33 @@ public final class DatabaseJudge {
         // kind and its instant, S399)
         JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, re.kinds().get(ie), java.util.Objects.requireNonNull(we)
                 .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan(), env.ctx());
+        // THE COMPARISON THE ASSERT MEANS (step 6B, slice 6): two sides of plain values compared in order are the
+        // product's own == of the two, lowered as a == written in a query is, with each side BOUND ONCE -- its typed
+        // node standing for the column that already holds its value -- so the verdict is no judge's reading of the
+        // pair, and the lists the failure records are the lists compared. Any other pair as before.
+        if (tp != null && !canonicalOrder && !anyNil && !anyAny && tp.plainValues()
+                && plainValues(eSpec.info().type()) && plainValues(aSpec.info().type())) {
+            TypedSpec expected = eSpec;
+            TypedSpec same = com.legend.compiler.spec.VerdictQueries.sameSides(expected, aSpec, specs);
+            com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
+                    we.plan(), re.kinds().get(ie), atMostOne(expected), wa.plan(), ra.kinds().get(ia),
+                    atMostOne(aSpec), (e, a) -> {
+                        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =
+                                new java.util.IdentityHashMap<>();
+                        values.put(expected, e.value());
+                        values.put(aSpec, a.value());
+                        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows =
+                                new java.util.IdentityHashMap<>();
+                        rows.put(expected, e.rows());
+                        rows.put(aSpec, a.rows());
+                        return com.legend.planner.SidePlanner.overSides(same, values, rows, env.plan());
+                    });
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typed(compared, wantEqual);
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(tp.family(false, name),
+                        wantEqual, JudgmentFacts.sideFacts(expected), JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
+            }
+        }
         if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny)
                 || tp.instanceTexts() || tp.kindsDiffer()
                 || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))) {
@@ -203,6 +230,22 @@ public final class DatabaseJudge {
         // no typed form: refused by name (item 3's S4, the sentence rows' deletion, 2026-11-22)
         return unjudged(name, "a pair with no typed form (" + re.kinds().get(ie).typeName() + " against "
                 + ra.kinds().get(ia).typeName() + ")");
+    }
+
+    /** Whether {@code type} is a plain value's: a whole number, a Decimal, a Float, a String or a Boolean -- the
+     *  kinds whose asserts are the product's own comparison since step 6B's slice 6 (days and date-times next). */
+    private static boolean plainValues(com.legend.compiler.element.type.Type type) {
+        return type == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || type == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || type == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                || type == com.legend.compiler.element.type.Type.Primitive.STRING
+                || type == com.legend.compiler.element.type.Type.Primitive.BOOLEAN;
+    }
+
+    /** Whether {@code side} is declared to hold at most one value. */
+    private static boolean atMostOne(TypedSpec side) {
+        return side.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.upper() != null && b.upper() <= 1;
     }
 
     /** A one-column grid against a list (item 3's S4, the last families): the grid's column as a side of its declared

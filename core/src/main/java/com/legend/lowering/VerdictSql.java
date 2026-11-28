@@ -159,7 +159,7 @@ public final class VerdictSql {
         if (rows == null) {
             return null;
         }
-        SqlQuery one = single("__c", rows);
+        SqlQuery one = SideEqualities.single("__c", rows);
         return typedRow(List.of(new SqlWith.Cte("__c", rows)), new SqlSource.Subselect(one, "c", null),
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("c", one.outputs(), SINGLE),
                         new SqlExpr.BoolLit(wantTrue)), List.of());
@@ -200,7 +200,7 @@ public final class VerdictSql {
             if (rows == null) {
                 return null;
             }
-            SqlQuery one = single("__v" + i, rows);
+            SqlQuery one = SideEqualities.single("__v" + i, rows);
             ctes.add(new SqlWith.Cte("__v" + i, rows));
             SqlSource read = new SqlSource.Subselect(one, "v" + i, null);
             from = from == null ? read : SideEqualities.cross(from, read);
@@ -431,8 +431,8 @@ public final class VerdictSql {
         SqlExpr holds;
         SqlSource from;
         if (goldenElements == null) {
-            SqlQuery e1 = single("__e", eCan);
-            SqlQuery a1 = single("__a", aCan);
+            SqlQuery e1 = SideEqualities.single("__e", eCan);
+            SqlQuery a1 = SideEqualities.single("__a", aCan);
             holds = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
                     new SqlExpr.Cast(SqlExpr.Column.of("e", e1.outputs(), SINGLE), SqlType.Scalar.VARCHAR,
                             SqlExpr.Reason.JUDGE),
@@ -498,7 +498,7 @@ public final class VerdictSql {
             ctes.add(new SqlWith.Cte("__v", vRows));
             vList = SideEqualities.listed("__v", vRows);
         }
-        SqlQuery one = single("__c", cRows);
+        SqlQuery one = SideEqualities.single("__c", cRows);
         return typedRow(ctes, SideEqualities.cross(new SqlSource.Subselect(one, "c", null), new SqlSource.Subselect(vList, "v", null)),
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("c", one.outputs(), SINGLE),
                         new SqlExpr.BoolLit(true)), List.of(listValue(TYPED_ACTUAL, "v", vList, kind), new Valued("__t",
@@ -516,9 +516,9 @@ public final class VerdictSql {
         if (eRows == null || aRows == null || tRows == null) {
             return null;
         }
-        SqlQuery ev = single("__e", eRows);
-        SqlQuery av = single("__a", aRows);
-        SqlQuery tv = single("__t", tRows);
+        SqlQuery ev = SideEqualities.single("__e", eRows);
+        SqlQuery av = SideEqualities.single("__a", aRows);
+        SqlQuery tv = SideEqualities.single("__t", tRows);
         SqlExpr e = SqlExpr.Column.of("e", ev.outputs(), SINGLE);
         SqlExpr a = SqlExpr.Column.of("a", av.outputs(), SINGLE);
         SqlExpr t = SqlExpr.Column.of("t", tv.outputs(), SINGLE);
@@ -696,16 +696,6 @@ public final class VerdictSql {
     }
 
     private static final String SINGLE = "__v";
-
-    /** A side's typed rows ({@code cte}) as its one value: {@code __v}, the least of its values (a one-valued side's
-     *  value; NULL where it has none). */
-    private static SqlQuery single(String cte, SqlQuery rows) {
-        OutputCol o = new OutputCol(SINGLE, rows.outputs().get(0).type(), true);
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.MIN,
-                List.of(SqlExpr.Column.of(cte, rows.outputs(), O)), false, List.of()), SINGLE, o)), false,
-                new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
-                null, List.of(), null, null, List.of(), null, null, List.of(o));
-    }
 
     /** {@code value} where the verdict {@code holds} not, else NULL: a typed member's values ride its failure alone. */
     private static SqlExpr whereFails(SqlExpr holds, SqlExpr value) {

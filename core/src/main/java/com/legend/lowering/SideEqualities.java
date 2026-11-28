@@ -157,6 +157,68 @@ public final class SideEqualities {
                 bothEmptyOnly ? sameOnlyWhereBothEmpty(ctes, eRows, aRows) : null);
     }
 
+    /** A side bound once: the expression that holds its value where the comparison is written (its one list, or
+     *  its one value), and its typed rows, for a database that compares rows. */
+    public record Bound(SqlExpr value, SqlQuery rows) {
+    }
+
+    private static final String SINGLE = "__v";
+
+    /** A side's typed rows ({@code cte}) as its one value: {@code __v}, the least of its values (a one-valued side's
+     *  value; NULL where it has none). */
+    static SqlQuery single(String cte, SqlQuery rows) {
+        OutputCol o = new OutputCol(SINGLE, rows.outputs().get(0).type(), true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.MIN,
+                List.of(SqlExpr.Column.of(cte, rows.outputs(), O)), false, List.of()), SINGLE, o)), false,
+                new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
+                null, List.of(), null, null, List.of(), null, null, List.of(o));
+    }
+
+    /** {@link #listed} with the side's one value beside its list ({@code __v}, as {@link #single} reads it): one
+     *  read of the rows for both. */
+    private static SqlQuery listedWithItsOne(String cte, SqlQuery rows) {
+        SqlSelect list = (SqlSelect) listed(cte, rows);
+        SqlSelect one = (SqlSelect) single(cte, rows);
+        List<SqlSelect.Projection> both = new ArrayList<>(list.projections());
+        both.addAll(one.projections());
+        List<OutputCol> outs = new ArrayList<>(list.outputs());
+        outs.addAll(one.outputs());
+        return new SqlSelect(both, false, list.from(), null, List.of(), null, null, List.of(), null, null, outs);
+    }
+
+    /**
+     * AN ASSERT OF TWO SIDES AS THE PRODUCT'S OWN COMPARISON OF THEM, EACH SIDE BOUND ONCE (step 6B, slice 6): each
+     * side's values as its plan types them ({@link #valueRows}), computed once as a common table; its one list read
+     * from it ({@link #listed}), and, for a side that holds at most one value, that value ({@link #single});
+     * {@code same}, the PRODUCT'S lowering of the comparison over the two bound sides, is the verdict -- no reading
+     * of the two is decided here (until this slice {@link #values} decided for itself how a date, an exact number
+     * beside a Decimal and two kinds never equal are read: a second set of the decisions {@code Equalities} makes).
+     * Each side's list rides the failure's record, as {@link #values} records it. Null where a side's value has no
+     * type the row can carry.
+     *
+     * @param eOne whether the expected side holds at most one value: bound as that value, as the product lowers
+     *             such a side
+     * @param aOne the same of the actual side
+     */
+    public static @com.legend.base.Nullable Compared boundOnce(SqlQuery eWrapped, Type eKind, boolean eOne,
+            SqlQuery aWrapped, Type aKind, boolean aOne, java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
+        SqlQuery eRows = valueRows(eWrapped);
+        SqlQuery aRows = valueRows(aWrapped);
+        if (eRows == null || aRows == null) {
+            return null;
+        }
+        // (a side of at most one value: its one value read beside its list, by the one read of its rows)
+        SqlQuery eList = eOne ? listedWithItsOne("__e", eRows) : listed("__e", eRows);
+        SqlQuery aList = aOne ? listedWithItsOne("__a", aRows) : listed("__a", aRows);
+        // (the expected side is read before the actual, as values reads them)
+        SqlSource from = cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null));
+        SqlExpr eValue = SqlExpr.Column.of("e", eList.outputs(), eOne ? SINGLE : LISTED);
+        SqlExpr aValue = SqlExpr.Column.of("a", aList.outputs(), aOne ? SINGLE : LISTED);
+        SqlExpr holds = same.apply(new Bound(eValue, cteRows("__e", eRows)), new Bound(aValue, cteRows("__a", aRows)));
+        return new Compared(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)), from, holds,
+                List.of(held("e", eList, eKind), held("a", aList, aKind)));
+    }
+
     /**
      * TWO SIDES NEVER EQUAL UNLESS BOTH ARE EMPTY, EVERY VALUE OF BOTH STILL READ: a query's answer for two sides of
      * two kinds (the edition program's step 6, its closing batch; the user, 2026-11-27: "Build 3"). Pure evaluates

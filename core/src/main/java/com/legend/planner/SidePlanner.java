@@ -93,6 +93,17 @@ public final class SidePlanner {
         return BodyPlanner.lowererFor(List.of(condition), env, env.ctx(), true).over(condition, bound);
     }
 
+    /** {@code comparison} over its two sides BOUND ONCE ({@link com.legend.lowering.Lowerer#overSides}: each side's
+     *  typed node standing for the value and the rows the caller's statement already holds), lowered with the lowerer
+     *  a side's body is lowered with -- an assert of two values as the product's own {@code ==} of them (step 6B,
+     *  slice 6). A comparison across types in it is refused by name, as in any body lite plans. */
+    public static com.legend.sql.SqlExpr overSides(TypedSpec comparison,
+            java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values,
+            java.util.IdentityHashMap<TypedSpec, SqlQuery> rows, PlanEnv env) {
+        com.legend.compiler.spec.CrossTypeComparisons.refuse(List.of(comparison));
+        return BodyPlanner.lowererFor(List.of(comparison), env, env.ctx(), true).overSides(comparison, values, rows);
+    }
+
     /** Whether {@code declaredInfo} declares a primitive collection over a relation-rooted {@code root}: the side is
      *  then that collection, not the relation. */
     public static boolean collectionDeclared(

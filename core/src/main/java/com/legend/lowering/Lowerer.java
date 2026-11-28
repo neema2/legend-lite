@@ -3822,7 +3822,69 @@ public final class Lowerer {
         });
     }
 
+    /** Sides bound once ({@link #overSides}): a typed node met here is written as the value it is bound to, never
+     *  lowered again; null outside such a condition. */
+    private java.util.@com.legend.base.Nullable IdentityHashMap<TypedSpec, SqlExpr> boundSides;
+
+    /**
+     * A COMPARISON OVER SIDES BOUND ONCE (step 6B, slice 6): an assert as the comparison it means, lowered as any
+     * expression is, with each SIDE -- the typed node itself, by identity -- standing for the SQL expression that
+     * already holds its value (a column of the statement the caller composes) and for the rows a database that
+     * compares rows reads ({@code rows}; {@link WholeComparisons#sideRows}). The sides keep their typed trees, so
+     * every decision the equality reads off the query's text (the kind under an upcast, a written literal, a side
+     * that may hold no value) is read exactly as it is for {@code ==} written in a query; bound to named values
+     * ({@link #over}) those would be lost. Anything of the condition that is no bound side and reads a name is
+     * refused: the condition reads its sides alone.
+     */
+    public SqlExpr overSides(TypedSpec condition, java.util.IdentityHashMap<TypedSpec, SqlExpr> values,
+            java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows) {
+        if (boundSides != null) {
+            throw new IllegalStateException("a condition over bound sides inside another");
+        }
+        // (the planner's statements are for sides it plans itself: here each side is bound already, so the only
+        // thing asked of a planner is a bound side's rows)
+        WholeComparisons planners = wholeComparisons;
+        boundSides = values;
+        wholeComparisons = new WholeComparisons() {
+            @Override
+            public com.legend.sql.@com.legend.base.Nullable SqlQuery asTheStatement(TypedNativeCall comparison,
+                    boolean negated) {
+                return null;
+            }
+
+            @Override
+            public com.legend.sql.@com.legend.base.Nullable SqlQuery insideAnExpression(TypedNativeCall comparison) {
+                return null;
+            }
+
+            @Override
+            public com.legend.sql.@com.legend.base.Nullable SqlQuery everyValueRead(TypedSpec side) {
+                return null;
+            }
+
+            @Override
+            public com.legend.sql.@com.legend.base.Nullable SqlQuery sideRows(TypedSpec side) {
+                return rows.get(side);
+            }
+        };
+        try {
+            return scalar(condition, (var, property) -> {
+                throw new IllegalStateException("a condition over bound sides reads $" + var
+                        + (property == null ? "" : "." + property) + ", which is no side of it");
+            });
+        } finally {
+            boundSides = null;
+            wholeComparisons = planners;
+        }
+    }
+
     SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
+        if (boundSides != null) {
+            SqlExpr bound = boundSides.get(spec);
+            if (bound != null) {
+                return bound;
+            }
+        }
         SqlExpr r = scalarInner(spec, columns);
         // stamp-vs-shape INVARIANT (throws; LL_STAMP_COUNT=1 = census mode)
         StampCensus.check(spec, r);
@@ -3923,6 +3985,13 @@ public final class Lowerer {
     }
 
     private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {
+        if (boundSides != null) {
+            // (a rule that lowers a side itself, past scalar: a comparison answered by its types reads each side)
+            SqlExpr bound = boundSides.get(spec);
+            if (bound != null) {
+                return bound;
+            }
+        }
         return switch (spec) {
             // a RAW GRID's column names or row-major cells (the planner-driver seam program's S3c, 2026-10-30): the
             // grid's report, written per column its result reports (the keyed plan reads them first, D76); nothing

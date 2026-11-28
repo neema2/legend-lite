@@ -520,6 +520,16 @@ public final class VerdictQueries {
                 Type.Primitive.BOOLEAN);
     }
 
+    /** {@code actual == expected} over the two sides AS THEY ARE TYPED (step 6B, slice 6): the comparison an
+     *  {@code assertEquals} means, its sides the assert's own arguments -- their typed trees kept, so what the
+     *  equality reads off the text (a kind under an upcast, a written literal) is read as for a {@code ==} written
+     *  in a query -- answered by the door's comparison setting as such a one is
+     *  ({@link SpecCompiler#comparedAsInAQuery}). */
+    public static TypedSpec sameSides(TypedSpec expected, TypedSpec actual, SpecCompiler specs) {
+        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY,
+                List.of(actual, expected), Type.Primitive.BOOLEAN));
+    }
+
     /** A call of exactly {@code declaration}, a function the platform declares, by its identity: never absent, never
      *  another overload of its name (NO FALLBACKS, invariant 4; the audit of 2026-11-26, S1). */
     private static TypedNativeCall declared(SpecCompiler specs, com.legend.model.Function declaration,
