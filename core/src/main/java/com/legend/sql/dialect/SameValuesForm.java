@@ -155,8 +155,8 @@ final class SameValuesForm {
         if (operands.size() != 2) {
             return;
         }
-        String left = textScale(operands.get(0).type());
-        String right = textScale(operands.get(1).type());
+        String left = textScale(operands.get(0));
+        String right = textScale(operands.get(1));
         if (left != null && right != null && !left.equals(right)) {
             throw new com.legend.sql.DialectCapability("a comparison of two lists of exact numbers written at two"
                     + " scales (" + left + " and " + right + " decimal places) has no typed form on a database that"
@@ -167,8 +167,23 @@ final class SameValuesForm {
 
     /** The decimal places a list's exact numbers are written with in its JSON text, by the type it states: a
      *  Decimal's scale, none for a whole number; null for anything else. */
-    private static @com.legend.base.Nullable String textScale(com.legend.sql.TypeFact fact) {
-        if (!(fact instanceof com.legend.sql.TypeFact.Typed held && held.type() instanceof SqlType.Array list)) {
+    private static @com.legend.base.Nullable String textScale(SqlExpr operand) {
+        // (a list of instances reduced to what each is compared by states its fields where it is built, whatever
+        // the list it is built from states: LIST_TRANSFORM(list, y -> {c0, c1, ...}))
+        SqlExpr values = operand instanceof SqlExpr.CompactList compact ? compact.list() : operand;
+        if (values instanceof SqlExpr.Call built && built.fn() == com.legend.sql.SqlFn.LIST_TRANSFORM
+                && built.args().size() == 2 && built.args().get(1) instanceof SqlExpr.Lambda each
+                && each.body() instanceof SqlExpr.StructLit reduced) {
+            List<SqlType> fields = new ArrayList<>();
+            for (SqlExpr.StructLit.Field f : reduced.fields()) {
+                if (f.declared() == null) {
+                    return null;
+                }
+                fields.add(f.declared());
+            }
+            return scales(fields);
+        }
+        if (!(operand.type() instanceof com.legend.sql.TypeFact.Typed held && held.type() instanceof SqlType.Array list)) {
             return null;
         }
         SqlType of = list.element();
@@ -178,16 +193,20 @@ final class SameValuesForm {
         if (of instanceof SqlType.Struct struct) {
             // a list of structs (instances reduced to what each is compared by; step 6B part 2): the scale of each
             // field that holds an exact number, field by field -- null where no field holds one
-            StringBuilder scales = new StringBuilder();
-            boolean any = false;
-            for (SqlType.Struct.Field f : struct.fields()) {
-                String one = scaleOf(f.type());
-                any |= one != null;
-                scales.append(scales.isEmpty() ? "" : ", ").append(one == null ? "-" : one);
-            }
-            return any ? scales.toString() : null;
+            return scales(struct.fields().stream().map(SqlType.Struct.Field::type).toList());
         }
         return scaleOf(of);
+    }
+
+    private static @com.legend.base.Nullable String scales(List<SqlType> fields) {
+        StringBuilder scales = new StringBuilder();
+        boolean any = false;
+        for (SqlType f : fields) {
+            String one = scaleOf(f);
+            any |= one != null;
+            scales.append(scales.isEmpty() ? "" : ", ").append(one == null ? "-" : one);
+        }
+        return any ? scales.toString() : null;
     }
 
     private static @com.legend.base.Nullable String scaleOf(SqlType of) {
