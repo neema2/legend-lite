@@ -398,6 +398,10 @@ public final class EqualityMeasure {
         out.add(new Sides("day and date-time", "N", "%2020-01-01", "%2020-01-01T00:00:00"));
         out.add(new Sides("date-time two written precisions", "T", "%2020-01-01T10:00:00.000", "%2020-01-01T10:00:00"));
         out.add(new Sides("date-time hour and minute", "T", "%2020-01-01T10", "%2020-01-01T10:00"));
+        out.add(new Sides("date-times built to the hour and to the minute", "T", "date(2020, 1, 1, 10)",
+                "date(2020, 1, 1, 10, 0)"));
+        out.add(new Sides("date-times built to the hour, another hour", "F", "date(2020, 1, 1, 10)",
+                "date(2020, 1, 1, 11, 0)"));
         out.add(new Sides("year same", "T", "%2020", "%2020"));
         out.add(new Sides("year and computed year", "T", "%2020", "date(2020)"));
         out.add(new Sides("year-month same", "T", "%2020-01", "%2020-01"));

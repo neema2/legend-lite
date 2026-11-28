@@ -476,6 +476,17 @@ final class Equalities {
                 && listSpec.info().type() == Type.Primitive.DATE_TIME) {
             return new Member(null, instantsOfTexts(list), SideEqualities.instantOfHeld(needle));
         }
+        // (a date-time carried as its text among date-times carried as theirs, both sides declared DateTime: by
+        // their instants too, as == reads two such -- asInstants; a list of one the SQL writes as its one value)
+        if (carriedAs(needle, SqlType.Scalar.TEMPORAL_TEXT) && needleSpec.info().type() == Type.Primitive.DATE_TIME
+                && listSpec.info().type() == Type.Primitive.DATE_TIME) {
+            if (listOf(list, SqlType.Scalar.TEMPORAL_TEXT)) {
+                return new Member(null, instantsOfTexts(list), SideEqualities.instantOfText(needle));
+            }
+            if (carriedAs(list, SqlType.Scalar.TEMPORAL_TEXT)) {
+                return new Member(null, SideEqualities.instantOfText(list), SideEqualities.instantOfText(needle));
+            }
+        }
         // (a list of ONE the SQL writes as its one value: the two values by their instants, as == reads them)
         if (carriedAs(needle, SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(list, SqlType.Scalar.TIMESTAMP)) {
             return new Member(null, SideEqualities.instantOfHeld(list), SideEqualities.instantOfText(needle));
@@ -679,6 +690,15 @@ final class Equalities {
             SqlExpr a = lTexts ? (dateTimes ? instantsOfTexts(l) : instantsWhereWritten(l)) : heldInstants(l, dateTimes);
             SqlExpr b = rTexts ? (dateTimes ? instantsOfTexts(r) : instantsWhereWritten(r)) : heldInstants(r, dateTimes);
             return a == null || b == null ? null : List.of(a, b);
+        }
+        // (TWO single date-times, each carried as its written text, both sides declared DateTime: by their instants
+        // -- the product's rule alone, a door reads the written precision as part of the value. Until step 6B's
+        // slice 5 no arm read this pair, and date(2020, 1, 1, 10) == date(2020, 1, 1, 10, 0) compared the texts
+        // '...T10' and '...T10:00': false, where the same two as a list each, or one of them written, answered true)
+        if (lists && carriedAs(l, SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(r, SqlType.Scalar.TEMPORAL_TEXT)
+                && n.args().get(0).info().type() == Type.Primitive.DATE_TIME
+                && n.args().get(1).info().type() == Type.Primitive.DATE_TIME) {
+            return List.of(SideEqualities.instantOfText(l), SideEqualities.instantOfText(r));
         }
         for (int t = 0; t < 2; t++) {
             SqlExpr text = args.get(t);
