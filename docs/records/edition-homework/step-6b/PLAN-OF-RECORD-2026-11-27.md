@@ -549,3 +549,32 @@ works well we can revisit"; the orchestrator agreed).
   contradiction (two before), and a date built to the hour is found among held date-times (a run error before);
   the first two matrices do not move. Left in it: values declared `Any` under `contains` over a computed list and
   `indexOf` (refused by name), the asserts (slice 6), the mixed-list row (part 2).
+
+### 2026-11-28, about 04:35 UTC: slice 5 reviewed and corrected; the design for slice 6, written before it is built
+
+- **Slice 5** (`claude/step-6b-slice-5`, `ac1d204ef`): the independent review (`review-9-of-slice-5.md`) found six
+  things, two serious (`hasSameElements` refused on rows databases for written lists that are no exact numbers; the
+  held type not read through `take`, `drop`, `slice`, `sortBy`). All fixed and each example run. Next: the measure
+  on the final commit as its baseline, the Bazel round (after slice 3's), the lanes.
+- **Slice 6, the design (from reading `testplan/DatabaseJudge.databaseVerdict`, `lowering/SideEqualities.values`,
+  `lowering/VerdictSql.typedOverValues`, `planner/SidePlanner.over`; nothing built).**
+  - What exists: `assertSize` is already "the comparison it means" (`VerdictSql.typedOverValues`: each side's ONE
+    value bound once to a column, the verdict lowered BY THE PRODUCT from the Pure condition over those columns,
+    `SidePlanner.over`, the same columns riding the failure's record). `assertEquals` and `assertSameElements` of
+    plain kinds bind each side once too (`SideEqualities.values`: rows, then one list a side) and write the product's
+    instruction, but DECIDE for themselves how the two are read (instants by kind, exact numbers beside Decimals,
+    "same only where both are empty"): the second set of decisions, beside `Equalities`'.
+  - The step: `typedOverValues`' way for a side of many values. Each side bound ONCE (its rows, its one list), and
+    the verdict is the product's own lowering of `e == a` (or `hasSameElements(e, a)`, `c->contains(v)`) in which
+    each side's typed node is BOUND to its column: the lowering, meeting that node, writes the column instead of
+    computing the side again (`Lowerer`: a map from a side's typed node, by identity, to its bound value; the rows
+    the instruction needs are the bound rows). The sides keep their typed trees, so every decision `Equalities`
+    reads off the query's text (the kinds under an upcast, a written literal) is read as it is for `==`. Bound to
+    VARIABLES instead, those would be lost: `assertEquals(1->cast(@Number), 1.0->cast(@Number))` would be the
+    database's `=`.
+  - Then `SideEqualities.values` and its helpers have one caller fewer at each kind moved, and go when none is
+    left; `DatabaseJudge.databaseVerdict`'s kind gate and "no typed form" refusals become the product's own
+    refusals. Order: exact numbers and Strings, then the other plain kinds, then dates held as texts; each checked
+    by the measure's two assert places and core's tests under both checkers.
+  - Not moved by this: grids (their own family), instances, mixed lists (part 2), tolerance and JSON asserts
+    (meanings of their own, the plan's 2.4).
