@@ -34,7 +34,8 @@ import java.util.regex.Pattern;
  * <p>A comparison's expected answer: {@code T} or {@code F} (values); the ids of the rows it is true for (a store's
  * rows); {@code N}, never true: a compile error ({@code ModelException}) where the two types are written, and false
  * where they are known only when the query runs (a function whose parameters are {@code Any}); {@code a@b}: {@code
- * a} where the comparison is written, {@code b} inside such a function; {@code x;generic=R}: {@code x}, but a
+ * a} where the comparison is written, {@code b} inside such a function; {@code x;moved=R}: {@code x}, but a compile
+ * error where a written literal is read through a let, a filter or a computed list; {@code x;generic=R}: {@code x}, but a
  * compile error inside a function over one type variable whose call gives it two types; {@code ?}, not plain from
  * the rule: any one answer, for the user to rule; {@code E}: a side raises when the query runs, and so must the
  * comparison in every place.
@@ -250,8 +251,20 @@ final class PositionReport {
      *  {@code R} for a compile error ({@code x;generic=R} inside a function over one type variable); of {@code a@b},
      *  {@code a} where the comparison is written and {@code b} inside a function whose parameters are
      *  {@code Any}; else as written. */
+    private static final java.util.Set<String> MOVED_PLACES = java.util.Set.of("lets", "reads-element",
+            "contains-computed");
+
     private static String expectedAt(String expectedOf, String place) {
         String expected = expectedOf;
+        if (expected.contains(";moved=R")) {
+            // a number literal reads as the type of the value it is WRITTEN against; read through a let, a filter
+            // or a computed list it is a value of its own type, and the comparison a compile error (the user,
+            // 2026-11-28: "Okay to literal recommend" -- a literal read through a let stays a compile error)
+            if (MOVED_PLACES.contains(place.split(" ")[0])) {
+                return "R";
+            }
+            expected = expected.replace(";moved=R", "");
+        }
         if (expected.contains(";generic=R")) {
             if (place.split(" ")[0].equals("function-generic")) {
                 return "R";
@@ -271,8 +284,10 @@ final class PositionReport {
         boolean atRunTime = RUN_TIME_PLACES.contains(place.split(" ")[0]);
         String expected = expectedAt(expectedOf, place);
         if (expected.equals("R")) {
-            // a compile error inside a function over one type variable whose call gives it two types
-            return v.equals("refused ModelException") ? "right" : isAnswer(v, store) ? "wrong" : "failed";
+            // a compile error inside a function over one type variable whose call gives it two types (two tables
+            // of two column lists: the type variable has no one type, the type-checker's own error)
+            return v.equals("refused ModelException") || v.equals("refused TypeInferenceException") ? "right"
+                    : isAnswer(v, store) ? "wrong" : "failed";
         }
         if (expected.equals("E")) {
             // a side raises when the query runs, and so must the comparison, wherever it stands: an answer, or a

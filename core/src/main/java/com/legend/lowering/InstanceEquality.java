@@ -434,8 +434,17 @@ final class InstanceEquality {
         com.legend.sql.SqlQuery lRows = oneEach && !bound ? null : sideRows.apply(l);
         com.legend.sql.SqlQuery rRows = lRows == null ? null : sideRows.apply(r);
         // (each side's layout as its own rows hold it, where it has rows: what the planner read to stand aside)
-        SqlType lt = lRows != null && rRows != null ? lRows.outputs().get(0).type() : sqlTypeOf.apply(l.info().type());
-        SqlType rt = lRows != null && rRows != null ? rRows.outputs().get(0).type() : sqlTypeOf.apply(r.info().type());
+        SqlExpr lOne = scalar.apply(l);
+        SqlExpr rOne = scalar.apply(r);
+        boolean rows = lRows != null && rRows != null;
+        SqlType lt = rows ? lRows.outputs().get(0).type() : layoutOf(l, lOne, sqlTypeOf);
+        SqlType rt = rows ? rRows.outputs().get(0).type() : layoutOf(r, rOne, sqlTypeOf);
+        if (lt instanceof SqlType.Array la) {
+            lt = la.element();
+        }
+        if (rt instanceof SqlType.Array ra) {
+            rt = ra.element();
+        }
         if (!(lt instanceof SqlType.Struct ls) || !(rt instanceof SqlType.Struct rs)) {
             return null;
         }
@@ -449,11 +458,8 @@ final class InstanceEquality {
         if (both == null) {
             return null;
         }
-        boolean rows = lRows != null && rRows != null;
         boolean lTracked = tracksIdentity.test(l);
         boolean rTracked = tracksIdentity.test(r);
-        SqlExpr lOne = scalar.apply(l);
-        SqlExpr rOne = scalar.apply(r);
         if (oneEach && !listValue(lOne) && !listValue(rOne)) {
             // one value each (two Pairs, two optional instances): every pair of leaves not distinct, as two single
             // instances of a model class are compared (SideEqualities.sameInstance)
@@ -491,8 +497,13 @@ final class InstanceEquality {
         }
         com.legend.sql.SqlQuery rows = sideRows.apply(coll);
         com.legend.sql.SqlQuery held = bound ? sideRows.apply(needle) : null;
-        SqlType ct = rows != null ? rows.outputs().get(0).type() : sqlTypeOf.apply(coll.info().type());
-        SqlType nt = held != null ? held.outputs().get(0).type() : sqlTypeOf.apply(needle.info().type());
+        SqlExpr list0 = scalar.apply(coll);
+        SqlExpr one0 = scalar.apply(needle);
+        SqlType ct = rows != null ? rows.outputs().get(0).type() : layoutOf(coll, list0, sqlTypeOf);
+        SqlType nt = held != null ? held.outputs().get(0).type() : layoutOf(needle, one0, sqlTypeOf);
+        if (ct instanceof SqlType.Array ca) {
+            ct = ca.element();
+        }
         if (!(ct instanceof SqlType.Struct cs) || !(nt instanceof SqlType.Struct ns)) {
             return null;
         }
@@ -508,8 +519,8 @@ final class InstanceEquality {
         }
         boolean cTracked = tracksIdentity.test(coll);
         boolean nTracked = tracksIdentity.test(needle);
-        SqlExpr one = reduced(scalar.apply(needle), both.get(1), nTracked);
-        SqlExpr list = comparedBy(coll, scalar.apply(coll), cs, both.get(0), cTracked, freshVar);
+        SqlExpr one = reduced(one0, both.get(1), nTracked);
+        SqlExpr list = comparedBy(coll, list0, cs, both.get(0), cTracked, freshVar);
         return SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Membership(one, list,
                 rows == null ? null : new SqlExpr.ScalarSubquery(SideEqualities.leafRowsOf(rows, both.get(0),
                         cTracked)), com.legend.sql.SqlTyping.UNKNOWN), new SqlExpr.BoolLit(false));
@@ -537,6 +548,18 @@ final class InstanceEquality {
         }
         List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(st, st, keys);
         return both == null ? null : ref -> reduced(ref, both.get(0), false);
+    }
+
+    /** The layout {@code value}, what {@code side} lowers to, is held in: the type the SQL states for it; where it
+     *  states none, a model class's own layout. A Pair's layout is its slots' -- an object in a slot has no layout
+     *  of its own outside the Pair that holds it -- so it is read off the value alone (measured 2026-11-28: asked
+     *  of the type, a Pair holding an object raised "no SQL type for Pure class"). */
+    private static @com.legend.base.Nullable SqlType layoutOf(TypedSpec side, SqlExpr value,
+            Function<Type, SqlType> sqlTypeOf) {
+        if (value.type() instanceof com.legend.sql.TypeFact.Typed stated) {
+            return stated.type();
+        }
+        return classInstanceFqn(side.info().type()) == null ? null : sqlTypeOf.apply(side.info().type());
     }
 
     /** Whether the SQL types {@code value} as a list. */

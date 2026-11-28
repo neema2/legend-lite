@@ -474,12 +474,12 @@ public final class EqualityMeasure {
         // abstract Date, which the rule lists among the types known only then)
         out.add(new Sides("year and string through Any", "F", "%2020->cast(@Any)", "'2020'->cast(@Any)"));
         // the literal rule against a computed value
-        out.add(new Sides("computed Float and whole literal", "T@F;generic=R", "1.5 + 0.5", "2"));
-        out.add(new Sides("computed Decimal and Float literal", "T@F;generic=R", "0.1D + 0.2D", "0.3"));
+        out.add(new Sides("computed Float and whole literal", "T@F;moved=R;generic=R", "1.5 + 0.5", "2"));
+        out.add(new Sides("computed Decimal and Float literal", "T@F;moved=R;generic=R", "0.1D + 0.2D", "0.3"));
         out.add(new Sides("computed Integer and fraction literal", "N", "1 + 1", "2.5"));
         out.add(new Sides("computed Float and Decimal literal", "N", "1.5 + 0.5", "2D"));
         out.add(new Sides("Integer literal past 2^53 against a Float", "N", "0.5 + 0.5", "9007199254740993"));
-        out.add(new Sides("signed literal", "T@F;generic=R", "1 - 2", "-1.0"));
+        out.add(new Sides("signed literal", "T@F;moved=R;generic=R", "1 - 2", "-1.0"));
         out.add(new Sides("Decimal arithmetic with a Float literal", "T", "1.0D * 0.1", "0.1D"));
         // types inside pairs and lists; dates
         out.add(new Sides("pairs, Integer and Float", "N", "pair(1, 'a')", "pair(1.0, 'a')"));
@@ -639,7 +639,7 @@ public final class EqualityMeasure {
         out.add(new Sides("tables same", "T", ab, ab));
         out.add(new Sides("tables rows other order", "F", ab, "#TDS\n id, s\n 2, y\n 1, x\n#"));
         out.add(new Sides("tables a cell differs", "F", ab, "#TDS\n id, s\n 1, x\n 2, z\n#"));
-        out.add(new Sides("tables a column's name differs", "F", "#TDS\n id\n 1\n#", "#TDS\n ix\n 1\n#"));
+        out.add(new Sides("tables a column's name differs", "F;generic=R", "#TDS\n id\n 1\n#", "#TDS\n ix\n 1\n#"));
         return out;
     }
 

@@ -639,6 +639,15 @@ public final class SideEqualities {
                 .equals(rKeys.keys().stream().map(EqualityKeys.Key::name).toList());
     }
 
+    /** Whether a value of type {@code t} holds a model class's instance in a SLOT of a Pair, a list or a map
+     *  (a Pair of an object and a number, however deep): such a side has no rows of its own -- a statement's answer
+     *  has no column type for an object inside a container -- and is compared as the value it is. */
+    public static boolean holdsAnObjectInASlot(Type t) {
+        return t instanceof Type.GenericType g && (PlatformTypes.isPairCarrier(t) || PlatformTypes.isListCarrier(t)
+                || PlatformTypes.isMapCarrier(t)) && g.arguments().stream().anyMatch(a -> InstanceEquality.userClass(a)
+                        || holdsAnObjectInASlot(a));
+    }
+
     /** Whether the planner stands aside, for two sides of instances, for the one
      *  instruction over the two side VALUES ({@code InstanceEquality.sameInstances}): each side's rows hold a
      *  struct, and the two layouts' leaves pair -- what the value form asks of the same rows. */
