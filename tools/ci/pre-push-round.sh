@@ -22,6 +22,10 @@ log="${TMPDIR:-/tmp}/pre-push-round.$$.log"
 status=0
 bazel test "${labels[@]}" --lockfile_mode=error --keep_going --jobs=3 --local_test_jobs=2 --test_output=errors \
   > "$log" 2>&1 || status=$?
-grep -aE '^//.*(FAILED|TIMEOUT|NO STATUS|FLAKY)|^Executed [0-9]+ out of' "$log" || true
+# (a target that does not load or build is no failed test: Bazel says ERROR and, under --keep_going, runs the rest --
+# 2026-11-28: a new package without its guard targets kept the guards from loading, and a round that printed failed
+# tests alone read as "only the known ones")
+grep -aE '^//.*(FAILED|TIMEOUT|NO STATUS|FLAKY)|^Executed [0-9]+ out of|^ERROR:|other errors during the build' "$log" \
+  | cut -c1-300 || true
 echo "exit $status; the log: $log"
 exit $status
