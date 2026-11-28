@@ -200,6 +200,15 @@ final class Equalities {
                     && carriedAs(args.get(o), SqlType.Scalar.TEMPORAL_TEXT)) {
                 return new SqlExpr.Call(SqlFn.EQUAL, args);
             }
+            // the same, where the computed side is a LIST of such texts (a year passed through a filter): the written
+            // year as the list of it, the two lists compared (step 6B, 2026-11-28: read as "a full date" it answered
+            // false with no read, where the comparison written with no filter is true)
+            if (other == Type.Primitive.DATE && (p0 == null || p1 == null)
+                    && listOf(args.get(o), SqlType.Scalar.TEMPORAL_TEXT)) {
+                return new SqlExpr.Call(SqlFn.EQUAL, o == 0
+                        ? List.of(args.get(0), PureSql.asList(args.get(1), false))
+                        : List.of(PureSql.asList(args.get(0), false), args.get(1)));
+            }
             // Covers both a full-precision opposite side AND a
             // different-precision partial (whose static type is
             // also Date) — never equal.
@@ -218,6 +227,15 @@ final class Equalities {
         // judge reads it (register S399; SideEqualities.instantOfText). Until the edition program's step 6 the
         // database was handed the text against a TIMESTAMP and refused it ("invalid timestamp field format")
         List<SqlExpr> sides = args;
+        // (a LIST of such texts against one held date-time: each text read as its instant, the held one as the list
+        // of its instant -- step 6B, 2026-11-28: a date built to the hour, passed through a filter, never equalled
+        // the literal it equals where it stands alone)
+        if (listOf(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(args.get(1), SqlType.Scalar.TIMESTAMP)) {
+            sides = List.of(instantsOfTexts(args.get(0)), PureSql.asList(SideEqualities.instantOfHeld(args.get(1)), false));
+        } else if (listOf(args.get(1), SqlType.Scalar.TEMPORAL_TEXT)
+                && carriedAs(args.get(0), SqlType.Scalar.TIMESTAMP)) {
+            sides = List.of(PureSql.asList(SideEqualities.instantOfHeld(args.get(0)), false), instantsOfTexts(args.get(1)));
+        } else
         if (carriedAs(args.get(0), SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(args.get(1), SqlType.Scalar.TIMESTAMP)) {
             sides = List.of(SideEqualities.instantOfText(args.get(0)), SideEqualities.instantOfHeld(args.get(1)));
         } else if (carriedAs(args.get(1), SqlType.Scalar.TEMPORAL_TEXT)
@@ -434,6 +452,20 @@ final class Equalities {
     private static int partsWritten(TypedSpec side) {
         return side instanceof TypedNativeCall c && com.legend.builtin.Pure.AT_DATE_DATE.contains(c.callee().id())
                 && (c.args().size() == 4 || c.args().size() == 5) ? c.args().size() : 0;
+    }
+
+    /** Whether {@code e}'s SQL type is known to be a list of {@code element}. */
+    private static boolean listOf(SqlExpr e, SqlType element) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array a
+                && a.element() == element;
+    }
+
+    /** A list of date-times carried as their written texts, each read as the instant it writes
+     *  ({@link SideEqualities#instantOfText}). */
+    private static SqlExpr instantsOfTexts(SqlExpr texts) {
+        String x = "_dtx";
+        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, texts,
+                new SqlExpr.Lambda(List.of(x), SideEqualities.instantOfText(SqlExpr.Column.derived(null, x))));
     }
 
     /** Whether {@code e}'s SQL type is known to be {@code type}. */
