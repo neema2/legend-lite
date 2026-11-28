@@ -153,7 +153,42 @@ public final class EqualityClasses {
             // (a cast DOWN from Any names no held type either: its source's is Any, which has no class here)
             return held(c.source());
         }
-        return t;
+        // (what only keeps, reorders or picks among the values it is given holds what they hold -- step 6B, slice 5:
+        // read at the upcast alone, [2, 1]->cast(@Number)->sort()->at(0) against a Float inside a function of Any
+        // was the database's own = and answered true, where the same written in the query answered false)
+        TypedSpec of = declaredOpen(t) ? valuesOf(side) : null;
+        return of == null ? t : held(of);
+    }
+
+    /** The natives that answer values of the list they are given and no other: a part of it, or all of it in
+     *  another order. */
+    private static final java.util.Set<FunctionId> KEEPS_ITS_VALUES = java.util.Set.copyOf(FunctionId.all(
+            Pure.AT_COLLECTION_SORT, Pure.AT_COLLECTION_SORT_BY, Pure.AT_COLLECTION_SORT_BY_REVERSED,
+            Pure.AT_COLLECTION_REVERSE, Pure.AT_COLLECTION_TAKE, Pure.AT_COLLECTION_DROP, Pure.AT_COLLECTION_SLICE,
+            Pure.AT_COLLECTION_TAIL, Pure.AT_COLLECTION_INIT, Pure.AT_COLLECTION_DISTINCT,
+            Pure.AT_COLLECTION_REMOVE_DUPLICATES));
+
+    /** The natives that answer one value of the list they are given, as it is. */
+    private static final java.util.Set<FunctionId> ONE_OF_A_LIST = java.util.Set.copyOf(FunctionId.all(
+            Pure.AT_MULTIPLICITY_TO_ONE, Pure.AT_COLLECTION_FIRST, Pure.AT_COLLECTION_LAST, Pure.AT_COLLECTION_AT,
+            Pure.AT_COLLECTION_HEAD));
+
+    /**
+     * WHAT {@code side}'S VALUES ARE VALUES OF, where it only keeps, reorders or picks among the values it is given:
+     * a {@code filter}'s source; the list a {@code sort}, a {@code reverse}, a {@code take}, a {@code drop}, a
+     * {@code slice}, a {@code tail}, an {@code init} or a deduplication is given; the list {@code toOne},
+     * {@code first}, {@code last}, {@code at} or {@code head} answers one value of. Null for anything else. The ONE
+     * list of what a held type is read through: this class reads it for the types a comparison's sides hold
+     * ({@link #heldCrossing}), and the lowering for the kind a value typed at run time holds
+     * ({@code lowering.MixedEncoding.kindThroughUpcasts}).
+     */
+    public static @com.legend.base.Nullable TypedSpec valuesOf(TypedSpec side) {
+        if (side instanceof com.legend.compiler.spec.typed.TypedFilter filtered) {
+            return filtered.source();
+        }
+        return side instanceof com.legend.compiler.spec.typed.TypedNativeCall read && !read.args().isEmpty()
+                && (KEEPS_ITS_VALUES.contains(read.callee().id()) || ONE_OF_A_LIST.contains(read.callee().id()))
+                ? read.args().get(0) : null;
     }
 
     private static Optional<Crossing> crossing(TypedFunction chosen, Type l, Type r, ModelContext ctx) {

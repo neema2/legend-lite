@@ -537,23 +537,6 @@ final class MixedEncoding {
         return null;
     }
 
-    /** The natives that answer one value of the list they are given, as it is. */
-    private static final java.util.Set<com.legend.model.FunctionId> ONE_OF_A_LIST = java.util.Set.copyOf(
-            com.legend.model.FunctionId.all(com.legend.builtin.Pure.AT_MULTIPLICITY_TO_ONE,
-                    com.legend.builtin.Pure.AT_COLLECTION_FIRST, com.legend.builtin.Pure.AT_COLLECTION_LAST,
-                    com.legend.builtin.Pure.AT_COLLECTION_AT, com.legend.builtin.Pure.AT_COLLECTION_HEAD));
-
-    /** The natives that answer values of the list they are given and no other: a part of it, or all of it in
-     *  another order. */
-    private static final java.util.Set<com.legend.model.FunctionId> KEEPS_ITS_VALUES = java.util.Set.copyOf(
-            com.legend.model.FunctionId.all(com.legend.builtin.Pure.AT_COLLECTION_SORT,
-                    com.legend.builtin.Pure.AT_COLLECTION_SORT_BY, com.legend.builtin.Pure.AT_COLLECTION_SORT_BY_REVERSED,
-                    com.legend.builtin.Pure.AT_COLLECTION_REVERSE, com.legend.builtin.Pure.AT_COLLECTION_TAKE,
-                    com.legend.builtin.Pure.AT_COLLECTION_DROP, com.legend.builtin.Pure.AT_COLLECTION_SLICE,
-                    com.legend.builtin.Pure.AT_COLLECTION_TAIL, com.legend.builtin.Pure.AT_COLLECTION_INIT,
-                    com.legend.builtin.Pure.AT_COLLECTION_DISTINCT,
-                    com.legend.builtin.Pure.AT_COLLECTION_REMOVE_DUPLICATES));
-
     /** The kind of the value {@code spec} holds where the query's own TEXT names it: its static kind
      *  ({@link #kindOf}); under an UPCAST to {@code Number}, {@code Any} or the abstract {@code Date}, the kind of
      *  what the upcast is written over ({@code 1->cast(@Number)} is the Integer, {@code [1D]->cast(@Number)} holds
@@ -574,21 +557,13 @@ final class MixedEncoding {
         if (!open) {
             return null;
         }
-        // (what keeps or reorders the values it is given holds what its source holds -- step 6B, slice 5: read past a
-        // sort, [2, 1]->cast(@Number)->sort() against Floats was the database's own = and answered true)
-        TypedSpec kept = switch (spec) {
-            case com.legend.compiler.spec.typed.TypedFilter o -> o.source();
-            case com.legend.compiler.spec.typed.TypedNativeCall o when !o.args().isEmpty()
-                    && KEEPS_ITS_VALUES.contains(o.callee().id()) -> o.args().get(0);
-            default -> null;
-        };
-        if (kept != null) {
-            return kindOfElements(kept);
-        }
-        // (one value read out of a list holds what the list holds: toOne, first, last, at, head -- step 6B, slice 5)
-        if (spec instanceof com.legend.compiler.spec.typed.TypedNativeCall read && !read.args().isEmpty()
-                && ONE_OF_A_LIST.contains(read.callee().id())) {
-            return kindOfElements(read.args().get(0));
+        // (what keeps, reorders or picks among the values it is given holds what its source holds: a filter, a sort,
+        // a take, a deduplication, toOne, first, at -- the one list of them is the type-checker's,
+        // EqualityClasses.valuesOf; step 6B, slice 5: read past a sort, [2, 1]->cast(@Number)->sort() against Floats
+        // was the database's own = and answered true)
+        TypedSpec of = com.legend.compiler.spec.EqualityClasses.valuesOf(spec);
+        if (of != null) {
+            return kindOfElements(of);
         }
         return spec instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire()
                 && c.target().equals(t) && (CastPolicy.isWidening(c.source().info().type(), t)
