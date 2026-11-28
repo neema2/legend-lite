@@ -429,6 +429,10 @@ final class InstanceEquality {
         // (a List of instances is its instances: list([a, b]) == list([c, d]) compares the two lists)
         Type lOf = instancesOf(l.info().type());
         Type rOf = instancesOf(r.info().type());
+        if (lOf != l.info().type() && isMany(l) || rOf != r.info().type() && isMany(r)) {
+            // (a list of Lists of instances: each List compared as its instances -- ComparedBy.sameMany)
+            return null;
+        }
         boolean oneEach = !isMany(l) && !isMany(r) && lOf == l.info().type() && rOf == r.info().type();
         if (oneEach && (anyOrder || instanceFqn(l) != null && instanceFqn(r) != null)) {
             // (two single instances of a model class are equality()'s, which folds two declared classes and reads
@@ -541,7 +545,7 @@ final class InstanceEquality {
      *  {@link SideEqualities#leafOf} reads it. The one reduction every operation built on equal() over objects
      *  reads: {@code ==} of two lists, {@code hasSameElements}, {@code contains}, {@code in}, {@code indexOf},
      *  {@code removeDuplicates}, {@code isDistinct}. */
-    private static SqlExpr reduced(SqlExpr ref, List<SideEqualities.Leaf> leaves, boolean tracked) {
+    static SqlExpr reduced(SqlExpr ref, List<SideEqualities.Leaf> leaves, boolean tracked) {
         List<SqlExpr.StructLit.Field> fields = new java.util.ArrayList<>();
         for (int i = 0; i < leaves.size(); i++) {
             fields.add(new SqlExpr.StructLit.Field("c" + i, SideEqualities.leafOf(ref, leaves.get(i), tracked),

@@ -471,6 +471,19 @@ public final class SideEqualities {
                 && l != null && r != null && oneMapType(l.outputs().get(0).type(), r.outputs().get(0).type()) != null;
     }
 
+    /** Whether two sides are each ONE map whose rows hold a map: the planner plans such a pair no statement of its
+     *  own -- the lowering compares the two as values, each reduced to what a map is compared by, or refuses the
+     *  pair by name where it has no typed comparison ({@code Equalities.sameMaps},
+     *  {@code InstanceEquality.sameMapsOfInstances}, {@code ComparedBy.sameOnes}). */
+    public static boolean singleMaps(TypedSpec left, SqlQuery leftPlan, TypedSpec right, SqlQuery rightPlan) {
+        SqlQuery l = valueRows(leftPlan);
+        SqlQuery r = valueRows(rightPlan);
+        return PlatformTypes.isMapCarrier(left.info().type()) && PlatformTypes.isMapCarrier(right.info().type())
+                && !left.info().multiplicity().isMany() && !right.info().multiplicity().isMany()
+                && l != null && r != null && l.outputs().get(0).type() instanceof SqlType.Map
+                && r.outputs().get(0).type() instanceof SqlType.Map;
+    }
+
     /** Whether the planner stands aside, for two sides each ONE map to OBJECTS, for the comparison of the two as
      *  values ({@code InstanceEquality.sameMapsOfInstances}): each side's rows hold a map of one scalar key type to
      *  a struct. Where the lowering then finds no typed reading of the objects it refuses the pair by name. */

@@ -165,44 +165,47 @@ final class SameValuesForm {
         }
     }
 
-    /** The decimal places a list's exact numbers are written with in its JSON text, by the type it states: a
-     *  Decimal's scale, none for a whole number; null for anything else. */
+    /** The decimal places a composite value's exact numbers are written with in its JSON text, place by place: a
+     *  Decimal's scale, none for a whole number -- read off the type the value states, or, where it states none,
+     *  off how it is built (a list of structs built by a transform states its fields where it builds them; step
+     *  6B part 2). Null for a plain value, and where no place holds an exact number. */
     private static @com.legend.base.Nullable String textScale(SqlExpr operand) {
-        // (a list of instances reduced to what each is compared by states its fields where it is built, whatever
-        // the list it is built from states: LIST_TRANSFORM(list, y -> {c0, c1, ...}))
         SqlExpr values = operand instanceof SqlExpr.CompactList compact ? compact.list() : operand;
-        if (values instanceof SqlExpr.Call built && built.fn() == com.legend.sql.SqlFn.LIST_TRANSFORM
-                && built.args().size() == 2 && built.args().get(1) instanceof SqlExpr.Lambda each
-                && each.body() instanceof SqlExpr.StructLit reduced) {
-            List<SqlType> fields = new ArrayList<>();
-            for (SqlExpr.StructLit.Field f : reduced.fields()) {
-                if (f.declared() == null) {
-                    return null;
-                }
-                fields.add(f.declared());
+        if (values instanceof SqlExpr.Call built && built.args().size() >= 1) {
+            if (built.fn() == com.legend.sql.SqlFn.LIST_TRANSFORM && built.args().size() == 2
+                    && built.args().get(1) instanceof SqlExpr.Lambda each) {
+                return built(each.body());
             }
-            return scales(fields);
+            if (built.fn() == com.legend.sql.SqlFn.LIST_SORT || built.fn() == com.legend.sql.SqlFn.LIST_FILTER) {
+                return textScale(built.args().get(0));
+            }
         }
-        if (!(operand.type() instanceof com.legend.sql.TypeFact.Typed held && held.type() instanceof SqlType.Array list)) {
-            return null;
+        if (values instanceof SqlExpr.StructLit) {
+            return built(values);
         }
-        SqlType of = list.element();
-        while (of instanceof SqlType.Array inner) {
-            of = inner.element();
-        }
-        if (of instanceof SqlType.Struct struct) {
-            // a list of structs (instances reduced to what each is compared by; step 6B part 2): the scale of each
-            // field that holds an exact number, field by field -- null where no field holds one
-            return scales(struct.fields().stream().map(SqlType.Struct.Field::type).toList());
-        }
-        return scaleOf(of);
+        return operand.type() instanceof com.legend.sql.TypeFact.Typed held && !(held.type() instanceof SqlType.Scalar)
+                && !(held.type() instanceof SqlType.Decimal) ? scaleOf(held.type()) : null;
     }
 
-    private static @com.legend.base.Nullable String scales(List<SqlType> fields) {
+    /** {@link #textScale} of one element as it is built: a struct literal field by field (its declared type, else
+     *  how its value is built), anything else by the type it states. */
+    private static @com.legend.base.Nullable String built(SqlExpr element) {
+        if (element instanceof SqlExpr.StructLit struct) {
+            List<String> fields = new ArrayList<>();
+            for (SqlExpr.StructLit.Field f : struct.fields()) {
+                fields.add(f.declared() != null ? scaleOf(f.declared()) : built(f.value()));
+            }
+            return joined(fields);
+        }
+        String composite = textScale(element);
+        return composite != null ? composite
+                : element.type() instanceof com.legend.sql.TypeFact.Typed held ? scaleOf(held.type()) : null;
+    }
+
+    private static @com.legend.base.Nullable String joined(List<@com.legend.base.Nullable String> places) {
         StringBuilder scales = new StringBuilder();
         boolean any = false;
-        for (SqlType f : fields) {
-            String one = scaleOf(f);
+        for (String one : places) {
             any |= one != null;
             scales.append(scales.isEmpty() ? "" : ", ").append(one == null ? "-" : one);
         }
@@ -212,6 +215,15 @@ final class SameValuesForm {
     private static @com.legend.base.Nullable String scaleOf(SqlType of) {
         if (of instanceof SqlType.Decimal exact) {
             return Integer.toString(exact.scale());
+        }
+        if (of instanceof SqlType.Array list) {
+            return scaleOf(list.element());
+        }
+        if (of instanceof SqlType.Struct struct) {
+            return joined(struct.fields().stream().map(f -> scaleOf(f.type())).toList());
+        }
+        if (of instanceof SqlType.Map map) {
+            return joined(java.util.Arrays.asList(scaleOf(map.key()), scaleOf(map.value())));
         }
         return of == SqlType.Scalar.INTEGER || of == SqlType.Scalar.BIGINT || of == SqlType.Scalar.HUGEINT ? "0" : null;
     }

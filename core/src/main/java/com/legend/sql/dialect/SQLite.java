@@ -1699,7 +1699,12 @@ public class SQLite extends AnsiSqlRenderer {
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> {
+                // (two composite values not distinct are two JSON texts compared: refused where their exact numbers
+                // are written at two scales, as the equality of two lists is -- equalArm)
+                SameValuesForm.refuseExactNumbersOfTwoScales(c.args());
+                yield nullSafe(writer, c);
+            }
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);

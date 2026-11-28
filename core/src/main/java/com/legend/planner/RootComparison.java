@@ -146,10 +146,9 @@ final class RootComparison {
             // each reduced to what it is compared by, its rows riding (InstanceEquality.sameInstances)
             return null;
         }
-        if (!anyOrder && (SideEqualities.mapsAsValues(left, leftPlan, right, rightPlan)
-                || SideEqualities.mapsOfInstancesAsValues(left, leftPlan, right, rightPlan))) {
-            // two maps held as one map type (step 6B part 2): no statement of their own -- the lowering compares
-            // the two as values, each as its entries sorted by key (Equalities.sameMaps)
+        if (!anyOrder && SideEqualities.singleMaps(left, leftPlan, right, rightPlan)) {
+            // two maps (step 6B part 2): no statement of their own -- the lowering compares the two as values, each
+            // as its entries sorted by key, or refuses the pair by name (SideEqualities.singleMaps)
             return null;
         }
         SideEqualities.Compared compared = pair == null ? null : pair.compared(leftPlan, rightPlan, anyOrder);

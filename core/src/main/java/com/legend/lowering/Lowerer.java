@@ -535,6 +535,43 @@ public final class Lowerer {
                 side -> planner != null && planner.tracksIdentity(side), boundSides != null);
     }
 
+    /** {@code n}, an {@code ==} of two containers a database's own comparison gets wrong (maps, Lists that hold
+     *  maps or objects), by what each is compared by ({@link ComparedBy}): one value each, or ({@code many}) lists
+     *  of them; null for any other pair, and where the door named a rule for the call. */
+    private @com.legend.base.Nullable SqlExpr containers(TypedNativeCall n, ColumnResolver columns, boolean many) {
+        if (instanceKeysOf == null || n.args().size() != 2 || verbatimEquality || legacyNullUnsafeEquals
+                || !ComparedBy.container(n.args().get(0).info().type())
+                || !ComparedBy.container(n.args().get(1).info().type())
+                || many != (n.args().get(0).info().multiplicity().isMany()
+                        || n.args().get(1).info().multiplicity().isMany())
+                || !productsOwn(n)) {
+            return null;
+        }
+        List<SqlExpr> sides = List.of(scalar(n.args().get(0), columns), scalar(n.args().get(1), columns));
+        return many ? ComparedBy.sameMany(n, sides, this::sqlTypeOf, instanceKeysOf, () -> "_cb" + aliasCounter++)
+                : ComparedBy.sameOnes(n, sides, this::sqlTypeOf, instanceKeysOf, () -> "_cb" + aliasCounter++);
+    }
+
+    /** {@code n}, a {@code contains}, an {@code in} or an {@code indexOf} over such containers
+     *  ({@link ComparedBy#among}); null for any other call, and where the door named a rule for it. */
+    private @com.legend.base.Nullable SqlExpr amongContainers(TypedNativeCall n, ColumnResolver columns) {
+        if (instanceKeysOf == null || n.args().size() != 2) {
+            return null;
+        }
+        boolean place = "meta::pure::functions::collection::indexOf".equals(n.callee().qualifiedName());
+        TypedSpec list = place ? n.args().get(0) : Equalities.membershipList(n);
+        if (list == null) {
+            return null;
+        }
+        TypedSpec needle = n.args().get(list == n.args().get(0) ? 1 : 0);
+        if (!ComparedBy.container(list.info().type()) || !ComparedBy.container(needle.info().type())
+                || !productsOwn(n)) {
+            return null;
+        }
+        return ComparedBy.among(list, scalar(list, columns), needle, scalar(needle, columns), place,
+                this::sqlTypeOf, instanceKeysOf, () -> "_cb" + aliasCounter++);
+    }
+
     /** {@code n}'s two sides, each ONE map, compared as values ({@link Equalities#sameMaps}); null for any other
      *  pair, and where the door named a rule for the call. */
     private @com.legend.base.Nullable SqlExpr sameMaps(TypedNativeCall n, ColumnResolver columns) {
@@ -557,15 +594,10 @@ public final class Lowerer {
             return same;
         }
         same = InstanceEquality.sameMapsOfInstances(n, sides, held, instanceKeysOf);
-        if (same == null && SideEqualities.holdsAnObjectInASlot(n.args().get(0).info().type())
-                && SideEqualities.holdsAnObjectInASlot(n.args().get(1).info().type())) {
-            // (never the database's own comparison of two maps of objects: by every field, and by the order the
-            // entries were written in)
-            throw new NotImplementedException("== of two maps that hold objects with no typed comparison here ("
-                    + n.args().get(0).info().type().typeName() + " and " + n.args().get(1).info().type().typeName()
-                    + "): an object as a map's key, or objects with no key and no identity here; not supported yet");
-        }
-        return same;
+        // (any other two maps by the one reduction of containers, which refuses by name what it has no typed
+        // comparison for -- never the database's own comparison of two maps)
+        return same != null ? same : ComparedBy.sameOnes(n, sides, this::sqlTypeOf, instanceKeysOf,
+                () -> "_cb" + aliasCounter++);
     }
 
     /** {@code n}, a {@code contains} or an {@code in} of an instance among instances of its class, by what an
@@ -4803,12 +4835,20 @@ public final class Lowerer {
             // == over two maps: each as its entries sorted by key, the two compared as values (step 6B part 2)
             case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL)
                     && sameMaps(n, columns) instanceof SqlExpr same -> same;
+            // == over two Lists that hold maps or objects, one value each: the two reduced (ComparedBy)
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL)
+                    && containers(n, columns, false) instanceof SqlExpr same -> same;
             // == over two sides of instances of one class, at least one a list: the one "same values" instruction
             // over the two lists, each instance reduced to what it is compared by (step 6B part 2, objects)
             case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL)
                     && sameInstances(n, false, columns) instanceof SqlExpr same -> same;
             case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && wholeSides(n) instanceof SqlExpr planned ->
                 planned;
+            // == over two lists of maps, or of Lists that hold objects, where no statement of their own answers
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL)
+                    && containers(n, columns, true) instanceof SqlExpr same -> same;
+            // contains, in, indexOf over maps or over Lists that hold maps or objects: by the same reduction
+            case TypedNativeCall n when amongContainers(n, columns) instanceof SqlExpr among -> among;
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
