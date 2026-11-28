@@ -298,3 +298,21 @@ So a slice that passes every lane can still be wrong in a place no suite asks: t
   both-ways test on DuckDB; the two AGENTS.md sentences for the rulings the user confirmed ("I think both rulings are
   correct as is": a pair, a list and a map are values compared by what they hold; for numbers typed at run time the
   same type means the same family), which need the user's yes to the wording.
+
+**2026-11-28, 00:50 UTC.**
+
+- **Slice 1's landing commit is the branch `claude/step-6b-slice-1` (`c77deac20`)**: `c7e033094` plus the fix CI's
+  checks lane found when run here on the review's fixes (MongoDB's arm for the instruction must be one expression and
+  its function table within 250 lines: the two-value form went to a helper, `sameInOrderElseRefused`) and the
+  dialect capability pages regenerated for it. The guards, the edge guards and the docs tests pass on it.
+- Running on that commit since 00:50 UTC (`scratchpad/b108.out`): the CI lanes not yet run here (both corpora, PCT
+  on DuckDB and H2, channel B, parser equivalence, stress), then the 13 Postgres-backed core tests unprivileged.
+  When green: `tools/ci/rerecord.sh` read, one push of `c77deac20` (or its successor) to the pull request's branch,
+  CI, then the program branch moves. The scratch branch `claude/step-6-numbers` holds the same commits merged with
+  the work ahead of slice 3, which does not ride with this push.
+- **Slice 3's remaining kinds need their half page before more code:** a mixed list, a list typed `Number` or `Any`,
+  a list of pairs, a map and a table are planned as statements by the planner first (`Lowerer.scalarInner`), so
+  inside a DuckDB list lambda they fail. The value path answers the first three on DuckDB, but on a database without
+  list lambdas (H2) only the planner's rows do, and the instruction as it is carries two plain values, not a mixed
+  list's comparison. The half page has to say what the instruction carries for a mixed list (its tag and slots) so
+  that each dialect can write it from values or from rows.
