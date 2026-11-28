@@ -48,7 +48,7 @@ input).
 | SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 60 | 154 | 7 | 18 | 49 |
 | MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 56 | 157 | 8 | 18 | 48 |
 | MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 56 | 157 | 8 | 18 | 48 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 205 | 16 | 18 | 205 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 207 | 14 | 18 | 207 |
 
 ## Functions
 
@@ -227,8 +227,8 @@ input).
 | `ALL_DISTINCT` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
 | `NULL_SAFE_EQUAL` | E | E | E | E | E | E | E | E | E | S | S | E· |
 | `NULL_SAFE_NOT_EQUAL` | E | E | E | E | E | E | E | E | E | E | E | E· |
-| `SAME_IN_ORDER` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R |
-| `SAME_IN_ANY_ORDER` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R |
+| `SAME_IN_ORDER` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `SAME_IN_ANY_ORDER` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
 | `STRFTIME` | S | E | E | E | E | E | E | E | E | E | E | E· |
 | `STRPTIME` | S· | R | E· | E· | E· | E· | S· | E· | R | R | R | E· |
 | `PARSE_DATE` | E | E | E | E | E | E | E | E | E | E | E | E· |
