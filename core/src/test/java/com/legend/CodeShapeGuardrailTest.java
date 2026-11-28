@@ -374,6 +374,11 @@ class CodeShapeGuardrailTest {
             // builder-style, set once by the planner's lowerer factories (withWholeComparisons) before lower(), the
             // same lifecycle as the fields above
             "Lowerer.wholeComparisons",
+            // the sides an assert has bound once to a statement's columns (2026-11-28, step 6B's slice 6: an assert is
+            // the product's own comparison over them). Set for the one call that lowers that comparison
+            // (Lowerer.overSides) and put back in its finally; null at every other time. A frame object would have to
+            // be threaded through every scalar() call for the one reader that asks
+            "Lowerer.boundSides",
             // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
             // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set

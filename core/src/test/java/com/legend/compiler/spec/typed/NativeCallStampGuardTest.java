@@ -79,7 +79,9 @@ class NativeCallStampGuardTest {
             Map.entry("resolver/Pipelines.java", 1),
             Map.entry("resolver/StackBuilder.java", 3),
             Map.entry("resolver/StoreResolver.java", 4),
-            Map.entry("resolver/Substitution.java", 18),
+            // 18 -> 19 (2026-11-28, step 6B, the user's "Yes fix all map family"): isNotEmpty(source), the guard of a
+            // map over ONE optional value (appliedWhereItHoldsAValue) -- a NEW call lite writes, no user's call rebuilt
+            Map.entry("resolver/Substitution.java", 19),
             Map.entry("resolver/SyntheticHeads.java", 3),
             Map.entry("resolver/TemporalFrame.java", 6));
 

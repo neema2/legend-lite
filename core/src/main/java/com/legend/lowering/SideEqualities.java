@@ -190,7 +190,7 @@ public final class SideEqualities {
     /** {@code list}, a side's folded list ({@link #listed}: no list where the side has no row), as a list always:
      *  the empty list of its type where it is none. */
     private static SqlExpr orTheEmptyList(SqlExpr list, SqlQuery listed) {
-        return SqlExpr.Call.of(SqlFn.COALESCE, list, new SqlExpr.Cast(new SqlExpr.ArrayLit(List.of()),
+        return SqlExpr.Call.of(SqlFn.COALESCE, list, new SqlExpr.Cast(CanonicalRenderSql.emptyArray(),
                 listed.outputs().get(0).type(), SqlExpr.Reason.OPERATOR));
     }
 
