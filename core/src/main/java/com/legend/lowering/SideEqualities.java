@@ -237,8 +237,12 @@ public final class SideEqualities {
             return null;
         }
         // (a side of at most one value: its one value read beside its list, by the one read of its rows)
-        SqlQuery eList = eOne ? listedWithItsOne("__e", eRows) : listed("__e", eRows);
-        SqlQuery aList = aOne ? listedWithItsOne("__a", aRows) : listed("__a", aRows);
+        // (a side of at most one value is read as that ONE value alone where the other side is too: its list would
+        // be the list of it, and the record lists the value -- one aggregate for the side, where the member this
+        // replaces wrote a list's; beside a many-valued side its list is read too, for the pairing below)
+        boolean bothOne = eOne && aOne;
+        SqlQuery eList = bothOne ? single("__e", eRows) : eOne ? listedWithItsOne("__e", eRows) : listed("__e", eRows);
+        SqlQuery aList = bothOne ? single("__a", aRows) : aOne ? listedWithItsOne("__a", aRows) : listed("__a", aRows);
         // (the expected side is read before the actual, as values reads them)
         SqlSource from = cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null));
         SqlExpr eValue = SqlExpr.Column.of("e", eList.outputs(), eOne ? SINGLE : LISTED);
@@ -259,7 +263,9 @@ public final class SideEqualities {
         }
         SqlExpr holds = same.apply(new Bound(eValue, cteRows("__e", eRows)), new Bound(aValue, cteRows("__a", aRows)));
         return new Compared(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)), from, holds,
-                List.of(held("e", eList, eKind), held("a", aList, aKind)));
+                bothOne ? List.of(new Held(eValue, eList.outputs().get(0).type(), eKind, false),
+                        new Held(aValue, aList.outputs().get(0).type(), aKind, false))
+                        : List.of(held("e", eList, eKind), held("a", aList, aKind)));
     }
 
     /**
