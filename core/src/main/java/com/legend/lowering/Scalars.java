@@ -3680,7 +3680,7 @@ final class Scalars {
                 // two kinds the query's text names that can never be equal are no member, both sides still
                 // evaluated; a date-time written as its text meets held ones by their instants
                 if (numbers == NumberFamilies.TWO_FAMILIES) {
-                    Equalities.Member member = Equalities.member(n.args().get(0), args.get(0), n.args().get(1),
+                    Equalities.Member member = Equalities.member(n, n.args().get(0), args.get(0), n.args().get(1),
                             args.get(1));
                     if (member.never() != null) {
                         return member.never();
@@ -3758,7 +3758,7 @@ final class Scalars {
             // rule alone): two kinds that can never be equal are no member, both sides still evaluated; a date-time
             // written as its text meets held ones by their instants, as a list's membership
             if (numbers == NumberFamilies.TWO_FAMILIES) {
-                Equalities.Member member = Equalities.member(n.args().get(1), args.get(1), n.args().get(0), raw);
+                Equalities.Member member = Equalities.member(n, n.args().get(1), args.get(1), n.args().get(0), raw);
                 if (member.never() != null) {
                     return member.never();
                 }
@@ -3839,7 +3839,7 @@ final class Scalars {
                 // (the product's rule alone: a door keeps the database's own position, as its contains keeps its own
                 // membership -- the review of slice 5, finding 3)
                 Equalities.Member member = numbers == NumberFamilies.TWO_FAMILIES
-                        ? Equalities.member(n.args().get(0), list, n.args().get(1), args.get(1))
+                        ? Equalities.member(n, n.args().get(0), list, n.args().get(1), args.get(1))
                         : new Equalities.Member(null, list, args.get(1));
                 if (member.never() != null) {
                     return new SqlExpr.Case(List.of(new SqlExpr.Case.When(member.never(), new SqlExpr.IntLit(0))),
