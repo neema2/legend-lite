@@ -111,17 +111,6 @@ final class ListEncodings {
             return new SqlExpr.NullLit();
         }
         SqlExpr mSrc = lw.scalar(m.source(), columns);
-        // A FUNCTION IS NOT APPLIED TO AN EMPTY SLOT (step 6B, slice 5): a list built by a map whose function may
-        // answer nothing holds a NULL slot for each element it answered nothing for, which is no element of the Pure
-        // list -- so a map OVER such a list reads it with those slots dropped. Until then
-        // [1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7) answered [7, 7]. Only where the query's text shows the
-        // source builds such slots: any other list is read as it is, and no statement that has no such source
-        // grows (compacting every mapped list where it is built added a filter to statements that never read the
-        // slots: the SQL size pins, the slice's first round).
-        if (buildsEmptySlots(m.source()) && !(mSrc instanceof SqlExpr.CompactList)
-                && !(mSrc instanceof SqlExpr.TaggedList)) {
-            mSrc = new SqlExpr.CompactList(mSrc);
-        }
         // requireBounded: a VAR stamp surviving to lowering stays LOUD
         // (the Lowerer.isMany contract this call replaced)
         boolean mToOne = !mult.requireBounded("lowering").isMany();
@@ -139,25 +128,6 @@ final class ListEncodings {
                         .element.type.Multiplicity.Bounded rb
                         && rb.upper() != null && rb.upper() == 1,
                 ValueCollections.isCollectionMapper(m.mapper()) || manyValued);
-    }
-
-    /** Whether {@code source}, a list a map reads, is built by a map whose function may answer nothing for an
-     *  element (its result declared at most one, possibly none) over a list written in the query's value lane --
-     *  read through a filter and a cast, which keep the slots they are given. */
-    private static boolean buildsEmptySlots(com.legend.compiler.spec.typed.TypedSpec source) {
-        return switch (source) {
-            case com.legend.compiler.spec.typed.TypedFilter f -> buildsEmptySlots(f.source());
-            case com.legend.compiler.spec.typed.TypedCast c -> buildsEmptySlots(c.source());
-            case com.legend.compiler.spec.typed.TypedMap inner -> {
-                List<com.legend.compiler.spec.typed.TypedSpec> body = inner.mapper().body();
-                var answered = body.get(body.size() - 1).info().multiplicity();
-                yield inner.source().info().multiplicity().requireBounded("lowering").isMany()
-                        && answered instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                        && b.lower() == 0 && b.upper() != null && b.upper() <= 1
-                        && CollectionLanes.valueLane(inner);
-            }
-            default -> false;
-        };
     }
 
     static SqlExpr map(SqlExpr src, SqlExpr lam, boolean srcOne,

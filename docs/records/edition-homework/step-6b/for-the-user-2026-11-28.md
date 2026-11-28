@@ -8,9 +8,8 @@
 |---|---|---|---|---|
 | A1 | legend-pure's door: a value upcast to `Number`, `Any` or `Date` and then filtered, sorted, deduplicated, reversed or cut (`take`, `drop`, `slice`, `tail`, `init`), or one value read from such a list (`toOne`, `first`, `last`, `at`, `head`), compared with a value of another type. `[2, 1]->cast(@Number)->sort()->contains(1.0)` | the database's comparison: true | false | legend-pure compares by the type a value holds, and an Integer is no Float there. The type-checker now reads the held type through these functions (`EqualityClasses.valuesOf`), for lite's rule and for this door alike. legend-engine's door does not move. |
 | A2 | legend-pure's door: two optional enumeration values that both hold nothing, `==` | no value (the database's `=`) | true | Pure: two empty sides are equal. The enumeration exception in the empty-side rule copied legend-engine's SQL. legend-engine's door inside a store query does not move. |
-| A3 | every door: a list built by `map` with a function that may answer nothing, then read by another function. `[1, 2]->map(x \| if($x == 1, \|1, \|[]))->map(y \| 7)` | `[7, 7]` | `[7]` | Pure's `map` drops what its function does not answer; the empty slots were left in the list and the next function was applied to them. |
 
-PCT runs at legend-pure's door: if a PCT test's answer moves for A1 to A3, it is listed with the lanes' reports.
+PCT runs at legend-pure's door: if a PCT test's answer moves for A1 or A2, it is listed with the lanes' reports.
 
 ## B. To rule (the measure marks these `?`; `measure-gaps-2026-11-28.md`)
 
@@ -32,6 +31,19 @@ PCT runs at legend-pure's door: if a PCT test's answer moves for A1 to A3, it is
 | 27 | About sixty time-series words whose refusal check sits on rows a later filter drops | none known |
 | 29 | A `map` whose function may answer nothing is typed with its source's count (`[2]`), so the Java checker fails an `assertEquals` over such a list | new compile errors possible |
 | - | ONE year written under the abstract `Date` against ONE held date-time fails when the query runs (the answer is false) | none |
+
+## C2. One fix that needs your word, because a SQL size pin would rise
+
+**A `map` over a list that another `map` built with gaps.** `[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7)`
+answers `[7, 7]`; Pure answers `[7]` (the first `map` answers nothing for 2, so there is no second element). It is
+wrong on every database and at every door, and older than step 6B. The fix is small and was built and measured in
+slice 5: where the query's text shows a list is built with such gaps, the next `map` reads it without them. It was
+taken out again because it adds a list filter, twice, to ONE of core's pinned statements (+66 characters on
+DuckDB): the statement that reads `...->map(i | $i->get('sku'))->map(s | $s->to(@String)->toOne())` over a JSON
+payload -- where an item with no `sku` is today a gap the second `map` is applied to. That is the fix doing its
+job, but "SQL size pins go up only with the user's word". **Say yes and it goes back in with the pin moved by that
+amount and a dated note; say no and the measure keeps the row as a known wrong answer.** (Compacting every mapped
+list where it is built, the first thing tried, cost more: one filter in each of several PCT and core statements.)
 
 ## D. Standing
 

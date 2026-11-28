@@ -3957,8 +3957,10 @@ public final class Lowerer {
     private static SqlExpr withoutEmptySlots(TypedSpec side, SqlExpr where) {
         // (a mixed list keeps its own size: its positions are its elements, and a wrapper would hide it from the rule
         // that counts them -- the audit of slice 5's last fixes, finding 2)
-        return Equalities.aList(where) && !(where instanceof SqlExpr.TaggedList)
-                ? CollectionLanes.compacted(side, where) : where;
+        // (only where the query's text shows the list is built with such slots: this is a count, no comparison of
+        // two list values, and a filter written on suspicion grew two of core's statements -- the SQL size pin)
+        return Equalities.aList(where) && !(where instanceof SqlExpr.TaggedList || where instanceof SqlExpr.CompactList)
+                && CollectionLanes.buildsEmptySlots(side) ? new SqlExpr.CompactList(where) : where;
     }
 
     /** {@code side}, declared many and read by no statement of its own, evaluated where it stands: the one value
