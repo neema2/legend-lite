@@ -299,13 +299,13 @@ So a slice that passes every lane can still be wrong in a place no suite asks: t
   correct as is": a pair, a list and a map are values compared by what they hold; for numbers typed at run time the
   same type means the same family), which need the user's yes to the wording.
 
-**2026-11-28, 00:50 UTC.**
+**2026-11-28, 00:36 UTC.**
 
 - **Slice 1's landing commit is the branch `claude/step-6b-slice-1` (`c77deac20`)**: `c7e033094` plus the fix CI's
   checks lane found when run here on the review's fixes (MongoDB's arm for the instruction must be one expression and
   its function table within 250 lines: the two-value form went to a helper, `sameInOrderElseRefused`) and the
   dialect capability pages regenerated for it. The guards, the edge guards and the docs tests pass on it.
-- Running on that commit since 00:50 UTC (`scratchpad/b108.out`): the CI lanes not yet run here (both corpora, PCT
+- Running on that commit since 00:35 UTC (`scratchpad/b108.out`): the CI lanes not yet run here (both corpora, PCT
   on DuckDB and H2, channel B, parser equivalence, stress), then the 13 Postgres-backed core tests unprivileged.
   When green: `tools/ci/rerecord.sh` read, one push of `c77deac20` (or its successor) to the pull request's branch,
   CI, then the program branch moves. The scratch branch `claude/step-6-numbers` holds the same commits merged with
