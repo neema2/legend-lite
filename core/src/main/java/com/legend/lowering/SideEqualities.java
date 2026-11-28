@@ -174,6 +174,13 @@ public final class SideEqualities {
                 null, List.of(), null, null, List.of(), null, null, List.of(o));
     }
 
+    /** {@code list}, a side's folded list ({@link #listed}: no list where the side has no row), as a list always:
+     *  the empty list of its type where it is none. */
+    private static SqlExpr orTheEmptyList(SqlExpr list, SqlQuery listed) {
+        return SqlExpr.Call.of(SqlFn.COALESCE, list, new SqlExpr.Cast(new SqlExpr.ArrayLit(List.of()),
+                listed.outputs().get(0).type(), SqlExpr.Reason.OPERATOR));
+    }
+
     /** {@link #listed} with the side's one value beside its list ({@code __v}, as {@link #single} reads it): one
      *  read of the rows for both. */
     private static SqlQuery listedWithItsOne(String cte, SqlQuery rows) {
@@ -214,6 +221,17 @@ public final class SideEqualities {
         SqlSource from = cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null));
         SqlExpr eValue = SqlExpr.Column.of("e", eList.outputs(), eOne ? SINGLE : LISTED);
         SqlExpr aValue = SqlExpr.Column.of("a", aList.outputs(), aOne ? SINGLE : LISTED);
+        // (ONE value against a list: the product writes the one value as the list of it, the empty list where it
+        // holds none -- and a side's list folded from no rows is no list at all, which is the empty list here: the
+        // two must be one thing. Two folded lists need nothing: both none is both the same. Measured, the no-Bazel
+        // loop: an empty optional value against an empty computed list failed its assert)
+        if (eOne != aOne) {
+            if (aOne) {
+                eValue = orTheEmptyList(eValue, eList);
+            } else {
+                aValue = orTheEmptyList(aValue, aList);
+            }
+        }
         SqlExpr holds = same.apply(new Bound(eValue, cteRows("__e", eRows)), new Bound(aValue, cteRows("__a", aRows)));
         return new Compared(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)), from, holds,
                 List.of(held("e", eList, eKind), held("a", aList, aKind)));
