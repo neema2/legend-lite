@@ -169,7 +169,10 @@ final class PositionReport {
                 // each place's outcome and what it is against the expected answer, the left-out places apart
                 Map<String, List<String>> groups = new LinkedHashMap<>();
                 Set<String> verdicts = new LinkedHashSet<>();
-                Set<String> answers = new LinkedHashSet<>();
+                // the answers given, per answer the rule gives the place: two places contradict one another only
+                // where the rule gives them ONE answer (a@b: a literal reads as its column's type where it is
+                // written against the column and not inside a function of Any, so the two answers differ by rule)
+                Map<String, Set<String>> answers = new LinkedHashMap<>();
                 all.forEach((p, v) -> {
                     if (of.gaps().containsKey(p)) {
                         return;
@@ -177,14 +180,14 @@ final class PositionReport {
                     String verdict = judge(v, a.expected(), p, store);
                     verdicts.add(verdict);
                     if (isAnswer(v, store)) {
-                        answers.add(v);
+                        answers.computeIfAbsent(expectedAt(a.expected(), p), x -> new LinkedHashSet<>()).add(v);
                     }
                     groups.computeIfAbsent((v.isEmpty() ? "no row" : v) + " [" + verdict + "]", x -> new ArrayList<>())
                             .add(p);
                 });
                 List<String> absent = places.stream().filter(p -> !all.containsKey(p)).toList();
                 String kind;
-                if (answers.size() > 1 && !a.expected().equals("N")) {
+                if (!a.expected().equals("N") && answers.values().stream().anyMatch(given -> given.size() > 1)) {
                     kind = "CONTRADICTS";
                 } else if (verdicts.contains("wrong")) {
                     kind = "A WRONG ANSWER SOMEWHERE";
@@ -219,20 +222,33 @@ final class PositionReport {
         return new Classified(databases, lines, asked, by.size(), places.size());
     }
 
-    /** What one place's outcome is against the expected answer: right, wrong, refused (by name) or failed. */
-    private static String judge(String v, String expectedOf, String place, boolean store) {
-        boolean atRunTime = RUN_TIME_PLACES.contains(place.split(" ")[0]);
+    /** The answer the rule gives {@code place} of a comparison whose expected answer is written {@code expectedOf}:
+     *  {@code R} for a compile error ({@code x;generic=R} inside a function over one type variable); of {@code a@b},
+     *  {@code a} where the comparison is written and {@code b} inside a function whose parameters are
+     *  {@code Any}; else as written. */
+    private static String expectedAt(String expectedOf, String place) {
         String expected = expectedOf;
         if (expected.contains(";generic=R")) {
-            // a compile error inside a function over one type variable whose call gives it two types
-            expected = expected.replace(";generic=R", "");
             if (place.split(" ")[0].equals("function-generic")) {
-                return v.equals("refused ModelException") ? "right" : isAnswer(v, store) ? "wrong" : "failed";
+                return "R";
             }
+            expected = expected.replace(";generic=R", "");
         }
         int at = expected.indexOf('@');
         if (at >= 0) {
-            expected = atRunTime ? expected.substring(at + 1) : expected.substring(0, at);
+            return RUN_TIME_PLACES.contains(place.split(" ")[0]) ? expected.substring(at + 1)
+                    : expected.substring(0, at);
+        }
+        return expected;
+    }
+
+    /** What one place's outcome is against the expected answer: right, wrong, refused (by name) or failed. */
+    private static String judge(String v, String expectedOf, String place, boolean store) {
+        boolean atRunTime = RUN_TIME_PLACES.contains(place.split(" ")[0]);
+        String expected = expectedAt(expectedOf, place);
+        if (expected.equals("R")) {
+            // a compile error inside a function over one type variable whose call gives it two types
+            return v.equals("refused ModelException") ? "right" : isAnswer(v, store) ? "wrong" : "failed";
         }
         if (expected.equals("N")) {
             if (atRunTime) {
