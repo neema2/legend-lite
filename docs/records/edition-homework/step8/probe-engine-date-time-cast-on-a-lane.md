@@ -111,6 +111,23 @@ statements over `'2014-01-01 10:20:30.123456789'::timestamp`:
 
 So on Snowflake the value is whole and legend-engine's text only shows three of its digits, by a session setting.
 
+RUN on ClickHouse by its lane (`clickhouse local` 26.3.60.2, time zone `Etc/UTC`, plain statements):
+
+| Statement | Answer |
+|---|---|
+| legend-engine's literal, `cast('...10:20:30.123456789'::DateTime64 as String)`, and its type | `2014-01-01 10:20:30.123`, `DateTime64(3)` |
+| `toUnixTimestamp64Nano` of that literal | `1388571630123000000` (the value itself holds milliseconds only) |
+| lite's literal of a digit past the microsecond, `cast(toDateTime64('...123456789', 9, 'UTC') as String)` | `2014-01-01 10:20:30.123456789` |
+| `toUnixTimestamp64Nano` of lite's literal | `1388571630123456789` |
+| lite's literal otherwise, `cast(toDateTime64('...10:20:30.25', 6, 'UTC') as String)` | `2014-01-01 10:20:30.250000` |
+| a `DateTime64(9, 'UTC')` column cast to String | `2014-01-01 10:20:30.123456789` |
+| a `DateTime64(3, 'UTC')` and a `DateTime64(6, 'UTC')` column holding `.25`, cast to String | `2014-01-01 10:20:30.250`, `2014-01-01 10:20:30.250000` |
+
+So on ClickHouse the cast prints exactly the digits of the operand's type. legend-engine's LITERAL is a
+`DateTime64(3)` and loses the digits in the value itself, cut and not rounded; a column keeps and prints its own
+precision, and there the same cast is what legend-engine sends and what lite sends. The two differ on a literal
+(three digits against lite's six or nine), not on a column.
+
 **A defect of lite's found on the way (not step 8's; nothing changed).** Lite's own text of a date-time on Snowflake
 (`Snowflake.java`, the cast of a timestamp to text: `'YYYY-MM-DD HH24:MI:SS.FF6'`) drops digits seven to nine of a
 value lite itself sent whole: `.123456789` prints `.123456`. With `FF9` the same rule prints all nine and answers
