@@ -181,9 +181,8 @@ DuckDB	values	a year through a filter	  refused DialectCapability [refused]: kep
 DuckDB	values	lists inside lists, Integer and Decimal	ANSWERED ONLY IN SOME PLACES
 DuckDB	values	lists inside lists, Integer and Decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
 DuckDB	values	lists inside lists, Integer and Decimal	  unjudged [refused]: assertEquals (database)
-DuckDB	values	an empty slot through a second map	FAILS SOMEWHERE
-DuckDB	values	an empty slot through a second map	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-DuckDB	values	an empty slot through a second map	  error IllegalStateException [failed]: assertEquals (host)
+DuckDB	values	an empty slot through a second map	A WRONG ANSWER SOMEWHERE
+DuckDB	values	an empty slot through a second map	  F [wrong]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 DuckDB	values	membership past a take	ANSWERED ONLY IN SOME PLACES
 DuckDB	values	membership past a take	  T [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 DuckDB	values	membership past a take	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll, reads-element
@@ -398,9 +397,8 @@ SQLite	values	built to the hour against a held list	  T [right]: reads-element
 SQLite	values	lists inside lists, Integer and Decimal	ANSWERED ONLY IN SOME PLACES
 SQLite	values	lists inside lists, Integer and Decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
 SQLite	values	lists inside lists, Integer and Decimal	  unjudged [refused]: assertEquals (database)
-SQLite	values	an empty slot through a second map	FAILS SOMEWHERE
-SQLite	values	an empty slot through a second map	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-SQLite	values	an empty slot through a second map	  error IllegalStateException [failed]: assertEquals (host)
+SQLite	values	an empty slot through a second map	A WRONG ANSWER SOMEWHERE
+SQLite	values	an empty slot through a second map	  F [wrong]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 SQLite	values	list decimal differs	ANSWERED ONLY IN SOME PLACES
 SQLite	values	list decimal differs	  F [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 SQLite	values	list decimal differs	  refused DialectCapability [refused]: reads-element

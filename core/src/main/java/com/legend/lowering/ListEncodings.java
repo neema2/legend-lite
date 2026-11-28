@@ -111,17 +111,6 @@ final class ListEncodings {
             return new SqlExpr.NullLit();
         }
         SqlExpr mSrc = lw.scalar(m.source(), columns);
-        // A FUNCTION IS NOT APPLIED TO AN EMPTY SLOT (step 6B, slice 5): a list built by a map whose function may
-        // answer nothing holds a NULL slot for each element it answered nothing for, which is no element of the Pure
-        // list -- so a map OVER such a list reads it with those slots dropped. Until then
-        // [1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7) answered [7, 7]. Only where the query's text shows the
-        // source builds such slots: any other list is read as it is, and no statement that has no such source
-        // grows (compacting every mapped list where it is built added a filter to statements that never read the
-        // slots: the SQL size pins, the slice's first round).
-        if (CollectionLanes.buildsEmptySlots(m.source()) && !(mSrc instanceof SqlExpr.CompactList)
-                && !(mSrc instanceof SqlExpr.TaggedList)) {
-            mSrc = new SqlExpr.CompactList(mSrc);
-        }
         // requireBounded: a VAR stamp surviving to lowering stays LOUD
         // (the Lowerer.isMany contract this call replaced)
         boolean mToOne = !mult.requireBounded("lowering").isMany();

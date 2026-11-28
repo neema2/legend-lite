@@ -72,7 +72,7 @@ value is therefore not asked of the functions matrix, whose answers for an empty
 | Membership asks `Equalities` for the element's side and the needle's side, as `==` asks for its two: the kinds the text names, the instants of dates, "never equal, both evaluated". `in(v, list)` is `contains(list, v)`; `indexOf` answers the place | `Equalities.member`, `Scalars.containsRule`, `inRule`, the list `indexOf` rule | two `Number` values of two families answered TRUE through `contains` and `indexOf`; a day and a date-time under `Date` TRUE through every function; a date built to the hour against a written date-time failed |
 | A list's kind is named through what keeps or reorders its values (`sort`, `sortBy`, `reverse`, `take`, `drop`, `slice`, `tail`, `init`, the deduplications) | `MixedEncoding.kindThroughUpcasts`, `KEEPS_ITS_VALUES` | `[2, 1]->cast(@Number)->sort()` against Floats: the database's own `=`, TRUE inside a list's function |
 | Two optional enumerations that both hold nothing are equal, as any two empty sides are | `Equalities.emptySidesAsPure` (the enumeration exception removed; it copied legend-engine's SQL, whose door never reaches this rule inside a store query) | no value in a kept value, false in an `if` |
-| A list built by a function that may answer nothing is compacted ONCE where it is built, as a written list with an element that can be empty already is (`MixedEncoding.compacts`) | `ListEncodings.lowerMap` | `[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7)` answered `[7, 7]`; a comparison after a second `map` was false on every database |
+| (taken out again, 2026-11-28: a `map` over a list built with empty slots reads it without them) | was `ListEncodings.lowerMap` | `[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7)` answers `[7, 7]`; the fix adds a list filter to one of core's pinned statements, and a size pin rises only with the user's word (`for-the-user-2026-11-28.md`, C2). The measure keeps the row as a known wrong answer |
 | A year or a day in a list declared the abstract `Date`, beside held date-times, reads as no instant (it equals none) | `SideEqualities.instantOfTextOrNone`, `Equalities.asInstants` | the query failed ("invalid timestamp field format: 2020") where the answer is false |
 | `hasSameElements` of two list values of one compared kind is the "same values" instruction in ANY order over the two values, by the same decisions `==` reads; a database that compares rows refuses by name the case where a side reads the row or element | `Equalities.asSameElements`, `Lowerer.sameElementsOfTwoValues`, `AnsiSqlRenderer.sameValues` | every `hasSameElements` inside an expression was a statement of its own, which a list's function cannot read on DuckDB |
 
@@ -89,3 +89,13 @@ value is therefore not asked of the functions matrix, whose answers for an empty
   literal, so against a computed value it is read by the literal rule; a literal under an upcast to `Any` is
   refused at the call of a function over one type variable where a computed value under the same upcast is
   compared when the query runs.
+
+## The two size rounds (2026-11-28, about 05:10 to 05:25 UTC)
+
+The slice's first Bazel round failed the SQL size pin and the query-capture pin: compacting every mapped list where
+it is built added one list filter to PCT's relation-sort family on every database and to two of core's families.
+Narrowed to "a map over a list that visibly builds empty slots reads it without them", the PCT families and the
+capture pin came back, and one of core's statements still grew by two filters: the fix doing its job on that
+statement. Taken out; the choice is the user's. Also from the round: the guard against JVM-salted set copies (two
+lookup sets, now ordered); a list's emptiness where it stands drops its slots only where the text shows them
+(`CollectionLanes.buildsEmptySlots`, the positive test), never on suspicion.
