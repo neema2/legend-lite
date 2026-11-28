@@ -63,6 +63,11 @@ is a line of a reviewed diff:
 
 The baseline is a guard file: a line that says a comparison got worse moves only with a dated reason in the commit.
 
+**On a server database** (a database lane's run; the pin holds the in-process databases alone): name the databases
+to the launcher, `bazel run //core:equality_measure -- --jvm_flag=-Dmeasure.databases=Postgres --positions <out dir>`
+(Postgres through `tools/postgres/as_unprivileged.sh` where the container runs as root). The lane keeps each commit's
+`positions-kinds.tsv` and compares it with the last.
+
 **Two probes** over the matrix's model (`positions-model.txt`), per database: `--sql '<body>'` prints the product's
 statement for a query; `--assert-sql '<body>'` prints the statements a test body sends under the database judge.
 

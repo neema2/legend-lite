@@ -49,9 +49,19 @@ import java.util.regex.Pattern;
  */
 public final class EqualityMeasure {
 
-    /** The databases measured: the test backends' in-process ones, in their order (the first takes the census). */
-    private static final List<DatabaseType> DATABASES = TestBackends.inProcess().stream()
-            .map(com.legend.testbackend.TestBackend::type).toList();
+    /** The databases measured: the test backends' in-process ones, in their order (the first takes the census); or
+     *  those {@code -Dmeasure.databases} names, comma-separated (a database lane's: {@code Postgres}, ...), whose
+     *  result the lane keeps -- the pin holds the in-process ones alone. */
+    private static final List<DatabaseType> DATABASES = databases();
+
+    private static List<DatabaseType> databases() {
+        String named = System.getProperty("measure.databases");
+        if (named == null) {
+            return TestBackends.inProcess().stream().map(com.legend.testbackend.TestBackend::type).toList();
+        }
+        return java.util.Arrays.stream(named.split(",")).map(n -> DatabaseType.valueOf(n.strip())).toList();
+    }
+
     private static final String NAMES = String.join("|", DATABASES.stream().map(DatabaseType::name).toList());
     private static final List<JudgeMode> JUDGES = List.of(JudgeMode.HOST, JudgeMode.DATABASE);
     private static final Pattern RUNTIME = Pattern.compile("(?m)^\\s*Runtime\\s+([\\w:]+)");
