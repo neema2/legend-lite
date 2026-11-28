@@ -427,12 +427,17 @@ public final class EqualityMeasure {
         out.add(new Sides("day computed", "T", "%2020-01-01->adjust(1, DurationUnit.DAYS)", "%2020-01-02"));
         // a type known only when the query runs
         out.add(new Sides("Number same", "T", "1->cast(@Number)", "1->cast(@Number)"));
-        out.add(new Sides("Number int and float", "F;generic=R", "1->cast(@Number)", "1.0->cast(@Number)"));
+        // (in a function over one type variable too: the query's own upcast says "compared by the type it holds",
+        // so the call gives the function two values of ONE declared type and the answer is false when the query
+        // runs, as where the two are written -- the user's ruling of 2026-11-28 on a literal the query upcasts,
+        // "false against an Integer wherever it is written". Until then the upcast was folded off the literal
+        // before the call was checked, and the call was the compile error two bare literals are)
+        out.add(new Sides("Number int and float", "F", "1->cast(@Number)", "1.0->cast(@Number)"));
         out.add(new Sides("Number int and decimal", "T", "1->cast(@Number)", "1D->cast(@Number)"));
         out.add(new Sides("Any same", "T", "1->cast(@Any)", "1->cast(@Any)"));
         out.add(new Sides("Any int and string", "F;generic=R", "1->cast(@Any)", "'1'->cast(@Any)"));
         out.add(new Sides("Any day and date-time", "F;generic=R", "%2020-01-01->cast(@Any)", "%2020-01-01T00:00:00->cast(@Any)"));
-        out.add(new Sides("Date day and date-time", "F;generic=R", "%2020-01-01->cast(@Date)", "%2020-01-01T00:00:00->cast(@Date)"));
+        out.add(new Sides("Date day and date-time", "F", "%2020-01-01->cast(@Date)", "%2020-01-01T00:00:00->cast(@Date)"));
         out.add(new Sides("max of a mixed list", "T", "[1, 2.0]->max()", "2.0"));
         // (every comparison above is of two SINGLE values: the ones the other comparing functions are asked,
         // functionPositions)

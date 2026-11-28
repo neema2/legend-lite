@@ -72,3 +72,17 @@ characters in a statement, for a fix of a wrong answer, each rise listed to the 
 - The same round, a slice 5 defect found and fixed before anything was pushed: a membership written in a
   function's body with a whole-number list, called with a Float literal (`f(1.0)`, body `$v->in([0, 1])`),
   answered false (three tests: `LiteralRuleAnswersTest`, `RunTimeComparisonTest`, `UpstreamTiesTest`).
+
+## F. After the morning's rulings (2026-11-28, about 08:15 UTC)
+
+- **A known gap left by the `map` fix:** a `map` over ONE optional value is guarded wherever the query's own rows
+  are read, but not inside a nested filter's own scope or an association's join condition (those scopes carry no
+  `isNotEmpty` to build the guard with). There the function is applied as before. Its own small change; no test
+  reaches it today as far as the round shows.
+- **A literal the query upcasts, inside a function over one type variable** (`t::sameT(1->cast(@Number),
+  1.0->cast(@Number))`): false when the query runs, as where the two are written. It was a compile error (the upcast
+  was folded off before the call was checked). The same pair under an upcast to `Any` is still refused at the call:
+  point B4 above, still to rule; the author's recommendation is "compared when the query runs" for both.
+- **Slice 7 (the doors)**: its half page is `slice-7-half-page.md`; a guard pins the lowering's three kinds of
+  door reads for a comparison (6, 1, 22) so they can only shrink. The choice put to the user: close 6B today
+  without it and build it next, or build it now and close a day later.

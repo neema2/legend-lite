@@ -1506,12 +1506,19 @@ final class Substitution {
             return applied;
         }
         if (holdsAValue == null) {
-            throw new IllegalStateException("resolver bug: a map over a value that may hold nothing needs isNotEmpty,"
-                    + " which this substitution was given no callee for");
+            // (a scope built with no callees -- a nested filter's own, an association's join condition: their
+            // registries carry none, and a missing isNotEmpty is how other rewrites here know to stand aside
+            // (strictReadHoist). The application is as it was before this fix there: a KNOWN GAP, recorded in
+            // docs/records/edition-homework/step-6b/for-the-user-2026-11-28.md, not a crash on a query that
+            // answered -- the independent review of 2026-11-28, finding 1)
+            return applied;
         }
+        // (the application may answer nothing now, whatever its own count says)
         com.legend.compiler.element.type.Multiplicity answered = applied.info().multiplicity()
-                instanceof com.legend.compiler.element.type.Multiplicity.Bounded b && b.upper() != null && b.upper() == 1
-                ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE : applied.info().multiplicity();
+                instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                ? (b.upper() != null && b.upper() == 1 ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE
+                        : new com.legend.compiler.element.type.Multiplicity.Bounded(0, b.upper()))
+                : applied.info().multiplicity();
         return new com.legend.compiler.spec.typed.TypedIf(new TypedNativeCall(holdsAValue, List.of(m.source()),
                 com.legend.compiler.element.type.ExprType.one(Type.Primitive.BOOLEAN)), applied,
                 java.util.Optional.empty(), new com.legend.compiler.element.type.ExprType(applied.info().type(),

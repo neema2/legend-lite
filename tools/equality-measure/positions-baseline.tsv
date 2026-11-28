@@ -39,12 +39,12 @@ database	matrix	comparison	what
 *	values	built to the hour and literal	expected T: date(2015, 4, 16, 14) == %2015-04-16T14:00:00
 *	values	day computed	expected T: %2020-01-01->adjust(1, DurationUnit.DAYS) == %2020-01-02
 *	values	Number same	expected T: 1->cast(@Number) == 1->cast(@Number)
-*	values	Number int and float	expected F;generic=R: 1->cast(@Number) == 1.0->cast(@Number)
+*	values	Number int and float	expected F: 1->cast(@Number) == 1.0->cast(@Number)
 *	values	Number int and decimal	expected T: 1->cast(@Number) == 1D->cast(@Number)
 *	values	Any same	expected T: 1->cast(@Any) == 1->cast(@Any)
 *	values	Any int and string	expected F;generic=R: 1->cast(@Any) == '1'->cast(@Any)
 *	values	Any day and date-time	expected F;generic=R: %2020-01-01->cast(@Any) == %2020-01-01T00:00:00->cast(@Any)
-*	values	Date day and date-time	expected F;generic=R: %2020-01-01->cast(@Date) == %2020-01-01T00:00:00->cast(@Date)
+*	values	Date day and date-time	expected F: %2020-01-01->cast(@Date) == %2020-01-01T00:00:00->cast(@Date)
 *	values	max of a mixed list	expected T: [1, 2.0]->max() == 2.0
 *	values	Number value from a sorted list, and a Float	expected F: [2, 1]->cast(@Number)->sort()->at(0) == [1.0, 2.0]->cast(@Number)->sort()->at(0)
 *	values	Number value from a sorted list, and an upcast Float literal	expected ?: [2, 1]->cast(@Number)->sort()->at(0) == 1.0->cast(@Number)
@@ -148,9 +148,6 @@ database	matrix	comparison	what
 DuckDB	values	max of a mixed list	ANSWERED ONLY IN SOME PLACES
 DuckDB	values	max of a mixed list	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 DuckDB	values	max of a mixed list	  refused DialectCapability [refused]: reads-element
-DuckDB	values	Number value from a sorted list, and an upcast Float literal	CONTRADICTS
-DuckDB	values	Number value from a sorted list, and an upcast Float literal	  F [right]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
-DuckDB	values	Number value from a sorted list, and an upcast Float literal	  T [right]: lets
 DuckDB	values	computed Float and whole literal	ANSWERED ONLY IN SOME PLACES
 DuckDB	values	computed Float and whole literal	  T [right]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 DuckDB	values	computed Float and whole literal	  refused ModelException [refused]: lets, reads-element
@@ -181,24 +178,12 @@ DuckDB	values	a year through a filter	  refused DialectCapability [refused]: kep
 DuckDB	values	lists inside lists, Integer and Decimal	ANSWERED ONLY IN SOME PLACES
 DuckDB	values	lists inside lists, Integer and Decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
 DuckDB	values	lists inside lists, Integer and Decimal	  unjudged [refused]: assertEquals (database)
-DuckDB	values	an empty slot through a second map	FAILS SOMEWHERE
-DuckDB	values	an empty slot through a second map	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-DuckDB	values	an empty slot through a second map	  error IllegalStateException [failed]: assertEquals (host)
 DuckDB	values	membership past a take	ANSWERED ONLY IN SOME PLACES
 DuckDB	values	membership past a take	  T [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 DuckDB	values	membership past a take	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll, reads-element
 DuckDB	values	Date lists built and written	ANSWERED ONLY IN SOME PLACES
 DuckDB	values	Date lists built and written	  T [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 DuckDB	values	Date lists built and written	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
-DuckDB	values	list with an empty slot	FAILS SOMEWHERE
-DuckDB	values	list with an empty slot	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-DuckDB	values	list with an empty slot	  error IllegalStateException [failed]: assertEquals (host)
-DuckDB	values	list of empty slots and written empty	FAILS SOMEWHERE
-DuckDB	values	list of empty slots and written empty	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-DuckDB	values	list of empty slots and written empty	  error SizeRefusal [failed]: assertEquals (host)
-DuckDB	values	boolean list with an empty slot	FAILS SOMEWHERE
-DuckDB	values	boolean list with an empty slot	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-DuckDB	values	boolean list with an empty slot	  error IllegalStateException [failed]: assertEquals (host)
 DuckDB	values	mixed list computed	ANSWERED ONLY IN SOME PLACES
 DuckDB	values	mixed list computed	  T [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 DuckDB	values	mixed list computed	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
@@ -359,9 +344,6 @@ SQLite	values	date-time two written precisions	  T [right]: assertEquals (host),
 SQLite	values	max of a mixed list	ANSWERED ONLY IN SOME PLACES
 SQLite	values	max of a mixed list	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 SQLite	values	max of a mixed list	  refused DialectCapability [refused]: reads-element
-SQLite	values	Number value from a sorted list, and an upcast Float literal	CONTRADICTS
-SQLite	values	Number value from a sorted list, and an upcast Float literal	  F [right]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
-SQLite	values	Number value from a sorted list, and an upcast Float literal	  T [right]: lets
 SQLite	values	raising single value, two families	A WRONG ANSWER SOMEWHERE
 SQLite	values	raising single value, two families	  error DataError [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 SQLite	values	raising single value, two families	  F [wrong]: reads-element
@@ -398,24 +380,12 @@ SQLite	values	built to the hour against a held list	  T [right]: reads-element
 SQLite	values	lists inside lists, Integer and Decimal	ANSWERED ONLY IN SOME PLACES
 SQLite	values	lists inside lists, Integer and Decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
 SQLite	values	lists inside lists, Integer and Decimal	  unjudged [refused]: assertEquals (database)
-SQLite	values	an empty slot through a second map	FAILS SOMEWHERE
-SQLite	values	an empty slot through a second map	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-SQLite	values	an empty slot through a second map	  error IllegalStateException [failed]: assertEquals (host)
 SQLite	values	list decimal differs	ANSWERED ONLY IN SOME PLACES
 SQLite	values	list decimal differs	  F [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 SQLite	values	list decimal differs	  refused DialectCapability [refused]: reads-element
 SQLite	values	Date lists built and written	ANSWERED ONLY IN SOME PLACES
 SQLite	values	Date lists built and written	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 SQLite	values	Date lists built and written	  T [right]: reads-element
-SQLite	values	list with an empty slot	FAILS SOMEWHERE
-SQLite	values	list with an empty slot	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-SQLite	values	list with an empty slot	  error IllegalStateException [failed]: assertEquals (host)
-SQLite	values	list of empty slots and written empty	FAILS SOMEWHERE
-SQLite	values	list of empty slots and written empty	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-SQLite	values	list of empty slots and written empty	  error SizeRefusal [failed]: assertEquals (host)
-SQLite	values	boolean list with an empty slot	FAILS SOMEWHERE
-SQLite	values	boolean list with an empty slot	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
-SQLite	values	boolean list with an empty slot	  error IllegalStateException [failed]: assertEquals (host)
 SQLite	values	optional one and value	CONTRADICTS
 SQLite	values	optional one and value	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 SQLite	values	optional one and value	  F [wrong]: list-filter
@@ -490,12 +460,12 @@ SQLite	values	tables a column's name differs	  refused TypeInferenceException [r
 *	functions	built to the hour and literal	expected T: date(2015, 4, 16, 14) == %2015-04-16T14:00:00
 *	functions	day computed	expected T: %2020-01-01->adjust(1, DurationUnit.DAYS) == %2020-01-02
 *	functions	Number same	expected T: 1->cast(@Number) == 1->cast(@Number)
-*	functions	Number int and float	expected F;generic=R: 1->cast(@Number) == 1.0->cast(@Number)
+*	functions	Number int and float	expected F: 1->cast(@Number) == 1.0->cast(@Number)
 *	functions	Number int and decimal	expected T: 1->cast(@Number) == 1D->cast(@Number)
 *	functions	Any same	expected T: 1->cast(@Any) == 1->cast(@Any)
 *	functions	Any int and string	expected F;generic=R: 1->cast(@Any) == '1'->cast(@Any)
 *	functions	Any day and date-time	expected F;generic=R: %2020-01-01->cast(@Any) == %2020-01-01T00:00:00->cast(@Any)
-*	functions	Date day and date-time	expected F;generic=R: %2020-01-01->cast(@Date) == %2020-01-01T00:00:00->cast(@Date)
+*	functions	Date day and date-time	expected F: %2020-01-01->cast(@Date) == %2020-01-01T00:00:00->cast(@Date)
 *	functions	max of a mixed list	expected T: [1, 2.0]->max() == 2.0
 *	functions	Number value from a sorted list, and a Float	expected F: [2, 1]->cast(@Number)->sort()->at(0) == [1.0, 2.0]->cast(@Number)->sort()->at(0)
 *	functions	Number value from a sorted list, and an upcast Float literal	expected ?: [2, 1]->cast(@Number)->sort()->at(0) == 1.0->cast(@Number)
@@ -519,9 +489,6 @@ SQLite	values	tables a column's name differs	  refused TypeInferenceException [r
 DuckDB	functions	day computed	ANSWERED ONLY IN SOME PLACES
 DuckDB	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 DuckDB	functions	day computed	  unjudged [refused]: assertContains (database)
-DuckDB	functions	Number same	ANSWERED ONLY IN SOME PLACES
-DuckDB	functions	Number same	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (database)
-DuckDB	functions	Number same	  refused NotImplementedException [refused]: assertContains (host)
 DuckDB	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
 DuckDB	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 DuckDB	functions	Number int and float	  unjudged [refused]: assertContains (database)
@@ -548,9 +515,8 @@ DuckDB	functions	max of a mixed list	  T [right]: assertContains (host), assertC
 DuckDB	functions	Number value from a sorted list, and a Float	ANSWERED ONLY IN SOME PLACES
 DuckDB	functions	Number value from a sorted list, and a Float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 DuckDB	functions	Number value from a sorted list, and a Float	  unjudged [refused]: assertContains (database)
-DuckDB	functions	Number value from a sorted list, and an upcast Float literal	CONTRADICTS
-DuckDB	functions	Number value from a sorted list, and an upcast Float literal	  T [right]: in, in-of-two, contains, not-contains, indexOf, in-inside-a-list-function
-DuckDB	functions	Number value from a sorted list, and an upcast Float literal	  F [right]: contains-computed, assertContains (host)
+DuckDB	functions	Number value from a sorted list, and an upcast Float literal	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	Number value from a sorted list, and an upcast Float literal	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 DuckDB	functions	Number value from a sorted list, and an upcast Float literal	  unjudged [refused]: assertContains (database)
 DuckDB	functions	raising single value, two families	FAILS SOMEWHERE
 DuckDB	functions	raising single value, two families	  error DataError [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
@@ -593,9 +559,6 @@ H2	functions	built to the hour and literal	  refused DialectCapability [refused]
 H2	functions	day computed	ANSWERED ONLY IN SOME PLACES
 H2	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, assertContains (host)
 H2	functions	day computed	  unjudged [refused]: assertContains (database)
-H2	functions	Number same	ANSWERED ONLY IN SOME PLACES
-H2	functions	Number same	  T [right]: in, in-of-two, contains, not-contains, assertContains (database)
-H2	functions	Number same	  refused NotImplementedException [refused]: assertContains (host)
 H2	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
 H2	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, assertContains (host)
 H2	functions	Number int and float	  unjudged [refused]: assertContains (database)
@@ -663,9 +626,6 @@ SQLite	functions	built to the hour and literal	  refused DialectCapability [refu
 SQLite	functions	day computed	ANSWERED ONLY IN SOME PLACES
 SQLite	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 SQLite	functions	day computed	  unjudged [refused]: assertContains (database)
-SQLite	functions	Number same	ANSWERED ONLY IN SOME PLACES
-SQLite	functions	Number same	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (database)
-SQLite	functions	Number same	  refused NotImplementedException [refused]: assertContains (host)
 SQLite	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
 SQLite	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 SQLite	functions	Number int and float	  unjudged [refused]: assertContains (database)
@@ -693,9 +653,8 @@ SQLite	functions	max of a mixed list	  T [right]: assertContains (host), assertC
 SQLite	functions	Number value from a sorted list, and a Float	ANSWERED ONLY IN SOME PLACES
 SQLite	functions	Number value from a sorted list, and a Float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 SQLite	functions	Number value from a sorted list, and a Float	  unjudged [refused]: assertContains (database)
-SQLite	functions	Number value from a sorted list, and an upcast Float literal	CONTRADICTS
-SQLite	functions	Number value from a sorted list, and an upcast Float literal	  T [right]: in, in-of-two, contains, not-contains, indexOf, in-inside-a-list-function
-SQLite	functions	Number value from a sorted list, and an upcast Float literal	  F [right]: contains-computed, assertContains (host)
+SQLite	functions	Number value from a sorted list, and an upcast Float literal	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	Number value from a sorted list, and an upcast Float literal	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 SQLite	functions	Number value from a sorted list, and an upcast Float literal	  unjudged [refused]: assertContains (database)
 SQLite	functions	raising single value, two families	FAILS SOMEWHERE
 SQLite	functions	raising single value, two families	  error DataError [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
@@ -745,12 +704,3 @@ SQLite	functions	38-digit Decimals differ	  error DataError [failed]: assertCont
 *	store	column and the empty list	expected 3,5: $r.i == []
 *	store	computed column value and literal	expected 1,2,4: $r.i->map(x | $x + 1) == 2
 *	store	conditional number and integer column	expected 1,2,4: if($r.id > 0, |1, |2.5) == $r.i
-DuckDB	store	computed column value and literal	FAILS SOMEWHERE
-DuckDB	store	computed column value and literal	  1,2,4 [right]: filter, filter-not, filter-not-equal, filter-and, filter-if, filter-function-any, value-not, value-if
-DuckDB	store	computed column value and literal	  other answer [failed]: value
-H2	store	computed column value and literal	FAILS SOMEWHERE
-H2	store	computed column value and literal	  1,2,4 [right]: filter, filter-not, filter-not-equal, filter-and, filter-if, filter-function-any, value-not, value-if
-H2	store	computed column value and literal	  other answer [failed]: value
-SQLite	store	computed column value and literal	FAILS SOMEWHERE
-SQLite	store	computed column value and literal	  1,2,4 [right]: filter, filter-not, filter-not-equal, filter-and, filter-if, filter-function-any, value-not, value-if
-SQLite	store	computed column value and literal	  other answer [failed]: value

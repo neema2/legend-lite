@@ -1348,8 +1348,9 @@ public class H2 extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
-        if (c.target() instanceof com.legend.sql.SqlType.Array && c.value() instanceof SqlExpr.ArrayLit) {
-            // a written list given its element type (the empty list of a type): H2 carries a list as JSON, which has
+        if (c.target() instanceof com.legend.sql.SqlType.Array && c.value() instanceof SqlExpr.ArrayLit empty
+                && empty.elements().isEmpty()) {
+            // the EMPTY list given its element type: H2 carries a list as JSON, which has
             // no element type to cast to -- the list as it is written (as listLength reads an Array-typed cast).
             // Step 6B, slice 6: CAST(JSON_ARRAY() AS BIGINT[]) was a syntax error
             return writer.expr(c.value(), 0);
