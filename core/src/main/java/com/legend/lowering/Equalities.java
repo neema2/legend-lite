@@ -663,8 +663,10 @@ final class Equalities {
      *  holds as a TIMESTAMP (or a list of them), each read as its instant, in the order given; null where the sides
      *  are no such pair. One value against a list is the list of that value. The
      *  list forms only where {@code lists} (the product's own rule), two lists of texts among them where both sides
-     *  are declared DateTime. Two SINGLE texts are not read here: their written precisions are compared by the rule
-     *  above this call. */
+     *  are declared DateTime; and, under that rule, two SINGLE texts both declared DateTime, by their instants (a
+     *  year or a year-month, typed the abstract Date, is compared by the rule above this call). An instant finer
+     *  than the database's TIMESTAMP holds is refused by name where it is read ({@code instantOfText}'s cast), as in
+     *  every arm here: two such texts, the same to the letter, were "equal" as texts before the arm read them. */
     private static @com.legend.base.Nullable List<SqlExpr> asInstants(TypedNativeCall n, List<SqlExpr> args,
             boolean lists) {
         SqlExpr l = args.get(0);

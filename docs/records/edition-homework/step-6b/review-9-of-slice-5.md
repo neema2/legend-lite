@@ -100,3 +100,19 @@ Its findings, and what was done:
 4. **(low) A list of date-times held zoned goes to the planner's statement** (the value form reads DATE and
    TIMESTAMP alone, as the planner's own test for `==` does). *Left: the same line as `==`'s.*
 5. A comment that said a list's deduplication is never a call (it is), and an indentation. *Corrected.*
+
+## The audit of the last arms (a third Opus reviewer, read-only, `4d73d7746..6f33e9206`; about 04:55 UTC)
+
+No correctness defect in the two arms (two single date-time texts by their instants; a built date-time among
+built ones). It traced: no arm shadowed (a year or year-month is typed the abstract `Date` and answered before);
+nothing at a door; an empty side stays empty through the reading; the whole-sides code reads the same pair by
+instants too, so an assert and `==` now agree.
+
+1. **(medium) Recorded, not changed:** a date-time text with a digit past the microsecond
+   (`%2020-01-01T10:00:00.1234567->adjust(1, DAYS)`) is refused by name where it is read as an instant (the
+   database's TIMESTAMP does not hold it). Two such texts, the same to the letter, compared equal as texts before
+   the arm; now the comparison raises that refusal, as a text beside a held date-time and two lists of texts already
+   did, and as the assert of the two does.
+2. (low, a suspicion) `date(2020)->cast(@DateTime)` compared with a date-time now fails at the instant's cast where
+   the texts were compared (false); Pure fails that cast.
+3. A stale sentence in `asInstants`' javadoc. *Corrected.*

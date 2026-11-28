@@ -39,3 +39,14 @@ PCT runs at legend-pure's door: if a PCT test's answer moves for A1 to A3, it is
 - Slice 7 (a door's comparison as its own function chosen by the type-checker) needs the edition package
   (`compiler.spec.edition`), which does not exist yet: the edition program's step.
 - A `let` read twice is computed twice: the lean-SQL follow-up's first slice, as planned.
+
+## E. Passing to refusing, counted (the user's question of 2026-11-28, about 04:57 UTC)
+
+- Slice 1: none (CI green, lanes with no difference).
+- Slice 2: one, deliberate: the gs-quant case `vol_swap_volatility` default `@BTCUSD` (section D).
+- Slice 3: none in the local round or in the lanes back so far; comparisons that FAILED when the query ran inside
+  a DuckDB list's function (two tables, two maps, pairs) are refused by name now.
+- Slice 3 to slice 5, the measure: of 5,701 results asked in both runs, none went from answered to refused; 8 went
+  from refused to answered. Slice 6's measure is slice 5's.
+- Known, slice 5, by reading and with no test on it: two date-times with digits past the microsecond, the same to
+  the letter, compared equal as texts and now raise the named refusal that reading them as instants raises.
