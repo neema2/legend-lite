@@ -259,3 +259,42 @@ So a slice that passes every lane can still be wrong in a place no suite asks: t
    the hour and minute date at the doors (before slice 7).
 2. Whether binding every `let` once is in B or the follow-up (recommended: the follow-up, beyond a `let` a
    comparison's two sides read).
+
+## 8. Status log (newest last; a session resuming reads this first)
+
+**2026-11-28, 00:10 UTC.** Scratch branch `claude/step-6-numbers`.
+
+- **Slice 0: done** except the CI test that pins the counts (below). The measure: `tools/equality-measure`
+  (`positions.py`, two model files, `positions-baseline.tsv`); reviewed (`review-2-of-the-measure.md`).
+- **Slice 1: built, reviewed (`review-3-of-slice-1.md`), corrected, measured** (`slice-1-half-page.md`). Its last
+  product commit is `cbb7ac779`; `c7e033094` adds its record and baseline. NOT yet pushed to the pull request.
+  To land it: (1) CI's core and checks lanes here on `cbb7ac779` (running since 23:47 UTC: `scratchpad/b106.out`;
+  the first run, before the review's fixes, failed only the 13 Postgres-backed tests a root container cannot start:
+  rerun those through `tools/postgres/as_unprivileged.sh`); (2) the other CI lanes on the same commit
+  (`tools/ci/pre-push-round.sh corpus_duckdb corpus_h2 pct_duckdb pct_h2 pct_channel_b parser_equivalence stress`,
+  in a worker session); (3) `tools/ci/rerecord.sh` and every changed line read; (4) one push of the landing commit to
+  `claude/modest-galileo-h6swr4`; (5) CI green, then the program branch moves.
+- **Ahead of slice 3, on top of slice 1 (commits after `c7e033094`; measured by the no-Bazel loop only, not built by
+  Bazel, not reviewed):** lists of Booleans, Floats, days and date-times and a list against `[]` join the instruction
+  (`SideEqualities.comparedAsValues`); two values typed at run time held in two SQL types are never equal
+  (`Equalities.heldApart`); a list of dates carried as texts against a written year or a held date-time
+  (`Equalities.equal`). The measure after them (106 comparisons): DuckDB 86 right, 2 partly, 15 fail, 2 wrong, 1
+  contradicts; H2 84 right, 10 refused, 3 partly, 7 fail, 1 wrong, 1 contradicts. These commits must NOT ride with
+  slice 1's landing: they land with slice 3, after its own review and lanes.
+- **The no-Bazel loop** (`scratchpad/fast.sh`; if the scratchpad is gone: compile the files that differ from the
+  build tree's commit with the toolchain's `javac` against `bazel-bin/core/*.jar`, then run
+  `bazel-bin/core/equality_measure --main_advice_classpath=<classes> --positions <dir>` with
+  `BUILD_WORKSPACE_DIRECTORY` set to the edit tree, then `positions.py`): about 90 seconds a turn, usable while Bazel
+  runs. `--sql '<body>'` prints one query's SQL per database the same way.
+- **Next in the fast loop (DuckDB's remaining 20):** the lambda places for kinds the planner still plans as a
+  statement -- lists typed `Number` or `Any`, mixed lists, lists of pairs (3), maps (3), tables (4). The lowering asks
+  the planner first (`Lowerer.scalarInner`, the `wholeSides` arm) and the value path second; the instruction over
+  values should be tried first wherever both sides have a value (by what the SQL carries), the planner's statement
+  only for a side that has none (a table). Then: `empty and value` and `nested lists` where a side reads the
+  element; two never-equal columns inside a function of `Any` (refused as "not supported yet"); a computed column
+  value kept as a value answering NULL; `t::sameT` given an enumeration and a String.
+- **Owed:** the CI test that pins the counts (port `positions.py`'s classification to Java so the tool and the test
+  share it; the model files and baseline as test resources); the measure on a lane's database (Postgres first); the
+  both-ways test on DuckDB; the two AGENTS.md sentences for the rulings the user confirmed ("I think both rulings are
+  correct as is": a pair, a list and a map are values compared by what they hold; for numbers typed at run time the
+  same type means the same family), which need the user's yes to the wording.
