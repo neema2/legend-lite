@@ -104,6 +104,46 @@ public class Postgres extends AnsiSqlRenderer {
         return null;   // none the database must have that a session statement cannot set
     }
 
+    /**
+     * {@link SqlFn#SAME_IN_ORDER} over two list VALUES alone (a side reads the row or the element it stands in, so
+     * no rows of its own ride): this database compares two arrays only of ONE type -- {@code bigint[] = numeric[]},
+     * {@code integer[] = bigint[]} and {@code text[] = varchar[]} have no operator (measured on Postgres 16,
+     * 2026-11-28, docs/records/edition-homework/step-6b/postgres-measure-2026-11-28.md: every comparison of two
+     * lists inside a list's function failed when the query ran) -- and the type an array expression takes here is
+     * the database's own choice (a written {@code ARRAY[1]} is {@code integer[]}, a computed one {@code bigint[]},
+     * a concatenation {@code text[]}). So two lists of exact numbers are both read as {@code NUMERIC[]}, two of
+     * Floats as {@code DOUBLE PRECISION[]}, two of texts as {@code TEXT[]}, and compared null-safe (two arrays of
+     * the same elements in the same order; an element that is NULL is the same as one that is NULL, as on a
+     * database that compares lists). Any other pair, and the form with the sides' rows, as the base writes it.
+     */
+    private SqlWriter sameArrays(SqlWriter writer, SqlExpr.Call c) {
+        String as = c.args().size() == 2 ? oneArrayType(c.args().get(0), c.args().get(1)) : null;
+        if (as == null) {
+            return nullSafe(writer, c);
+        }
+        return writer.append("(CAST(").expr(c.args().get(0), 0).append(" AS ").append(as)
+                .append(") IS NOT DISTINCT FROM CAST(").expr(c.args().get(1), 0).append(" AS ").append(as).append("))");
+    }
+
+    /** The one array type two list values of one family are both read as ({@link #sameArrays}); null where the two
+     *  are no lists of one such family. */
+    private static @com.legend.base.Nullable String oneArrayType(SqlExpr left, SqlExpr right) {
+        String l = arrayFamily(left);
+        return l != null && l.equals(arrayFamily(right)) ? l : null;
+    }
+
+    private static @com.legend.base.Nullable String arrayFamily(SqlExpr list) {
+        if (!(list.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array a)) {
+            return null;
+        }
+        SqlType e = a.element();
+        if (e instanceof SqlType.Decimal || e == SqlType.Scalar.BIGINT || e == SqlType.Scalar.INTEGER
+                || e == SqlType.Scalar.HUGEINT) {
+            return "NUMERIC[]";
+        }
+        return e == SqlType.Scalar.DOUBLE ? "DOUBLE PRECISION[]" : e == SqlType.Scalar.VARCHAR ? "TEXT[]" : null;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -804,7 +844,8 @@ public class Postgres extends AnsiSqlRenderer {
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL, NULL_SAFE_EQUAL, SAME_IN_ANY_ORDER -> nullSafe(writer, c);
+            case SAME_IN_ORDER -> sameArrays(writer, c);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
