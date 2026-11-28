@@ -36,12 +36,17 @@ plain values is the product's comparison, its SQL shorter than before.
 ## The order
 
 1. **Land slices 5 and 6.**
-2. **Slice 7: the doors, for comparisons.** Before part 2, because part 2 rewrites the code that threads the door
-   through. Done: the three pins at zero, an architecture rule that forbids the read, every door's recorded SQL and
-   answers byte for byte as before.
-3. **Part 2: class instances, tables, mixed lists.** Done: the judge's old member and `SideEqualities.values`
+2. **Part 2: class instances and tables first, then mixed lists** (order changed the same day, the user: "I feel
+   like we know how to do those at least but still don't know how exactly to do step7"). Slice 7 is out for
+   research in another account; part 2 does not wait for it. Instances and tables do not touch the door code at
+   all. Mixed lists do pass the "two families or three types" value through, so they are written WITHOUT a new
+   branch on it (`ComparisonDoorReadsRatchetTest` fails on one); slice 7 later changes how a rule is chosen, not
+   what it computes, so the second touch is mechanical. Done: the judge's old member and `SideEqualities.values`
    deleted, the ledger's pins back under where they started, the measure at zero apart from database refusals
    listed by name.
+3. **Slice 7: the doors, for comparisons**, built from the research's plan when it comes back
+   (`edition-homework/step-6b/slice-7-half-page.md`, `slice-7-research-2026-11-28.md`). Done: the three pins at
+   zero, an architecture rule that forbids the read, every door's recorded SQL and answers byte for byte as before.
 4. **Step 8, re-specified first** (the user, 2026-11-28: "step 8 was ill specified and confused - it's supposed to
    take typed answers from lite only and do only final presentation work in java, instead it was building a bunch
    of rerun crap that made no sense, so it's not as decoupled as we thought, it needs all the typed lite work to
