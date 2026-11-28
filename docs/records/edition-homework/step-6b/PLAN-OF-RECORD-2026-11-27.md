@@ -361,3 +361,51 @@ works well we can revisit"; the orchestrator agreed).
   `tools/equality-measure/BUILD.bazel` exporting the two model files and the baseline, and a JUnit test in core's
   lane that runs the matrix in-process and requires the counts to EQUAL the baseline (worse fails; better fails
   too, asking for the pin to be lowered in the same commit). Then bind once (section 2.3).
+
+**2026-11-28, 01:45 UTC.**
+
+- **Slice 1's heavy lanes are back clean** (the heavy session, 01:15 UTC): `//pct:pct_duckdb_lite` 5 of 5 suites and
+  1,249 cases identical on `c77deac20` and `c81297490`; `//pct:pct_channel_b_h2` 440 pass and the 29 ledgered
+  refusals on both, row for row. CI on `c77deac20` was still running at 01:20. **The database lanes were not asked to
+  run slice 1's commit** (a miss against "every database lane, every major change"): they run once, on slice 2's
+  final commit, which holds slice 1's product change and nothing else of the product's Java.
+- **The time-series fix, corrected** (`claude/ts-refusal-fix`, `eec9c872e`, merged into slice 2's branch). The first
+  cut (`048a29f7a`) was wrong twice: it passed the window's maximum (`[0..1]`) to `lines::once` (`[1]`), a compile
+  error that refused all four one-point cases, and its text put the DataCube bundle 76 bytes over the 148,500 pin.
+  Corrected: `->toOne()` on the maximum, and the comment above it shortened so the pin holds with no move (the
+  budget test passes). Regenerated (library text, both adversarial ledgers, the two reports): the one moved case is
+  `vol_swap_volatility default @BTCUSD`, PASS back to REFUSED with D8's own message; the other three one-point
+  cases stay PASS; `//core:ts_gsquant_parity_test`, the oracle's four generated-file tests and the bundle budget
+  pass (6 of 6). No other word of the library has a one-point form (`line_end` is read in this function alone), and
+  the parity ledger, which runs every word over the line with duplicated dates, moved only this case when A landed.
+- **Slice 2 (branch `claude/step-6b-slice-2`, stacked on slice 1; `e2d76a653` when this was written).**
+  - *The pin.* `positions.py` is now `PositionReport.java` (the same report: the Java one over slice 1's run gave
+    the same `positions.md` and counts, 0 lines different). The run writes a third file, `positions-kinds.tsv`: one
+    line per comparison that is not right everywhere, per database, plus the places left out and how many
+    comparisons were asked. `//core:equality_positions_pin_test` (CI's core lane) requires the run to EQUAL
+    `tools/equality-measure/positions-baseline.tsv` line for line -- stronger than the counts first planned, which
+    one comparison getting better could hide another getting worse behind. Built and run: passes in 49 s; fails by
+    name with a baseline line removed. The fresh run on this branch gives slice 1's counts exactly.
+  - *Two probes:* `--sql '<body>'` (the product's statement) and `--assert-sql '<body>'` (what a test body sends
+    under the database judge), per database; `-Dmeasure.databases=Postgres` runs the matrix on a lane's database.
+  - *Bind once, checked by printing the SQL (section 2.3).* On DuckDB a comparison's side is written ONCE in every
+    place probed (a query's answer, under `!`, in an `if`, two computed sides, `contains`, `!=`). An assert's two
+    sides are each bound once already (two named row sets, read by the verdict and by the failure record). Three
+    things are NOT once, none of them the comparison's own writing: (1) **a `let` read twice is written twice**
+    (`let a = <list>; $a == $a`: the list twice) -- the planner splices a value let into each reader (D75,
+    `planner/LetPlanner`: a let is a staged table or a splice); binding it once changes that model for every
+    statement and every database, which does not fit slice 2's cap, so by the plan's own rule (section 2.3) it is
+    the first slice of the lean-SQL follow-up, with the user told; (2) a list operation's own bounds check
+    (`->at(0)`: the list's length, then its element), the same follow-up's; (3) SQLite's reading of a JSON list
+    as rows writes the list three times (the dialect's unnest), low priority by the user's word.
+  - *Found by the assert probe, for slice 6:* an assert of two lists still unpacks each list to rows and packs it
+    again (about 900 characters on DuckDB where the product's `==` is 80): the assert is planned from each side's
+    statement of rows (`SideEqualities.values`), not from the product's instruction over two values. The rules are
+    the same code's; the writing is not. It goes when asserts are planned as the comparison they mean.
+  - *Round and review:* CI's core, checks, parser-equivalence and DataCube lanes on `e2d76a653` here (Bazel's cache
+    re-runs what the change touches; `scratchpad/b111.out`), and an independent review of the slice's diff, both
+    running at 01:45. Then the database lanes on the final commit: PCT's two channels per database (slice 1's
+    product change), the time-series replays on ClickHouse, Postgres and Snowflake (the library's text moved), and
+    the matrix on Postgres (new).
+- **Slice 3, started beside it** (the scratch branch, with slice 2 merged in): its half page is
+  `slice-3-half-page.md`.
