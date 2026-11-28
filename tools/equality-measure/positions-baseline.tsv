@@ -30,6 +30,8 @@ database	matrix	comparison	what
 *	values	day and date-time	expected N: %2020-01-01 == %2020-01-01T00:00:00
 *	values	date-time two written precisions	expected T: %2020-01-01T10:00:00.000 == %2020-01-01T10:00:00
 *	values	date-time hour and minute	expected T: %2020-01-01T10 == %2020-01-01T10:00
+*	values	date-times built to the hour and to the minute	expected T: date(2020, 1, 1, 10) == date(2020, 1, 1, 10, 0)
+*	values	date-times built to the hour, another hour	expected F: date(2020, 1, 1, 10) == date(2020, 1, 1, 11, 0)
 *	values	year same	expected T: %2020 == %2020
 *	values	year and computed year	expected T: %2020 == date(2020)
 *	values	year-month same	expected T: %2020-01 == %2020-01
@@ -479,6 +481,8 @@ SQLite	values	tables a column's name differs	  refused TypeInferenceException [r
 *	functions	day and date-time	expected N: %2020-01-01 == %2020-01-01T00:00:00
 *	functions	date-time two written precisions	expected T: %2020-01-01T10:00:00.000 == %2020-01-01T10:00:00
 *	functions	date-time hour and minute	expected T: %2020-01-01T10 == %2020-01-01T10:00
+*	functions	date-times built to the hour and to the minute	expected T: date(2020, 1, 1, 10) == date(2020, 1, 1, 10, 0)
+*	functions	date-times built to the hour, another hour	expected F: date(2020, 1, 1, 10) == date(2020, 1, 1, 11, 0)
 *	functions	year same	expected T: %2020 == %2020
 *	functions	year and computed year	expected T: %2020 == date(2020)
 *	functions	year-month same	expected T: %2020-01 == %2020-01
@@ -577,6 +581,12 @@ H2	functions	date-time two written precisions	  refused DialectCapability [refus
 H2	functions	date-time hour and minute	ANSWERED ONLY IN SOME PLACES
 H2	functions	date-time hour and minute	  T [right]: in, in-of-two, contains, not-contains
 H2	functions	date-time hour and minute	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+H2	functions	date-times built to the hour and to the minute	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-times built to the hour and to the minute	  T [right]: in, assertContains (host), assertContains (database)
+H2	functions	date-times built to the hour and to the minute	  refused DialectCapability [refused]: in-of-two, contains, not-contains
+H2	functions	date-times built to the hour, another hour	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-times built to the hour, another hour	  F [right]: in, assertContains (host), assertContains (database)
+H2	functions	date-times built to the hour, another hour	  refused DialectCapability [refused]: in-of-two, contains, not-contains
 H2	functions	built to the hour and literal	ANSWERED ONLY IN SOME PLACES
 H2	functions	built to the hour and literal	  T [right]: in
 H2	functions	built to the hour and literal	  refused DialectCapability [refused]: in-of-two, contains, not-contains, assertContains (host), assertContains (database)
