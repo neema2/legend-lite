@@ -456,3 +456,29 @@ works well we can revisit"; the orchestrator agreed).
     the others, 1 failing (the `map` defect, below), none wrong, none contradicting; H2 89 right; SQLite 89.**
   - Found, not equality's, for the user: a `map` over an empty value can answer a value (the store resolver's
     composition; `slice-3-half-page.md`).
+
+**2026-11-28, 02:55 UTC.**
+
+- **Slice 1 has landed:** CI run 46091392535 on `c77deac20` green on every lane ("gates green", 02:30 UTC); the
+  program branch `claude/compat-b3-nufdlk` is at `c77deac20`.
+- **Every database lane has reported on `1a035a242`** (slices 1 and 2): no test's outcome differs from each lane's
+  last round on BigQuery, Databricks, Snowflake, SQLite, MongoDB, MariaDB, MySQL, ClickHouse, Postgres and Trino;
+  the time-series replays, documents and island tests pass on Postgres, ClickHouse and Snowflake.
+- **Slice 2** (`claude/step-6b-slice-2`, `c529b4599`): two more misses found by its last checks and fixed, both
+  build files, no product code: the measure's new package did not declare the repository's guard targets
+  (`guards_package()`), which kept the guards from LOADING; and `tools/ci/pre-push-round.sh` printed failed tests
+  alone, so the first round read as "only the known ones" with ten loading errors in its log -- it prints Bazel's
+  errors now. The census, the guards, the pin, the checks lane and parser equivalence are re-running on `9ed3b1321`
+  (`scratchpad/b115.out`). The local round's other fourteen failures are the targets a root container cannot run
+  (twelve Postgres-backed tests, `is_numeric_probe_test`, DataCube's `verify_app_test`), which CI holds.
+- **Slice 3** (`claude/step-6-numbers`, `25c9d78c9`): a second independent review (`review-5-of-slice-3.md`) found
+  three more blockers in the first fix pass, two of them regressions against the landed code (a promoted SQL type
+  read as a value's kind; two computed lists of date-times carried as texts; sides declared the abstract Date).
+  Fixed, each as a row of the measure (110 comparisons): DuckDB 97 right everywhere, 12 answered in some places and
+  refused by name in the others, 1 failing (the `map` defect), none wrong, none contradicting; H2 91; SQLite 91. A
+  third review, asked one question (which expressions answer differently from the landed code, and is each new
+  answer the rule's), is running. Left open and recorded: a comparison in a user's function is not read by
+  `heldApart` (as on the landed code); `in` and `contains` kept for their call (slice 5); StrictTime; a value read
+  through a `let` whose upcast is gone, against a column.
+- **The measure on a server database:** the value matrix now runs on a named test backend (`-Dmeasure.backends`,
+  the backend declares its own runtime); it rides with slice 3 and the Postgres lane tries it then.
