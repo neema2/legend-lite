@@ -201,8 +201,12 @@ public final class DatabaseJudge {
         if (tp != null && !anyNil && !anyAny && (tp.plainValues() || tp.dates())
                 && (tp.dates() || !literal(re, ra, anyNil, anyAny) || tp.kindsDiffer()
                         || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))
-                && plainValues(eSpec.info().type()) && plainValues(aSpec.info().type())
-                && (!canonicalOrder || !atMostOne(eSpec) && !atMostOne(aSpec))) {
+                && plainValues(eSpec.info().type()) && eSpec.info().type().equals(aSpec.info().type())
+                && (!canonicalOrder || !atMostOne(eSpec) && !atMostOne(aSpec))
+                // (a side declared to hold EXACTLY one value that reads a store may hold none -- a NULL under a [1]
+                // property: the product's == of two such values has no answer there, where the member that compares
+                // the two as lists answers "empty"; the review of slice 6, finding 2)
+                && !exactlyOneFromAStore(eSpec, we) && !exactlyOneFromAStore(aSpec, wa)) {
             TypedSpec expected = eSpec;
             TypedSpec same = canonicalOrder
                     ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, aSpec, specs)
@@ -220,7 +224,8 @@ public final class DatabaseJudge {
                         rows.put(aSpec, a.rows());
                         return com.legend.planner.SidePlanner.overSides(same, values, rows, env.plan());
                     });
-            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typed(compared, wantEqual);
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typed(compared, wantEqual,
+                    true);
             if (typed != null) {
                 return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
                         tp.family(canonicalOrder, name), wantEqual, JudgmentFacts.sideFacts(expected),
@@ -252,6 +257,12 @@ public final class DatabaseJudge {
                 || type == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                 || type == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
                 || type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME;
+    }
+
+    /** Whether {@code side} is declared to hold exactly one value and its plan reads a store. */
+    private static boolean exactlyOneFromAStore(TypedSpec side, BodyDriver.WrappedSide planned) {
+        return side.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() >= 1 && b.upper() != null && b.upper() <= 1 && !planned.storeFree();
     }
 
     /** Whether {@code side} is declared to hold at most one value. */

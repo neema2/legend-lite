@@ -444,7 +444,8 @@ public final class Lowerer {
             // the product's own == of two lists of one compared kind: the one "same values" instruction over the
             // two side values (step 6B, slice 1); a door's rule keeps its own writing
             WholeComparisons planner = wholeComparisons;
-            e = Equalities.asSameValues(call, e, side -> planner == null ? null : planner.sideRows(side));
+            e = Equalities.asSameValues(call, e, side -> planner == null ? null : planner.sideRows(side),
+                    boundSides != null);
         }
         return isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
                 && styled().edition().emptySideIsFalse(call)

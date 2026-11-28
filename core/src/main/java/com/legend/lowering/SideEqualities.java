@@ -174,6 +174,19 @@ public final class SideEqualities {
                 null, List.of(), null, null, List.of(), null, null, List.of(o));
     }
 
+    /** Whether a value of {@code kind} carried as {@code held} is carried as that kind's own SQL type (a whole
+     *  number, a Decimal, a Float, a String, a Boolean, a day as the database's DATE), or, a date-time, as the
+     *  database's TIMESTAMP or its written text: the carriers the product's comparison of two values reads by
+     *  their Pure type alone. */
+    private static boolean heldAsItsKind(Type kind, SqlType held) {
+        if (kind == Type.Primitive.DATE_TIME) {
+            return held == SqlType.Scalar.TIMESTAMP || held == SqlType.Scalar.TEMPORAL_TEXT;
+        }
+        return (kind == Type.Primitive.INTEGER || kind == Type.Primitive.DECIMAL || kind == Type.Primitive.FLOAT
+                || kind == Type.Primitive.STRING || kind == Type.Primitive.BOOLEAN
+                || kind == Type.Primitive.STRICT_DATE) && kind.equals(Type.kindOfSqlType(held));
+    }
+
     /** {@code list}, a side's folded list ({@link #listed}: no list where the side has no row), as a list always:
      *  the empty list of its type where it is none. */
     private static SqlExpr orTheEmptyList(SqlExpr list, SqlQuery listed) {
@@ -211,7 +224,13 @@ public final class SideEqualities {
             SqlQuery aWrapped, Type aKind, boolean aOne, java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
         SqlQuery eRows = valueRows(eWrapped);
         SqlQuery aRows = valueRows(aWrapped);
-        if (eRows == null || aRows == null) {
+        // (each side held as its own kind's SQL type, the two of ONE kind: a Decimal a store read carries as its
+        // text, a JSON-carried value, a day carried as a text, an Integer beside a Decimal are read by the member
+        // that reads them, values -- the product's comparison of two expressions reads their Pure types, and a
+        // carrier that is another type would meet it as that type; the review of slice 6, findings 1, 3, 5 and 7)
+        if (eRows == null || aRows == null || !eKind.equals(aKind)
+                || !heldAsItsKind(eKind, eRows.outputs().get(0).type())
+                || !heldAsItsKind(aKind, aRows.outputs().get(0).type())) {
             return null;
         }
         // (a side of at most one value: its one value read beside its list, by the one read of its rows)

@@ -115,11 +115,21 @@ final class Equalities {
      */
     static SqlExpr asSameValues(TypedNativeCall n, SqlExpr compared,
             java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows) {
+        return asSameValues(n, compared, sideRows, false);
+    }
+
+    /** {@link #asSameValues(TypedNativeCall, SqlExpr, java.util.function.Function)}; {@code boundSides}: the two
+     *  sides are bound once to a statement's columns ({@code Lowerer.overSides}), so their rows ride whatever the
+     *  sides are -- a database that compares rows then reads the bound rows, as an assert's member always did, and
+     *  never the two bound values. */
+    static SqlExpr asSameValues(TypedNativeCall n, SqlExpr compared,
+            java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows,
+            boolean boundSides) {
         if (!(compared instanceof SqlExpr.Call c) || c.fn() != SqlFn.EQUAL || c.args().size() != 2
                 || n.args().size() != 2) {
             return compared;
         }
-        SqlExpr same = sameValues(n, c.args(), sideRows, SqlFn.SAME_IN_ORDER);
+        SqlExpr same = sameValues(n, c.args(), sideRows, SqlFn.SAME_IN_ORDER, boundSides);
         return same == null ? compared : same;
     }
 
@@ -152,7 +162,7 @@ final class Equalities {
                 || !heldAsItsDateKind(n.args().get(1).info().type(), values.get(1))) {
             return null;
         }
-        return sameValues(n, values, sideRows, SqlFn.SAME_IN_ANY_ORDER);
+        return sameValues(n, values, sideRows, SqlFn.SAME_IN_ANY_ORDER, false);
     }
 
     /** Whether the list {@code value} of {@code type} is held as the value form compares that type: days as the
@@ -166,7 +176,7 @@ final class Equalities {
      *  lists of one compared kind ({@link #asSameValues}, {@link #asSameElements}). */
     private static @com.legend.base.Nullable SqlExpr sameValues(TypedNativeCall n, List<SqlExpr> values,
             java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows,
-            SqlFn same) {
+            SqlFn same, boolean boundSides) {
         if (!plainList(values.get(0)) || !plainList(values.get(1))
                 || !(SideEqualities.comparedAsValues(n.args().get(0).info().type(), n.args().get(1).info().type())
                         || heldAsOneKind(n, values))) {
@@ -181,7 +191,7 @@ final class Equalities {
         // (in ANY order the rows always ride: a database that compares rows has no other writing of it -- the review
         // of slice 5, finding 1: without them two written lists of Strings under hasSameElements, which the
         // planner's statement answered until then, were refused on every such database)
-        boolean rows = same == SqlFn.SAME_IN_ANY_ORDER || !written
+        boolean rows = boundSides || same == SqlFn.SAME_IN_ANY_ORDER || !written
                 || SideEqualities.exactNumber(n.args().get(0).info().type());
         // (each side's rows read as its VALUE is compared: a day or a date-time by its instant, a text carried as
         // written parsed, a held one in the database's one form -- SideEqualities.instants, the reading the planner's

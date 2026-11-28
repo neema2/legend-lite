@@ -97,6 +97,12 @@ public final class VerdictSql {
      *  values written where the verdict fails. Null where the sides have no typed comparison. */
     public static @com.legend.base.Nullable TypedRow typed(SideEqualities.@com.legend.base.Nullable Compared compared,
             boolean want) {
+        return typed(compared, want, false);
+    }
+
+    /** {@link #typed(SideEqualities.Compared, boolean)}, its verdict computed once beneath the row ({@code once}). */
+    public static @com.legend.base.Nullable TypedRow typed(SideEqualities.@com.legend.base.Nullable Compared compared,
+            boolean want, boolean once) {
         if (compared == null) {
             return null;
         }
@@ -105,7 +111,7 @@ public final class VerdictSql {
             SideEqualities.Held held = compared.held().get(i);
             values.add(new Valued(HELD.get(i), held.value(), held.type(), held.kind(), held.many()));
         }
-        return typedRow(compared.ctes(), compared.from(), compared.holds(want), values);
+        return typedRow(compared.ctes(), compared.from(), compared.holds(want), values, once);
     }
 
     /** {@code assertContains}'s member over instances of one class ({@link SideEqualities#containsInstances}). */
@@ -571,7 +577,15 @@ public final class VerdictSql {
      * the verdict fails -- one row over {@code from}, the members' CTEs at its head -- and the schema of its columns.
      */
     private static TypedRow typedRow(List<SqlWith.Cte> ctes, SqlSource from, SqlExpr holds, List<Valued> values) {
-        if (comparesSides(holds)) {
+        return typedRow(ctes, from, holds, values, false);
+    }
+
+    /** {@link #typedRow(List, SqlSource, SqlExpr, List)}; {@code once}: the verdict is computed once beneath the
+     *  row whatever it is -- the product's own comparison of two bound sides, which may be more than a column's
+     *  test (two date-times read as instants) and is written three times otherwise (the review of slice 6). */
+    private static TypedRow typedRow(List<SqlWith.Cte> ctes, SqlSource from, SqlExpr holds, List<Valued> values,
+            boolean once) {
+        if (once || comparesSides(holds)) {
             // the comparison node is computed ONCE, beneath the row that writes the values only where it fails (its
             // portable form is a subquery a database would run once per reference)
             List<SqlSelect.Projection> ips = new ArrayList<>();
