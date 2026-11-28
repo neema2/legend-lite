@@ -87,10 +87,44 @@ One body, `let r = execute(...project...sort...)`, a `toCSV` assert, an `assertS
 
 `r09_twoAssertsOneLet` as committed: 1 statement against 4; `r05_countOneLet`: 1 against 2; `r12_classLetManyReaders`:
 1 against 6. So the single statement is the DATABASE judge's. The HOST judge reads one statement a side
-(`testexec/TestRun.hostSides` > `sideRows`); its batch for consecutive single-value sides (`TestRun.hostBatch`,
-`TestPlan.Verdicts.fused`) did not apply to these bodies, and why was not found out. The compatibility doors use the
+(`testexec/TestRun.hostSides` > `sideRows`); its batch (`TestRun.hostBatch`, `TestPlan.Verdicts.fused`) did not apply
+to these bodies: 3.5 says why. The compatibility doors use the
 HOST judge alone (tenet 5 of the six; `TestPlanner.refuseTheDatabaseJudgeInCompatibility`), which is why they send
 several statements whether or not anything is printed.
+
+### 3.5 Why the host judge's batch did not apply (measured and read, later the same day)
+
+The host judge has a batch (`testplan/HostSideBatching`, `lowering/HostSideBatch`): the two sides of ONE plain assert
+read by one statement, never across asserts (its class note: a raise in the statement must be that assert's). A
+temporary line at each place it declines a side, over the ladder's twelve bodies under the HOST judge (never
+committed), printed:
+
+- The three store-free bodies (`r01` to `r03`, literals against literals) are batched: both sides "batchable".
+- **No assert that reads an `execute()` result is batched.** Its literal side is batchable or a constant; the side
+  that reads the result is declined every time: `HostSideBatch.side answered none` for a table's or a cell's read
+  (`r07`, `r08`, `r09`), or `typed=null ... kind=GRAPH` for a read of class instances (`r04`, `r05`, `r10`, `r12`).
+- Read in `HostSideBatch.side`: a side joins a batch only as a single value with no FROM, or where it "reads no
+  stored table" (`typedByItsTree`, the caller's `w.storeFree()`), because a UNION ALL's column takes one type and "a
+  stored table's column is the database's DDL, which the model's type need not be"; a WITH is refused too.
+
+So the batch is for store-free sides by design, and a side that reads a store is always a statement of its own. A
+single-statement host judge is therefore not a matter of widening a condition: it needs a layout that carries sides
+read from stored tables, and the per-assert rule would have to be looked at again.
+
+### 3.6 PCT's query door with its lift off (measured, later the same day)
+
+`PctPlanRoute.execute` with `lifted = null` (a temporary edit, never committed), `bazel run
+//pct:update_edge_contract` (PCT channel A on DuckDB and SQLite, all five suites, and H2's relation suite); the diff
+is `query-door-lift-off-recordings.diff.txt`.
+
+- **One test moves:** `meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent`, on
+  DuckDB and on SQLite, from SUCCESSFUL to FAILED (its answer `0.0` where legend-pure writes `0.000000013421`).
+- Nothing else in any recorded file: every other PCT case at the query door answers the same with the lift off
+  (a date-time literal's text is the lowering's constant; a relation is returned as rows, and upstream's own harness
+  prints it).
+
+So at PCT's query door the lift of a value's print serves one test a database. Not measured: H2's other suites and
+every server and cloud database at the query door.
 
 ## 4. How it should work, by place
 
@@ -154,7 +188,7 @@ door's mark on the side, the plan's data, Java's print and compare stay).
 
 ## 8. Not verified
 
-- Why the host judge's batch did not apply to the measured bodies.
-- PCT's query door with its lift off; every server and cloud database.
+- PCT's query door with its lift off on H2 (beyond its relation suite) and on every server and cloud database; the
+  test-body measurement (3.2) on any server or cloud database.
 - That a printed assert planned as an edge-judged assert moves no recorded answer: nothing of it is built.
 - The censuses beyond what a lexical script sees (helper functions).

@@ -1,0 +1,58 @@
+diff --git a/pct/src/test/resources/edge/duckdb_essential_answers.tsv b/pct/src/test/resources/edge/duckdb_essential_answers.tsv
+index a8cbc56a..ff0191ed 100644
+--- a/pct/src/test/resources/edge/duckdb_essential_answers.tsv
++++ b/pct/src/test/resources/edge/duckdb_essential_answers.tsv
+@@ -329,10 +329,7 @@ testFloatToString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lowe
+ testFloatToString	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:3.14159;
+ testFloatToStringWithExcessTrailingZeros	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:17.0;
+ testFloatToStringWithExcessTrailingZeros	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:17.0;
+-testFloatToStringWithNegativeExponent	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.000000013421;
+-testFloatToStringWithNegativeExponent	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.000000013421;
+-testFloatToStringWithNegativeExponent	003	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.000000013421;
+-testFloatToStringWithNegativeExponent	004	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.000000013421;
++testFloatToStringWithNegativeExponent	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.0;
+ testFloatToStringWithNoLeadingZero	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.01;
+ testFloatToStringWithNoLeadingZero	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.01;
+ testFloatToStringWithPositiveExponent	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:134210000.0;
+diff --git a/pct/src/test/resources/edge/duckdb_essential_outcomes.tsv b/pct/src/test/resources/edge/duckdb_essential_outcomes.tsv
+index a301f6c1..19b3b574 100644
+--- a/pct/src/test/resources/edge/duckdb_essential_outcomes.tsv
++++ b/pct/src/test/resources/edge/duckdb_essential_outcomes.tsv
+@@ -105,7 +105,7 @@ testFloatAbs	SUCCESSFUL
+ testFloatRoundWithScale	SUCCESSFUL	
+ testFloatToString	SUCCESSFUL	
+ testFloatToStringWithExcessTrailingZeros	SUCCESSFUL	
+-testFloatToStringWithNegativeExponent	SUCCESSFUL	
++testFloatToStringWithNegativeExponent	FAILED	Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), "
+ testFloatToStringWithNoLeadingZero	SUCCESSFUL	
+ testFloatToStringWithPositiveExponent	SUCCESSFUL	
+ testFold	SUCCESSFUL	
+diff --git a/pct/src/test/resources/edge/sqlite_essential_answers.tsv b/pct/src/test/resources/edge/sqlite_essential_answers.tsv
+index c5f42d97..a0eeb597 100644
+--- a/pct/src/test/resources/edge/sqlite_essential_answers.tsv
++++ b/pct/src/test/resources/edge/sqlite_essential_answers.tsv
+@@ -328,10 +328,7 @@ testFloatToString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lowe
+ testFloatToString	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:3.14159;
+ testFloatToStringWithExcessTrailingZeros	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:17.0;
+ testFloatToStringWithExcessTrailingZeros	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:17.0;
+-testFloatToStringWithNegativeExponent	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.000000013421;
+-testFloatToStringWithNegativeExponent	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.000000013421;
+-testFloatToStringWithNegativeExponent	003	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.000000013421;
+-testFloatToStringWithNegativeExponent	004	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.000000013421;
++testFloatToStringWithNegativeExponent	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.0;
+ testFloatToStringWithNoLeadingZero	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.01;
+ testFloatToStringWithNoLeadingZero	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0.01;
+ testFloatToStringWithPositiveExponent	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:134210000.0;
+diff --git a/pct/src/test/resources/edge/sqlite_essential_outcomes.tsv b/pct/src/test/resources/edge/sqlite_essential_outcomes.tsv
+index a301f6c1..19b3b574 100644
+--- a/pct/src/test/resources/edge/sqlite_essential_outcomes.tsv
++++ b/pct/src/test/resources/edge/sqlite_essential_outcomes.tsv
+@@ -105,7 +105,7 @@ testFloatAbs	SUCCESSFUL
+ testFloatRoundWithScale	SUCCESSFUL	
+ testFloatToString	SUCCESSFUL	
+ testFloatToStringWithExcessTrailingZeros	SUCCESSFUL	
+-testFloatToStringWithNegativeExponent	SUCCESSFUL	
++testFloatToStringWithNegativeExponent	FAILED	Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), "
+ testFloatToStringWithNoLeadingZero	SUCCESSFUL	
+ testFloatToStringWithPositiveExponent	SUCCESSFUL	
+ testFold	SUCCESSFUL	
