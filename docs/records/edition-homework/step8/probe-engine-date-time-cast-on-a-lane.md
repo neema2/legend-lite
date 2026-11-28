@@ -93,6 +93,29 @@ raised):
   three or six digits long (`.25` against `.250`). The plain cast over the same `DATETIME` would be legend-engine's
   text exactly, with no digit lost.
 
+**Are the digits lost, or only not shown? (the user's question, 2026-11-28: "Don't snow and click have nanosecond
+timestamp though".)** Both databases hold nine fraction digits, and lite sends a literal's nine whole on both
+(register S181; `Snowflake.literalFractionDigits`, `ClickHouse.timestampLit`). RUN on Snowflake by its lane, plain
+statements over `'2014-01-01 10:20:30.123456789'::timestamp`:
+
+| Statement | Answer |
+|---|---|
+| `SYSTEM$TYPEOF(...)` | `TIMESTAMP_NTZ(9)[SB16]` |
+| `to_char(..., 'YYYY-MM-DD HH24:MI:SS.FF9')` | `2014-01-01 10:20:30.123456789` |
+| legend-engine's `cast(... as varchar)` | `2014-01-01 10:20:30.123` |
+| the same cast over `.1239` | `2014-01-01 10:20:30.123` (cut, not rounded) |
+| the session's `TIMESTAMP_NTZ_OUTPUT_FORMAT` | `YYYY-MM-DD HH24:MI:SS.FF3` |
+| lite's text rule today (`TO_CHAR(..., '...FF6')`, zeros trimmed) | `2014-01-01 10:20:30.123456` |
+| the same rule with `FF9` | `2014-01-01 10:20:30.123456789` |
+| both rules over `.25` and over a whole second | `2014-01-01 10:20:30.25`, `2014-01-01 00:00:00` (the same from each) |
+
+So on Snowflake the value is whole and legend-engine's text only shows three of its digits, by a session setting.
+
+**A defect of lite's found on the way (not step 8's; nothing changed).** Lite's own text of a date-time on Snowflake
+(`Snowflake.java`, the cast of a timestamp to text: `'YYYY-MM-DD HH24:MI:SS.FF6'`) drops digits seven to nine of a
+value lite itself sent whole: `.123456789` prints `.123456`. With `FF9` the same rule prints all nine and answers
+the short values as before (run, above). It is in the product's SQL on `main`, older than step 8.
+
 **Summary of D10 for the user.** As ruled on Postgres and Databricks; Trino's literal as legend-engine's by
 reading; BigQuery differs in padding and could be made exact by sending the plain cast; Snowflake and ClickHouse
 differ on every case, and there matching legend-engine would mean a text that drops digits past the millisecond
