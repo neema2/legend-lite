@@ -550,6 +550,47 @@ works well we can revisit"; the orchestrator agreed).
   the first two matrices do not move. Left in it: values declared `Any` under `contains` over a computed list and
   `indexOf` (refused by name), the asserts (slice 6), the mixed-list row (part 2).
 
+### 2026-11-28, about 04:25 UTC
+
+- **Slice 2's CI** (`c529b4599`, run 46100396174): 52 of 55 jobs green. The three red are `linux / checks` and
+  `windows / checks`, both at ANALYSIS on the MariaDB download mirror (not the change; one comment on the pull
+  request says so), and the roll-up `gates green` that follows from them. This session cannot re-run a job. The
+  checks lanes ran green on macOS in CI and on Linux here before the push. Slice 3's push will run them again over
+  slice 2's code; the program branch stays at slice 1 (`c77deac20`) until a run is green on those two.
+- **Slice 3's final commit is `4b77dadaf`** (the scratch branch `claude/step-6-numbers`; `d2ca88623` adds a record
+  only). What changed since the last entry:
+  - The first Bazel round found ONE real failure: `//core:guardrails`, the carrier guard (175 direct list-function
+    sites in the lowering against a pin of 172). Fixed at its cause, no pin moved: a list of date-times read as
+    instants is `InstanceEquality.equalValues`, and "the list holds no element" is one helper, `Scalars.noElements`.
+    The measure is byte for byte what it was.
+  - A fifth independent review (`review-8-of-slice-3.md`) of the last fixes: nothing that holds. Its one medium
+    finding (a door's root comparison of date-time lists) is refuted by the code: the lowering asks the planner only
+    where no door named a rule (`Lowerer.wholeSides`, `wholeAnswer`).
+  - The Bazel-built measure on `4b77dadaf`: DuckDB 133 right of 158, H2 123, SQLite 122; the same 465 lines the
+    no-Bazel loop gives; the baseline is committed.
+  - The round on `4b77dadaf` (`scratchpad/batch114.sh`, started 03:58): running. Failures so far are two of the
+    known root-container Postgres tests. Then the lanes, then one push.
+- **Slice 5** (`claude/step-6b-slice-5`, `0e97fbc3b`, stacked on slice 3; the no-Bazel loop; an independent review
+  running). Built today, each from a measured case (`slice-5-half-page.md`, "Built"): a list's kind named through
+  sort, take, drop and the deduplications; two empty optional enumerations equal; a mapped list's empty slots
+  dropped where it is built; a year in a Date-declared list as no instant; `hasSameElements` of two list values as
+  the instruction in any order; the held type read through one list, the type-checker's
+  (`EqualityClasses.valuesOf`), which also answers the comparison inside a function of `Any`. Measured: DuckDB 181
+  right of 223, none wrong, 3 contradicting before the last fix (two of them the row kept as `?` for the user: a
+  literal under an upcast), 6 failing (four at `assertEquals` under the Java checker, task 29: the type-checker
+  types a `map` whose function may answer nothing with its source's count; one the assert's own, slice 6; one the
+  store defect, task 26).
+- **Found, not equality's, for the user:** task 29 above. **To rule:** two additions in
+  `measure-gaps-2026-11-28.md` (a literal the query itself upcast).
+- **What is left of part 1 after slices 3 and 5, said plainly.** The answers: on DuckDB the measure has no wrong
+  answer and no contradiction the rule settles; what is not "right everywhere" is refused by name inside a list's
+  function (tables, maps, pairs, lists of `Any`: a statement of their own, which DuckDB runs none of there) or is an
+  assert's (slice 6). The structure: plain kinds are ONE instruction wherever they stand, for `==`, for
+  `hasSameElements` and for the asserts (`SideEqualities.values` writes the same instruction over each side bound
+  once). Still two builders of that instruction (`Equalities.sameValues` from two expressions,
+  `SideEqualities.values` from two statements), the planner's statement for every other kind
+  (`RootComparison` over `SideEqualities.pair`), and the test checker's own gatekeeping (`DatabaseJudge`,
+  `AssertVerdicts`). Those are slices 4, 6, 7 and 8.
 ### 2026-11-28, about 04:35 UTC: slice 5 reviewed and corrected; the design for slice 6, written before it is built
 
 - **Slice 5** (`claude/step-6b-slice-5`, `ac1d204ef`): the independent review (`review-9-of-slice-5.md`) found six
