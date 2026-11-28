@@ -255,6 +255,16 @@ public final class DatabaseJudge {
 
     /** Whether {@code type} is a plain value's: a whole number, a Decimal, a Float, a String, a Boolean, a day or a
      *  date-time -- the kinds whose asserts are the product's own comparison since step 6B's slice 6. */
+    /** Whether {@code side} is written as number literals alone: one, or a list that holds one. */
+    private static boolean writtenNumbers(TypedSpec side) {
+        if (side instanceof com.legend.compiler.spec.typed.TypedCollection list) {
+            return list.elements().stream().anyMatch(DatabaseJudge::writtenNumbers);
+        }
+        return side instanceof com.legend.compiler.spec.typed.TypedCInteger
+                || side instanceof com.legend.compiler.spec.typed.TypedCFloat
+                || side instanceof com.legend.compiler.spec.typed.TypedCDecimal;
+    }
+
     /** Whether {@code type} is a number's: {@code Number} itself, or one of its three kinds. */
     private static boolean numberOrNumberKind(com.legend.compiler.element.type.Type type) {
         return type == com.legend.compiler.element.type.Type.Primitive.NUMBER
@@ -621,9 +631,15 @@ public final class DatabaseJudge {
         com.legend.compiler.element.type.Type vKind = oneKind(vr);
         // (a side declared Number holds the kind its value has: the product reads it off the query's text and answers
         // for two families -- step 6B part 2; until then such a membership was "unjudged")
+        // (never where a side is a WRITTEN number: the product reads such a literal as the type of the value it is
+        // compared with, where it is exact there, and the host judge, which is given the two typed values, does
+        // not -- found 2026-11-28, assertContains([<a Number holding 1>, 5], 1.0): the product true, the host false.
+        // Such a pair stays "unjudged" here, as before, until the host judge reads a written literal the same way:
+        // part-2-half-page.md)
         boolean numbersAtRunTime = numberOrNumberKind(coll.info().type()) && numberOrNumberKind(val.info().type())
                 && (coll.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER
-                        || val.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER);
+                        || val.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER)
+                && !writtenNumbers(coll) && !writtenNumbers(val);
         if (!cr.tdsWrapped() && cKind != null && vKind != null && c.side() != null && v.side() != null
                 && (countedValues(coll.info().type()) && coll.info().type().equals(val.info().type())
                         || numbersAtRunTime && numberOrNumberKind(cKind) && numberOrNumberKind(vKind)
