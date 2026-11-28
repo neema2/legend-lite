@@ -56,3 +56,17 @@ caller's product lowering gives.
 
 Grids (their own family), instances, mixed lists (part 2), `assertEqWithinTolerance`, `assertTdsEquivalent` and
 `assertJsonStringsEqual` (meanings of their own: the plan's 2.4).
+
+## Later the same day (the no-Bazel loop)
+
+- **Days and date-times moved** (after slice 5's arm for two single date-time texts): 372 assert outcomes on the
+  date rows, none other than slice 5's. The full measure on the slice is line for line slice 5's.
+- **`assertSameElements` of two lists moved** (the product's `hasSameElements`); its record unchanged
+  ("expected the elements [2, 1, 1] in any order, got [1, 2, 2]").
+- **Tried and taken back: a side typed Nil (the written empty list).** The product answers it by the other side's
+  emptiness where it is written, which for a list is its length: on H2, which has no list function, the bound list
+  has none and the statement was a syntax error (it passed before, by the rows). What it shows: the "same values"
+  instruction has a rows form, but the other value-form readings (a list's emptiness, membership) have none. They
+  need one -- an instruction each, written by the dialect over the side's rows -- before a pair that uses them can
+  move. That is the same gap as `assertContains` (item 4 above), and it is one piece of work: **emptiness and
+  membership as instructions with a rows form.**
