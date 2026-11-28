@@ -1,0 +1,180 @@
+diff --git a/core/src/main/java/com/legend/edge/UpstreamPrints.java b/core/src/main/java/com/legend/edge/UpstreamPrints.java
+index 8ca2ea84..1af1b453 100644
+--- a/core/src/main/java/com/legend/edge/UpstreamPrints.java
++++ b/core/src/main/java/com/legend/edge/UpstreamPrints.java
+@@ -108,7 +108,135 @@ public final class UpstreamPrints {
+     /** {@code typed} with each printed side read, printed and substituted (above); the query itself where nothing is,
+      *  or where the body {@code writes} (its facts' effects, the caller's: the test door states them). */
+     public static com.legend.TypedQuery read(com.legend.TypedQuery typed, boolean writes, Reads reads) {
+-        return read(typed, writes, reads, PRINTER);
++        return probe8(typed);
++    }
++
++    // PROBE8 (temporary, never committed): a printed assert's table fetched by the assert's own statement
++    static com.legend.TypedQuery probe8(com.legend.TypedQuery typed) {
++        List<TypedSpec> out = new ArrayList<>();
++        List<TypedSpec> lets = new ArrayList<>();
++        boolean changed = false;
++        for (TypedSpec st : typed.body()) {
++            TypedSpec r = probe8One(st, typed, lets);
++            changed |= r != st;
++            out.add(r);
++            if (r instanceof TypedLet) {
++                lets.add(r);
++            }
++        }
++        return changed ? typed.withBody(out) : typed;
++    }
++
++    private static TypedSpec probe8One(TypedSpec n, com.legend.TypedQuery typed, List<TypedSpec> lets) {
++        if (!(n instanceof TypedNativeCall call)
++                || com.legend.builtin.NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(n))
++                        .orElse(null) != com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS
++                || call.args().size() < 2) {
++            return n;
++        }
++        for (int side = 0; side < 2; side++) {
++            PrintedRelations.Side p = side(
++                    com.legend.compiler.spec.typed.Lets.bound(call.args().get(side), lets), true, lets);
++            String golden = UpstreamTestBodies.literalText(
++                    com.legend.compiler.spec.typed.Lets.bound(call.args().get(1 - side), lets));
++            if (p == null || golden == null || p.written() != null) {
++                continue;
++            }
++            boolean tailOk = p.tail().stream().allMatch(t -> t instanceof PrintTail.Replace);
++            boolean inc = incidental(p, lets);
++            int key;
++            synchronized (com.legend.testexecutionplan.Edge.PROBE8) {
++                key = com.legend.testexecutionplan.Edge.PROBE8.size();
++                com.legend.testexecutionplan.Edge.PROBE8.add((cols, rows) -> verdict8(p, golden, inc, cols, rows));
++            }
++            System.err.println("PROBE8REG\t" + key + "\t" + p.form() + "\t" + (inc ? "ANYORDER" : "ORDERED")
++                    + "\ttail=" + p.tail().size() + (tailOk ? "" : "!") + "\targs=" + call.args().size()
++                    + "\t" + esc8(golden));
++            if (!tailOk) {
++                return n;
++            }
++            TypedSpec sized = typed.specs().typeExpression(new com.legend.protocol.spec.AppliedFunction(
++                    com.legend.builtin.NativeFn.Verdict.ASSERT_CONTAINS.fqn(),
++                    List.of(new com.legend.protocol.spec.Variable("probe8R", null, null, null),
++                            new com.legend.protocol.spec.CInteger(900000L + key, null)),
++                    List.of(), call.pos(), false, false, false),
++                    java.util.Map.of("probe8R", p.relation().info()));
++            return swap8(sized, p.relation());
++        }
++        return n;
++    }
++
++    private static TypedSpec swap8(TypedSpec e, TypedSpec relation) {
++        if (e instanceof com.legend.compiler.spec.typed.TypedVariable v && v.name().equals("probe8R")) {
++            return relation;
++        }
++        List<TypedSpec> kids = e.children();
++        List<TypedSpec> rebuilt = new ArrayList<>(kids.size());
++        boolean changed = false;
++        for (TypedSpec k : kids) {
++            TypedSpec r = swap8(k, relation);
++            changed |= r != k;
++            rebuilt.add(r);
++        }
++        return changed ? e.withChildren(rebuilt) : e;
++    }
++
++    private static String esc8(String s) {
++        String t = s.replace("\n", "\\n").replace("\t", "\\t");
++        return t.length() > 300 ? t.substring(0, 300) + "..." : t;
++    }
++
++    private static String verdict8(PrintedRelations.Side p, String golden, boolean inc,
++            List<com.legend.executionplan.ExecutionPlan.Column> columns, List<List<Object>> cells) {
++        String head = "PROBE8\t" + p.form() + "\t" + (inc ? "ANYORDER" : "ORDERED") + "\t";
++        try {
++            String text = switch (p.form()) {
++                case TO_STRING -> PureRelationText.tds(columns, cells);
++                case TO_CSV -> PureRelationText.csv(columns, cells);
++                case TO_CSV_TDS_NULL -> PureRelationText.csv(columns, cells, true);
++                case TDS_CSV -> PureRelationText.tdsCsvProperty(columns, cells);
++                case VALUE -> PureValueText.value(cells.get(0).get(0), columns.get(0));
++            };
++            boolean ok;
++            String actual;
++            if (!inc) {
++                actual = String.valueOf(PrintTail.applied(text, p.tail()));
++                ok = actual.equals(golden);
++            } else {
++                List<PrintTail.Replace> rs = p.tail().stream().map(t -> (PrintTail.Replace) t).toList();
++                int joining = -1;
++                for (int i = 0; i < rs.size(); i++) {
++                    if (rs.get(i).target().equals("\n")) {
++                        joining = i;
++                    }
++                }
++                List<String> printedLines;
++                List<String> goldenLines;
++                if (joining < 0) {
++                    actual = String.valueOf(PrintTail.applied(text, p.tail()));
++                    printedLines = List.of(actual.split("\n", -1));
++                    goldenLines = List.of(golden.split("\n", -1));
++                } else {
++                    String sep = rs.get(joining).replacement();
++                    actual = String.valueOf(PrintTail.applied(text, List.<PrintTail>copyOf(rs.subList(0, joining))));
++                    printedLines = List.of(actual.split("\n", -1));
++                    goldenLines = joining != rs.size() - 1 || sep.isEmpty() ? null : rows(golden, sep, printedLines);
++                }
++                if (goldenLines == null) {
++                    ok = false;
++                    actual = "(cut) " + actual;
++                } else {
++                    List<String> a = new ArrayList<>(printedLines);
++                    List<String> g = new ArrayList<>(goldenLines);
++                    java.util.Collections.sort(a);
++                    java.util.Collections.sort(g);
++                    ok = a.equals(g);
++                }
++            }
++            return head + (ok ? "PASS" : "FAIL") + "\t" + esc8(golden) + (ok ? "" : "\t" + esc8(actual));
++        } catch (RuntimeException e) {
++            return head + "ERROR\t" + esc8(golden) + "\t" + esc8(String.valueOf(e));
++        }
+     }
+ 
+     /** {@link #read(com.legend.TypedQuery, Reads)} with {@code printer}. */
+diff --git a/core/src/main/java/com/legend/testexec/TestRunner.java b/core/src/main/java/com/legend/testexec/TestRunner.java
+index f08c2a87..026c5897 100644
+--- a/core/src/main/java/com/legend/testexec/TestRunner.java
++++ b/core/src/main/java/com/legend/testexec/TestRunner.java
+@@ -304,6 +304,19 @@ public final class TestRunner {
+          *  comes to {@link #sidesFailed}, judged by the same path. */
+         @Override
+         public void sides(TestPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
++            // PROBE8 (temporary, never committed)
++            if (rows.size() == 2 && rows.get(1).rows().size() == 1 && rows.get(1).rows().get(0).size() == 1) {
++                try {
++                    long k = Long.parseLong(String.valueOf(rows.get(1).rows().get(0).get(0)));
++                    synchronized (com.legend.testexecutionplan.Edge.PROBE8) {
++                        if (k >= 900000 && k < 900000 + com.legend.testexecutionplan.Edge.PROBE8.size()) {
++                            System.err.println(com.legend.testexecutionplan.Edge.PROBE8.get((int) (k - 900000)).apply(rows.get(0).columns(), rows.get(0).rows()));
++                        }
++                    }
++                } catch (NumberFormatException ignored) {
++                    // no probe key
++                }
++            }
+             TestPlan.Host p = hostOf(verdict);
+             java.util.function.Supplier<PlanRunner.Rows> read = messageOf(verdict);
+             judged(p, () -> com.legend.testexec.HostSideShapes.shapedBase(p.assertion().name(), p.shapes(), rows),
+diff --git a/core/src/main/java/com/legend/testexecutionplan/Edge.java b/core/src/main/java/com/legend/testexecutionplan/Edge.java
+index f728df42..28890f58 100644
+--- a/core/src/main/java/com/legend/testexecutionplan/Edge.java
++++ b/core/src/main/java/com/legend/testexecutionplan/Edge.java
+@@ -14,6 +14,10 @@ import java.util.List;
+  * planned and never read back into a run.
+  */
+ public interface Edge {
++    // PROBE8 (temporary, never committed)
++    java.util.List<java.util.function.BiFunction<List<com.legend.executionplan.ExecutionPlan.Column>,
++            List<List<Object>>, String>> PROBE8 = new java.util.ArrayList<>();
++
+ 
+     /** Whether this hook records the referee's ledger, so the test door plans its records at each effect and seed step
+      *  and the runner tells it each such step ran (census C1, the orchestrator's ruling of 2026-11-17: the hook decides,
