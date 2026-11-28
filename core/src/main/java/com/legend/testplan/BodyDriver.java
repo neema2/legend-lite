@@ -68,7 +68,11 @@ public final class BodyDriver {
             com.legend.testplan.VerdictIds verdictIds,
             // the body's engine-text appeals by number, shared likewise (the plan-as-data design's step 4, 2026-11-08):
             // planning's registry, the plan carrying those its verdicts name (step 8b)
-            NumberedExtensions appeals) {
+            NumberedExtensions appeals,
+            // where the assert being planned is written (step 6B part 2, 2026-11-28): the comparison the database judge
+            // builds for it is the test author's own, and the product reads the kinds its sides hold only for a
+            // comparison an author wrote (a source position); null outside an assert's planning
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo assertAt) {
 
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
          *  options' features), a fresh trace, no batch. */
@@ -83,7 +87,7 @@ public final class BodyDriver {
                             .withOptions(options.options()),
                     JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, null, null, null, null,
-                    new com.legend.testplan.VerdictIds(), new NumberedExtensions());
+                    new com.legend.testplan.VerdictIds(), new NumberedExtensions(), null);
         }
 
         ModelContext ctx() {
@@ -129,17 +133,17 @@ public final class BodyDriver {
         ExecEnv withPlan(com.legend.planner.PlanEnv p) {
             return p == plan ? this
                     : new ExecEnv(p, target, options, verdictBatch,
-                            engineText, failureMessage, appealOn, verdictIds, appeals);
+                            engineText, failureMessage, appealOn, verdictIds, appeals, assertAt);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.testplan.VerdictBatch b) {
             return new ExecEnv(plan, target, options, b, engineText,
-                    failureMessage, appealOn, verdictIds, appeals);
+                    failureMessage, appealOn, verdictIds, appeals, assertAt);
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(PlanningOptions o) {
             return new ExecEnv(plan.withFeatures(o.features()).withOptions(o.options()), target, o,
-                    verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals);
+                    verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals, assertAt);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
@@ -153,14 +157,14 @@ public final class BodyDriver {
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
         ExecEnv withCollector(@com.legend.base.Nullable TextCollector c) {
             return new ExecEnv(plan, target, options, verdictBatch, c,
-                    failureMessage, appealOn, verdictIds, appeals);
+                    failureMessage, appealOn, verdictIds, appeals, assertAt);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
          *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runTyped}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
             return new ExecEnv(plan, target, options, verdictBatch,
-                    engineText, m, appealOn, verdictIds, appeals);
+                    engineText, m, appealOn, verdictIds, appeals, assertAt);
         }
         /** The same environment with {@code on} the environment a compatibility APPEAL's rows are planned under (a
          *  system-routed body's engine-text assert under the database judge: its rows read the user's tables on the
@@ -168,13 +172,19 @@ public final class BodyDriver {
          *  2026-11-06), or none: the appeal planned under this environment. */
         ExecEnv withAppealOn(@com.legend.base.Nullable ExecEnv on) {
             return new ExecEnv(plan, target, options, verdictBatch,
-                    engineText, failureMessage, on, verdictIds, appeals);
+                    engineText, failureMessage, on, verdictIds, appeals, assertAt);
         }
 
         /** The same environment over another target -- the process's catalog for a body that reads the metamodel
          *  (targets compare by value: two sides on one database name one target) -- written in that target's dialect:
          *  the catalog's where it is not the runtime's own engine (B4, 2026-11-11: a side of a body on a server, which
          *  every judge plans by retargeting), the runtime's again off it. */
+        /** This environment while the assert written at {@code at} is planned. */
+        ExecEnv withAssertAt(com.legend.protocol.@com.legend.base.Nullable SourceInfo at) {
+            return new ExecEnv(plan, target, options, verdictBatch, engineText, failureMessage, appealOn, verdictIds,
+                    appeals, at);
+        }
+
         ExecEnv withTarget(com.legend.executionplan.ExecutionPlan.Target other) {
             if (other.equals(target)) {
                 return this;
@@ -185,7 +195,7 @@ public final class BodyDriver {
                     to != null ? com.legend.planner.ConnectionPlans.model(to)
                             : com.legend.Compiler.executesOn(ctx(), runtimeFqn()).type()));
             return new ExecEnv(p, other, options, verdictBatch, engineText, failureMessage, appealOn,
-                    verdictIds, appeals);
+                    verdictIds, appeals, assertAt);
         }
 
         /** The engine of the catalog {@code t} names where it is not the runtime's own engine (a body on a server);

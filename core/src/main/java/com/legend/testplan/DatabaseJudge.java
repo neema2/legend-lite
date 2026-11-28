@@ -215,8 +215,8 @@ public final class DatabaseJudge {
             TypedSpec expected = atMostOneView(eSpec);
             TypedSpec actual = atMostOneView(aSpec);
             TypedSpec same = canonicalOrder
-                    ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, actual, specs)
-                    : com.legend.compiler.spec.VerdictQueries.sameSides(expected, actual, specs);
+                    ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, actual, specs, env.assertAt())
+                    : com.legend.compiler.spec.VerdictQueries.sameSides(expected, actual, specs, env.assertAt());
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
                     we.plan(), re.kinds().get(ie), atMostOne(expected), wa.plan(), ra.kinds().get(ia),
                     atMostOne(actual), (e, a) -> {
@@ -613,7 +613,7 @@ public final class DatabaseJudge {
         com.legend.compiler.element.type.Type vKind = oneKind(vr);
         if (!cr.tdsWrapped() && cKind != null && vKind != null && countedValues(coll.info().type())
                 && coll.info().type().equals(val.info().type()) && c.side() != null && v.side() != null) {
-            TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(coll, val, specs);
+            TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(coll, val, specs, env.assertAt());
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
                     c.side().plan(), cKind, atMostOne(coll), v.side().plan(), vKind, atMostOne(val), (list, one) -> {
                         java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =

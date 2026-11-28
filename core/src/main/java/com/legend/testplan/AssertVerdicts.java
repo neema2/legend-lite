@@ -87,7 +87,9 @@ public final class AssertVerdicts {
         batch.open(listenerName(bare));
         TypedSide v;
         try {
-            v = adjudicate(bare, letPrefix, specs, env, rawHook);
+            // (the assert's own position rides to the comparison built for it: the test author wrote it)
+            v = adjudicate(bare, letPrefix, specs, bare instanceof TypedNativeCall written
+                    ? env.withAssertAt(written.pos()) : env, rawHook);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             batch.resolve(plannedOrDropped(batch, e, "AssertVerdicts.planDatabase: the arm decided at planning"));
             batch.close();

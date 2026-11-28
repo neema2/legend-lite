@@ -525,16 +525,18 @@ public final class VerdictQueries {
      *  equality reads off the text (a kind under an upcast, a written literal) is read as for a {@code ==} written
      *  in a query -- answered by the door's comparison setting as such a one is
      *  ({@link SpecCompiler#comparedAsInAQuery}). */
-    public static TypedSpec sameSides(TypedSpec expected, TypedSpec actual, SpecCompiler specs) {
-        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY,
-                List.of(actual, expected), Type.Primitive.BOOLEAN));
+    public static TypedSpec sameSides(TypedSpec expected, TypedSpec actual, SpecCompiler specs,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo writtenAt) {
+        return specs.comparedAsInAQuery(at(declared(specs, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY,
+                List.of(actual, expected), Type.Primitive.BOOLEAN), writtenAt));
     }
 
     /** {@code hasSameElements(actual, expected)} over the two sides as they are typed: the comparison an
      *  {@code assertSameElements} means ({@link #sameSides}'s, in any order). */
-    public static TypedSpec sameElements(TypedSpec expected, TypedSpec actual, SpecCompiler specs) {
-        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.HAS_SAME_ELEMENTS__ANY_MANY__ANY_MANY,
-                List.of(actual, expected), Type.Primitive.BOOLEAN));
+    public static TypedSpec sameElements(TypedSpec expected, TypedSpec actual, SpecCompiler specs,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo writtenAt) {
+        return specs.comparedAsInAQuery(at(declared(specs, com.legend.builtin.Pure.HAS_SAME_ELEMENTS__ANY_MANY__ANY_MANY,
+                List.of(actual, expected), Type.Primitive.BOOLEAN), writtenAt));
     }
 
     /** {@code side}, declared to hold exactly ONE value, shown as holding AT MOST one (the same expression, the
@@ -552,9 +554,10 @@ public final class VerdictQueries {
 
     /** {@code collection->contains(value)} over the two sides as they are typed: the membership an
      *  {@code assertContains} means, answered by the door's comparison setting as one written in a query is. */
-    public static TypedSpec containsOf(TypedSpec collection, TypedSpec value, SpecCompiler specs) {
-        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.CONTAINS__ANY_MANY__ANY_1,
-                List.of(collection, value), Type.Primitive.BOOLEAN));
+    public static TypedSpec containsOf(TypedSpec collection, TypedSpec value, SpecCompiler specs,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo writtenAt) {
+        return specs.comparedAsInAQuery(at(declared(specs, com.legend.builtin.Pure.CONTAINS__ANY_MANY__ANY_1,
+                List.of(collection, value), Type.Primitive.BOOLEAN), writtenAt));
     }
 
     /** A call of exactly {@code declaration}, a function the platform declares, by its identity: never absent, never
@@ -566,6 +569,15 @@ public final class VerdictQueries {
                 .filter(f -> f.id().equals(id)).findFirst().orElseThrow(() -> new IllegalStateException(
                         "the platform declares no " + id + ": an assert's condition needs it"));
         return built(function, args, out);
+    }
+
+    /** {@code call}, a comparison built for an assert, as written where the assert is ({@code writtenAt}): the
+     *  product reads the kinds a comparison's sides hold only for one an author wrote, which an assert's is (step 6B
+     *  part 2). The same call where no position is known. */
+    private static TypedNativeCall at(TypedNativeCall call, com.legend.protocol.@com.legend.base.Nullable SourceInfo
+            writtenAt) {
+        return writtenAt == null ? call : new TypedNativeCall(call.callee(), call.args(), call.info(), writtenAt,
+                call.outsideStore());
     }
 
     /** A NEW call of a declared function over typed arguments (new calls only: a rebuilt call passes its stamp). */
