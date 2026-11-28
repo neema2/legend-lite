@@ -420,6 +420,12 @@ public final class EqualityMeasure {
         // (E: the first side raises, as Pure does, wherever the comparison stands -- a first cut of slice 3's rule
         // for a side typed Nil took the type for "holds nothing" and answered false; review 4, blocker 2)
         out.add(new Sides("empty forced to one value, and a value", "E", "[]->toOne()", "1"));
+        // (review 5 of slice 3, blockers 2 and 3: two computed lists that write one instant at two precisions, and
+        // the same under sides declared the abstract Date)
+        out.add(new Sides("date-time lists hour and minute", "T", "[date(2015, 4, 16, 14), date(2015, 4, 16, 15)]->filter(d | true)",
+                "[date(2015, 4, 16, 14, 0), date(2015, 4, 16, 15, 0)]->filter(d | true)"));
+        out.add(new Sides("Date lists built and written", "T", "[date(2015, 4, 16, 14), date(2015, 4, 16, 15)]->cast(@Date)",
+                "[%2015-04-16T14:00:00, %2015-04-16T15:00:00]->cast(@Date)"));
         out.add(new Sides("computed empty and written empty", "T", "[1, 2]->filter(x | $x > 5)", "[]"));
         out.add(new Sides("two computed empties", "T", "[1, 2]->filter(x | $x > 5)", "[3]->filter(x | $x > 5)"));
         out.add(new Sides("computed empty and value", "F", "[1, 2]->filter(x | $x > 5)", "1"));
@@ -575,7 +581,10 @@ public final class EqualityMeasure {
                 new StoreSides("date-time column and day literal", "N", "$r.at", "%2020-01-01"),
                 new StoreSides("date-time column and literal to the hour", "2", "$r.at", "%2020-01-01T10"),
                 new StoreSides("column and the empty list", "3,5", "$r.i", "[]"),
-                new StoreSides("computed column value and literal", "1,2,4", "$r.i->map(x | $x + 1)", "2"));
+                new StoreSides("computed column value and literal", "1,2,4", "$r.i->map(x | $x + 1)", "2"),
+                // (review 5 of slice 3, blocker 1: a conditional's SQL type is a promotion of its branches', not
+                // the kind of the value it holds: the Integer 1 it answers here equals the Integer column)
+                new StoreSides("conditional number and integer column", "1,2,4", "if($r.id > 0, |1, |2.5)", "$r.i"));
     }
 
     private static List<StorePosition> storePositionList() {

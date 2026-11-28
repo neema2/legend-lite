@@ -115,8 +115,8 @@ final class RootComparison {
         SqlQuery leftPlan = lowered.apply(with(lets, left));
         SqlQuery rightPlan = lowered.apply(with(lets, right));
         if (!anyOrder && heldAsOneKind(left, leftPlan, right, rightPlan)) {
-            // two sides, one declared Number or the abstract Date, each of which its own statement holds in ONE
-            // plain type, the two of one family (step 6B, slice 3: [1, 2]->cast(@Number) == [1D, 2D]->cast(@Number)):
+            // two sides, one declared Number, each of which its own statement holds in ONE number type, the two of
+            // one family (step 6B, slice 3: [1, 2]->cast(@Number) == [1D, 2D]->cast(@Number)):
             // no statement of their own either -- the lowering writes the same instruction over the two values
             // (Equalities.heldAsOneKind reads the same family off the two values' types)
             return null;
@@ -287,18 +287,28 @@ final class RootComparison {
      * 2026-11-27: read as a table against a list it had no comparison here, and took the plain one, in the order
      * the rows arrived).
      */
-    /** Whether the two sides, one of them declared {@code Number} or the abstract {@code Date}, each hold one kind
-     *  the query's text names, the two of one family ({@code SideEqualities.heldInOneKind}: the reading the lowering
-     *  asks too), and each side's own statement gives its values as typed rows. */
-    private static boolean heldAsOneKind(TypedSpec left, SqlQuery leftPlan, TypedSpec right, SqlQuery rightPlan) {
-        return SideEqualities.heldInOneKind(left, right) && SideEqualities.typedRows(leftPlan) != null
-                && SideEqualities.typedRows(rightPlan) != null;
-    }
-
     private static Type valueType(TypedSpec side) {
         Type t = side.info().type();
         return side.info().multiplicity().isMany() && Type.schemaView(t) instanceof Type.RelationType rows
                 && rows.columns().size() == 1 ? rows.columns().get(0).type() : t;
+    }
+
+    /** Whether the two sides, one of them declared {@code Number}, each hold one kind the query's text names, the two
+     *  of one family ({@code SideEqualities.heldInOneKind}: the reading the lowering asks too), and each side's own
+     *  statement gives its values as rows of a number's own SQL type (never a Decimal carried as its text). */
+    private static boolean heldAsOneKind(TypedSpec left, SqlQuery leftPlan, TypedSpec right, SqlQuery rightPlan) {
+        return SideEqualities.heldInOneKind(left, right) && numbersAsThemselves(SideEqualities.typedRows(leftPlan))
+                && numbersAsThemselves(SideEqualities.typedRows(rightPlan));
+    }
+
+    private static boolean numbersAsThemselves(@Nullable SqlQuery rows) {
+        if (rows == null) {
+            return false;
+        }
+        com.legend.sql.SqlType held = rows.outputs().get(0).type();
+        return held instanceof com.legend.sql.SqlType.Decimal || held == com.legend.sql.SqlType.Scalar.BIGINT
+                || held == com.legend.sql.SqlType.Scalar.INTEGER || held == com.legend.sql.SqlType.Scalar.HUGEINT
+                || held == com.legend.sql.SqlType.Scalar.DOUBLE;
     }
 
     /** Whether {@code side} is a table: relation-typed, and no rows read as values ({@link #valueType}). */

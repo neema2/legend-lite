@@ -446,11 +446,16 @@ public final class UserCallInliner {
     private TypedSpec atTheCall(TypedSpec n) {
         TypedSpec kids = n.mapChildren(this::atTheCall);
         // (answered as a plain comparison, it is still the function's own, not the query's)
-        // (a comparison the call's rule leaves as it is folds now, as it would have where it was rewritten: a door
-        // whose rule is the plain comparison still answers two written values of two kinds, one an enumeration's,
-        // false)
-        return kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c
-                ? EqualityClasses.notTheQuerys(LiteralUnroll.fold(specs.atTheCall(c), specs.ctx())) : kids;
+        if (!(kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c)) {
+            return kids;
+        }
+        // (the ONE fold put off where the comparison was rewritten is made now, on a comparison the call's rule
+        // leaves as it is: a door whose rule is the plain comparison still answers two written values of two kinds,
+        // one an enumeration's, false. No other fold is made here: this pass knows no quoted code)
+        TypedSpec answered = specs.atTheCall(c);
+        return EqualityClasses.notTheQuerys(answered instanceof TypedNativeCall call && call.args().size() == 2
+                && LiteralUnroll.neverEqual(call.args().get(0), call.args().get(1))
+                ? LiteralUnroll.fold(answered, specs.ctx()) : answered);
     }
 
     /**

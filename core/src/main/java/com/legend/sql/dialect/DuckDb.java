@@ -883,7 +883,7 @@ public class DuckDb extends AnsiSqlRenderer {
     // ---- list idioms: DuckDB is the lambda backend ----
 
     /** {@inheritDoc} A sub-query inside a list's function is refused by name here: DuckDB runs none there ("Binder
-     *  Error: subqueries in lambda expressions are not supported", 1.4.4; measured by the equality measure,
+     *  Error: subqueries in lambda expressions are not supported", 1.5.6; measured by the equality measure,
      *  2026-11-27: a comparison of two tables or two maps written inside a list's function failed so when the query
      *  ran). What needs a statement of its own -- two tables compared, two maps -- cannot stand inside one. */
     @Override

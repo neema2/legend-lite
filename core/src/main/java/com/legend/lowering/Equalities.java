@@ -252,7 +252,7 @@ final class Equalities {
         // where it stands alone)
         // (the lists for the product's rule alone: at a door the written precision is part of the value, and a list
         // of such texts was, and stays, the database's to refuse -- review 4 of slice 3a, finding 5)
-        List<SqlExpr> instants = asInstants(args, numbers == NumberFamilies.TWO_FAMILIES);
+        List<SqlExpr> instants = asInstants(n, args, numbers == NumberFamilies.TWO_FAMILIES);
         List<SqlExpr> sides = instants == null ? args : instants;
         List<SqlExpr> cargs = List.of(
                 CastPolicy.comparisonWireOperand(n.args().get(0),
@@ -317,13 +317,13 @@ final class Equalities {
         if (!bothWritten && !(typedAtRunTime(l) || typedAtRunTime(r))) {
             return null;
         }
-        // each side's kind by the ONE reading the product has of it (MixedEncoding.kindOfValue: its Pure type, the
-        // value under an upcast, a column's own type) -- the reading HeldKinds refuses two columns by -- and, for a
-        // side typed only when the query runs whose kind the text does not name (a computed list, a filter's
-        // result), the kind of the SQL type it is held in; whether two kinds can be equal by the product's number
-        // rule. No kind either way: the comparison as it was
-        String left = kindHeld(l, sides.get(0));
-        String right = kindHeld(r, sides.get(1));
+        // each side's kind where the query's own TEXT names it (MixedEncoding.kindThroughUpcasts: its Pure type, the
+        // value under an upcast, through a filter), and whether two kinds can be equal by the product's number rule.
+        // A column's kind is its column's, and two columns are HeldKinds' to refuse, not this rule's to answer; a
+        // conditional's or arithmetic's SQL type is a promotion of several kinds, never read as one (review 5 of
+        // slice 3, blocker 1 and note 6). No kind named: the comparison as it was
+        String left = MixedEncoding.kindThroughUpcasts(l);
+        String right = MixedEncoding.kindThroughUpcasts(r);
         if (left == null || right == null || NumberFamilies.TWO_FAMILIES.canEqual(left, right)) {
             return null;
         }
@@ -341,12 +341,6 @@ final class Equalities {
                 : neverEqualButEvaluated(sides.get(0), sides.get(1));
     }
 
-    private static @com.legend.base.Nullable String kindHeld(TypedSpec side, SqlExpr lowered) {
-        String named = MixedEncoding.kindOfValue(side, lowered);
-        return named != null || !typedAtRunTime(side) || !(lowered.type() instanceof com.legend.sql.TypeFact.Typed held)
-                ? named : MixedEncoding.kindOfCarrier(side.info().type(), held.type());
-    }
-
     /** Whether {@code side}, lowered as {@code lowered}, holds nothing: a list the SQL holds as a list by its length
      *  (a NULL list none), a tagged list by its size, any other value by its absence -- chosen by what the SQL
      *  holds, never by the side's declared multiplicity (a to-many navigation's column is one value a row; review 4
@@ -355,6 +349,9 @@ final class Equalities {
         if (lowered instanceof SqlExpr.TaggedList) {
             return Scalars.emptiness(side, lowered);
         }
+        // (a list of no stated SQL type -- the empty list through a filter -- is the NULL list, read by its absence:
+        // read by its length, SQLite never evaluated a source that raises, and []->toOne() through a filter answered
+        // false where it raises; measured 2026-11-28, review 5 of slice 3, note 10, tried and withdrawn)
         return aList(lowered) ? new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
                 SqlExpr.Call.of(SqlFn.LIST_LENGTH, lowered), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0)))
                 : isNone(lowered);
@@ -376,8 +373,8 @@ final class Equalities {
     }
 
     /**
-     * Whether {@code n}'s two sides, one of them declared {@code Number} or the abstract {@code Date} (a type the
-     * value fills in when the query runs), are each held by the SQL as a typed list of ONE plain kind, the two of
+     * Whether {@code n}'s two sides, one of them declared {@code Number} (a type the value fills in when the query
+     * runs), are each held by the SQL as a typed list of ONE plain kind, the two of
      * one family ({@link SideEqualities#heldInOneKind}: the kind under each side's upcast, by the product's number
      * rule): such sides are compared as the two values, by the one "same values" instruction, wherever the
      * comparison stands (step 6B, slice 3: {@code [1, 2]->cast(@Number) == [1D, 2D]->cast(@Number)}). The planner
@@ -509,17 +506,25 @@ final class Equalities {
     /** The two sides where a date-time carried as its written text (or a list of such texts) meets one the database
      *  holds as a TIMESTAMP (or a list of them), each read as its instant, in the order given; null where the sides
      *  are no such pair. One value against a list is the list of that value. The
-     *  list forms only where {@code lists} (the product's own rule). Two SINGLE texts are not read here: their
-     *  written precisions are compared by the rule above this call. */
-    private static @com.legend.base.Nullable List<SqlExpr> asInstants(List<SqlExpr> args, boolean lists) {
+     *  list forms only where {@code lists} (the product's own rule), two lists of texts among them where both sides
+     *  are declared DateTime. Two SINGLE texts are not read here: their written precisions are compared by the rule
+     *  above this call. */
+    private static @com.legend.base.Nullable List<SqlExpr> asInstants(TypedNativeCall n, List<SqlExpr> args,
+            boolean lists) {
         SqlExpr l = args.get(0);
         SqlExpr r = args.get(1);
         boolean lTexts = listOf(l, SqlType.Scalar.TEMPORAL_TEXT);
         boolean rTexts = listOf(r, SqlType.Scalar.TEMPORAL_TEXT);
-        // (two lists of texts are compared as the texts they are: such a list may hold a year or a year-month, which
-        // is no instant, and what each element is only its value says. So two lists that write one instant at two
-        // precisions -- an hour's text against a minute's -- are not equal here: a named gap, review 4 of slice 3a,
-        // blocker 1's second example)
+        if (lists && lTexts && rTexts) {
+            // two lists of texts: by their instants where BOTH sides are declared DateTime -- such a list holds
+            // date-times alone, each written to the hour or finer (review 5 of slice 3, blocker 2: the planner's own
+            // statement read these as instants, and compared as texts '...T14' never equalled '...T14:00'). Under any
+            // other declaration a list of texts may hold a year or a year-month, which is no instant, and the two
+            // are compared as the texts they are
+            return n.args().get(0).info().type() == Type.Primitive.DATE_TIME
+                    && n.args().get(1).info().type() == Type.Primitive.DATE_TIME
+                    ? List.of(instantsOfTexts(l), instantsOfTexts(r)) : null;
+        }
         if (lists && lTexts != rTexts) {
             SqlExpr a = lTexts ? instantsOfTexts(l) : instantListOf(l);
             SqlExpr b = rTexts ? instantsOfTexts(r) : instantListOf(r);

@@ -1166,15 +1166,19 @@ public final class SideEqualities {
                 || PlatformTypes.isNil(left) && plainKind(right) || PlatformTypes.isNil(right) && plainKind(left);
     }
 
-    /** Whether {@code left} and {@code right}, the two sides of a comparison one of which is declared {@code Number}
-     *  or the abstract {@code Date}, each hold values of ONE kind the query's own text names -- the kind of the value
-     *  under each side's upcast ({@code MixedEncoding.kindThroughUpcasts}) -- and the two kinds can be equal by the
-     *  product's number rule ({@code NumberFamilies.TWO_FAMILIES}): an Integer side against a Decimal side, two
-     *  Float sides. One reading for a side lowered as a value ({@code Equalities.heldAsOneKind}) and for the planner
+    /** Whether {@code left} and {@code right}, the two sides of a comparison of numbers one of which is declared
+     *  {@code Number}, each hold values of ONE kind the query's own text names -- the kind of the value under each
+     *  side's upcast ({@code MixedEncoding.kindThroughUpcasts}) -- and the two kinds can be equal by the product's
+     *  number rule ({@code NumberFamilies.TWO_FAMILIES}): an Integer side against a Decimal side, two Float sides.
+     *  One reading for a side lowered as a value ({@code Equalities.heldAsOneKind}) and for the planner
      *  ({@code planner.RootComparison}), so the two cannot disagree. False for a side whose kind the text does not
-     *  name (a column, a conditional, arithmetic: what it holds is its value's to say). */
+     *  name (a column, a conditional, arithmetic: what it holds is its value's to say), and for sides declared the
+     *  abstract {@code Date}: a date's list may be carried as texts the value form does not read, so those stay
+     *  the planner's statement (review 5 of step 6B's slice 3, blocker 3). */
     public static boolean heldInOneKind(TypedSpec left, TypedSpec right) {
-        if (!numbersOrDatesFilledAtRunTime(left.info().type(), right.info().type())) {
+        Type lt = left.info().type();
+        Type rt = right.info().type();
+        if (lt != Type.Primitive.NUMBER && rt != Type.Primitive.NUMBER || !number(lt) || !number(rt)) {
             return false;
         }
         String l = MixedEncoding.kindThroughUpcasts(left);
@@ -1182,13 +1186,9 @@ public final class SideEqualities {
         return l != null && r != null && NumberFamilies.TWO_FAMILIES.canEqual(l, r);
     }
 
-    /** Whether a comparison of sides declared {@code left} and {@code right} is one of numbers or dates one of whose
-     *  sides is declared {@code Number} or the abstract {@code Date}, a type the value fills in when the query runs:
-     *  the pairs asked whether each side holds one kind ({@link #heldInOneKind}). A side declared
-     *  {@code Any} is not asked: it may be a table or an instance, which has no value of one SQL type. */
-    public static boolean numbersOrDatesFilledAtRunTime(Type left, Type right) {
-        return (left == Type.Primitive.NUMBER || left == Type.Primitive.DATE || right == Type.Primitive.NUMBER
-                || right == Type.Primitive.DATE) && left instanceof Type.Primitive && right instanceof Type.Primitive;
+    private static boolean number(Type t) {
+        return t == Type.Primitive.NUMBER || t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
+                || t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal;
     }
 
     /** A kind whose values a database's typed list holds as the values themselves. */
