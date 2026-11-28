@@ -3641,15 +3641,11 @@ function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number
 
 function {meta::pure::profiles::doc.doc = 'The volatility a variance swap\'s realized leg reads, of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date (all); unless given, one figure of the whole line, at its last date (gs-quant\'s n_days None).', timeseries::Words.label = 'Vol swap volatility', timeseries::Words.family = 'Risk', timeseries::Words.unit = 'percent', timeseries::Words.gsQuant = 'econometrics.vol_swap_volatility', timeseries::Words.about = 'The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent; with no window, the whole line\'s, one figure at its last date.', timeseries::Words.limit = 'w: >= 0', timeseries::Words.gsParam = 'w: n_days'} timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  // gs-quant's n_days None, Window(len, len - 1): the whole line's figure, at its last date alone -- the to-date line's
-  // last point (no look-ahead: it reads every date up to the line's end; the user's ruling of 2026-11-08 on PR #91's
-  // finding 4, "gs-quant's one point")
-  // (D8 on the point that is kept: the figure reads every date of the line, so a date of several rows anywhere on it
-  // refuses the point -- checked on the kept row itself, where no filter can drop it; 2026-11-28)
+  // gs-quant's n_days None, Window(len, len - 1): the whole line's figure at its last date alone (the user's ruling of
+  // 2026-11-08 on PR #91's finding 4, "gs-quant's one point"); D8 is checked on that point, which no filter drops
   $x->timeseries::line::vol_swap_volatility(timeseries::Scope.all)
-    ->extend(over(~[key, date]), ~line_n:{p,f,r|1}:y|$y->count())
-    ->extend(over(~[key]), ~line_end:{p,f,r|$r.date}:y|$y->max())->extend(over(~[key]), ~line_m:{p,f,r|$r.line_n}:y|$y->max())
-    ->filter(r|$r.date == $r.line_end && timeseries::lines::once($r.line_m))->select(~[key, date, value])
+    ->extend(over(~[key, date]), ~lo:{p,f,r|1}:y|$y->count())->extend(over(~[key]), ~line_lo:{p,f,r|$r.lo}:y|$y->max())
+    ->extend(over(~[key]), ~line_end:{p,f,r|$r.date}:y|$y->max())->filter(r|$r.date == $r.line_end && timeseries::lines::once($r.line_lo->toOne()))->select(~[key, date, value])
 }
 
 function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
