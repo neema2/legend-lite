@@ -261,26 +261,6 @@ final class PositionReport {
         return expected;
     }
 
-    /** The answer the rule gives {@code place} of a comparison whose expected answer is written {@code expectedOf}:
-     *  {@code R} for a compile error ({@code x;generic=R} inside a function over one type variable); of {@code a@b},
-     *  {@code a} where the comparison is written and {@code b} inside a function whose parameters are
-     *  {@code Any}; else as written. */
-    private static String expectedAt(String expectedOf, String place) {
-        String expected = expectedOf;
-        if (expected.contains(";generic=R")) {
-            if (place.split(" ")[0].equals("function-generic")) {
-                return "R";
-            }
-            expected = expected.replace(";generic=R", "");
-        }
-        int at = expected.indexOf('@');
-        if (at >= 0) {
-            return RUN_TIME_PLACES.contains(place.split(" ")[0]) ? expected.substring(at + 1)
-                    : expected.substring(0, at);
-        }
-        return expected;
-    }
-
     /** What one place's outcome is against the expected answer: right, wrong, refused (by name) or failed. */
     private static String judge(String v, String expectedOf, String place, boolean store) {
         boolean atRunTime = RUN_TIME_PLACES.contains(place.split(" ")[0]);
