@@ -202,7 +202,17 @@ public final class DatabaseJudge {
         // another such side: the product answers that pair by whether the other side holds anything, each side still
         // evaluated (Equalities.equal, asSameElements), so it is the product's comparison too)
         boolean nilPair = anyNil && nilOrPlain(eSpec.info().type()) && nilOrPlain(aSpec.info().type());
-        if (tp != null && !anyAny && (nilPair || !anyNil && (tp.plainValues() || tp.dates())
+        // (sides declared Number, each held in one number kind and neither a written literal: the product reads the
+        // kind each holds and answers for two families -- step 6B part 2; as databaseContains)
+        boolean numbersAtRunTime = !anyNil && numberOrNumberKind(eSpec.info().type())
+                && numberOrNumberKind(aSpec.info().type())
+                && (eSpec.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER
+                        || aSpec.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER)
+                && !writtenNumbers(eSpec) && !writtenNumbers(aSpec) && numberOrNumberKind(re.kinds().get(ie))
+                && numberOrNumberKind(ra.kinds().get(ia))
+                && re.kinds().get(ie) != com.legend.compiler.element.type.Type.Primitive.NUMBER
+                && ra.kinds().get(ia) != com.legend.compiler.element.type.Type.Primitive.NUMBER;
+        if (tp != null && !anyAny && (nilPair || numbersAtRunTime || !anyNil && (tp.plainValues() || tp.dates())
                 && (tp.dates() || !literal(re, ra, anyNil, anyAny) || tp.kindsDiffer()
                         || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))
                 && plainValues(eSpec.info().type()) && eSpec.info().type().equals(aSpec.info().type()))
@@ -212,20 +222,30 @@ public final class DatabaseJudge {
             // is shown each such side as holding AT MOST one, so its own rule for an empty side answers, two-valued,
             // as the member that compared the two as lists did. The view is the side itself, the same type: every
             // reading off the query's text passes through it. The audit of slice 6's fixes, finding 1)
-            TypedSpec expected = atMostOneView(eSpec);
-            TypedSpec actual = atMostOneView(aSpec);
+            // (a side declared Number is shown as the kind its column holds, under that declared type; its column is
+            // bound to the inner value -- any other side is bound as itself)
+            com.legend.compiler.spec.VerdictQueries.HeldSide eHeld = com.legend.compiler.spec.VerdictQueries.heldAs(
+                    eSpec, re.kinds().get(ie));
+            com.legend.compiler.spec.VerdictQueries.HeldSide aHeld = com.legend.compiler.spec.VerdictQueries.heldAs(
+                    aSpec, ra.kinds().get(ia));
+            TypedSpec expected = atMostOneView(eHeld.view());
+            TypedSpec actual = atMostOneView(aHeld.view());
+            TypedSpec eBound = eHeld.bound() == eSpec ? expected : eHeld.bound();
+            TypedSpec aBound = aHeld.bound() == aSpec ? actual : aHeld.bound();
             TypedSpec same = canonicalOrder
                     ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, actual, specs, env.assertAt())
                     : com.legend.compiler.spec.VerdictQueries.sameSides(expected, actual, specs, env.assertAt());
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
                     we.plan(), re.kinds().get(ie), atMostOne(expected), wa.plan(), ra.kinds().get(ia),
-                    atMostOne(actual), (e, a) -> {
+                    atMostOne(actual), numbersAtRunTime, (e, a) -> {
                         java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =
                                 new java.util.IdentityHashMap<>();
-                        values.put(expected, e.value());
-                        values.put(actual, a.value());
+                        values.put(eBound, e.value());
+                        values.put(aBound, a.value());
                         java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows =
                                 new java.util.IdentityHashMap<>();
+                        rows.put(eBound, e.rows());
+                        rows.put(aBound, a.rows());
                         rows.put(expected, e.rows());
                         rows.put(actual, a.rows());
                         return com.legend.planner.SidePlanner.overSides(same, values, rows, env.plan());
@@ -645,18 +665,25 @@ public final class DatabaseJudge {
                         || numbersAtRunTime && numberOrNumberKind(cKind) && numberOrNumberKind(vKind)
                         && cKind != com.legend.compiler.element.type.Type.Primitive.NUMBER
                         && vKind != com.legend.compiler.element.type.Type.Primitive.NUMBER)) {
-            TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(coll, val, specs, env.assertAt());
+            // (each side shown as the kind its column holds, under the type it is declared)
+            com.legend.compiler.spec.VerdictQueries.HeldSide list0 = com.legend.compiler.spec.VerdictQueries.heldAs(coll,
+                    cKind);
+            com.legend.compiler.spec.VerdictQueries.HeldSide one0 = com.legend.compiler.spec.VerdictQueries.heldAs(val,
+                    vKind);
+            TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(list0.view(), one0.view(), specs,
+                    env.assertAt());
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
                     c.side().plan(), cKind, atMostOne(coll), v.side().plan(), vKind, atMostOne(val), numbersAtRunTime,
                     (list, one) -> {
                         java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =
                                 new java.util.IdentityHashMap<>();
-                        values.put(coll, list.value());
-                        values.put(val, one.value());
+                        values.put(list0.bound(), list.value());
+                        values.put(one0.bound(), one.value());
                         java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows =
                                 new java.util.IdentityHashMap<>();
-                        rows.put(coll, list.rows());
-                        rows.put(val, one.rows());
+                        rows.put(list0.bound(), list.rows());
+                        rows.put(one0.bound(), one.rows());
+                        rows.put(list0.view(), list.rows());
                         return com.legend.planner.SidePlanner.overSides(among, values, rows, env.plan());
                     });
             com.legend.lowering.VerdictSql.TypedRow bound = com.legend.lowering.VerdictSql.typed(compared, !negated,

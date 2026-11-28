@@ -552,6 +552,25 @@ public final class VerdictQueries {
                 : side;
     }
 
+    /** A side of an assert as the product is shown it once it is bound to a column: {@code view} stands where the
+     *  side stood in the comparison, {@code bound} is the node the column is bound to. */
+    public record HeldSide(TypedSpec view, TypedSpec bound) {
+    }
+
+    /** {@code side}, declared {@code Number} (a type its value fills in when the query runs) and held by its column
+     *  as {@code kind}: a value of that kind under the upcast to the declared type -- so the product's comparison
+     *  reads the kind it holds as it reads any upcast the query writes (step 6B part 2). The column is bound to the
+     *  inner value. A side declared the kind it holds is itself. */
+    public static HeldSide heldAs(TypedSpec side, Type kind) {
+        if (side.info().type() != Type.Primitive.NUMBER || kind == Type.Primitive.NUMBER) {
+            return new HeldSide(side, side);
+        }
+        TypedSpec held = new com.legend.compiler.spec.typed.TypedVariable("__held",
+                new ExprType(kind, side.info().multiplicity()));
+        return new HeldSide(new com.legend.compiler.spec.typed.TypedCast(held, side.info().type(), side.info(),
+                false), held);
+    }
+
     /** {@code collection->contains(value)} over the two sides as they are typed: the membership an
      *  {@code assertContains} means, answered by the door's comparison setting as one written in a query is. */
     public static TypedSpec containsOf(TypedSpec collection, TypedSpec value, SpecCompiler specs,
