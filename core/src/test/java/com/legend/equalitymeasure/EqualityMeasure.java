@@ -415,7 +415,66 @@ public final class EqualityMeasure {
         out.add(new Sides("max of a mixed list", "T", "[1, 2.0]->max()", "2.0"));
         // (every comparison above is of two SINGLE values: the ones the other comparing functions are asked,
         // functionPositions)
+        // -- rows no comparison above reaches (docs/records/edition-homework/step-6b/measure-gaps-2026-11-28.md) --
+        // a value typed at run time whose kind the query's text does not name
+        out.add(new Sides("Number value from a sorted list, and a Float", "F",
+                "[2, 1]->cast(@Number)->sort()->at(0)", "1.0->cast(@Number)"));
+        out.add(new Sides("raising single value, two families", "E", "[1, 2]->at(5)->cast(@Number)",
+                "1.0->cast(@Number)"));
+        out.add(new Sides("year and string through Any", "F;generic=R", "%2020->cast(@Any)", "'2020'->cast(@Any)"));
+        // the literal rule against a computed value
+        out.add(new Sides("computed Float and whole literal", "T@F;generic=R", "1.5 + 0.5", "2"));
+        out.add(new Sides("computed Decimal and Float literal", "T@F;generic=R", "0.1D + 0.2D", "0.3"));
+        out.add(new Sides("computed Integer and fraction literal", "N", "1 + 1", "2.5"));
+        out.add(new Sides("computed Float and Decimal literal", "N", "1.5 + 0.5", "2D"));
+        out.add(new Sides("Integer literal past 2^53 against a Float", "N", "0.5 + 0.5", "9007199254740993"));
+        out.add(new Sides("signed literal", "T@F;generic=R", "1 - 2", "-1.0"));
+        out.add(new Sides("Decimal arithmetic with a Float literal", "T", "1.0D * 0.1", "0.1D"));
+        // types inside pairs and lists; dates
+        out.add(new Sides("pairs, Integer and Float", "N", "pair(1, 'a')", "pair(1.0, 'a')"));
+        out.add(new Sides("built to the hour, sides swapped", "T", "%2015-04-16T14:00:00", "date(2015, 4, 16, 14)"));
+        out.add(new Sides("year and day", "F", "%2020", "%2020-01-01"));
+        out.add(new Sides("date-time with a time zone", "T", "%2020-01-01T10:00:00+0100", "%2020-01-01T09:00:00"));
+        out.add(new Sides("date-time fraction at two precisions", "T", "%2020-01-01T10:00:00.5",
+                "%2020-01-01T10:00:00.500"));
+        // an empty side as an operand, a Boolean, a text
+        out.add(new Sides("a comparison with an empty side, as an operand", "T",
+                "[1, 2]->filter(x | $x > 5)->first() == 1", "false"));
+        out.add(new Sides("38-digit Decimals differ", "F", "99999999999999999999999999999999999999D",
+                "99999999999999999999999999999999999998D"));
+        out.add(new Sides("a toOne over many", "E", "[1, 2]->toOne()", "1"));
         singleValued = out.size();
+        // -- the same record's rows of lists and whole sides --
+        // (a side that may hold NO value: not asked of in and contains, whose answer for an empty needle is their
+        // own -- nothing is in a list -- and not =='s)
+        out.add(new Sides("two optional enums both empty", "T", "[t::E.A]->filter(e | $e == t::E.B)->first()",
+                "[t::E.B]->filter(e | $e == t::E.A)->first()"));
+        out.add(new Sides("two optionals of two kinds via Any, both empty", "T;generic=R",
+                "[1]->filter(x | $x > 5)->first()->cast(@Any)", "['a']->filter(s | $s == 'b')->first()->cast(@Any)"));
+        out.add(new Sides("two optionals of two families, both empty", "N@T", "[1]->filter(x | $x > 5)->first()",
+                "[1.5]->filter(x | $x > 5.0)->first()"));
+        out.add(new Sides("true and an empty optional Boolean", "F", "true", "[true]->filter(b | !$b)->first()"));
+        out.add(new Sides("Number list through sort, and Floats", "F", "[2, 1]->cast(@Number)->sort()",
+                "[1.0, 2.0]->cast(@Number)"));
+        out.add(new Sides("optional one and a computed list of one", "T", "[1, 2]->filter(x | $x > 1)->first()",
+                "[1, 2]->filter(x | $x > 1)"));
+        out.add(new Sides("optional none and a computed empty list", "T", "[1, 2]->filter(x | $x > 5)->first()",
+                "[1, 2]->filter(x | $x > 5)"));
+        out.add(new Sides("Date lists: years and date-times", "F", "[%2020, %2021]->cast(@Date)",
+                "[%2020-01-01T00:00:00, %2021-01-01T00:00:00]->cast(@Date)"));
+        out.add(new Sides("removeDuplicates keeps its order", "T", "[2, 1, 2]->removeDuplicates()", "[2, 1]"));
+        out.add(new Sides("Float lists computed", "T", "[1.5, 2.5]->filter(x | $x > 0.0)", "[1.5, 2.5]"));
+        out.add(new Sides("enum lists computed", "T", "[t::E.A, t::E.B]->filter(e | true)", "[t::E.A, t::E.B]"));
+        out.add(new Sides("String lists, a trailing space", "F", "['a ', 'b']->filter(s | true)", "['a', 'b']"));
+        out.add(new Sides("written lists, Integer and Decimal", "T", "[1, 2]", "[1D, 2.00D]"));
+        out.add(new Sides("built to the hour against a held list", "T", "date(2015, 4, 16, 14)",
+                "[%2015-04-16T14:00:00]->filter(d | true)"));
+        out.add(new Sides("a year through a filter", "T", "[%2020]->filter(d | true)", "%2020"));
+        out.add(new Sides("empty string and the empty list", "F", "''", "[]"));
+        out.add(new Sides("an empty list forced to one, and the empty list", "E", "[]->toOne()", "[]"));
+        out.add(new Sides("lists inside lists, Integer and Decimal", "T", "list([1, 2])", "list([1D, 2D])"));
+        out.add(new Sides("an empty slot through a second map", "T",
+                "[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | if($y > 0, |'a', |'b'))", "['a']"));
         out.add(new Sides("list decimal differs", "F", "[1.0D, 10.125D]->filter(x | $x > 0D)", "[1.0D, 10.5D]"));
         // empty sides
         out.add(new Sides("empty and empty", "T", "[]", "[]"));
