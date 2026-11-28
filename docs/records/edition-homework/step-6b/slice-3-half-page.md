@@ -42,6 +42,30 @@ holds in ONE type.
 | 5 | Two columns that can never be equal, inside a function whose parameters are `Any`, in a filter: refused ("TypedRunTimeComparison is not substitutable yet") | the store resolver cannot carry the kept comparison through its substitution | the resolver carries it (false at run time is the rule there) |
 | 6 | `pair(1, 1D) == pair(1, 1)`: the assert under the database checker is unjudged | the test checker's own gate | with slice 6 (asserts planned as the comparison they mean), unless it falls out of 2 |
 
+## Built since this page was written (the scratch branch, measured by the no-Bazel loop, 2026-11-28 02:05 UTC)
+
+DuckDB 93 of 106 right everywhere, none wrong, none contradicting, one failing when the query runs (the `map` defect
+below); H2 88, none wrong; SQLite 88.
+
+- 3b row 1: a side whose TYPE says it holds nothing is empty wherever it stands (`Equalities.equal`); two lists of
+  date-times, texts against held ones, by their instants (`asInstants`).
+- 3b row 3: DuckDB refuses by name a sub-query inside a list's function (`DuckDb.lambda`), looking only at what it
+  writes. Twelve comparisons on DuckDB are now "answered in some places, refused by name in the others" where they
+  failed at run: tables (4), maps (3), a list typed `Number`, a list of pairs, the two mixed-list rows (part 2), and
+  `pair(1, 1D) == pair(1, 1)` (its assert under the database checker).
+- 3b row 4: a comparison kept for its call keeps its two sides until the call's rule has answered
+  (`UserCallInliner.rewrite(n, keptForItsCall)`): register S169's fold of an enumeration against a String answered
+  first. On the other doors the call's rule leaves the comparison as it is and the same fold answers after.
+- 3b row 5: the resolver's substitution carries an answered kept comparison (`Substitution`). The measure's
+  expectation there was wrong and is corrected: two columns of two types inside a function of `Any` are never equal,
+  but two EMPTY sides are, so the rows where both hold nothing are the answer.
+- The measure's "reads the element" place wraps both sides.
+
+Still to build in this slice: 3b row 2 (the value form first for a list typed `Number` or `Any` that holds one type,
+a list of pairs, a map: seven of the twelve partly-answered rows on DuckDB). Found, H2's own: a map and a nested list
+in the Java checker's side statement are written as SQL H2 does not have (`map_from_entries`, a nested array type)
+and fail when it runs, where H2 should refuse by name.
+
 ## Not in this slice
 
 Mixed lists (part 2). Tables as sides (slice 4). `contains`, `in`, `indexOf` (slice 5). The asserts' own code (slice
