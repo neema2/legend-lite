@@ -1844,7 +1844,7 @@ public final class AssertVerdicts {
                 && lam.body().size() == 1
                 && lam.body().get(0) instanceof TypedNativeCall cont
                 && "meta::pure::functions::collection::contains"
-                        .equals(cont.callee().qualifiedName())
+                        .equals(com.legend.builtin.Comparisons.name(cont.callee().qualifiedName()))
                 && cont.args().size() == 2
                 && cont.args().get(1) instanceof
                         com.legend.compiler.spec.typed.TypedVariable ev

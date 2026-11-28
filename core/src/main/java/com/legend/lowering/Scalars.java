@@ -2259,6 +2259,17 @@ final class Scalars {
         RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_0_1__ANY_MANY),
                 inOfOptionalRule(NumberFamilies.TWO_FAMILIES));
         RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY), inRule(NumberFamilies.TWO_FAMILIES));
+        // SPIKE (slice 7, twins): a door's comparison is a function of its own with a rule of its own -- three number
+        // types and a date's written precision (the doors' tables named this rule for lite's functions until now)
+        for (com.legend.model.FunctionId door : com.legend.model.FunctionId.all(
+                Pure.AT_BOOLEAN_EQUAL_AS_WRITTEN, Pure.AT_BOOLEAN_EQUAL_AS_WRITTEN_EMPTY_BY_PLACE,
+                Pure.AT_BOOLEAN_EQ_AS_WRITTEN, Pure.AT_BOOLEAN_LESS_THAN_AS_WRITTEN,
+                Pure.AT_BOOLEAN_LESS_THAN_EQUAL_AS_WRITTEN, Pure.AT_BOOLEAN_GREATER_THAN_AS_WRITTEN,
+                Pure.AT_BOOLEAN_GREATER_THAN_EQUAL_AS_WRITTEN, Pure.AT_COLLECTION_CONTAINS_AS_WRITTEN,
+                Pure.AT_COLLECTION_IN_AS_WRITTEN, Pure.AT_COLLECTION_INDEX_OF_AS_WRITTEN,
+                Pure.AT_COLLECTION_REMOVE_DUPLICATES_AS_WRITTEN)) {
+            RULES.put(door, Scalars::threeNumberTypesAndWrittenDatePrecision);
+        }
     }
 
     private static void castFamily(Type target, List<com.legend.model.FunctionId> ids) {
@@ -3025,7 +3036,7 @@ final class Scalars {
                 || cc.args().size() != 2) {
             return false;
         }
-        String fqn = cc.callee().qualifiedName();
+        String fqn = com.legend.builtin.Comparisons.name(cc.callee().qualifiedName());
         if (!fqn.equals("meta::pure::functions::boolean::eq")
                 && !fqn.equals("meta::pure::functions::boolean::equal")) {
             return false;
@@ -3899,7 +3910,7 @@ final class Scalars {
      *  by the database with nothing refused. A call that meets neither is written exactly as its own rule writes
      *  it. */
     static SqlExpr threeNumberTypesAndWrittenDatePrecision(TypedNativeCall n, List<SqlExpr> args) {
-        com.legend.model.FunctionId id = n.callee().id();
+        com.legend.model.FunctionId id = com.legend.builtin.Comparisons.lites(n.callee().id());
         NumberFamilies three = NumberFamilies.THREE_TYPES;
         if (id.equals(com.legend.model.FunctionId.of(Pure.IN__ANY_0_1__ANY_MANY))) {
             return inOfOptionalRule(three).apply(n, args);
@@ -4025,7 +4036,7 @@ final class Scalars {
 
     /** The product's own rule for {@code n}, which a named rule falls back to for the calls it does not rewrite. */
     private static Rule ownRule(TypedNativeCall n) {
-        Rule rule = RULES.get(n.callee().id());
+        Rule rule = RULES.get(com.legend.builtin.Comparisons.lites(n.callee().id()));
         if (rule == null) {
             throw new IllegalStateException("no rule for " + n.callee().id() + ": an edition's row named one");
         }

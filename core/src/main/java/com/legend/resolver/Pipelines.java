@@ -1362,7 +1362,7 @@ public final class Pipelines {
         return c.args().size() == 1
                 && (c.callee().qualifiedName().equals(
                                 "meta::pure::functions::collection::distinct")
-                        || c.callee().qualifiedName().equals(
+                        || com.legend.builtin.Comparisons.name(c.callee().qualifiedName()).equals(
                                 "meta::pure::functions::collection::removeDuplicates"));
     }
 

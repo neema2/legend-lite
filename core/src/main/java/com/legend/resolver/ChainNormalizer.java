@@ -61,7 +61,7 @@ public final class ChainNormalizer {
             }
         }
         if (r instanceof TypedNativeCall c && c.args().size() == 2
-                && Pure.AT_BOOLEAN_EQUAL.contains(c.callee().id())) {
+                && com.legend.builtin.Comparisons.EQUAL.contains(c.callee().id())) {
             TypedSpec a = c.args().get(0);
             TypedSpec b = c.args().get(1);
             TypedSpec rw = identityEquality(c, a, b, ctx, trackedElementClass);
@@ -207,7 +207,7 @@ public final class ChainNormalizer {
             boolean pick = (Pure.AT_MULTIPLICITY_TO_ONE.contains(key) && c.args().size() == 1)
                     || ((Pure.AT_RELATION_FIRST.contains(key) || Pure.AT_COLLECTION_FIRST.contains(key)) && c.args().size() == 1)
                     // distinctness does not change WHICH elements: identity-preserving
-                    || (Pure.AT_COLLECTION_REMOVE_DUPLICATES.contains(key) && c.args().size() == 1)
+                    || (com.legend.builtin.Comparisons.REMOVE_DUPLICATES.contains(key) && c.args().size() == 1)
                     || (Pure.AT_COLLECTION_AT.contains(key) && c.args().size() == 2
                             && c.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger i
                             && i.value().longValue() == 0);

@@ -57,6 +57,11 @@ public final class PureComparisons implements CrossTypeRule {
     }
 
     @Override
+    public Comparing comparing() {
+        return Comparing.AS_WRITTEN;
+    }
+
+    @Override
     public TypedSpec inQuery(TypedCrossTypeComparison crossing) {
         return answer(crossing);
     }

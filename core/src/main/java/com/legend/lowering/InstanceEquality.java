@@ -60,7 +60,7 @@ final class InstanceEquality {
     /** Type-only claim gate over the owned natives: every operation built on equal() over objects
      *  (docs/OBJECT_IDENTITY_2026_10_20.md §3.3; the engine's distinct, isDistinct and union are removeDuplicates'). */
     static boolean claims(TypedNativeCall n) {
-        String callee = n.callee().qualifiedName();
+        String callee = com.legend.builtin.Comparisons.name(n.callee().qualifiedName());
         if (n.args().size() == 1 && (REMOVE_DUPLICATES.equals(callee) || DISTINCT.equals(callee)
                 || IS_DISTINCT.equals(callee))) {
             // each element whose equal() value is new: a keyed class's keys, a keyless class's identity
@@ -105,7 +105,7 @@ final class InstanceEquality {
             com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(k);
             return k;
         };
-        String callee = n.callee().qualifiedName();
+        String callee = com.legend.builtin.Comparisons.name(n.callee().qualifiedName());
         if (EQUAL.equals(callee) && (instanceFqn(n.args().get(0)) == null || instanceFqn(n.args().get(1)) == null)) {
             return collectionsEqual(n, keysOf, sqlTypeOf, scalar, freshVar);
         }

@@ -49,8 +49,8 @@ final class LiteralFolds {
                 yield inner == null ? null : !inner;
             }
             case TypedNativeCall c when c.args().size() == 2
-                    && (EQUAL_FQN.equals(c.callee().qualifiedName())
-                            || EQ_FQN.equals(c.callee().qualifiedName())) -> {
+                    && (EQUAL_FQN.equals(com.legend.builtin.Comparisons.name(c.callee().qualifiedName()))
+                            || EQ_FQN.equals(com.legend.builtin.Comparisons.name(c.callee().qualifiedName()))) -> {
                 Object l = literalValue(c.args().get(0));
                 Object r = literalValue(c.args().get(1));
                 yield l == null || r == null ? null : (Boolean) literalEquals(l, r);

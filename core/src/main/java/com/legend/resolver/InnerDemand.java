@@ -779,9 +779,9 @@ final class InnerDemand {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 2) {
             com.legend.model.FunctionId key = c.callee().id();
-            boolean isIn = (com.legend.builtin.Pure.AT_COLLECTION_IN.contains(key) || com.legend.builtin.Pure.AT_RELATION_IN.contains(key));
+            boolean isIn = (com.legend.builtin.Comparisons.IN.contains(key) || com.legend.builtin.Pure.AT_RELATION_IN.contains(key));
             boolean isContains =
-                    (com.legend.builtin.Pure.AT_COLLECTION_CONTAINS.contains(key) || com.legend.builtin.Pure.AT_STRING_CONTAINS.contains(key));
+                    (com.legend.builtin.Comparisons.CONTAINS.contains(key) || com.legend.builtin.Pure.AT_STRING_CONTAINS.contains(key));
             if (isIn || isContains) {
                 com.legend.compiler.spec.typed.TypedSpec coll =
                         isContains ? c.args().get(0) : c.args().get(1);
@@ -857,8 +857,8 @@ final class InnerDemand {
         if (n instanceof TypedNativeCall mc
                 && mc.args().size() == 2) {
             com.legend.model.FunctionId key = mc.callee().id();
-            boolean isContains = (com.legend.builtin.Pure.AT_COLLECTION_CONTAINS.contains(key) || com.legend.builtin.Pure.AT_STRING_CONTAINS.contains(key));
-            boolean isIn = (com.legend.builtin.Pure.AT_COLLECTION_IN.contains(key) || com.legend.builtin.Pure.AT_RELATION_IN.contains(key));
+            boolean isContains = (com.legend.builtin.Comparisons.CONTAINS.contains(key) || com.legend.builtin.Pure.AT_STRING_CONTAINS.contains(key));
+            boolean isIn = (com.legend.builtin.Comparisons.IN.contains(key) || com.legend.builtin.Pure.AT_RELATION_IN.contains(key));
             if (isContains || isIn) {
                 TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
                 TypedSpec other = isContains ? mc.args().get(1) : mc.args().get(0);

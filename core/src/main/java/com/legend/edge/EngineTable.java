@@ -263,10 +263,6 @@ final class EngineTable implements EditionTable, Edition {
      *  INSIDE one it writes the database's comparison -- two plain nullable columns null-safe, a computed side a
      *  plain {@code =} whose answer for an empty side is no value, the negation null-safe -- which is what the
      *  product's rule writes there with no guard ({@code Equalities.nullArms}, {@code NullSemantics.negate}). */
-    @Override
-    public boolean emptySideIsFalse(TypedNativeCall comparison) {
-        return comparison.outsideStore();
-    }
 
     private @Nullable List<Row> rows(TypedNativeCall call, Set<Feature> features) {
         FunctionId key = call.callee().id();

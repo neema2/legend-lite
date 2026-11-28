@@ -49,7 +49,7 @@ final class ValueCollectionOps {
     static @com.legend.base.Nullable com.legend.compiler.spec.typed.TypedDistinct
             relationDistinct(TypedNativeCall n) {
         return "meta::pure::functions::collection::removeDuplicates"
-                        .equals(n.callee().qualifiedName())
+                        .equals(com.legend.builtin.Comparisons.name(n.callee().qualifiedName()))
                 && n.args().size() == 1
                 && com.legend.compiler.element.type.Type
                         .schemaView(n.args().get(0).info().type())
@@ -70,7 +70,7 @@ final class ValueCollectionOps {
             return null;
         }
         com.legend.model.FunctionId key = n.callee().id();
-        if (Pure.AT_COLLECTION_REMOVE_DUPLICATES.contains(key)) {
+        if (com.legend.builtin.Comparisons.REMOVE_DUPLICATES.contains(key)) {
             return new TypedDistinct(n.args().get(0),
                     List.of(rt.columns().get(0).name()),
                     n.args().get(0).info());

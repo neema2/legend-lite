@@ -241,7 +241,7 @@ final class AggAwareActivities {
             }
             case TypedNativeCall c when c.args().size() == 2
                     && "meta::pure::functions::boolean::equal"
-                            .equals(c.callee().qualifiedName()) -> {
+                            .equals(com.legend.builtin.Comparisons.name(c.callee().qualifiedName())) -> {
                 if (!expr(c.args().get(0), sb)) {
                     return false;
                 }

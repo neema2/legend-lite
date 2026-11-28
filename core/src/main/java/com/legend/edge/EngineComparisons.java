@@ -50,6 +50,11 @@ public final class EngineComparisons implements CrossTypeRule {
     }
 
     @Override
+    public Comparing comparing() {
+        return Comparing.AS_WRITTEN_EMPTY_SIDE_BY_PLACE;
+    }
+
+    @Override
     public TypedSpec inQuery(TypedCrossTypeComparison crossing) {
         return crossing.comparison();
     }

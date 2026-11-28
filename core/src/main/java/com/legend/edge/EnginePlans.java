@@ -906,7 +906,7 @@ public final class EnginePlans {
         boolean isIn = n instanceof
                 com.legend.compiler.spec.typed.TypedNativeCall nc
                 && "meta::pure::functions::collection::in"
-                        .equals(nc.callee().qualifiedName());
+                        .equals(com.legend.builtin.Comparisons.name(nc.callee().qualifiedName()));
         boolean carry = n instanceof
                 com.legend.compiler.spec.typed.TypedCollection && underIn;
         for (TypedSpec c : n.children()) {

@@ -52,6 +52,22 @@ public interface CrossTypeRule {
     };
 
 
+    /** SPIKE (slice 7, twins): which functions the comparisons of this setting's code are. */
+    enum Comparing {
+        /** lite's own: the one equality */
+        LITES,
+        /** by three number types and a date's written precision ({@code ...AsWritten}) */
+        AS_WRITTEN,
+        /** the same, and an equality's empty side answered by where the call runs */
+        AS_WRITTEN_EMPTY_SIDE_BY_PLACE
+    }
+
+    /** SPIKE (slice 7, twins): which functions this setting's code compares by; the type-checker calls them where it
+     *  types a comparison ({@code Typer.compared}). */
+    default Comparing comparing() {
+        return Comparing.LITES;
+    }
+
     /** A comparison across types written in the query or test body the door receives. */
     TypedSpec inQuery(TypedCrossTypeComparison crossing);
 

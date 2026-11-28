@@ -527,14 +527,14 @@ final class LiteralUnroll {
         List<TypedSpec> a = c.args();
         // SPELLED-INTEGER compares (WORLD_MAP §4: "size() == 1" and kin) —
         // same-kind identity over two spelled integers, never a new value
-        if ((is(c, Pure.AT_BOOLEAN_GREATER_THAN) || is(c, Pure.AT_BOOLEAN_LESS_THAN) || is(c, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL)
-                || is(c, Pure.AT_BOOLEAN_LESS_THAN_EQUAL)) && a.size() == 2
+        if ((is(c, com.legend.builtin.Comparisons.GREATER_THAN) || is(c, com.legend.builtin.Comparisons.LESS_THAN) || is(c, com.legend.builtin.Comparisons.GREATER_THAN_EQUAL)
+                || is(c, com.legend.builtin.Comparisons.LESS_THAN_EQUAL)) && a.size() == 2
                 && a.get(0) instanceof TypedCInteger l && a.get(1) instanceof TypedCInteger r) {
             // exact (TypedCInteger.big): longValue() wraps a literal beyond long, and 2026-10-14 the tenth line
             // found 99999999999999999999 > 9223372036854775807 folded to false
             int cmp = l.big().compareTo(r.big());
-            return bool(is(c, Pure.AT_BOOLEAN_GREATER_THAN) ? cmp > 0 : is(c, Pure.AT_BOOLEAN_LESS_THAN) ? cmp < 0
-                    : is(c, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL) ? cmp >= 0 : cmp <= 0);
+            return bool(is(c, com.legend.builtin.Comparisons.GREATER_THAN) ? cmp > 0 : is(c, com.legend.builtin.Comparisons.LESS_THAN) ? cmp < 0
+                    : is(c, com.legend.builtin.Comparisons.GREATER_THAN_EQUAL) ? cmp >= 0 : cmp <= 0);
         }
         // LIST SHAPE over a spelled collection (WORLD_MAP §4): its size, and
         // membership of a spelled scalar (same-kind identity, as `in`)
@@ -547,8 +547,8 @@ final class LiteralUnroll {
         }
         // the COLLECTION overload only: pure's [x] == x law resolves
         // ['ACTIVE']->contains('TIV') to string::contains (substring)
-        if (is(c, Pure.AT_COLLECTION_CONTAINS, Pure.AT_STRING_CONTAINS)
-                && c.callee().qualifiedName().equals("meta::pure::functions::collection::contains")
+        if (is(c, com.legend.builtin.Comparisons.CONTAINS, Pure.AT_STRING_CONTAINS)
+                && com.legend.builtin.Comparisons.name(c.callee().qualifiedName()).equals("meta::pure::functions::collection::contains")
                 && a.size() == 2 && literalStructure(a.get(0))) {
             Optional<Literal> needle = literal(a.get(1)).filter(l -> l instanceof Scalar && comparedHere(a.get(1)));
             if (needle.isPresent()) {
@@ -650,7 +650,7 @@ final class LiteralUnroll {
         // scalar equality of the SAME kind only: a cross-kind compare
         // (1 == 1.0) is the database's verdict (SQL numeric coercion —
         // EqualityWorldsConformanceTest's declared divergence)
-        if ((is(c, Pure.AT_BOOLEAN_EQUAL) || is(c, Pure.AT_BOOLEAN_EQ)) && a.size() == 2) {
+        if ((is(c, com.legend.builtin.Comparisons.EQUAL) || is(c, com.legend.builtin.Comparisons.EQ)) && a.size() == 2) {
             return equalityFold(c, a);
         }
         if (is(c, Pure.AT_BOOLEAN_NOT) && a.size() == 1 && a.get(0) instanceof TypedCBoolean b) {
@@ -671,7 +671,7 @@ final class LiteralUnroll {
             }
             return c;
         }
-        if (is(c, Pure.AT_COLLECTION_IN, Pure.AT_RELATION_IN) && a.size() == 2 && a.get(1) instanceof TypedCollection coll
+        if (is(c, com.legend.builtin.Comparisons.IN, Pure.AT_RELATION_IN) && a.size() == 2 && a.get(1) instanceof TypedCollection coll
                 && coll.elements().stream().allMatch(e -> scalar(e).isPresent())) {
             return inFold(c, a.get(0), coll);
         }

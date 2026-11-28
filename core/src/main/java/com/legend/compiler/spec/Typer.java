@@ -292,6 +292,10 @@ final class Typer {
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         // lite's own comparison (hasSameElements) means what lite's setting says, whichever door admitted the code
         CrossTypeRule rule = ruleFor(chosen);
+        // SPIKE (slice 7, twins): a comparison in a door's code is the door's own function, called where the call is
+        // typed -- in the query, a body, a mapping's code and a planner's own call alike -- before anything wraps or
+        // keeps the call
+        call = doorsOwn(call, rule.comparing());
         if (compared == Compared.UNREAD && rule.readsBodies()) {
             // code the setting is never asked about (an island's translation, a planner's own frame) is not the
             // query's own either: its comparison without the position the planning-time refusal reads
@@ -304,6 +308,27 @@ final class Typer {
         TypedSpec answer = comparedWhereItStands(call, chosen, args, pos, rule);
         // (a comparison in a function's body is the function's, not the query's: EqualityClasses.notTheQuerys)
         return compared == Compared.QUERY ? answer : EqualityClasses.notTheQuerys(answer);
+    }
+
+    /** SPIKE (slice 7, twins): {@code call} as a call of the function its door compares by, where it is one of
+     *  lite's overloads of the ten comparison families; itself otherwise. */
+    private TypedSpec doorsOwn(TypedSpec call, CrossTypeRule.Comparing how) {
+        if (how == CrossTypeRule.Comparing.LITES
+                || !(call instanceof com.legend.compiler.spec.typed.TypedNativeCall c)
+                || c.callee().definition() == null
+                || !com.legend.builtin.Comparisons.readByADoor(c.callee().id())) {
+            return call;
+        }
+        com.legend.model.FunctionId door = how == CrossTypeRule.Comparing.AS_WRITTEN
+                ? com.legend.builtin.Comparisons.asWritten(c.callee().id())
+                : com.legend.builtin.Comparisons.asWrittenEmptySideByPlace(c.callee().id());
+        List<com.legend.compiler.element.TypedFunction> found = ctx.findFunctionById(door.qualified());
+        if (found.size() != 1) {
+            throw new IllegalStateException("the door's comparison " + door + " is declared " + found.size()
+                    + " times");
+        }
+        return new com.legend.compiler.spec.typed.TypedNativeCall(found.get(0), c.args(), c.info(), c.pos(),
+                c.outsideStore());
     }
 
     /** The setting that answers a comparison by {@code chosen}: the door's, or lite's own for lite's own function
@@ -1319,7 +1344,9 @@ final class Typer {
                 ftParams.add(new Type.FunctionType.Param(fp.type(), fp.multiplicity()));
             }
             ExprType out = new ExprType(fn.returnType(), fn.returnMultiplicity());
-            TypedSpec body = CallNodes.mint(ctx.implementations(), fn, argRefs, out);
+            // SPIKE (slice 7, twins): a comparison named as a value (eq_Any_1__Any_1_) is its door's function too --
+            // the type-checker's second mint of a comparison, which never passed the hook
+            TypedSpec body = doorsOwn(CallNodes.mint(ctx.implementations(), fn, argRefs, out), crossTypes.comparing());
             var ft = new Type.FunctionType(ftParams,
                     new Type.FunctionType.Param(fn.returnType(), fn.returnMultiplicity()));
             // The eta-expanded VALUE is a lambda, but the reference's m3

@@ -218,8 +218,8 @@ public final class VerdictQueries {
      * (the toSQLString dialect-table idiom's outer wrapper). */
     public static TypedSpec distinctTrueWrapper(TypedSpec bare) {
         if (bare instanceof TypedNativeCall eq
-                && (eq.callee().qualifiedName().equals("meta::pure::functions::boolean::equal")
-                        || eq.callee().qualifiedName().equals("meta::pure::functions::boolean::eq"))
+                && (com.legend.builtin.Comparisons.name(eq.callee().qualifiedName()).equals("meta::pure::functions::boolean::equal")
+                        || com.legend.builtin.Comparisons.name(eq.callee().qualifiedName()).equals("meta::pure::functions::boolean::eq"))
                 && eq.args().size() == 2
                 && eq.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCollection tc
                 && tc.elements().size() == 1

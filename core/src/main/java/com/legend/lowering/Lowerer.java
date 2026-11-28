@@ -403,7 +403,7 @@ public final class Lowerer {
      *  times it is so reached. */
     private void countPositive(TypedSpec condition, java.util.IdentityHashMap<TypedSpec, int[]> out) {
         if (condition instanceof TypedNativeCall n) {
-            if (isFamily(n, Pure.AT_BOOLEAN_EQUAL) && n.args().size() == 2) {
+            if (isFamily(n, com.legend.builtin.Comparisons.EQUAL) && n.args().size() == 2) {
                 out.computeIfAbsent(n, k -> new int[1])[0]++;
             } else if (isFamily(n, Pure.AT_BOOLEAN_AND) || isFamily(n, Pure.AT_BOOLEAN_OR)) {
                 n.args().forEach(a -> countPositive(a, out));
@@ -439,8 +439,7 @@ public final class Lowerer {
         if (verbatimEquality || legacyNullUnsafeEquals) {
             return NullSemantics.verbatim(true, e);
         }
-        if (isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
-                && Scalars.doorsRule(call, features, styled()) == null) {
+        if (isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2) {
             // the product's own == of two lists of one compared kind: the one "same values" instruction over the
             // two side values (step 6B, slice 1); a door's rule keeps its own writing
             WholeComparisons planner = wholeComparisons;
@@ -448,14 +447,16 @@ public final class Lowerer {
                     boundSides != null);
         }
         if (boundSides != null && wholeComparisons != null && Equalities.membershipList(call) instanceof TypedSpec list
-                && Scalars.doorsRule(call, features, styled()) == null
                 && wholeComparisons.sideRows(list) instanceof SqlQuery rows) {
             // the product's own contains or in over a list side BOUND ONCE (an assert as the membership it means):
             // the bound rows ride the membership, for a database that has no list membership to read
             e = Equalities.amongRows(e, rows);
         }
-        return isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
-                && styled().edition().emptySideIsFalse(call)
+        // SPIKE (slice 7, twins): every equality answers for its empty sides as Pure does, but legend-engine's own
+        // inside a store query, where its statement leaves the database's answer (the function says so; the stamp
+        // says where the call runs)
+        return isFamily(call, com.legend.builtin.Comparisons.EQUAL) && call.args().size() == 2
+                && (!com.legend.builtin.Comparisons.emptySideByPlace(call.callee().id()) || call.outsideStore())
                 ? Equalities.emptySidesAsPure(call, e, positiveConditions.contains(call)) : e;
     }
 
@@ -516,7 +517,7 @@ public final class Lowerer {
      *  value; null where the door named a rule for the call (it is lowered by that rule), or the planner has no
      *  statement for it. */
     private @com.legend.base.Nullable SqlExpr wholeSides(TypedNativeCall n) {
-        if (wholeComparisons == null || Scalars.doorsRule(n, features, styled()) != null) {
+        if (wholeComparisons == null || !isFamily(n, Pure.AT_BOOLEAN_EQUAL)) {
             return null;
         }
         @com.legend.base.Nullable SqlQuery planned = wholeComparisons.insideAnExpression(n);
@@ -540,8 +541,7 @@ public final class Lowerer {
         }
         if (!(root instanceof TypedNativeCall comparison) || comparison.args().size() != 2
                 || !isFamily(comparison, Pure.AT_BOOLEAN_EQUAL)
-                        && !Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(comparison.callee().id())
-                || Scalars.doorsRule(comparison, features, styled()) != null) {
+                        && !Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(comparison.callee().id())) {
             return null;
         }
         return wholeComparisons.asTheStatement(comparison, negated);
@@ -4516,7 +4516,8 @@ public final class Lowerer {
             // pure — unrecoverable here (serialization erases identity;
             // PCT inlines captured instances by value): instances keep
             // struct comparison, identity tests ledgered.
-            case TypedNativeCall n when (isFamily(n, Pure.AT_BOOLEAN_EQUAL) || isFamily(n, Pure.AT_BOOLEAN_EQ))
+            case TypedNativeCall n when (isFamily(n, com.legend.builtin.Comparisons.EQUAL)
+                    || isFamily(n, com.legend.builtin.Comparisons.EQ))
                     && InstanceEquality.staticallyDisjoint(n.args()) -> InstanceEquality.disjointAnswer(n.args(),
                             a -> scalar(a, columns));
 

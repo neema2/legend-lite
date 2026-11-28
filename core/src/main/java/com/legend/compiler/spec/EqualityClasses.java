@@ -54,7 +54,7 @@ public final class EqualityClasses {
                 || c.callee().definition() == null) {
             return answer;
         }
-        Comparison comparison = COMPARISONS.get(c.callee().id());
+        Comparison comparison = COMPARISONS.get(com.legend.builtin.Comparisons.lites(c.callee().id()));
         return comparison == null || comparison.kind() == TypedCrossTypeComparison.Kind.ASSERT ? answer
                 : new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(), c.args(), c.info(), null,
                         c.outsideStore());
@@ -131,7 +131,7 @@ public final class EqualityClasses {
     /** Whether {@code chosen} applied to {@code args} is a comparison the rule reads: of its two arguments, or an
      *  assert's of its first two. */
     private static boolean compares(TypedFunction chosen, List<TypedSpec> args) {
-        Comparison comparison = chosen.definition() == null ? null : COMPARISONS.get(chosen.id());
+        Comparison comparison = chosen.definition() == null ? null : COMPARISONS.get(com.legend.builtin.Comparisons.lites(chosen.id()));
         return comparison != null && (args.size() == 2
                 || args.size() > 2 && comparison.kind() == TypedCrossTypeComparison.Kind.ASSERT);
     }
@@ -166,7 +166,7 @@ public final class EqualityClasses {
     }
 
     private static Optional<Crossing> crossing(TypedFunction chosen, Type l, Type r, ModelContext ctx) {
-        Comparison comparison = COMPARISONS.get(chosen.id());
+        Comparison comparison = COMPARISONS.get(com.legend.builtin.Comparisons.lites(chosen.id()));
         if (comparison == null) {
             return Optional.empty();
         }
@@ -227,7 +227,7 @@ public final class EqualityClasses {
      *  call. */
     static Optional<com.legend.compiler.spec.typed.TypedRunTimeComparison> atRunTime(TypedSpec call,
             TypedFunction chosen, List<TypedSpec> args) {
-        Comparison comparison = chosen.definition() == null || args.size() != 2 ? null : COMPARISONS.get(chosen.id());
+        Comparison comparison = chosen.definition() == null || args.size() != 2 ? null : COMPARISONS.get(com.legend.builtin.Comparisons.lites(chosen.id()));
         // (an assert is never kept for its call: its sides are judged when the test runs, by the types they hold)
         if (comparison == null || comparison.kind() == TypedCrossTypeComparison.Kind.ASSERT
                 || !filledAtTheCall(args.get(0).info().type()) && !filledAtTheCall(args.get(1).info().type())) {
