@@ -135,6 +135,17 @@ final class CollectionLanes {
             case TypedCast c -> valueLane(c.source());
             // a comparison across types (B3 step 5): refused before the lowering; its call's lane if it is met
             case com.legend.compiler.spec.typed.TypedCrossTypeComparison x -> valueLane(x.comparison());
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> {
+                // (one answered "never equal, its sides evaluated" is a Boolean value as its comparison is: its lane
+                // the comparison's, its SQL Lowerer.scalarInner's -- the third review of 2026-11-27, M5: refused
+                // here, [x::same(1->plus(1), 1.5), true] stopped answering)
+                if (!x.neverEqual() && x.fixedByTheCall()) {
+                    // (as Lowerer.scalarInner: one whose types its call fixes is answered there or not at all)
+                    throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()
+                            == null ? "" : " in " + x.function()) + ") reached the lowering unanswered");
+                }
+                yield valueLane(x.comparison());
+            }
             // meta::json navigation: the SOURCE decides; a result envelope is
             // one scalar string value
             case com.legend.compiler.spec.typed.TypedJsonAccess ja -> valueLane(ja.source());
@@ -226,6 +237,55 @@ final class CollectionLanes {
             case TypedAggColSpec ignored -> false;
             case TypedAggColSpecArray ignored -> false;
         };
+    }
+
+    /**
+     * Whether the list {@code spec} can hold NO empty slot, by how it is written: a written list each of whose
+     * elements is exactly one value; a {@code map} over such a list whose function answers exactly one value; a
+     * {@code filter}, an upcast, a sort, a deduplication, a take, a drop or a slice of such a list; two such lists
+     * joined; one value that is always there. A list's SQL value holds a NULL slot where an element was empty
+     * (a written {@code [0..1]} read, a {@code map} whose function may answer nothing), which a Pure collection does
+     * not hold ({@link #compactIfValueLane}); a list that can hold none is compared, and counted, as it is. False
+     * for anything else: its slots are dropped before it is compared.
+     */
+    static boolean holdsNoEmptySlot(TypedSpec spec) {
+        return switch (spec) {
+            case TypedCollection c -> c.elements().stream().allMatch(e -> exactlyOne(e)
+                    && !(e instanceof TypedCollection));
+            case com.legend.compiler.spec.typed.TypedMap m -> exactlyOne(m.mapper().functionType().result()
+                    .multiplicity()) && holdsNoEmptySlot(m.source());
+            case com.legend.compiler.spec.typed.TypedFilter f -> holdsNoEmptySlot(f.source());
+            case com.legend.compiler.spec.typed.TypedCast c -> holdsNoEmptySlot(c.source());
+            // (what keeps, reorders or joins the elements it is given adds no empty slot: left to the default they
+            // were compacted over clean sources, a list filter each -- review 7 of step 6B's slice 3, on SQL size)
+            case com.legend.compiler.spec.typed.TypedSort o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedDistinct o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedLimit o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedDrop o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedSlice o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedConcatenate o -> holdsNoEmptySlot(o.left())
+                    && holdsNoEmptySlot(o.right());
+            // (one value that is always there, compared as the list of it, holds no empty slot either)
+            default -> exactlyOne(spec);
+        };
+    }
+
+    private static boolean exactlyOne(TypedSpec e) {
+        return exactlyOne(e.info().multiplicity());
+    }
+
+    private static boolean exactlyOne(com.legend.compiler.element.type.Multiplicity m) {
+        return m instanceof com.legend.compiler.element.type.Multiplicity.Bounded b && b.lower() == 1
+                && Integer.valueOf(1).equals(b.upper());
+    }
+
+    /** {@code lowered}, the list value {@code spec} lowers to, with its empty slots dropped unless it can hold none
+     *  ({@link #holdsNoEmptySlot}): what a comparison of two list VALUES, and a test of a list's emptiness, read
+     *  (review 6 of step 6B's slice 3: read raw, {@code [1, 2]->map(x | if($x == 1, |1, |[])) == [1]} was false on a
+     *  database that compares lists, where the statement it replaced compared rows with the empty ones dropped). */
+    static com.legend.sql.SqlExpr compacted(TypedSpec spec, com.legend.sql.SqlExpr lowered) {
+        return lowered instanceof com.legend.sql.SqlExpr.CompactList || holdsNoEmptySlot(spec) ? lowered
+                : new com.legend.sql.SqlExpr.CompactList(lowered);
     }
 
     /** The §5 rule at a VALUE-LANE consumer: positional/counting reads

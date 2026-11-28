@@ -61,17 +61,6 @@ class EqualityWorldsConformanceTest {
                 "World 2 moved: " + pureA + " == " + pureB);
     }
 
-    /** A DECLARED divergence: each world pinned at its OWN verdict, the
-     * reason on the record. */
-    private static void diverge(boolean world1, @com.legend.base.Nullable Object world2,
-            String pureA, String pureB, Object javaA, Object javaB,
-            String reason) throws Exception {
-        assertEquals(world1, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB), LITE),
-                "World 1 moved (" + reason + "): " + pureA + " == " + pureB);
-        assertEquals(world2, world2(pureA, pureB),
-                "World 2 moved (" + reason + "): " + pureA + " == " + pureB);
-    }
-
     /** A comparison across types (B3 step 5): the judge's rule answers {@code world1}; the product refuses it when the
      *  query is compiled, naming the two types. */
     private static void refusedByTheProduct(boolean world1, String pureA, String pureB, Object javaA, Object javaB) {
@@ -110,11 +99,11 @@ class EqualityWorldsConformanceTest {
         // product refuses 1 == 1.0 as a compile error (World 2); the judge's own rule says false (World 1). Until then
         // World 2 answered SQL's numeric coercion, true (legend-engine's door still does: EngineComparisons)
         refusedByTheProduct(false, "1", "1.0", 1L, 1.0d);
-        // SQL three-valued logic: empty == empty through a runtime read
-        // is SQL NULL where pure says TRUE (the recorded residual; the
-        // STATIC [] == [] arm answers true, this pins the RUNTIME path)
-        diverge(true, null, "[]->head()", "[]->head()", null, null,
-                "SQL NULL vs pure true — recorded Phase-2 residual");
+        // empty == empty through a runtime read: TRUE in both worlds, as Pure says. Until the closing batch of the
+        // edition program's step 6 (2026-11-27) this was a declared divergence, the recorded Phase-2 residual: SQL's
+        // three-valued "no value" where Pure says true. Two sides that may both be empty are now compared null-safe
+        // (lowering.Equalities.emptySidesAsPure); the STATIC [] == [] arm answered true already
+        agree(true, "[]->head()", "[]->head()", null, null);
         // register S20 (the user's ruling "yes on IEEE", 2026-11-05; built 2026-11-17, Phase 5b): a Float literal is the
         // double in the product, so the database adds 0.1 + 0.2 as legend-pure's compiled runtime does
         // (0.30000000000000004), and clean mode compares a Float EXACTLY (S15/S132): the two worlds agree. Until S20 the
@@ -131,8 +120,12 @@ class EqualityWorldsConformanceTest {
         // numeric in both worlds" row MIS-CITED testIntToDecimal (that
         // test is Decimal×Decimal) — the engine assert seam rules
         // cross-primitive-kind FALSE; SQL '=' coerces TRUE
-        // B3 step 5: an Integer and a Decimal are two types -- refused by the product, false by the judge's rule
-        refusedByTheProduct(false, "8", "8D", 8L, new java.math.BigDecimal("8"));
+        // an Integer and a Decimal are two exact numbers, equal by their value in both worlds (the user's ruling of
+        // 2026-11-27, "Yes I like the rule"; from B3 step 5 until then two types: refused by the product, false by the
+        // judge's rule), as an exact number and a Float still are not
+        agree(true, "8", "8D", 8L, new java.math.BigDecimal("8"));
+        agree(false, "8", "8.5D", 8L, new java.math.BigDecimal("8.5"));
+        refusedByTheProduct(false, "8.0", "8D", 8.0d, new java.math.BigDecimal("8"));
         // register S139 (the user's ruling, 2026-11-05): a Decimal by value, so the two worlds agree -- on every route
         // since B3 step 1a (2026-11-24; until then the edge kept the engine assert seam's scale-sensitive equals)
         agree(true, "3.0d", "3.00d", new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));

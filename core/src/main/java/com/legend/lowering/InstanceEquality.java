@@ -163,10 +163,21 @@ final class InstanceEquality {
             // keyless shapes keep the generic rule (D91 residue)
             return null;
         }
+        SqlExpr la = scalar.apply(l);
+        SqlExpr ra = scalar.apply(r);
+        if (lt instanceof SqlType.Struct ls && rt instanceof SqlType.Struct rs) {
+            // by their typed leaves, as a comparison of two whole sides reads them: the class each actually is, then
+            // its keys by value or its identity (the edition program's step 6); a leaf with no typed reading (a
+            // to-many key) keeps the text of the keys below
+            SqlExpr typed = SideEqualities.sameInstance(la, ls, ra, rs, keys);
+            if (typed != null) {
+                return typed;
+            }
+        }
         SqlExpr ca = CanonicalRenderSql.instanceEqualityCanon(
-                scalar.apply(l), keys, lf, lt);
+                la, keys, lf, lt);
         SqlExpr cb = CanonicalRenderSql.instanceEqualityCanon(
-                scalar.apply(r), keys, rf, rt);
+                ra, keys, rf, rt);
         if (ca == null || cb == null) {
             return null;
         }
@@ -243,8 +254,9 @@ final class InstanceEquality {
         };
     }
 
-    /** The collection's elements' equal() values, in order. */
-    private static SqlExpr equalValues(SqlExpr xs, SqlType et, Function<SqlExpr, SqlExpr> valueOf,
+    /** The collection's elements' equal() values, in order (a date-time's is its instant: {@code Equalities}' lists
+     *  of date-times read through here, step 6B's slice 3, 2026-11-28). */
+    static SqlExpr equalValues(SqlExpr xs, SqlType et, Function<SqlExpr, SqlExpr> valueOf,
             Supplier<String> freshVar) {
         String y = freshVar.get();
         return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, xs, new SqlExpr.Lambda(List.of(y),

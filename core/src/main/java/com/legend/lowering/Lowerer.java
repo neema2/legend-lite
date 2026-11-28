@@ -343,6 +343,179 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
+    /** The equalities standing as POSITIVE CONDITIONS ({@link #asCondition}), by node, while their condition is
+     *  lowered. */
+    private final java.util.Set<TypedSpec> positiveConditions =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /**
+     * {@code condition} is lowered as a POSITIVE CONDITION -- a filter's, a join's, an {@code exists}'s, an
+     * {@code if}'s: there the database's "no value" for a comparison one side of which is empty and Pure's false are
+     * one answer (the row is not taken, the branch is not chosen), so the equalities it is made of are left as they
+     * are written. Those are the equalities reached from {@code condition} through {@code &&} and {@code ||} alone.
+     * Every other equality is answered for its empty side where it is written ({@link #written}): a kept value (a
+     * column, a query's answer, an aggregate's or a window's input, an operand, a list lambda's result), and
+     * anything under a {@code !} or a {@code forAll}, where "no value" is no longer false --
+     * {@code filter(r | !($r.nick == 'a' || $r.id == 7))} dropped the row whose nick is empty, where Pure keeps it
+     * (so before step 6, and until its closing batch, 2026-11-27).
+     *
+     * <p>The marks are this condition's alone, taken off once it is lowered: the node may stand elsewhere too (a
+     * let's value is one node wherever its name is read).
+     */
+    private <T> T asCondition(TypedSpec condition, java.util.function.Supplier<T> lowered) {
+        return asCondition(condition, condition, lowered);
+    }
+
+    /** {@link #asCondition(TypedSpec, java.util.function.Supplier)} where {@code lowered} lowers MORE than the
+     *  condition: {@code within} is everything it lowers (a list's {@code exists}: the list too), so a node that
+     *  stands in the condition and also outside it (one argument read in the list and in the lambda) has a place
+     *  that is no positive one, and is guarded (the final review of the closing batch, S4: counted over the
+     *  condition alone, {@code [$b]->exists(x | $x == false || $b)} over {@code $r.nick == 'a'} left the list's
+     *  element unguarded). */
+    private <T> T asCondition(TypedSpec condition, TypedSpec within, java.util.function.Supplier<T> lowered) {
+        java.util.IdentityHashMap<TypedSpec, int[]> positiveAt = new java.util.IdentityHashMap<>();
+        countPositive(condition, positiveAt);
+        if (positiveAt.isEmpty()) {
+            return lowered.get();
+        }
+        // ONE node may stand at more than one place: the inliner puts a let's value, or an argument, at each of
+        // its reads by reference. Only an equality ALL of whose places in this condition are positive is left as
+        // written; one that also stands as a value (f(b) = $b || ($b == false) over $r.nick == 'a') is answered
+        // for its empty side at every place, which costs the positive place one wrapper and no answer (the
+        // architecture audit of step 6: marked by identity alone, the value place went unguarded too)
+        java.util.IdentityHashMap<TypedSpec, int[]> places = new java.util.IdentityHashMap<>();
+        positiveAt.keySet().forEach(node -> places.put(node, new int[1]));
+        countPlaces(within, places);
+        List<TypedSpec> marked = new ArrayList<>();
+        positiveAt.forEach((node, positive) -> {
+            if (positive[0] == java.util.Objects.requireNonNull(places.get(node))[0] && positiveConditions.add(node)) {
+                marked.add(node);
+            }
+        });
+        try {
+            return lowered.get();
+        } finally {
+            marked.forEach(positiveConditions::remove);
+        }
+    }
+
+    /** The equalities reached from {@code condition} through {@code &&} and {@code ||} alone, each with how many
+     *  times it is so reached. */
+    private void countPositive(TypedSpec condition, java.util.IdentityHashMap<TypedSpec, int[]> out) {
+        if (condition instanceof TypedNativeCall n) {
+            if (isFamily(n, Pure.AT_BOOLEAN_EQUAL) && n.args().size() == 2) {
+                out.computeIfAbsent(n, k -> new int[1])[0]++;
+            } else if (isFamily(n, Pure.AT_BOOLEAN_AND) || isFamily(n, Pure.AT_BOOLEAN_OR)) {
+                n.args().forEach(a -> countPositive(a, out));
+            }
+        }
+    }
+
+    /** Every place each of {@code counted}'s nodes stands beneath {@code t}, by reference. */
+    private static void countPlaces(TypedSpec t, java.util.IdentityHashMap<TypedSpec, int[]> counted) {
+        int[] here = counted.get(t);
+        if (here != null) {
+            here[0]++;
+        }
+        for (TypedSpec k : t.children()) {
+            countPlaces(k, counted);
+        }
+    }
+
+    /** {@code condition} lowered by {@code columns}, as a positive condition where {@code positive}. */
+    private SqlExpr predicate(TypedSpec condition, boolean positive, ColumnResolver columns) {
+        return positive ? asCondition(condition, () -> scalar(condition, columns)) : scalar(condition, columns);
+    }
+
+    /**
+     * {@code call} WRITTEN by its rule over its lowered arguments: the one place the lowering picks a scalar native's
+     * rule ({@link Scalars#lower}). Then, for an equality: the mapping's own definition and legend-engine's
+     * null-unsafe mode keep the plain {@code =} ({@link NullSemantics#verbatim}); any other is answered for its empty
+     * sides as its audience answers ({@link EditionTable#emptySideIsFalse}, {@link Equalities#emptySidesAsPure}).
+     * Here, because every position passes here: a window's column and a reducer's input never pass {@link #scalar}.
+     */
+    private SqlExpr written(TypedNativeCall call, List<SqlExpr> args) {
+        SqlExpr e = Scalars.lower(call, args, features, implementations, styled());
+        if (verbatimEquality || legacyNullUnsafeEquals) {
+            return NullSemantics.verbatim(true, e);
+        }
+        if (isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
+                && Scalars.doorsRule(call, features, styled()) == null) {
+            // the product's own == of two lists of one compared kind: the one "same values" instruction over the
+            // two side values (step 6B, slice 1); a door's rule keeps its own writing
+            WholeComparisons planner = wholeComparisons;
+            e = Equalities.asSameValues(call, e, side -> planner == null ? null : planner.sideRows(side));
+        }
+        return isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
+                && styled().edition().emptySideIsFalse(call)
+                ? Equalities.emptySidesAsPure(call, e, positiveConditions.contains(call)) : e;
+    }
+
+    /** The list natives whose lambda is read as a positive condition: an element is kept, or found, where it is true. */
+    private static final java.util.Set<com.legend.model.FunctionId> POSITIVE_LIST_PREDICATES = java.util.Set.of(
+            com.legend.model.FunctionId.of(Pure.EXISTS__T_MANY__FUNCTION_1),
+            com.legend.model.FunctionId.of(Pure.FIND__T_MANY__FUNCTION_1));
+
+    /** {@code n}'s arguments lowered (a unary lambda by the binding convention, {@link LambdaBinding}); a list's
+     *  {@code exists} or {@code find} reads its lambda's answer as a positive condition ({@link #asCondition}). */
+    private List<SqlExpr> nativeArgs(TypedNativeCall n, ColumnResolver columns) {
+        if (n.args().size() == 2 && n.args().get(1) instanceof TypedLambda test && !test.body().isEmpty()
+                && POSITIVE_LIST_PREDICATES.contains(n.callee().id())) {
+            return asCondition(LambdaBinding.last(test), n,
+                    () -> LambdaBinding.lowerNativeArgs(n, columns, this::scalar));
+        }
+        return LambdaBinding.lowerNativeArgs(n, columns, this::scalar);
+    }
+
+    /** The planner's answers for comparisons of two whole sides ({@link #withWholeComparisons}); null where no
+     *  planner gave any (a lowerer made outside the planner's roads). */
+    private @com.legend.base.Nullable WholeComparisons wholeComparisons;
+
+    /** A comparison of two WHOLE sides (computed lists, maps, tables) is answered by {@code planner}'s statement for
+     *  it ({@link WholeComparisons}; the edition program's step 6, 2026-11-27): as the body's last statement that
+     *  statement is the statement ({@link #wholeAnswer}); inside an expression it is read as one value
+     *  ({@link #wholeSides}); so the comparison answers the same wherever it stands. The planner is asked only for
+     *  a comparison the door's table named no rule for ({@link Scalars#doorsRule}): it knows nothing of doors. */
+    public Lowerer withWholeComparisons(WholeComparisons planner) {
+        this.wholeComparisons = planner;
+        return this;
+    }
+
+    /** {@code n}, met inside an expression, as the planner's statement for a comparison of two whole sides, one
+     *  value; null where the door named a rule for the call (it is lowered by that rule), or the planner has no
+     *  statement for it. */
+    private @com.legend.base.Nullable SqlExpr wholeSides(TypedNativeCall n) {
+        if (wholeComparisons == null || Scalars.doorsRule(n, features, styled()) != null) {
+            return null;
+        }
+        @com.legend.base.Nullable SqlQuery planned = wholeComparisons.insideAnExpression(n);
+        return planned == null ? null : new SqlExpr.ScalarSubquery(planned);
+    }
+
+    /** {@code body}'s answer where its LAST statement is a comparison of two whole sides ({@code ==},
+     *  {@code hasSameElements}, or {@code !} of one) that the product's own rule lowers and the planner plans: the
+     *  planner's statement, which IS the statement (no wrapper, nothing pruned or rebound: it is whole as planned).
+     *  Null for every other body, which is lowered as it always was. Asked before the lets are lowered: the planner
+     *  plans each side with the lets it reads. */
+    private @com.legend.base.Nullable SqlQuery wholeAnswer(List<TypedSpec> body) {
+        if (wholeComparisons == null || body.isEmpty()) {
+            return null;
+        }
+        TypedSpec root = body.get(body.size() - 1);
+        boolean negated = false;
+        if (root instanceof TypedNativeCall not && not.args().size() == 1 && isFamily(not, Pure.AT_BOOLEAN_NOT)) {
+            negated = true;
+            root = not.args().get(0);
+        }
+        if (!(root instanceof TypedNativeCall comparison) || comparison.args().size() != 2
+                || !isFamily(comparison, Pure.AT_BOOLEAN_EQUAL)
+                        && !Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(comparison.callee().id())
+                || Scalars.doorsRule(comparison, features, styled()) != null) {
+            return null;
+        }
+        return wholeComparisons.asTheStatement(comparison, negated);
+    }
+
     /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
      *  keys ({@link LoweringForms#existsJoin}; the edge audit's J19: the product's form keeps the EXISTS). */
     public Lowerer withExistsJoinable() {
@@ -512,6 +685,11 @@ public final class Lowerer {
      */
     public SqlQuery lower(List<TypedSpec> body) {
         com.legend.base.RunScope.planning("lower a spec");
+        // a comparison of two whole sides as the body's answer: the planner's statement for it (wholeAnswer)
+        SqlQuery whole = wholeAnswer(body);
+        if (whole != null) {
+            return whole;
+        }
         if (cellGrids == null) {
             cellGrids = cellGrids(body);   // before the lets are lowered (withQueryLets)
         }
@@ -637,7 +815,7 @@ public final class Lowerer {
     /** A lambda over the table's row ({@code scan}, the table read under one alias) as one expression over that alias:
      *  a delete's or an update's predicate, an update's value. A read the row cannot resolve is the checker's miss. */
     private SqlExpr overRow(SqlSelect scan, TypedLambda lambda, String op, String what) {
-        return switch (tryPredicate(scan, lambda)) {
+        return switch (tryPredicate(scan, lambda, true)) {
             case Resolution.Resolved r -> r.expr();
             case Resolution.Unfoldable u -> throw new IllegalStateException(op + ": " + what + " reads '"
                     + u.column() + "', which the table's row does not hold");
@@ -2196,7 +2374,7 @@ public final class Lowerer {
         boolean prevVerbatim = verbatimEquality;
         verbatimEquality = verbatimEquality || f.stamp() == TypedFilter.Stamp.CORRELATION;
         try {
-        if (tryPredicate(src, f.predicate()) instanceof Resolution.Resolved r) {
+        if (tryPredicate(src, f.predicate(), true) instanceof Resolution.Resolved r) {
             predicate = r.expr();
         } else if (src.groupBy().isEmpty()) {
             // Window-aware path: refs to window-column aliases substitute the
@@ -2209,7 +2387,7 @@ public final class Lowerer {
         }
         if (predicate == null) {
             src = isolate(src);
-            predicate = predicateOrThrow(src, f.predicate(), "filter");
+            predicate = predicateOrThrow(src, f.predicate(), "filter", true);
         }
         } finally {
             verbatimEquality = prevVerbatim;
@@ -2217,7 +2395,7 @@ public final class Lowerer {
         Fold.FilterSlot slot = Fold.filterSlot(src, windowRef);
         if (slot == Fold.FilterSlot.ISOLATE) {
             src = isolate(src);
-            predicate = predicateOrThrow(src, f.predicate(), "filter");
+            predicate = predicateOrThrow(src, f.predicate(), "filter", true);
             slot = Fold.filterSlot(src, false);
         }
         return switch (slot) {
@@ -2267,7 +2445,7 @@ public final class Lowerer {
         for (TypedSpec arg : call.args()) {
             wrapped.add(arg instanceof TypedCollection run ? listLiteral(run, operand) : operand.apply(arg));
         }
-        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations, styled()));
+        return written(call, wrapped);
     }
 
     /** A reduce body of SEVERAL REDUCERS under a condition: each reducer of the reduce's collection lowers as the
@@ -2282,7 +2460,8 @@ public final class Lowerer {
             case TypedIf i -> {
                 TypedSpec thenB = PureSql.thunkBody(i.thenBranch());
                 TypedSpec elseB = i.elseBranch().map(PureSql::thunkBody).orElse(null);
-                yield MixedEncoding.lubCase(i.info().type(), thenB, elseB, overReducers(base, a, i.condition()),
+                yield MixedEncoding.lubCase(i.info().type(), thenB, elseB,
+                        asCondition(i.condition(), () -> overReducers(base, a, i.condition())),
                         overReducers(base, a, thenB), elseB == null ? new SqlExpr.NullLit() : overReducers(base, a, elseB));
             }
             case TypedNativeCall c -> {
@@ -2291,7 +2470,7 @@ public final class Lowerer {
                     args.add(arg instanceof TypedCollection run && !run.elements().isEmpty()
                             ? listLiteral(run, x -> overReducers(base, a, x)) : overReducers(base, a, arg));
                 }
-                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations, styled()));
+                yield written(c, args);
             }
             default -> scalar(e, noScope());
         };
@@ -2324,8 +2503,8 @@ public final class Lowerer {
     /** The isolate-terminal boundary: the select was JUST isolated, so an
      * unfoldable ref can never become foldable — LOUD, never a dropped
      * predicate (the ONE retry contract, shared by filter and whereLambda). */
-    private SqlExpr predicateOrThrow(SqlSelect isolated, TypedLambda lambda, String op) {
-        return switch (tryPredicate(isolated, lambda)) {
+    private SqlExpr predicateOrThrow(SqlSelect isolated, TypedLambda lambda, String op, boolean positive) {
+        return switch (tryPredicate(isolated, lambda, positive)) {
             case Resolution.Resolved r -> r.expr();
             // IQ island, 2026-10-15 (the corpus lane): a miss of an ENCLOSING row's read (its column computed over its
             // row set, a window's, which no scope may write in place) is the enclosing boundary's to cure: it isolates
@@ -2339,7 +2518,7 @@ public final class Lowerer {
         };
     }
 
-    private Resolution tryPredicate(SqlSelect select, TypedLambda lambda) {
+    private Resolution tryPredicate(SqlSelect select, TypedLambda lambda, boolean positive) {
         String ownVar = lambda.parameters().get(0);
         // post-aggregation: ONLY the lambda's own row reads are the grouped
         // select's projections; a read of any OTHER variable (a correlated
@@ -2355,7 +2534,7 @@ public final class Lowerer {
                     }
                     return projectionExprOrThrow(select, name);
                 };
-        return attempt(() -> scalar(LambdaBinding.last(lambda), columns));
+        return attempt(() -> predicate(LambdaBinding.last(lambda), positive, columns));
     }
 
     private record WindowPredicate(SqlExpr expr, boolean sawWindow) {
@@ -2365,7 +2544,8 @@ public final class Lowerer {
     private @com.legend.base.Nullable WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
         var saw = new AtomicBoolean();
         String own = lambda.parameters().isEmpty() ? null : lambda.parameters().get(0);
-        return switch (attempt(() -> scalar(LambdaBinding.last(lambda), (v, name) -> {
+        TypedSpec test = LambdaBinding.last(lambda);
+        return switch (attempt(() -> asCondition(test, () -> scalar(test, (v, name) -> {
             if (v != null && own != null && !v.equals(own)) {
                 // IQ island, 2026-10-15 (the corpus lane's judged runs: sede-18206): only the lambda's own row reads
                 // this select's projections; an enclosing row's read here (a correlated subquery's filter, $r.rn
@@ -2379,7 +2559,7 @@ public final class Lowerer {
                 saw.set(true);
             }
             return resolved;
-        }))) {
+        })))) {
             case Resolution.Resolved r -> new WindowPredicate(r.expr(), saw.get());
             case Resolution.Unfoldable u -> null;
         };
@@ -3236,7 +3416,8 @@ public final class Lowerer {
         String leftVar = lambda.parameters().get(0);
         String rightVar = lambda.parameters().size() > 1 ? lambda.parameters().get(1) : null;
         var outers = List.copyOf(enclosing);
-        return scalar(LambdaBinding.last(lambda), (var, prop) -> {
+        TypedSpec on = LambdaBinding.last(lambda);
+        return asCondition(on, () -> scalar(on, (var, prop) -> {
             if (var != null && !var.equals(leftVar) && !var.equals(rightVar)) {
                 // neither side's row: an ENCLOSING row (a correlated
                 // subquery's join) — never a same-named column of a side
@@ -3276,7 +3457,7 @@ public final class Lowerer {
                         + " side [side=" + Fold.describeSource(side) + "]");
             }
             return c;
-        });
+        }));
     }
 
     // ==================================================================
@@ -3477,7 +3658,7 @@ public final class Lowerer {
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
-                return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations, styled()));
+                return written(call, args);
             }
             // The EMPTY collection is no run: none, the scalar rule's NULL (2026-10-26: an if's |[] arm in a window
             // column, the DataCube library's returns, had been an empty array, which a CASE beside a number refuses)
@@ -3506,7 +3687,7 @@ public final class Lowerer {
             case TypedIf i -> {
                 return new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(
-                                windowScalar(i.condition(), base, over),
+                                asCondition(i.condition(), () -> windowScalar(i.condition(), base, over)),
                                 windowScalar(PureSql.thunkBody(i.thenBranch()), base, over))),
                         i.elseBranch().map(e -> windowScalar(PureSql.thunkBody(e), base, over))
                                 .orElse(new SqlExpr.NullLit()), SqlExpr.Reason.USER);
@@ -3629,6 +3810,99 @@ public final class Lowerer {
         return r;
     }
 
+    /** A comparison kept for the types its sides hold ({@code TypedRunTimeComparison}): one the rule answered "never
+     *  equal" is false (an index: -1) with its sides still evaluated -- a single value where it stands, a computed
+     *  list by the planner's statement that reads its every value ({@link #everyValueRead}); any other is its
+     *  comparison. */
+    private SqlExpr runTimeComparison(com.legend.compiler.spec.typed.TypedRunTimeComparison x,
+            ColumnResolver columns) {
+        if (x.neverEqual() && x.comparison() instanceof TypedNativeCall never && never.args().size() == 2) {
+            // answered by its sides' types, each side evaluated (a side that may raise still raises)
+            boolean equality = x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.EQUALITY;
+            // (two sides that may BOTH be empty are the same where both are: only a side that is never empty makes
+            // an equality false outright)
+            boolean bothMayBeEmpty = equality && never.args().stream().noneMatch(side ->
+                    side.info().multiplicity() instanceof Multiplicity.Bounded b && b.lower() >= 1);
+            if (bothMayBeEmpty) {
+                return Equalities.sameOnlyWhereBothEmpty(none(never.args().get(0), columns),
+                        none(never.args().get(1), columns));
+            }
+            List<SqlExpr> read = new ArrayList<>();
+            for (TypedSpec side : never.args()) {
+                if (!side.info().multiplicity().isMany()) {
+                    read.add(scalarInner(side, columns));
+                } else if (computes(side)) {
+                    // (a list written or read where it stands computes nothing: nothing to evaluate)
+                    @com.legend.base.Nullable SqlExpr folded = everyValueRead(side);
+                    read.add(folded != null ? folded : readWhereItStands(side, scalarInner(side, columns)));
+                }
+            }
+            return equality && read.size() == 2 ? Equalities.neverEqualButEvaluated(read.get(0), read.get(1))
+                    : Equalities.neverAmongButEvaluated(read,
+                            x.kind() == com.legend.compiler.spec.typed.TypedCrossTypeComparison.Kind.INDEX);
+        }
+        if (x.fixedByTheCall()) {
+            throw new IllegalStateException("a comparison kept for its call (" + x.operator() + (x.function()
+                    == null ? "" : " in " + x.function()) + ") reached the lowering unanswered: the pass"
+                    + " that answers it at the call did not run over this body");
+        }
+        return scalarInner(x.comparison(), columns);
+    }
+
+    /** Whether {@code side} holds no value, as SQL: one value's NULL; a list's by the planner's statement that folds
+     *  its every value to one (NULL where it holds none), or -- where no statement of its own reads it (it reads the
+     *  row or the element the comparison stands in; a lowerer made with no planner) -- its emptiness where it
+     *  stands, which computes it there. */
+    private SqlExpr none(TypedSpec side, ColumnResolver columns) {
+        if (!side.info().multiplicity().isMany()) {
+            return Equalities.isNone(scalarInner(side, columns));
+        }
+        @com.legend.base.Nullable SqlExpr folded = everyValueRead(side);
+        if (folded != null) {
+            return Equalities.isNone(folded);
+        }
+        SqlExpr where = scalarInner(side, columns);
+        // by what the SQL carries, never by the declaration alone: a row's column read under a forAll over the rows
+        // is declared many and is ONE value a row (Equalities.oneValue). The final review of the closing batch, X1:
+        // asked for a list's length, a number was "empty" on SQLite (its JSON length is 0) and a database error on
+        // DuckDB and H2
+        return Equalities.oneValue(where) ? Equalities.isNone(where) : Scalars.emptiness(side, where);
+    }
+
+    /** {@code side}, declared many and read by no statement of its own, evaluated where it stands: the one value
+     *  the SQL carries it as, or "none, or some" of the list it is. */
+    private static SqlExpr readWhereItStands(TypedSpec side, SqlExpr where) {
+        return Equalities.oneValue(where) ? where : Equalities.noneOrSome(Scalars.emptiness(side, where));
+    }
+
+    /** Every value of {@code side}, a computed list, READ by the planner's statement that folds them to one
+     *  ({@link WholeComparisons#everyValueRead}), as one value; null where no statement of its own reads it. */
+    private @com.legend.base.Nullable SqlExpr everyValueRead(TypedSpec side) {
+        @com.legend.base.Nullable SqlQuery read = wholeComparisons == null ? null : wholeComparisons.everyValueRead(side);
+        return read == null ? null : new SqlExpr.ScalarSubquery(read);
+    }
+
+    /** Whether {@code side} computes: anything but a written value, a variable, a property read, a list of those, or
+     *  an upcast of one (to {@code Any}, {@code Number}, the abstract {@code Date}; a cast down can fail). */
+    private static boolean computes(TypedSpec side) {
+        return switch (side) {
+            case TypedVariable v -> false;
+            case TypedPropertyAccess p -> p.children().stream().anyMatch(Lowerer::computes);
+            case TypedCollection list -> list.elements().stream().anyMatch(Lowerer::computes);
+            case com.legend.compiler.spec.typed.TypedCast cast -> !(cast.wire() || PlatformTypes.isAny(cast.target())
+                    || cast.target() == Type.Primitive.NUMBER || cast.target() == Type.Primitive.DATE)
+                    || computes(cast.source());
+            case com.legend.compiler.spec.typed.TypedCInteger i -> false;
+            case com.legend.compiler.spec.typed.TypedCFloat f -> false;
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> false;
+            case com.legend.compiler.spec.typed.TypedCString t -> false;
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> false;
+            case com.legend.compiler.spec.typed.TypedCDate d -> false;
+            case com.legend.compiler.spec.typed.TypedEnumValue e -> false;
+            default -> true;
+        };
+    }
+
     private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // a RAW GRID's column names or row-major cells (the planner-driver seam program's S3c, 2026-10-30): the
@@ -3645,6 +3919,11 @@ public final class Lowerer {
             // function the planner inlined, or in a mapping): refused here by the same words (B3 step 5)
             case com.legend.compiler.spec.typed.TypedCrossTypeComparison x
                     -> throw x.refusal();
+            // a comparison kept for its function's call that met none (a body lowered where it stands): its sides'
+            // types are known only when the query runs, and the database compares the values it holds. One whose
+            // types its CALL fixes is answered at that call or not at all: reaching here unanswered it would be two
+            // known types compared by the database, so it is refused (invariant 4; the outside audit of 2026-11-27)
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison x -> runTimeComparison(x, columns);
             case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.
@@ -4071,7 +4350,7 @@ public final class Lowerer {
                 // Any-LUB branch alignment (variant carrier) lives in
                 // MixedEncoding.lubCase — the mixed-kind discipline.
                 yield flatCase(MixedEncoding.lubCase(i.info().type(), thenB, elseB,
-                        scalar(i.condition(), columns),
+                        asCondition(i.condition(), () -> scalar(i.condition(), columns)),
                         scalar(thenB, columns),
                         elseB == null ? new SqlExpr.NullLit()
                                 : scalar(elseB, columns)));
@@ -4138,14 +4417,15 @@ public final class Lowerer {
                     // a mixed list (track L; the L2 audit, 2026-10-29): the predicate over the element at each
                     // position, its parameter the element there (LambdaBinding.mapElemResolver)
                     String param = f.predicate().parameters().get(0);
-                    SqlExpr body = scalar(LambdaBinding.last(f.predicate()),
+                    TypedSpec test = LambdaBinding.last(f.predicate());
+                    SqlExpr body = asCondition(test, () -> scalar(test,
                             LambdaBinding.mapElemResolver(param, mixed, false,
-                                    LambdaBinding.lambdaResolver(f.predicate().parameters(), columns)));
+                                    LambdaBinding.lambdaResolver(f.predicate().parameters(), columns))));
                     yield TaggedLists.filter(mixed, new SqlExpr.Lambda(List.of(param), body));
                 }
                 yield SqlExpr.Call.of(SqlFn.LIST_FILTER,
                         PureSql.asList(src, Stamps.isMany(f.source())),
-                        scalar(f.predicate(), columns));
+                        asCondition(LambdaBinding.last(f.predicate()), () -> scalar(f.predicate(), columns)));
             }
             // slice(start, stop) — ListEncodings.slice owns the bounds
             // clamps and real pure's inverted-bounds error
@@ -4300,6 +4580,22 @@ public final class Lowerer {
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
                 ProductRelationText.of(tc, this::relation, nextAlias());
+            // hasSameElements (the edition program's step 6, 2026-11-27): two whole sides compared in any order, the
+            // planner's statement for them read as one value (planner.RootComparison.inside); over sides that read
+            // the row it stands in it is refused by name, before a side is lowered as a value (a table has none)
+            case TypedNativeCall n when Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(n.callee().id()) -> {
+                SqlExpr planned = wholeSides(n);
+                if (planned == null) {
+                    throw Scalars.hasSameElementsInsideAnExpression();
+                }
+                yield planned;
+            }
+            // == over two whole sides (computed lists, maps, tables) that read nothing of the row they stand in: the
+            // statement that answers the comparison as a query's last, read as one value -- one equality wherever
+            // the comparison stands (planner.RootComparison.inside)
+            // (asked once: the guard binds the planner's answer its arm yields)
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && wholeSides(n) instanceof SqlExpr planned ->
+                planned;
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
@@ -4320,16 +4616,14 @@ public final class Lowerer {
             case TypedNativeCall n when formatOverSlots(n) -> formatted(n, columns);
             // isEmpty/isNotEmpty over read(row, ~[a, b]) (2026-11-02): the rule takes the read's cells, each column
             // read as the row's column is, and tests them -- no list is made (Scalars.overCells)
-            case TypedNativeCall n when Scalars.overCells(n) -> NullSemantics.verbatim(
-                    verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n, n.args().get(0).children().stream()
-                            .map(c -> scalar(c, columns)).toList(), features, implementations, styled()));
+            case TypedNativeCall n when Scalars.overCells(n) -> written(n, n.args().get(0).children().stream()
+                    .map(c -> scalar(c, columns)).toList());
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
             // preceding list's element wire, so dispatch inside bodies
             // sees the carrier at construction
-            case TypedNativeCall n -> NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
-                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar), features, implementations, styled()));
+            case TypedNativeCall n -> written(n, nativeArgs(n, columns));
             // write(rel, accessor) returns the COUNT of rows written (the
             // PCT contract) — Render.writeCount; a REAL store destination
             // stays loud until the insert path exists.
@@ -4476,9 +4770,7 @@ public final class Lowerer {
      *  statement limit and MongoDB's 16 MB document (testFormatFloat, 2026-10-20). */
     private SqlExpr formatted(TypedNativeCall n, ColumnResolver columns) {
         TypedCollection slots = (TypedCollection) n.args().get(1);
-        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
-                List.of(scalar(n.args().get(0), columns), listLiteral(slots, e -> scalar(e, columns))),
-                features, implementations, styled()));
+        return written(n, List.of(scalar(n.args().get(0), columns), listLiteral(slots, e -> scalar(e, columns))));
     }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */
@@ -4847,14 +5139,17 @@ public final class Lowerer {
             sub = isolate(sub);
         }
         SqlExpr pred;
-        if (tryPredicate(sub, lambda) instanceof Resolution.Resolved r) {
+        if (tryPredicate(sub, lambda, !negate) instanceof Resolution.Resolved r) {
             pred = r.expr();
         } else {
             sub = isolate(sub);
-            pred = predicateOrThrow(sub, lambda, "exists/forAll");
+            pred = predicateOrThrow(sub, lambda, "exists/forAll", !negate);
         }
         if (negate) {
-            pred = SqlExpr.Call.of(SqlFn.NOT, pred);
+            // (an equality answered false for its empty side negates to ONE null-safe operator, "is distinct from":
+            // NullSemantics.negate; any other predicate is negated as it was)
+            SqlExpr twoValued = Equalities.guardedSides(pred) == null ? null : NullSemantics.negate(pred, false);
+            pred = twoValued != null ? twoValued : SqlExpr.Call.of(SqlFn.NOT, pred);
         }
         // the exists PREDICATE is user-zone: it seeds the subselect's
         // conjuncts (engine buildExistsPredicate), correlation and

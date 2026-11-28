@@ -1261,8 +1261,14 @@ public final class CypherGraph {
             }
             pure.append("    #");
             if (!p.inputs().isEmpty()) {
+                // (a NUMBER input is a Float in the rows and a Number as the parameter, which an INTEGER argument
+                // fills: Cypher compares the two by value, and lite's numbers are of two families that are never
+                // equal across -- so this function, which is lite's Pure, converts, as the rule asks of its writer.
+                // Until the edition program's step 6 the database's comparison did it unasked; found 2026-11-27 by
+                // the heavy run: Call3/[1], Call3/[2] and a_number_input_takes_an_integer_or_a_float read no row)
                 pure.append("->filter(r | ").append(p.inputs().stream().map(i -> "$r." + i.name() + " == $"
-                        + i.name()).collect(Collectors.joining(" && "))).append(')');
+                        + i.name() + ("NUMBER".equals(i.type()) ? "->map(n | $n->toFloat())" : ""))
+                        .collect(Collectors.joining(" && "))).append(')');
             }
             pure.append("->select(~[").append(p.outputs().stream().map(CypherTck.Procedure.Param::name).collect(
                     Collectors.joining(", "))).append("])\n}\n");

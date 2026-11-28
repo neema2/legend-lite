@@ -1,0 +1,4 @@
+select value from json_each('[1,2]') qualify row_number() over () = 1
+select 1/0, 5 % 0, 'A' like 'a', upper('é')
+select 9223372036854775807 + 1, typeof(9223372036854775807 + 1)
+select json_extract('{}', 'msg')

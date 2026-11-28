@@ -24,8 +24,14 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * <p>This is legend-pure's door's comparison setting ({@link CrossTypeRule}; the edition program's step 2b,
  * 2026-11-26): the type-checker asks it where it types a comparison across types. In the query the answer is
  * legend-pure's, above (until step 2b a rewrite of the typed query's markers, after it was typed). In a body the
- * query reaches it is still the call, the database's comparison, as before the setting: legend-pure's answer there
- * is a later step of the program, each test it moves read first.
+ * query reaches it is legend-pure's answer too (the edition program's step 6; the user, 2026-11-27, "yes we should
+ * measure and hopefully fix": until then the database's comparison, so {@code same(a: Number, b: Number) {$a == $b}}
+ * answered true for {@code same(1, 1.0)} where both legend-pure runtimes answer false, run 2026-11-26,
+ * {@code upstream-step6/answers.md} group D): a comparison of two declared types where the body is typed, and one
+ * whose sides' types its caller gives once the functions the query reaches stand in it ({@link #atTheCall}). A
+ * written literal is NOT read as the other side's type here: {@code amongWholes(1.0)} over {@code $a->in([0, 1])}
+ * is false in legend-pure. One case keeps the database's comparison in a body: an equality both of whose sides may
+ * be empty, which the query's form refuses by name and a body cannot.
  */
 public final class PureComparisons implements CrossTypeRule {
 
@@ -57,15 +63,59 @@ public final class PureComparisons implements CrossTypeRule {
 
     @Override
     public boolean readsBodies() {
-        return false;
+        return true;
     }
 
     @Override
     public TypedSpec inBody(TypedCrossTypeComparison crossing) {
-        return crossing.comparison();
+        return inABody(crossing);
+    }
+
+    /** Kept for its call: the types its sides have there decide it ({@link #atTheCall}). */
+    @Override
+    public TypedSpec atRunTime(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison) {
+        return comparison;
+    }
+
+    @Override
+    public TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison marked,
+            com.legend.compiler.element.ModelContext ctx) {
+        if (!(marked.comparison() instanceof com.legend.compiler.spec.typed.TypedNativeCall call)) {
+            return marked.comparison();
+        }
+        return com.legend.compiler.spec.EqualityClasses.heldCrossing(call.callee(), call.args(), ctx)
+                .map(c -> inABody(new TypedCrossTypeComparison(call, c.kind(), c.operator(), c.left(), c.right(),
+                        call.pos()))).orElse(call);
+    }
+
+    /** legend-pure's answer for a comparison across types in a body: the query's ({@link #answer}), but an equality
+     *  both of whose sides may be empty stays the call (a body's marker would be refused in lite's words). */
+    private static TypedSpec inABody(TypedCrossTypeComparison c) {
+        TypedSpec answered = answer(c);
+        return answered == c ? c.comparison() : answered;
+    }
+
+    private static boolean insideAContainer(TypedCrossTypeComparison c) {
+        if (!(c.comparison() instanceof com.legend.compiler.spec.typed.TypedNativeCall call)
+                || call.args().size() < 2) {
+            return false;
+        }
+        return container(call.args().get(0).info().type()) || container(call.args().get(1).info().type());
+    }
+
+    private static boolean container(com.legend.compiler.element.type.Type t) {
+        return com.legend.compiler.element.type.PlatformTypes.isPairCarrier(t)
+                || com.legend.compiler.element.type.PlatformTypes.isListCarrier(t)
+                || com.legend.compiler.element.type.PlatformTypes.isMapCarrier(t);
     }
 
     private static TypedSpec answer(TypedCrossTypeComparison c) {
+        if (insideAContainer(c)) {
+            // two pairs, lists or maps whose types differ only inside them (pair(1, 'a') == pair(1D, 'a')): what
+            // legend-pure answers for these was not read, so the comparison stays the database's, as it was at this
+            // door (the outside audit of 2026-11-27; lite's own rule reads inside a container, this door's does not)
+            return c.comparison();
+        }
         return switch (c.kind()) {
             // equal([], []) is true in legend-pure: only a side that is never empty makes the answer the types' alone
             case EQUALITY -> neverEmpty(c) ? falseOf(c) : c;
@@ -76,6 +126,9 @@ public final class PureComparisons implements CrossTypeRule {
             // testCompareMixedTypes, testDateCompare, testMax_Date, testMin_Date); recorded where it is not Pure's: a
             // day against a date-time at one instant, which legend-pure orders the day first and the database ties
             case ORDERING -> c.comparison();
+            // an assert is judged as it was at this door (the user's ruling of 2026-11-26: the compile error is
+            // lite's own door's; the compatibility doors are unaffected)
+            case ASSERT -> c.comparison();
         };
     }
 

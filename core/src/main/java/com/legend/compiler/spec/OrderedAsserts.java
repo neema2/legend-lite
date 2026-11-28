@@ -68,6 +68,21 @@ public final class OrderedAsserts {
                     return at.apply(call, fn, side, lets);
                 }
             }
+            // assert($a == $b): the comparison assertEquals makes, written with the operator (the user, 2026-11-27:
+            // "Assert( == ) only if it's simple/easy"). A door's to rewrite as it rewrites assertEquals; the product
+            // leaves it to =='s own refusal where it is planned (refused, below)
+            if (fn == NativeFn.Verdict.ASSERT && !call.args().isEmpty()
+                    && call.args().get(0) instanceof TypedNativeCall equal && equal.args().size() == 2
+                    && com.legend.builtin.Pure.AT_BOOLEAN_EQUAL.contains(equal.callee().id())
+                    // (two TABLES under == are compared by identity in legend-pure, register S430: never read as
+                    // an any-order assert of their rows -- the code audit of the closing batch, S5)
+                    && !com.legend.compiler.element.type.Type.isRelation(equal.args().get(0).info().type())
+                    && !com.legend.compiler.element.type.Type.isRelation(equal.args().get(1).info().type())) {
+                int side = unorderedSide(equal.args().get(0), equal.args().get(1), lets);
+                if (side >= 0) {
+                    return at.apply(call, fn, side, lets);
+                }
+            }
         }
         if (n instanceof TypedLambda lambda) {
             List<TypedSpec> scope = new ArrayList<>(lets);
@@ -99,7 +114,7 @@ public final class OrderedAsserts {
     /** The side (0 expected, 1 actual) whose rows have no defined order while the other side holds more than one value,
      *  or -1: with at most one value on either side, an ordered and an order-free comparison agree (step 4's review,
      *  M2). */
-    static int unorderedSide(TypedSpec expected, TypedSpec actual, List<TypedSpec> lets) {
+    public static int unorderedSide(TypedSpec expected, TypedSpec actual, List<TypedSpec> lets) {
         if (atMostOne(expected) || atMostOne(actual)) {
             return -1;
         }
@@ -107,6 +122,20 @@ public final class OrderedAsserts {
             return 0;
         }
         return unorderedRows(actual, lets) ? 1 : -1;
+    }
+
+    /** The lets the order rule reads for a comparison planned outside any body walk: {@code parameters}, each a
+     *  value its caller gives in the caller's order ({@link OrderView#unseen}); {@code bound}, the lets an
+     *  environment seeds, each its value; then the statement's own {@code lets}. */
+    public static List<TypedSpec> scope(java.util.Collection<String> parameters,
+            java.util.Map<String, TypedSpec> bound, List<TypedSpec> lets, TypedSpec at) {
+        List<TypedSpec> out = new ArrayList<>();
+        for (String parameter : parameters) {
+            out.add(OrderView.unseen(parameter, at));
+        }
+        bound.forEach((name, value) -> out.add(new TypedLet(name, value, value.info())));
+        out.addAll(lets);
+        return out;
     }
 
     /** Whether {@code side} is rows whose order the program does not define: a relation or a collection (not one
@@ -138,6 +167,11 @@ public final class OrderedAsserts {
 
     /** The planner's answer at an order-dependent assert: a TYPE-phase refusal naming the two fixes. */
     public static TypedSpec refused(TypedNativeCall call, NativeFn.Verdict fn, int side, List<TypedSpec> lets) {
+        if (fn == NativeFn.Verdict.ASSERT) {
+            // assert($a == $b): the product's == refuses an unordered side itself, by its own words, where the
+            // comparison is planned (planner.RootComparison)
+            return call;
+        }
         throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
                 fn.bareName() + " compares in order, and its " + (side == 0 ? "expected" : "actual")
                         + " side's order is not defined (a store or frame read with no sort, or past a grouping, a"

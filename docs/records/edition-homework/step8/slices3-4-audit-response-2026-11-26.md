@@ -2,7 +2,7 @@
 
 *The audit: `docs/records/edition-homework/audits/step8-slices3-4-independent-2026-11-26.md` on `claude/edit-ahead`
 (2 blockers, 4 should-fix, 5 nits, over `git diff 4d44bf54 90d2759b5`). This record says what each item became. The
-amendments to S428 and S429 below are DRAFTS for the user: nothing was added to the register.*
+amendments to S434 and S435 below are DRAFTS for the user: nothing was added to the register.*
 
 ## The blockers
 
@@ -44,7 +44,7 @@ operand's place only through nodes that hand a value on. The rule errs to yes: a
 value is no date, it is `adjust` (which computes a new instant), or it is a relation's column or a lambda's own
 parameter. A date-typed node the door does not know (a user function's call, a class's property) is taken to be
 one. Where the rule says yes the print is the run's: a literal the lowering reads prints its written text; a
-computed value prints lite's text, the difference S429 already carries ("a last step the door cannot read").
+computed value prints lite's text, the difference S435 already carries ("a last step the door cannot read").
 Tests: `PrintedRelationsTest.aDateTimesToStringIsLiftedUnlessItIsALiteral` (the five shapes, through a let, and a
 list of a literal and a computed value), `PctPlanRoutePrintTest` (three of them answer the written text).
 

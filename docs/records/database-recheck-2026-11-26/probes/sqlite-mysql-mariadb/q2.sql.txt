@@ -1,0 +1,7 @@
+select (select b.m * 2 from (select a.v + 1 as m) b) from (select 1 as v union all select 5) a
+select (select datetime(f.u / 1000000, 'unixepoch') || CASE WHEN f.u % 1000000 = 0 THEN '' ELSE '.' || rtrim(printf('%06d', f.u % 1000000), '0') END from (select m.m - ((m.m - o) % s + s) % s as u from (select unixepoch(substr(t, 1, 19)) * 1000000 + CAST(substr(substr(t, 20) || '0000000', 2, 6) AS INTEGER) AS m, -259200000000 AS o, 18 * 604800000000 AS s) m) f) from (select '2024-01-31 17:15:59.249123456' as t)
+select unixepoch('2024-01-31 17:15:59.249123456', 'subsec'), julianday('2024-01-31 17:15:59.249123456')
+select '2014-01-01 00:00:00.5' = '2014-01-01 00:00:00.500000000'
+select datetime('2014-01-01 00:00:00.123456789', '+1 day'), datetime('2014-01-01 00:00:00.123456789', '+1 day', 'subsec')
+select strftime('%Y-%m-%d %H:%M:%S', '2014-01-01T00:00:00Z'), datetime('2014-01-01 00:00:00+01:00')
+select '-0001-01-01' < '0001-01-01', datetime('10000-01-01 00:00:00')

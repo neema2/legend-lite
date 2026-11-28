@@ -183,7 +183,15 @@
 >    until the edition's guards land, phase E1]`
 >
 > Two readings were ruled the same minute. **Folds:** the compiler may fold
-> constants and facts fixed by the types, never row data. **Error records:** a
+> constants and facts fixed by the types, never row data. *Made precise by the
+> fold rule (the user, 2026-11-26: "Yes apply fold rule", then "Whole numbers
+> fine"):* the compiler compares two written values only of a kind whose
+> written token IS the value -- a String, a Boolean, an enumeration's value, a
+> whole number. A Float, a Decimal and a date are compared by the database,
+> which knows what each denotes (a Decimal by its number, a date-time by its
+> instant). Whole numbers stay because a function that recurses over a written
+> list ends at a guard like `size() == 0`, which the compiler must answer to
+> stop (`compiler.spec.LiteralUnroll.comparedHere`). **Error records:** a
 > raised error's record is lite's typed output, so compatibility may word
 > upstream's sentence in Java from it (tenet 3).
 >
@@ -194,10 +202,65 @@
 > matching upstream's answers (the user: "We just should decide our tenets").
 > - **Different types never compare.** Where the types are known when the query is
 >   compiled (literals, columns, parameters, computed expressions), comparing two
->   different types is a compile error naming the fix: Integer, Float and Decimal are
->   three types; a day and a date-time; an enumeration and a String; two unrelated
+>   different types is a compile error naming the fix: an exact number and a Float
+>   (below); a day and a date-time; an enumeration and a String; two unrelated
 >   classes. `==`, `!=`, `in`, `contains`, `indexOf`, the deduplications, joins and
 >   ordering (`<`, `max`, `min`, `sort`) all hold to it.
+> - **Numbers are of two families** (the user, 2026-11-27: "Yes I like the rule, keep
+>   ordering strict"; the rule is the user's own, "exact with exact (int and decimal
+>   when fits) vs approx (float) only and let untyped literals only when lossless"):
+>   exact (Integer, Decimal) and approximate (Float). Within a family a comparison is
+>   by value: `1 == 1D` is true, `2 < 2.5D` is true. Across the two the writer
+>   converts: an exact number against a Float is the compile error above, ordering
+>   included, and at run time the two are never equal. In a mixed list an Integer and
+>   a Decimal of one value are one element (a duplicate, a member, the same position);
+>   a sort places a tie of value by family, an exact number before a Float, and two
+>   equal exact numbers keep the order they were written in. Until this ruling
+>   Integer, Float and Decimal were three types never equal (2026-11-24).
+> - **A type only a column gives** (the user, 2026-11-27: "great do it"; for dates,
+>   "You can do the error way if it's only for lite mode"): a property declared
+>   `Number`, `Any` or the abstract `Date` takes the type its column holds once the
+>   query is planned. Two that can never be equal there (an exact number's column
+>   against a Float's, a day's against a date-time's) are refused where the query is
+>   planned, in lite's mode alone (`lowering.HeldKinds`), for "the same" and for an
+>   ordering alike (the user, 2026-11-27: "We don't really want date vs datetime to
+>   work for greater than/less than vs not for equal"). Only a comparison the
+>   query's author wrote: one in a function's body is the function's.
+>   A written number literal still adapts; a written day does not read as a
+>   date-time (a day is no instant).
+> - **Inside a function whose types the caller gives** (the user, 2026-11-27: "the
+>   split with compile error when we know"): a parameter declared `Any`, `Number` or
+>   the abstract `Date` is compared when the query runs; a comparison between the
+>   caller's own columns or a type variable's values is that call's compile error
+>   where the two types differ, naming the function.
+> - **Two tables** (the user, 2026-11-27, to "should we be strict with 2 table equals and have a separate operator
+>   or function for multiset compare?": "Yeah or ~= if want to be cute, or setCompare()"): `==` compares two tables'
+>   columns by name and their rows IN ORDER; a side whose order the query does not define is a compile error naming
+>   the fixes. `hasSameElements(a, b)` (lite's own function, register S430) compares two lists or two tables in any
+>   order, duplicates counted. One operator, one meaning. A list whose order the query does not define is refused
+>   under `==` the same way.
+> - **Wherever it stands** (the user, 2026-11-27: "why cant we do the work we promised to get to one equality?"): a
+>   comparison of two whole sides (computed lists, maps, tables) answers the same as a query's last statement, as an
+>   `if`'s condition, under `&&`, `||` or `!`, and in a test's `assert(...)`: one statement plans it
+>   (`planner.RootComparison`). Only a comparison whose sides read the row it stands in is still the database's own.
+> - **An empty side** (the user, 2026-11-27: "Yes do the empty side fix"; the closing batch's rule after its two
+>   reviews): `$x.nick == 'a'` where `nick` holds no value is false, and two empty sides are equal, as Pure says,
+>   wherever the comparison stands. Where it is a POSITIVE condition (a filter's, a join's, an `if`'s, and `&&`, `||`
+>   beneath them) the database's "no value" already is that answer and the statement is as written
+>   (`Lowerer.asCondition`); everywhere else -- a kept value, an operand, a window's or an aggregate's input, anything
+>   under `!` or a `forAll` -- the equality answers for its empty side where it is written (`Lowerer.written`,
+>   `lowering.Equalities.emptySidesAsPure`). On lite's route and at legend-pure's door; legend-engine's door answers
+>   as legend-engine does, by where the comparison runs (`EditionTable.emptySideIsFalse`).
+> - **Two codes still, until step 6B** (the architecture audit of step 6's closing batch, 2026-11-27; the user:
+>   "let's do A and then fast follow with B"): two WHOLE sides are compared by one code wherever they stand
+>   (`planner.RootComparison` over `lowering.SideEqualities`, which the test checkers call too); two SINGLE values
+>   where they stand are lowered by another (`lowering.Equalities`). They hold the same rules and are meant to
+>   agree; where they are known not to is listed in
+>   `docs/records/edition-homework/step-6-closing-batch-2026-11-27.md`. Do not describe the product as having one
+>   comparison code until 6B lands, and do not add a third.
+> - **An assert is the comparison it means** (the user, 2026-11-26: "yes compile
+>   error"): on lite's own door an assert of two written types is refused when the
+>   body is compiled.
 > - **A number literal reads as the type of the value it is written against** (the
 >   user, 2026-11-26: "okay for float/decimal literal compare"): `$x.qty > 0` over a
 >   Float is `> 0.0`, `$x.salary < 50000` over a Decimal is `< 50000D`, when the
@@ -207,10 +270,10 @@
 >   written digits; nothing is computed from a row (`compiler.spec.NumberLiterals`).
 > - **Inside functions and mapping code too** (the edition program's step 4,
 >   2026-11-26): a function's, a derived property's, a constraint's and a mapping's
->   Pure hold to the same rule, the error raised when the body is compiled.
->   One kind of body is not yet held to it, a gap to close with step 6 (register
->   S127): a function whose body is typed into each call (generic over a relation's
->   columns, or taking a table with no declared columns).
+>   Pure hold to the same rule, the error raised when the body is compiled. A
+>   function whose body is typed into each call (generic over a relation's columns,
+>   or taking a table with no declared columns) is held to it at the call (below,
+>   since the edition program's step 6).
 > - **Types known only at run time** (`Any`, `Number`, the abstract `Date`, a generic
 >   position) carry their type beside the value; equal means the same type and the
 >   same value, and a mixed list orders by value, then by type.
@@ -576,6 +639,7 @@ otherwise, which is how it drifted:
 | Doc | What it is |
 |---|---|
 | `docs/records/edition-program-START-HERE-2026-11-25.md` | **Start here for the edition program** (the user's rulings of 2026-11-25; branches `claude/compat-b3-nufdlk` and `claude/compat-b2-nufdlk`): every piece of code carries an edition (`lite`, `pure`, `engine`) read only by the typer; the whole context for a session with none -- background, every approach tried and why it was rejected, the rulings verbatim, the measurements, the open decisions, the phases E0c-E7 step by step, how to run every check, the traps. The design is `docs/records/edition-design-2026-11-25.md`, the census `docs/records/edition-census-2026-11-25.md` |
+| `docs/records/database-recheck-2026-11-26/START_HERE.md` | **Start here for lean SQL on every database** (the follow-up to Stage B; the user, 2026-11-26: "we should write down all the research and all the context and any artifacts so we can do it next as a follow up right after B is done"): researched, nothing built. Where each database's SQL blows up and why (a list written more than once per operation; ClickHouse's settings on every statement), fourteen fixes ranked with estimates, every "this database cannot" of ours checked against the vendor and the database, versions against the latest, the defects found, the probe programs, the rules a slice is held to |
 | `docs/TOTAL_WALL_START_HERE_2026_11_11.md` | **Start here for the total-wall program** (branch `claude/total-wall`, the user's go of 2026-11-11): total plan/exec separation, phases A-F, then ONE PR. The orchestrator's handoff: every ruling, the state, what remains in order, the runbook (fast loop, lane rounds, audits, checkpoints), the sessions, and the templates for a fresh worker, lane round and audit |
 | `docs/DATA_IN_THE_PLAN_2026_11_09.md` | **Data in the plan** (the user's go, 2026-11-09): data enters a database through a load and only a load -- a reference with a digest (never a machine path, never large rows), resolved, verified and delivered by exec, the delivery chosen at planning per database; today's 17 mechanisms each replaced and deleted (13) or bounded by a guard (4, not loads); the deletion census as the proof; slices L1-L8. Evidence: `docs/data-in-the-plan-homework/` |
 | `docs/PLAN_AS_DATA_2026_11_07.md` | **Start here for P1's remaining work** (branch `claude/corpus-walk-deletion`, the user's rulings of 2026-11-08): a test body's run reads only its plan, which is data; two plan types; the judgments, failures and connection description as plan data; the edge's typed extension point; exec as the one walker with a callback; no `driver` package (`testplan`/`testexec` beside `planner`/`exec`); the guards that prove no code is in the plan; the order of work and its verification |
@@ -653,6 +717,29 @@ No full round and no regeneration for a small change.
 3. a push to the pull request's branch, so CI runs on every operating system;
 4. the heavy and manual lanes in another session;
 5. a round on the database lanes.
+
+**Every database lane, every major change** (the user, 2026-11-27: "Have to run the lanes always when making major
+changes"): the embedded-server lanes, the cloud lanes and the heavy run (the local gate and the relational corpus) are
+started for each big step without asking, and run again after the fixes its checks bring. Saving tokens is no reason
+to leave one out.
+
+**No check twice** (the user, 2026-11-27: "do we need to remember to only run the subset of heavy and manual that we
+need/doesnt overlap with other stuff running?"; and, the same day, of lanes started before the code was final: "Don't
+start all the work if it's not done that mean we have to do it again"). The outside runs start once, on the FINAL
+commit: after the working session's own round and the audit of the last fixes are in and fixed. And each check has
+one runner:
+- **CI on the pull request** holds every per-push lane on every operating system (`gates/BUILD.bazel`, `lanes`): the
+  product build, core, the guards, both corpora, PCT on DuckDB, H2 and Postgres (channel A), channel B on DuckDB, parser
+  equivalence, stress, the warehouse, DataCube, the UI. With CI running, NO session reruns the local gate, the corpus
+  or the stress suites; a red CI lane is reproduced alone, by the session that will fix it.
+- **The database lanes** hold what CI cannot: PCT's two channels on the databases with no per-push lane (channel B alone
+  on Postgres), and each database's own manual tests the change can touch (the time-series replays on ClickHouse,
+  Postgres and Snowflake when the library's text moved; MongoDB's plan test).
+- **The heavy session** holds only the manual tests left over that the change can touch (`gates/BUILD.bazel`, `heavy`:
+  lite's own PCT channel A, channel B on H2, channel B twice). Measurements, benchmarks and probes that judge nothing
+  are not run for a landing.
+- **The working session** runs its focused round before the push (it overlaps CI's Linux lanes on purpose: a push that
+  is red on something a local run shows wastes a CI cycle) and the equality measure.
 
 The working session goes on to the next step meanwhile. What the checks find is fixed in the next commit. Every test
 whose answer moves and every new difference from legend-engine is gathered and brought to the user at the end of the

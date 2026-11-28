@@ -415,6 +415,8 @@ public final class ProductStatements {
         // a relation read more than once written once, but where the engine's cteExtractionPostProcessor names the
         // statement's subqueries itself (legend-engine's text: SharedRelations, 2026-11-04; the merge of main on
         // 2026-11-06 kept it on the test road alone, BodyPlanner.lowererFor -- the second review's finding 1)
+        // (a statement whose answer is a comparison of two whole sides is the lowering's to ask for, where the
+        // product's own rule lowers it: Lowerer.wholeAnswer, over the answers this class hands every lowerer below)
         Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites)
                 .sharingRelations(!p.env().postProcessors().extractCtes());
         SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
@@ -448,8 +450,18 @@ public final class ProductStatements {
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
         // the environment's time zone and relation-text facet (PlanEnv.configure, B17 2026-11-17)
-        return env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites))
-                .withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
+        Lowerer made = env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body),
+                sites)).withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
+        // a comparison of two whole sides is answered by the planner's statement for it, wherever it stands
+        // (RootComparison.over): each side lowered as the statement it is, by a lowerer made as this one. Handed
+        // with no condition: the lowering asks for it where the product's own rule lowers the comparison
+        java.util.Set<String> parameters = new java.util.LinkedHashSet<>();
+        slots.forEach(slot -> parameters.add(slot.name()));
+        return made.withWholeComparisons(RootComparison.over(body, env.queryLets(), parameters,
+                side -> lowerer(query, side, env, temporal, false, slots, sites)
+                        .sharingRelations(!env.postProcessors().extractCtes())
+                        .lower(seeded(side, env, query.context())),
+                query.context()));
     }
 
     /**

@@ -1435,6 +1435,24 @@ final class ArchitectureTest {
             "lowering.NamedRule#TEXT_HAS_NO_CASED_LETTER", "com.legend.edge.EngineTable",
             "lowering.NamedRule#TEXT_IS_PLAIN_DECIMAL", "com.legend.edge.EngineTable",
             "lowering.NamedRule#TRUST_ONE", "com.legend.edge.EngineTable",
+            // 2026-11-26 (the edition program's step 6, slice 6.2, the user's rulings of 2026-11-26 ~23:10: lite's rule
+            // in lite's mode, upstream's in the other two): the two rules that place equal numbers of different types
+            // as legend-pure and legend-engine do, named in ONE class of the edge that both compatibility doors' tables
+            // read (edge.UpstreamTies; EngineTable and the new PureTable ask it and name no rule of these themselves)
+            "lowering.NamedRule#EXTREME_KEEPS_THE_FOLDS_TIE", "com.legend.edge.UpstreamTies",
+            // 2026-11-27 (the edition program's step 6; the user's word that day, "great to match engine but only if not
+            // too complex and costly"): max and min of an Integer and a Float inside a store query answer the
+            // database's type for the two, as legend-engine's own CASE there does -- legend-engine's door alone, and
+            // only where it tells inside a store query from outside, so its table names the rule itself
+            "lowering.NamedRule#EXTREME_OF_TWO_IN_THE_DATABASES_TYPE", "com.legend.edge.EngineTable",
+            // 2026-11-27 (the edition program's step 6; the user's ruling of that day: lite's numbers are of two
+            // families, and "legend-pure's and legend-engine's modes keep their own behaviour"): the rule under which
+            // an Integer, a Float and a Decimal stay three types, named in the same class for both doors' tables
+            // NamedRule#NUMBERS_OF_THREE_TYPES -> #THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION (2026-11-27, the closing
+            // batch of step 6, the user's word on the rename): the same entry, renamed -- the rule also carries the
+            // doors' date rule and replaces the product's whole rule for the call, which its first name did not say
+            "lowering.NamedRule#THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION", "com.legend.edge.UpstreamTies",
+            "lowering.NamedRule#SORT_TIES_AS_WRITTEN", "com.legend.edge.UpstreamTies",
             // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
             "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
@@ -3643,6 +3661,103 @@ final class ArchitectureTest {
     @Test
     void theNamedRuleRuleBitesAPlantedNamer() {
         bites(NAMED_RULES_ARE_THE_TABLES, com.legend.lowering.PlantedNamedRule.class);
+    }
+
+    /**
+     * THE PLANNER'S READS OF THE DOOR'S EDITION ARE ITS LISTED ONES (the closing batch of the edition program's step 6,
+     * 2026-11-27). The user, that day: "We shouldn't land with the planner knowing editions". The comparison of two
+     * whole sides ({@code planner.RootComparison}) read which number rule the door's table had named, and stood aside
+     * by it; it now reads nothing of the door, and the lowering asks it only for a comparison the door's table named
+     * no rule for. What is left are the reads that were there before step 6, each named here: where a door's code is
+     * stamped as outside any store query ({@code ProductStatements}, {@code BodyPlanner}, {@code FramePlanner}) and
+     * the making of the door's table for the statement's database ({@code PlanEnv}). The user ruled the same day
+     * ("2 okay") that they go at the end of the edition program, when only the typer reads the edition (tenet 6 of
+     * the six). Until then the list may only SHRINK: an entry is added with the user's word alone, dated here.
+     *
+     * <p>Read over core, the hosts' doors and the edge: a question asked of {@code planner.Edition}, or of the
+     * door's table {@code lowering.EditionTable}, from outside the lowering (whose table it is) and the edge (whose
+     * doors make both); and any use at all of the product's own edition and table by name
+     * ({@code planner.LiteEdition}, {@code lowering.LiteEditionTable}: a test of "is this lite's?" is a question
+     * too) outside {@code PlanEnv}, which hands the product's edition out, and the lowering. Named limits (the final
+     * review of the closing batch, S3): an edition passed on unread is no read; a public method of the lowering
+     * that answered a fact of the door's table for the planner would not be seen here (none exists:
+     * {@code Lowerer} has no method returning one); and the planner's other per-door forms, older than the
+     * edition ({@code ActivityTexts}, {@code RoutedQueries}, {@code ExecutedValues}), are step 10's.
+     */
+    @Test
+    void thePlannersReadsOfTheEditionAreItsListedOnes() {
+        EDITION_READS_ARE_LISTED.check(coreAndTheHostsDoors());
+    }
+
+    /** Each read of the door's edition outside the lowering and the edge: the asking class, and what it asks. */
+    static final java.util.Set<String> EDITION_READS = java.util.Set.of(
+            "com.legend.planner.BodyPlanner stampsTestBodies",
+            "com.legend.planner.FramePlanner stampsTestBodies",
+            "com.legend.planner.ProductStatements stampsTestBodies",
+            "com.legend.planner.ProductStatements stampsOutsideStore",
+            "com.legend.planner.ProductStatements constraintsOutsideStore",
+            "com.legend.planner.ProductStatements transformsOutsideStore",
+            "com.legend.planner.ProductStatements writtenFlagsRead",
+            "com.legend.planner.PlanEnv rowsByDatabase",
+            "com.legend.planner.PlanEnv table");
+
+    /** The rule of {@link #thePlannersReadsOfTheEditionAreItsListedOnes}. */
+    static final com.tngtech.archunit.lang.ArchRule EDITION_READS_ARE_LISTED = noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a question asked of the door's edition, or of its"
+                    + " table, outside the lowering, the edge and the listed reads") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    boolean edition = access.getTargetOwner().isEquivalentTo(com.legend.planner.Edition.class);
+                    boolean table = access.getTargetOwner().isEquivalentTo(com.legend.lowering.EditionTable.class);
+                    boolean litesOwn = access.getTargetOwner().isEquivalentTo(com.legend.planner.LiteEdition.class)
+                            || access.getTargetOwner().isEquivalentTo(com.legend.lowering.LiteEditionTable.class);
+                    if (!edition && !table && !litesOwn) {
+                        return false;
+                    }
+                    com.tngtech.archunit.core.domain.JavaClass owner = access.getOrigin().getOwner();
+                    String at = owner.getPackageName();
+                    if (litesOwn) {
+                        // the two classes themselves, PlanEnv (the product's edition where a door set none) and the
+                        // lowering (its own table where a lowerer is made with none)
+                        String who = owner.getName().replaceAll("\\$.*", "");
+                        return !(who.equals("com.legend.planner.LiteEdition") || who.equals("com.legend.planner.PlanEnv")
+                                || at.equals("com.legend.lowering"));
+                    }
+                    if (at.equals("com.legend.edge") || at.startsWith("com.legend.edge.")
+                            || at.equals("com.legend.lowering")) {
+                        return false;
+                    }
+                    // (a lambda's or an inner class's read is its outer class's)
+                    String asking = owner.getName().replaceAll("\\$.*", "");
+                    return !(edition && EDITION_READS.contains(asking + " " + access.getName()));
+                }
+            })
+            .as("the planner's reads of the door's edition are its listed ones (ArchitectureTest.EDITION_READS)");
+
+    /** {@link #thePlannersReadsOfTheEditionAreItsListedOnes} fails on a class of the planner's package that asks the
+     *  edition a question ({@code planner.PlantedEditionReader}, a test class planted for this alone). */
+    @Test
+    void theEditionReadRuleBitesAPlantedReader() {
+        bites(EDITION_READS_ARE_LISTED, com.legend.planner.PlantedEditionReader.class);
+    }
+
+    /** Every entry of {@link #EDITION_READS} is still a read the product makes: a read that goes takes its entry
+     *  with it, so the list only shrinks. */
+    @Test
+    void everyListedEditionReadIsStillMade() {
+        java.util.Set<String> made = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
+            for (com.tngtech.archunit.core.domain.JavaAccess<?> access : c.getAccessesFromSelf()) {
+                if (access.getTargetOwner().isEquivalentTo(com.legend.planner.Edition.class)) {
+                    made.add(c.getName().replaceAll("\\$.*", "") + " " + access.getName());
+                }
+            }
+        }
+        java.util.Set<String> gone = new java.util.TreeSet<>(EDITION_READS);
+        gone.removeAll(made);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of(), gone,
+                "a listed read of the door's edition is no longer made: take its entry off EDITION_READS");
     }
 
     /** A JDBC member that sends a statement: one made, prepared or called ({@code Connection.createStatement},

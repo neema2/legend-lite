@@ -1857,6 +1857,9 @@ final class SyntheticHeads {
                     new TypedCast(
                             f.apply(c.source()), c.target(), c.info(),
                             c.wire());
+            // (a comparison kept for its call, answered there: its sides are read as its call's are -- the
+            // substitution carries the record since step 6B's slice 3, so this walk must see inside it too)
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison kept -> kept.mapChildren(f::apply);
             default -> n;
         };
     }

@@ -49,6 +49,14 @@ class InstanceIdentityTest {
               <<equality.Key>> id: Integer[1];
               other: String[1];
             }
+            Class m::KD
+            {
+              <<equality.Key>> d: Decimal[1];
+            }
+            Class m::KT
+            {
+              <<equality.Key>> at: DateTime[1];
+            }
             Class m::Side
             {
               <<equality.Key>> sid: String[1];
@@ -180,6 +188,24 @@ class InstanceIdentityTest {
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let b = ^m::K(id=1, other='x');"
                         + " assert(eq($a, $a) && !eq($a, $b));}").one());
+    }
+
+    @Test
+    @DisplayName("a key is compared by its value inside a condition too: a Decimal by its number, a date-time by its"
+            + " instant (the one equality, the edition program's step 6)")
+    void aKeyIsComparedByItsValueInACondition() throws Exception {
+        assertEquals(Boolean.TRUE, run(
+                "{|let a = ^m::KD(d=1.0D);"
+                        + " let b = ^m::KD(d=1.00D);"
+                        + " assert(equal($a, $b) && ($a == $b));}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|let a = ^m::KD(d=1.0D);"
+                        + " let c = ^m::KD(d=1.5D);"
+                        + " assert(!equal($a, $c) && ($a != $c));}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|let a = ^m::KT(at=%2020-01-01T10:00:00.5);"
+                        + " let b = ^m::KT(at=%2020-01-01T10:00:00.500);"
+                        + " assert(equal($a, $b) && ($a == $b));}").one());
     }
 
     @Test

@@ -1,0 +1,13 @@
+import collections,sys
+D=sys.argv[1]
+q=collections.defaultdict(lambda: collections.defaultdict(int)); ex={}
+for l in open(D+'/sql.tsv'):
+  p=l.rstrip('\n').split('\t',4)
+  if p[2]=='-1': continue
+  q[int(p[1])][p[0]]+=int(p[2]); ex[int(p[1])]=p[3]
+import pickle; pickle.dump(({k:dict(v) for k,v in q.items()},ex),open(D+'/agg.pkl','wb'))
+for db in ['ClickHouse','Trino','Postgres']:
+  rows=[(v.get(db,0)-v.get('DuckDB',0),k,v.get(db,0),v.get('DuckDB',0)) for k,v in q.items()]
+  rows.sort(reverse=True)
+  print('==',db)
+  for d,k,a,b in rows[:25]: print(f"{k:5} {a:7} {b:7} +{d:6} {ex[k][:110]}")

@@ -215,7 +215,17 @@ public final class PeRatchets {
                     + " tests' model literals match the reference grammar (EngineFloatTextRowTest's and"
                     + " EngineDateTimeTextRowTest's stores, classes, mappings and runtimes among them; the nine not"
                     + " traced one by one); a floor rising, the user's standing word of 2026-11-24 (\"parser bumps are"
-                    + " always okay\"); UP)");
+                    + " always okay\"); UP)",
+            "own_corpus.matched 3359 -> 3361 (2026-11-26, the edition program's step 6.1 batch on"
+                    + " claude/modest-galileo-h6swr4, measured by //:update_generated on the batch's tree:"
+                    + " LiteralRuleAnswersTest's two new functions (a whole number against Float literals and its mirror,"
+                    + " the test the re-check of the batch's audit asked for) match the reference grammar; a floor"
+                    + " rising, the user's standing word of 2026-11-24 (\"parser bumps are always okay\"); UP)",
+            "own_corpus.matched 3364/3368 -> 3381 (2026-11-28, the program branch claude/compat-b3-nufdlk at"
+                    + " c7babd506 merged into claude/edition-step8, measured by //parser-equivalence:update_ratchets on"
+                    + " the merged tree: both sides' models together (step 6's and step 8's new tests' model"
+                    + " literals); a floor rising, the user's standing word of 2026-11-24 (\"parser bumps are always"
+                    + " okay\"); UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

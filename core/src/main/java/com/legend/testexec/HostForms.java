@@ -21,4 +21,10 @@ public interface HostForms {
      *  catalog's on every route (item 3, 2026-11-21: until then HostWords' 26th method, beside its two forms of the
      *  assert words, deleted). */
     String caught(RuntimeException error, EdgeHearing hearing);
+
+    /** Whether an Integer and a Decimal of one value are equal: the product's rule (numbers are of two families,
+     *  exact and approximate; the user's ruling of 2026-11-27), so lite's runs answer yes. The edge answers no: there
+     *  an Integer, a Float and a Decimal stay three types never equal, as its asserts were judged before that ruling
+     *  ("legend-pure's and legend-engine's modes keep their own behaviour"). */
+    boolean exactNumbersByValue();
 }

@@ -34,14 +34,47 @@ final class SameValuesForm {
     private SameValuesForm() {
     }
 
+    /**
+     * {@link #of} with each side's rows BOUND ONCE (step 6B, slice 1): the portable form reads a side's rows more
+     * than once (its count, then its rows), so rows that are a query of their own -- a side's rows riding the
+     * instruction as a sub-query -- are named in a WITH and read by name; rows that already read a named table (the
+     * statement's own, as an assert's are) are read as they are. Measured 2026-11-27 on SQLite: without the names
+     * one comparison of two short lists grew from 2,371 characters to 3,541.
+     */
+    static SqlQuery boundOnce(SqlQuery eRows, SqlQuery aRows, boolean ordered) {
+        if (named(eRows) && named(aRows)) {
+            return of(eRows, aRows, ordered);
+        }
+        return com.legend.sql.SqlWith.prepend(List.of(new com.legend.sql.SqlWith.Cte("__se", eRows),
+                new com.legend.sql.SqlWith.Cte("__sa", aRows)), of(read("__se", eRows), read("__sa", aRows), ordered));
+    }
+
+    /** Whether {@code rows} only reads a table by its name. */
+    private static boolean named(SqlQuery rows) {
+        return rows instanceof SqlSelect s && s.from() instanceof com.legend.sql.SqlSource.Table && s.where() == null;
+    }
+
+    /** The rows of the named table {@code cte}, which holds {@code rows}, read back column by column. */
+    private static SqlQuery read(String cte, SqlQuery rows) {
+        List<SqlSelect.Projection> ps = new java.util.ArrayList<>();
+        for (OutputCol o : rows.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of(cte, rows.outputs(), o.name()), o.name(), o));
+        }
+        return new SqlSelect(ps, false, new com.legend.sql.SqlSource.Table(cte, cte, rows.outputs(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null,
+                null, rows.outputs());
+    }
+
     /** The Boolean select comparing {@code eRows} and {@code aRows}. A value column holding a list or a map is refused
      *  by name: this form compares scalar columns, and a database without the collection type carries one as its JSON
      *  text, whose comparison would be of texts, not values (item 3's S4, 2026-11-22: typed values only). */
     static SqlQuery of(SqlQuery eRows, SqlQuery aRows, boolean ordered) {
         for (OutputCol c : values(eRows)) {
             if (c.type() instanceof SqlType.Array || c.type() instanceof SqlType.Map) {
-                throw new com.legend.sql.DialectCapability("an assert comparing lists or maps of values has no typed"
-                        + " form on a database that carries them as JSON: refused (item 3's S4)");
+                // (a query's comparison of two whole sides is refused by the same words since the edition program's
+                // step 6: the product's equality over two sides is the judge's)
+                throw new com.legend.sql.DialectCapability("a comparison of lists or maps of values (a query's ==, an"
+                        + " assert's) has no typed form on a database that carries them as JSON: refused");
             }
         }
         return ordered ? inOrder(eRows, aRows) : anyOrder(eRows, aRows);
@@ -106,6 +139,48 @@ final class SameValuesForm {
     }
 
     /** A side's value columns: every column but its place ({@code __rn}), in order. */
+    /**
+     * Refuses an equality of TWO LISTS OF EXACT NUMBERS WRITTEN AT TWO SCALES (a Decimal list against a list of
+     * whole numbers, or two Decimal lists of two scales), on a database that carries a list as its JSON text: the
+     * two TEXTS would be compared, {@code [1.0]} against {@code [1.00]} not the same, where the rule says a Decimal
+     * is its number (register S139). The comparison of two whole sides never reaches here (it is a statement over
+     * typed rows); this is the comparison of two list values where they stand, which only the database's own
+     * comparison answers (the edition program's step 6, its closing batch; the user, 2026-11-27: "per row refused
+     * okay"). Narrowed from the batch's first form, which refused every list of Decimals, Floats or dates and so
+     * two lists written alike, answered rightly (its code audit, B1); removed outright for one commit, which put
+     * the wrong answer back (its final review, S1). Lists whose types state one scale, and an operand that states
+     * no type, are compared as their texts, as before step 6 (recorded: the database follow-up's row D8).
+     */
+    static void refuseExactNumbersOfTwoScales(List<SqlExpr> operands) {
+        if (operands.size() != 2) {
+            return;
+        }
+        Integer left = textScale(operands.get(0).type());
+        Integer right = textScale(operands.get(1).type());
+        if (left != null && right != null && !left.equals(right)) {
+            throw new com.legend.sql.DialectCapability("a comparison of two lists of exact numbers written at two"
+                    + " scales (" + left + " and " + right + " decimal places) has no typed form on a database that"
+                    + " carries a list as JSON text, where it would compare the two texts: refused -- compare their"
+                    + " elements, or convert both sides' values to one type (toFloat())");
+        }
+    }
+
+    /** The decimal places a list's exact numbers are written with in its JSON text, by the type it states: a
+     *  Decimal's scale, none for a whole number; null for anything else. */
+    private static @com.legend.base.Nullable Integer textScale(com.legend.sql.TypeFact fact) {
+        if (!(fact instanceof com.legend.sql.TypeFact.Typed held && held.type() instanceof SqlType.Array list)) {
+            return null;
+        }
+        SqlType of = list.element();
+        while (of instanceof SqlType.Array inner) {
+            of = inner.element();
+        }
+        if (of instanceof SqlType.Decimal exact) {
+            return exact.scale();
+        }
+        return of == SqlType.Scalar.INTEGER || of == SqlType.Scalar.BIGINT || of == SqlType.Scalar.HUGEINT ? 0 : null;
+    }
+
     private static List<OutputCol> values(SqlQuery rows) {
         return rows.outputs().stream().filter(o -> !o.name().equals(RN)).toList();
     }

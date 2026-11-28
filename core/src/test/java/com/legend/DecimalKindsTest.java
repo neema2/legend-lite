@@ -152,8 +152,12 @@ class DecimalKindsTest {
             assertTrue(judged(c, scaled).passed());
             // the edge's door by lite's rule too since B3 step 1a (2026-11-24; until then by value and scale there)
             assertTrue(com.legend.testing.EdgeProgram.run(model(), scaled, "m::RT", c).passed());
+            // a written number literal reads as the type of the value it is written against, in an assert as in any
+            // comparison (the edition program's step 6: 0.3 against a Decimal is the Decimal 0.3); a Float VALUE never
+            // equals a Decimal
+            assertTrue(judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)").passed());
             AssertFailed kind = assertThrows(AssertFailed.class,
-                    () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
+                    () -> judged(c, "|assertEquals(0.3->cast(@Number), " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
             // lite's own sentence, each value its product text (the user's judge model, 2026-11-17)
             assertEquals("expected: 0.3, actual: 0.30", kind.getMessage());
             assertThrows(AssertFailed.class, () -> judged(c, "|assertEquals(0.4D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));

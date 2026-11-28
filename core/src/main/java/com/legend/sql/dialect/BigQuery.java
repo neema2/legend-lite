@@ -933,7 +933,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case SqlExpr.ArrayLit a -> arrayLiteral(writer, a);
             // DuckDB's list(v ORDER BY k): ascending, NULLs last
             case SqlExpr.OrderedListAgg ola -> writer.append("ARRAY_AGG(").expr(ola.value(), 0).append(" ORDER BY ")
-                    .piece(orderKey(w -> w.expr(ola.orderBy(), 0), true, false)).append(")");
+                    .piece(listOrderKey(ola.orderBy())).append(")");
             case SqlExpr.Membership m when m.collection() instanceof SqlExpr.PlanParam p -> throw listParameter(p);
             case SqlExpr.Quantified q -> writer.piece(quantified(q));
             case SqlExpr.Column c when explodedColumn(c) != null ->
@@ -1869,6 +1869,11 @@ public class BigQuery extends AnsiSqlRenderer {
     /** The null-safe arms of {@link #call}: a NULL composite's JSON text is 'null', no composite value's is. */
     private SqlWriter nullSafeArm(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
+        if (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER) {
+            // (its two-value form is this database's own = of the two values, written by the equality's arm; read
+            // here as a null-safe comparison it was written as "not equal": the review of step 6B's slice 1, B1)
+            return nullSafe(writer, c);
+        }
         boolean equal = c.fn() == SqlFn.NULL_SAFE_EQUAL;
         if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
             return writer.append("(TO_JSON_STRING(").expr(a.get(0), 0).append(equal ? ") = " : ") <> ")
@@ -2752,6 +2757,18 @@ public class BigQuery extends AnsiSqlRenderer {
     private static SqlWriter.Piece orderKey(SqlWriter.Piece key, boolean ascending, boolean nullsFirst) {
         return w -> w.append("(").piece(key).append(") IS NULL").append(nullsFirst ? " DESC, " : " ASC, ").piece(key)
                 .append(ascending ? " ASC" : " DESC");
+    }
+
+    /** An ordered list's key, ascending, NULLs last. BigQuery orders no STRUCT ("ORDER BY does not support expressions
+     *  of type STRUCT", measured on the account, 2026-11-26: a mixed list's sort, whose key is the rank across kinds),
+     *  so a struct key is written as its fields in order, each with its NULLs last: the order a database that
+     *  compares structs gives, field by field (the edition program's step 6, slice 6.2). */
+    private SqlWriter.Piece listOrderKey(SqlExpr key) {
+        if (!(typeOf(key) instanceof SqlType.Struct struct)) {
+            return orderKey(w -> w.expr(key, 0), true, false);
+        }
+        return w -> w.join(struct.fields(), ", ", (x, f) -> x.piece(orderKey(
+                y -> y.append("(").expr(key, 0).append(").").append(ident(f.name())), true, false)));
     }
 
     /** An aggregate's own order key: its declared null placement, else DuckDB's default (NULLs last). */

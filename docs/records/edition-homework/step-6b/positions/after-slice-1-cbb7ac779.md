@@ -1,0 +1,369 @@
+# The position matrix: one comparison asked in every place
+
+## Values: literals and computed values
+
+88 comparisons, 5280 runs.
+
+| database | right everywhere | refused by name everywhere | ANSWERED ONLY IN SOME PLACES | FAILS SOMEWHERE | A WRONG ANSWER SOMEWHERE | CONTRADICTS | places left out |
+|---|---|---|---|---|---|---|---|
+| DuckDB | 61 | 0 | 2 | 15 | 2 | 8 | 0 |
+| H2 | 66 | 10 | 3 | 4 | 1 | 4 | 4 |
+| SQLite | 59 | 2 | 12 | 1 | 3 | 11 | 0 |
+
+Places a database cannot answer even for the simplest comparison (left out of the counts):
+- DuckDB: none
+- H2: kept-in-map (refused DialectCapability), list-exists (refused DialectCapability), list-forAll (refused DialectCapability), reads-element (refused DialectCapability)
+- SQLite: none
+
+### Comparisons that are not right everywhere
+
+- **enum and string** (expected `N`): `t::E.A` == `'A'`
+  - **DuckDB: A WRONG ANSWER SOMEWHERE**
+    - `refused ModelException [right]`: 18 places (statement, not, ...)
+    - `F [right]`: function-any
+    - `F [wrong]`: function-generic
+  - **H2: A WRONG ANSWER SOMEWHERE**
+    - `refused ModelException [right]`: 14 places (statement, not, ...)
+    - `F [right]`: function-any
+    - `F [wrong]`: function-generic
+  - **SQLite: A WRONG ANSWER SOMEWHERE**
+    - `refused ModelException [right]`: 18 places (statement, not, ...)
+    - `F [right]`: function-any
+    - `F [wrong]`: function-generic
+- **int and decimal differ** (expected `F`): `1` == `1.5D`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `refused DialectCapability [refused]`: reads-element
+- **decimal sum exact** (expected `T`): `0.1D + 0.2D` == `0.3D`
+  - **SQLite: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 20 places (statement, not, ...)
+- **list decimal differs** (expected `F`): `[1.0D, 10.125D]->filter(x | $x > 0D)` == `[1.0D, 10.5D]`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `refused DialectCapability [refused]`: reads-element
+- **decimal two scales** (expected `T`): `1.0D` == `1.00D`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `refused DialectCapability [refused]`: reads-element
+- **decimal computed two scales** (expected `T`): `1.0D + 1.0D` == `2.00D`
+  - **SQLite: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 20 places (statement, not, ...)
+- **int and float** (expected `N`): `1` == `1.0`
+  - **DuckDB: A WRONG ANSWER SOMEWHERE**
+    - `refused ModelException [right]`: 18 places (statement, not, ...)
+    - `T [wrong]`: reads-element
+    - `F [right]`: function-any
+  - **SQLite: A WRONG ANSWER SOMEWHERE**
+    - `refused ModelException [right]`: 18 places (statement, not, ...)
+    - `T [wrong]`: reads-element
+    - `F [right]`: function-any
+- **date-time two written precisions** (expected `T`): `%2020-01-01T10:00:00.000` == `%2020-01-01T10:00:00`
+  - **SQLite: CONTRADICTS**
+    - `F [wrong]`: 18 places (statement, not, ...)
+    - `T [right]`: assertEquals (host), assertEquals (database)
+- **year same** (expected `T`): `%2020` == `%2020`
+  - **DuckDB: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+  - **SQLite: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+- **year-month same** (expected `T`): `%2020-01` == `%2020-01`
+  - **DuckDB: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+  - **SQLite: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+- **built to the hour and literal** (expected `T`): `date(2015, 4, 16, 14)` == `%2015-04-16T14:00:00`
+  - **DuckDB: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+  - **SQLite: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+- **Number int and float** (expected `F`): `1->cast(@Number)` == `1.0->cast(@Number)`
+  - **DuckDB: CONTRADICTS**
+    - `F [right]`: 17 places (statement, not, ...)
+    - `T [wrong]`: lets, reads-element
+    - `refused ModelException [refused]`: function-generic
+  - **H2: CONTRADICTS**
+    - `F [right]`: 14 places (statement, not, ...)
+    - `T [wrong]`: lets
+    - `refused ModelException [refused]`: function-generic
+  - **SQLite: CONTRADICTS**
+    - `F [right]`: 18 places (statement, not, ...)
+    - `T [wrong]`: lets
+    - `refused ModelException [refused]`: function-generic
+- **Any int and string** (expected `F`): `1->cast(@Any)` == `'1'->cast(@Any)`
+  - **DuckDB: CONTRADICTS**
+    - `F [right]`: 17 places (statement, not, ...)
+    - `T [wrong]`: lets, reads-element
+    - `refused ModelException [refused]`: function-generic
+  - **H2: CONTRADICTS**
+    - `F [right]`: 14 places (statement, not, ...)
+    - `T [wrong]`: lets
+    - `refused ModelException [refused]`: function-generic
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `refused ModelException [refused]`: function-generic
+- **Any day and date-time** (expected `F`): `%2020-01-01->cast(@Any)` == `%2020-01-01T00:00:00->cast(@Any)`
+  - **DuckDB: CONTRADICTS**
+    - `F [right]`: 17 places (statement, not, ...)
+    - `T [wrong]`: lets, reads-element
+    - `refused ModelException [refused]`: function-generic
+  - **H2: CONTRADICTS**
+    - `F [right]`: 14 places (statement, not, ...)
+    - `T [wrong]`: lets
+    - `refused ModelException [refused]`: function-generic
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `refused ModelException [refused]`: function-generic
+- **Date day and date-time** (expected `F`): `%2020-01-01->cast(@Date)` == `%2020-01-01T00:00:00->cast(@Date)`
+  - **DuckDB: CONTRADICTS**
+    - `F [right]`: 17 places (statement, not, ...)
+    - `T [wrong]`: lets, reads-element
+    - `refused ModelException [refused]`: function-generic
+  - **H2: CONTRADICTS**
+    - `F [right]`: 14 places (statement, not, ...)
+    - `T [wrong]`: lets
+    - `refused ModelException [refused]`: function-generic
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `refused ModelException [refused]`: function-generic
+- **max of a mixed list** (expected `T`): `[1, 2.0]->max()` == `2.0`
+  - **DuckDB: ANSWERED ONLY IN SOME PLACES**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `refused DialectCapability [refused]`: reads-element
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `refused DialectCapability [refused]`: reads-element
+- **empty and value** (expected `F`): `[]` == `1`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `other answer [failed]`: reads-element
+  - **SQLite: FAILS SOMEWHERE**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `other answer [failed]`: reads-element
+- **computed empty and written empty** (expected `T`): `[1, 2]->filter(x | $x > 5)` == `[]`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 16 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+- **optional none and value** (expected `F`): `[1, 2]->filter(x | $x > 5)->first()` == `1`
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+- **two optionals none** (expected `T`): `[1, 2]->filter(x | $x > 5)->first()` == `[3]->filter(x | $x > 5)->first()`
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+- **optional one and value** (expected `T`): `[1, 2]->filter(x | $x > 1)->first()` == `2`
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+  - **SQLite: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: list-filter
+- **computed list same** (expected `T`): `[1, 2]->map(x | $x + 1)` == `[2, 3]`
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+- **computed list other order** (expected `F`): `[1, 2]->map(x | $x + 1)` == `[3, 2]`
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+- **two computed lists** (expected `T`): `[1, 2]->map(x | $x + 1)` == `[2, 3]->filter(x | $x > 0)`
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+- **list int and decimal** (expected `T`): `[1, 2]->filter(x | $x > 0)` == `[1.0D, 2.00D]`
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `refused DialectCapability [refused]`: reads-element
+- **list decimal two scales** (expected `T`): `[1.0D, 10.125D]->filter(x | $x > 0D)` == `[1.000D, 10.125D]`
+  - **SQLite: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+- **written list decimal two scales** (expected `T`): `[1.0D, 10.125D]` == `[1.000D, 10.125D]`
+  - **SQLite: CONTRADICTS**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+- **list strings computed** (expected `T`): `['a', 'b']->map(s | $s + 'x')` == `['ax', 'bx']`
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+- **list date-times two precisions** (expected `T`): `[%2020-01-01T10:00:00.000]->filter(d | true)` == `[%2020-01-01T10:00:00]`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 16 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+  - **SQLite: A WRONG ANSWER SOMEWHERE**
+    - `refused DialectCapability [refused]`: 19 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+- **list days computed** (expected `T`): `[%2020-01-01, %2020-01-02]->filter(d | true)` == `[%2020-01-01, %2020-01-02]`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 16 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+- **list joined from an empty value** (expected `T`): `[1, 2]->filter(x | $x > 5)->first()->concatenate([1])` == `[1]`
+  - **H2: refused by name everywhere**
+    - `refused DialectCapability [refused]`: 16 places (statement, not, ...)
+- **mixed list computed** (expected `T`): `[1, 'a']->filter(x | true)` == `[1, 'a']`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 16 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+- **Number lists int and float** (expected `F`): `[1, 2]->cast(@Number)` == `[1.0, 2.0]->cast(@Number)`
+  - **DuckDB: CONTRADICTS**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `T [wrong]`: reads-element
+- **Number lists int and decimal** (expected `T`): `[1, 2]->cast(@Number)` == `[1D, 2D]->cast(@Number)`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 16 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+- **nested lists** (expected `T`): `list([1, 2])` == `list([1, 2])`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `error DataError [failed]`: reads-element
+  - **H2: FAILS SOMEWHERE**
+    - `T [right]`: 14 places (statement, not, ...)
+    - `error DataError [failed]`: assertEquals (host)
+    - `refused DialectCapability [refused]`: assertEquals (database)
+  - **SQLite: CONTRADICTS**
+    - `T [right]`: 18 places (statement, not, ...)
+    - `F [wrong]`: reads-element
+    - `refused DialectCapability [refused]`: assertEquals (database)
+- **maps same order** (expected `T`): `newMap([pair('a', 1), pair('b', 2)])` == `newMap([pair('a', 1), pair('b', 2)])`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+    - `refused NotImplementedException [refused]`: reads-element
+  - **H2: FAILS SOMEWHERE**
+    - `refused DialectCapability [refused]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: assertEquals (host)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability [refused]`: 18 places (statement, not, ...)
+    - `refused NotImplementedException [refused]`: reads-element
+    - `T [right]`: assertEquals (host)
+- **maps other order** (expected `T`): `newMap([pair('a', 1), pair('b', 2)])` == `newMap([pair('b', 2), pair('a', 1)])`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+    - `refused NotImplementedException [refused]`: reads-element
+  - **H2: FAILS SOMEWHERE**
+    - `refused DialectCapability [refused]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: assertEquals (host)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability [refused]`: 18 places (statement, not, ...)
+    - `refused NotImplementedException [refused]`: reads-element
+    - `T [right]`: assertEquals (host)
+- **maps a value differs** (expected `F`): `newMap([pair('a', 1), pair('b', 2)])` == `newMap([pair('a', 1), pair('b', 3)])`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `F [right]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+    - `refused NotImplementedException [refused]`: reads-element
+  - **H2: FAILS SOMEWHERE**
+    - `refused DialectCapability [refused]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: assertEquals (host)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `refused DialectCapability [refused]`: 18 places (statement, not, ...)
+    - `refused NotImplementedException [refused]`: reads-element
+    - `F [right]`: assertEquals (host)
+- **pairs int and decimal** (expected `T`): `pair(1, 1D)` == `pair(1, 1)`
+  - **DuckDB: ANSWERED ONLY IN SOME PLACES**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `unjudged [refused]`: assertEquals (database)
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `T [right]`: 15 places (statement, not, ...)
+    - `unjudged [refused]`: assertEquals (database)
+  - **SQLite: ANSWERED ONLY IN SOME PLACES**
+    - `T [right]`: 19 places (statement, not, ...)
+    - `unjudged [refused]`: assertEquals (database)
+- **list of pairs computed** (expected `T`): `[pair(1, 'a'), pair(2, 'b')]->filter(p | true)` == `[pair(1, 'a'), pair(2, 'b')]`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 16 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll
+- **instances written alike** (expected `F`): `^t::K(id=1, name='a')` == `^t::K(id=1, name='a')`
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `F [right]`: 12 places (statement, not, ...)
+    - `refused DialectCapability [refused]`: assertEquals (host), assertEquals (database), assert (host), assert (database)
+- **tables same** (expected `T`): `#TDS  id, s  1, x  2, y #` == `#TDS  id, s  1, x  2, y #`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `T [right]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+- **tables rows other order** (expected `F`): `#TDS  id, s  1, x  2, y #` == `#TDS  id, s  2, y  1, x #`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `F [right]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+  - **SQLite: CONTRADICTS**
+    - `F [right]`: 19 places (statement, not, ...)
+    - `T [wrong]`: reads-element
+- **tables a cell differs** (expected `F`): `#TDS  id, s  1, x  2, y #` == `#TDS  id, s  1, x  2, z #`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `F [right]`: 15 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+- **tables a column's name differs** (expected `F`): `#TDS  id  1 #` == `#TDS  ix  1 #`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `F [right]`: 14 places (statement, not, ...)
+    - `error DataError [failed]`: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+    - `refused TypeInferenceException [refused]`: function-generic
+  - **H2: ANSWERED ONLY IN SOME PLACES**
+    - `F [right]`: 15 places (statement, not, ...)
+    - `refused TypeInferenceException [refused]`: function-generic
+  - **SQLite: CONTRADICTS**
+    - `F [right]`: 18 places (statement, not, ...)
+    - `T [wrong]`: reads-element
+    - `refused TypeInferenceException [refused]`: function-generic
+
+## A store's rows: a comparison that reads the row it stands in
+
+18 comparisons, 486 runs.
+
+| database | right everywhere | refused by name everywhere | ANSWERED ONLY IN SOME PLACES | FAILS SOMEWHERE | A WRONG ANSWER SOMEWHERE | CONTRADICTS | places left out |
+|---|---|---|---|---|---|---|---|
+| DuckDB | 14 | 0 | 0 | 3 | 0 | 1 | 0 |
+| H2 | 14 | 0 | 0 | 3 | 0 | 1 | 0 |
+| SQLite | 14 | 0 | 0 | 3 | 0 | 1 | 0 |
+
+Places a database cannot answer even for the simplest comparison (left out of the counts):
+- DuckDB: none
+- H2: none
+- SQLite: none
+
+### Comparisons that are not right everywhere
+
+- **integer and float columns** (expected `N`): `$r.i` == `$r.f`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `refused ModelException [right]`: 8 places (filter, filter-not, ...)
+    - `refused NotImplementedException [failed]`: filter-function-any
+  - **H2: FAILS SOMEWHERE**
+    - `refused ModelException [right]`: 8 places (filter, filter-not, ...)
+    - `refused NotImplementedException [failed]`: filter-function-any
+  - **SQLite: FAILS SOMEWHERE**
+    - `refused ModelException [right]`: 8 places (filter, filter-not, ...)
+    - `refused NotImplementedException [failed]`: filter-function-any
+- **day and date-time columns** (expected `N`): `$r.day` == `$r.at`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `refused ModelException [right]`: 8 places (filter, filter-not, ...)
+    - `refused NotImplementedException [failed]`: filter-function-any
+  - **H2: FAILS SOMEWHERE**
+    - `refused ModelException [right]`: 8 places (filter, filter-not, ...)
+    - `refused NotImplementedException [failed]`: filter-function-any
+  - **SQLite: FAILS SOMEWHERE**
+    - `refused ModelException [right]`: 8 places (filter, filter-not, ...)
+    - `refused NotImplementedException [failed]`: filter-function-any
+- **float column and whole-number literal** (expected `1,4@`): `$r.f` == `1`
+  - **DuckDB: CONTRADICTS**
+    - `1,4 [right]`: 8 places (filter, filter-not, ...)
+    - `no row [right]`: filter-function-any
+  - **H2: CONTRADICTS**
+    - `1,4 [right]`: 8 places (filter, filter-not, ...)
+    - `no row [right]`: filter-function-any
+  - **SQLite: CONTRADICTS**
+    - `1,4 [right]`: 8 places (filter, filter-not, ...)
+    - `no row [right]`: filter-function-any
+- **computed column value and literal** (expected `1,2,4`): `$r.i->map(x | $x + 1)` == `2`
+  - **DuckDB: FAILS SOMEWHERE**
+    - `1,2,4 [right]`: 8 places (filter, filter-not, ...)
+    - `other answer [failed]`: value
+  - **H2: FAILS SOMEWHERE**
+    - `1,2,4 [right]`: 8 places (filter, filter-not, ...)
+    - `other answer [failed]`: value
+  - **SQLite: FAILS SOMEWHERE**
+    - `1,2,4 [right]`: 8 places (filter, filter-not, ...)
+    - `other answer [failed]`: value
+

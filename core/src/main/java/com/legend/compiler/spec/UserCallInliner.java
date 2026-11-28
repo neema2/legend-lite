@@ -435,8 +435,19 @@ public final class UserCallInliner {
             // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
             TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);
             readOnce(scope.terms, result);
-            return List.of(finish(result, List.of(), List.of(), false));
+            finishedOnce.clear();
+            return List.of(atTheCall(finish(result, List.of(), List.of(), false)));
         }
+    }
+
+    /** {@code n} with each comparison a function's body kept for its call ({@code TypedRunTimeComparison}) answered:
+     *  every function the query reaches stands in it now, each argument in its parameter's place, so the types the
+     *  comparison's sides have here are the types they have. */
+    private TypedSpec atTheCall(TypedSpec n) {
+        TypedSpec kids = n.mapChildren(this::atTheCall);
+        // (answered as a plain comparison, it is still the function's own, not the query's)
+        return kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c
+                ? EqualityClasses.notTheQuerys(specs.atTheCall(c)) : kids;
     }
 
     /**
@@ -461,11 +472,57 @@ public final class UserCallInliner {
                         : reads[0] + " times") + ": each reading would draw again, where the binding is one value;"
                         + " not supported yet");
             }
+            // a value HOLDING draws (a list of them), one of which is read again beside it: an element taken out by
+            // its place ($ks->at(0), which the unroll answers with the element as it is written) is the bound draw
+            // written a second time (the closing batch of step 6, measured 2026-11-27: let ks = [generateGuid(),
+            // generateGuid()]; $ks->filter(k | $k == $ks->at(0))->size() answered 0 where Pure's one list answers 1)
+            List<TypedSpec> held = new ArrayList<>();
+            draws(e.getValue(), held);
+            for (TypedSpec draw : held) {
+                int[] beside = {0};
+                boolean[] besideRow = {false};
+                countBeside(reduced, e.getValue(), draw, false, beside, besideRow);
+                if (draw != e.getValue() && (beside[0] > 1 || besideRow[0] || beside[0] == 1 && reads[0] > 0)) {
+                    throw new NotImplementedException("$" + e.getKey() + " holds values drawn afresh where they are"
+                            + " written (random(), generateGuid()), and one of them is read again by its place:"
+                            + " each reading would draw again, where the binding is one value; not supported yet");
+                }
+            }
+        }
+    }
+
+    /** The calls in {@code t} that draw afresh at each place they are written, into {@code out}. */
+    private static void draws(TypedSpec t, List<TypedSpec> out) {
+        if (t instanceof TypedNativeCall c && (com.legend.builtin.Pure.AT_MATH_RANDOM.contains(c.callee().id())
+                || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(c.callee().id()))) {
+            out.add(t);
+            return;
+        }
+        for (TypedSpec k : t.children()) {
+            draws(k, out);
+        }
+    }
+
+    /** The places {@code draw} stands in {@code t} (by reference) BESIDE {@code term}, the bound value that holds it
+     *  (a place inside a reading of the whole value is that reading's), and whether one is under a lambda. */
+    private static void countBeside(TypedSpec t, TypedSpec term, TypedSpec draw, boolean underLambda, int[] reads,
+            boolean[] perRow) {
+        if (t == term) {
+            return;
+        }
+        if (t == draw) {
+            reads[0]++;
+            perRow[0] |= underLambda;
+            return;
+        }
+        boolean lambda = underLambda || t instanceof TypedLambda;
+        for (TypedSpec k : t.children()) {
+            countBeside(k, term, draw, lambda, reads, perRow);
         }
     }
 
     /** Whether {@code t} holds a call that draws afresh at each place it is written. */
-    private static boolean drawsAfresh(TypedSpec t) {
+    public static boolean drawsAfresh(TypedSpec t) {
         if (t instanceof TypedNativeCall c && (com.legend.builtin.Pure.AT_MATH_RANDOM.contains(c.callee().id())
                 || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(c.callee().id()))) {
             return true;
@@ -539,6 +596,33 @@ public final class UserCallInliner {
      *  fold the database runs evaluates its lambdas once per element too, and reads no position: a construction in
      *  them is {@code untracked} (§4.3). */
     private TypedSpec finish(TypedSpec n, List<Integer> at, List<String> iterations, boolean untracked) {
+        if (n instanceof TypedLambda || n.children().isEmpty()) {
+            return finishHere(n, at, iterations, untracked);
+        }
+        // ONE VALUE READ TWICE IS ONE EVALUATION (the edition program's step 6, 2026-11-27): a let's value, or an
+        // argument's, stands in the reduced tree at each place it is read, the same node. It was evaluated once, so
+        // the objects it built are the same objects at every reading: finished once, its constructions one site.
+        // Finished at each place, every lambda in it took a new instantiation there, so
+        // `let xs = [1, 2]->map(x|^C(...)); $xs->at(0) == $xs->at(0)` compared two objects (measured: false on
+        // DuckDB and SQLite, where Pure and an assert of the two say true). A LAMBDA read twice is not one
+        // evaluation -- it is applied at each place -- so a lambda itself is never shared here.
+        Finished was = finishedOnce.get(n);
+        if (was != null && was.at().equals(at) && was.iterations().equals(iterations) && was.untracked() == untracked) {
+            return was.result();
+        }
+        TypedSpec result = finishHere(n, at, iterations, untracked);
+        finishedOnce.put(n, new Finished(List.copyOf(at), List.copyOf(iterations), untracked, result));
+        return result;
+    }
+
+    /** A node finished where it stood ({@link #finish}): the place it was finished at, and what it became. */
+    private record Finished(List<Integer> at, List<String> iterations, boolean untracked, TypedSpec result) {
+    }
+
+    /** Each value node the current {@link #finish} has finished, by identity. */
+    private final java.util.IdentityHashMap<TypedSpec, Finished> finishedOnce = new java.util.IdentityHashMap<>();
+
+    private TypedSpec finishHere(TypedSpec n, List<Integer> at, List<String> iterations, boolean untracked) {
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1) {
             List<String> inner = new ArrayList<>(iterations);
             inner.add(m.mapper().parameters().get(0));
@@ -1545,19 +1629,37 @@ public final class UserCallInliner {
     }
 
     private TypedSpec rewrite(TypedSpec n) {
+        return rewrite(n, false);
+    }
+
+    /** {@link #rewrite(TypedSpec)}; {@code keptForItsCall} says {@code n} is the comparison a function's body kept
+     *  for its call ({@code TypedRunTimeComparison}): its sides are rewritten and it is folded as any call is,
+     *  EXCEPT, where the door's setting answers a kept comparison by its sides' types
+     *  ({@code CrossTypeRule.answersAKeptComparisonByItsTypes}: lite's own), by the rule for two written values of
+     *  two kinds, one an enumeration's ({@code LiteralUnroll.neverEqual}, register S169: false, legend-pure's
+     *  answer). That rule answers a comparison the QUERY writes; one kept for its call is the call's to answer
+     *  ({@link #atTheCall}) -- on lite's own door a type variable given an enumeration and a String is that call's
+     *  compile error. Every other door folds it here, as it always did
+     *  (the equality measure, 2026-11-28: {@code t::sameT(t::E.A, 'A')} answered false, the fold having answered
+     *  before the call's rule saw two types). */
+    private TypedSpec rewrite(TypedSpec n, boolean keptForItsCall) {
         if (reducedTerms.containsKey(n)) {
             return n;
         }
         if (hook != null) {
             TypedSpec h = hook.apply(n, bound.keySet());
             if (h != n) {
-                return rewrite(h);
+                return rewrite(h, keptForItsCall);
             }
         }
         // literal-structure folds (tier 1): exact, or the node itself —
         // never inside quoted code
         TypedSpec r = reached(rewriteSwitch(n));
-        return quotedFrames.isEmpty() ? LiteralUnroll.fold(r, specs.ctx()) : r;
+        if (!quotedFrames.isEmpty() || keptForItsCall && r instanceof TypedNativeCall c && c.args().size() == 2
+                && LiteralUnroll.neverEqual(c.args().get(0), c.args().get(1)) && specs.keptForItsTypes(c)) {
+            return r;
+        }
+        return LiteralUnroll.fold(r, specs.ctx());
     }
 
     private TypedSpec rewriteSwitch(TypedSpec n) {
@@ -1772,6 +1874,9 @@ public final class UserCallInliner {
             // this replaces dropped TypedAggCol.orderKey and skipped MapReduce
             // strategy lambdas (remediation T2.1). Untouched subtrees keep
             // identity.
+            // (a comparison kept for its call, not yet answered: rewritten as such, above)
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison kept when !kept.neverEqual() ->
+                    kept.mapChildren(k -> rewrite(k, true));
             default -> n.mapChildren(this::rewrite);
         };
     }

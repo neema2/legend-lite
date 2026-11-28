@@ -174,7 +174,7 @@ public final class BodyPlanner {
                     com.legend.compiler.element.type.Type.Primitive.STRING,
                     com.legend.compiler.element.type.Multiplicity.Bounded.ONE).slot());
         }
-        return lowerer;
+        return RootComparison.asking(lowerer, body, env, ctx, identity);
     }
 
     /** A VALUE as the executor's body: the let prefix spliced, user calls

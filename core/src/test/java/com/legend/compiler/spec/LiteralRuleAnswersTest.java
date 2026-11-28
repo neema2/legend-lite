@@ -29,7 +29,9 @@ class LiteralRuleAnswersTest {
             "function x::inZeroOne(v: Float[1]): Boolean[1] { $v->in([0, 1]) }",
             "function x::isOne(v: Float[1]): Boolean[1] { $v == 1 }",
             "function x::holdsIt(v: Float[1]): Boolean[1] { [0, 1]->contains($v) }",
-            "function x::above(v: Decimal[1]): Boolean[1] { $v > 1 }");
+            "function x::above(v: Decimal[1]): Boolean[1] { $v > 1 }",
+            "function x::amongFloats(v: Number[1]): Boolean[1] { $v->in([0.0, 1.0]) }",
+            "function x::amongWholes(v: Number[1]): Boolean[1] { $v->in([0, 1]) }");
 
     private static List<String> values(String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
@@ -49,6 +51,17 @@ class LiteralRuleAnswersTest {
         assertEquals(List.of("true", "false"), values("|[x::isOne(1.0), x::isOne(1.5)]"));
         assertEquals(List.of("true", "false"), values("|[x::holdsIt(0.0), x::holdsIt(0.25)]"));
         assertEquals(List.of("true", "false"), values("|[x::above(1.5D), x::above(1.0D)]"));
+    }
+
+    @Test
+    @DisplayName("a whole number inlined against Float literals answers as its mirror does: both the database's, by"
+            + " value (the re-check of slice 6.1's audit: with whole numbers compared by the compiler again, the first"
+            + " had folded to false)")
+    void aWholeNumberAgainstFloatLiteralsAnswersAsItsMirror() throws Exception {
+        assertEquals(List.of("true", "false"), values("|[x::amongFloats(1), x::amongFloats(2)]"));
+        assertEquals(List.of("true", "false"), values("|[x::amongWholes(1.0), x::amongWholes(2.0)]"));
+        // one type on both sides: the compiler's own answer, and the database's, agree
+        assertEquals(List.of("true", "false"), values("|[x::amongWholes(1), x::amongWholes(2)]"));
     }
 
     @Test

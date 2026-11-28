@@ -46,7 +46,8 @@ class CrossTypeComparisonsTest {
     @Test
     @DisplayName("numbers of different types, an enumeration against a String, a day against a date-time: marked")
     void comparisonsAcrossTypesAreMarked() {
-        for (String q : List.of("|1 == 1.0", "|1D == 1", "|1 != 1.5", "|x::Kind.CITY == 'CITY'",
+        // (an Integer against a Decimal is no crossing: two exact numbers, by value; the user's ruling of 2026-11-27)
+        for (String q : List.of("|1 == 1.0", "|1D == 1.0", "|1 != 1.5", "|x::Kind.CITY == 'CITY'",
                 "|%2020-01-02 == %2020-01-02T00:00:00", "|1 < 1.5", "|1->in([1.0, 2.0])", "|[1.0, 2.0]->contains(1)",
                 "|'a' == 1", "|^x::A(n=1) == ^x::C(n=1)", "|max(%2020-01-02, %2020-01-02T00:00:00)")) {
             assertEquals(1, crossings(q).size(), q);
@@ -65,6 +66,25 @@ class CrossTypeComparisonsTest {
         for (String q : List.of("|1 == 2", "|1.0 == 2.5", "|3.0D == 3.00D", "|'a' == 'b'",
                 "|x::Kind.CITY == x::Kind.REGION", "|%2020-01-02 == %2020-01-03", "|1 < 2",
                 "|^x::A(n=1) == ^x::B(n=1)", "|let l = [1, 2.0]; $l->at(0) == 1;", "|1->in([1, 2])")) {
+            assertEquals(List.of(), crossings(q), q);
+        }
+    }
+
+    @Test
+    @DisplayName("a pair is compared by the types inside it: two types inside are marked as two types are; an Integer"
+            + " against a Decimal inside is by value")
+    void aPairIsComparedByTheTypesInsideIt() {
+        // the edition program's step 6 (the plan's 6.3): until it a pair's own type was "known only when the query
+        // runs", and pair(1, 'a') == pair(1.0, 'a') was the database's comparison of two structs
+        for (String q : List.of("|pair(1, 'a') == pair(1.0, 'a')", "|pair('a', 1) == pair('a', 'b')",
+                "|pair(1, pair('a', 2)) == pair(1, pair('a', 2.5))")) {
+            assertEquals(1, crossings(q).size(), q);
+        }
+        TypedCrossTypeComparison inside = crossings("|pair(1, 'a') == pair(1.0, 'a')").get(0);
+        assertEquals(com.legend.compiler.element.type.Type.Primitive.INTEGER, inside.left());
+        assertEquals(com.legend.compiler.element.type.Type.Primitive.FLOAT, inside.right());
+        for (String q : List.of("|pair(1, 'a') == pair(2, 'b')", "|pair(1, 'a') == pair(1D, 'a')",
+                "|pair(1.5D, pair('a', 2)) == pair(1, pair('a', 2.0D))")) {
             assertEquals(List.of(), crossings(q), q);
         }
     }

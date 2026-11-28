@@ -2032,6 +2032,12 @@ final class Substitution {
             // source substitutes (the in([...]) family spells casts over
             // property reads).
             case TypedCast tc -> tc.mapChildren(this::rewrite);
+            // a comparison a function's body kept for its call, answered there "never equal, its sides still
+            // evaluated" (TypedRunTimeComparison.answeredNeverEqual; step 6B, slice 3, 2026-11-28): its two sides
+            // are this scope's reads like any comparison's -- until now it was no node of this vocabulary, and two
+            // columns of two types compared inside a function whose parameters are Any, in a class's filter, were
+            // refused by name where the rule answers false
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison rc -> rc.mapChildren(this::rewrite);
             case TypedIf i -> i.mapChildren(this::rewrite);
             case TypedLambda l -> {
                 if (l.parameters().contains(target.freshRowVar())) {

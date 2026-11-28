@@ -167,7 +167,9 @@ class OwnDialectCensusTest {
                     // (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a): aColumnsTypePicksTheOverload
                     // (test::pick<K> beside key:All, generics 10 -> 12 with SignatureMangleTest's) and
                     // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T>, signatures 24 -> 25)
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 19),
+                    // 19 -> 20 (2026-11-27, the edition program's step 6): comparesTheCallersColumns
+                    // (test::sameCols<T,A,B>, signatures 26 -> 27)
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 20),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect

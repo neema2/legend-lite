@@ -354,7 +354,6 @@ duckdb-lite	Grammar	meta::pure::functions::boolean::tests::equality::equal::test
 duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testNumberCompare	ModelException: compare compares Integer with Float
 duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	ModelException: compare compares StrictDate with DateTime
 duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testCompareMixedTypes	ModelException: compare compares Integer with String
-duckdb-lite	Grammar	meta::pure::functions::lang::tests::compare::testCompareDecimalAndLongTypes	ModelException: compare compares Decimal with Integer
 duckdb-lite	Essential	meta::pure::functions::collection::tests::contains::testContainsNonPrimitive	ModelException: contains compares meta::pure::functions::collection::tests::model::CO_Firm with Integer
 # (16 rows gone 2026-11-21, stage B's BE, the one catalog: an assertError expects legend-pure's sentence and lite's
 # database now raises it -- testAtError, testSliceError, testNewDateError, the four date-part errors, testRemError,

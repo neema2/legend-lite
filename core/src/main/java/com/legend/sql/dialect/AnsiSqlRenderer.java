@@ -1379,11 +1379,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** {@link SqlFn#SAME_IN_ORDER} / {@link SqlFn#SAME_IN_ANY_ORDER} in the PORTABLE form: the Boolean select over the
      *  two sides' rows (its third and fourth arguments), as a scalar subquery ({@link SameValuesForm}). */
     protected final SqlWriter sameValues(SqlWriter writer, SqlExpr.Call c) {
+        if (c.args().size() == 2 && c.fn() == SqlFn.SAME_IN_ORDER) {
+            // the two side VALUES alone (step 6B, slice 1: a side reads the row it stands in, so no rows of its own
+            // ride with it): this database's own comparison of the two values, as it was written before the slice
+            return writer.append("(").expr(new SqlExpr.Call(SqlFn.EQUAL, c.args()), 0).append(")");
+        }
+        if (c.args().size() != 4) {
+            throw new IllegalStateException(c.fn() + ": two side values, or two side values and the two sides' rows");
+        }
         if (!(c.args().get(2) instanceof SqlExpr.ScalarSubquery e) || !(c.args().get(3) instanceof SqlExpr.ScalarSubquery a)) {
             throw new IllegalStateException(c.fn() + ": its third and fourth arguments are the sides' rows");
         }
         writer.append("(");
-        inline(writer, SameValuesForm.of(e.subquery(), a.subquery(), c.fn() == SqlFn.SAME_IN_ORDER));
+        inline(writer, SameValuesForm.boundOnce(e.subquery(), a.subquery(), c.fn() == SqlFn.SAME_IN_ORDER));
         return writer.append(")");
     }
 

@@ -648,8 +648,8 @@ legend_java_library(
             # docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17)
             "src/test/java/com/legend/planner/LiteApiConformanceTest.java",
             "src/test/java/com/legend/server/PostgresArmTest.java",
-            # the equality measurement is :equality_measure's alone (tools/equality-measure, step 6.0 of the edition
-            # program): a main class run by hand, never a test
+            # the equality measurement is :equality_measure's and :equality_positions_pin_test's alone
+            # (tools/equality-measure, step 6.0 of the edition program; the pin, step 6B's slice 2)
             "src/test/java/com/legend/equalitymeasure/*.java",
             # isNumeric's one rule run on four databases, Postgres among them: :is_numeric_probe_test's alone (J20)
             "src/test/java/com/legend/planner/IsNumericProbeTest.java",
@@ -3866,7 +3866,10 @@ product_tests_closure(
 legend_java_binary(
     name = "equality_measure",
     testonly = True,
-    srcs = ["src/test/java/com/legend/equalitymeasure/EqualityMeasure.java"],
+    srcs = [
+        "src/test/java/com/legend/equalitymeasure/EqualityMeasure.java",
+        "src/test/java/com/legend/equalitymeasure/PositionReport.java",
+    ],
     jvm_flags = ["-Xmx3g"],
     main_class = "com.legend.equalitymeasure.EqualityMeasure",
     tags = ["manual"],
@@ -3875,6 +3878,40 @@ legend_java_binary(
         ":core",
         ":test_backends",
     ],
+)
+
+# THE POSITION MATRIX, PINNED (step 6B's slice 2, 2026-11-28; tools/equality-measure/README.md): one comparison asked
+# in every place a comparison can stand, on every in-process database, its result required to EQUAL
+# tools/equality-measure/positions-baseline.tsv line for line -- a comparison that gets worse fails, and one that gets
+# better fails until the baseline is regenerated in the same commit. About 5,800 runs, a minute on Linux.
+junit_test(
+    name = "equality_positions_pin_test",
+    memory_mb = 3072,
+    size = "large",
+    srcs = [
+        "src/test/java/com/legend/equalitymeasure/EqualityMeasure.java",
+        "src/test/java/com/legend/equalitymeasure/EqualityPositionsPinTest.java",
+        "src/test/java/com/legend/equalitymeasure/PositionReport.java",
+    ],
+    data = [
+        "//tools/equality-measure:positions-baseline.tsv",
+        "//tools/equality-measure:positions-model.txt",
+        "//tools/equality-measure:positions-store-model.txt",
+    ],
+    jvm_flags = [
+        "-Dequality.positions.baseline=$(rlocationpath //tools/equality-measure:positions-baseline.tsv)",
+        "-Dequality.positions.model=$(rlocationpath //tools/equality-measure:positions-model.txt)",
+        "-Dequality.positions.store_model=$(rlocationpath //tools/equality-measure:positions-store-model.txt)",
+    ],
+    select = ["--select-class=com.legend.equalitymeasure.EqualityPositionsPinTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
 )
 
 # THE PRODUCT'S SQL, DUMPED (the equality program, tools/equality-measure/README.md): every query of the lean-SQL sets

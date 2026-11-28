@@ -973,12 +973,32 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testMinNumbers() throws SQLException {
-                // PCT: |2->meta::pure::functions::math::min(1.23D) -- an Integer ordered against a Decimal: refused by the one
-                // equality's rule (B3 step 5, the user's ruling of 2026-11-24); PCT's run answers it at legend-pure's door
+                // PCT: |2->meta::pure::functions::math::min(1.23D) => 1.23D -- an Integer ordered against a Decimal: two
+                // exact numbers, ordered by their value (the user's ruling of 2026-11-27; refused from B3 step 5,
+                // 2026-11-24, until then)
+                try {
+                        var result = Lean.run(getCompletePureModelWithRuntime(), "|2->min(1.23D)", "test::TestRuntime",
+                                        connection);
+                        assertEquals(0, new java.math.BigDecimal("1.23").compareTo(
+                                        new java.math.BigDecimal(result.rows().get(0).get(0).toString())),
+                                        result.rows().toString());
+                } catch (com.legend.sql.DialectCapability refused) {
+                        // the smaller of an Integer and a Decimal is one of two types, picked by a list position: a
+                        // database lite writes no list on (H2) or that holds no exact decimal (SQLite) refuses by
+                        // name, never answers approximately (found by the stack's full run, 2026-11-27; the list
+                        // forms are the database follow-up's)
+                        // only there: a database that should answer must answer (the outside audit of 2026-11-27)
+                        String lane = com.legend.testing.LaneFloor.backend().name();
+                        assertTrue(lane.equals("h2") && String.valueOf(refused.getMessage()).contains(
+                                        "without a list encoding") || lane.equals("sqlite") && String.valueOf(
+                                        refused.getMessage()).contains("holds no exact decimal"),
+                                        lane + ": " + refused.getMessage());
+                }
+                // an exact number against a Float is still refused
                 com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
                         com.legend.error.ModelException.class, () -> Lean.run(getCompletePureModelWithRuntime(),
-                                "|2->min(1.23D)", "test::TestRuntime", connection));
-                assertTrue(refused.getMessage().startsWith("min compares Integer with Decimal"), refused.getMessage());
+                                "|2->min(1.23)", "test::TestRuntime", connection));
+                assertTrue(refused.getMessage().startsWith("min compares Integer with Float"), refused.getMessage());
         }
 
         @Test

@@ -5,7 +5,7 @@
 DateTime (sections "What it is" to "What the review found", written before the user ruled); then, on the user's
 rulings of about 18:10 UTC, the row for a literal, the row on every database legend-engine has, and the deletion of
 the SQL composition (the section "The user's rulings, and what they changed", which is the slice as it stands). On
-`claude/next-batch-fixes` (`11af8dd97`) by the merge `32efeb0a0`. The register row is S429.*
+`claude/next-batch-fixes` (`11af8dd97`) by the merge `32efeb0a0`. The register row is S435.*
 
 ## What it is
 
@@ -189,7 +189,7 @@ the deleted class was the edge's one writer), `EdgeSpellingHookTest` (MongoDB's 
 `dateTimeFormat`), `HookRulingTest` (the spelling hooks 5 to 4), `JavaEvalLedgerTest` (the deleted file's entry),
 `ArchitectureTest.PLANNER_ENTRIES` (the row's rule). All shrinks but the last, a registered addition.
 
-**The register row** is S429, and section 24 of `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`; the draft above is
+**The register row** is S435, and section 24 of `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`; the draft above is
 superseded by them. **The parity test** (`PureRelationTextParityTest`) held the Java print equal to the SQL
 composition on DuckDB, H2 and SQLite while the SQL existed (run 2026-11-26, before the deletion); its texts stay
 pinned, and it pins lite's text of the same values where the print is not lifted.

@@ -1158,7 +1158,7 @@ meta::relational::tests::groupBy::testGroupByWithWavgAggregation	0	meta::pure::f
 meta::relational::tests::groupBy::testGroupByWithWavgAggregation	1	meta::relational::functions::asserts::assertSameSQL	PASS
 meta::relational::tests::groupBy::testGroupByWithWavgAggregation	2	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation	0	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation	1	meta::pure::functions::asserts::assertEquals	PASS
+meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation	1	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation	2	meta::relational::functions::asserts::assertSameSQL	PASS
 meta::relational::tests::groupBy::testJoinStringsWithAssociation	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::groupBy::testJoinStringsWithAssociation	1	meta::pure::functions::asserts::assertEquals	PASS
@@ -4203,7 +4203,7 @@ meta::relational::tests::query::filter::exists::testAssociationThreeLevelDeep	0	
 meta::relational::tests::query::filter::exists::testAssociationThreeLevelDeep	1	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::query::filter::exists::testAssociationThreeLevelDeep	2	meta::relational::functions::asserts::assertSameSQL	PASS
 meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep	0	meta::pure::functions::asserts::assertSize	PASS
-meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep	1	meta::pure::functions::asserts::assertEquals	PASS
+meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep	1	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep	2	meta::relational::functions::asserts::assertSameSQL	PASS
 meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep	3	meta::pure::functions::asserts::assertSize	PASS
 meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep	4	meta::pure::functions::asserts::assertEquals	PASS

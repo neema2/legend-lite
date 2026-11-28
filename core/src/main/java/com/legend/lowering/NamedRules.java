@@ -43,6 +43,10 @@ final class NamedRules {
             case FLOAT_TEXT_BY_CAST_OF_A_DOUBLE -> floatTextByCast(args.get(0), true);
             case DATE_TIME_TEXT_BY_CAST -> new SqlExpr.Cast(args.get(0), com.legend.sql.SqlType.Scalar.VARCHAR,
                     SqlExpr.Reason.USER);
+            case SORT_TIES_AS_WRITTEN -> Scalars.sortTiesAsWritten(call, args);
+            case EXTREME_KEEPS_THE_FOLDS_TIE -> Scalars.extremeKeepingTheFoldsTie(call, args);
+            case EXTREME_OF_TWO_IN_THE_DATABASES_TYPE -> Scalars.extremeOfTwoInTheDatabasesType(call, args);
+            case THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION -> Scalars.threeNumberTypesAndWrittenDatePrecision(call, args);
         };
     }
 

@@ -33,6 +33,12 @@ public enum LiteHostForms implements HostForms {
                 ? com.legend.values.PureDateLiteral.Precision.HOUR : p;
     }
 
+    /** Lite's numbers are of two families: an Integer and a Decimal of one value are equal. */
+    @Override
+    public boolean exactNumbersByValue() {
+        return true;
+    }
+
     /** Lite's words of a caught error: its own message (K10). */
     @Override
     public String caught(RuntimeException error, EdgeHearing hearing) {

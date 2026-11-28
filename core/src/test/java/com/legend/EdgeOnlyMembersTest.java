@@ -108,10 +108,9 @@ class EdgeOnlyMembersTest {
             // B3 step 5 (the one equality; the user's ruling of 2026-11-24, "Love it"): the typer's marker of a comparison
             // across types, its components what a door reads to answer it (the product refuses the whole marker); and
             // the catalog's assertSameElements overloads, which the door's order-free rewrite builds its typed call from
-            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#kind()",
-                    "2026-11-25: the marker's kind, read by legend-pure's door to answer it (B3 step 5)"),
-            Map.entry("com.legend.compiler.spec.typed.TypedCrossTypeComparison#operator()",
-                    "2026-11-25: the marker's operator, as legend-pure's door names it in a refusal (B3 step 5)"),
+            // (TypedCrossTypeComparison#kind() and #operator(): the product reads them too since 2026-11-27, the edition
+            // program's step 6 -- lite's setting keeps a generic body's comparison for its call by its kind and operator,
+            // compiler.spec.LiteCrossTypeRule -- no longer the edge's alone, so their pins are deleted: a shrink)
             // (TypedCrossTypeComparison#left() and #right(): the product reads them too since 2026-11-26, the literal
             // rule, compiler.spec.NumberLiterals -- no longer the edge's alone, so their pins are deleted: a shrink)
             // 2026-11-26 (the edition program's step 2b: the comparison setting in the type-checker): the door hands
@@ -123,8 +122,8 @@ class EdgeOnlyMembersTest {
                             + " audit of step 2b, finding 1); the product's planner refuses a marker through refuse()"),
             Map.entry("com.legend.TypedQuery#comparing(com.legend.compiler.spec.CrossTypeRule)",
                     "2026-11-26: a door's comparison setting for the query it admits (the edition program's step 2b)"),
-            Map.entry("com.legend.builtin.Pure#AT_ASSERTS_ASSERT_SAME_ELEMENTS",
-                    "2026-11-25: the catalog's assertSameElements overloads, the door's order-free rewrite's typed call (B3 step 4)"),
+            // (Pure#AT_ASSERTS_ASSERT_SAME_ELEMENTS: deleted 2026-11-27, a shrink -- the product reads it again: the
+            // typer's comparison rule reads an assert's two sides, compiler.spec.EqualityClasses)
             // (EnvelopeParts#relation/#objects, RelationParts#names/#typeNames/#cells: moved 2026-11-18 to
             // HookRulingTest.HOOK_ENTRIES by the orchestrator's ruling -- the ResultEnvelopes facet's argument types)
             // the orchestrator's ruling of 2026-11-18 (train 18, J40.VerdictSql, E-Java's 9dd14f6fdc): VerdictSql keeps the

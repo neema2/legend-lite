@@ -37,7 +37,13 @@ public record TypedCrossTypeComparison(TypedSpec comparison, Kind kind, String o
         /** {@code indexOf}: a value's position among a collection's elements. */
         INDEX,
         /** {@code <}, {@code <=}, {@code >}, {@code >=}, {@code compare}, two-argument {@code max} and {@code min}. */
-        ORDERING
+        ORDERING,
+        /** A test's assert of two sides: {@code assertEquals}, {@code assertNotEquals}, {@code assertEq},
+         *  {@code assertNotEq}, {@code assertIs}, {@code assertIsNot}, {@code assertSameElements},
+         *  {@code assertContains}, {@code assertNotContains}. Two sides of two known types are the mistake a
+         *  comparison of them is (the user's ruling of 2026-11-26, "yes compile error": on lite's own door an assert
+         *  across types is refused when the body is compiled; a compatibility door's assert is judged as it was). */
+        ASSERT
     }
 
     /** Lite's refusal of this comparison: a compile error naming the two types and the fix (the planner's before it
@@ -47,6 +53,30 @@ public record TypedCrossTypeComparison(TypedSpec comparison, Kind kind, String o
                 + " compares " + left.typeName() + " with " + right.typeName() + ": two values are equal only when"
                 + " they have the same type and the same value, so this comparison is a mistake -- write both sides in"
                 + " one type (1.0 for 1, toFloat(), toString(), an enumeration's own value)");
+    }
+
+    /** Lite's refusal of this comparison where it is written in {@code function} between values whose types the
+     *  CALL gives (the caller's own columns, a type variable's values): the same mistake as one written in the query,
+     *  found where the function is used, so the message names the function and says the fix is the caller's (the
+     *  user's ruling of 2026-11-27, "the split with compile error when we know"). */
+    public com.legend.error.ModelException refusalAtTheCall(@com.legend.base.Nullable String function) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE, operator
+                + " compares " + left.typeName() + " with " + right.typeName() + " in "
+                + (function == null ? "a function this query calls" : function) + ", between values whose types this"
+                + " call gives: two values are equal only when they have the same type and the same value, so this call"
+                + " is a mistake -- pass values of one type (toFloat(), toString(), an enumeration's own value)");
+    }
+
+    /** Lite's refusal of this comparison where a side is declared {@code Number}, {@code Any} or the abstract
+     *  {@code Date} and the COLUMNS the two sides read hold two types that are never equal: known only once the
+     *  query is planned over its store, so refused there, never answered false for every row (the user's ruling of
+     *  2026-11-27, "great do it": the same reasoning as a comparison a call fixes). */
+    public com.legend.error.ModelException refusalOverColumns() {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER, operator
+                + " compares " + left.typeName() + " with " + right.typeName() + ", the types of the columns its two"
+                + " sides read: two values are equal only when they have the same type and the same value, so this"
+                + " comparison is a mistake -- convert one side (toFloat(), toDecimal(), toString(); for a day against a"
+                + " date-time, write the instant, as %2020-01-01T00:00:00, or compare the date-time's day, datePart())");
     }
 
     @Override

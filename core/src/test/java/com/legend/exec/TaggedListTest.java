@@ -135,6 +135,44 @@ class TaggedListTest {
         }
     }
 
+    /** A list WRITTEN IN THE QUERY needs no list in the SQL (the user, 2026-11-26, on the fold rule's measured SQL):
+     *  the compiler knows each element's type and only an element of the value's type can equal it, so membership
+     *  is the plain IN over those elements, on every database -- an equality where there is one. The elements are
+     *  chosen by type; the database compares every value. (A whole number, a String and a Boolean against a list of
+     *  written values are answered by the compiler, the fold rule: no statement at all.) */
+    @Test
+    void membershipInAWrittenListIsAPlainInOverTheElementsOfTheValuesType() throws Exception {
+        String col = "[1, 2, 5, 2, 'a', true, %2014-02-01, %2014-03-01, 2.5, 'c']";
+        String sql = query("|%2014-02-01->in(" + col + ")").plan("s::RT").sql();
+        assertTrue(sql.contains("DATE '2014-02-01' IN (DATE '2014-02-01', DATE '2014-03-01')"), sql);
+        assertFalse(sql.contains("'a'"), sql);
+        assertFalse(sql.contains("list_"), sql);
+        // one element of the value's type: an equality, never IN over one value
+        String one = query("|2.5->in(" + col + ")").plan("s::RT").sql();
+        assertTrue(one.contains("2.5E0 = 2.5E0") && !one.contains(" IN ("), one);
+        // a list holding a query parameter is planned, never refused (the audit of 2026-11-26 feared a lone parameter
+        // read as a LIST parameter; such a list is compared on the variant lane today, its parameter bound once)
+        String parameter = query("{s:String[1] | 'a'->in([$s, 1])}").plan("s::RT").sql();
+        assertEquals(1, parameter.chars().filter(ch -> ch == '?').count(), parameter);
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(true, value(c, "|%2014-02-01->in(" + col + ")"));
+            assertEquals(false, value(c, "|%2014-02-02->in(" + col + ")"));
+            assertEquals(true, value(c, "|2.5->in(" + col + ")"));
+            assertEquals(false, value(c, "|1.0->in(" + col + ")"));
+            // answered by the compiler, and by the value's own kind alone: a String is never a date's text, a
+            // whole number never a Float (the audit: a date keyed by its text had matched the String)
+            assertEquals(true, value(c, "|1->in(" + col + ")"));
+            assertEquals(false, value(c, "|7->in(" + col + ")"));
+            assertEquals(false, value(c, "|'2014-02-01'->in(" + col + ")"));
+            assertEquals(false, value(c, "|'2014-02-01'->in([%2014-02-01, 1])"));
+            assertEquals(false, value(c, "|2->in([2.0, 'a'])"));
+            // Decimals of two scales are one type, equal by their number (S139): every Decimal of the list is read
+            assertEquals(true, value(c, "|1.5D->in([2.00D, 1.5D, 'a'])"));
+            assertEquals(true, value(c, "|1.50D->in([2.00D, 1.5D, 'a'])"));
+            assertEquals(false, value(c, "|1.51D->in([2.00D, 1.5D, 'a'])"));
+        }
+    }
+
     @Test
     void indexingSizeAndPrintReadTheKinds() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
@@ -175,16 +213,37 @@ class TaggedListTest {
     }
 
     @Test
-    void equalityIsExactInKindScaleAndWrittenPrecision() throws Exception {
-        // the L1 audit's findings 1 and 2 (2026-10-29): a Decimal at another scale and a DateTime at another written
-        // precision are other kinds (BigDecimal.equals reads the scale; AbstractPureDate.equals the subsecond text)
+    void equalityIsExactInKind_andByTheValueWithinOne() throws Exception {
+        // THE EQUALITY RULE within one type: the value, not its spelling (the user's ruling of 2026-11-24; the edition
+        // program's step 6, slice 6.1, 2026-11-26) -- a Decimal by its number whatever its scale (register S139), a
+        // date-time by its instant whatever precision it was written at (S399). Until then a Decimal at another scale
+        // and a DateTime at another written precision were other kinds inside a mixed list (legend-pure's
+        // BigDecimal.equals and its date's subsecond text; the L1 audit's findings 1 and 2, 2026-10-29)
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(false, value(c, "|[1.5D, 12.25D] == [1.5D, 99.99D]"));
             assertEquals(true, value(c, "|[1.5D, 12.25D] == [1.5D, 12.25D]"));
-            assertEquals(false, value(c, "|[1.5D, 'a'] == [1.50D, 'a']"));
-            assertEquals(false, value(c, "|[%2014-01-01T00:00:00.000, 1]->contains(%2014-01-01T00:00:00)"));
+            assertEquals(true, value(c, "|[1.5D, 'a'] == [1.50D, 'a']"));
+            assertEquals(false, value(c, "|[1.5D, 'a'] == [1.51D, 'a']"));
+            assertEquals(true, value(c, "|[%2014-01-01T00:00:00.000, 1]->contains(%2014-01-01T00:00:00)"));
             assertEquals(true, value(c, "|[%2014-01-01T00:00:00.000, 1]->contains(%2014-01-01T00:00:00.000)"));
-            assertEquals(false, value(c, "|[%2014-01-01T00:00:00.000, 1] == [%2014-01-01T00:00:00, 1]"));
+            assertEquals(false, value(c, "|[%2014-01-01T00:00:00.001, 1]->contains(%2014-01-01T00:00:00)"));
+            assertEquals(true, value(c, "|[%2014-01-01T00:00:00.000, 1] == [%2014-01-01T00:00:00, 1]"));
+            assertEquals(false, value(c, "|[%2014-01-01T00:00:00.001, 1] == [%2014-01-01T00:00:00, 1]"));
+            // a day is never a date-time: two types (the same rule's other half)
+            assertEquals(false, value(c, "|[%2014-01-01, 1] == [%2014-01-01T00:00:00, 1]"));
+            assertEquals(false, value(c, "|[%2014-01-01, 1]->contains(%2014-01-01T00:00:00)"));
+            // membership and the deduplication read every element of the type, whichever scale or precision
+            assertEquals(true, value(c, "|[1.0D, 2.00D, 'a']->contains(2.0D)"));
+            assertEquals(2L, value(c, "|[1.0D, 1.00D, 'a']->removeDuplicates()->size()"));
+            assertEquals(2L, value(c,
+                    "|[%2014-01-01T00:00:00, %2014-01-01T00:00:00.000, 'a']->removeDuplicates()->size()"));
+            assertEquals(3L, value(c, "|[1.0D, 1.01D, 'a']->removeDuplicates()->size()"));
+            // two lists not written out side by side (a reversed one): element by element, the same rule
+            assertEquals(true, value(c, "|['a', 1.50D]->reverse() == [1.5D, 'a']"));
+            // a written list holding a computed element compares that position null-safe: always a Boolean
+            assertEquals(true, value(c, "|['a', 1.5D] == [['a', 'b']->at(0), 1.50D]"));
+            assertEquals(false, value(c, "|['a', 1.5D] == [['a', 'b']->at(1), 1.50D]"));
+            assertEquals(true, value(c, "|!(['a', 1.5D] == [['a', 'b']->at(1), 1.50D])"));
             // a mixed selection's winner is a member by element (finding 4: never a static false)
             assertEquals(true, value(c, "|[1, 2.5]->contains([1, 2.5]->max())"));
             assertEquals(true, value(c, "|[1, 2.5, 'a']->contains([1, 2.5]->max())"));
@@ -275,20 +334,89 @@ class TaggedListTest {
     }
 
     @Test
-    void numbersOfDifferentKindsAreRefusedWherePureEquatesTheirTexts() throws Exception {
-        // the L2 audit's finding 4: compiled legend-pure's eq(Number, Number) compares the texts, so 3 == 3D and
-        // 1.5 == 1.5D are true there; lite refuses those pairs by name until it lowers the rule (a static false
-        // stood); the pairs whose texts never agree keep their false
+    void anExactNumberNeverEqualsAFloatInAMixedList_andTwoExactNumbersAreEqualByValue() throws Exception {
+        // the equality rule for numbers (the user, 2026-11-27, "Yes I like the rule, keep ordering strict"): numbers
+        // are of two families, exact (Integer, Decimal) and approximate (Float). Two exact numbers are equal by
+        // their value, whichever of the two types holds it; an exact number and a Float are never equal, whatever
+        // their digits. (Until that ruling an Integer and a Decimal were never equal either, the ruling of
+        // 2026-11-24; compiled legend-pure compares two numbers of different kinds by their texts, so 3 == 3D is
+        // true there too, and 1.5 == 1.5D, which stays false here: a recorded difference.)
         try (Connection c = TestBackends.platform().open()) {
+            // an exact number against a Float: never
             assertEquals(false, value(c, "|[1, 'a']->contains(1.0)"));
-            assertEquals(false, value(c, "|[1, 'a']->contains(1.5D)"));
             assertEquals(false, value(c, "|[1, 'a'] == [1.0, 'a']"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[3, 'a']->contains(3D)")).getMessage().contains("Integer"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[3, 'a'] == [3D, 'a']")).getMessage().contains("Decimal"));
-            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> value(c, "|[1.5, 'a']->contains(1.5D)")).getMessage().contains("Float"));
+            assertEquals(false, value(c, "|[1.5, 'a']->contains(1.5D)"));
+            // an Integer against a Decimal: by value
+            assertEquals(true, value(c, "|[3, 'a']->contains(3D)"));
+            assertEquals(true, value(c, "|[3, 'a']->contains(3.00D)"));
+            assertEquals(false, value(c, "|[3, 'a']->contains(3.5D)"));
+            assertEquals(false, value(c, "|[1, 'a']->contains(1.5D)"));
+            assertEquals(true, value(c, "|[3, 'a'] == [3D, 'a']"));
+            assertEquals(false, value(c, "|[3, 'a'] == [3.1D, 'a']"));
+            assertEquals(true, value(c, "|2->in([2D, 'a'])"));
+            assertEquals(true, value(c, "|2->in([1, 2D, 'a'])"));
+            assertEquals(false, value(c, "|2->in([1, 2.5D, 'a'])"));
+            assertEquals(true, value(c, "|2D->in([1, 2, 'a'])"));
+            // so one of two equal exact numbers is a duplicate of the other, and a Float of that value is not
+            assertEquals(2L, value(c, "|[1, 1D, 1.0]->removeDuplicates()->size()"));
+            // and the same type still compares by its value
+            assertEquals(true, value(c, "|[3D, 'a']->contains(3.0D)"));
+        }
+    }
+
+    @Test
+    void aValueTypedOnlyAtRunTimeComparesByTheTypeItHolds() throws Exception {
+        // slice 6.2: a value whose static type names no kind (Number, Any, the abstract Date) was refused against a
+        // mixed list ("whose kind only its runtime value names"); it compares by the type it holds where that is
+        // known -- an upcast is the value as it is, so its kind is the kind of what was cast
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(true, value(c, "|[1, 'a']->contains(1->cast(@Number))"));
+            assertEquals(false, value(c, "|[1.0, 'a']->contains(1->cast(@Number))"));
+            assertEquals(true, value(c, "|1.5->cast(@Number)->in([1.5, 'a'])"));
+            assertEquals(false, value(c, "|1.5->cast(@Number)->in([1.5D, 'a'])"));
+            assertEquals(true, value(c, "|[%2014-01-01, 'a']->contains(%2014-01-01->cast(@Date))"));
+            assertEquals(false, value(c, "|[%2014-01-01T00:00:00, 'a']->contains(%2014-01-01->cast(@Date))"));
+            assertEquals(true, value(c, "|['a', 1]->contains('a'->cast(@Any))"));
+            assertEquals(false, value(c, "|['1', 2]->contains(1->cast(@Any))"));
+            // over a row: the upcast of a column is the column's value, compared by the database (no list in the SQL)
+            String upcast = "|#TDS\n a\n 1\n 2\n#->extend(~hit: x | [1, 'a']->contains($x.a->cast(@Number)))->select(~hit)";
+            assertEquals(List.of(true, false), values(c, upcast));
+            assertEquals("SELECT coalesce(_tds0.a = 1, FALSE) AS hit", query(upcast).plan("s::RT").sql().split("\\s+FROM\\s+")[0]);
+            // a value whose SQL type is a PROMOTION of what it may hold is still refused by name, never guessed: a
+            // CASE of an Integer and a Float is a DOUBLE; a relation re-typed to a Number column reads it as a DOUBLE
+            for (String promoted : List.of(
+                    "|#TDS\n a\n 1\n 2\n#->extend(~hit: x | [1, 'a']->contains(if($x.a > 1, |1, |1.5)))->select(~hit)",
+                    "|#TDS\n a\n 1\n 2\n#->cast(@meta::pure::metamodel::relation::Relation<(a:Number)>)"
+                            + "->extend(~hit: x | $x.a->toOne()->in([1, 'a']))->select(~hit)")) {
+                assertTrue(assertThrows(com.legend.error.NotImplementedException.class, () -> values(c, promoted))
+                        .getMessage().contains("whose kind only its runtime value names"), promoted);
+            }
+        }
+    }
+
+    @Test
+    void equalNumbersOfDifferentTypesSortInOneOrder() throws Exception {
+        // slice 6.2 (the user's ruling of 2026-11-25): 3 and 3.0 are two values of two types, so a sort orders them
+        // one way whatever order they were written in -- by value, then Integer, Float, Decimal (until then a tie
+        // kept the list's order: [3.0, 3, 1]->sort() answered [1, 3.0, 3])
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals("[1, 3, 3.0]", String.valueOf(values(c, "|[3, 3.0, 1]->sort()")));
+            assertEquals("[1, 3, 3.0]", String.valueOf(values(c, "|[3.0, 3, 1]->sort()")));
+            assertEquals("[3, 3.0, a]", String.valueOf(values(c, "|[3.0, 'a', 3]->sort()")));
+            // one number type: the order by value alone, as before
+            assertEquals("[1, 2, 3]", String.valueOf(values(c, "|[3, 1, 2]->sort()")));
+            assertEquals("[1.5, 2.5]", String.valueOf(values(c, "|[2.5, 1.5]->sort()")));
+            // and reversed: the whole order the other way
+            assertEquals("[3.0, 3, 1]", String.valueOf(values(c, "|[3, 3.0, 1]->sort()->reverse()")));
+            // the sorted list read further, not returned: the positions themselves are placed so
+            assertEquals("3,3.0,5", String.valueOf(value(c,
+                    "|[3.0, 3, 5]->sort()->map(x | $x->toString())->joinStrings(',')")));
+            // returned as the answer, the list is ordered once: by the comparable, the type, the position -- the
+            // sort's own ordered copy of the positions is not written (it was written and then ordered again)
+            String sql = query("|[3.0, 3, 1]->sort()").plan("s::RT").sql();
+            assertTrue(sql.contains("SELECT UNNEST([1, 2, 3]) AS __p"), sql);
+            assertTrue(sql.contains("CASE WHEN t0.__p = 1 THEN 1 ELSE 0 END"), sql);
+            assertFalse(sql.contains("ROW_NUMBER()"), sql);
         }
     }
 
@@ -357,13 +485,18 @@ class TaggedListTest {
         // variant lane, one LIST over the grid in its own order (the typed columns' tagged flatten is the test
         // above; the L2 audit, 2026-10-29, found this test named for the flatten it never reached)
         try (Connection c = TestBackends.platform().open()) {
-            assertEquals(true, program(c, "[1, 'x', 2, 'y'] == $rs.rows.values;"));
-            // a sorted relation keeps its order (the rows numbered by its own sort keys: finding 5)
-            assertEquals(true, Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
-                    CONN_LET.replace("order by A", "order by A desc") + "[2, 'y', 1, 'x'] == $rs.rows.values;}",
-                    StorelessRuntime.RUNTIME, c).one());
-            assertEquals(false, program(c, "[1.0, 'x', 2, 'y'] == $rs.rows.values;"));
-            assertEquals(false, program(c, "[1, 'x', 2] == $rs.rows.values;"));
+            // a raw grid's order is its SQL text's, which the planner does not read (B3 step 4, 2026-11-24): == compares
+            // in order, so it is refused by name, as the assert of the same side is (the edition program's step 6,
+            // 2026-11-27, the third review's M1: until then the cells were compared in the order they arrived, whatever
+            // "order by" the text held); hasSameElements compares them in any order
+            com.legend.error.ModelException unordered = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.error.ModelException.class, () -> program(c, "[1, 'x', 2, 'y'] == $rs.rows.values;"));
+            assertTrue(unordered.getMessage().contains("== compares two lists in order")
+                    && unordered.getMessage().contains("hasSameElements"), unordered.getMessage());
+            assertEquals(true, program(c, "hasSameElements([1, 'x', 2, 'y'], $rs.rows.values);"));
+            assertEquals(true, program(c, "hasSameElements([2, 'y', 1, 'x'], $rs.rows.values);"));
+            assertEquals(false, program(c, "hasSameElements([1.0, 'x', 2, 'y'], $rs.rows.values);"));
+            assertEquals(false, program(c, "hasSameElements([1, 'x', 2], $rs.rows.values);"));
             assertEquals(4L, program(c, "$rs.rows.values->size();"));
             assertEquals(true, program(c, "$rs.rows.values->contains('y');"));
             assertEquals(false, program(c, "$rs.rows.values->contains('1');"));

@@ -98,5 +98,58 @@ public enum NamedRule {
      *  ({@code CAST(x AS VARCHAR)}): that database's layout of a timestamp ({@code 2014-01-02 10:20:30.25} on most: a
      *  space, the fraction it holds, no zone). Not the product's text of a DateTime, ISO 8601 with nine fraction
      *  digits and {@code Z} (MongoDB's six: {@code SqlFn.DATETIME_TO_TEXT}). */
-    DATE_TIME_TEXT_BY_CAST
+    DATE_TIME_TEXT_BY_CAST,
+
+    /** A sort with no key and no comparator whose EQUAL NUMBERS OF DIFFERENT TYPES keep the order they were written
+     *  in (a stable sort that compares {@code 3} and {@code 3.0} as equal): {@code [3.0, 3, 1]->sort()} is
+     *  {@code [1, 3.0, 3]}. Not the product's {@code sort}, which orders equal numbers by their type (Integer, Float,
+     *  Decimal). Every other sort is written by its own rule. */
+    SORT_TIES_AS_WRITTEN,
+
+    /** {@code max}, {@code min}, {@code greatest} and {@code least} keeping, where several elements hold the winning
+     *  value, the element the function's own Pure body keeps. A Number or a date list's {@code max} and {@code min}
+     *  are a left fold: the LAST written of a tie ({@code [3, 3.0]->max()} and {@code [3, 3.0]->min()} are the Float),
+     *  of several ARGUMENTS the first ({@code max(3, 3.0)} is the Integer). The generic {@code max} and {@code min},
+     *  and {@code greatest} and {@code least}, which call them, are an end of a stable sort: the greatest the LAST
+     *  written of a tie, the least the FIRST ({@code [3, 3.0]->least()} is the Integer). Not the product's, which
+     *  keeps the element whose type orders it so (the greatest of equal numbers the Decimal, then the Float; the
+     *  least the Integer). */
+    EXTREME_KEEPS_THE_FOLDS_TIE,
+
+    /** {@code max} and {@code min} of an Integer and a Float, two arguments, in the type the DATABASE gives the two:
+     *  a Float, whichever wins ({@code max} of the columns (3, 3.0) is {@code 3.0}, {@code min} of (2, 2.5) is
+     *  {@code 2.0}). What legend-engine answers inside a store query, where it writes the database's own expression
+     *  ({@code case when I < F then F else I end}: run 2026-11-26,
+     *  docs/records/edition-homework/upstream-step6/answers.md rows S9b and K5); outside one its own Java keeps the
+     *  winner in its own type ({@link #EXTREME_KEEPS_THE_FOLDS_TIE}). Written as that CASE with the Integer
+     *  converted to a Float, so a NULL argument answers as legend-engine's statement does on each database. For any
+     *  other pair of arguments, and for two written values (legend-engine's database answers the winner in its own
+     *  type there: run 2026-11-27), it writes {@link #EXTREME_KEEPS_THE_FOLDS_TIE}'s rule (an Integer against a
+     *  Decimal inside a store query was not run upstream, so it is not guessed). The user, 2026-11-27: "great to match engine but only if not too
+     *  complex and costly". */
+    EXTREME_OF_TWO_IN_THE_DATABASES_TYPE,
+
+    /** A comparison ({@code ==}, {@code eq}, {@code contains}, {@code in}, {@code removeDuplicates}, {@code <},
+     *  {@code <=}, {@code >}, {@code >=}) with numbers of THREE TYPES and a date's WRITTEN PRECISION part of its
+     *  value: what both compatibility doors' tables name. It was named for the numbers alone until 2026-11-27
+     *  ({@code NUMBERS_OF_THREE_TYPES}; the architecture audit of step 6's closing batch: the name hid the rest; the
+     *  user's word on the rename that day), and for one commit for who asks for it, which this type's own contract
+     *  forbids (a rule is named by what it writes). It is three things: (1) numbers, below; (2) two dates, the last
+     *  paragraph; (3) a
+     *  door's row REPLACES the product's whole rule for the call ({@code EditionTable.lowersAs}), so the product's
+     *  plan of two whole sides ({@code WholeComparisons}) and its refusal of two column types that are never equal
+     *  ({@code HeldKinds}) do not run at a door. Splitting the three is step 6B's.
+     *
+     *  <p>Numbers: an Integer, a Float and a Decimal are THREE TYPES. Inside a mixed list
+     *  they are never equal to one another: {@code [3, 'a']->contains(3D)} is false and
+     *  {@code [3, 3D]->removeDuplicates()} keeps both. Where the two sides' types are known only when the query runs
+     *  (a {@code Number}, an {@code Any}) the comparison is the database's, and nothing is refused. Not the
+     *  product's, which calls an Integer and a Decimal of one value equal (two exact numbers; the user's ruling of
+     *  2026-11-27) and refuses a comparison of an exact number's column with a Float's ({@code HeldKinds}). A call
+     *  that meets neither is written by its own rule, unchanged.
+     *
+     *  <p>Upstream's equality of two DATES goes with it: a date's written precision is part of its value, so one
+     *  built to the hour or the minute is never equal to a full date-time (run 2026-11-27), where the product
+     *  compares the two by their instant (register S399). */
+    THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION
 }

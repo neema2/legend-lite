@@ -2,7 +2,7 @@
 
 *Written by the step 8 session (`claude/edition-step8`). Built on `claude/edit-ahead` at `b7c39067` and measured
 there; then carried onto `claude/next-batch-fixes` (`11af8dd97`, which holds slice 2) by a merge (`32efeb0a0`) and
-measured again there with the date slice (the last section). The register row is S428.*
+measured again there with the date slice (the last section). The register row is S434.*
 
 ## What it is
 
@@ -209,5 +209,5 @@ this slice's (its lines are the base's, the same on both).
   `//core:core_tests_integration`, `//spec:spec_tests`, the guards, the census, the docs checks, the edge tests on
   three lanes, `//core:lean_sql_baseline_test`. The base's stale lines of the first measurement are gone on this base
   (its recorded files are current), and so are the three tests that failed on `b7c39067` without this slice.
-- **The register row** is S428 in `docs/SEMANTICS_REGISTER.md`, and section 23 of
+- **The register row** is S434 in `docs/SEMANTICS_REGISTER.md`, and section 23 of
   `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`; the drafts above are superseded by them.

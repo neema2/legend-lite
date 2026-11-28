@@ -880,10 +880,52 @@ public class DuckDb extends AnsiSqlRenderer {
 
     // ---- list idioms: DuckDB is the lambda backend ----
 
+    /** {@inheritDoc} A sub-query inside a list's function is refused by name here: DuckDB runs none there ("Binder
+     *  Error: subqueries in lambda expressions are not supported", 1.5.6; measured by the equality measure,
+     *  2026-11-27: a comparison of two tables or two maps written inside a list's function failed so when the query
+     *  ran). What needs a statement of its own -- two tables compared, two maps -- cannot stand inside one. */
     @Override
     protected SqlWriter lambda(SqlWriter writer, SqlExpr.Lambda l) {
+        if (holdsASubquery(l.body())) {
+            throw new DialectCapability("a value that needs a statement of its own (a comparison of two tables or of"
+                    + " two maps, a read of another query) stands inside a list's function, where DuckDB runs no"
+                    + " sub-query: write it outside the function");
+        }
         return writer.append(l.params().size() == 1 ? l.params().get(0) : "(" + String.join(", ", l.params()) + ")")
                 .append(" -> ").expr(l.body(), 0);
+    }
+
+    private static boolean holdsASubquery(SqlExpr body) {
+        // what DuckDB WRITES of the body: of the "same values" instruction its two list values alone (sameLists);
+        // the two sides' rows that ride with it, for the dialects that compare rows, are never written here
+        SqlExpr written = new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr x) {
+                return x instanceof SqlExpr.Call c && c.args().size() == 4
+                        && (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER)
+                        ? new SqlExpr.Call(c.fn(), c.args().subList(0, 2)) : x;
+            }
+
+            SqlExpr of(SqlExpr x) {
+                return rewriteExpr(x);
+            }
+        }.of(body);
+        boolean[] hit = {false};
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr x) {
+                if (x instanceof SqlExpr.ScalarSubquery || x instanceof SqlExpr.Exists
+                        || x instanceof SqlExpr.InSubquery || x instanceof SqlExpr.Quantified) {
+                    hit[0] = true;
+                }
+                return x;
+            }
+
+            void scan(SqlExpr x) {
+                rewriteExpr(x);
+            }
+        }.scan(written);
+        return hit[0];
     }
 
 

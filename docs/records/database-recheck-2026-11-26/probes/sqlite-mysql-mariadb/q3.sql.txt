@@ -1,0 +1,13 @@
+select * from (select 2 as a order by 1 limit 1) union all select 1
+select 2 as a order by 1 limit 1 union all select 1
+select 1 is distinct from null, null is not distinct from null
+select count(*) filter (where value > 1) from json_each('[1,2,3]')
+select value from json_each('[3,null,1]') order by value nulls last
+select a.x, b.y from (select 1 as x) a full outer join (select 2 as y) b on a.x = b.y
+select sum(value) over (order by key rows between unbounded preceding and current row) from json_each('[1,2,3]')
+select json_group_array(json(value)) from json_each('[[1],{"a":2}]')
+select json_array(json_array(1), json_object('a', 1))
+select (select json_group_array(value) from json_each(x)) from (select json_array(1,2) as x)
+select typeof(value), json_type('[1,"a"]', '$[1]') from json_each('[1,"a",1.5,true,null,[1]]')
+select json_extract('[1,2,3]', '$[#-1]'), '[1,2,3]' ->> '$[#-1]'
+select (with recursive r(n) as (select 1 union all select n+1 from r where n < x.m) select json_group_array(n) from r) from (select 3 as m) x

@@ -58,6 +58,14 @@ public final class HostSides {
         Ask(TypedSpec arg, boolean identity, Fold fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
             this(arg, identity, fold, hook, null);
         }
+
+        /** A side the canon fetch reads: never folded, on the identity lane; a Variant its author cast to
+         *  {@code Any} read as the Variant it is, each value its JSON text ({@code VariantEquality.asItsVariant}:
+         *  read as Any it arrived decoded, and the record wrote {@code "abc"} as abc where the database judge wrote
+         *  the JSON -- the two judges' records differed, 2026-11-27). */
+        static Ask canon(TypedSpec arg, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+            return new Ask(com.legend.compiler.spec.typed.VariantEquality.asItsVariant(arg), true, Fold.NONE, hook);
+        }
     }
 
     /**

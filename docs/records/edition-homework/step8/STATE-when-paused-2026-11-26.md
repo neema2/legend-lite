@@ -10,7 +10,7 @@ this needs only this note, the records beside it and the two audits on `claude/e
 
 | Commit | What | State |
 |---|---|---|
-| up to `6a6f5e06d` | Slices 3 and 4 (the Float text deletion, the DateTime text), their records, S428 and S429 | Measured and reported; audited from outside since (2 blockers: below) |
+| up to `6a6f5e06d` | Slices 3 and 4 (the Float text deletion, the DateTime text), their records, S434 and S435 | Measured and reported; audited from outside since (2 blockers: below) |
 | `90d2759b5` .. `5e9a8879b` | The repair of slice 2 after its first audit | Measured: all five recordings re-run, no recorded answer moved; 108 of 109 targets, the one a generated file, regenerated; local gate 557 pass, the 14 root-only failures |
 | `095bebfd1`, `a8f8f7931`, `428e638ad`, `13c94cf52`, and the commit that holds this note | SCRATCH: the re-check of the repair (R1 to R3, S7, the notes), my reviewer's fixes, and the outside audit of slices 3 and 4 | The fast set alone is green. NOT measured, NOT reviewed in its last part, NOT for merge |
 
@@ -72,7 +72,7 @@ generated file and records changed.
    `--test_arg=--select-class=...` reaches the runner on a lane's target is not known. Do not send it to a lane
    before it prints its `PROBE CASE` lines on DuckDB, H2 and SQLite here.
 4. **`slices3-4-audit-response-2026-11-26.md`**: its table for the user and its "Measured" section are not written.
-5. **The register amendment drafts** (S428 for B2 (b) and S1, S429 for S4) are not written. Their material is
+5. **The register amendment drafts** (S434 for B2 (b) and S1, S435 for S4) are not written. Their material is
    recorded (below).
 6. **`slice2-repair-2026-11-26.md`** lacks a section for what the re-check's fixes measured.
 7. **Nit 2**, `docs/dialect-capability/reach.tsv` (11 `FLOOR_RAW` lines): not re-measured. Recipe: the five PCT
@@ -90,15 +90,15 @@ recorded on DuckDB, H2 and SQLite alike unless said.
 
 | # | Where | The expression | legend-pure | legend-engine | Base | New | Row |
 |---|---|---|---|---|---|---|---|
-| 1 | legend-pure's door, last step | `format('%r', [(1.0 / 3.0)])` | `0.3333333333333333` | | `0.3333333333333333` | `0.333333` | S428 to amend, or lift (B2 (b), the user's) |
+| 1 | legend-pure's door, last step | `format('%r', [(1.0 / 3.0)])` | `0.3333333333333333` | | `0.3333333333333333` | `0.333333` | S434 to amend, or lift (B2 (b), the user's) |
 | 2 | same | `format('%s', [(1.5e-8 * 1.0)])` | `0.000000015` | | `1.5e-08` (DuckDB's cast) | `0.0` | same |
 | 3 | same | `format('%s', [(1.0e-5 * 1.0)])` | `0.00001` | | `1e-05` (DuckDB's cast) | `0.00001` | same |
 | 4 | same | `format('%f', [(1.0 / 3.0)])` | its `toString` text through `FormatTools.appendFloatString` (that method not read) | | not read | `0.333333` | same |
 | 5 | same | `toRepresentation(0.1 + 0.2)` | `0.30000000000000004` | | `0.30000000000000004` | `0.30000000000000004` again (B2 (a) fixed; `0.3` between) | none needed |
-| 6 | legend-pure's door, used further | `#TDS x:Float 0.00001#->toString() + ';'` | `0.00001` | | `1e-05` (DuckDB), `1.0E-5` (H2) | `0.00001` | S428 to amend (S1) |
-| 7 | both doors | `format('%r', [$r.x->toOne()])`, `x` a Float cell written `1000000` | `1000000.0` | | `1000000` (the audit's reading for a Float held in an INTEGER column; this cell's base not run) | `1000000.0` | S428 to amend (S1) |
-| 8 | legend-engine's door, in a store query | `format('%s', [$r.at->toOne()])`, a computed DateTime | | no `format` in a store query | `2014-01-01T10:20:30.25+0000` | `2014-01-01T10:20:30.250000000Z` | S429 to amend (S4) |
-| 9 | same | `$r.at->toOne()->toString()` | | the database's cast | the `+0000` text | `2014-01-01 10:20:30.25` on DuckDB and H2; lite's `Z` text on SQLite | S429 (carried) |
+| 6 | legend-pure's door, used further | `#TDS x:Float 0.00001#->toString() + ';'` | `0.00001` | | `1e-05` (DuckDB), `1.0E-5` (H2) | `0.00001` | S434 to amend (S1) |
+| 7 | both doors | `format('%r', [$r.x->toOne()])`, `x` a Float cell written `1000000` | `1000000.0` | | `1000000` (the audit's reading for a Float held in an INTEGER column; this cell's base not run) | `1000000.0` | S434 to amend (S1) |
+| 8 | legend-engine's door, in a store query | `format('%s', [$r.at->toOne()])`, a computed DateTime | | no `format` in a store query | `2014-01-01T10:20:30.25+0000` | `2014-01-01T10:20:30.250000000Z` | S435 to amend (S4) |
+| 9 | same | `$r.at->toOne()->toString()` | | the database's cast | the `+0000` text | `2014-01-01 10:20:30.25` on DuckDB and H2; lite's `Z` text on SQLite | S435 (carried) |
 
 The product's behaviours the tail's tests found, with no row (legend-engine's column is its SQL template, read in
 the pinned 4.145.0 sources; its values were not asked of the engine runner):
@@ -135,7 +135,7 @@ TRUE in lite's SQL there (a padded comparison); legend-pure and the three embedd
 2. Verify the lane probe here on DuckDB, H2 and SQLite, then hand it to the orchestrator.
 3. The full measurement (below), every moved recorded line named.
 4. `reach.tsv` (nit 2), the Float row's lane test (nit 5).
-5. The records: the response record's table and "Measured"; the amendment drafts for S428 and S429; the repair
+5. The records: the response record's table and "Measured"; the amendment drafts for S434 and S435; the repair
    record's re-check section; then ONE table for the user (the two tables above joined).
 6. One commit that is not scratch, the local gate, the push, and the head to the orchestrator with: the repair's
    R1 to R3, S7 and notes; slices 3 and 4's B1, B2, S1 to S4 and nits; the table.
@@ -192,15 +192,15 @@ findings are the first thing to do on resuming (step 1 of "What remains").*
 4. **Answers moved by the DateTime narrowing with no words in a ruled row.** A native over literals other than
    `adjust` (`max` or `min` of literals, a `first...Of...` returning a DateTime, `date::add`), and a class's property
    under a native (`X.all()->map(p|$p.d)->toOne()`), now print lite's nine-digit `Z` text where the lift printed the
-   trimmed `+0000` text. S429 still says a native's call or a cast is lifted, so the response record's "the
-   difference S429 already carries" is not borne out: S429 needs an amendment draft for it (with S4's). And the
+   trimmed `+0000` text. S435 still says a native's call or a cast is lifted, so the response record's "the
+   difference S435 already carries" is not borne out: S435 needs an amendment draft for it (with S4's). And the
    unread-let difference from legend-pure is a divergence with no row: it goes to the user as a draft, not as a
    note.
 
 **Notes:**
 
 - `adjust` is sound as "never folded" (not by the unroll, the static fold or the inliner). legend-pure's `adjust`
-  keeps the literal's written precision (`.250`), which lite's print trims (`.25`): S429 records it.
+  keeps the literal's written precision (`.250`), which lite's print trims (`.25`): S435 records it.
 - `adjust` over a literal with more than six fraction digits lowers to a text (`DateShifts.java:189-197`), and
   `PureValueText.value` refuses a text: such a lifted print may raise. Older than this diff; a probe settles it.
 - Duplicate lets, which lite accepts: `let d = %lit; let d = $d->cast(@DateTime); $d->toString()` is lifted.

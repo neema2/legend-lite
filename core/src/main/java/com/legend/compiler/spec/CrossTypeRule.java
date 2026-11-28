@@ -67,10 +67,36 @@ public interface CrossTypeRule {
 
     /** One met in a body typed INTO ITS CALL, over the caller's own columns (a function generic over relations: its
      *  column types are type parameters, which the type-checker fills in at each call). In the function as written
-     *  such a comparison is between generic positions, whose types are known only when the query runs; that this
-     *  call's columns happen to differ is no statement of the function's author. Asked only where
+     *  such a comparison is between generic positions, whose types each call gives; that this call's columns differ
+     *  is no statement of the function's author (lite's setting keeps it for the call, and refuses it there). Asked
+     *  only where
      *  {@link #readsBodies}; a body's answer unless a setting says otherwise. */
     default TypedSpec inGenericBody(TypedCrossTypeComparison crossing) {
         return inBody(crossing);
+    }
+
+    /** A comparison written in a body whose sides' types are known only where the function is used: a parameter
+     *  declared {@code Number}, the abstract {@code Date}, {@code Any} or a type variable (the edition program's step
+     *  6). Asked only where {@link #readsBodies}. The call itself unless a setting says otherwise; a setting that
+     *  answers such a comparison by the types its sides have at the call returns the record, and is asked again
+     *  once they are known ({@link #atTheCall}). */
+    default TypedSpec atRunTime(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison) {
+        return comparison.comparison();
+    }
+
+    /** Whether a comparison {@link #atRunTime} kept is answered at its call by the TYPES its sides have there
+     *  ({@link #atTheCall}), so that it must reach its call with its two sides as they are: the inliner then makes no
+     *  fold of its own that answers two written values of two kinds (register S169's, one an enumeration's: false)
+     *  before this setting has seen them. False unless a setting says otherwise: its kept comparison folds where it
+     *  is rewritten, as it always did. */
+    default boolean answersAKeptComparisonByItsTypes() {
+        return false;
+    }
+
+    /** {@code comparison} (one {@link #atRunTime} kept) once the functions the query reaches stand in the query, each
+     *  argument in its parameter's place. The call itself unless a setting says otherwise. */
+    default TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison,
+            com.legend.compiler.element.ModelContext ctx) {
+        return comparison.comparison();
     }
 }

@@ -1,0 +1,5 @@
+###Pure
+Enum t::E { A, B }
+Class t::K { id: Integer[1]; name: String[0..1]; }
+function t::sameAny(a: Any[*], b: Any[*]): Boolean[1] { $a == $b }
+function t::sameT<T>(a: T[*], b: T[*]): Boolean[1] { $a == $b }

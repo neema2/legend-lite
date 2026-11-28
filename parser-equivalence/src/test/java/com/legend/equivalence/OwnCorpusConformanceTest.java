@@ -323,7 +323,10 @@ class OwnCorpusConformanceTest {
                 // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T> beside ColSpec<L⊆T>)
                 // 25 -> 26 (2026-11-26, the edition program's step 4): CrossTypeRuleTest's model, moved here from the
                 // generics class above by its new function's subset constraint (ColSpec<P⊆T>); no new snippet
-                Map.entry("PURE-DIALECT-signatures", 26),
+                // 26 -> 27 (2026-11-27, the edition program's step 6): UserFunctionIntegrationTest's
+                // comparesTheCallersColumns (test::sameCols<T,A,B>, ColSpec<A⊆T>), a body that compares two of its
+                // caller's columns -- the call's compile error where their types differ
+                Map.entry("PURE-DIALECT-signatures", 27),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity

@@ -1033,7 +1033,7 @@ meta::relational::tests::groupBy::testGroupByWithWavgAggregation	0	meta::pure::f
 meta::relational::tests::groupBy::testGroupByWithWavgAggregation	1	meta::relational::functions::asserts::assertSameSQL	PASS
 meta::relational::tests::groupBy::testGroupByWithWavgAggregation	2	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation	0	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation	1	meta::pure::functions::asserts::assertEquals	PASS
+meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation	1	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation	2	meta::relational::functions::asserts::assertSameSQL	PASS
 meta::relational::tests::groupBy::testJoinStringsWithAssociation	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::groupBy::testJoinStringsWithAssociation	1	meta::pure::functions::asserts::assertEquals	PASS

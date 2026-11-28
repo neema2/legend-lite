@@ -29,6 +29,49 @@ the first run clones the pinned upstream `.pure` files into `<out dir>/upstream`
 
 Compare two commits by running each into its own `<out dir>` and diffing `results.tsv` (sorted).
 
+## The position matrix (step 6B's measure)
+
+One comparison, `L == R`, asked in every place a comparison can stand, per in-process database: a query's answer,
+under `!`, an `if`'s condition, an operand of `&&` and `||`, over two lets, a kept value and a condition inside a
+list's lambda, a side that reads the lambda's element, inside a function whose parameters are typed when it is called
+(`Any`, and a type variable), a table's filter and a table's column, and a test's `assertEquals` and `assert` under
+each judge. Nothing is expected of an answer: the measure is whether the answers agree.
+
+    bazel run //core:equality_measure -- --positions <out dir> [<comparison name regex>]
+
+`positions.tsv` and `positions-store.tsv` hold every outcome as it came. The report is written by the same run
+(`PositionReport`; `--report <out dir>` writes it again from a run already made):
+
+- `positions.md`: per database, how many comparisons are right everywhere, refused by name everywhere, answered only
+  in some places, failing somewhere, wrong somewhere, or contradicting themselves (two answers in two places), then
+  each comparison that is not right everywhere with its places;
+- `positions-counts.tsv`: those counts, one line per database;
+- `positions-kinds.tsv`: one line per comparison that is not right everywhere. This is the form the pin holds.
+
+Each comparison carries the answer the equality rule gives it (`T`, `F`, the ids of a store's rows, `N` for never
+true, `?` where the rule does not say). The comparisons and the places are the lists in `EqualityMeasure.java`
+(`sidesList`, `positionList`, `storeSidesList`, `storePositionList`): add a row to widen the measure. "One equality"
+is done when every comparison is right everywhere on every database.
+
+**The pin.** `//core:equality_positions_pin_test` (CI's core lane) runs the matrix and requires its
+`positions-kinds.tsv` to equal `positions-baseline.tsv` line for line. A comparison that gets worse fails the test;
+one that gets better fails it too, until the baseline is regenerated in the same commit, so every move of the measure
+is a line of a reviewed diff:
+
+    bazel run //core:equality_measure -- --positions <out dir>
+    cp <out dir>/positions-kinds.tsv tools/equality-measure/positions-baseline.tsv
+
+The baseline is a guard file: a line that says a comparison got worse moves only with a dated reason in the commit.
+
+**On a server database** (a database lane's run; the pin holds the in-process databases alone): name the test
+backends by their lane names, `bazel run //core:equality_measure -- --jvm_flag=-Dmeasure.backends=postgres --positions
+<out dir>` (Postgres through `tools/postgres/as_unprivileged.sh` where the container runs as root, the out dir one
+that user can write). The value matrix runs there; the store matrix's rows are loaded the in-process way, so it is
+left out and the run says so. The lane keeps each commit's `positions-kinds.tsv` and compares it with the last.
+
+**Two probes** over the matrix's model (`positions-model.txt`), per database: `--sql '<body>'` prints the product's
+statement for a query; `--assert-sql '<body>'` prints the statements a test body sends under the database judge.
+
 ## The product's SQL between two commits
 
 `tools/equality-measure/sql-changes.sh <commit A> <commit B> <out dir>` (the tree clean; it checks each commit out

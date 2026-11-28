@@ -23,7 +23,7 @@ after that merge: `90d2759b5..` to the commit this record lands in.*
 ## S1 and S4: read, not changed
 
 **S1, "two printers in one body".** This is the design the user ruled on 2026-11-26 ("yes that's right but remember
-we have a list of chained functions that are okay after that you came up with"; register S428): legend-pure's text
+we have a list of chained functions that are okay after that you came up with"; register S434): legend-pure's text
 at a last step, written in Java; lite's own text where the program goes on computing. What the audit saw at
 `d5080e3f` was the state between slice 2 and the deletion slice: the middle of a chain still printed the database's
 cast. With the deletion slice (on this branch) the audit's own examples answer, run on DuckDB
@@ -153,7 +153,7 @@ tail's parity tests; measured on DuckDB, H2 and SQLite on 2026-11-26.
 5. **A Float a store holds as an integer, printed at a last step at legend-pure's door, is `1000000.0`** (the audit's
    N4): Pure's meaning for a Float. legend-engine's own result carries the column's integer, which prints
    `1000000` in its corpus. A difference from legend-engine at that door with no row; no corpus case is known to
-   meet it. (Inside a store query at legend-engine's door the text is `1000000`, the row of S428.)
+   meet it. (Inside a store query at legend-engine's door the text is `1000000`, the row of S434.)
 
 Also for the orchestrator, not a row: the pre-read of a printed side raises where Pure short-circuits (`a || b` with
 the print under `b`); and the audit's N7, the same print being Java's when written inline and the database's when

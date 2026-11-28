@@ -333,6 +333,18 @@ public final class SpecCompiler {
         return typer.comparing(Typer.Compared.QUERY, () -> typer.compared(call, call.callee(), call.args(), call.pos()));
     }
 
+    /** {@code comparison}, one written in a function between values whose types the caller gives, answered by the
+     *  door's comparison setting now that the function stands in the query ({@link CrossTypeRule#atTheCall}). */
+    TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison) {
+        return typer.atTheCall(comparison);
+    }
+
+    /** Whether {@code comparison}, one kept for its call, keeps its two sides until the door's setting answers it
+     *  there ({@link CrossTypeRule#answersAKeptComparisonByItsTypes}). */
+    boolean keptForItsTypes(TypedSpec comparison) {
+        return typer.keptForItsTypes(comparison);
+    }
+
     /** A lambda parameter's declared type and multiplicity, as {@link #typeQueryBody} puts it in scope. */
     public com.legend.compiler.element.type.ExprType declaredParameterType(com.legend.protocol.spec.Variable parameter) {
         com.legend.base.RunScope.planning("type a spec");

@@ -28,7 +28,7 @@ import java.util.List;
  * value's print is lifted too ({@code values}): a Float's {@code toString}, and that of a DateTime that is a
  * computation (never a literal's), printed in Java ({@link PureValueText#value}) with the same tail -- tenet 1 as the user amended it on 2026-11-25, a print at a last
  * step is Java's. (B2b S6a lifted it and was held, 2026-11-25: alone it left a print used further to the edge's SQL
- * passes, two printers at one door. Since step 8 a print used further is lite's own text, register S428.) At legend-engine's door a
+ * passes, two printers at one door. Since step 8 a print used further is lite's own text, register S434.) At legend-engine's door a
  * value's print inside a store query is legend-engine's own answer, a row of its table, and is not lifted; and after
  * a RELATION's print that door lifts the literal {@code replace}s alone, as before the tail's set grew ({@link #lift}:
  * what legend-engine itself answers for another call of the set there has not been asked of it). Anything else is not
