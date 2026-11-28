@@ -2492,10 +2492,14 @@ final class Scalars {
     static SqlExpr emptiness(TypedSpec spec, SqlExpr lowered) {
         return lowered instanceof SqlExpr.TaggedList tl
                 ? SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
-                : listValued(spec)
-                ? new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
-                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, lowered), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0)))
+                : listValued(spec) ? noElements(lowered)
                 : new SqlExpr.Call(SqlFn.IS_NULL, List.of(lowered));
+    }
+
+    /** Whether the list {@code list} holds no element: its length is zero, a NULL list none. */
+    static SqlExpr noElements(SqlExpr list) {
+        return new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
+                SqlExpr.Call.of(SqlFn.LIST_LENGTH, list), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0)));
     }
 
     /** Whether both sides' values are none ({@link #emptiness} of each). */

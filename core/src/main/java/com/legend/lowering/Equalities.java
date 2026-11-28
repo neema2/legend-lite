@@ -368,9 +368,7 @@ final class Equalities {
         // (a list of no stated SQL type -- the empty list through a filter -- is the NULL list, read by its absence:
         // read by its length, SQLite never evaluated a source that raises, and []->toOne() through a filter answered
         // false where it raises; measured 2026-11-28, review 5 of slice 3, note 10, tried and withdrawn)
-        return aList(lowered) ? new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
-                SqlExpr.Call.of(SqlFn.LIST_LENGTH, CollectionLanes.compacted(side, lowered)), new SqlExpr.IntLit(0)),
-                new SqlExpr.IntLit(0))) : isNone(lowered);
+        return aList(lowered) ? Scalars.noElements(CollectionLanes.compacted(side, lowered)) : isNone(lowered);
     }
 
     private static boolean typedAtRunTime(TypedSpec side) {
@@ -505,18 +503,14 @@ final class Equalities {
     /** A list of date-times carried as their written texts, each read as the instant it writes
      *  ({@link SideEqualities#instantOfText}). */
     private static SqlExpr instantsOfTexts(SqlExpr texts) {
-        String x = "_dtx";
-        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, texts,
-                new SqlExpr.Lambda(List.of(x), SideEqualities.instantOfText(SqlExpr.Column.derived(null, x))));
+        return InstanceEquality.equalValues(texts, SqlType.Scalar.VARCHAR, SideEqualities::instantOfText, () -> "_dtx");
     }
 
     /** A list of date-times the database holds, each as the instant compared with one read from its text
      *  ({@link SideEqualities#instantOfHeld}). */
     private static SqlExpr instantsOfHeld(SqlExpr held) {
-        String x = "_dth";
         // (the element stated as the TIMESTAMP it is: the dialect's cast reads a value of no stated type as a text)
-        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, held, new SqlExpr.Lambda(List.of(x), SideEqualities.instantOfHeld(
-                SqlExpr.Column.of(null, x, SqlType.Scalar.TIMESTAMP, false, com.legend.sql.OutputCol.Origin.DERIVED))));
+        return InstanceEquality.equalValues(held, SqlType.Scalar.TIMESTAMP, SideEqualities::instantOfHeld, () -> "_dth");
     }
 
     /** The two sides where a date-time carried as its written text (or a list of such texts) meets one the database
