@@ -2463,8 +2463,8 @@ Database types planned with it: MongoDB.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | emulated | `$eq` |  | 0 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `$ne` |  | 0 |
-| `SAME_IN_ORDER` | refused | `a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert` |  | 0 |
-| `SAME_IN_ANY_ORDER` | refused | `a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert` |  | 0 |
+| `SAME_IN_ORDER` | emulated | `sameInOrderElseRefused` |  | 0 |
+| `SAME_IN_ANY_ORDER` | emulated | `sameInOrderElseRefused` |  | 0 |
 | `STRFTIME` | emulated | `strftime` |  | 0 |
 | `STRPTIME` | emulated | `{"$dateFromString": {"dateString": …, "format": …}}` |  | 0 |
 | `PARSE_DATE` | emulated | `{"$dateFromString": {"dateString": …}}` |  | 0 |

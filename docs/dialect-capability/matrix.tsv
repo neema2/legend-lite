@@ -2804,8 +2804,8 @@ MongoDb	MongoDB	call	IS_DISTINCT_FROM	emulated	$ne		0
 MongoDb	MongoDB	call	ALL_DISTINCT	emulated	allDistinct		0
 MongoDb	MongoDB	call	NULL_SAFE_EQUAL	emulated	$eq		0
 MongoDb	MongoDB	call	NULL_SAFE_NOT_EQUAL	emulated	$ne		0
-MongoDb	MongoDB	call	SAME_IN_ORDER	refused	a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert		0
-MongoDb	MongoDB	call	SAME_IN_ANY_ORDER	refused	a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert		0
+MongoDb	MongoDB	call	SAME_IN_ORDER	emulated	sameInOrderElseRefused		0
+MongoDb	MongoDB	call	SAME_IN_ANY_ORDER	emulated	sameInOrderElseRefused		0
 MongoDb	MongoDB	call	STRFTIME	emulated	strftime		0
 MongoDb	MongoDB	call	STRPTIME	emulated	{"$dateFromString": {"dateString": …, "format": …}}		0
 MongoDb	MongoDB	call	PARSE_DATE	emulated	{"$dateFromString": {"dateString": …}}		0
