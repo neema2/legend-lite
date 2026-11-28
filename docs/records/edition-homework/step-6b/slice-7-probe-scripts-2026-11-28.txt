@@ -1,0 +1,202 @@
+SLICE 7: THE PROBE'S SCRIPTS (2026-11-28). A record beside slice-7-probe-2026-11-28.patch.txt: how the probe's count files
+were turned into the tables of slice-7-probe-tables-2026-11-28.md, and how two runs' SQL digests are compared.
+
+==================== agg.py ====================
+#!/usr/bin/env python3
+"""Aggregate s7probe count files. usage: agg.py <dir-or-files...> [--sites] [--diff] [--rest]"""
+import sys, os, glob, collections, re
+
+def origin_class(made, typer):
+    if made.startswith('new:compiler.spec/CallNodes.mint'):
+        return 'TYPER:' + (typer if typer != '-' else 'hook-not-called')
+    m = re.match(r'(new|5):([a-z.]+)/', made)
+    if not m:
+        return 'UNKNOWN'
+    kind, pkg = m.groups()
+    cls = {'resolver': 'RESOLVER', 'lowering': 'LOWERING', 'planner': 'PLANNER', 'testplan': 'TESTPLAN',
+           'edge': 'EDGE', 'normalizer': 'NORMALIZER'}.get(pkg, pkg.upper())
+    if pkg == 'compiler.spec':
+        cls = 'COMPILER-AFTER-MINT'
+    if pkg == 'compiler.spec.typed':
+        cls = 'TYPED'
+    return ('REBUILT-BY ' if kind == '5' else '') + cls + (('+' + typer) if typer != '-' else '')
+
+files = []
+flags = set()
+for a in sys.argv[1:]:
+    if a.startswith('--'):
+        flags.add(a)
+    elif os.path.isdir(a):
+        files += glob.glob(os.path.join(a, '**', 's7probe-counts-*.tsv'), recursive=True)
+    else:
+        files.append(a)
+rows = []
+for f in files:
+    for line in open(f):
+        p = line.rstrip('\n').split('\t')
+        if len(p) < 3:
+            continue
+        rows.append(p)
+calls = [p for p in rows if p[1] == 'CALL']
+checks = [p for p in rows if p[1] == 'CHECK']
+errs = [p for p in rows if p[1] == 'PROBE-ERROR']
+print('files', len(files), 'CALL keys', len(calls), 'CHECK keys', len(checks), 'PROBE-ERROR', sum(int(p[0]) for p in errs))
+for p in errs:
+    print('  ERR', p)
+FAM = {'equal', 'eq', 'in', 'contains', 'indexOf', 'removeDuplicates', 'lessThan', 'lessThanEqual', 'greaterThan',
+       'greaterThanEqual', 'hasSameElements'}
+def fam(p):
+    return p[3].split('/')[0] in FAM
+# columns: 0 count,1 CALL,2 door,3 fn,4 named,5 made,6 typer,7 pos,8 stamp,9 place,10 many,11 diff,12 examples
+tab = collections.Counter()
+ex = {}
+for p in calls:
+    if not fam(p):
+        continue
+    k = (p[2], origin_class(p[5], p[6]), p[11])
+    tab[k] += int(p[0])
+    ex.setdefault(k, p[12] if len(p) > 12 else '')
+print('\n== comparison calls reaching the lowering: door | origin | diff vs lite rule | count | example')
+for k in sorted(tab):
+    print('%-18s %-42s %-12s %8d  %s' % (k[0], k[1], k[2], tab[k], ex[k].split(' | ')[0][-90:]))
+if '--sites' in flags:
+    tab = collections.Counter(); ex = {}
+    for p in calls:
+        if not fam(p):
+            continue
+        oc = origin_class(p[5], p[6])
+        if oc.startswith('TYPER:'):
+            continue
+        k = (p[2], p[3], p[5].split(' <- ')[0] + ' <- ' + (p[5].split(' <- ')[1] if ' <- ' in p[5] else ''), p[7], p[8], p[9], p[11])
+        tab[k] += int(p[0]); ex.setdefault(k, p[12] if len(p) > 12 else '')
+    print('\n== comparisons NOT minted by the type-checker: door | fn | made | pos | stamp | place | diff | count | example')
+    for k in sorted(tab):
+        print(' | '.join(k), '|', tab[k], '|', ex[k].split(' | ')[0][-80:])
+if '--diff' in flags:
+    tab = collections.Counter(); ex = {}
+    for p in calls:
+        if not fam(p) or p[11] in ('-', 'same[]'):
+            continue
+        k = (p[2], p[3], origin_class(p[5], p[6]), p[7], p[8], p[9], p[10], p[11])
+        tab[k] += int(p[0]); ex.setdefault(k, p[12] if len(p) > 12 else '')
+    print('\n== calls whose SQL under lite rule would differ or a lite-only step applies: door | fn | origin | pos | stamp | place | many | diff | count | example')
+    for k in sorted(tab):
+        print(' | '.join(k), '|', tab[k], '|', ex[k].split(' | ')[0][-80:])
+if '--rest' in flags:
+    tab = collections.Counter(); ex = {}
+    for p in calls:
+        if fam(p):
+            continue
+        k = (p[2], p[3], p[4], origin_class(p[5], p[6]), p[7], p[8])
+        tab[k] += int(p[0]); ex.setdefault(k, p[12] if len(p) > 12 else '')
+    print('\n== other rows of the door table hit: door | fn | rule | origin | pos | stamp | count | example')
+    for k in sorted(tab):
+        print(' | '.join(k), '|', tab[k], '|', ex[k].split(' | ')[0][-80:])
+    tab = collections.Counter(); ex = {}
+    for p in checks:
+        k = (p[2], p[3], p[4], origin_class(p[5], p[6]) if p[5] != '-' else '(no call)', p[-2] if len(p) > 10 else p[-1])
+        tab[k] += int(p[0])
+    print('\n== raise checks asked of the table: door | kind | fn | origin | answer | count')
+    for k in sorted(tab):
+        print(' | '.join(k), '|', tab[k])
+
+==================== tables.py ====================
+#!/usr/bin/env python3
+"""Markdown tables from s7probe count files.  usage: tables.py <label>=<dir-or-file>...  """
+import sys, os, glob, collections, re
+
+FAM = {'equal', 'eq', 'in', 'contains', 'indexOf', 'removeDuplicates', 'lessThan', 'lessThanEqual', 'greaterThan',
+       'greaterThanEqual'}
+
+def who(made, typer):
+    """who made the call, as the plan names it"""
+    if 'Typer.classReference' in made:
+        return 'type-checker, a function named as a value (no hook)' if typer == '-' else 'type-checker, a function named as a value'
+    if made.startswith('new:compiler.spec/CallNodes.mint') or 'Typer.compared' in made or 'UserCallInliner.atTheCall' in made:
+        t = typer.split('/')[0] if typer != '-' else ''
+        if not t:
+            if 'Typer.compared' in made:
+                t = 'BODY*'
+            elif 'UserCallInliner.atTheCall' in made:
+                t = 'BODY, answered at its call*'
+            else:
+                t = 'hook not called'
+        return 'type-checker: ' + t
+    if 'VerdictQueries' in made or 'PLANNER>' in typer:
+        return 'test planning (an assert as its comparison), typed through comparedAsInAQuery'
+    m = re.match(r'(new|5):([a-z.]+)/([A-Za-z]+)\.([A-Za-z<>]+)', made)
+    if not m:
+        return 'unknown: ' + made[:60]
+    kind, pkg, cls, meth = m.groups()
+    if pkg == 'resolver':
+        return 'store resolver: ' + cls + '.' + meth
+    return pkg + ': ' + cls + '.' + meth
+
+def setting(typer):
+    return typer.split('/')[1] if '/' in typer else '-'
+
+def load(path):
+    files = glob.glob(os.path.join(path, '**', 's7probe-counts-*.tsv'), recursive=True) if os.path.isdir(path) else [path]
+    rows = []
+    for f in files:
+        for line in open(f):
+            p = line.rstrip('\n').split('\t')
+            if len(p) > 3:
+                rows.append(p)
+    return rows
+
+for arg in sys.argv[1:]:
+    label, path = arg.split('=', 1)
+    rows = load(path)
+    calls = [p for p in rows if p[1] == 'CALL' and p[3].split('/')[0] in FAM and p[4] in ('-', 'THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION')]
+    print('\n### ' + label + '\n')
+    tab = collections.Counter(); ex = {}
+    for p in calls:
+        d = p[11]
+        d = {'same[]': 'same', '-': 'n/a', 'rev-same': 'same (reverse)'}.get(d, d)
+        k = (p[2], setting(p[6]), who(p[5], p[6]), d)
+        tab[k] += int(p[0]); ex.setdefault(k, (p[12] if len(p) > 12 else '').split(' | ')[0])
+    print('| Lowered with | Typed under | Made by | Lite\'s rule against the door\'s | Calls | A test |')
+    print('|---|---|---|---|---:|---|')
+    for k in sorted(tab):
+        print('| %s | %s | %s | %s | %d | `%s` |' % (k[0], k[1], k[2], k[3], tab[k], ex[k][-95:]))
+    print('\ntotal comparison calls: %d' % sum(tab.values()))
+
+==================== cmp_digests.py ====================
+#!/usr/bin/env python3
+"""Compare the per-test SQL digests of two probe runs.  usage: cmp_digests.py <base dir> <new dir>
+Files are matched by their relative folder; inside a folder the rows of all files are pooled (a process's pid is in the
+file's name and differs between runs)."""
+import sys, os, glob, collections
+
+def load(root):
+    by = collections.defaultdict(list)
+    for f in glob.glob(os.path.join(root, '**', 's7probe-sql-*.tsv'), recursive=True):
+        rel = os.path.relpath(os.path.dirname(f), root)
+        for line in open(f):
+            p = line.rstrip('\n').split('\t')
+            if len(p) == 4:
+                by[rel].append(tuple(p))
+    return by
+
+a, b = load(sys.argv[1]), load(sys.argv[2])
+total = same = 0
+for rel in sorted(set(a) | set(b)):
+    ra, rb = collections.Counter(a.get(rel, [])), collections.Counter(b.get(rel, []))
+    na, nb = sum(ra.values()), sum(rb.values())
+    only_a, only_b = ra - rb, rb - ra
+    total += max(na, nb)
+    same += sum((ra & rb).values())
+    st = sum(int(k[1]) * v for k, v in ra.items()); sb = sum(int(k[1]) * v for k, v in rb.items())
+    ca = sum(int(k[2]) * v for k, v in ra.items()); cb = sum(int(k[2]) * v for k, v in rb.items())
+    print('%-40s rows %5d / %5d   statements %7d / %7d   characters %10d / %10d   differing rows %d' % (
+        rel, na, nb, st, sb, ca, cb, sum(only_a.values()) + sum(only_b.values())))
+    names_a = {k[0]: k for k in only_a}
+    names_b = {k[0]: k for k in only_b}
+    shown = 0
+    for name in sorted(set(names_a) | set(names_b)):
+        if shown >= 25:
+            print('      ...'); break
+        print('      DIFF %s   base %s   new %s' % (name, names_a.get(name, ('', '-', '-', ''))[1:3], names_b.get(name, ('', '-', '-', ''))[1:3]))
+        shown += 1
+print('TOTAL rows %d, identical %d' % (total, same))

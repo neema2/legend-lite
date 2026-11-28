@@ -1,0 +1,718 @@
+SLICE 7: THE TEMPORARY PROBE (2026-11-28). A RECORD, NOT CODE: never committed to a product branch.
+
+What it is: the diff below, against claude/step-6b-next at 4be6626b. It makes every native call remember where it was
+constructed and what the type-checker's hook saw of it, and at the one place the lowering picks a scalar native's rule
+(Lowerer.written) it counts every comparison with: the door's table it was lowered with, the function, who made the
+call, the hook's mark (state/setting), source position or none, the stamp, where it stands (the mapping's own "=",
+a positive condition, a value), and whether lite's rule would write the same SQL record as the door's rule did
+(same[], DIFF[R|V|E|A], LITE-RULE-THROWS). It also counts the other rows of a door's table that answer, the raise
+checks asked of a table, a rule that throws (THREW), and it keeps one digest per test of every statement sent
+(exec/JdbcStatements.send), for a before-and-after of SQL text.
+
+The numbers of slice-7-PLAN-2026-11-28.md were taken with this probe as it was before two lines of it were corrected
+(the version below): until the correction a call rebuilt by hand (a five-argument construction) was credited to the
+place that rebuilt it, not to the call it was rebuilt from; the tables mark those with a star.
+
+How to run it (one Bazel at a time; docs/CLOUD_SESSIONS.md first):
+  git apply docs/records/edition-homework/step-6b/slice-7-probe-2026-11-28.patch.txt     (strip this header: from the
+                                                                                          first "diff --git" line)
+  bazel build //spec:corpus_one //core:core_edge_tests_lib //pct:pct_tests_lib
+  # the corpus, a lane or one test: files land in $S7PROBE_DIR
+  S7PROBE_DIR=/tmp/s7probe/corpus-duckdb bazel run //spec:corpus_one -- duckdb host
+  S7PROBE_DIR=/tmp/s7probe/corpus-h2     bazel run //spec:corpus_one -- h2 host
+  S7PROBE_DIR=/tmp/s7probe/one           bazel run //spec:corpus_one -- duckdb host <test fqn>
+  # tests: files land in bazel-testlogs/<package>/<target>/test.outputs/
+  bazel test --keep_going --jobs=3 --local_test_jobs=2 --cache_test_results=no \
+      //pct:pct_duckdb_{essential,grammar,relation,standard,unclassified} //pct:pct_h2_{essential,grammar,relation,standard,unclassified} \
+      //pct:pct_channel_b_{essential,grammar,relation,standard,unclassified} //pct:pct_channel_b_h2_relation \
+      //pct:pct_duckdb_lite_{essential,grammar,relation,standard,unclassified} \
+      //pct:pct_channel_b_lite_{essential,grammar,relation,standard,unclassified} //core:core_edge_tests
+  # the edge net and the engine lane run in build actions: unsandboxed, their files land in /tmp/s7probe
+  bazel test --keep_going --spawn_strategy=local //gates:edge_net \
+      //pct:update_engine_lane_duckdb_{0,1,2,3,4,5,6}_test //pct:update_engine_lane_h2_{0,1,2,3,4}_test
+Files: s7probe-counts-<tag>-<pid>.tsv (count, kind, then the key's fields, then up to three test names),
+s7probe-details-*.tsv (a few examples of each differing key, with both SQL records), s7probe-sql-*.tsv (test,
+statements, characters, SHA-256 of the statements' texts in order). S7PROBE_SQL_FULL=1 also writes every statement.
+Before and after: run the same suites on two commits and diff the s7probe-sql files (sort them first; a process id is
+in a file's name).
+
+diff --git a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
+index cb6d8062..ecd82b79 100644
+--- a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
++++ b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
+@@ -330,7 +330,12 @@ public final class SpecCompiler {
+      *  the typer meets the setting; {@link #typeQueryBodyMarked} is the body's. */
+     public TypedSpec comparedAsInAQuery(com.legend.compiler.spec.typed.TypedNativeCall call) {
+         com.legend.base.RunScope.planning("type a spec");
+-        return typer.comparing(Typer.Compared.QUERY, () -> typer.compared(call, call.callee(), call.args(), call.pos()));
++        typer.s7PlannerBuilt = true;
++        try {
++            return typer.comparing(Typer.Compared.QUERY, () -> typer.compared(call, call.callee(), call.args(), call.pos()));
++        } finally {
++            typer.s7PlannerBuilt = false;
++        }
+     }
+ 
+     /** {@code comparison}, one written in a function between values whose types the caller gives, answered by the
+diff --git a/core/src/main/java/com/legend/compiler/spec/Typer.java b/core/src/main/java/com/legend/compiler/spec/Typer.java
+index e7008f41..07b36131 100644
+--- a/core/src/main/java/com/legend/compiler/spec/Typer.java
++++ b/core/src/main/java/com/legend/compiler/spec/Typer.java
+@@ -188,6 +188,9 @@ final class Typer {
+     /** The door's comparison setting for everything this typer types. */
+     private final CrossTypeRule crossTypes;
+ 
++    /** PROBE: the hook is being asked about a call a planner built (comparedAsInAQuery). */
++    boolean s7PlannerBuilt;
++
+     /** Whose code is being typed now. */
+     private Compared compared = Compared.UNREAD;
+ 
+@@ -292,6 +295,9 @@ final class Typer {
+             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
+         // lite's own comparison (hasSameElements) means what lite's setting says, whichever door admitted the code
+         CrossTypeRule rule = ruleFor(chosen);
++        com.legend.compiler.spec.typed.S7Probe.typed(call, (s7PlannerBuilt ? "PLANNER>" : "") + compared.name()
++                + "/" + rule.getClass().getSimpleName().replace("CrossTypeRule", "").replace("Comparisons", "")
++                + (rule.getClass().getSimpleName().isEmpty() ? "AS_WRITTEN" : ""));
+         if (compared == Compared.UNREAD && rule.readsBodies()) {
+             // code the setting is never asked about (an island's translation, a planner's own frame) is not the
+             // query's own either: its comparison without the position the planning-time refusal reads
+diff --git a/core/src/main/java/com/legend/compiler/spec/typed/S7Probe.java b/core/src/main/java/com/legend/compiler/spec/typed/S7Probe.java
+new file mode 100644
+index 00000000..a12f8176
+--- /dev/null
++++ b/core/src/main/java/com/legend/compiler/spec/typed/S7Probe.java
+@@ -0,0 +1,216 @@
++// TEMPORARY PROBE (slice 7 research, 2026-11-28). NEVER COMMITTED TO A PRODUCT BRANCH.
++package com.legend.compiler.spec.typed;
++
++import java.lang.ref.ReferenceQueue;
++import java.lang.ref.WeakReference;
++import java.util.Map;
++import java.util.concurrent.ConcurrentHashMap;
++
++/**
++ * Where each native call was MADE and whether the type-checker's hook saw it, kept beside the node by identity, and
++ * counters the lowering fills. Dumped at JVM exit to $S7PROBE_DIR, else $TEST_UNDECLARED_OUTPUTS_DIR, else
++ * /tmp/s7probe.
++ */
++public final class S7Probe {
++
++    private S7Probe() {
++    }
++
++    /** A call's provenance: shared by a node and every rebuild of it. */
++    public static final class Origin {
++        public final String made;
++        public volatile String typer = "-";
++
++        Origin(String made) {
++            this.made = made;
++        }
++    }
++
++    private static final class Ref extends WeakReference<Object> {
++        private final int hash;
++
++        Ref(Object o, @com.legend.base.Nullable ReferenceQueue<Object> q) {
++            super(o, q);
++            hash = System.identityHashCode(o);
++        }
++
++        @Override
++        public int hashCode() {
++            return hash;
++        }
++
++        @Override
++        public boolean equals(@com.legend.base.Nullable Object other) {
++            if (this == other) {
++                return true;
++            }
++            Object mine = get();
++            return other instanceof Ref r && mine != null && mine == r.get();
++        }
++    }
++
++    private static final ReferenceQueue<Object> QUEUE = new ReferenceQueue<>();
++    private static final ConcurrentHashMap<Ref, Origin> ORIGINS = new ConcurrentHashMap<>();
++    /** The node whose stamp was read last on this thread: a hand rebuild reads it right before it constructs. */
++    static final ThreadLocal<TypedNativeCall> LAST = new ThreadLocal<>();
++
++    private static final StackWalker WALKER = StackWalker.getInstance();
++
++    private static void drain() {
++        for (Object dead = QUEUE.poll(); dead != null; dead = QUEUE.poll()) {
++            ORIGINS.remove(dead);
++        }
++    }
++
++    /** Called by the canonical constructor. */
++    static void made(TypedNativeCall node, Object callee) {
++        drain();
++        TypedNativeCall last = LAST.get();
++        LAST.remove();
++        // frames: [0] made, [1] canonical <init>, then maybe more <init> (the 3/4-argument forms), then the maker
++        String[] site = WALKER.walk(s -> {
++            String[] out = new String[2];
++            int inits = 0;
++            StringBuilder where = new StringBuilder();
++            int kept = 0;
++            for (StackWalker.StackFrame f : (Iterable<StackWalker.StackFrame>) s::iterator) {
++                String cls = f.getClassName();
++                if (cls.equals(S7Probe.class.getName())) {
++                    continue;
++                }
++                if (cls.equals(TypedNativeCall.class.getName()) && f.getMethodName().equals("<init>")) {
++                    inits++;
++                    continue;
++                }
++                if (kept < 4) {
++                    String simple = cls.substring(cls.lastIndexOf('.') + 1);
++                    String pkg = cls.startsWith("com.legend.") ? cls.substring("com.legend.".length(),
++                            Math.max("com.legend.".length(), cls.lastIndexOf('.'))) : cls;
++                    if (kept == 0) {
++                        where.append(pkg).append('/');
++                    } else {
++                        where.append(" <- ");
++                    }
++                    where.append(simple).append('.').append(f.getMethodName()).append(':').append(f.getLineNumber());
++                    kept++;
++                } else {
++                    break;
++                }
++            }
++            out[0] = Integer.toString(inits);
++            out[1] = where.toString();
++            return out;
++        });
++        boolean fiveArgs = "1".equals(site[0]);
++        if (fiveArgs && last != null && last.callee() == callee) {
++            Origin from = of(last);
++            if (from != null) {
++                ORIGINS.put(new Ref(node, QUEUE), from);
++                return;
++            }
++        }
++        ORIGINS.put(new Ref(node, QUEUE), new Origin((fiveArgs ? "5:" : "new:") + site[1]));
++    }
++
++    /** {@code now} is {@code was} rebuilt. */
++    public static <T> T inherit(TypedNativeCall was, T now) {
++        if (now instanceof TypedNativeCall n && n != was) {
++            Origin from = of(was);
++            if (from != null) {
++                ORIGINS.put(new Ref(n, QUEUE), from);
++            }
++        }
++        return now;
++    }
++
++    public static @com.legend.base.Nullable Origin of(TypedNativeCall node) {
++        return ORIGINS.get(new Ref(node, null));
++    }
++
++    /** The type-checker's hook saw {@code node} in code of state {@code whose}. */
++    public static void typed(Object node, String whose) {
++        if (node instanceof TypedNativeCall n) {
++            Origin o = of(n);
++            if (o != null) {
++                o.typer = whose;
++            }
++        }
++    }
++
++    // ---- counters -------------------------------------------------------------------------------------------------
++
++    private static final ConcurrentHashMap<String, long[]> COUNTS = new ConcurrentHashMap<>();
++    private static final ConcurrentHashMap<String, String> EXAMPLES = new ConcurrentHashMap<>();
++    private static final ConcurrentHashMap<String, Integer> DETAILS = new ConcurrentHashMap<>();
++    private static final java.util.List<String> DETAIL_LINES = java.util.Collections.synchronizedList(
++            new java.util.ArrayList<>());
++
++    public static String test() {
++        return System.getProperty("legend.test.current", "?");
++    }
++
++    public static void count(String key) {
++        COUNTS.computeIfAbsent(key, k -> new long[1])[0]++;
++        EXAMPLES.compute(key, (k, was) -> {
++            String t = test();
++            if (was == null) {
++                return t;
++            }
++            return was.split(" \\| ").length >= 3 || was.contains(t) ? was : was + " | " + t;
++        });
++    }
++
++    /** One detail line under {@code key}, at most {@code cap} of them. */
++    public static void detail(String key, int cap, String line) {
++        int n = DETAILS.merge(key, 1, Integer::sum);
++        if (n <= cap) {
++            DETAIL_LINES.add(key + "\t" + test() + "\t" + line.replace('\n', ' ').replace('\t', ' '));
++        }
++    }
++
++    public static String describe(TypedNativeCall call) {
++        Origin o = of(call);
++        return (o == null ? "?\t?" : o.made + "\t" + o.typer) + "\t" + (call.pos() == null ? "nopos" : "pos")
++                + "\t" + (call.outsideStoreField() ? "outside" : "inside");
++    }
++
++    public static String clip(Object o, int n) {
++        String s = String.valueOf(o);
++        return s.length() <= n ? s : s.substring(0, n) + "...(" + s.length() + ")";
++    }
++
++    static {
++        Runtime.getRuntime().addShutdownHook(new Thread(S7Probe::dump));
++    }
++
++    private static void dump() {
++        try {
++            String dir = System.getenv("S7PROBE_DIR");
++            if (dir == null || dir.isEmpty()) {
++                dir = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
++            }
++            if (dir == null || dir.isEmpty()) {
++                dir = "/tmp/s7probe";
++            }
++            java.nio.file.Path d = java.nio.file.Path.of(dir);
++            java.nio.file.Files.createDirectories(d);
++            String tag = System.getProperty("s7probe.tag", System.getenv().getOrDefault("TEST_TARGET", "run"))
++                    .replaceAll("[^A-Za-z0-9_.-]", "_") + "-" + ProcessHandle.current().pid();
++            StringBuilder counts = new StringBuilder();
++            for (Map.Entry<String, long[]> e : new java.util.TreeMap<>(COUNTS).entrySet()) {
++                counts.append(e.getValue()[0]).append('\t').append(e.getKey()).append('\t')
++                        .append(EXAMPLES.getOrDefault(e.getKey(), "")).append('\n');
++            }
++            java.nio.file.Files.writeString(d.resolve("s7probe-counts-" + tag + ".tsv"), counts.toString());
++            StringBuilder details = new StringBuilder();
++            synchronized (DETAIL_LINES) {
++                for (String l : DETAIL_LINES) {
++                    details.append(l).append('\n');
++                }
++            }
++            java.nio.file.Files.writeString(d.resolve("s7probe-details-" + tag + ".tsv"), details.toString());
++        } catch (Throwable t) {
++            System.err.println("[s7probe] dump failed: " + t);
++        }
++    }
++}
+diff --git a/core/src/main/java/com/legend/compiler/spec/typed/TypedNativeCall.java b/core/src/main/java/com/legend/compiler/spec/typed/TypedNativeCall.java
+index 9ff9bbfb..33ca3c30 100644
+--- a/core/src/main/java/com/legend/compiler/spec/typed/TypedNativeCall.java
++++ b/core/src/main/java/com/legend/compiler/spec/typed/TypedNativeCall.java
+@@ -40,6 +40,19 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
+         implements TypedSpec {
+     public TypedNativeCall {
+         args = List.copyOf(args);
++        S7Probe.made(this, callee);
++    }
++
++    /** PROBE: the stamp read without the rebuild trace. */
++    boolean outsideStoreField() {
++        return outsideStore;
++    }
++
++    /** PROBE: a hand rebuild reads the stamp of the call it was given right before it constructs. */
++    @Override
++    public boolean outsideStore() {
++        S7Probe.LAST.set(this);
++        return outsideStore;
+     }
+ 
+     /** A call inside a store query, or one no door asked to stamp: every call the typer and the passes make. */
+@@ -55,7 +68,7 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
+ 
+     /** This call stamped as outside any store query, or not. */
+     public TypedNativeCall stampedOutsideStore(boolean outside) {
+-        return outside == outsideStore ? this : new TypedNativeCall(callee, args, info, pos, outside);
++        return outside == outsideStore ? this : S7Probe.inherit(this, new TypedNativeCall(callee, args, info, pos, outside));
+     }
+ 
+     /** {@code n} with every native call in it stamped as outside any store query: code the planner knows whole to be
+@@ -71,7 +84,7 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
+                 && callee.equals(other.callee())
+                 && args.equals(other.args())
+                 && info.equals(other.info())
+-                && outsideStore == other.outsideStore();
++                && outsideStore == other.outsideStore;
+     }
+ 
+     /** An unstamped call hashes as it did before the stamp existed, so nothing keyed on a call moves for the
+@@ -103,10 +116,10 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
+ 
+     @Override
+     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+-        return new TypedNativeCall(callee, kids, info, pos, outsideStore);
++        return S7Probe.inherit(this, new TypedNativeCall(callee, kids, info, pos, outsideStore));
+     }
+     @Override
+     public TypedSpec withInfo(ExprType info) {
+-        return new TypedNativeCall(callee, args, info, pos, outsideStore);
++        return S7Probe.inherit(this, new TypedNativeCall(callee, args, info, pos, outsideStore));
+     }
+ }
+diff --git a/core/src/main/java/com/legend/exec/JdbcStatements.java b/core/src/main/java/com/legend/exec/JdbcStatements.java
+index 6baa66ff..051de5c4 100644
+--- a/core/src/main/java/com/legend/exec/JdbcStatements.java
++++ b/core/src/main/java/com/legend/exec/JdbcStatements.java
+@@ -618,6 +618,7 @@ final class JdbcStatements implements Statements {
+      */
+     private static <T, X extends Exception> T send(Connection c, PlannedSql statement, Send how, Bind bind,
+             Answer<T, X> answer) throws SQLException, X {
++        S7Sql.sent(statement.text());
+         if (how == Send.TEXT_QUERY || how == Send.TEXT_EXECUTE) {
+             try (Statement st = c.createStatement()) {
+                 if (how == Send.TEXT_EXECUTE) {
+diff --git a/core/src/main/java/com/legend/exec/S7Sql.java b/core/src/main/java/com/legend/exec/S7Sql.java
+new file mode 100644
+index 00000000..d3daaff9
+--- /dev/null
++++ b/core/src/main/java/com/legend/exec/S7Sql.java
+@@ -0,0 +1,82 @@
++// TEMPORARY PROBE (slice 7 research, 2026-11-28). NEVER COMMITTED TO A PRODUCT BRANCH.
++package com.legend.exec;
++
++import java.nio.charset.StandardCharsets;
++import java.security.MessageDigest;
++import java.util.Map;
++import java.util.concurrent.ConcurrentHashMap;
++
++/** Every statement sent, per running test: how many, how long, and one digest of their texts in order. */
++final class S7Sql {
++
++    private S7Sql() {
++    }
++
++    private static final ConcurrentHashMap<String, long[]> SIZES = new ConcurrentHashMap<>();
++    private static final ConcurrentHashMap<String, MessageDigest> DIGESTS = new ConcurrentHashMap<>();
++    private static final boolean FULL = System.getenv("S7PROBE_SQL_FULL") != null;
++    private static final StringBuilder TEXTS = new StringBuilder();
++
++    static void sent(String text) {
++        String test = System.getProperty("legend.test.current", "?");
++        long[] n = SIZES.computeIfAbsent(test, k -> new long[2]);
++        synchronized (n) {
++            n[0]++;
++            n[1] += text.length();
++            MessageDigest md = DIGESTS.computeIfAbsent(test, k -> {
++                try {
++                    return MessageDigest.getInstance("SHA-256");
++                } catch (java.security.NoSuchAlgorithmException e) {
++                    throw new IllegalStateException(e);
++                }
++            });
++            md.update(text.getBytes(StandardCharsets.UTF_8));
++            md.update((byte) 0);
++        }
++        if (FULL) {
++            synchronized (TEXTS) {
++                TEXTS.append("### ").append(test).append('\n').append(text).append('\n');
++            }
++        }
++    }
++
++    static {
++        Runtime.getRuntime().addShutdownHook(new Thread(S7Sql::dump));
++    }
++
++    private static void dump() {
++        try {
++            String dir = System.getenv("S7PROBE_DIR");
++            if (dir == null || dir.isEmpty()) {
++                dir = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
++            }
++            if (dir == null || dir.isEmpty()) {
++                dir = "/tmp/s7probe";
++            }
++            java.nio.file.Path d = java.nio.file.Path.of(dir);
++            java.nio.file.Files.createDirectories(d);
++            String tag = System.getProperty("s7probe.tag", System.getenv().getOrDefault("TEST_TARGET", "run"))
++                    .replaceAll("[^A-Za-z0-9_.-]", "_") + "-" + ProcessHandle.current().pid();
++            StringBuilder out = new StringBuilder();
++            for (Map.Entry<String, long[]> e : new java.util.TreeMap<>(SIZES).entrySet()) {
++                MessageDigest md = DIGESTS.get(e.getKey());
++                StringBuilder hex = new StringBuilder();
++                if (md != null) {
++                    for (byte b : md.digest()) {
++                        hex.append(String.format(java.util.Locale.ROOT, "%02x", b));
++                    }
++                }
++                out.append(e.getKey()).append('\t').append(e.getValue()[0]).append('\t').append(e.getValue()[1])
++                        .append('\t').append(hex).append('\n');
++            }
++            java.nio.file.Files.writeString(d.resolve("s7probe-sql-" + tag + ".tsv"), out.toString());
++            if (FULL) {
++                synchronized (TEXTS) {
++                    java.nio.file.Files.writeString(d.resolve("s7probe-sqltext-" + tag + ".txt"), TEXTS.toString());
++                }
++            }
++        } catch (Throwable t) {
++            System.err.println("[s7sql] dump failed: " + t);
++        }
++    }
++}
+diff --git a/core/src/main/java/com/legend/lowering/CastPolicy.java b/core/src/main/java/com/legend/lowering/CastPolicy.java
+index 75e9b94e..086c238d 100644
+--- a/core/src/main/java/com/legend/lowering/CastPolicy.java
++++ b/core/src/main/java/com/legend/lowering/CastPolicy.java
+@@ -176,6 +176,7 @@ final class CastPolicy {
+      *  scalar is a no-op, the value itself (pureToSQLQuery.pure:3160-3183 at legend-engine 230c1591). A cast is its
+      *  own node, no call: it carries no stamp. */
+     private static SqlExpr impossible(SqlExpr raise, SqlExpr value, EditionTable edition) {
++        com.legend.compiler.spec.typed.S7Probe.count("CHECK\t" + Lowerer.s7door(edition) + "\tCAST_IMPOSSIBLE\t(no call)\t-\t-\t-\t-\t" + (edition.checks(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, null) ? "checked" : "PLAIN"));
+         return edition.checks(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, null) ? raise : value;
+     }
+ 
+diff --git a/core/src/main/java/com/legend/lowering/ListEncodings.java b/core/src/main/java/com/legend/lowering/ListEncodings.java
+index 25f1d5c5..f432b91c 100644
+--- a/core/src/main/java/com/legend/lowering/ListEncodings.java
++++ b/core/src/main/java/com/legend/lowering/ListEncodings.java
+@@ -273,6 +273,7 @@ final class ListEncodings {
+                 onePlus(lo), hi);
+         // the product's guard, or the database's own slice of inverted bounds where the door's table writes no check
+         // for it (EditionTable.checks; B7). A slice is its own node, no call: it carries no stamp
++        com.legend.compiler.spec.typed.S7Probe.count("CHECK\t" + Lowerer.s7door(edition) + "\tSLICE_BOUNDS_INVERTED\t(no call)\t-\t-\t-\t-\t" + (edition.checks(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, null) ? "checked" : "PLAIN"));
+         if (!edition.checks(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, null)) {
+             return sliced;
+         }
+diff --git a/core/src/main/java/com/legend/lowering/Lowerer.java b/core/src/main/java/com/legend/lowering/Lowerer.java
+index f339dc28..a536f22d 100644
+--- a/core/src/main/java/com/legend/lowering/Lowerer.java
++++ b/core/src/main/java/com/legend/lowering/Lowerer.java
+@@ -435,6 +435,185 @@ public final class Lowerer {
+      * Here, because every position passes here: a window's column and a reducer's input never pass {@link #scalar}.
+      */
+     private SqlExpr written(TypedNativeCall call, List<SqlExpr> args) {
++        SqlExpr result;
++        try {
++            result = written0(call, args);
++        } catch (RuntimeException x) {
++            try {
++                s7threw(call, args, x);
++            } catch (Throwable t) {
++                com.legend.compiler.spec.typed.S7Probe.count("PROBE-ERROR\tthrew\t" + t.getClass().getSimpleName());
++            }
++            throw x;
++        }
++        try {
++            s7probe(call, args, result);
++        } catch (Throwable t) {
++            com.legend.compiler.spec.typed.S7Probe.count("PROBE-ERROR\t" + t.getClass().getSimpleName() + "\t"
++                    + com.legend.compiler.spec.typed.S7Probe.clip(String.valueOf(t.getMessage()), 160));
++        }
++        return result;
++    }
++
++    // ---- PROBE (slice 7 research; never committed) ------------------------------------------------------------------
++
++    private static final java.util.Set<String> S7_FAMILIES = java.util.Set.of(
++            "meta::pure::functions::boolean::equal", "meta::pure::functions::boolean::eq",
++            "meta::pure::functions::boolean::lessThan", "meta::pure::functions::boolean::lessThanEqual",
++            "meta::pure::functions::boolean::greaterThan", "meta::pure::functions::boolean::greaterThanEqual",
++            "meta::pure::functions::collection::in", "meta::pure::functions::collection::contains",
++            "meta::pure::functions::collection::indexOf", "meta::pure::functions::collection::removeDuplicates",
++            Pure.Lite.LESS_THAN_ANY, Pure.Lite.LESS_THAN_EQUAL_ANY, Pure.Lite.GREATER_THAN_ANY,
++            Pure.Lite.GREATER_THAN_EQUAL_ANY, Pure.Lite.HAS_SAME_ELEMENTS);
++
++    static String s7door(EditionTable table) {
++        String name = table.getClass().getSimpleName();
++        if (!name.equals("EngineTable")) {
++            return name;
++        }
++        try {
++            java.lang.reflect.Field stamps = table.getClass().getDeclaredField("stamps");
++            java.lang.reflect.Field tests = table.getClass().getDeclaredField("testBodies");
++            stamps.setAccessible(true);
++            tests.setAccessible(true);
++            boolean s = stamps.getBoolean(table);
++            boolean t = tests.getBoolean(table);
++            return "EngineTable." + (s && t ? "TESTS" : s ? "DOOR" : t ? "?" : "PCT");
++        } catch (ReflectiveOperationException e) {
++            return name + "?";
++        }
++    }
++
++    private static String s7sides(TypedNativeCall call) {
++        StringBuilder b = new StringBuilder();
++        for (TypedSpec a : call.args()) {
++            if (b.length() > 0) {
++                b.append(',');
++            }
++            String t = a.info().type().typeName();
++            b.append(t.substring(t.lastIndexOf(':') + 1)).append(a.info().multiplicity());
++        }
++        return b.toString();
++    }
++
++    /** PROBE: the rule that lowered {@code call} threw. */
++    private void s7threw(TypedNativeCall call, List<SqlExpr> args, RuntimeException x) {
++        String q = call.callee().qualifiedName();
++        if (!S7_FAMILIES.contains(q)) {
++            return;
++        }
++        EditionTable table = styled().edition();
++        String would = "-";
++        com.legend.compiler.spec.typed.S7Probe.Origin o = com.legend.compiler.spec.typed.S7Probe.of(call);
++        String typer = o == null ? "?" : o.typer;
++        if (table instanceof LiteEditionTable && (typer.endsWith("/Engine") || typer.endsWith("/Pure"))
++                && !q.startsWith("meta::legend::lite::")) {
++            try {
++                Scalars.threeNumberTypesAndWrittenDatePrecision(call, args);
++                would = "UPSTREAM-RULE-WOULD-NOT-THROW";
++            } catch (RuntimeException y) {
++                would = "upstream-rule-throws-too";
++            }
++        }
++        String key = "THREW\t" + s7door(table) + "\t" + q.substring(q.lastIndexOf(':') + 1) + "/" + call.args().size()
++                + "\t" + x.getClass().getSimpleName() + "\t" + com.legend.compiler.spec.typed.S7Probe.describe(call)
++                + "\t" + would;
++        com.legend.compiler.spec.typed.S7Probe.count(key);
++        com.legend.compiler.spec.typed.S7Probe.detail(key, 4, com.legend.compiler.spec.typed.S7Probe.clip(
++                String.valueOf(x.getMessage()), 300));
++    }
++
++    private void s7probe(TypedNativeCall call, List<SqlExpr> args, SqlExpr actual) {
++        EditionTable table = styled().edition();
++        NamedRule named = Scalars.doorsRule(call, features, styled());
++        String q = call.callee().qualifiedName();
++        boolean family = S7_FAMILIES.contains(q);
++        if (!family && named == null) {
++            return;
++        }
++        String door = s7door(table);
++        boolean eq2 = isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2;
++        boolean positive = positiveConditions.contains(call);
++        String place = verbatimEquality ? "verbatim" : legacyNullUnsafeEquals ? "legacyNullUnsafe"
++                : positive ? "positive" : "value";
++        String diff = "-";
++        String detail = null;
++        if (family && !(table instanceof LiteEditionTable)) {
++            Styled st = styled();
++            Styled lite = new Styled(st.pureOnly(), st.forms(), st.dateTimes(), st.lists(), LiteEditionTable.INSTANCE);
++            SqlExpr alt;
++            try {
++                alt = Scalars.lower(call, args, features, implementations, lite);
++            } catch (RuntimeException x) {
++                alt = null;
++                diff = "LITE-RULE-THROWS:" + x.getClass().getSimpleName();
++                detail = "lite's rule throws: " + com.legend.compiler.spec.typed.S7Probe.clip(String.valueOf(x.getMessage()), 300);
++            }
++            if (alt != null) {
++                SqlExpr door0 = Scalars.lower(call, args, features, implementations, st);
++                boolean rule = !alt.equals(door0);
++                boolean same = false;
++                boolean empty = false;
++                boolean among = false;
++                if (verbatimEquality || legacyNullUnsafeEquals) {
++                    alt = NullSemantics.verbatim(true, alt);
++                } else {
++                    if (eq2) {
++                        SqlExpr sv = Equalities.asSameValues(call, alt, side -> null, boundSides != null);
++                        same = sv != alt;
++                        alt = sv;
++                    }
++                    among = boundSides != null && wholeComparisons != null && Equalities.membershipList(call) != null;
++                    if (eq2) {
++                        SqlExpr es = Equalities.emptySidesAsPure(call, alt, positive);
++                        empty = es != alt && !table.emptySideIsFalse(call);
++                        alt = es;
++                    }
++                }
++                boolean differs = !alt.equals(actual);
++                diff = (differs ? "DIFF" : "same") + "[" + (rule ? "R" : "") + (same ? "V" : "") + (empty ? "E" : "")
++                        + (among ? "A" : "") + "]";
++                if (differs || rule || same || empty) {
++                    detail = "sides=" + s7sides(call) + " door=" + com.legend.compiler.spec.typed.S7Probe.clip(actual, 500)
++                            + " ||| lite=" + com.legend.compiler.spec.typed.S7Probe.clip(alt, 500);
++                }
++            }
++        }
++        com.legend.compiler.spec.typed.S7Probe.Origin org = com.legend.compiler.spec.typed.S7Probe.of(call);
++        String typedAs = org == null ? "?" : org.typer;
++        if (family && table instanceof LiteEditionTable && (typedAs.endsWith("/Engine") || typedAs.endsWith("/Pure"))
++                && !q.startsWith("meta::legend::lite::")) {
++            // typed under a door's rule, lowered with the product's table: what the door's rule would write here
++            try {
++                SqlExpr up = Scalars.threeNumberTypesAndWrittenDatePrecision(call, args);
++                if (verbatimEquality || legacyNullUnsafeEquals) {
++                    up = NullSemantics.verbatim(true, up);
++                } else if (eq2 && !(typedAs.endsWith("/Engine") && !call.outsideStore())) {
++                    up = Equalities.emptySidesAsPure(call, up, positive);
++                }
++                diff = up.equals(actual) ? "rev-same" : "REV-DIFF";
++                if (!up.equals(actual)) {
++                    detail = "sides=" + s7sides(call) + " lite(actual)=" + com.legend.compiler.spec.typed.S7Probe.clip(actual, 500)
++                            + " ||| upstream=" + com.legend.compiler.spec.typed.S7Probe.clip(up, 500);
++                }
++            } catch (RuntimeException y) {
++                diff = "REV-UPSTREAM-THROWS:" + y.getClass().getSimpleName();
++            }
++        }
++        boolean whole = false;
++        for (TypedSpec a : call.args()) {
++            whole |= a.info().multiplicity().isMany() || Type.isRelation(a.info().type());
++        }
++        String key = "CALL\t" + door + "\t" + q.substring(q.lastIndexOf(':') + 1) + "/" + call.args().size() + "\t"
++                + (named == null ? "-" : named.name()) + "\t" + com.legend.compiler.spec.typed.S7Probe.describe(call)
++                + "\t" + place + "\t" + (eq2 && whole ? "manySide" : "-") + "\t" + diff;
++        com.legend.compiler.spec.typed.S7Probe.count(key);
++        if (detail != null) {
++            com.legend.compiler.spec.typed.S7Probe.detail(key, 6, detail);
++        }
++    }
++
++    private SqlExpr written0(TypedNativeCall call, List<SqlExpr> args) {
+         SqlExpr e = Scalars.lower(call, args, features, implementations, styled());
+         if (verbatimEquality || legacyNullUnsafeEquals) {
+             return NullSemantics.verbatim(true, e);
+diff --git a/core/src/main/java/com/legend/lowering/Scalars.java b/core/src/main/java/com/legend/lowering/Scalars.java
+index 9a706b7c..22a50140 100644
+--- a/core/src/main/java/com/legend/lowering/Scalars.java
++++ b/core/src/main/java/com/legend/lowering/Scalars.java
+@@ -350,7 +350,7 @@ final class Scalars {
+                             args.get(1));
+                     // the product's bound, or the database's own shift where the door's table writes no check for it
+                     // (EditionTable.checks; B7)
+-                    if (!styled.edition().checks(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, n)) {
++                    if (!s7checks(styled.edition(), com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, n)) {
+                         return shifted;
+                     }
+                     SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
+@@ -1672,7 +1672,7 @@ final class Scalars {
+                             List.of(new SqlExpr.StringLit(label), args.get(0)));
+                     // checked, the function alone (its argument is within the domain); plain, the function with its
+                     // dialect's own answer outside the domain
+-                    return styled.edition().checks(words.kind(), n)
++                    return s7checks(styled.edition(), words.kind(), n)
+                             ? guarded(SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, x),
+                                     new SqlExpr.IntLit(1)), words, SqlExpr.Call.of(inDomain, args.get(0)))
+                             : SqlExpr.Call.of(fn, args.get(0));
+@@ -2333,6 +2333,15 @@ final class Scalars {
+      * refusal of two column types that can never be equal ({@link HeldKinds}). A door that names a rule for
+      * {@code ==} ({@link NamedRule#THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION}) gets neither; nothing else decides that.
+      */
++    /** PROBE: a check consulted of the door's table, counted. */
++    static boolean s7checks(EditionTable edition, com.legend.sql.RaiseKind kind, TypedNativeCall n) {
++        boolean answer = edition.checks(kind, n);
++        com.legend.compiler.spec.typed.S7Probe.count("CHECK\t" + Lowerer.s7door(edition) + "\t" + kind + "\t"
++                + n.callee().qualifiedName().substring(n.callee().qualifiedName().lastIndexOf(':') + 1) + "\t"
++                + com.legend.compiler.spec.typed.S7Probe.describe(n) + "\t" + (answer ? "checked" : "PLAIN"));
++        return answer;
++    }
++
+     static @com.legend.base.Nullable NamedRule doorsRule(TypedNativeCall call, Set<Feature> features, Styled styled) {
+         return styled.edition().lowersAs(call, features);
+     }
+@@ -2686,7 +2695,7 @@ final class Scalars {
+      *  {@code LoweringForms.raise}, which knew the kind and not the call): a check the audience does not write is the
+      *  operation alone, the database's own error passing through. {@code n}: the call the check belongs to. */
+     static SqlExpr guarded(TypedNativeCall n, SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value, Styled styled) {
+-        return styled.edition().checks(msg.kind(), n) ? guarded(cond, msg, value) : value;
++        return s7checks(styled.edition(), msg.kind(), n) ? guarded(cond, msg, value) : value;
+     }
+ 
+     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
