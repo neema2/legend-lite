@@ -58,3 +58,34 @@ answer as lite does: each needs legend-pure's answer RUN first, so it is a list 
 
 The plan of record: one to two days. Not safe on the day slices 5 and 6 land; the choice is with the user
 (close 6B without it and build it next, or build it now and close a day later).
+
+## Where the swap must happen (a second read-only research pass, 2026-11-28, about 07:10 UTC)
+
+**Decided by the code: one pass over the whole typed tree, after the store resolver and before the lowering**,
+keyed on the comparison's family, swapping in the door's twin function. Not the type-checker's hook, and not a
+stamp at each place a call is made. The three facts:
+
+1. **The store resolver writes lite's `equal`, `in` and the orderings itself in more than ten files** (join keys,
+   milestoning windows, the EXISTS it rewrites a user's own `contains` or `in` into, ordinals, subtype keys), found by
+   name, with no source position. A twin swapped in by the type-checker would never reach these, and the resolver
+   recognises comparisons by family in about seventy places that would all have to learn the twin.
+2. **Code the type-checker does not read as a query** (relational-mapping bodies, islands, unmarked bodies) reaches
+   the lowering today and is caught only because the door's table matches by the function's id.
+3. **Everything such a pass needs is on the call already:** the "runs outside the store" mark is set before or in
+   the resolver and survives every rebuild; a call lite wrote has no source position.
+
+What the door's rule changes for two plain values of one type, so the risk is known: nothing in the number rule
+(both rules end in the same writing); the one difference is the empty side at legend-engine's door inside a store
+(a plain `=` there, where lite and legend-pure write "false when a side is empty") -- and only for a comparison
+that is neither a positive condition nor a join or correlation the resolver built. So the pass gives legend-engine's
+in-store comparisons their own function, and both doors' comparisons the "three number types" twin.
+
+**The lowering's places that recognise a comparison by family** (each gets the twin, or a line saying why not):
+`Lowerer` six (the positive condition, same values, empty sides, the whole answer and its negation, instance
+equality, whole sides); `Scalars`' registrations for `==`/`eq`, the orderings, `indexOf`, `removeDuplicates`,
+`contains`, `in`; `Equalities.membershipList`; `HeldKinds`; `InstanceEquality`, `Dedup` (by name);
+`ValueCollectionOps`; `LambdaBinding`; `planner/RootComparison`.
+
+**Not verified yet, to read before building:** the position (positive, join, or neither) of every comparison the
+resolver writes; exactly where the resolver's phase ends in each planning entry (`ProductStatements`, `BodyPlanner`,
+the edge's plans); whether the door's feature rules name `equal`.
