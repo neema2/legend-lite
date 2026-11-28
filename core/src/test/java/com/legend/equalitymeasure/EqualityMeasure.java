@@ -66,7 +66,9 @@ public final class EqualityMeasure {
     private static final List<JudgeMode> JUDGES = List.of(JudgeMode.HOST, JudgeMode.DATABASE);
     private static final Pattern RUNTIME = Pattern.compile("(?m)^\\s*Runtime\\s+([\\w:]+)");
     private static final Pattern ONE_DATABASE = Pattern.compile("specification:\\s*(" + NAMES + ")\\s*\\{");
-    private static final long TIMEOUT_SECONDS = Long.getLong("measure.timeout", 60);
+    /** One run's limit: the same for a run by hand and for the pin's (a limit that differed would pin a run one of
+     *  them calls a timeout), and far below the pin test's own time. */
+    private static final long TIMEOUT_SECONDS = Long.getLong("measure.timeout", 120);
 
     private EqualityMeasure() {
     }

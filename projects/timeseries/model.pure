@@ -3644,8 +3644,9 @@ function {meta::pure::profiles::doc.doc = 'The volatility a variance swap\'s rea
   // gs-quant's n_days None, Window(len, len - 1): the whole line's figure at its last date alone (the user's ruling of
   // 2026-11-08 on PR #91's finding 4, "gs-quant's one point"); D8 is checked on that point, which no filter drops
   $x->timeseries::line::vol_swap_volatility(timeseries::Scope.all)
-    ->extend(over(~[key, date]), ~lo:{p,f,r|1}:y|$y->count())->extend(over(~[key]), ~line_lo:{p,f,r|$r.lo}:y|$y->max())
-    ->extend(over(~[key]), ~line_end:{p,f,r|$r.date}:y|$y->max())->filter(r|$r.date == $r.line_end && timeseries::lines::once($r.line_lo->toOne()))->select(~[key, date, value])
+    ->extend(over(~[key, date]), ~lo:{p,f,r|1}:y|$y->count())
+    ->extend(over(~[key]), ~[line_lo:{p,f,r|$r.lo}:y|$y->max(), line_end:{p,f,r|$r.date}:y|$y->max()])
+    ->filter(r|$r.date == $r.line_end && timeseries::lines::once($r.line_lo->toOne()))->select(~[key, date, value])
 }
 
 function timeseries::line::vol_swap_volatility<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]

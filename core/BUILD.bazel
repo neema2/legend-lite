@@ -648,8 +648,8 @@ legend_java_library(
             # docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17)
             "src/test/java/com/legend/planner/LiteApiConformanceTest.java",
             "src/test/java/com/legend/server/PostgresArmTest.java",
-            # the equality measurement is :equality_measure's alone (tools/equality-measure, step 6.0 of the edition
-            # program): a main class run by hand, never a test
+            # the equality measurement is :equality_measure's and :equality_positions_pin_test's alone
+            # (tools/equality-measure, step 6.0 of the edition program; the pin, step 6B's slice 2)
             "src/test/java/com/legend/equalitymeasure/*.java",
             # isNumeric's one rule run on four databases, Postgres among them: :is_numeric_probe_test's alone (J20)
             "src/test/java/com/legend/planner/IsNumericProbeTest.java",
@@ -3902,8 +3902,6 @@ junit_test(
         "-Dequality.positions.baseline=$(rlocationpath //tools/equality-measure:positions-baseline.tsv)",
         "-Dequality.positions.model=$(rlocationpath //tools/equality-measure:positions-model.txt)",
         "-Dequality.positions.store_model=$(rlocationpath //tools/equality-measure:positions-store-model.txt)",
-        # a run's own limit: a slow CI machine must not turn one run into a failure of the pin
-        "-Dmeasure.timeout=600",
     ],
     select = ["--select-class=com.legend.equalitymeasure.EqualityPositionsPinTest"],
     runtime_deps = [":drivers"],

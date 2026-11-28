@@ -14,7 +14,9 @@ recorded files regenerated.*
 and SQLite; an assert under each checker, so 19 outcomes a comparison and database; 4,104 runs in about 40 seconds.
 
     bazel run //core:equality_measure -- --positions <out dir>
-    python3 tools/equality-measure/positions.py <out dir>
+
+(Since slice 2, 2026-11-28, the run writes its report itself; `positions.py` is `PositionReport.java`, and the
+run's `positions-kinds.tsv` is pinned by `//core:equality_positions_pin_test`. See `tools/equality-measure/README.md`.)
 
 The places: a query's answer; under `!`; an `if`'s condition; an operand of `&&` and of `||`; over two `let`s; a
 kept value, a filter's condition, an `exists` and a `forAll` inside a list's lambda; a side that reads the lambda's

@@ -33,6 +33,7 @@ door (`NumberFamilies.TWO_FAMILIES`). The doors' rule is untouched.
 4. **A test writes the same comparisons both ways on DuckDB** (its list writing, and the base rows writing through a
    test-only dialect) and requires one answer.
 5. **The pin:** a test holds the measure's counts (`tools/equality-measure/positions-baseline.tsv`).
+   (Built in slice 2, 2026-11-28, and stronger: the test holds every comparison's outcomes place by place, not counts.)
 
 ## What the measure should show (from the baseline `positions/baseline-slice-0-5dae42452.md`)
 

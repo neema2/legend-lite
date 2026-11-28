@@ -24,14 +24,19 @@ import java.util.regex.Pattern;
  * {@code positions-store.tsv} and says, for each comparison and database, whether every place the comparison was
  * asked gave the answer the equality rule gives it. It writes {@code positions.md} (the comparisons that are not
  * right everywhere, place by place), {@code positions-counts.tsv} (a count per kind) and {@code
- * positions-kinds.tsv}: one line per comparison that is not right everywhere, the form the pin holds
- * ({@code tools/equality-measure/positions-baseline.tsv}, {@link EqualityPositionsPinTest}).
+ * positions-kinds.tsv}, the form the pin holds ({@code tools/equality-measure/positions-baseline.tsv}, {@link
+ * EqualityPositionsPinTest}): the places asked; every comparison with its expected answer and its two sides; per
+ * database, the places left out, and for each comparison that is not right everywhere its kind and then EVERY
+ * outcome it gave with the places that gave it -- so a comparison that gets worse inside its kind (one more place
+ * failing, a refusal turned into an error) moves a line, as does an expectation edited to fit an answer (the review
+ * of step 6B's slice 2, findings 1 and 4).
  *
  * <p>A comparison's expected answer: {@code T} or {@code F} (values); the ids of the rows it is true for (a store's
  * rows); {@code N}, never true: a compile error ({@code ModelException}) where the two types are written, and false
  * where they are known only when the query runs (a function whose parameters are {@code Any}); {@code a@b}: {@code
- * a} where the comparison is written, {@code b} inside such a function; {@code ?}, not plain from the rule: any one
- * answer, for the user to rule.
+ * a} where the comparison is written, {@code b} inside such a function; {@code x;generic=R}: {@code x}, but a
+ * compile error inside a function over one type variable whose call gives it two types; {@code ?}, not plain from
+ * the rule: any one answer, for the user to rule.
  */
 final class PositionReport {
     static final List<String> KINDS = List.of("right everywhere", "refused by name everywhere",
@@ -43,11 +48,14 @@ final class PositionReport {
             "refused NotImplementedException", "refused TypeInferenceException", "unjudged");
     private static final Set<String> RUN_TIME_PLACES = Set.of("function-any", "filter-function-any");
     private static final Set<Integer> ALL_ROWS = Set.of(1, 2, 3, 4, 5);
-    private static final Pattern KEY = Pattern.compile("\"[^\"]*\"\\s*:");
-    private static final Pattern A_ONE = Pattern.compile("\\b1\\b");
-    private static final Pattern ID_AND_SAME =
-            Pattern.compile("\"id\"\\s*:\\s*(\\d+)\\s*,\\s*\"same\"\\s*:\\s*(true|false|null)");
-    private static final Pattern ID = Pattern.compile("\"id\"\\s*:\\s*(\\d+)");
+    /** The exact shapes of an answer (the JSON rows a run writes): one row of one Boolean; rows of an id; rows of an
+     *  id and a two-valued "same". */
+    private static final Pattern ONE_BOOLEAN = Pattern.compile("\\[\\{\"(?:value|same)\":(true|false)\\}\\]");
+    private static final Pattern KEPT_ROWS = Pattern.compile("\\[(?:\\{\"id\":\\d+\\}(?:,\\{\"id\":\\d+\\})*)?\\]");
+    private static final Pattern KEPT_VALUES = Pattern.compile(
+            "\\[\\{\"id\":\\d+,\"same\":(?:true|false)\\}(?:,\\{\"id\":\\d+,\"same\":(?:true|false)\\})*\\]");
+    private static final Pattern ID_AND_SAME = Pattern.compile("\"id\":(\\d+),\"same\":(true|false)");
+    private static final Pattern ID = Pattern.compile("\"id\":(\\d+)");
     private static final Pattern IDS = Pattern.compile("[\\d,]*");
 
     private PositionReport() {
@@ -67,10 +75,11 @@ final class PositionReport {
     private record PerDatabase(Map<String, String> gaps, Map<String, Integer> counts, List<String> pinned) {
     }
 
-    /** One matrix classified: each database's part, the report's lines, the comparisons put to the user, and how
-     *  many comparisons in how many places. */
-    private record Classified(Map<String, PerDatabase> databases, List<String> lines, List<String> asked,
-            int comparisons, int places) {
+    /** One matrix classified: each database's part, the report's lines, the comparisons put to the user, how many
+     *  comparisons, and the pin's lines of what was asked (the places, then each comparison with its expected
+     *  answer and its sides). */
+    private record Classified(Map<String, PerDatabase> databases, List<String> lines, List<String> toRule,
+            int comparisons, List<String> asked) {
     }
 
     /** The report of the run in {@code out}; the pin's lines ({@code positions-kinds.tsv}'s, header included). */
@@ -78,7 +87,7 @@ final class PositionReport {
         StringBuilder md = new StringBuilder("# The position matrix: one comparison asked in every place\n\n");
         Map<String, Map<String, Integer>> totals = new TreeMap<>();
         List<String> kinds = new ArrayList<>();
-        kinds.add("database\tmatrix\tcomparison\tkind");
+        kinds.add("database\tmatrix\tcomparison\twhat");
         section(md, totals, kinds, "values", "Values: literals and computed values", read(out.resolve("positions.tsv")),
                 false);
         if (Files.exists(out.resolve("positions-store.tsv"))) {
@@ -122,13 +131,13 @@ final class PositionReport {
             of.gaps().forEach((p, v) -> each.add(p + " (" + v + ")"));
             md.append("- ").append(d).append(": ").append(each.isEmpty() ? "none" : String.join(", ", each)).append('\n');
         });
-        if (!c.asked().isEmpty()) {
+        if (!c.toRule().isEmpty()) {
             md.append("\nNot plain from the equality rule, for the user (any one answer counts as right):\n")
-                    .append(String.join("\n", c.asked())).append('\n');
+                    .append(String.join("\n", c.toRule())).append('\n');
         }
         md.append("\n### Comparisons that are not right everywhere\n\n")
                 .append(c.lines().isEmpty() ? "none" : String.join("\n", c.lines())).append("\n\n");
-        kinds.add("*\t" + matrix + "\t(asked)\t" + c.comparisons() + " comparisons in " + c.places() + " places");
+        kinds.addAll(c.asked());
         c.databases().values().forEach(of -> kinds.addAll(of.pinned()));
     }
 
@@ -160,30 +169,40 @@ final class PositionReport {
             databases.put(d, new PerDatabase(gaps, new LinkedHashMap<>(), pinned));
         }
         List<String> lines = new ArrayList<>();
+        List<String> toRule = new ArrayList<>();
         List<String> asked = new ArrayList<>();
+        asked.add("*\t" + matrix + "\t(places)\t" + String.join(", ", places));
         by.forEach((a, perDb) -> {
+            asked.add("*\t" + matrix + "\t" + a.name() + "\texpected " + a.expected() + ": " + a.left() + " == "
+                    + a.right());
             List<String> entry = new ArrayList<>();
             databases.forEach((d, of) -> {
                 Map<String, String> all = perDb.getOrDefault(d, Map.of());
                 // each place's outcome and what it is against the expected answer, the left-out places apart
                 Map<String, List<String>> groups = new LinkedHashMap<>();
                 Set<String> verdicts = new LinkedHashSet<>();
-                Set<String> answers = new LinkedHashSet<>();
+                // the answers given, per answer the rule gives the place: two places contradict one another only
+                // where the rule gives them ONE answer (a@b: a literal reads as its column's type where it is
+                // written against the column and not inside a function of Any, so the two answers differ by rule)
+                Map<String, Set<String>> answers = new LinkedHashMap<>();
                 all.forEach((p, v) -> {
-                    if (of.gaps().containsKey(p)) {
+                    if (of.gaps().containsKey(p) && !isAnswer(v, store)) {
+                        // left out: the database gives no answer in this place even for the simplest comparison.
+                        // An ANSWER there is judged like any other (the review of slice 2, finding 3: a wrong
+                        // answer in a left-out place was read by nobody)
                         return;
                     }
                     String verdict = judge(v, a.expected(), p, store);
                     verdicts.add(verdict);
                     if (isAnswer(v, store)) {
-                        answers.add(v);
+                        answers.computeIfAbsent(expectedAt(a.expected(), p), x -> new LinkedHashSet<>()).add(v);
                     }
                     groups.computeIfAbsent((v.isEmpty() ? "no row" : v) + " [" + verdict + "]", x -> new ArrayList<>())
                             .add(p);
                 });
                 List<String> absent = places.stream().filter(p -> !all.containsKey(p)).toList();
                 String kind;
-                if (answers.size() > 1 && !a.expected().equals("N")) {
+                if (!a.expected().equals("N") && answers.values().stream().anyMatch(given -> given.size() > 1)) {
                     kind = "CONTRADICTS";
                 } else if (verdicts.contains("wrong")) {
                     kind = "A WRONG ANSWER SOMEWHERE";
@@ -200,31 +219,55 @@ final class PositionReport {
                 }
                 of.pinned().add(d + "\t" + matrix + "\t" + a.name() + "\t" + kind);
                 entry.add("  - **" + d + ": " + kind + "**");
-                groups.forEach((v, ps) -> entry.add("    - `" + v + "`: " + (ps.size() <= 6 ? String.join(", ", ps)
-                        : ps.size() + " places (" + String.join(", ", ps.subList(0, 2)) + ", ...)")));
+                groups.forEach((v, ps) -> {
+                    of.pinned().add(d + "\t" + matrix + "\t" + a.name() + "\t  " + v + ": " + String.join(", ", ps));
+                    entry.add("    - `" + v + "`: " + (ps.size() <= 6 ? String.join(", ", ps)
+                            : ps.size() + " places (" + String.join(", ", ps.subList(0, 2)) + ", ...)"));
+                });
                 if (!absent.isEmpty()) {
+                    of.pinned().add(d + "\t" + matrix + "\t" + a.name() + "\t  never run: " + String.join(", ", absent));
                     entry.add("    - never run: " + String.join(", ", absent));
                 }
             });
             String sides = "`" + a.left().replace("\\n", " ") + "` == `" + a.right().replace("\\n", " ") + "`";
             if (a.expected().equals("?")) {
-                asked.add("- **" + a.name() + "**: " + sides);
+                toRule.add("- **" + a.name() + "**: " + sides);
             }
             if (!entry.isEmpty()) {
                 lines.add("- **" + a.name() + "** (expected `" + a.expected() + "`): " + sides);
                 lines.addAll(entry);
             }
         });
-        return new Classified(databases, lines, asked, by.size(), places.size());
+        return new Classified(databases, lines, toRule, by.size(), asked);
+    }
+
+    /** The answer the rule gives {@code place} of a comparison whose expected answer is written {@code expectedOf}:
+     *  {@code R} for a compile error ({@code x;generic=R} inside a function over one type variable); of {@code a@b},
+     *  {@code a} where the comparison is written and {@code b} inside a function whose parameters are
+     *  {@code Any}; else as written. */
+    private static String expectedAt(String expectedOf, String place) {
+        String expected = expectedOf;
+        if (expected.contains(";generic=R")) {
+            if (place.split(" ")[0].equals("function-generic")) {
+                return "R";
+            }
+            expected = expected.replace(";generic=R", "");
+        }
+        int at = expected.indexOf('@');
+        if (at >= 0) {
+            return RUN_TIME_PLACES.contains(place.split(" ")[0]) ? expected.substring(at + 1)
+                    : expected.substring(0, at);
+        }
+        return expected;
     }
 
     /** What one place's outcome is against the expected answer: right, wrong, refused (by name) or failed. */
     private static String judge(String v, String expectedOf, String place, boolean store) {
         boolean atRunTime = RUN_TIME_PLACES.contains(place.split(" ")[0]);
-        String expected = expectedOf;
-        int at = expected.indexOf('@');
-        if (at >= 0) {
-            expected = atRunTime ? expected.substring(at + 1) : expected.substring(0, at);
+        String expected = expectedAt(expectedOf, place);
+        if (expected.equals("R")) {
+            // a compile error inside a function over one type variable whose call gives it two types
+            return v.equals("refused ModelException") ? "right" : isAnswer(v, store) ? "wrong" : "failed";
         }
         if (expected.equals("N")) {
             if (atRunTime) {
@@ -247,27 +290,34 @@ final class PositionReport {
         if (run.outcome().equals("UNJUDGED")) {
             return "unjudged";
         }
+        if (run.outcome().equals("TIMEOUT")) {
+            return "timeout";   // (its limit is the run's setting, no part of the outcome)
+        }
         String name = run.answer().split(":", 2)[0].strip();
         return run.outcome().toLowerCase(Locale.ROOT) + " " + (name.isEmpty() ? run.outcome() : name);
     }
 
-    /** One outcome of the value matrix as {@code T}, {@code F}, or a short name of why there is no answer. */
+    /** One outcome of the value matrix as {@code T}, {@code F}, or a short name of why there is no answer. An answer
+     *  is read only in the exact shape its place gives -- one row holding one Boolean; for a table's filter, the
+     *  one-row table kept or no row -- and anything else is {@code other answer} (the review of slice 2, finding 6:
+     *  read by what the text contained, two rows or a text 'true' would have passed). */
     private static String value(Run run) {
         boolean v;
         switch (run.outcome()) {
             case "PASS" -> v = true;
             case "FAIL" -> v = false;
             case "ANSWER" -> {
-                String text = run.answer().toLowerCase(Locale.ROOT);
-                boolean yes = text.contains("true");
-                boolean no = text.contains("false");
                 if (run.position().equals("table-filter")) {
-                    // the filtered one-row table: a row kept, or none
-                    v = A_ONE.matcher(KEY.matcher(text).replaceAll("")).find();
-                } else if (yes == no || text.contains("null")) {
-                    return "other answer";
+                    if (!run.answer().equals("[]") && !run.answer().equals("[{\"id\":1}]")) {
+                        return "other answer";
+                    }
+                    v = !run.answer().equals("[]");
                 } else {
-                    v = yes;
+                    Matcher one = ONE_BOOLEAN.matcher(run.answer());
+                    if (!one.matches()) {
+                        return "other answer";
+                    }
+                    v = one.group(1).equals("true");
                 }
             }
             default -> {
@@ -278,33 +328,31 @@ final class PositionReport {
     }
 
     /** One outcome of the store matrix as the ids of the rows the comparison is true for ({@code 1,5}; empty for
-     *  none), or a short name of why there is no answer. A kept value that is neither true nor false (a NULL) is no
-     *  answer: the rule's comparison is two-valued. */
+     *  none), or a short name of why there is no answer. Read only in the exact shape its place gives: for a filter,
+     *  rows of an id, no id twice; for a kept value, each of the five rows once with its Boolean. A kept value that
+     *  is neither true nor false (a NULL) is no answer: the rule's comparison is two-valued. */
     private static String kept(Run run) {
         if (!run.outcome().equals("ANSWER")) {
             return noAnswer(run);
         }
+        boolean valued = run.position().startsWith("value");
+        if (!(valued ? KEPT_VALUES : KEPT_ROWS).matcher(run.answer()).matches()) {
+            return "other answer";
+        }
         Set<Integer> ids = new TreeSet<>();
-        if (run.position().startsWith("value")) {
-            Set<Integer> seen = new TreeSet<>();
-            Matcher m = ID_AND_SAME.matcher(run.answer());
-            while (m.find()) {
-                if (m.group(2).equals("null")) {
-                    return "other answer";
-                }
-                seen.add(Integer.valueOf(m.group(1)));
-                if (m.group(2).equals("true")) {
-                    ids.add(Integer.valueOf(m.group(1)));
-                }
+        Set<Integer> seen = new TreeSet<>();
+        Matcher m = (valued ? ID_AND_SAME : ID).matcher(run.answer());
+        while (m.find()) {
+            Integer id = Integer.valueOf(m.group(1));
+            if (!seen.add(id) || !ALL_ROWS.contains(id)) {
+                return "other answer";   // a row twice, or a row the store does not hold
             }
-            if (!seen.equals(ALL_ROWS)) {
-                return "other answer";
+            if (!valued || m.group(2).equals("true")) {
+                ids.add(id);
             }
-        } else {
-            Matcher m = ID.matcher(run.answer());
-            while (m.find()) {
-                ids.add(Integer.valueOf(m.group(1)));
-            }
+        }
+        if (valued && !seen.equals(ALL_ROWS)) {
+            return "other answer";
         }
         if (run.negated()) {
             Set<Integer> rest = new TreeSet<>(ALL_ROWS);
