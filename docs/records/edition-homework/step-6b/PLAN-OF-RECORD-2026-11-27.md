@@ -362,7 +362,7 @@ works well we can revisit"; the orchestrator agreed).
   lane that runs the matrix in-process and requires the counts to EQUAL the baseline (worse fails; better fails
   too, asking for the pin to be lowered in the same commit). Then bind once (section 2.3).
 
-**2026-11-28, 01:45 UTC.**
+**2026-11-28, 01:35 UTC** (written as 01:45; the clock read 01:35).
 
 - **Slice 1's heavy lanes are back clean** (the heavy session, 01:15 UTC): `//pct:pct_duckdb_lite` 5 of 5 suites and
   1,249 cases identical on `c77deac20` and `c81297490`; `//pct:pct_channel_b_h2` 440 pass and the 29 ledgered
@@ -409,3 +409,50 @@ works well we can revisit"; the orchestrator agreed).
     the matrix on Postgres (new).
 - **Slice 3, started beside it** (the scratch branch, with slice 2 merged in): its half page is
   `slice-3-half-page.md`.
+
+**2026-11-28, 02:30 UTC.**
+
+- **Slice 1** (`c77deac20`): CI 54 of 55 lanes green, none red; `macos / warehouse` still running since 01:26. The
+  program branch moves when it finishes.
+- **Slice 2** (`claude/step-6b-slice-2`, `e951b6d5d`).
+  - *Independent review* (an Opus reviewer, the diff and the rules): the port is faithful; its main finding was the
+    pin -- one kind per comparison let a comparison get worse inside its kind unseen (about 85 of the 96 lines).
+    Fixed: the pin now holds what was asked (the places, each comparison's expected answer and sides) and, for every
+    comparison not right everywhere, EVERY outcome with its places (386 lines). Also fixed from it: an answer in a
+    left-out place is judged; answers are read in their exact shape; two answers the rule itself makes different are
+    no contradiction (one comparison per database left "contradicts" for "right"); one time limit for a hand run and
+    the pin; the one-point form's two window columns in one step (one window level fewer; the ledgers do not move).
+  - *Its other finding, not slice 2's:* about sixty other forms of the time-series library put the D8 check on rows
+    a later filter drops (`helpers::rampedPeriod`, `helpers::ramp`, `sharpe_ratio`'s r form, weaker in
+    `bollinger_bands`). For the user; its own change.
+  - *Regenerated and run on the reviewed commit:* the pin, the parity test, the oracle's generated files and the
+    bundle budget, 7 of 7.
+  - *The local round* (CI's core, checks, parser-equivalence and DataCube lanes on `1a035a242`): one real failure,
+    `//core:census` -- the measure's "named databases" setting named a database outside its owners. That setting
+    could not work anyway (below), so it is taken out (`e951b6d5d`); the census, the guards, the pin and the checks
+    lane are re-running on that commit (`scratchpad/b113.out`). The other failures are the Postgres-backed tests a
+    root container cannot start.
+  - *The database lanes on `1a035a242`* (slice 1's product change and slice 2's library text), each against its own
+    last round (`3bee40e22`): **no test's outcome differs** on BigQuery, Databricks, SQLite, MongoDB, MariaDB, MySQL,
+    ClickHouse, Postgres (channel B) and Trino; the time-series replays and documents pass on Postgres and
+    ClickHouse. Set apart, both older than this work: MariaDB channel B's list-order flake; a MongoDB report line
+    (the dynamic pivot compared in order with no sort). Snowflake had not reported at 02:30.
+  - *The matrix on Postgres did not run:* the measure builds the storeless runtime, which a server's connector
+    refuses without a server's coordinates. It needs the measure to start the server and declare it
+    (`StorelessRuntime.onServer`): slice 3's, with the lane.
+- **Slice 3** (the scratch branch, `claude/step-6-numbers`; measured by the no-Bazel loop, not Bazel-built).
+  - Independent review of part 3a (`review-4-of-slice-3a.md`): two blockers (the rows form lost the instant reading
+    for date-times; a side typed Nil was dropped, so `[]->toOne() == 1` answered false where Pure raises), three
+    should-fix (the "never equal" decision was a second classifier off SQL types; a literal against a column was
+    exempted too widely; the doors changed unrecorded), five notes. All fixed but two, recorded as open: two lists
+    of written date-times at two precisions of one instant are compared as texts; a value read through a `let`
+    whose upcast is gone, against a column, still reads as the column's type (the lowering sees no record of the
+    comparison having been kept; root cause not found).
+  - Built beside it: DuckDB refuses by name a sub-query inside a list's function; a comparison kept for its call
+    keeps its sides until the call's rule answers (an enumeration against a String in a generic function is that
+    call's compile error); the resolver carries an answered kept comparison; lists typed `Number` that each hold
+    one kind take the value form, the planner standing aside by the same reading; the measure knows "must raise".
+  - Measured (107 comparisons): **DuckDB 95 right everywhere, 11 answered in some places and refused by name in
+    the others, 1 failing (the `map` defect, below), none wrong, none contradicting; H2 89 right; SQLite 89.**
+  - Found, not equality's, for the user: a `map` over an empty value can answer a value (the store resolver's
+    composition; `slice-3-half-page.md`).
