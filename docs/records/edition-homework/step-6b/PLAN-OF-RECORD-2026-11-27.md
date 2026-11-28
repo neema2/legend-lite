@@ -482,3 +482,25 @@ works well we can revisit"; the orchestrator agreed).
   through a `let` whose upcast is gone, against a column.
 - **The measure on a server database:** the value matrix now runs on a named test backend (`-Dmeasure.backends`,
   the backend declares its own runtime); it rides with slice 3 and the Postgres lane tries it then.
+
+**2026-11-28, 03:05 UTC.**
+
+- **Slice 2 is pushed to the pull request** (`c529b4599`, 02:55 UTC) after its last checks passed here on
+  `9ed3b1321` (the census, the guards, the pin, CI's checks lane and parser equivalence: 201 pass, 1 skipped, no
+  build error). CI is running; the program branch moves to it when CI is green.
+- **Slice 3, first Bazel build** (`scratchpad/batch114.sh` on the scratch branch): the measure built by Bazel gives
+  the no-Bazel loop's numbers exactly (DuckDB 97 / H2 91 / SQLite 91 of 110). Its local round (CI's Java lanes) is
+  running. A third review is reading it.
+- **Slice 5's baseline, measured ahead** (a third matrix in the measure: `in`, `contains`, `indexOf` and
+  `assertContains` asked the 44 comparisons of two single values; each must answer as `==` does). On DuckDB 35 of 44
+  answer as `==` everywhere. Not so, for slice 5:
+  - **wrong:** two values declared `Number` holding an Integer and a Float: `contains` and `indexOf` answer true
+    (`in` answers false, rightly); a day and a date-time under the abstract `Date`: every function answers true;
+  - **failing when the query runs:** a date built to the hour against a written date-time, in every function;
+  - **refused by name in some places:** values declared `Any` under `contains` over a computed list and `indexOf`;
+    the mixed-list row (part 2);
+  - **asserts:** `assertContains` under the database checker is unjudged for several, and refused under the Java
+    checker for values declared `Number` or `Any`.
+  One thing that looked wrong and is not: `['a ']->contains('a')` is true -- a written list of one text IS that
+  text, and `contains` of a text and a text is the STRING function (a substring's test), by the functions'
+  signatures on legend-pure too. The matrix asks lists of two.
