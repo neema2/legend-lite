@@ -512,6 +512,58 @@ public final class Lowerer {
                 side -> planner == null ? null : planner.sideRows(side));
     }
 
+    /** {@code n}'s two sides of instances of one class as the one "same values" instruction over the two lists
+     *  ({@link InstanceEquality#sameInstances}); null for any other pair, and where the door named a rule for the
+     *  call (it is lowered by that rule). */
+    private @com.legend.base.Nullable SqlExpr sameInstances(TypedNativeCall n, boolean anyOrder,
+            ColumnResolver columns) {
+        if (instanceKeysOf == null || n.args().size() != 2 || verbatimEquality || legacyNullUnsafeEquals
+                || !SideEqualities.instancesOfOneClass(n.args().get(0), n.args().get(1))
+                || Scalars.doorsRule(n, features, styled()) != null) {
+            return null;
+        }
+        WholeComparisons planner = wholeComparisons;
+        return InstanceEquality.sameInstances(n, anyOrder, instanceKeysOf, this::sqlTypeOf, s -> scalar(s, columns),
+                () -> "_iq" + aliasCounter++, side -> planner == null ? null : planner.sideRows(side),
+                side -> planner != null && planner.tracksIdentity(side), boundSides != null);
+    }
+
+    /** {@code n}'s two sides, each ONE map, compared as values ({@link Equalities#sameMaps}); null for any other
+     *  pair, and where the door named a rule for the call. */
+    private @com.legend.base.Nullable SqlExpr sameMaps(TypedNativeCall n, ColumnResolver columns) {
+        if (n.args().size() != 2 || verbatimEquality || legacyNullUnsafeEquals
+                || !PlatformTypes.isMapCarrier(n.args().get(0).info().type())
+                || !PlatformTypes.isMapCarrier(n.args().get(1).info().type())
+                || n.args().get(0).info().multiplicity().isMany() || n.args().get(1).info().multiplicity().isMany()
+                || Scalars.doorsRule(n, features, styled()) != null) {
+            return null;
+        }
+        WholeComparisons planner = wholeComparisons;
+        List<com.legend.sql.SqlType> held = new ArrayList<>();
+        for (TypedSpec side : n.args()) {
+            SqlQuery rows = planner == null ? null : planner.sideRows(side);
+            held.add(rows == null ? null : rows.outputs().get(0).type());
+        }
+        return Equalities.sameMaps(List.of(scalar(n.args().get(0), columns), scalar(n.args().get(1), columns)), held);
+    }
+
+    /** {@code n}, a {@code contains} or an {@code in} of an instance among instances of its class, by what an
+     *  instance is compared by ({@link InstanceEquality#memberInstances}); null for any other call, and where the
+     *  door named a rule for it. */
+    private @com.legend.base.Nullable SqlExpr memberInstances(TypedNativeCall n, ColumnResolver columns) {
+        if (instanceKeysOf == null || n.args().size() != 2 || Equalities.membershipList(n) == null
+                || !SideEqualities.instancesOfOneClass(n.args().get(0), n.args().get(1))
+                || Scalars.doorsRule(n, features, styled()) != null) {
+            return null;
+        }
+        WholeComparisons planner = wholeComparisons;
+        // (the collection's rows ride wherever it has rows of its own, bound once or not: a database that holds an
+        // instance as a JSON text has no membership of instances but among their rows)
+        return InstanceEquality.memberInstances(n, instanceKeysOf, this::sqlTypeOf, s -> scalar(s, columns),
+                () -> "_iq" + aliasCounter++, side -> planner == null ? null : planner.sideRows(side),
+                side -> planner != null && planner.tracksIdentity(side), boundSides != null);
+    }
+
     /** {@code n}, met inside an expression, as the planner's statement for a comparison of two whole sides, one
      *  value; null where the door named a rule for the call (it is lowered by that rule), or the planner has no
      *  statement for it. */
@@ -3847,9 +3899,12 @@ public final class Lowerer {
      * that may hold no value) is read exactly as it is for {@code ==} written in a query; bound to named values
      * ({@link #over}) those would be lost. Anything of the condition that is no bound side and reads a name is
      * refused: the condition reads its sides alone.
+     *
+     * @param tracked the sides (by identity) every instance of which has an identity the product tracks
+     *                ({@link WholeComparisons#tracksIdentity})
      */
     public SqlExpr overSides(TypedSpec condition, java.util.IdentityHashMap<TypedSpec, SqlExpr> values,
-            java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows) {
+            java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows, java.util.Set<TypedSpec> tracked) {
         if (boundSides != null) {
             throw new IllegalStateException("a condition over bound sides inside another");
         }
@@ -3877,6 +3932,12 @@ public final class Lowerer {
             @Override
             public com.legend.sql.@com.legend.base.Nullable SqlQuery sideRows(TypedSpec side) {
                 return rows.get(side);
+            }
+
+            @Override
+            public boolean tracksIdentity(TypedSpec side) {
+                // (the caller's proof, from the plan the side was bound from: the bound rows read a named table)
+                return tracked.contains(side);
             }
         };
         try {
@@ -4704,6 +4765,10 @@ public final class Lowerer {
                 if (values != null) {
                     yield values;
                 }
+                SqlExpr instances = sameInstances(n, true, columns);
+                if (instances != null) {
+                    yield instances;
+                }
                 SqlExpr planned = wholeSides(n);
                 if (planned == null) {
                     throw Scalars.hasSameElementsInsideAnExpression();
@@ -4714,12 +4779,22 @@ public final class Lowerer {
             // statement that answers the comparison as a query's last, read as one value -- one equality wherever
             // the comparison stands (planner.RootComparison.inside)
             // (asked once: the guard binds the planner's answer its arm yields)
+            // == over two maps: each as its entries sorted by key, the two compared as values (step 6B part 2)
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL)
+                    && sameMaps(n, columns) instanceof SqlExpr same -> same;
+            // == over two sides of instances of one class, at least one a list: the one "same values" instruction
+            // over the two lists, each instance reduced to what it is compared by (step 6B part 2, objects)
+            case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL)
+                    && sameInstances(n, false, columns) instanceof SqlExpr same -> same;
             case TypedNativeCall n when isFamily(n, Pure.AT_BOOLEAN_EQUAL) && wholeSides(n) instanceof SqlExpr planned ->
                 planned;
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
             // refused by name, never compared as a struct (AGENTS.md invariant 4); the claim is type-only.
+            // an instance among instances of its class (contains, in): the value and each instance reduced to what
+            // an instance is compared by (step 6B part 2, objects)
+            case TypedNativeCall n when memberInstances(n, columns) instanceof SqlExpr member -> member;
             case TypedNativeCall n when instanceKeysOf != null
                     && InstanceEquality.claims(n) -> {
                 SqlExpr ie = InstanceEquality.lower(n, instanceKeysOf,

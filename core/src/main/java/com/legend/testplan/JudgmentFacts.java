@@ -75,6 +75,10 @@ final class JudgmentFacts {
             return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.VALUES;
         }
 
+        boolean instances() {
+            return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.INSTANCES;
+        }
+
         boolean tagged() {
             return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.TAGGED;
         }

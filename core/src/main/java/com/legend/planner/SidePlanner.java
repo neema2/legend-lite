@@ -99,9 +99,10 @@ public final class SidePlanner {
      *  slice 6). A comparison across types in it is refused by name, as in any body lite plans. */
     public static com.legend.sql.SqlExpr overSides(TypedSpec comparison,
             java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values,
-            java.util.IdentityHashMap<TypedSpec, SqlQuery> rows, PlanEnv env) {
+            java.util.IdentityHashMap<TypedSpec, SqlQuery> rows, java.util.Set<TypedSpec> tracked, PlanEnv env) {
         com.legend.compiler.spec.CrossTypeComparisons.refuse(List.of(comparison));
-        return BodyPlanner.lowererFor(List.of(comparison), env, env.ctx(), true).overSides(comparison, values, rows);
+        return BodyPlanner.lowererFor(List.of(comparison), env, env.ctx(), true).overSides(comparison, values, rows,
+                tracked);
     }
 
     /** Whether {@code declaredInfo} declares a primitive collection over a relation-rooted {@code root}: the side is

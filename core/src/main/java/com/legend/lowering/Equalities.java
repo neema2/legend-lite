@@ -210,6 +210,29 @@ final class Equalities {
                 : List.of(l, r, new SqlExpr.ScalarSubquery(left), new SqlExpr.ScalarSubquery(right)));
     }
 
+    /**
+     * TWO MAPS THE SAME, AS VALUES (step 6B part 2): each map reduced to what it is compared by, its entries sorted
+     * by key ({@link SideEqualities#entriesOf}: a map has no order), and the two lists of entries not distinct --
+     * wherever the comparison stands, a list's function and a row too. Until this piece two maps were compared by a
+     * statement of their own, which a list's function cannot hold on a database that runs no sub-query there, and a
+     * map read from the row was refused by name. Null where the two values are not held as one map type of scalar
+     * keys and values (two Decimal scales, a map of lists): the caller refuses those by name.
+     *
+     * @param held each side's SQL type as its own rows hold it, where it has rows; else null (its value's type is
+     *             read)
+     */
+    static @com.legend.base.Nullable SqlExpr sameMaps(List<SqlExpr> sides,
+            List<com.legend.sql.@com.legend.base.Nullable SqlType> held) {
+        SqlType.Map map = SideEqualities.oneMapType(typeOf(sides.get(0), held.get(0)),
+                typeOf(sides.get(1), held.get(1)));
+        return map == null ? null : SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
+                SideEqualities.entriesOf(sides.get(0), map), SideEqualities.entriesOf(sides.get(1), map));
+    }
+
+    private static @com.legend.base.Nullable SqlType typeOf(SqlExpr value, @com.legend.base.Nullable SqlType held) {
+        return held != null ? held : value.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
+    }
+
     /** The two sides of an equality {@link #emptySidesAsPure} wrote as "false where a side is empty", or null where
      *  {@code e} is no such form: its negation is the null-safe not-equal of the two ({@link NullSemantics#negate}),
      *  as an unguarded equality's is. */

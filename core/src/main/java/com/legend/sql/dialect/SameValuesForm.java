@@ -155,8 +155,8 @@ final class SameValuesForm {
         if (operands.size() != 2) {
             return;
         }
-        Integer left = textScale(operands.get(0).type());
-        Integer right = textScale(operands.get(1).type());
+        String left = textScale(operands.get(0).type());
+        String right = textScale(operands.get(1).type());
         if (left != null && right != null && !left.equals(right)) {
             throw new com.legend.sql.DialectCapability("a comparison of two lists of exact numbers written at two"
                     + " scales (" + left + " and " + right + " decimal places) has no typed form on a database that"
@@ -167,7 +167,7 @@ final class SameValuesForm {
 
     /** The decimal places a list's exact numbers are written with in its JSON text, by the type it states: a
      *  Decimal's scale, none for a whole number; null for anything else. */
-    private static @com.legend.base.Nullable Integer textScale(com.legend.sql.TypeFact fact) {
+    private static @com.legend.base.Nullable String textScale(com.legend.sql.TypeFact fact) {
         if (!(fact instanceof com.legend.sql.TypeFact.Typed held && held.type() instanceof SqlType.Array list)) {
             return null;
         }
@@ -175,10 +175,26 @@ final class SameValuesForm {
         while (of instanceof SqlType.Array inner) {
             of = inner.element();
         }
-        if (of instanceof SqlType.Decimal exact) {
-            return exact.scale();
+        if (of instanceof SqlType.Struct struct) {
+            // a list of structs (instances reduced to what each is compared by; step 6B part 2): the scale of each
+            // field that holds an exact number, field by field -- null where no field holds one
+            StringBuilder scales = new StringBuilder();
+            boolean any = false;
+            for (SqlType.Struct.Field f : struct.fields()) {
+                String one = scaleOf(f.type());
+                any |= one != null;
+                scales.append(scales.isEmpty() ? "" : ", ").append(one == null ? "-" : one);
+            }
+            return any ? scales.toString() : null;
         }
-        return of == SqlType.Scalar.INTEGER || of == SqlType.Scalar.BIGINT || of == SqlType.Scalar.HUGEINT ? 0 : null;
+        return scaleOf(of);
+    }
+
+    private static @com.legend.base.Nullable String scaleOf(SqlType of) {
+        if (of instanceof SqlType.Decimal exact) {
+            return Integer.toString(exact.scale());
+        }
+        return of == SqlType.Scalar.INTEGER || of == SqlType.Scalar.BIGINT || of == SqlType.Scalar.HUGEINT ? "0" : null;
     }
 
     private static List<OutputCol> values(SqlQuery rows) {

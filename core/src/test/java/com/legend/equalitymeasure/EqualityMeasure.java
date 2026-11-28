@@ -405,6 +405,15 @@ public final class EqualityMeasure {
         out.add(new Sides("day differ", "F", "%2020-01-01", "%2020-01-02"));
         out.add(new Sides("date-time a millisecond apart", "F", "%2020-01-01T10:00:00.001", "%2020-01-01T10:00:00.002"));
         out.add(new Sides("pairs differ", "F", "pair(1, 'a')", "pair(1, 'b')"));
+        // step 6B part 2, objects: a Pair by its two values, a keyed class by its keys (a Decimal key by its number,
+        // an empty key the same as an empty key) -- single values, so the other comparing functions are asked too
+        out.add(new Sides("pairs, Integer and Decimal", "T", "pair(1, 1D)", "pair(1, 1.0D)"));
+        out.add(new Sides("keyed instances, a key written at two scales", "T", "^t::Q(id=1, amt=1.0D, note='x')",
+                "^t::Q(id=1, amt=1.00D)"));
+        out.add(new Sides("keyed instances, an empty key", "T", "^t::Q(id=2, note='x')", "^t::Q(id=2)"));
+        out.add(new Sides("keyed instances, a key differs", "F", "^t::Q(id=1, amt=1.0D)", "^t::Q(id=1, amt=1.5D)"));
+        out.add(new Sides("keyed instances, a key differs at two scales", "F", "^t::Q(id=1, amt=1.25D)",
+                "^t::Q(id=1, amt=1.3D)"));
         // exact numbers of two types and two scales
         out.add(new Sides("int and decimal", "T", "1", "1D"));
         out.add(new Sides("decimal two scales", "T", "1.0D", "1.00D"));
@@ -605,6 +614,15 @@ public final class EqualityMeasure {
         out.add(new Sides("list of pairs computed", "T", "[pair(1, 'a'), pair(2, 'b')]->filter(p | true)",
                 "[pair(1, 'a'), pair(2, 'b')]"));
         out.add(new Sides("instances written alike", "F", "^t::K(id=1, name='a')", "^t::K(id=1, name='a')"));
+        // step 6B part 2, objects: a keyed class by its keys (a Decimal key by its number, an empty key the same as
+        // an empty key), lists of them, lists of Pairs by value
+        out.add(new Sides("lists of keyed instances", "T",
+                "[^t::Q(id=1, amt=1.0D, note='x'), ^t::Q(id=2, note='y')]->filter(q | true)",
+                "[^t::Q(id=1, amt=1.00D), ^t::Q(id=2)]"));
+        out.add(new Sides("lists of keyed instances, other order", "F",
+                "[^t::Q(id=1, amt=1.0D), ^t::Q(id=2)]->filter(q | true)", "[^t::Q(id=2), ^t::Q(id=1, amt=1.0D)]"));
+        out.add(new Sides("lists of pairs, Integer and Decimal", "T", "[pair(1, 1D), pair(2, 2.00D)]->filter(p | true)",
+                "[pair(1, 1), pair(2, 2)]"));
         // tables
         out.add(new Sides("tables same", "T", ab, ab));
         out.add(new Sides("tables rows other order", "F", ab, "#TDS\n id, s\n 2, y\n 1, x\n#"));

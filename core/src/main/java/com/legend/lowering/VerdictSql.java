@@ -114,13 +114,6 @@ public final class VerdictSql {
         return typedRow(compared.ctes(), compared.from(), compared.holds(want), values, once);
     }
 
-    /** {@code assertContains}'s member over instances of one class ({@link SideEqualities#containsInstances}). */
-    public static @com.legend.base.Nullable TypedRow typedContainsInstances(SqlQuery collWrapped, Type collKind,
-            SqlQuery valWrapped, Type valKind, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys,
-            boolean want) {
-        return typed(SideEqualities.containsInstances(collWrapped, collKind, valWrapped, valKind, keys), want);
-    }
-
     /** {@code assertContains}'s member where the values carry their kinds ({@link SideEqualities#containsTagged}). */
     public static @com.legend.base.Nullable TypedRow typedContainsTagged(SqlQuery collWrapped, Type collKind,
             SqlQuery valWrapped, Type valKind, boolean want) {

@@ -132,6 +132,18 @@ final class RootComparison {
         }
         SideEqualities.Pair pair = SideEqualities.pair(left, kind(left, leftPlan), leftPlan, right,
                 kind(right, rightPlan), rightPlan, ctx);
+        if (pair != null && pair.form() == SideEqualities.Pair.Form.INSTANCES
+                && SideEqualities.instancesAsValues(left, leftPlan, right, rightPlan, pair.keys())) {
+            // two sides of instances of one class whose layouts' leaves pair (step 6B part 2, objects): no statement
+            // of their own -- the lowering writes the one "same values" instruction over the two lists of instances,
+            // each reduced to what it is compared by, its rows riding (InstanceEquality.sameInstances)
+            return null;
+        }
+        if (!anyOrder && SideEqualities.mapsAsValues(left, leftPlan, right, rightPlan)) {
+            // two maps held as one map type (step 6B part 2): no statement of their own -- the lowering compares
+            // the two as values, each as its entries sorted by key (Equalities.sameMaps)
+            return null;
+        }
         SideEqualities.Compared compared = pair == null ? null : pair.compared(leftPlan, rightPlan, anyOrder);
         if (compared == null && !anyOrder && (PlatformTypes.isMapCarrier(left.info().type())
                 || PlatformTypes.isMapCarrier(right.info().type()))) {

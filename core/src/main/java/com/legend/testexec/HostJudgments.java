@@ -336,7 +336,35 @@ final class HostJudgments {
         List<Object> e = LiteWords.enumNames(ef, af, structuredSide(ef, eRaw));
         List<Object> a = LiteWords.enumNames(af, ef, structuredSide(af, aRaw));
         var ik = restrictKeys(keys, ef, af, e, a);
-        return ik == null ? List.of(e, a) : List.of(restrictToKeys(e, ik, keys), restrictToKeys(a, ik, keys));
+        if (ik == null) {
+            return List.of(e, a);
+        }
+        // (the classifier is compared where BOTH sides' instances carry theirs: a list of built instances carries
+        // each one's, one built instance read as a value carries none, and the two are of the one declared class
+        // restrictKeys found -- measured 2026-11-28, assertContains([^Q(id=2, ...)], ^Q(id=2, ...)) failed under the
+        // host judge alone, a classifier on one side and none on the other)
+        boolean classified = carryTheirClass(e) && carryTheirClass(a);
+        return List.of(restrictToKeys(classified ? e : withoutTheirClass(e), ik, keys),
+                restrictToKeys(classified ? a : withoutTheirClass(a), ik, keys));
+    }
+
+    private static boolean carryTheirClass(List<Object> values) {
+        return values.stream().allMatch(v -> v instanceof java.util.Map<?, ?> m
+                && m.containsKey(com.legend.sql.SqlExpr.SYNTHETIC_TYPE));
+    }
+
+    private static List<Object> withoutTheirClass(List<Object> values) {
+        List<Object> out = new ArrayList<>(values.size());
+        for (Object v : values) {
+            if (v instanceof java.util.Map<?, ?> m && m.containsKey(com.legend.sql.SqlExpr.SYNTHETIC_TYPE)) {
+                java.util.Map<Object, Object> bare = new java.util.LinkedHashMap<>(m);
+                bare.remove(com.legend.sql.SqlExpr.SYNTHETIC_TYPE);
+                out.add(bare);
+            } else {
+                out.add(v);
+            }
+        }
+        return out;
     }
 
     /** The keys the pair restricts to, or null: both sides declare the SAME keyed class (a side declared a supertype

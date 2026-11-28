@@ -158,8 +158,10 @@ public final class SideEqualities {
     }
 
     /** A side bound once: the expression that holds its value where the comparison is written (its one list, or
-     *  its one value), and its typed rows, for a database that compares rows. */
-    public record Bound(SqlExpr value, SqlQuery rows) {
+     *  its one value), its typed rows, for a database that compares rows, and whether every instance it holds has
+     *  an identity the product tracks, proven from the side's own plan ({@link #tracked}; the bound rows read a
+     *  named table, which proves nothing). */
+    public record Bound(SqlExpr value, SqlQuery rows, boolean tracked) {
     }
 
     private static final String SINGLE = "__v";
@@ -168,6 +170,16 @@ public final class SideEqualities {
      *  value; NULL where it has none). */
     static SqlQuery single(String cte, SqlQuery rows) {
         OutputCol o = new OutputCol(SINGLE, rows.outputs().get(0).type(), true);
+        if (o.type() instanceof SqlType.Struct) {
+            // an instance has no least, and not every database folds structs: the side's one row, read by a
+            // sub-query (step 6B part 2, objects; H2 2.5 has no ANY_VALUE and its MIN wants a scalar)
+            OutputCol held = new OutputCol(O, o.type(), true);
+            SqlSelect one = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of(cte, rows.outputs(), O),
+                    O, held)), false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
+                    com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), 1L, null, List.of(held));
+            return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.ScalarSubquery(one), SINGLE, o)), false,
+                    new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of(o));
+        }
         return new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.MIN,
                 List.of(SqlExpr.Column.of(cte, rows.outputs(), O)), false, List.of()), SINGLE, o)), false,
                 new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
@@ -246,6 +258,41 @@ public final class SideEqualities {
                 || !PlatformTypes.isNil(aKind) && !heldAsItsKind(aKind, aRows.outputs().get(0).type())) {
             return null;
         }
+        return bound(eRows, eKind, eOne, false, aRows, aKind, aOne, false, nil, same);
+    }
+
+    /**
+     * {@link #boundOnce} FOR TWO SIDES OF INSTANCES OF ONE CLASS (step 6B part 2, objects): each side's instances
+     * bound once as the host's record reads them -- a keyed class restricted to its classifier and its keys
+     * ({@link #restricted}, {@code HostJudgments.restrictOne}), a keyless one whole -- and {@code same}, the
+     * product's own comparison of the two bound sides ({@code InstanceEquality.sameInstances}: each instance
+     * reduced to its leaves), the verdict. The lists compared are the lists recorded. Null where a side holds no
+     * struct or the two layouts' leaves do not pair ({@link #pairedLeaves}).
+     *
+     * @param whole the record's instances whole, never restricted to their keys (a membership's record: the host
+     *              writes the collection's instances and the value as they are)
+     */
+    public static @com.legend.base.Nullable Compared boundInstances(SqlQuery eWrapped, Type eKind, boolean eOne,
+            SqlQuery aWrapped, Type aKind, boolean aOne,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys, boolean whole,
+            java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
+        SqlQuery eRaw = valueRows(eWrapped);
+        SqlQuery aRaw = valueRows(aWrapped);
+        if (eRaw == null || aRaw == null || !(eRaw.outputs().get(0).type() instanceof SqlType.Struct es)
+                || !(aRaw.outputs().get(0).type() instanceof SqlType.Struct as) || pairedLeaves(es, as, keys) == null) {
+            return null;
+        }
+        boolean asHeld = whole || keys == null;
+        return bound(asHeld ? eRaw : restrictedRows(new SqlSource.Subselect(eRaw, "i", null), eRaw, es, keys),
+                eKind, eOne, tracked(eWrapped),
+                asHeld ? aRaw : restrictedRows(new SqlSource.Subselect(aRaw, "i", null), aRaw, as, keys),
+                aKind, aOne, tracked(aWrapped), false, same);
+    }
+
+    /** {@link #boundOnce}'s statement over two sides' typed rows. */
+    private static Compared bound(SqlQuery eRows, Type eKind, boolean eOne, boolean eTracked, SqlQuery aRows,
+            Type aKind, boolean aOne, boolean aTracked, boolean nil,
+            java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
         // (a side of at most one value: its one value read beside its list, by the one read of its rows)
         // (a side of at most one value is read as that ONE value alone where the other side is too: its list would
         // be the list of it, and the record lists the value -- one aggregate for the side, where the member this
@@ -271,7 +318,8 @@ public final class SideEqualities {
                 aValue = orTheEmptyList(aValue, aList);
             }
         }
-        SqlExpr holds = same.apply(new Bound(eValue, cteRows("__e", eRows)), new Bound(aValue, cteRows("__a", aRows)));
+        SqlExpr holds = same.apply(new Bound(eValue, cteRows("__e", eRows), eTracked),
+                new Bound(aValue, cteRows("__a", aRows), aTracked));
         return new Compared(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)), from, holds,
                 bothOne ? List.of(new Held(eValue, eList.outputs().get(0).type(), eKind, false),
                         new Held(aValue, aList.outputs().get(0).type(), aKind, false))
@@ -372,14 +420,37 @@ public final class SideEqualities {
         return t instanceof SqlType.Scalar sc && sc != SqlType.Scalar.JSON || t instanceof SqlType.Decimal;
     }
 
-    /** A side's maps ({@code rows}, read as {@code cte}) as their entries sorted by key, each a {@code {k, v}} struct:
-     *  the value a map is compared as (the order its entries were written in no part of it). */
-    static SqlQuery entryRows(String cte, SqlQuery rows, SqlType.Map t) {
-        SqlExpr m = SqlExpr.Column.of(cte, rows.outputs(), O);
+    /** What a map {@code m} is compared by: its entries sorted by key, each a {@code {k, v}} struct -- the order its
+     *  entries were written in is no part of it. One reduction, for a side's rows ({@link #entryRows}) and for a map
+     *  compared where it stands ({@code Equalities.sameMaps}). */
+    static SqlExpr entriesOf(SqlExpr m, SqlType.Map t) {
         SqlExpr k = SqlExpr.Column.derived(null, "__k");
         SqlExpr entry = new SqlExpr.StructLit(List.of(new SqlExpr.StructLit.Field("k", k, t.key()),
                 new SqlExpr.StructLit.Field("v", CanonicalRenderSql.valueAtKey(m), t.value())));
-        SqlExpr entries = CanonicalRenderSql.sortedEntries(m, entry);
+        return CanonicalRenderSql.sortedEntries(m, entry);
+    }
+
+    /** The type of one map both of two sides' values are held as, its keys and its values scalars: what the one
+     *  comparison of two maps as values asks ({@code Equalities.sameMaps}); null for any other pair. */
+    static SqlType.@com.legend.base.Nullable Map oneMapType(@com.legend.base.Nullable SqlType l,
+            @com.legend.base.Nullable SqlType r) {
+        return l instanceof SqlType.Map m && m.equals(r) && scalar(m.key()) && scalar(m.value()) ? m : null;
+    }
+
+    /** Whether the planner stands aside, for two sides each ONE map, for the comparison of the two as values
+     *  ({@code Equalities.sameMaps}): each side's rows hold the one map type. */
+    public static boolean mapsAsValues(TypedSpec left, SqlQuery leftPlan, TypedSpec right, SqlQuery rightPlan) {
+        SqlQuery l = valueRows(leftPlan);
+        SqlQuery r = valueRows(rightPlan);
+        return PlatformTypes.isMapCarrier(left.info().type()) && PlatformTypes.isMapCarrier(right.info().type())
+                && !left.info().multiplicity().isMany() && !right.info().multiplicity().isMany()
+                && l != null && r != null && oneMapType(l.outputs().get(0).type(), r.outputs().get(0).type()) != null;
+    }
+
+    /** A side's maps ({@code rows}, read as {@code cte}) as their entries sorted by key, each a {@code {k, v}} struct:
+     *  the value a map is compared as (the order its entries were written in no part of it). */
+    static SqlQuery entryRows(String cte, SqlQuery rows, SqlType.Map t) {
+        SqlExpr entries = entriesOf(SqlExpr.Column.of(cte, rows.outputs(), O), t);
         SqlType et = new SqlType.Array(new SqlType.Struct(List.of(new SqlType.Struct.Field("k", t.key()),
                 new SqlType.Struct.Field("v", t.value()))));
         OutputCol oOut = new OutputCol(O, et, true);
@@ -466,64 +537,8 @@ public final class SideEqualities {
     }
 
     /**
-     * {@code assertEquals}' and {@code assertSameElements}' TYPED member over two sides of instances of one class -- a
-     * model class's or a Pair's, each value a struct (item 3's S4, instances, 2026-11-22; the user's Q-A): each value
-     * ONE row of typed leaves, as the host restricts it ({@code HostJudgments.restrictOne}: the classifier, then the
-     * keys, upstream's {@code EqualityUtilities}) -- a keyed class its {@code __type} where it carries one and each key
-     * property, a nested keyed instance's leaves in its place; a keyless class its {@code __type} and its identity,
-     * {@code __id} (register S111; read where the product tracks it, else raised by name: {@link
-     * CanonicalRenderSql#trackedId}) -- compared by the one list node as the grids are, in order or as a multiset of
-     * rows. Each leaf is read as its layout types it (a dialect carrying a struct as JSON reads the field by its type), a
-     * date-time through the judge's instant. Where the verdict fails, each side's instances ride back as they are for the
-     * host's record. Null where a side carries no struct, the two layouts' leaves differ in kind, or a leaf has no typed
-     * reading here: a to-many key, a key slot of a polymorphic or Any class, a JSON field, a keyless class with no
-     * identity.
-     */
-    public static @com.legend.base.Nullable Compared instances(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
-            Type aKind, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys, boolean multiset) {
-        SqlQuery eRows = valueRows(eWrapped);
-        SqlQuery aRows = valueRows(aWrapped);
-        if (eRows == null || aRows == null || !(eRows.outputs().get(0).type() instanceof SqlType.Struct es)
-                || !(aRows.outputs().get(0).type() instanceof SqlType.Struct as)) {
-            return null;
-        }
-        List<List<Leaf>> both = pairedLeaves(es, as, keys);
-        if (both == null) {
-            return null;
-        }
-        SqlQuery ce = leafRows("__ie", eRows, both.get(0), tracked(eWrapped));
-        SqlQuery ca = leafRows("__ia", aRows, both.get(1), tracked(aWrapped));
-        SqlQuery eCmp = listed("__ke", structRows(cteRows("__ce", ce)));
-        SqlQuery aCmp = listed("__ka", structRows(cteRows("__ca", ca)));
-        // the record's instances as the host's reads them: a keyed class restricted to its classifier and its keys
-        // (HostJudgments.restrictOne), a keyless one whole
-        SqlQuery eHeld = keys == null ? eRows : restrictedRows("__ie", eRows, es, keys);
-        SqlQuery aHeld = keys == null ? aRows : restrictedRows("__ia", aRows, as, keys);
-        SqlQuery eList = listed("__re", eHeld);
-        SqlQuery aList = listed("__ra", aHeld);
-        SqlExpr same = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
-                SqlExpr.Column.of("ke", eCmp.outputs(), LISTED), SqlExpr.Column.of("ka", aCmp.outputs(), LISTED),
-                new SqlExpr.ScalarSubquery(cteRows("__ce", ce)), new SqlExpr.ScalarSubquery(cteRows("__ca", ca)));
-        return new Compared(List.of(new SqlWith.Cte("__ie", eRows), new SqlWith.Cte("__ia", aRows),
-                        new SqlWith.Cte("__re", eHeld), new SqlWith.Cte("__ra", aHeld),
-                        new SqlWith.Cte("__ce", ce), new SqlWith.Cte("__ca", ca),
-                        new SqlWith.Cte("__ke", structRows(cteRows("__ce", ce))),
-                        new SqlWith.Cte("__ka", structRows(cteRows("__ca", ca)))),
-                cross(cross(cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null)),
-                        new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a", null)),
-                same, List.of(
-                        held("e", eList, eKind), held("a", aList, aKind)),
-                new Compared(List.of(new SqlWith.Cte("__ie", eRows), new SqlWith.Cte("__ia", aRows),
-                        new SqlWith.Cte("__ce", ce), new SqlWith.Cte("__ca", ca),
-                        new SqlWith.Cte("__ke", structRows(cteRows("__ce", ce))),
-                        new SqlWith.Cte("__ka", structRows(cteRows("__ca", ca)))),
-                        cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null)),
-                        same, List.of()));
-    }
-
-    /**
      * Two instances of one declared class the same, INSIDE AN EXPRESSION (the edition program's step 6, the one
-     * equality): each one's typed leaves as {@link #instances} reads a side's -- the class it actually is
+     * equality): each one's typed leaves as {@code InstanceEquality.sameInstances} reads a side's -- the class it actually is
      * ({@code __type}), then each key property (a nested keyed instance's leaves in its place), or its identity for a
      * class with no key -- every pair of leaves not distinct. So a Decimal key is compared by its number and a
      * date-time key by its instant, where a text of the keys kept how each was written, and two instances of two
@@ -532,14 +547,22 @@ public final class SideEqualities {
      */
     static @com.legend.base.Nullable SqlExpr sameInstance(SqlExpr e, SqlType.Struct es, SqlExpr a, SqlType.Struct as,
             com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
+        return sameInstance(e, es, false, a, as, false, keys);
+    }
+
+    /** {@link #sameInstance(SqlExpr, SqlType.Struct, SqlExpr, SqlType.Struct, com.legend.compiler.element.EqualityKeys)};
+     *  an identity read plain where its side's plan proves the product tracks it ({@link #tracked}). */
+    static @com.legend.base.Nullable SqlExpr sameInstance(SqlExpr e, SqlType.Struct es, boolean eTracked, SqlExpr a,
+            SqlType.Struct as, boolean aTracked,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
         List<List<Leaf>> both = pairedLeaves(es, as, keys);
         if (both == null) {
             return null;
         }
         SqlExpr same = null;
         for (int i = 0; i < both.get(0).size(); i++) {
-            SqlExpr one = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, leafOf(e, both.get(0).get(i)),
-                    leafOf(a, both.get(1).get(i)));
+            SqlExpr one = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, leafOf(e, both.get(0).get(i), eTracked),
+                    leafOf(a, both.get(1).get(i), aTracked));
             same = same == null ? one : SqlExpr.Call.of(SqlFn.AND, same, one);
         }
         return same;
@@ -548,15 +571,59 @@ public final class SideEqualities {
     /** One leaf of {@code instance}, read as {@link #leafRows} reads it: the field down its path, cast to its
      *  layout's type; an identity behind the guard that raises where the product does not track it. */
     private static SqlExpr leafOf(SqlExpr instance, Leaf leaf) {
+        return leafOf(instance, leaf, false);
+    }
+
+    /** {@link #leafOf(SqlExpr, Leaf)}; an identity read plain where {@code tracked} (the side's plan proves the
+     *  product tracks it, {@link #tracked}), as {@link #leafRows} reads it. */
+    static SqlExpr leafOf(SqlExpr instance, Leaf leaf, boolean tracked) {
         SqlExpr v = instance;
         for (String step : leaf.path()) {
             v = new SqlExpr.StructGet(v, step);
         }
         String last = leaf.path().get(leaf.path().size() - 1);
         return last.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
-                ? new SqlExpr.Cast(CanonicalRenderSql.trackedId(((SqlExpr.StructGet) v).source()),
+                ? new SqlExpr.Cast(tracked ? v : CanonicalRenderSql.trackedId(((SqlExpr.StructGet) v).source()),
                         SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
                 : new SqlExpr.Cast(v, leaf.type(), SqlExpr.Reason.JUDGE);
+    }
+
+    /** The SQL type {@link #leafOf} reads {@code leaf} as: an identity its text, any other leaf its layout's type. */
+    static SqlType leafType(Leaf leaf) {
+        return leaf.path().get(leaf.path().size() - 1).equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
+                ? SqlType.Scalar.VARCHAR : leaf.type();
+    }
+
+    /** Whether two sides are instances of ONE declared class, a model class's or a Pair's, that an equality
+     *  compares by their keys or their identity ({@code InstanceEquality.sameInstances}; the last arm of
+     *  {@link #pair}): never a table, a value declared Any, or a model element carried by its path. */
+    public static boolean instancesOfOneClass(TypedSpec left, TypedSpec right) {
+        Type l = left.info().type();
+        Type r = right.info().type();
+        String lf = EqualityKeys.fqnOf(l);
+        // (which of these a database holds as a struct of its properties is its layout's to say: a list, a map and
+        // an element carried by its path are no struct, and the callers read that)
+        return lf != null && lf.equals(EqualityKeys.fqnOf(r)) && !Type.isRelation(l) && !Type.isRelation(r)
+                && !PlatformTypes.isAny(l) && !PlatformTypes.isAny(r) && !PlatformTypes.isVariant(l)
+                && !PlatformTypes.isVariant(r) && !PlatformTypes.isNil(l) && !PlatformTypes.isNil(r);
+    }
+
+    /** Whether the planner stands aside, for two sides of instances, for the one
+     *  instruction over the two side VALUES ({@code InstanceEquality.sameInstances}): each side's rows hold a
+     *  struct, and the two layouts' leaves pair -- what the value form asks of the same rows. */
+    public static boolean instancesAsValues(TypedSpec left, SqlQuery leftPlan, TypedSpec right, SqlQuery rightPlan,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
+        SqlQuery l = valueRows(leftPlan);
+        SqlQuery r = valueRows(rightPlan);
+        return instancesOfOneClass(left, right) && l != null && r != null
+                && l.outputs().get(0).type() instanceof SqlType.Struct ls
+                && r.outputs().get(0).type() instanceof SqlType.Struct rs && pairedLeaves(ls, rs, keys) != null;
+    }
+
+    /** {@link #leafRows} over a side's typed rows that are a query of their own ({@code rows}: {@code __o},
+     *  {@code __rn}), read as a sub-query: the rows that ride the "same values" instruction for a side of instances. */
+    static SqlQuery leafRowsOf(SqlQuery rows, List<Leaf> leaves, boolean tracked) {
+        return leafRows(new SqlSource.Subselect(rows, "i", null), rows, leaves, tracked);
     }
 
     /** Two layouts' leaves as the host restricts them, path by path of one kind ({@link #leaves}); null where a leaf
@@ -572,59 +639,13 @@ public final class SideEqualities {
         for (int i = 0; i < eLeaves.size(); i++) {
             Leaf el = eLeaves.get(i);
             Leaf al = aLeaves.get(i);
-            if (!el.path().equals(al.path()) || !java.util.Objects.equals(leafClass(el.type()), leafClass(al.type()))) {
+            // (an Integer leaf against a Decimal one: two exact numbers, one family, compared by their value)
+            if (!el.path().equals(al.path()) || !(java.util.Objects.equals(leafClass(el.type()), leafClass(al.type()))
+                    || exactLeaf(el.type()) && exactLeaf(al.type()))) {
                 return null;
             }
         }
         return List.of(eLeaves, aLeaves);
-    }
-
-    /**
-     * {@code assertContains}' TYPED member over instances of one class -- a model class's or a Pair's, each a struct
-     * (item 3's S4, the last families): the collection's instances and the value's as rows of their typed leaves, as
-     * {@link #instances} reads them (the host's {@code Equality}: the classifier, then the keys or the identity);
-     * the verdict whether some instance's leaves are each {@code IS NOT DISTINCT FROM} the value's, under {@code want};
-     * both sides' instances ride the failure whole, as the host's record writes them. Null where {@link
-     * #typedInstances} has no reading.
-     */
-    public static @com.legend.base.Nullable Compared containsInstances(SqlQuery collWrapped, Type collKind,
-            SqlQuery valWrapped, Type valKind, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
-        SqlQuery cRows = valueRows(collWrapped);
-        SqlQuery vRows = valueRows(valWrapped);
-        if (cRows == null || vRows == null || !(cRows.outputs().get(0).type() instanceof SqlType.Struct cs)
-                || !(vRows.outputs().get(0).type() instanceof SqlType.Struct vs)) {
-            return null;
-        }
-        List<List<Leaf>> both = pairedLeaves(cs, vs, keys);
-        if (both == null) {
-            return null;
-        }
-        SqlQuery cl = leafRows("__xc", cRows, both.get(0), tracked(collWrapped));
-        SqlQuery vl = leafRows("__xv", vRows, both.get(1), tracked(valWrapped));
-        SqlExpr on = null;
-        for (int i = 0; i < both.get(0).size(); i++) {
-            SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("__c", cl.outputs(), "c" + i),
-                    SqlExpr.Column.of("__v", vl.outputs(), "c" + i));
-            on = on == null ? same : SqlExpr.Call.of(SqlFn.AND, on, same);
-        }
-        OutputCol mOut = new OutputCol("__m", SqlType.Scalar.BIGINT, false);
-        SqlSource matched = new SqlSource.Join(
-                new SqlSource.Table("__c", "__c", cl.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
-                new SqlSource.Table("__v", "__v", vl.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
-                SqlSource.Join.Kind.INNER, java.util.Objects.requireNonNull(on));
-        SqlSelect m = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
-                false, List.of()), "__m", mOut)), false, matched, null, List.of(), null, null, List.of(), null, null,
-                List.of(mOut));
-        SqlExpr some = SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Column.of("m", m.outputs(), "__m"),
-                new SqlExpr.IntLit(0));
-        SqlQuery cList = listed("__xc", cRows);
-        SqlQuery vList = listed("__xv", vRows);
-        return new Compared(List.of(new SqlWith.Cte("__xc", cRows), new SqlWith.Cte("__xv", vRows),
-                        new SqlWith.Cte("__c", cl), new SqlWith.Cte("__v", vl)),
-                cross(cross(new SqlSource.Subselect(m, "m", null), new SqlSource.Subselect(cList, "c", null)),
-                        new SqlSource.Subselect(vList, "v", null)),
-                some, List.of(
-                        held("c", cList, collKind), held("v", vList, valKind)));
     }
 
     /** A side's keyed instances ({@code rows}, read as {@code cte}) each restricted to its classifier and its keys, a
@@ -632,13 +653,18 @@ public final class SideEqualities {
      *  ({@code HostJudgments.restrictOne}). */
     static SqlQuery restrictedRows(String cte, SqlQuery rows, SqlType.Struct layout,
             com.legend.compiler.element.EqualityKeys keys) {
+        return restrictedRows(new SqlSource.Table(cte, "i", rows.outputs(), false, java.util.Map.of(),
+                com.legend.sql.NameQuoting.BARE), rows, layout, keys);
+    }
+
+    private static SqlQuery restrictedRows(SqlSource from, SqlQuery rows, SqlType.Struct layout,
+            com.legend.compiler.element.EqualityKeys keys) {
         SqlExpr held = restricted(SqlExpr.Column.of("i", rows.outputs(), O), layout, keys);
         OutputCol oOut = new OutputCol(O, held.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : layout,
                 false);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         return new SqlSelect(List.of(new SqlSelect.Projection(held, O, oOut), new SqlSelect.Projection(
-                SqlExpr.Column.of("i", rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, "i",
-                rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null,
+                SqlExpr.Column.of("i", rows.outputs(), RN), RN, rnOut)), false, from, null, List.of(), null,
                 null, List.of(), null, null, List.of(oOut, rnOut));
     }
 
@@ -721,6 +747,11 @@ public final class SideEqualities {
         };
     }
 
+    /** Whether a leaf's SQL type holds an exact number: a whole number's or a Decimal's. */
+    private static boolean exactLeaf(SqlType t) {
+        return "Integer".equals(leafClass(t)) || "Decimal".equals(leafClass(t));
+    }
+
     static @com.legend.base.Nullable SqlType fieldType(SqlType.Struct st, String name) {
         for (SqlType.Struct.Field f : st.fields()) {
             if (f.name().equals(name)) {
@@ -785,6 +816,11 @@ public final class SideEqualities {
      *  plain where {@code tracked} (the side's plan proves it, {@link #tracked}), else behind the guard that raises
      *  where it does not ({@code CanonicalRenderSql.trackedId}). */
     static SqlQuery leafRows(String cte, SqlQuery rows, List<Leaf> leaves, boolean tracked) {
+        return leafRows(new SqlSource.Table(cte, "i", rows.outputs(), false, java.util.Map.of(),
+                com.legend.sql.NameQuoting.BARE), rows, leaves, tracked);
+    }
+
+    private static SqlQuery leafRows(SqlSource from, SqlQuery rows, List<Leaf> leaves, boolean tracked) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         List<OutputCol> outs = new ArrayList<>();
         for (int i = 0; i < leaves.size(); i++) {
@@ -807,8 +843,7 @@ public final class SideEqualities {
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         ps.add(new SqlSelect.Projection(SqlExpr.Column.of("i", rows.outputs(), RN), RN, rnOut));
         outs.add(rnOut);
-        return new SqlSelect(ps, false, new SqlSource.Table(cte, "i", rows.outputs(), false, java.util.Map.of(),
-                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, outs);
+        return new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null, outs);
     }
 
     /** Whether a tagged side ({@code wrapped}'s first column a {@link SqlType.Tagged}) or a side of one typed class
@@ -2150,7 +2185,9 @@ public final class SideEqualities {
         public @com.legend.base.Nullable Compared compared(SqlQuery ePlan, SqlQuery aPlan, boolean multiset) {
             return switch (form) {
                 case TAGGED -> tagged(ePlan, e, aPlan, a, multiset);
-                case INSTANCES -> instances(ePlan, e, aPlan, a, keys, multiset);
+                // (two sides of instances are the one instruction over the two side values, where the comparison
+                // is lowered: InstanceEquality.sameInstances; no statement of their own -- step 6B part 2)
+                case INSTANCES -> null;
                 case COLLECTIONS -> collections(ePlan, e, aPlan, a, multiset);
                 case VALUES, DATES, EMPTY_ONLY -> values(ePlan, e, aPlan, a, multiset, form == Form.EMPTY_ONLY);
                 case INSTANCE_TEXTS -> instanceTexts(ePlan, e, aPlan, a, multiset);

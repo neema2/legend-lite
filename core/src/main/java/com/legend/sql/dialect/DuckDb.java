@@ -903,9 +903,12 @@ public class DuckDb extends AnsiSqlRenderer {
         SqlExpr written = new com.legend.sql.SqlRewriter() {
             @Override
             protected SqlExpr expr(SqlExpr x) {
+                // (a membership's riding rows likewise: DuckDB writes the needle and the list value)
                 return x instanceof SqlExpr.Call c && c.args().size() == 4
                         && (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER)
-                        ? new SqlExpr.Call(c.fn(), c.args().subList(0, 2)) : x;
+                        ? new SqlExpr.Call(c.fn(), c.args().subList(0, 2))
+                        : x instanceof SqlExpr.Membership m && m.rows() != null
+                        ? new SqlExpr.Membership(m.needle(), m.collection()) : x;
             }
 
             SqlExpr of(SqlExpr x) {

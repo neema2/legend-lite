@@ -48,4 +48,12 @@ public interface WholeComparisons {
      *  or the element the comparison stands in, draws a value afresh where it is written, or its values have no
      *  typed column: no statement of its own gives its rows. */
     @Nullable SqlQuery sideRows(com.legend.compiler.spec.typed.TypedSpec side);
+
+    /** Whether every instance {@code side} holds has an identity the product tracks, proven from the side's own
+     *  rows ({@code SideEqualities.tracked}): its identity is then read plain, never behind the guard that raises
+     *  where the product does not track it. False where the side has no rows of its own. */
+    default boolean tracksIdentity(com.legend.compiler.spec.typed.TypedSpec side) {
+        SqlQuery rows = sideRows(side);
+        return rows != null && SideEqualities.tracked(rows);
+    }
 }

@@ -247,6 +247,27 @@ public final class DatabaseJudge {
                         JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
             }
         }
+        if (tp != null && tp.instances() && !anyAny) {
+            // two sides of instances of one class (step 6B part 2, objects): the product's own comparison of the
+            // two, each side bound once as the record reads it -- InstanceEquality.sameInstances reduces each
+            // instance to what it is compared by, in a query and here
+            TypedSpec expected = eSpec;
+            TypedSpec actual = aSpec;
+            TypedSpec same = canonicalOrder
+                    ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, actual, specs, env.assertAt())
+                    : com.legend.compiler.spec.VerdictQueries.sameSides(expected, actual, specs, env.assertAt());
+            com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundInstances(
+                    we.plan(), re.kinds().get(ie), atMostOne(expected), wa.plan(), ra.kinds().get(ia),
+                    atMostOne(actual), tp.pair().keys(), false,
+                    (e, a) -> overBound(same, expected, expected, e, actual, actual, a, env));
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typed(compared, wantEqual,
+                    true);
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        tp.family(canonicalOrder, name), wantEqual, JudgmentFacts.sideFacts(eSpec),
+                        JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
+            }
+        }
         if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny)
                 || tp.instanceTexts() || tp.kindsDiffer()
                 || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))) {
@@ -279,7 +300,14 @@ public final class DatabaseJudge {
         for (TypedSpec side : List.of(aBound, aView)) {
             rows.put(side, a.rows());
         }
-        return com.legend.planner.SidePlanner.overSides(comparison, values, rows, env.plan());
+        java.util.Set<TypedSpec> tracked = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        if (e.tracked()) {
+            tracked.addAll(List.of(eBound, eView));
+        }
+        if (a.tracked()) {
+            tracked.addAll(List.of(aBound, aView));
+        }
+        return com.legend.planner.SidePlanner.overSides(comparison, values, rows, tracked, env.plan());
     }
 
     /** Whether {@code side} is written as number literals alone: one, or a list that holds one. */
@@ -691,19 +719,32 @@ public final class DatabaseJudge {
                         JudgmentFacts.sideFacts(val), null, -1), c.on(env));
             }
         }
-        // TYPED (item 3's S4): some element of the collection IS NOT DISTINCT FROM the value, both of one kind, or
-        // instances of one class each read as its typed leaves (as equality reads them)
+        if (!literal && !cr.tdsWrapped() && c.side() != null && v.side() != null
+                && com.legend.lowering.SideEqualities.instancesOfOneClass(coll, val)) {
+            // an instance among instances of its class (step 6B part 2, objects): the product's own contains of the
+            // two, each side bound once -- InstanceEquality.memberInstances reduces the value and each instance to
+            // what an instance is compared by, in a query and here; both sides ride the failure whole
+            TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(coll, val, specs, env.assertAt());
+            com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundInstances(
+                    c.side().plan(), coll.info().type(), atMostOne(coll), v.side().plan(), val.info().type(),
+                    atMostOne(val), com.legend.compiler.element.EqualityKeys.resolve(env.ctx(), coll.info().type()),
+                    true, (list, one) -> overBound(among, coll, coll, list, val, val, one, env));
+            com.legend.lowering.VerdictSql.TypedRow bound = com.legend.lowering.VerdictSql.typed(compared, !negated,
+                    true);
+            if (bound != null) {
+                return runTyped(name, bound, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.CONTAINS, !negated, JudgmentFacts.sideFacts(coll),
+                        JudgmentFacts.sideFacts(val), null, -1), c.on(env));
+            }
+        }
+        // TYPED (item 3's S4): some element of the collection IS NOT DISTINCT FROM the value, both of one kind
         com.legend.compiler.element.type.Type ck = com.legend.lowering.SideEqualities.typedClass(oneKind(cr));
-        String cf = com.legend.compiler.element.EqualityKeys.fqnOf(coll.info().type());
         com.legend.lowering.VerdictSql.TypedRow typed = literal || cr.tdsWrapped() ? null
                 // (an Integer among Decimals, a Decimal among Integers: two exact numbers, the same by their value)
                 : ck != null && com.legend.lowering.SideEqualities.oneValueKind(ck, com.legend.lowering.SideEqualities.typedClass(oneKind(vr)))
                 ? com.legend.lowering.VerdictSql.typedContains(java.util.Objects.requireNonNull(c.side()).plan(), ck,
                         java.util.Objects.requireNonNull(v.side()).plan(), java.util.Objects.requireNonNull(com.legend.lowering.SideEqualities.typedClass(oneKind(vr))), !negated)
-                : cf != null && cf.equals(com.legend.compiler.element.EqualityKeys.fqnOf(val.info().type()))
-                ? com.legend.lowering.VerdictSql.typedContainsInstances(java.util.Objects.requireNonNull(c.side()).plan(),
-                        coll.info().type(), java.util.Objects.requireNonNull(v.side()).plan(), val.info().type(),
-                        com.legend.compiler.element.EqualityKeys.resolve(env.ctx(), coll.info().type()), !negated) : null;
+                : null;
         if (typed != null) {
             return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
                     com.legend.testexecutionplan.RootLoop.Family.CONTAINS, !negated, JudgmentFacts.sideFacts(coll),

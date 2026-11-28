@@ -237,10 +237,17 @@ final class InstanceEquality {
     private static @com.legend.base.Nullable Function<SqlExpr, SqlExpr> equalValue(String cf, Type t, SqlType et,
             Function<Type, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys> keysOf,
             String operation) {
+        EqualityKeys keys = keysOf.apply(t);
+        // by its typed leaves, as == of two lists reads each instance (step 6B part 2: the text of the keys below
+        // kept how each key was written -- measured 2026-11-28, indexOf missed a Decimal key written at another
+        // scale); a leaf with no typed reading keeps the text
+        Function<SqlExpr, SqlExpr> typed = reducedBy(et, keys);
+        if (typed != null) {
+            return typed;
+        }
         if (!hasIdentityField(et)) {
             return null;
         }
-        EqualityKeys keys = keysOf.apply(t);
         return ref -> {
             if (keys == null) {
                 return CanonicalRenderSql.trackedId(ref);
@@ -328,6 +335,15 @@ final class InstanceEquality {
             // equal(): classifiers must match, so no element is the value
             return new SqlExpr.IntLit(-1);
         }
+        if (et instanceof SqlType.Struct es && vt instanceof SqlType.Struct vs) {
+            // (the collection's layout and the value's, leaf against leaf: the two may hold a key in two SQL types)
+            List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(es, vs, keysOf.apply(value.info()
+                    .type()));
+            if (both != null) {
+                valueOf = ref -> reduced(ref, both.get(0), false);
+                needleOf = ref -> reduced(ref, both.get(1), false);
+            }
+        }
         return SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.COALESCE,
                 SqlExpr.Call.of(SqlFn.LIST_POSITION,
                         equalValues(PureSql.asList(scalar.apply(coll), true), et, valueOf, freshVar),
@@ -360,6 +376,162 @@ final class InstanceEquality {
                         freshVar), empty),
                 SqlExpr.Call.of(SqlFn.COALESCE, equalValues(PureSql.asList(scalar.apply(r), isMany(r)), rt, rv,
                         freshVar), empty));
+    }
+
+    /**
+     * TWO SIDES OF INSTANCES OF ONE CLASS THE SAME, AS THE ONE "SAME VALUES" INSTRUCTION (step 6B part 2, objects;
+     * the user, 2026-11-28: "reduce each side to what it is compared by, then one instruction"): at least one side a
+     * list; each instance -- a model class's or a Pair's -- reduced to what it is compared by, the class it
+     * actually is and then its keys by value, or its identity where its class has no key (the leaves
+     * {@link SideEqualities#pairedLeaves} names, each read as {@link SideEqualities#leafOf} reads it: a Decimal key
+     * by its number, a date-time key by its instant); the instruction, in order or in any order, over the two
+     * lists of reduced instances, wherever the comparison stands. Each side's rows ride reduced the same way where
+     * the lowering has them ({@code sideRows}: a side that reads nothing of the row it stands in), for a database
+     * that compares rows. Until this piece a query's comparison of two such lists was a statement of its own
+     * ({@code SideEqualities.instances}), which a list's function cannot hold on a database that runs no sub-query
+     * there, and inside a row it was the text of the keys ({@link #collectionsEqual}), which kept how each key was
+     * written. Null where the two are no such pair, or a leaf has no typed reading here (a to-many key, a key slot
+     * of a polymorphic or Any class, a JSON field, a keyless class with no identity): the caller's other rules
+     * answer, or refuse by name.
+     *
+     * @param bound whether the two sides are bound once to a statement's columns ({@code Lowerer.overSides})
+     */
+    static @com.legend.base.Nullable SqlExpr sameInstances(TypedNativeCall n, boolean anyOrder,
+            Function<Type, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys> keysOfModel,
+            Function<Type, SqlType> sqlTypeOf, Function<TypedSpec, SqlExpr> scalar, Supplier<String> freshVar,
+            Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows,
+            java.util.function.Predicate<TypedSpec> tracksIdentity, boolean bound) {
+        if (n.args().size() != 2) {
+            return null;
+        }
+        TypedSpec l = n.args().get(0);
+        TypedSpec r = n.args().get(1);
+        if (!SideEqualities.instancesOfOneClass(l, r)) {
+            return null;
+        }
+        boolean oneEach = !isMany(l) && !isMany(r);
+        if (oneEach && (anyOrder || instanceFqn(l) != null && instanceFqn(r) != null)) {
+            // (two single instances of a model class are equality()'s, which folds two declared classes and reads
+            // an identity; hasSameElements compares lists)
+            return null;
+        }
+        // (two single values in a query need no rows: none ride their comparison; bound once, their rows say how
+        // each is held)
+        com.legend.sql.SqlQuery lRows = oneEach && !bound ? null : sideRows.apply(l);
+        com.legend.sql.SqlQuery rRows = lRows == null ? null : sideRows.apply(r);
+        // (each side's layout as its own rows hold it, where it has rows: what the planner read to stand aside)
+        SqlType lt = lRows != null && rRows != null ? lRows.outputs().get(0).type() : sqlTypeOf.apply(l.info().type());
+        SqlType rt = lRows != null && rRows != null ? rRows.outputs().get(0).type() : sqlTypeOf.apply(r.info().type());
+        if (!(lt instanceof SqlType.Struct ls) || !(rt instanceof SqlType.Struct rs)) {
+            return null;
+        }
+        EqualityKeys keys = keysOfModel.apply(l.info().type());
+        com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(keys);
+        List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(ls, rs, keys);
+        if (both == null) {
+            return null;
+        }
+        boolean rows = lRows != null && rRows != null;
+        boolean lTracked = tracksIdentity.test(l);
+        boolean rTracked = tracksIdentity.test(r);
+        SqlExpr lOne = scalar.apply(l);
+        SqlExpr rOne = scalar.apply(r);
+        if (oneEach && !listValue(lOne) && !listValue(rOne)) {
+            // one value each (two Pairs, two optional instances): every pair of leaves not distinct, as two single
+            // instances of a model class are compared (SideEqualities.sameInstance)
+            return SideEqualities.sameInstance(lOne, ls, lTracked, rOne, rs, rTracked, keys);
+        }
+        SqlExpr lv = comparedBy(l, lOne, ls, both.get(0), lTracked, freshVar);
+        SqlExpr rv = comparedBy(r, rOne, rs, both.get(1), rTracked, freshVar);
+        return new SqlExpr.Call(anyOrder ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER, !rows ? List.of(lv, rv)
+                : List.of(lv, rv,
+                        new SqlExpr.ScalarSubquery(SideEqualities.leafRowsOf(lRows, both.get(0), lTracked)),
+                        new SqlExpr.ScalarSubquery(SideEqualities.leafRowsOf(rRows, both.get(1), rTracked))));
+    }
+
+    /**
+     * AN INSTANCE AMONG INSTANCES OF ITS CLASS ({@code contains}, {@code in}; step 6B part 2, objects): the value
+     * and each of the collection's instances reduced to what an instance is compared by, as {@link #sameInstances}
+     * reduces them -- the class it actually is, then its keys by value or its identity -- and the value's a member
+     * where some instance's leaves are each not distinct from its own. The collection's rows ride reduced the same
+     * way where the lowering has them, for a database with no list membership. Until this piece it was the text of
+     * the keys ({@link #contains}), which kept how each key was written. Null where the two are no such pair or a
+     * leaf has no typed reading here.
+     */
+    static @com.legend.base.Nullable SqlExpr memberInstances(TypedNativeCall n,
+            Function<Type, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys> keysOfModel,
+            Function<Type, SqlType> sqlTypeOf, Function<TypedSpec, SqlExpr> scalar, Supplier<String> freshVar,
+            Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows,
+            java.util.function.Predicate<TypedSpec> tracksIdentity, boolean bound) {
+        TypedSpec coll = Equalities.membershipList(n);
+        if (coll == null) {
+            return null;
+        }
+        TypedSpec needle = n.args().get(coll == n.args().get(0) ? 1 : 0);
+        if (!SideEqualities.instancesOfOneClass(coll, needle) || isMany(needle)) {
+            return null;
+        }
+        com.legend.sql.SqlQuery rows = sideRows.apply(coll);
+        com.legend.sql.SqlQuery held = bound ? sideRows.apply(needle) : null;
+        SqlType ct = rows != null ? rows.outputs().get(0).type() : sqlTypeOf.apply(coll.info().type());
+        SqlType nt = held != null ? held.outputs().get(0).type() : sqlTypeOf.apply(needle.info().type());
+        if (!(ct instanceof SqlType.Struct cs) || !(nt instanceof SqlType.Struct ns)) {
+            return null;
+        }
+        EqualityKeys keys = keysOfModel.apply(needle.info().type());
+        com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(keys);
+        List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(cs, ns, keys);
+        if (both == null) {
+            return null;
+        }
+        boolean cTracked = tracksIdentity.test(coll);
+        boolean nTracked = tracksIdentity.test(needle);
+        SqlExpr one = reduced(scalar.apply(needle), both.get(1), nTracked);
+        SqlExpr list = comparedBy(coll, scalar.apply(coll), cs, both.get(0), cTracked, freshVar);
+        return SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Membership(one, list,
+                rows == null ? null : new SqlExpr.ScalarSubquery(SideEqualities.leafRowsOf(rows, both.get(0),
+                        cTracked)), com.legend.sql.SqlTyping.UNKNOWN), new SqlExpr.BoolLit(false));
+    }
+
+    /** What ONE instance {@code ref} is compared by: a struct of its leaves ({@code c0, c1, ...}), each read as
+     *  {@link SideEqualities#leafOf} reads it. The one reduction every operation built on equal() over objects
+     *  reads: {@code ==} of two lists, {@code hasSameElements}, {@code contains}, {@code in}, {@code indexOf},
+     *  {@code removeDuplicates}, {@code isDistinct}. */
+    private static SqlExpr reduced(SqlExpr ref, List<SideEqualities.Leaf> leaves, boolean tracked) {
+        List<SqlExpr.StructLit.Field> fields = new java.util.ArrayList<>();
+        for (int i = 0; i < leaves.size(); i++) {
+            fields.add(new SqlExpr.StructLit.Field("c" + i, SideEqualities.leafOf(ref, leaves.get(i), tracked),
+                    SideEqualities.leafType(leaves.get(i))));
+        }
+        return new SqlExpr.StructLit(fields);
+    }
+
+    /** {@link #reduced} for the instances of ONE layout ({@code removeDuplicates}, {@code isDistinct}); null where a
+     *  leaf of it has no typed reading here. */
+    private static @com.legend.base.Nullable Function<SqlExpr, SqlExpr> reducedBy(SqlType et,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys) {
+        if (!(et instanceof SqlType.Struct st)) {
+            return null;
+        }
+        List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(st, st, keys);
+        return both == null ? null : ref -> reduced(ref, both.get(0), false);
+    }
+
+    /** Whether the SQL types {@code value} as a list. */
+    private static boolean listValue(SqlExpr value) {
+        return value.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array;
+    }
+
+    /** {@code value}, the instances {@code side} lowers to (a list, or the one instance of a side that holds one), as
+     *  the list of what each is compared by: a struct of its leaves ({@code c0, c1, ...}), an empty slot dropped. */
+    private static SqlExpr comparedBy(TypedSpec side, SqlExpr value, SqlType.Struct layout,
+            List<SideEqualities.Leaf> leaves, boolean tracked, Supplier<String> freshVar) {
+        // (a side bound once to its one list is a list whatever its type says of how many it holds)
+        SqlExpr list = CollectionLanes.compacted(side, PureSql.asList(value, isMany(side) || listValue(value)));
+        String y = freshVar.get();
+        SqlExpr element = SqlExpr.Column.of(null, y, layout, true, com.legend.sql.OutputCol.Origin.DERIVED);
+        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, list, new SqlExpr.Lambda(List.of(y),
+                reduced(element, leaves, tracked)));
     }
 
     private static boolean hasIdentityField(SqlType t) {

@@ -1840,6 +1840,17 @@ public final class CarrierStrategies extends SqlRewriter {
                     false);
             SqlExpr eq = SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, SqlExpr.Column.of("__m",
                     rows.subquery().outputs().get(0)), m.needle());
+            if (m.needle() instanceof SqlExpr.StructLit leaves && leaves.fields().stream().allMatch(f ->
+                    rows.subquery().outputs().stream().anyMatch(o -> o.name().equals(f.name())))) {
+                // a needle of several leaves (an instance reduced to what it is compared by; step 6B part 2): the
+                // rows hold one column a leaf, and a row is the needle where every leaf is not distinct from its own
+                eq = null;
+                for (SqlExpr.StructLit.Field f : leaves.fields()) {
+                    SqlExpr same = SqlExpr.Call.of(com.legend.sql.SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("__m",
+                            rows.subquery().outputs(), f.name()), f.value());
+                    eq = eq == null ? same : SqlExpr.Call.of(com.legend.sql.SqlFn.AND, eq, same);
+                }
+            }
             return new SqlExpr.Exists(new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one",
                     one)), false, new com.legend.sql.SqlSource.Subselect(rows.subquery(), "__m", null), eq, List.of(),
                     null, null, List.of(), null, null, List.of(one)));
