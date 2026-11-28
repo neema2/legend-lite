@@ -519,8 +519,11 @@ works well we can revisit"; the orchestrator agreed).
   pin growing for `[]->forAll(e | $e == 0)` and the cast-and-case census growing by two: the new rule for a side
   typed Nil had fired for ONE value typed Nil (an empty list's element); it now reads a list typed Nil alone and
   the query is as it was. The round restarted on `675d1b8dc` (`scratchpad/b114.out`); a fourth, narrow review of
-  the last fix pass is running. Measure (113 comparisons of the first two matrices): DuckDB 100 right everywhere,
-  none wrong; with the third matrix (the other comparing functions, slice 5's baseline) DuckDB 132 of 157.
+  the last fix pass is running. Measure (113 comparisons of the first two matrices): DuckDB 97 right everywhere,
+  12 answered in some places and refused by name in the others, 4 failing somewhere (the `map` defect's row, and
+  the three new empty-slot rows, which are right in every product place and fail under the Java checker's
+  `assertEquals` alone), none wrong, none contradicting; with the third matrix (the other comparing functions,
+  slice 5's baseline) DuckDB 132 of 157. (A first writing of this entry said "100 of 113": a miscount, corrected.)
   Open and recorded in `review-6`: the planner's reading of a `Number` side's carrier on three cloud databases; a
   NULL list against `[]` on DuckDB; and, seen in the measure, the Java checker erroring on `assertEquals` of a list
   with an empty slot (not checked whether as on the landed code).
