@@ -91,6 +91,11 @@ final class Scalars {
     /** Register every declaration in {@code groups} (the catalog's generated
      *  overload groups) under one semantic entry — by identity, never by a
      *  bare name (execution plan step 2, 2026-09-26). */
+    /** The characters Pure's {@code trim} strips that a text holds as white space: a tab, a line feed, a vertical
+     *  tab, a form feed, a carriage return and a space (each at most U+0020, the bound of Java's {@code String.trim},
+     *  which is legend-pure's {@code trim}). */
+    private static final String TRIMMED = "\t\n\u000B\f\r ";
+
     private static void family(SqlFn semantic, List<com.legend.model.FunctionId> ids) {
         if (ids.isEmpty()) {
             throw new IllegalStateException("empty overload group for " + semantic);
@@ -522,6 +527,19 @@ final class Scalars {
 
                 Map.entry(Pure.AT_VARIANT_CONVERT_TO_VARIANT, SqlFn.TO_VARIANT)).entrySet()) {
             family(e.getValue(), e.getKey());
+        }
+        // trim strips what Pure's trim strips at either end, not spaces alone (the user's ruling of 2026-11-28 on
+        // decision D8 of the edition program: "fix trim to match Pure (tabs and newlines too)"). Pure's trim is Java's
+        // String.trim (legend-pure 5.99.0: CoreHelper.java:1236 `return str.trim();`, the interpreter's Trim.java:51),
+        // which strips every character up to U+0020; a database's own one-argument trim strips spaces alone, so
+        // '\ta\n'->trim() answered three characters on every database. The set is given to the database's trim: the
+        // six such characters a text holds as white space ({@link #TRIMMED}). The other control characters below a
+        // space (U+0000 to U+0008, U+000E to U+001F) are not in it: written raw in every statement that trims, they
+        // would put an escape or a bell in the SQL text for a character no ordinary text begins or ends with (the
+        // residue is the register's, with the fix's row). ltrim and rtrim are other functions with another set in
+        // legend-pure (commons-lang's stripStart and stripEnd) and are not changed here.
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_TRIM) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.TRIM, args.get(0), new SqlExpr.StringLit(TRIMMED)));
         }
         // a MIXED list's hash (track L, 2026-10-29): the hash of its elements' hashes, each element hashed in its
         // own kind -- never of a spelling

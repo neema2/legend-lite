@@ -24,10 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * answer on ordinary text. The texts are plain ones as a printed table holds: letters, digits, commas, spaces and line
  * breaks. Where Java and lite's SQL part, Java's is legend-pure's own answer and {@code PrintTailTest} holds the case:
  * a character outside the basic plane (Java counts two, a database one), and {@code trim} of a text that begins or
- * ends with a line break or another character below a space -- legend-pure's {@code trim} is Java's
- * {@code String.trim}, which strips them, where lite's own SQL strips spaces alone (measured here 2026-11-26 on DuckDB,
- * H2 and SQLite: {@code 'id,name\n1,A\n2,B\n'->trim()} keeps its last line break in lite's SQL). So {@code trim} is compared
- * on the texts whose ends are spaces or printable.
+ * ends with a control character that is no white space (below U+0009, or U+000E to U+001F) -- legend-pure's
+ * {@code trim} is Java's {@code String.trim}, which strips every character up to a space, where lite's SQL strips
+ * the six white-space characters among them (a tab, the line breaks, a space: the user's ruling of 2026-11-28, D8;
+ * until then spaces alone, and {@code 'id,name\n1,A\n2,B\n'->trim()} kept its last line break, measured here
+ * 2026-11-26 on DuckDB, H2 and SQLite). So {@code trim} is compared on texts whose ends are white space or printable.
  *
  * <p>WHERE THEY PART, each database's answer is RECORDED, one per case per database (the audit's re-check of slice 2,
  * 2026-11-26, its S7: a test here had accepted any of several answers and any exception): the {@code tail.*} cases of
@@ -56,15 +57,16 @@ class PrintTailParityTest {
         steps.put("->indexOf(',')", new PrintTail.IndexOf(",", null));
         steps.put("->indexOf('zz')", new PrintTail.IndexOf("zz", null));
         steps.put("->indexOf(',', 4)", new PrintTail.IndexOf(",", 4L));
-        List<String> texts = List.of("#TDS\n   id,name\n   1,A\n   2,B\n#", "id,name\n1,A\n2,B\n", "  1,A  ", "x");
+        // (a text that begins or ends with a line break, a tab or a carriage return is trimmed alike since the
+        // user's ruling of 2026-11-28, D8: lite's trim strips what Pure's does; until then such a text was skipped
+        // under trim here, lite's SQL keeping it)
+        List<String> texts = List.of("#TDS\n   id,name\n   1,A\n   2,B\n#", "id,name\n1,A\n2,B\n", "  1,A  ", "x",
+                "\t 1,A \r\n", "\n\n", " \t ");
         try (Connection c = backend.open()) {
             for (String text : texts) {
                 for (var e : steps.entrySet()) {
-                    if (e.getValue() instanceof PrintTail.Trim && (text.charAt(0) < ' '
-                            || text.charAt(text.length() - 1) < ' ')) {
-                        continue;
-                    }
-                    String query = "|'" + text.replace("\n", "\\n") + "'" + e.getKey();
+                    String query = "|'" + text.replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r") + "'"
+                            + e.getKey();
                     Object database = Lean.run(model, query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
                     assertEquals(String.valueOf(e.getValue().applied(text)), String.valueOf(database),
                             backend.name() + ": " + query);
