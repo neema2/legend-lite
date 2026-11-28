@@ -149,6 +149,20 @@ final class InstanceEquality {
                     CanonicalRenderSql.trackedId(scalar.apply(r)));
         }
         if (!lf.equals(rf)) {
+            // (two DECLARED classes are two classes only where each side is built where it stands: a value declared
+            // its parent's class holds the class it actually is -- measured 2026-11-28, a child among a list typed
+            // its parent's answered false by this fold. Such a pair is compared by its leaves, the class each
+            // actually is first, where the two classes have one reading)
+            if (!(instanceLiteral(l) && instanceLiteral(r)) && lt instanceof SqlType.Struct ls
+                    && rt instanceof SqlType.Struct rs) {
+                EqualityKeys lk = keysOf.apply(l.info().type());
+                if (SideEqualities.oneReadingOfTwoClasses(ls, lk, rs, keysOf.apply(r.info().type()))) {
+                    SqlExpr typed = SideEqualities.sameInstance(scalar.apply(l), ls, scalar.apply(r), rs, lk);
+                    if (typed != null) {
+                        return typed;
+                    }
+                }
+            }
             // the engine's exact-classifier FALSE fold — witnessed
             // static-exact on the identity lane only; on the value
             // lane a supertype-stamped alias could still be the same
@@ -406,7 +420,7 @@ final class InstanceEquality {
         }
         TypedSpec l = n.args().get(0);
         TypedSpec r = n.args().get(1);
-        if (!SideEqualities.instancesOfOneClass(l, r)) {
+        if (!SideEqualities.comparableInstances(l, r)) {
             return null;
         }
         boolean oneEach = !isMany(l) && !isMany(r);
@@ -427,6 +441,10 @@ final class InstanceEquality {
         }
         EqualityKeys keys = keysOfModel.apply(l.info().type());
         com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(keys);
+        if (!SideEqualities.instancesOfOneClass(l, r)
+                && !SideEqualities.oneReadingOfTwoClasses(ls, keys, rs, keysOfModel.apply(r.info().type()))) {
+            return null;
+        }
         List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(ls, rs, keys);
         if (both == null) {
             return null;
@@ -468,7 +486,7 @@ final class InstanceEquality {
             return null;
         }
         TypedSpec needle = n.args().get(coll == n.args().get(0) ? 1 : 0);
-        if (!SideEqualities.instancesOfOneClass(coll, needle) || isMany(needle)) {
+        if (!SideEqualities.comparableInstances(coll, needle) || isMany(needle)) {
             return null;
         }
         com.legend.sql.SqlQuery rows = sideRows.apply(coll);
@@ -480,6 +498,10 @@ final class InstanceEquality {
         }
         EqualityKeys keys = keysOfModel.apply(needle.info().type());
         com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(keys);
+        if (!SideEqualities.instancesOfOneClass(coll, needle)
+                && !SideEqualities.oneReadingOfTwoClasses(cs, keysOfModel.apply(coll.info().type()), ns, keys)) {
+            return null;
+        }
         List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(cs, ns, keys);
         if (both == null) {
             return null;

@@ -608,6 +608,37 @@ public final class SideEqualities {
                 && !PlatformTypes.isVariant(r) && !PlatformTypes.isNil(l) && !PlatformTypes.isNil(r);
     }
 
+    /** Whether two sides are instances an equality may compare by their keys or their identity
+     *  ({@code InstanceEquality}): of one declared class ({@link #instancesOfOneClass}), or of two -- a value
+     *  declared its parent's class holds the class it actually is, which the comparison reads first, so the two are
+     *  compared where {@link #oneReadingOfTwoClasses} holds. Never a table, a value declared Any, a Variant. */
+    public static boolean comparableInstances(TypedSpec left, TypedSpec right) {
+        Type l = left.info().type();
+        Type r = right.info().type();
+        return EqualityKeys.fqnOf(l) != null && EqualityKeys.fqnOf(r) != null && !Type.isRelation(l)
+                && !Type.isRelation(r) && !PlatformTypes.isAny(l) && !PlatformTypes.isAny(r)
+                && !PlatformTypes.isVariant(l) && !PlatformTypes.isVariant(r) && !PlatformTypes.isNil(l)
+                && !PlatformTypes.isNil(r);
+    }
+
+    /** Whether instances declared of TWO classes have one reading: each layout carries the class its instance
+     *  actually is (compared first, so two classes are never the same), and the two classes declare the same keys
+     *  (a class and one of its own that adds none; two with no key, by their identity). Where it does not hold
+     *  the caller keeps its other rules. */
+    static boolean oneReadingOfTwoClasses(SqlType.Struct l, com.legend.compiler.element.@com.legend.base.Nullable
+            EqualityKeys lKeys, SqlType.Struct r, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
+            rKeys) {
+        if (fieldType(l, com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE) == null
+                || fieldType(r, com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE) == null) {
+            return false;
+        }
+        if (lKeys == null || rKeys == null) {
+            return lKeys == null && rKeys == null;
+        }
+        return lKeys.keys().stream().map(EqualityKeys.Key::name).toList()
+                .equals(rKeys.keys().stream().map(EqualityKeys.Key::name).toList());
+    }
+
     /** Whether the planner stands aside, for two sides of instances, for the one
      *  instruction over the two side VALUES ({@code InstanceEquality.sameInstances}): each side's rows hold a
      *  struct, and the two layouts' leaves pair -- what the value form asks of the same rows. */

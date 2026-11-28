@@ -518,7 +518,7 @@ public final class Lowerer {
     private @com.legend.base.Nullable SqlExpr sameInstances(TypedNativeCall n, boolean anyOrder,
             ColumnResolver columns) {
         if (instanceKeysOf == null || n.args().size() != 2 || verbatimEquality || legacyNullUnsafeEquals
-                || !SideEqualities.instancesOfOneClass(n.args().get(0), n.args().get(1))
+                || !SideEqualities.comparableInstances(n.args().get(0), n.args().get(1))
                 || Scalars.doorsRule(n, features, styled()) != null) {
             return null;
         }
@@ -552,7 +552,7 @@ public final class Lowerer {
      *  door named a rule for it. */
     private @com.legend.base.Nullable SqlExpr memberInstances(TypedNativeCall n, ColumnResolver columns) {
         if (instanceKeysOf == null || n.args().size() != 2 || Equalities.membershipList(n) == null
-                || !SideEqualities.instancesOfOneClass(n.args().get(0), n.args().get(1))
+                || !SideEqualities.comparableInstances(n.args().get(0), n.args().get(1))
                 || Scalars.doorsRule(n, features, styled()) != null) {
             return null;
         }

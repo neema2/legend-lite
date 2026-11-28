@@ -414,6 +414,14 @@ public final class EqualityMeasure {
         out.add(new Sides("keyed instances, a key differs", "F", "^t::Q(id=1, amt=1.0D)", "^t::Q(id=1, amt=1.5D)"));
         out.add(new Sides("keyed instances, a key differs at two scales", "F", "^t::Q(id=1, amt=1.25D)",
                 "^t::Q(id=1, amt=1.3D)"));
+        // the class an instance actually is, under the class it is declared: a child is never its parent's equal,
+        // and is another child's with its keys (the user, 2026-11-28: "Does it work for polymorphic at runtime too?")
+        out.add(new Sides("a child under its parent's type, and a parent", "F", "^t::Q2(id=1)->cast(@t::Q)",
+                "^t::Q(id=1)"));
+        out.add(new Sides("two children under their parent's type", "T", "^t::Q2(id=1, extra='x')->cast(@t::Q)",
+                "^t::Q2(id=1, extra='y')->cast(@t::Q)"));
+        out.add(new Sides("a child under its parent's type, and the child", "T", "^t::Q2(id=1)->cast(@t::Q)",
+                "^t::Q2(id=1, extra='y')"));
         // exact numbers of two types and two scales
         out.add(new Sides("int and decimal", "T", "1", "1D"));
         out.add(new Sides("decimal two scales", "T", "1.0D", "1.00D"));
@@ -621,6 +629,10 @@ public final class EqualityMeasure {
                 "[^t::Q(id=1, amt=1.00D), ^t::Q(id=2)]"));
         out.add(new Sides("lists of keyed instances, other order", "F",
                 "[^t::Q(id=1, amt=1.0D), ^t::Q(id=2)]->filter(q | true)", "[^t::Q(id=2), ^t::Q(id=1, amt=1.0D)]"));
+        out.add(new Sides("lists of a child and a parent, against two parents", "F",
+                "[^t::Q2(id=1), ^t::Q(id=2)]->filter(q | true)", "[^t::Q(id=1), ^t::Q(id=2)]"));
+        out.add(new Sides("lists of a child and a parent, the same", "T",
+                "[^t::Q2(id=1), ^t::Q(id=2)]->filter(q | true)", "[^t::Q2(id=1, extra='z'), ^t::Q(id=2)]"));
         out.add(new Sides("lists of pairs, Integer and Decimal", "T", "[pair(1, 1D), pair(2, 2.00D)]->filter(p | true)",
                 "[pair(1, 1), pair(2, 2)]"));
         // tables
