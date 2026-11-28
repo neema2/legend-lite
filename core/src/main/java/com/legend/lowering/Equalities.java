@@ -368,6 +368,60 @@ final class Equalities {
                 new SqlExpr.IntLit(0))) : isNone(lowered);
     }
 
+    /**
+     * A MEMBERSHIP TEST'S TWO SIDES, READ BY THE ONE EQUALITY (step 6B, slice 5, 2026-11-28): {@code contains},
+     * {@code in} and {@code indexOf} ask whether some element of a list is the same value as a needle, which is the
+     * equality rule's question (AGENTS.md: "{@code ==}, {@code !=}, {@code in}, {@code contains}, {@code indexOf} ...
+     * all hold to it"). Until this slice their rules asked the database's own membership with none of the readings
+     * {@link #equal} makes; measured: two values declared {@code Number} holding an Integer and a Float were found
+     * in one another by {@code contains}, a day was found among date-times under the abstract {@code Date}, and a
+     * date built to the hour met a held date-time as a text and failed when the query ran.
+     *
+     * @param never  where the rule answers "no element is the needle" by the two sides' kinds: a Boolean that is
+     *               false and still evaluates both sides ({@link #neverEqualButEvaluated}); else null
+     * @param list   the list as the membership reads it (date-times by their instants where the needle is one)
+     * @param needle the needle as the membership reads it
+     */
+    record Member(@com.legend.base.Nullable SqlExpr never, SqlExpr list, SqlExpr needle) {
+    }
+
+    /** {@link Member} of {@code list} and {@code needle} under the product's own rule. The kinds are read as
+     *  {@link #heldApart} reads them: where a side is typed only when the query runs and the query's text names
+     *  both kinds; a number literal the query writes still reads as the other family where it is exact there. */
+    static Member member(TypedSpec listSpec, SqlExpr list, TypedSpec needleSpec, SqlExpr needle) {
+        // (two WRITTEN sides that reach here in two kinds are two the type-checker met as values typed at run time,
+        // their upcasts gone: heldApart's own reading)
+        boolean bothWritten = literal(listSpec) && literal(needleSpec);
+        if (bothWritten || typedAtRunTime(listSpec) || typedAtRunTime(needleSpec)) {
+            String elements = MixedEncoding.kindOfElements(listSpec);
+            String sought = MixedEncoding.kindThroughUpcasts(needleSpec);
+            boolean numbers = elements != null && sought != null && MixedEncoding.numberTypePlace(elements) >= 0
+                    && MixedEncoding.numberTypePlace(sought) >= 0;
+            if (elements != null && sought != null && !NumberFamilies.TWO_FAMILIES.canEqual(elements, sought)
+                    && (bothWritten || !(numbers && (HeldKinds.readsAs(needleSpec, elements)
+                            || HeldKinds.readsAs(listSpec, sought))))) {
+                return new Member(neverEqualButEvaluated(list, needle), list, needle);
+            }
+        }
+        // a date-time carried as its written text against ones the database holds: by their instants, as == reads
+        // them (asInstants)
+        if (carriedAs(needle, SqlType.Scalar.TEMPORAL_TEXT) && listOf(list, SqlType.Scalar.TIMESTAMP)) {
+            return new Member(null, instantsOfHeld(list), SideEqualities.instantOfText(needle));
+        }
+        if (carriedAs(needle, SqlType.Scalar.TIMESTAMP) && listOf(list, SqlType.Scalar.TEMPORAL_TEXT)
+                && listSpec.info().type() == Type.Primitive.DATE_TIME) {
+            return new Member(null, instantsOfTexts(list), SideEqualities.instantOfHeld(needle));
+        }
+        // (a list of ONE the SQL writes as its one value: the two values by their instants, as == reads them)
+        if (carriedAs(needle, SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(list, SqlType.Scalar.TIMESTAMP)) {
+            return new Member(null, SideEqualities.instantOfHeld(list), SideEqualities.instantOfText(needle));
+        }
+        if (carriedAs(needle, SqlType.Scalar.TIMESTAMP) && carriedAs(list, SqlType.Scalar.TEMPORAL_TEXT)) {
+            return new Member(null, SideEqualities.instantOfText(list), SideEqualities.instantOfHeld(needle));
+        }
+        return new Member(null, list, needle);
+    }
+
     private static boolean typedAtRunTime(TypedSpec side) {
         Type t = side.info().type();
         return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE || PlatformTypes.isAny(t);
@@ -380,7 +434,10 @@ final class Equalities {
                 || side instanceof com.legend.compiler.spec.typed.TypedCString
                 || side instanceof com.legend.compiler.spec.typed.TypedCBoolean
                 || side instanceof com.legend.compiler.spec.typed.TypedCDate
-                || side instanceof TypedCollection;
+                // (a written list of written values: one that holds a column or a computation is a value, against
+                // which a written number still reads as its type)
+                || side instanceof TypedCollection c && !c.elements().isEmpty()
+                        && c.elements().stream().allMatch(Equalities::literal);
     }
 
     /**
@@ -676,7 +733,7 @@ final class Equalities {
     }
 
     /** Whether the SQL carries {@code e} as a list: its type says an array. */
-    private static boolean aList(SqlExpr e) {
+    static boolean aList(SqlExpr e) {
         return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array;
     }
 

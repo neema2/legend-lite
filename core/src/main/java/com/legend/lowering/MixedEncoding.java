@@ -540,10 +540,17 @@ final class MixedEncoding {
     /** The kind of the value {@code spec} holds where the query's own TEXT names it: its static kind
      *  ({@link #kindOf}); under an UPCAST to {@code Number}, {@code Any} or the abstract {@code Date}, the kind of
      *  what the upcast is written over ({@code 1->cast(@Number)} is the Integer, {@code [1D]->cast(@Number)} holds
-     *  Decimals); and through a {@code filter}, which keeps what its source holds. Null for anything else of such a
+     *  Decimals); through a {@code filter}, which keeps what its source holds; and through {@code toOne}, {@code
+     *  first}, {@code last}, {@code at} and {@code head}, which answer one of its values. Null for anything else of such a
      *  type -- a column (its type is its column's: {@link #kindOfValue}), a conditional, arithmetic, a parameter:
      *  the SQL type there is a promotion of several kinds or unknown, never the value's own, and no caller reads it
      *  as one (review 5 of step 6B's slice 3, blocker 1). */
+    /** The natives that answer one value of the list they are given, as it is. */
+    private static final java.util.Set<com.legend.model.FunctionId> ONE_OF_A_LIST = java.util.Set.copyOf(
+            com.legend.model.FunctionId.all(com.legend.builtin.Pure.AT_MULTIPLICITY_TO_ONE,
+                    com.legend.builtin.Pure.AT_COLLECTION_FIRST, com.legend.builtin.Pure.AT_COLLECTION_LAST,
+                    com.legend.builtin.Pure.AT_COLLECTION_AT, com.legend.builtin.Pure.AT_COLLECTION_HEAD));
+
     static @com.legend.base.Nullable String kindThroughUpcasts(TypedSpec spec) {
         String fixed = kindOf(spec);
         if (fixed != null) {
@@ -556,11 +563,39 @@ final class MixedEncoding {
             return null;
         }
         if (spec instanceof com.legend.compiler.spec.typed.TypedFilter filtered) {
-            return kindThroughUpcasts(filtered.source());
+            return kindOfElements(filtered.source());
+        }
+        // (one value read out of a list holds what the list holds: toOne, first, last, at, head -- step 6B, slice 5)
+        if (spec instanceof com.legend.compiler.spec.typed.TypedNativeCall read && !read.args().isEmpty()
+                && ONE_OF_A_LIST.contains(read.callee().id())) {
+            return kindOfElements(read.args().get(0));
         }
         return spec instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire()
                 && c.target().equals(t) && (CastPolicy.isWidening(c.source().info().type(), t)
                         || t instanceof Type.ClassType) ? kindThroughUpcasts(c.source()) : null;
+    }
+
+    /** The ONE kind the elements of the list {@code list} hold where the query's text names it: the list's own
+     *  ({@link #kindThroughUpcasts}), or, for a list written in the query, the kind every element names, all of one
+     *  family. Null where the text names none, or the elements are of several families (a mixed list: its own
+     *  comparisons). What a membership test reads of its list (step 6B, slice 5). */
+    static @com.legend.base.Nullable String kindOfElements(TypedSpec list) {
+        String whole = kindThroughUpcasts(list);
+        if (whole != null || !(list instanceof com.legend.compiler.spec.typed.TypedCollection written)
+                || written.elements().isEmpty()) {
+            return whole;
+        }
+        String first = kindThroughUpcasts(written.elements().get(0));
+        if (first == null) {
+            return null;
+        }
+        for (TypedSpec element : written.elements()) {
+            String kind = kindThroughUpcasts(element);
+            if (kind == null || !family(kind).equals(family(first))) {
+                return null;
+            }
+        }
+        return first;
     }
 
     /** The tagged kind a primitive names, of the seven a channel carries; null for any other. */

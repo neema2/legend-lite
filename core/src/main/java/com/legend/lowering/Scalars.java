@@ -1341,15 +1341,18 @@ final class Scalars {
                     // conforms to the list contract by stamp (asList)
                     // and COMPACTS on the value lane (§5 positional
                     // consumer — R1 instrument).
+                    SqlExpr list = CollectionLanes.compactIfValueLane(n.args().get(0),
+                            PureSql.asList(args.get(0), !isToOne(n.args().get(0))));
+                    // the one equality's reading of the list and the needle, as contains' (step 6B, slice 5): two
+                    // kinds that can never be equal are found nowhere, both sides still evaluated
+                    Equalities.Member member = Equalities.member(n.args().get(0), list, n.args().get(1), args.get(1));
+                    if (member.never() != null) {
+                        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(member.never(), new SqlExpr.IntLit(0))),
+                                new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
+                    }
                     return new SqlExpr.Call(SqlFn.MINUS, List.of(
                             new SqlExpr.Call(SqlFn.COALESCE, List.of(
-                                    new SqlExpr.Call(SqlFn.LIST_POSITION,
-                                            List.of(CollectionLanes
-                                                    .compactIfValueLane(
-                                                            n.args().get(0),
-                                                    PureSql.asList(args.get(0),
-                                                    !isToOne(n.args().get(0)))),
-                                                    args.get(1))),
+                                    new SqlExpr.Call(SqlFn.LIST_POSITION, List.of(member.list(), member.needle())),
                                     new SqlExpr.IntLit(0))),
                             new SqlExpr.IntLit(1)));
                 }
@@ -3738,6 +3741,17 @@ final class Scalars {
                                     MixedEncoding.kindOfValue(n.args().get(1), args.get(1)), args.get(1),
                                     n.args().get(1).info().type(), numbers);
                 }
+                // THE ONE EQUALITY'S READING of the list and the needle (step 6B, slice 5; the product's rule alone):
+                // two kinds the query's text names that can never be equal are no member, both sides still
+                // evaluated; a date-time written as its text meets held ones by their instants
+                if (numbers == NumberFamilies.TWO_FAMILIES) {
+                    Equalities.Member member = Equalities.member(n.args().get(0), args.get(0), n.args().get(1),
+                            args.get(1));
+                    if (member.never() != null) {
+                        return member.never();
+                    }
+                    args = List.of(member.list(), member.needle());
+                }
                 // A heterogeneous (Any) list is variant-wrapped — wrap the
                 // needle the same way so containment compares JSON to JSON.
                 // This MUST precede the cross-kind rule: an Any list can
@@ -3804,6 +3818,21 @@ final class Scalars {
                         ? TaggedLists.containsElement(tl, needleT, numbers)
                         : TaggedLists.contains(tl, MixedEncoding.kindOfValue(n.args().get(0), raw), raw,
                                 n.args().get(0).info().type(), numbers);
+            }
+            // THE ONE EQUALITY'S READING of the needle and the list, as contains' (step 6B, slice 5; the product's
+            // rule alone): two kinds that can never be equal are no member, both sides still evaluated; a date-time
+            // written as its text meets held ones by their instants, as a list's membership
+            if (numbers == NumberFamilies.TWO_FAMILIES) {
+                Equalities.Member member = Equalities.member(n.args().get(1), args.get(1), n.args().get(0), raw);
+                if (member.never() != null) {
+                    return member.never();
+                }
+                if (member.list() != args.get(1) || member.needle() != raw) {
+                    // (a list of one the SQL writes as its one value is compared with the needle)
+                    return SqlExpr.Call.of(SqlFn.COALESCE, Equalities.aList(member.list())
+                            ? new SqlExpr.Membership(member.needle(), member.list())
+                            : SqlExpr.Call.of(SqlFn.EQUAL, member.needle(), member.list()), new SqlExpr.BoolLit(false));
+                }
             }
             SqlExpr needle = collVariant
                     ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
