@@ -537,6 +537,19 @@ public final class VerdictQueries {
                 List.of(actual, expected), Type.Primitive.BOOLEAN));
     }
 
+    /** {@code side}, declared to hold exactly ONE value, shown as holding AT MOST one (the same expression, the
+     *  same type): an assert's side is bound to a column that holds no value where the side yields none, and the
+     *  product's rule for a side that may be empty then answers two-valued (step 6B, slice 6; here because a typed
+     *  node is made by the compiler's layers alone, invariant 7). Any other side as it is. */
+    public static TypedSpec atMostOne(TypedSpec side) {
+        return side.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() >= 1 && b.upper() != null && b.upper() <= 1
+                ? new com.legend.compiler.spec.typed.TypedCast(side, side.info().type(),
+                        new com.legend.compiler.element.type.ExprType(side.info().type(),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE), false)
+                : side;
+    }
+
     /** {@code collection->contains(value)} over the two sides as they are typed: the membership an
      *  {@code assertContains} means, answered by the door's comparison setting as one written in a query is. */
     public static TypedSpec containsOf(TypedSpec collection, TypedSpec value, SpecCompiler specs) {
