@@ -194,10 +194,15 @@ public final class DatabaseJudge {
         // product's own == of the two, lowered as a == written in a query is, with each side BOUND ONCE -- its typed
         // node standing for the column that already holds its value -- so the verdict is no judge's reading of the
         // pair, and the lists the failure records are the lists compared. Any other pair as before.
-        if (tp != null && !canonicalOrder && !anyNil && !anyAny && tp.plainValues()
-                && plainValues(eSpec.info().type()) && plainValues(aSpec.info().type())) {
+        // In any order (assertSameElements) it is the product's hasSameElements of the two, which compares two
+        // LISTS: one value against a list stays with the judge's member.
+        if (tp != null && !anyNil && !anyAny && tp.plainValues()
+                && plainValues(eSpec.info().type()) && plainValues(aSpec.info().type())
+                && (!canonicalOrder || !atMostOne(eSpec) && !atMostOne(aSpec))) {
             TypedSpec expected = eSpec;
-            TypedSpec same = com.legend.compiler.spec.VerdictQueries.sameSides(expected, aSpec, specs);
+            TypedSpec same = canonicalOrder
+                    ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, aSpec, specs)
+                    : com.legend.compiler.spec.VerdictQueries.sameSides(expected, aSpec, specs);
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
                     we.plan(), re.kinds().get(ie), atMostOne(expected), wa.plan(), ra.kinds().get(ia),
                     atMostOne(aSpec), (e, a) -> {
@@ -213,8 +218,9 @@ public final class DatabaseJudge {
                     });
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typed(compared, wantEqual);
             if (typed != null) {
-                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(tp.family(false, name),
-                        wantEqual, JudgmentFacts.sideFacts(expected), JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        tp.family(canonicalOrder, name), wantEqual, JudgmentFacts.sideFacts(expected),
+                        JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
             }
         }
         if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny)

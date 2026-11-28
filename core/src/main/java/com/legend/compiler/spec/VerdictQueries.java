@@ -530,6 +530,13 @@ public final class VerdictQueries {
                 List.of(actual, expected), Type.Primitive.BOOLEAN));
     }
 
+    /** {@code hasSameElements(actual, expected)} over the two sides as they are typed: the comparison an
+     *  {@code assertSameElements} means ({@link #sameSides}'s, in any order). */
+    public static TypedSpec sameElements(TypedSpec expected, TypedSpec actual, SpecCompiler specs) {
+        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.HAS_SAME_ELEMENTS__ANY_MANY__ANY_MANY,
+                List.of(actual, expected), Type.Primitive.BOOLEAN));
+    }
+
     /** A call of exactly {@code declaration}, a function the platform declares, by its identity: never absent, never
      *  another overload of its name (NO FALLBACKS, invariant 4; the audit of 2026-11-26, S1). */
     private static TypedNativeCall declared(SpecCompiler specs, com.legend.model.Function declaration,

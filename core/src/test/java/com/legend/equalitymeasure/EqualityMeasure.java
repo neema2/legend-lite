@@ -128,6 +128,23 @@ public final class EqualityMeasure {
             }
             System.exit(0);
         }
+        if (args.length >= 2 && args[0].equals("--assert-run")) {
+            // one test body's outcome under each checker, per database: probe, don't guess
+            String text = Files.readString(workspaceFile("positions-model.txt"), StandardCharsets.UTF_8);
+            for (DatabaseType db : DATABASES) {
+                for (JudgeMode judge : JUDGES) {
+                    Outcome o;
+                    try {
+                        o = run(Compiler.compileModel(StorelessRuntime.with(text, db)), args[1], List.of(),
+                                StorelessRuntime.RUNTIME, db, judge);
+                    } catch (RuntimeException e) {
+                        o = new Outcome("MODEL", e.getClass().getSimpleName() + ": " + e.getMessage());
+                    }
+                    System.out.println("@@ " + db.name() + " " + judge.name() + " " + o.kind() + " " + o.detail());
+                }
+            }
+            System.exit(0);
+        }
         if (args.length >= 2 && args[0].equals("--store-sql")) {
             // the product's SQL for one body over the store matrix's model (class t::R on table R), per database
             String text = Files.readString(workspaceFile("positions-store-model.txt"), StandardCharsets.UTF_8);
