@@ -23,3 +23,33 @@ To make the documented command work the target needs the embedded Postgres as da
 
 Next: the same measure on slice 5's final commit, with each failing place's error text; then Postgres's writing of
 the instruction over two values.
+
+## The second run: slice 5's code (`568c12139`), with each failing place's error text (about 05:30 UTC)
+
+`Postgres: 162 right everywhere of 210, 26 answered only in some places, 15 failing somewhere, 2 wrong somewhere,
+5 contradicting.` The functions matrix is as on DuckDB now (an Integer is no longer found among Floats, a day
+among date-times; a date built to the hour is found): slice 5's changes hold on Postgres.
+
+The errors, verbatim from the database:
+
+| Error | Where |
+|---|---|
+| `operator does not exist: bigint[] = numeric[]` | an Integer list against a Decimal list where both sides read the element (five rows); `list([1, 2]) == list([1D, 2D])` in almost every place |
+| `operator does not exist: text[] = character varying[]` | a computed list of Strings against a written one, both reading the element |
+| `operator does not exist: integer[] = bigint[]` | a list with an empty slot against a written list, both reading the element |
+| `CASE types jsonb and character varying cannot be matched` | `contains` over a computed list of pairs |
+
+All four are one thing: **Postgres compares two arrays only of ONE type, and lite writes the instruction over two
+list values there as a plain `=`** (task 32: Postgres's own writing, both sides cast to one array type).
+
+Wrong answers on Postgres:
+
+| Row | Place | Answer | Note |
+|---|---|---|---|
+| `[1, 2]->filter(x \| $x > 1)->first() == 2` | inside a list's filter | false | the statement planned for Postgres in-process reads right; the SQL the lane's run sent is not captured yet (the tool's `--sql` does not plan for a server) |
+| two tables, rows in another order; a column's name differs | both sides reading the element | true | the older lowering of a table comparison where it stands (rows numbered by a sort over every column, names not compared); DuckDB refuses the place by name |
+| `[1, 2]->at(5)->cast(@Number) == 1.0->cast(@Number)` | both sides reading the element | false, where it must raise | "never equal, both evaluated" does not make Postgres evaluate the side there |
+| a `map` over a list built with empty slots | everywhere | as on every database | task 33 |
+
+None of these is slice 5's or slice 6's; they are Postgres's own piece of work, to do next with the lane measuring
+each change (its workaround now sets `TEST_TMPDIR` for the binary alone).
