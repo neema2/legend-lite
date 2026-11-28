@@ -49,12 +49,21 @@ import java.util.regex.Pattern;
  */
 public final class EqualityMeasure {
 
-    /** The databases measured: the test backends' in-process ones, in their order (the first takes the census). A
-     *  server database is not measured yet: the matrix's runtime is the storeless one, which a server's connector
-     *  declares only with a server's coordinates (a first cut named its databases by a setting; the Postgres lane's
-     *  run stopped there, 2026-11-28). */
-    private static final List<DatabaseType> DATABASES = TestBackends.inProcess().stream()
+    /** The test backends measured: the in-process ones, in their order (the first takes the census); or those
+     *  {@code -Dmeasure.backends} names by their lane names, comma-separated ({@code postgres}: a database lane's
+     *  run, whose result the lane keeps -- the pin holds the in-process ones alone). A backend declares its own
+     *  storeless runtime ({@code TestBackend.withStorelessRuntime}: a server's with the coordinates of the server
+     *  this JVM starts), so the value matrix runs on any of them; the store matrix's rows are loaded the in-process
+     *  way, so it runs on those alone. */
+    private static final List<com.legend.testbackend.TestBackend> BACKENDS = backends();
+    private static final List<DatabaseType> DATABASES = BACKENDS.stream()
             .map(com.legend.testbackend.TestBackend::type).toList();
+
+    private static List<com.legend.testbackend.TestBackend> backends() {
+        String named = System.getProperty("measure.backends");
+        return named == null ? TestBackends.inProcess()
+                : java.util.Arrays.stream(named.split(",")).map(n -> TestBackends.named(n.strip())).toList();
+    }
     private static final String NAMES = String.join("|", DATABASES.stream().map(DatabaseType::name).toList());
     private static final List<JudgeMode> JUDGES = List.of(JudgeMode.HOST, JudgeMode.DATABASE);
     private static final Pattern RUNTIME = Pattern.compile("(?m)^\\s*Runtime\\s+([\\w:]+)");
@@ -496,7 +505,7 @@ public final class EqualityMeasure {
         Files.createDirectories(out);
         Map<DatabaseType, ModelContext> contexts = new HashMap<>();
         for (DatabaseType db : DATABASES) {
-            contexts.put(db, Compiler.compileModel(StorelessRuntime.with(model, db)));
+            contexts.put(db, Compiler.compileModel(TestBackends.of(db).withStorelessRuntime(model)));
         }
         long t0 = System.nanoTime();
         int runs = 0;
@@ -606,6 +615,11 @@ public final class EqualityMeasure {
                 StandardCharsets.UTF_8))) {
             w.println("comparison\texpected\tleft\tright\tposition\tnegated\tdatabase\toutcome\tanswer");
             for (DatabaseType db : DATABASES) {
+                if (!TestBackends.of(db).inProcess()) {
+                    System.err.println("store positions: not run on " + db.name() + " (its rows are loaded the"
+                            + " in-process way)");
+                    continue;
+                }
                 ModelContext ctx = Compiler.compileModel(text.replace("%s", db.name()));
                 for (StoreSides s : storeSidesList()) {
                     if (only != null && !only.matcher(s.id()).find()) {

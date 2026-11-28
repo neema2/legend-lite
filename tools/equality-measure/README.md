@@ -63,9 +63,11 @@ is a line of a reviewed diff:
 
 The baseline is a guard file: a line that says a comparison got worse moves only with a dated reason in the commit.
 
-**On a server database** the matrix does not run yet: its runtime is the storeless one, which a server's connector
-declares only with a server's coordinates, so the measure has to start the server and declare it. Until it does, the
-in-process databases (DuckDB, H2, SQLite) are what the measure and its pin hold.
+**On a server database** (a database lane's run; the pin holds the in-process databases alone): name the test
+backends by their lane names, `bazel run //core:equality_measure -- --jvm_flag=-Dmeasure.backends=postgres --positions
+<out dir>` (Postgres through `tools/postgres/as_unprivileged.sh` where the container runs as root, the out dir one
+that user can write). The value matrix runs there; the store matrix's rows are loaded the in-process way, so it is
+left out and the run says so. The lane keeps each commit's `positions-kinds.tsv` and compares it with the last.
 
 **Two probes** over the matrix's model (`positions-model.txt`), per database: `--sql '<body>'` prints the product's
 statement for a query; `--assert-sql '<body>'` prints the statements a test body sends under the database judge.
