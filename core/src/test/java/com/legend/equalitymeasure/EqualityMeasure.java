@@ -95,6 +95,30 @@ public final class EqualityMeasure {
             }
             System.exit(0);
         }
+        if (args.length >= 2 && args[0].equals("--assert-sql")) {
+            // a test body's statements under the database judge, per database (its test plan's SQL texts, in the
+            // plan's order): what an assert sends, to read beside --sql's product statement
+            for (DatabaseType db : DATABASES) {
+                String sent;
+                try {
+                    TypedQuery typed = typed(Compiler.compileModel(StorelessRuntime.with(
+                            Files.readString(workspaceFile("positions-model.txt"), StandardCharsets.UTF_8), db)),
+                            args[1], List.of());
+                    String json = com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(typed,
+                            StorelessRuntime.RUNTIME, ExecuteOptions.NONE.withJudgeMode(JudgeMode.DATABASE)));
+                    StringBuilder b = new StringBuilder();
+                    Matcher m = Pattern.compile("\"sql\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(json);
+                    while (m.find()) {
+                        b.append(unesc(m.group(1))).append("\n--\n");
+                    }
+                    sent = b.isEmpty() ? "(no statement) " + json : b.toString();
+                } catch (RuntimeException e) {
+                    sent = e.getClass().getSimpleName() + ": " + e.getMessage();
+                }
+                System.out.println("@@ " + db.name() + "\n" + sent + "\n");
+            }
+            System.exit(0);
+        }
         Path in = Path.of(args[0]);
         Path out = Path.of(args[1]);
         Pattern only = args.length > 2 ? Pattern.compile(args[2]) : null;
