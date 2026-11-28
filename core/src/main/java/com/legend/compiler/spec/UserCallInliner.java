@@ -446,16 +446,8 @@ public final class UserCallInliner {
     private TypedSpec atTheCall(TypedSpec n) {
         TypedSpec kids = n.mapChildren(this::atTheCall);
         // (answered as a plain comparison, it is still the function's own, not the query's)
-        if (!(kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c)) {
-            return kids;
-        }
-        // (the ONE fold put off where the comparison was rewritten is made now, on a comparison the call's rule
-        // leaves as it is: a door whose rule is the plain comparison still answers two written values of two kinds,
-        // one an enumeration's, false. No other fold is made here: this pass knows no quoted code)
-        TypedSpec answered = specs.atTheCall(c);
-        return EqualityClasses.notTheQuerys(answered instanceof TypedNativeCall call && call.args().size() == 2
-                && LiteralUnroll.neverEqual(call.args().get(0), call.args().get(1))
-                ? LiteralUnroll.fold(answered, specs.ctx()) : answered);
+        return kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c
+                ? EqualityClasses.notTheQuerys(specs.atTheCall(c)) : kids;
     }
 
     /**
@@ -1642,10 +1634,12 @@ public final class UserCallInliner {
 
     /** {@link #rewrite(TypedSpec)}; {@code keptForItsCall} says {@code n} is the comparison a function's body kept
      *  for its call ({@code TypedRunTimeComparison}): its sides are rewritten and it is folded as any call is,
-     *  EXCEPT by the rule for two written values of two kinds, one an enumeration's ({@code LiteralUnroll.neverEqual},
-     *  register S169: false, legend-pure's answer). That rule answers a comparison the QUERY writes; one kept for its
-     *  call is answered by the call's rule from the types its sides have there ({@link #atTheCall}), which folds it
-     *  after -- on lite's own door a type variable given an enumeration and a String is that call's compile error
+     *  EXCEPT, where the door's setting answers a kept comparison by its sides' types
+     *  ({@code CrossTypeRule.answersAKeptComparisonByItsTypes}: lite's own), by the rule for two written values of
+     *  two kinds, one an enumeration's ({@code LiteralUnroll.neverEqual}, register S169: false, legend-pure's
+     *  answer). That rule answers a comparison the QUERY writes; one kept for its call is the call's to answer
+     *  ({@link #atTheCall}) -- on lite's own door a type variable given an enumeration and a String is that call's
+     *  compile error. Every other door folds it here, as it always did
      *  (the equality measure, 2026-11-28: {@code t::sameT(t::E.A, 'A')} answered false, the fold having answered
      *  before the call's rule saw two types). */
     private TypedSpec rewrite(TypedSpec n, boolean keptForItsCall) {
@@ -1662,7 +1656,7 @@ public final class UserCallInliner {
         // never inside quoted code
         TypedSpec r = reached(rewriteSwitch(n));
         if (!quotedFrames.isEmpty() || keptForItsCall && r instanceof TypedNativeCall c && c.args().size() == 2
-                && LiteralUnroll.neverEqual(c.args().get(0), c.args().get(1))) {
+                && LiteralUnroll.neverEqual(c.args().get(0), c.args().get(1)) && specs.keptForItsTypes(c)) {
             return r;
         }
         return LiteralUnroll.fold(r, specs.ctx());

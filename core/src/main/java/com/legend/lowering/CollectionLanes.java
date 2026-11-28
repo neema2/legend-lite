@@ -239,6 +239,45 @@ final class CollectionLanes {
         };
     }
 
+    /**
+     * Whether the list {@code spec} can hold NO empty slot, by how it is written: a written list each of whose
+     * elements is exactly one value; a {@code map} over such a list whose function answers exactly one value; a
+     * {@code filter}, or an upcast, of such a list; one value that is always there. A list's SQL value holds a NULL slot where an element was empty
+     * (a written {@code [0..1]} read, a {@code map} whose function may answer nothing), which a Pure collection does
+     * not hold ({@link #compactIfValueLane}); a list that can hold none is compared, and counted, as it is. False
+     * for anything else: its slots are dropped before it is compared.
+     */
+    static boolean holdsNoEmptySlot(TypedSpec spec) {
+        return switch (spec) {
+            case TypedCollection c -> c.elements().stream().allMatch(e -> exactlyOne(e)
+                    && !(e instanceof TypedCollection));
+            case com.legend.compiler.spec.typed.TypedMap m -> exactlyOne(m.mapper().functionType().result()
+                    .multiplicity()) && holdsNoEmptySlot(m.source());
+            case com.legend.compiler.spec.typed.TypedFilter f -> holdsNoEmptySlot(f.source());
+            case com.legend.compiler.spec.typed.TypedCast c -> holdsNoEmptySlot(c.source());
+            // (one value that is always there, compared as the list of it, holds no empty slot either)
+            default -> exactlyOne(spec);
+        };
+    }
+
+    private static boolean exactlyOne(TypedSpec e) {
+        return exactlyOne(e.info().multiplicity());
+    }
+
+    private static boolean exactlyOne(com.legend.compiler.element.type.Multiplicity m) {
+        return m instanceof com.legend.compiler.element.type.Multiplicity.Bounded b && b.lower() == 1
+                && Integer.valueOf(1).equals(b.upper());
+    }
+
+    /** {@code lowered}, the list value {@code spec} lowers to, with its empty slots dropped unless it can hold none
+     *  ({@link #holdsNoEmptySlot}): what a comparison of two list VALUES, and a test of a list's emptiness, read
+     *  (review 6 of step 6B's slice 3: read raw, {@code [1, 2]->map(x | if($x == 1, |1, |[])) == [1]} was false on a
+     *  database that compares lists, where the statement it replaced compared rows with the empty ones dropped). */
+    static com.legend.sql.SqlExpr compacted(TypedSpec spec, com.legend.sql.SqlExpr lowered) {
+        return lowered instanceof com.legend.sql.SqlExpr.CompactList || holdsNoEmptySlot(spec) ? lowered
+                : new com.legend.sql.SqlExpr.CompactList(lowered);
+    }
+
     /** The §5 rule at a VALUE-LANE consumer: positional/counting reads
      * (size/at/indexOf — the ops SQL does not null-skip) consume the
      * COMPACTED carrier, because pure collections hold no empties and a

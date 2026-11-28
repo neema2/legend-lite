@@ -133,9 +133,13 @@ final class Equalities {
                 ? SideEqualities.instants(sideRows.apply(n.args().get(0)), n.args().get(0).info().type()) : null;
         com.legend.sql.SqlQuery right = left == null ? null
                 : SideEqualities.instants(sideRows.apply(n.args().get(1)), n.args().get(1).info().type());
-        return new SqlExpr.Call(SqlFn.SAME_IN_ORDER, left == null || right == null ? c.args()
-                : List.of(c.args().get(0), c.args().get(1), new SqlExpr.ScalarSubquery(left),
-                        new SqlExpr.ScalarSubquery(right)));
+        // (the two VALUES with their empty slots dropped: a list's SQL value holds a NULL where an element was empty,
+        // which is no element of the Pure list -- the rows that ride have dropped them already, SideEqualities
+        // .valueRows; review 6 of slice 3, and slice 1's own miss)
+        SqlExpr l = CollectionLanes.compacted(n.args().get(0), c.args().get(0));
+        SqlExpr r = CollectionLanes.compacted(n.args().get(1), c.args().get(1));
+        return new SqlExpr.Call(SqlFn.SAME_IN_ORDER, left == null || right == null ? List.of(l, r)
+                : List.of(l, r, new SqlExpr.ScalarSubquery(left), new SqlExpr.ScalarSubquery(right)));
     }
 
     /** The two sides of an equality {@link #emptySidesAsPure} wrote as "false where a side is empty", or null where
@@ -194,8 +198,10 @@ final class Equalities {
             // [1, 2]->filter(x | $x > 5) == []). Anything else, a to-many navigation's column among them (one value a
             // row, whatever its declared multiplicity): its absence, as before
             SqlExpr other = args.get(le ? 1 : 0);
-            return other instanceof SqlExpr.TaggedList || aList(other)
-                    ? Scalars.emptiness(n.args().get(le ? 1 : 0), other) : SqlExpr.Call.of(SqlFn.IS_NULL, other);
+            // (a list's length with its empty slots dropped: [1, 2]->map(x | if($x > 5, |1, |[])) == [] is true)
+            return other instanceof SqlExpr.TaggedList ? Scalars.emptiness(n.args().get(le ? 1 : 0), other)
+                    : aList(other) ? holdsNothing(n.args().get(le ? 1 : 0), other)
+                    : SqlExpr.Call.of(SqlFn.IS_NULL, other);
         }
         // a TAGGED value or list on a side (track L, 2026-10-29): equality by kind and value -- two
         // elements the same channel's values, an element against a value of a static kind that
@@ -358,8 +364,8 @@ final class Equalities {
         // read by its length, SQLite never evaluated a source that raises, and []->toOne() through a filter answered
         // false where it raises; measured 2026-11-28, review 5 of slice 3, note 10, tried and withdrawn)
         return aList(lowered) ? new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
-                SqlExpr.Call.of(SqlFn.LIST_LENGTH, lowered), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0)))
-                : isNone(lowered);
+                SqlExpr.Call.of(SqlFn.LIST_LENGTH, CollectionLanes.compacted(side, lowered)), new SqlExpr.IntLit(0)),
+                new SqlExpr.IntLit(0))) : isNone(lowered);
     }
 
     private static boolean typedAtRunTime(TypedSpec side) {
@@ -530,6 +536,10 @@ final class Equalities {
                     && n.args().get(1).info().type() == Type.Primitive.DATE_TIME
                     ? List.of(instantsOfTexts(l), instantsOfTexts(r)) : null;
         }
+        // (one list of texts against held date-times: read as instants whatever the side is declared. Under the
+        // abstract Date a text may be a year, which no instant reads: that raises when the query runs, as it did
+        // before this arm -- restricting the arm to sides declared DateTime, review 6's note 1, was tried and
+        // withdrawn: it left a Date-declared list of date-time texts to the database's `=`, which answered false)
         if (lists && lTexts != rTexts) {
             SqlExpr a = lTexts ? instantsOfTexts(l) : instantListOf(l);
             SqlExpr b = rTexts ? instantsOfTexts(r) : instantListOf(r);

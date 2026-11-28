@@ -353,6 +353,14 @@ final class Typer {
                 .atTheCall(comparison, ctx);
     }
 
+    /** Whether {@code comparison}, one kept for its call, is answered there by its sides' types, so that it keeps
+     *  its two sides until then ({@link CrossTypeRule#answersAKeptComparisonByItsTypes}); the setting chosen as
+     *  {@link #atTheCall} chooses it. */
+    boolean keptForItsTypes(TypedSpec comparison) {
+        return (EqualityClasses.litesOwn(comparison) ? LiteCrossTypeRule.INSTANCE : crossTypes)
+                .answersAKeptComparisonByItsTypes();
+    }
+
     /** Whether {@code n} holds the setting's answer for a comparison across types written in the query. */
     boolean holdsAQueryAnswer(TypedSpec n) {
         if (queryAnswers.isEmpty()) {

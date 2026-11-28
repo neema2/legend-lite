@@ -77,6 +77,13 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
         return true;
     }
 
+    /** Lite answers a kept comparison by its sides' types at the call: a type variable given an enumeration and a
+     *  String is that call's compile error ({@link #atTheCall}), which a fold to false before the call would hide. */
+    @Override
+    public boolean answersAKeptComparisonByItsTypes() {
+        return true;
+    }
+
     @Override
     public TypedSpec inBody(TypedCrossTypeComparison crossing) {
         return inQuery(crossing);

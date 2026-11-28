@@ -429,6 +429,11 @@ public final class EqualityMeasure {
                 "[date(2015, 4, 16, 14, 0), date(2015, 4, 16, 15, 0)]->filter(d | true)"));
         out.add(new Sides("Date lists built and written", "T", "[date(2015, 4, 16, 14), date(2015, 4, 16, 15)]->cast(@Date)",
                 "[%2015-04-16T14:00:00, %2015-04-16T15:00:00]->cast(@Date)"));
+        // (review 6 of slice 3, and slice 1's own miss: a list's empty slot -- an element a map's function answered
+        // nothing for -- is no element)
+        out.add(new Sides("list with an empty slot", "T", "[1, 2]->map(x | if($x == 1, |1, |[]))", "[1]"));
+        out.add(new Sides("list of empty slots and written empty", "T", "[1, 2]->map(x | if($x > 5, |1, |[]))", "[]"));
+        out.add(new Sides("boolean list with an empty slot", "T", "[1, 2]->map(x | if($x == 1, |true, |[]))", "[true]"));
         out.add(new Sides("computed empty and written empty", "T", "[1, 2]->filter(x | $x > 5)", "[]"));
         out.add(new Sides("two computed empties", "T", "[1, 2]->filter(x | $x > 5)", "[3]->filter(x | $x > 5)"));
         out.add(new Sides("computed empty and value", "F", "[1, 2]->filter(x | $x > 5)", "1"));

@@ -105,8 +105,9 @@ final class RootComparison {
         if (!anyOrder) {
             refuseUnordered(left, right, named, "lists");
         }
-        if (!anyOrder && !Type.isRelation(left.info().type()) && !Type.isRelation(right.info().type())
-                && SideEqualities.comparedAsValues(valueType(left), valueType(right))) {
+        boolean asValues = !anyOrder && !Type.isRelation(left.info().type()) && !Type.isRelation(right.info().type())
+                && SideEqualities.comparedAsValues(valueType(left), valueType(right));
+        if (asValues && !dates(valueType(left)) && !dates(valueType(right))) {
             // two lists of exact numbers, or of Strings (step 6B, slice 1): no statement of their own. The lowering
             // writes the one "same values" instruction over the two side values where the comparison stands
             // (Equalities.asSameValues), so a query's answer, an if, a lambda and a filter get the same comparison
@@ -114,6 +115,14 @@ final class RootComparison {
         }
         SqlQuery leftPlan = lowered.apply(with(lets, left));
         SqlQuery rightPlan = lowered.apply(with(lets, right));
+        if (asValues && heldAsTheValueFormReads(left, leftPlan) && heldAsTheValueFormReads(right, rightPlan)) {
+            // two lists of days or of date-times each of which its own statement holds as the value form reads it (a
+            // day as the database's DATE, a date-time as its TIMESTAMP or as its written text): no statement of their
+            // own. Held any other way (a text column, a day column under a property declared DateTime, a zoned
+            // date-time), the statement below reads each row as its instant, which the value form does not do for
+            // that carrier (review 6 of slice 3, finding 2)
+            return null;
+        }
         if (!anyOrder && heldAsOneKind(left, leftPlan, right, rightPlan)) {
             // two sides, one declared Number, each of which its own statement holds in ONE number type, the two of
             // one family (step 6B, slice 3: [1, 2]->cast(@Number) == [1D, 2D]->cast(@Number)):
@@ -299,6 +308,27 @@ final class RootComparison {
     private static boolean heldAsOneKind(TypedSpec left, SqlQuery leftPlan, TypedSpec right, SqlQuery rightPlan) {
         return SideEqualities.heldInOneKind(left, right) && numbersAsThemselves(SideEqualities.typedRows(leftPlan))
                 && numbersAsThemselves(SideEqualities.typedRows(rightPlan));
+    }
+
+    private static boolean dates(Type kind) {
+        return kind == Type.Primitive.STRICT_DATE || kind == Type.Primitive.DATE_TIME;
+    }
+
+    /** Whether {@code side}, a list of days or of date-times (or the written empty list), is held by its own
+     *  statement's typed rows as the lowering's value form reads it: a day as DATE, a date-time as TIMESTAMP or as
+     *  its written text. */
+    private static boolean heldAsTheValueFormReads(TypedSpec side, SqlQuery plan) {
+        Type kind = valueType(side);
+        if (!dates(kind)) {
+            return true;   // (the other side of a pair comparedAsValues admits: the written empty list)
+        }
+        SqlQuery rows = SideEqualities.typedRows(plan);
+        if (rows == null) {
+            return false;
+        }
+        com.legend.sql.SqlType held = rows.outputs().get(0).type();
+        return kind == Type.Primitive.STRICT_DATE ? held == com.legend.sql.SqlType.Scalar.DATE
+                : held == com.legend.sql.SqlType.Scalar.TIMESTAMP || held == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT;
     }
 
     private static boolean numbersAsThemselves(@Nullable SqlQuery rows) {

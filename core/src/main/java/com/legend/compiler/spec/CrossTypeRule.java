@@ -84,6 +84,15 @@ public interface CrossTypeRule {
         return comparison.comparison();
     }
 
+    /** Whether a comparison {@link #atRunTime} kept is answered at its call by the TYPES its sides have there
+     *  ({@link #atTheCall}), so that it must reach its call with its two sides as they are: the inliner then makes no
+     *  fold of its own that answers two written values of two kinds (register S169's, one an enumeration's: false)
+     *  before this setting has seen them. False unless a setting says otherwise: its kept comparison folds where it
+     *  is rewritten, as it always did. */
+    default boolean answersAKeptComparisonByItsTypes() {
+        return false;
+    }
+
     /** {@code comparison} (one {@link #atRunTime} kept) once the functions the query reaches stand in the query, each
      *  argument in its parameter's place. The call itself unless a setting says otherwise. */
     default TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison,
