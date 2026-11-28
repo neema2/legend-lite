@@ -3885,13 +3885,21 @@ public final class Lowerer {
         // is declared many and is ONE value a row (Equalities.oneValue). The final review of the closing batch, X1:
         // asked for a list's length, a number was "empty" on SQLite (its JSON length is 0) and a database error on
         // DuckDB and H2
-        return Equalities.oneValue(where) ? Equalities.isNone(where) : Scalars.emptiness(side, where);
+        return Equalities.oneValue(where) ? Equalities.isNone(where) : Scalars.emptiness(side, withoutEmptySlots(side, where));
+    }
+
+    /** {@code where}, the list value {@code side} lowers to, with its empty slots dropped where it may hold one: a
+     *  slot is no element, so a list of them alone holds nothing (step 6B, slice 5: counted as it stood, an empty
+     *  optional value through a filter was "some", and two sides that both held nothing were not the same). */
+    private static SqlExpr withoutEmptySlots(TypedSpec side, SqlExpr where) {
+        return Equalities.aList(where) ? CollectionLanes.compacted(side, where) : where;
     }
 
     /** {@code side}, declared many and read by no statement of its own, evaluated where it stands: the one value
      *  the SQL carries it as, or "none, or some" of the list it is. */
     private static SqlExpr readWhereItStands(TypedSpec side, SqlExpr where) {
-        return Equalities.oneValue(where) ? where : Equalities.noneOrSome(Scalars.emptiness(side, where));
+        return Equalities.oneValue(where) ? where
+                : Equalities.noneOrSome(Scalars.emptiness(side, withoutEmptySlots(side, where)));
     }
 
     /** Every value of {@code side}, a computed list, READ by the planner's statement that folds them to one
