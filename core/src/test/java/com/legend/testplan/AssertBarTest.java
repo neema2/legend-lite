@@ -1072,7 +1072,13 @@ class AssertBarTest {
         // an index, a count and a map's parameter are not values of the side (the same review: they had been counted,
         // and the equality refused)
         want.put("{|assert(!(['1'->fromJson()]->cast(@Any)->at(0) == 'a'))}", "pass");
-        want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))}", "pass");
+        // (H2, 2026-11-28, step 6B's slice 5: the type the list holds is now read through `take`, so this is the plain
+        // `...->cast(@Any)->contains('a')` -- never a member, the list still evaluated (the user's ruling of 2026-11-27,
+        // "Build 3"), which H2 has no SQL for and refuses by name, as it always did for the plain form. Until then
+        // the take hid the list from that reading and a constant false answered with the list unread. Reported to
+        // the user as the slice's one passing-to-refusing: for-the-user-2026-11-28.md, section E)
+        want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))}",
+                "pass|H2=DialectCapability");
         want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->map(x | $x)->contains('a'))}", "pass");
         // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
         // the record, a NULL among them JSON null (the audit of 8477c703); H2's JSON array aggregate drops a JSON null,

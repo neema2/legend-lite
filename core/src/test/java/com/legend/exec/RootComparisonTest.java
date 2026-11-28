@@ -345,7 +345,10 @@ class RootComparisonTest {
         // two unrelated classes (the third review of 2026-11-27, M6)
         refused.put("|hasSameElements([^p::K(name='a')], [^p::Party(id=1, name='a')])",
                 "hasSameElements compares p::K with p::Party");
-        refused.put("|[1, 2]->map(x | hasSameElements([$x, 2], [2, 1]))", "hasSameElements over values of the row or element");
+        // (sides that read the element and have no one list value -- instances, here a Pair: two lists of plain
+        // values are answered there since step 6B's slice 5, below)
+        refused.put("|[1, 2]->map(x | hasSameElements([pair($x, 1)], [pair(1, 1)]))",
+                "hasSameElements over values of the row or element");
         refused.put("|hasSameElements(#TDS\n id\n 1\n#, [1])", "hasSameElements: a table against a side that is no table");
         for (Map.Entry<String, String> c : refused.entrySet()) {
             try (Connection connection = backend.open()) {
@@ -364,6 +367,13 @@ class RootComparisonTest {
         try (Connection connection = backend.open()) {
             assertEquals(List.of(List.of(true)), Lean.established(model, "|hasSameElements([1, 2], [2.0D, 1D])",
                     "p::RT", connection).rows());
+        }
+        // two lists of plain values that read the element they stand in: the "same values" instruction in any order
+        // over the two list values (step 6B, slice 5, 2026-11-28; refused by name until then, this method's fifth
+        // case) -- answered where the database compares lists
+        try (Connection connection = backend.open()) {
+            assertEquals(List.of(List.of(true), List.of(false)), Lean.established(model,
+                    "|[1, 2]->map(x | hasSameElements([$x, 2], [2, 1]))", "p::RT", connection).rows());
         }
     }
 
