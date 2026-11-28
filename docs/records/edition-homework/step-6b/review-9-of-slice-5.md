@@ -76,3 +76,27 @@ type inferred, no fallback).
 ## Not checked by the reviewer
 
 No run of any kind (the author ran each example after); MongoDB; the pinned corpus SQL at legend-engine's door.
+
+## The audit of these fixes (a second Opus reviewer, read-only, `0e97fbc3b..d988dd043`; 2026-11-28, about 04:45 UTC)
+
+Found nothing in: `indexOf` at the doors (the door's path is the body the rule had before the slice; nothing a
+door's call passed through is skipped; the String `indexOf` untouched); each arm of the held-type reading; two
+written lists on a rows database (their rows have the columns the form reads); "no element is the needle" (a list's
+elements are ordinary arguments in every dialect read, so a raising element still raises); the held side's
+compaction beside texts read as "no instant"; a compacted list left alone by a consumer.
+
+Its findings, and what was done:
+1. **(medium) The deeper reading of a held type moves legend-pure's door for four more functions** (`take`, `drop`,
+   `slice`, `sortBy`): `[1, 2]->cast(@Number)->take(1)->contains(1.0)` was the database's membership (true) and is
+   now legend-pure's own answer (false). *Kept, and on the user's list:* at legend-pure's door, a value upcast to
+   `Number`, `Any` or `Date` and then filtered, sorted, deduplicated, reversed, or cut (`take`, `drop`, `slice`,
+   `tail`, `init`), or one value read from such a list (`toOne`, `first`, `last`, `at`, `head`), is compared by the
+   type it holds, as legend-pure compares it. legend-engine's door does not move (its rule keeps the call).
+2. **(low to medium) A mixed list was wrapped before its emptiness was tested**, hiding it from the rule that
+   counts its positions. *Fixed* (`Lowerer.withoutEmptySlots` leaves a mixed list).
+3. **(low) Two written String lists under `hasSameElements` are compared as rows on MariaDB and MySQL, whose
+   collation pads spaces**: `hasSameElements(['a'], ['a '])` true there. As before the slice (the planner's
+   statement compared rows too); the pad-space behaviour is the database-recheck record's. *Left, noted.*
+4. **(low) A list of date-times held zoned goes to the planner's statement** (the value form reads DATE and
+   TIMESTAMP alone, as the planner's own test for `==` does). *Left: the same line as `==`'s.*
+5. A comment that said a list's deduplication is never a call (it is), and an indentation. *Corrected.*

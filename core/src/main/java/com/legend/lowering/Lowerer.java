@@ -3954,7 +3954,10 @@ public final class Lowerer {
      *  slot is no element, so a list of them alone holds nothing (step 6B, slice 5: counted as it stood, an empty
      *  optional value through a filter was "some", and two sides that both held nothing were not the same). */
     private static SqlExpr withoutEmptySlots(TypedSpec side, SqlExpr where) {
-        return Equalities.aList(where) ? CollectionLanes.compacted(side, where) : where;
+        // (a mixed list keeps its own size: its positions are its elements, and a wrapper would hide it from the rule
+        // that counts them -- the audit of slice 5's last fixes, finding 2)
+        return Equalities.aList(where) && !(where instanceof SqlExpr.TaggedList)
+                ? CollectionLanes.compacted(side, where) : where;
     }
 
     /** {@code side}, declared many and read by no statement of its own, evaluated where it stands: the one value
