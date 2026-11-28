@@ -237,19 +237,8 @@ public final class DatabaseJudge {
                     : com.legend.compiler.spec.VerdictQueries.sameSides(expected, actual, specs, env.assertAt());
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
                     we.plan(), re.kinds().get(ie), atMostOne(expected), wa.plan(), ra.kinds().get(ia),
-                    atMostOne(actual), numbersAtRunTime, (e, a) -> {
-                        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =
-                                new java.util.IdentityHashMap<>();
-                        values.put(eBound, e.value());
-                        values.put(aBound, a.value());
-                        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows =
-                                new java.util.IdentityHashMap<>();
-                        rows.put(eBound, e.rows());
-                        rows.put(aBound, a.rows());
-                        rows.put(expected, e.rows());
-                        rows.put(actual, a.rows());
-                        return com.legend.planner.SidePlanner.overSides(same, values, rows, env.plan());
-                    });
+                    atMostOne(actual), numbersAtRunTime,
+                    (e, a) -> overBound(same, eBound, expected, e, aBound, actual, a, env));
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typed(compared, wantEqual,
                     true);
             if (typed != null) {
@@ -275,6 +264,24 @@ public final class DatabaseJudge {
 
     /** Whether {@code type} is a plain value's: a whole number, a Decimal, a Float, a String, a Boolean, a day or a
      *  date-time -- the kinds whose asserts are the product's own comparison since step 6B's slice 6. */
+    /** The PRODUCT's lowering of {@code comparison} over two sides bound once: each side's bound node stands for the
+     *  column that holds its value, and its rows ride under that node and under the view it is compared as. */
+    private static com.legend.sql.SqlExpr overBound(TypedSpec comparison, TypedSpec eBound, TypedSpec eView,
+            com.legend.lowering.SideEqualities.Bound e, TypedSpec aBound, TypedSpec aView,
+            com.legend.lowering.SideEqualities.Bound a, BodyDriver.ExecEnv env) {
+        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values = new java.util.IdentityHashMap<>();
+        values.put(eBound, e.value());
+        values.put(aBound, a.value());
+        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows = new java.util.IdentityHashMap<>();
+        for (TypedSpec side : List.of(eBound, eView)) {
+            rows.put(side, e.rows());
+        }
+        for (TypedSpec side : List.of(aBound, aView)) {
+            rows.put(side, a.rows());
+        }
+        return com.legend.planner.SidePlanner.overSides(comparison, values, rows, env.plan());
+    }
+
     /** Whether {@code side} is written as number literals alone: one, or a list that holds one. */
     private static boolean writtenNumbers(TypedSpec side) {
         if (side instanceof com.legend.compiler.spec.typed.TypedCollection list) {
@@ -674,18 +681,8 @@ public final class DatabaseJudge {
                     env.assertAt());
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
                     c.side().plan(), cKind, atMostOne(coll), v.side().plan(), vKind, atMostOne(val), numbersAtRunTime,
-                    (list, one) -> {
-                        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =
-                                new java.util.IdentityHashMap<>();
-                        values.put(list0.bound(), list.value());
-                        values.put(one0.bound(), one.value());
-                        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows =
-                                new java.util.IdentityHashMap<>();
-                        rows.put(list0.bound(), list.rows());
-                        rows.put(one0.bound(), one.rows());
-                        rows.put(list0.view(), list.rows());
-                        return com.legend.planner.SidePlanner.overSides(among, values, rows, env.plan());
-                    });
+                    (list, one) -> overBound(among, list0.bound(), list0.view(), list, one0.bound(), one0.view(), one,
+                            env));
             com.legend.lowering.VerdictSql.TypedRow bound = com.legend.lowering.VerdictSql.typed(compared, !negated,
                     true);
             if (bound != null) {
