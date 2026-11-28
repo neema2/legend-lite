@@ -515,6 +515,23 @@ final class MixedEncoding {
      * Null for any other shape of such a type (a CASE, a COALESCE, arithmetic, a parameter): there the SQL type is a
      * PROMOTION of the branches' types or unknown, never the value's own, and the caller refuses by name.
      */
+    /** The kind of the value {@code spec} holds where the query's own text names it: its static kind
+     *  ({@link #kindOf}), or, under an UPCAST to {@code Number}, {@code Any} or the abstract {@code Date}, the kind of
+     *  what the upcast is written over ({@code 1->cast(@Number)} is the Integer, {@code [1D]->cast(@Number)} holds
+     *  Decimals). Null for anything else of such a type: {@link #kindOfValue} reads a column's own type too. */
+    static @com.legend.base.Nullable String kindThroughUpcasts(TypedSpec spec) {
+        String fixed = kindOf(spec);
+        if (fixed != null) {
+            return fixed;
+        }
+        Type t = spec.info().type();
+        boolean open = t == Type.Primitive.NUMBER || t == Type.Primitive.DATE
+                || t instanceof Type.ClassType ct && PlatformTypes.isAny(ct);
+        return open && spec instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire()
+                && c.target().equals(t) && (CastPolicy.isWidening(c.source().info().type(), t)
+                        || t instanceof Type.ClassType) ? kindThroughUpcasts(c.source()) : null;
+    }
+
     static @com.legend.base.Nullable String kindOfValue(TypedSpec spec, SqlExpr value) {
         String fixed = kindOf(spec);
         if (fixed != null) {
@@ -535,6 +552,19 @@ final class MixedEncoding {
             return kindName(Type.kindOfSqlType(typed.type()));
         }
         return null;
+    }
+
+    /** The kind the SQL type a value is held in names (a list's: its elements'), for a value typed only when the
+     *  query runs whose kind the query's text does not name ({@link #kindOfValue} null: a computed list, a filter's
+     *  result); null where the type names none -- JSON, a Decimal or a date carried as its text -- and for a text
+     *  under a side declared the abstract {@code Date} (a date written as its text). */
+    static @com.legend.base.Nullable String kindOfCarrier(Type declared, SqlType carrier) {
+        SqlType t = carrier instanceof SqlType.Array a ? a.element() : carrier;
+        if (t == SqlType.Scalar.TEMPORAL_TEXT || t == SqlType.Scalar.DECIMAL_TEXT || t == SqlType.Scalar.JSON
+                || t == SqlType.Scalar.VARCHAR && declared == Type.Primitive.DATE) {
+            return null;
+        }
+        return kindName(Type.kindOfSqlType(t));
     }
 
     /** The tagged kind a primitive names, of the seven a channel carries; null for any other. */

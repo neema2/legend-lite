@@ -114,7 +114,8 @@ final class Equalities {
             java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows) {
         if (!(compared instanceof SqlExpr.Call c) || c.fn() != SqlFn.EQUAL || c.args().size() != 2
                 || n.args().size() != 2 || !plainList(c.args().get(0)) || !plainList(c.args().get(1))
-                || !SideEqualities.comparedAsValues(n.args().get(0).info().type(), n.args().get(1).info().type())) {
+                || !(SideEqualities.comparedAsValues(n.args().get(0).info().type(), n.args().get(1).info().type())
+                        || heldAsOneKind(n, c.args()))) {
             return compared;
         }
         // the rows ride where a database that compares rows needs them: a computed side; or two written lists of
@@ -124,8 +125,14 @@ final class Equalities {
         // its collation, its comparison of two lists does not
         boolean written = n.args().get(0) instanceof TypedCollection && n.args().get(1) instanceof TypedCollection;
         boolean rows = !written || SideEqualities.exactNumber(n.args().get(0).info().type());
-        com.legend.sql.SqlQuery left = rows ? sideRows.apply(n.args().get(0)) : null;
-        com.legend.sql.SqlQuery right = left == null ? null : sideRows.apply(n.args().get(1));
+        // (each side's rows read as its VALUE is compared: a day or a date-time by its instant, a text carried as
+        // written parsed, a held one in the database's one form -- SideEqualities.instants, the reading the planner's
+        // own statement gave these sides; review 4 of slice 3a, blocker 1: the raw rows met a text against a
+        // TIMESTAMP on a database that compares rows)
+        com.legend.sql.SqlQuery left = rows
+                ? SideEqualities.instants(sideRows.apply(n.args().get(0)), n.args().get(0).info().type()) : null;
+        com.legend.sql.SqlQuery right = left == null ? null
+                : SideEqualities.instants(sideRows.apply(n.args().get(1)), n.args().get(1).info().type());
         return new SqlExpr.Call(SqlFn.SAME_IN_ORDER, left == null || right == null ? c.args()
                 : List.of(c.args().get(0), c.args().get(1), new SqlExpr.ScalarSubquery(left),
                         new SqlExpr.ScalarSubquery(right)));
@@ -156,16 +163,24 @@ final class Equalities {
         // subtype navigations [0..0] that still read real
         // columns (the gate-4 mapping-family regression
         // pinned that narrowing at burn slice 4).
-        // (and a side whose TYPE says it holds nothing -- Nil, the type of [] alone: the written empty list passed
-        // through a filter or a map is still the empty list, and its SQL value is a NULL list no `=` answers for;
-        // step 6B, slice 3, 2026-11-28: two such sides compared inside a list's function answered no value. The
-        // type, never the multiplicity: the caution above stands)
         boolean le = n.args().get(0) instanceof
                 com.legend.compiler.spec.typed.TypedCollection lc
-                && lc.elements().isEmpty() || PlatformTypes.isNil(n.args().get(0).info().type());
+                && lc.elements().isEmpty();
         boolean re = n.args().get(1) instanceof
                 com.legend.compiler.spec.typed.TypedCollection rc
-                && rc.elements().isEmpty() || PlatformTypes.isNil(n.args().get(1).info().type());
+                && rc.elements().isEmpty();
+        // A side whose TYPE is Nil and that is no written [] (the empty list through a filter or a map; step 6B,
+        // slice 3, 2026-11-28: two such sides compared inside a list's function answered no value, their SQL a NULL
+        // list no `=` answers for). Nil says the side holds no value IF it answers -- []->toOne() is Nil too, and
+        // raises -- so nothing is dropped: the comparison is "both sides hold nothing", each side written and
+        // evaluated (review 4 of slice 3a, blocker 2: a first cut took the type for the written [] and dropped the
+        // side). The product's rule alone; a door's comparison is as it was
+        if (numbers == NumberFamilies.TWO_FAMILIES && !(le || re)
+                && (PlatformTypes.isNil(n.args().get(0).info().type())
+                        || PlatformTypes.isNil(n.args().get(1).info().type()))) {
+            return SqlExpr.Call.of(SqlFn.AND, holdsNothing(n.args().get(0), args.get(0)),
+                    holdsNothing(n.args().get(1), args.get(1)));
+        }
         if (le || re) {
             if (le && re) {
                 return new SqlExpr.BoolLit(true);
@@ -207,7 +222,7 @@ final class Equalities {
             // the same, where the computed side is a LIST of such texts (a year passed through a filter): the written
             // year as the list of it, the two lists compared (step 6B, 2026-11-28: read as "a full date" it answered
             // false with no read, where the comparison written with no filter is true)
-            if (other == Type.Primitive.DATE && (p0 == null || p1 == null)
+            if (numbers == NumberFamilies.TWO_FAMILIES && other == Type.Primitive.DATE && (p0 == null || p1 == null)
                     && listOf(args.get(o), SqlType.Scalar.TEMPORAL_TEXT)) {
                 return new SqlExpr.Call(SqlFn.EQUAL, o == 0
                         ? List.of(args.get(0), PureSql.asList(args.get(1), false))
@@ -233,7 +248,9 @@ final class Equalities {
         // (a LIST of such texts too, against one held date-time or a list of them: each read as its instant -- step
         // 6B, 2026-11-28: a date built to the hour, passed through a filter, never equalled the literal it equals
         // where it stands alone)
-        List<SqlExpr> instants = asInstants(args);
+        // (the lists for the product's rule alone: at a door the written precision is part of the value, and a list
+        // of such texts was, and stays, the database's to refuse -- review 4 of slice 3a, finding 5)
+        List<SqlExpr> instants = asInstants(args, numbers == NumberFamilies.TWO_FAMILIES);
         List<SqlExpr> sides = instants == null ? args : instants;
         List<SqlExpr> cargs = List.of(
                 CastPolicy.comparisonWireOperand(n.args().get(0),
@@ -284,33 +301,61 @@ final class Equalities {
      * type (JSON, a date as its text, a tagged value: their own comparisons).
      */
     private static @com.legend.base.Nullable SqlExpr heldApart(TypedNativeCall n, List<SqlExpr> sides) {
+        if (n.pos() == null) {
+            return null;   // a comparison lite writes itself (a mapping's translation, a milestoning filter): as HeldKinds
+        }
         TypedSpec l = n.args().get(0);
         TypedSpec r = n.args().get(1);
         // two WRITTEN values that reach here in two types are two the type-checker met as values typed at run time:
         // a let's cast is gone once the let is read where it is used (probed 2026-11-28: `let a = 1->cast(@Number);
-        // let b = 1.0->cast(@Number); $a == $b` arrives as the literals 1 and 1.0)
+        // let b = 1.0->cast(@Number); $a == $b` arrives as the literals 1 and 1.0, and no record of the comparison
+        // having been kept for its types). A value read through such a let against a COLUMN is not caught here: the
+        // literal rule below reads it as the column's type (review 4 of slice 3a, note 9: open)
         boolean bothWritten = literal(l) && literal(r);
         if (!bothWritten && !(typedAtRunTime(l) || typedAtRunTime(r))) {
             return null;
         }
-        // a literal against a COLUMN whose type only the column gives still reads as the column's type (AGENTS.md,
-        // "A type only a column gives"): the database's comparison of the two, as it was. Against any other value
-        // typed at run time a literal is a value of its own type
-        if (!bothWritten && (literal(l) && sides.get(1) instanceof SqlExpr.Column
-                || literal(r) && sides.get(0) instanceof SqlExpr.Column)) {
+        // each side's kind by the ONE reading the product has of it (MixedEncoding.kindOfValue: its Pure type, the
+        // value under an upcast, a column's own type) -- the reading HeldKinds refuses two columns by -- and, for a
+        // side typed only when the query runs whose kind the text does not name (a computed list, a filter's
+        // result), the kind of the SQL type it is held in; whether two kinds can be equal by the product's number
+        // rule. No kind either way: the comparison as it was
+        String left = kindHeld(l, sides.get(0));
+        String right = kindHeld(r, sides.get(1));
+        if (left == null || right == null || NumberFamilies.TWO_FAMILIES.canEqual(left, right)) {
             return null;
         }
-        String left = heldFamily(l, sides.get(0));
-        String right = heldFamily(r, sides.get(1));
-        if (left == null || right == null || left.equals(right)) {
+        // a NUMBER literal the query writes against a value of the other number family reads as that family where
+        // it is exact there (the literal rule, HeldKinds.readsAs); two literals never do
+        if (!bothWritten && MixedEncoding.numberTypePlace(left) >= 0 && MixedEncoding.numberTypePlace(right) >= 0
+                && (HeldKinds.readsAs(l, right) || HeldKinds.readsAs(r, left))) {
             return null;
         }
         if (aList(sides.get(0)) || aList(sides.get(1))) {
-            return sameOnlyWhereBothEmpty(Scalars.emptiness(l, sides.get(0)), Scalars.emptiness(r, sides.get(1)));
+            return sameOnlyWhereBothEmpty(holdsNothing(l, sides.get(0)), holdsNothing(r, sides.get(1)));
         }
         return mayHoldNoValue(l, sides.get(0)) && mayHoldNoValue(r, sides.get(1))
                 ? sameOnlyWhereBothEmpty(isNone(sides.get(0)), isNone(sides.get(1)))
                 : neverEqualButEvaluated(sides.get(0), sides.get(1));
+    }
+
+    private static @com.legend.base.Nullable String kindHeld(TypedSpec side, SqlExpr lowered) {
+        String named = MixedEncoding.kindOfValue(side, lowered);
+        return named != null || !typedAtRunTime(side) || !(lowered.type() instanceof com.legend.sql.TypeFact.Typed held)
+                ? named : MixedEncoding.kindOfCarrier(side.info().type(), held.type());
+    }
+
+    /** Whether {@code side}, lowered as {@code lowered}, holds nothing: a list the SQL holds as a list by its length
+     *  (a NULL list none), a tagged list by its size, any other value by its absence -- chosen by what the SQL
+     *  holds, never by the side's declared multiplicity (a to-many navigation's column is one value a row; review 4
+     *  of slice 3a, note 6). */
+    private static SqlExpr holdsNothing(TypedSpec side, SqlExpr lowered) {
+        if (lowered instanceof SqlExpr.TaggedList) {
+            return Scalars.emptiness(side, lowered);
+        }
+        return aList(lowered) ? new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
+                SqlExpr.Call.of(SqlFn.LIST_LENGTH, lowered), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0)))
+                : isNone(lowered);
     }
 
     private static boolean typedAtRunTime(TypedSpec side) {
@@ -328,30 +373,19 @@ final class Equalities {
                 || side instanceof TypedCollection;
     }
 
-    /** The family of the type the SQL holds {@code lowered} in (a list's: its elements'), two of which are never
-     *  equal: an exact number, a Float, a text, a Boolean, a day, a date-time; null where the carrier names no one
-     *  type (JSON, a date as its text, a Decimal as its text against which only its own reading compares, anything
-     *  untyped), or is a text under a side declared {@code Date} (a date written as its text). */
-    private static @com.legend.base.Nullable String heldFamily(TypedSpec side, SqlExpr lowered) {
-        if (!(lowered.type() instanceof com.legend.sql.TypeFact.Typed typed)) {
-            return null;
-        }
-        SqlType t = typed.type() instanceof SqlType.Array a ? a.element() : typed.type();
-        if (t instanceof SqlType.Decimal) {
-            return "exact";
-        }
-        if (!(t instanceof SqlType.Scalar s)) {
-            return null;
-        }
-        return switch (s) {
-            case INTEGER, BIGINT, HUGEINT -> "exact";
-            case DOUBLE -> "float";
-            case BOOLEAN -> "boolean";
-            case DATE -> "day";
-            case TIMESTAMP, TIMESTAMPTZ -> "date-time";
-            case VARCHAR -> side.info().type() == Type.Primitive.DATE ? null : "text";
-            default -> null;
-        };
+    /**
+     * Whether {@code n}'s two sides, one of them declared {@code Number} or the abstract {@code Date} (a type the
+     * value fills in when the query runs), are each held by the SQL as a typed list of ONE plain kind, the two of
+     * one family ({@link SideEqualities#heldInOneKind}: the kind under each side's upcast, by the product's number
+     * rule): such sides are compared as the two values, by the one "same values" instruction, wherever the
+     * comparison stands (step 6B, slice 3: {@code [1, 2]->cast(@Number) == [1D, 2D]->cast(@Number)}). The planner
+     * stands aside for the same pairs by the same reading ({@code planner.RootComparison}). Two families never
+     * reach the instruction ({@link #heldApart} answered them); a list that holds several types is a tagged list,
+     * no plain one (part 2).
+     */
+    static boolean heldAsOneKind(TypedNativeCall n, List<SqlExpr> sides) {
+        return n.args().size() == 2 && sides.size() == 2 && plainList(sides.get(0)) && plainList(sides.get(1))
+                && SideEqualities.heldInOneKind(n.args().get(0), n.args().get(1));
     }
 
     /**
@@ -472,31 +506,54 @@ final class Equalities {
 
     /** The two sides where a date-time carried as its written text (or a list of such texts) meets one the database
      *  holds as a TIMESTAMP (or a list of them), each read as its instant, in the order given; null where the sides
-     *  are no such pair. One value against a list is the list of that value. */
-    private static @com.legend.base.Nullable List<SqlExpr> asInstants(List<SqlExpr> args) {
+     *  are no such pair. One value against a list is the list of that value. The
+     *  list forms only where {@code lists} (the product's own rule). Two SINGLE texts are not read here: their
+     *  written precisions are compared by the rule above this call. */
+    private static @com.legend.base.Nullable List<SqlExpr> asInstants(List<SqlExpr> args, boolean lists) {
+        SqlExpr l = args.get(0);
+        SqlExpr r = args.get(1);
+        boolean lTexts = listOf(l, SqlType.Scalar.TEMPORAL_TEXT);
+        boolean rTexts = listOf(r, SqlType.Scalar.TEMPORAL_TEXT);
+        // (two lists of texts are compared as the texts they are: such a list may hold a year or a year-month, which
+        // is no instant, and what each element is only its value says. So two lists that write one instant at two
+        // precisions -- an hour's text against a minute's -- are not equal here: a named gap, review 4 of slice 3a,
+        // blocker 1's second example)
+        if (lists && lTexts != rTexts) {
+            SqlExpr a = lTexts ? instantsOfTexts(l) : instantListOf(l);
+            SqlExpr b = rTexts ? instantsOfTexts(r) : instantListOf(r);
+            return a == null || b == null ? null : List.of(a, b);
+        }
         for (int t = 0; t < 2; t++) {
             SqlExpr text = args.get(t);
             SqlExpr held = args.get(1 - t);
+            if (!carriedAs(text, SqlType.Scalar.TEMPORAL_TEXT)) {
+                continue;
+            }
             SqlExpr a;
             SqlExpr b;
-            if (listOf(text, SqlType.Scalar.TEMPORAL_TEXT) && listOf(held, SqlType.Scalar.TIMESTAMP)) {
-                a = instantsOfTexts(text);
-                b = instantsOfHeld(held);
-            } else if (listOf(text, SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(held, SqlType.Scalar.TIMESTAMP)) {
-                a = instantsOfTexts(text);
-                b = PureSql.asList(SideEqualities.instantOfHeld(held), false);
-            } else if (carriedAs(text, SqlType.Scalar.TEMPORAL_TEXT) && listOf(held, SqlType.Scalar.TIMESTAMP)) {
-                a = PureSql.asList(SideEqualities.instantOfText(text), false);
-                b = instantsOfHeld(held);
-            } else if (carriedAs(text, SqlType.Scalar.TEMPORAL_TEXT) && carriedAs(held, SqlType.Scalar.TIMESTAMP)) {
+            if (carriedAs(held, SqlType.Scalar.TIMESTAMP)) {
                 a = SideEqualities.instantOfText(text);
                 b = SideEqualities.instantOfHeld(held);
+            } else if (lists && listOf(held, SqlType.Scalar.TIMESTAMP)) {
+                a = PureSql.asList(SideEqualities.instantOfText(text), false);
+                b = instantsOfHeld(held);
             } else {
                 continue;
             }
             return t == 0 ? List.of(a, b) : List.of(b, a);
         }
         return null;
+    }
+
+    /** {@code side}, met beside a list of date-times carried as their written texts, as the list of instants it is:
+     *  a list of held date-times each as its instant, one held date-time as the list of its instant; null where it
+     *  is neither (the comparison is then as it was). */
+    private static @com.legend.base.Nullable SqlExpr instantListOf(SqlExpr side) {
+        if (listOf(side, SqlType.Scalar.TIMESTAMP)) {
+            return instantsOfHeld(side);
+        }
+        return carriedAs(side, SqlType.Scalar.TIMESTAMP)
+                ? PureSql.asList(SideEqualities.instantOfHeld(side), false) : null;
     }
 
     /** Whether {@code e}'s SQL type is known to be {@code type}. */

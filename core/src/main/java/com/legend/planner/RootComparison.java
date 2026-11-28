@@ -114,6 +114,13 @@ final class RootComparison {
         }
         SqlQuery leftPlan = lowered.apply(with(lets, left));
         SqlQuery rightPlan = lowered.apply(with(lets, right));
+        if (!anyOrder && heldAsOneKind(left, leftPlan, right, rightPlan)) {
+            // two sides, one declared Number or the abstract Date, each of which its own statement holds in ONE
+            // plain type, the two of one family (step 6B, slice 3: [1, 2]->cast(@Number) == [1D, 2D]->cast(@Number)):
+            // no statement of their own either -- the lowering writes the same instruction over the two values
+            // (Equalities.heldAsOneKind reads the same family off the two values' types)
+            return null;
+        }
         SideEqualities.Pair pair = SideEqualities.pair(left, kind(left, leftPlan), leftPlan, right,
                 kind(right, rightPlan), rightPlan, ctx);
         SideEqualities.Compared compared = pair == null ? null : pair.compared(leftPlan, rightPlan, anyOrder);
@@ -280,6 +287,14 @@ final class RootComparison {
      * 2026-11-27: read as a table against a list it had no comparison here, and took the plain one, in the order
      * the rows arrived).
      */
+    /** Whether the two sides, one of them declared {@code Number} or the abstract {@code Date}, each hold one kind
+     *  the query's text names, the two of one family ({@code SideEqualities.heldInOneKind}: the reading the lowering
+     *  asks too), and each side's own statement gives its values as typed rows. */
+    private static boolean heldAsOneKind(TypedSpec left, SqlQuery leftPlan, TypedSpec right, SqlQuery rightPlan) {
+        return SideEqualities.heldInOneKind(left, right) && SideEqualities.typedRows(leftPlan) != null
+                && SideEqualities.typedRows(rightPlan) != null;
+    }
+
     private static Type valueType(TypedSpec side) {
         Type t = side.info().type();
         return side.info().multiplicity().isMany() && Type.schemaView(t) instanceof Type.RelationType rows

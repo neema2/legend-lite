@@ -167,7 +167,7 @@ final class HeldKinds {
     /** Whether {@code side} is number literals written in the query, each exact as a value of {@code kind}'s family:
      *  a whole number within a double's 53 bits against a Float; a Float literal that is such a whole number against
      *  an exact number. A Decimal literal states its type and is never read as another. */
-    private static boolean readsAs(TypedSpec side, String kind) {
+    static boolean readsAs(TypedSpec side, String kind) {
         if (side instanceof TypedCollection c) {
             return !c.elements().isEmpty() && c.elements().stream().allMatch(e -> readsAs(e, kind));
         }
