@@ -1,0 +1,10 @@
+# The equality measure's files a test reads (tools/equality-measure/README.md): the position matrix's two models and
+# its pinned result, //core:equality_positions_pin_test's data (step 6B's slice 2, 2026-11-28).
+exports_files(
+    [
+        "positions-baseline.tsv",
+        "positions-model.txt",
+        "positions-store-model.txt",
+    ],
+    visibility = ["//core:__pkg__"],
+)

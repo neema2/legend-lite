@@ -70,9 +70,13 @@ public final class EqualityMeasure {
 
     public static void main(String[] args) throws Exception {
         if (args.length >= 2 && args[0].equals("--positions")) {
-            ExecutorService[] one = {Executors.newSingleThreadExecutor(daemon())};
-            positions(Path.of(args[1]), one, args.length > 2 ? Pattern.compile(args[2]) : null);
-            one[0].shutdownNow();
+            positions(Path.of(args[1]), workspaceFile("positions-model.txt"),
+                    workspaceFile("positions-store-model.txt"), args.length > 2 ? Pattern.compile(args[2]) : null);
+            System.exit(0);
+        }
+        if (args.length >= 2 && args[0].equals("--report")) {
+            // the report of a run already made: its positions.tsv and positions-store.tsv read again
+            PositionReport.write(Path.of(args[1]));
             System.exit(0);
         }
         if (args.length >= 2 && args[0].equals("--sql")) {
@@ -80,7 +84,9 @@ public final class EqualityMeasure {
             for (DatabaseType db : DATABASES) {
                 String sql;
                 try {
-                    sql = typed(Compiler.compileModel(StorelessRuntime.with(positionModel(), db)), args[1], List.of())
+                    sql = typed(Compiler.compileModel(StorelessRuntime.with(
+                            Files.readString(workspaceFile("positions-model.txt"), StandardCharsets.UTF_8), db)),
+                            args[1], List.of())
                             .plan(StorelessRuntime.RUNTIME).sql();
                 } catch (RuntimeException e) {
                     sql = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -230,22 +236,18 @@ public final class EqualityMeasure {
     private record Sides(String id, String expected, String left, String right) {
     }
 
-    /** The position matrix's model, read from {@code tools/equality-measure/positions-model.txt} of the workspace
-     *  ({@code bazel run} names it: BUILD_WORKSPACE_DIRECTORY). It is no string literal of this file on purpose: the
-     *  parser-equivalence corpus extracts every model text written as a Java literal in the test sources, and as a
-     *  literal here this one failed {@code //parser-equivalence:parser_parity} (2026-11-27). */
-    private static String positionModel() {
+    /** A file of {@code tools/equality-measure} in the workspace ({@code bazel run} names it:
+     *  BUILD_WORKSPACE_DIRECTORY). The position matrix's two models are files there and no string literals of this
+     *  class on purpose: the parser-equivalence corpus reads every Pure model written as a Java string in core's
+     *  sources, and as a literal here the model failed {@code //parser-equivalence:parser_parity} (2026-11-27). The
+     *  pin test reads the same files as its data. */
+    private static Path workspaceFile(String name) {
         String workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY");
         if (workspace == null) {
-            throw new IllegalStateException("the position matrix reads its model from the workspace: run it with"
-                    + " `bazel run //core:equality_measure -- --positions <out dir>`");
+            throw new IllegalStateException("the position matrix reads tools/equality-measure/" + name
+                    + " of the workspace: run it with `bazel run //core:equality_measure -- --positions <out dir>`");
         }
-        try {
-            return Files.readString(Path.of(workspace, "tools", "equality-measure", "positions-model.txt"),
-                    StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
+        return Path.of(workspace, "tools", "equality-measure", name);
     }
 
     private static final String ONE_ROW = "#TDS\n id\n 1\n#";
@@ -399,17 +401,30 @@ public final class EqualityMeasure {
      * {@code &&} and {@code ||}, over two lets, a kept value and a condition inside a list's lambda, a side that
      * reads the lambda's element, inside a function whose parameters are typed when it is called, a table's filter
      * and a table's column, and a test's {@code assertEquals} and {@code assert} under each judge -- per in-process
-     * database. {@code positions.tsv} holds every outcome as it came; {@code tools/equality-measure/positions.py}
-     * reads it and lists the comparisons whose answer depends on where they stand. Nothing is expected here: the
-     * measure is whether the answers agree. Run: {@code bazel run //core:equality_measure -- --positions <out dir>
-     * [<comparison name regex>]}.
+     * database. {@code positions.tsv} holds every outcome as it came; {@link PositionReport} reads it and says, per
+     * comparison and database, whether every place gave the answer the equality rule gives. Run: {@code bazel run
+     * //core:equality_measure -- --positions <out dir> [<comparison name regex>]}. {@code model} and {@code
+     * storeModel} are the matrix's two models (tools/equality-measure/positions-model.txt and
+     * positions-store-model.txt). The answer is the report's pin lines ({@link EqualityPositionsPinTest}).
      */
-    private static void positions(Path out, ExecutorService[] pool, @com.legend.base.Nullable Pattern only)
+    static List<String> positions(Path out, Path model, Path storeModel, @com.legend.base.Nullable Pattern only)
             throws IOException {
+        ExecutorService[] pool = {Executors.newSingleThreadExecutor(daemon())};
+        try {
+            valuePositions(out, pool, Files.readString(model, StandardCharsets.UTF_8), only);
+            storePositions(out, pool, Files.readString(storeModel, StandardCharsets.UTF_8), only);
+        } finally {
+            pool[0].shutdownNow();
+        }
+        return PositionReport.write(out);
+    }
+
+    private static void valuePositions(Path out, ExecutorService[] pool, String model,
+            @com.legend.base.Nullable Pattern only) throws IOException {
         Files.createDirectories(out);
         Map<DatabaseType, ModelContext> contexts = new HashMap<>();
         for (DatabaseType db : DATABASES) {
-            contexts.put(db, Compiler.compileModel(StorelessRuntime.with(positionModel(), db)));
+            contexts.put(db, Compiler.compileModel(StorelessRuntime.with(model, db)));
         }
         long t0 = System.nanoTime();
         int runs = 0;
@@ -439,7 +454,6 @@ public final class EqualityMeasure {
             }
         }
         System.err.printf("positions: %d runs in %.0f s%n", runs, (System.nanoTime() - t0) / 1e9);
-        storePositions(out, pool, only);
     }
 
     /** One comparison over a store's row {@code $r}: its name, the ids of the rows it is true for by the equality
@@ -509,11 +523,8 @@ public final class EqualityMeasure {
      *  plain, negated, under {@code &&}, under {@code if} and inside a function, per database. {@code
      *  positions-store.tsv} holds each outcome; the report compares, per comparison, the rows each place says it is
      *  true for with one another and with the rows the rule gives. */
-    private static void storePositions(Path out, ExecutorService[] pool, @com.legend.base.Nullable Pattern only)
-            throws IOException {
-        String workspace = java.util.Objects.requireNonNull(System.getenv("BUILD_WORKSPACE_DIRECTORY"));
-        String text = Files.readString(Path.of(workspace, "tools", "equality-measure", "positions-store-model.txt"),
-                StandardCharsets.UTF_8);
+    private static void storePositions(Path out, ExecutorService[] pool, String text,
+            @com.legend.base.Nullable Pattern only) throws IOException {
         long t0 = System.nanoTime();
         int runs = 0;
         try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(out.resolve("positions-store.tsv"),
