@@ -1832,6 +1832,18 @@ public final class CarrierStrategies extends SqlRewriter {
      * COALESCE(_, false), which absorbs the NULL-needle edge). */
     private static @com.legend.base.Nullable SqlExpr membershipRule(
             SqlExpr.Membership m) {
+        // the collection's ROWS ride beside its value (a membership over a side bound once; step 6B, slice 6): the
+        // needle among them -- EXISTS over the rows with the equality in its WHERE, as the collect rule below
+        // writes a list folded in place. The rows hold no empty slot, and a needle that is no value matches none
+        if (m.rows() instanceof SqlExpr.ScalarSubquery rows && !rows.subquery().outputs().isEmpty()) {
+            com.legend.sql.OutputCol one = new com.legend.sql.OutputCol("__one", com.legend.sql.SqlType.Scalar.BIGINT,
+                    false);
+            SqlExpr eq = SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, SqlExpr.Column.of("__m",
+                    rows.subquery().outputs().get(0)), m.needle());
+            return new SqlExpr.Exists(new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one",
+                    one)), false, new com.legend.sql.SqlSource.Subselect(rows.subquery(), "__m", null), eq, List.of(),
+                    null, null, List.of(), null, null, List.of(one)));
+        }
         if (m.collection() instanceof SqlExpr.ArrayLit al) {
             SqlExpr chain = null;
             for (SqlExpr el : al.elements()) {

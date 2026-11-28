@@ -447,6 +447,13 @@ public final class Lowerer {
             e = Equalities.asSameValues(call, e, side -> planner == null ? null : planner.sideRows(side),
                     boundSides != null);
         }
+        if (boundSides != null && wholeComparisons != null && Equalities.membershipList(call) instanceof TypedSpec list
+                && Scalars.doorsRule(call, features, styled()) == null
+                && wholeComparisons.sideRows(list) instanceof SqlQuery rows) {
+            // the product's own contains or in over a list side BOUND ONCE (an assert as the membership it means):
+            // the bound rows ride the membership, for a database that has no list membership to read
+            e = Equalities.amongRows(e, rows);
+        }
         return isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
                 && styled().edition().emptySideIsFalse(call)
                 ? Equalities.emptySidesAsPure(call, e, positiveConditions.contains(call)) : e;

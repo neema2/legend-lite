@@ -537,6 +537,13 @@ public final class VerdictQueries {
                 List.of(actual, expected), Type.Primitive.BOOLEAN));
     }
 
+    /** {@code collection->contains(value)} over the two sides as they are typed: the membership an
+     *  {@code assertContains} means, answered by the door's comparison setting as one written in a query is. */
+    public static TypedSpec containsOf(TypedSpec collection, TypedSpec value, SpecCompiler specs) {
+        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.CONTAINS__ANY_MANY__ANY_1,
+                List.of(collection, value), Type.Primitive.BOOLEAN));
+    }
+
     /** A call of exactly {@code declaration}, a function the platform declares, by its identity: never absent, never
      *  another overload of its name (NO FALLBACKS, invariant 4; the audit of 2026-11-26, S1). */
     private static TypedNativeCall declared(SpecCompiler specs, com.legend.model.Function declaration,

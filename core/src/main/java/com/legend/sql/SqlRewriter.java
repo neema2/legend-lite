@@ -164,8 +164,9 @@ public abstract class SqlRewriter {
             case SqlExpr.Membership m -> {
                 SqlExpr n2 = rewriteExpr(m.needle());
                 SqlExpr c2 = rewriteExpr(m.collection());
-                yield n2 == m.needle() && c2 == m.collection() ? m
-                        : new SqlExpr.Membership(n2, c2);
+                SqlExpr r2 = m.rows() == null ? null : rewriteExpr(m.rows());
+                yield n2 == m.needle() && c2 == m.collection() && r2 == m.rows() ? m
+                        : new SqlExpr.Membership(n2, c2, r2);
             }
             case SqlExpr.ReduceCollection rc -> {
                 SqlExpr col = rewriteExpr(rc.collection());

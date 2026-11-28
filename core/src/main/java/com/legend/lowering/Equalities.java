@@ -521,6 +521,38 @@ final class Equalities {
         return new Member(null, list, needle);
     }
 
+    /** The LIST of a membership test {@code n} ({@code contains}'s first argument, {@code in}'s second), or null
+     *  where {@code n} is neither: the side whose rows a database with no list membership reads
+     *  ({@link #amongRows}). */
+    static @com.legend.base.Nullable TypedSpec membershipList(TypedNativeCall n) {
+        if (n.args().size() != 2) {
+            return null;
+        }
+        return com.legend.builtin.Pure.AT_COLLECTION_CONTAINS.contains(n.callee().id()) ? n.args().get(0)
+                : com.legend.builtin.Pure.AT_COLLECTION_IN.contains(n.callee().id()) ? n.args().get(1) : null;
+    }
+
+    /**
+     * A MEMBERSHIP WITH ITS LIST'S ROWS RIDING (step 6B, slice 6): {@code lowered} is the product's lowering of a
+     * {@code contains} or an {@code in} whose list side is bound once to a statement's column, {@code rows} that
+     * side's typed rows. The membership node the rule wrote keeps its two values and carries the rows beside them
+     * ({@code SqlExpr.Membership.rows}), as the "same values" instruction carries its sides' rows: a database with
+     * a list membership writes the two values, one without reads the needle among the rows. Anything the rule wrote
+     * that is no membership of two values (never a member by the kinds, a comparator's filter, a mixed list's) is
+     * left as it is.
+     */
+    static SqlExpr amongRows(SqlExpr lowered, com.legend.sql.SqlQuery rows) {
+        if (lowered instanceof SqlExpr.Membership m && m.rows() == null) {
+            return new SqlExpr.Membership(m.needle(), m.collection(), new SqlExpr.ScalarSubquery(rows));
+        }
+        if (lowered instanceof SqlExpr.Call guard && guard.fn() == SqlFn.COALESCE && guard.args().size() == 2
+                && guard.args().get(0) instanceof SqlExpr.Membership m && m.rows() == null) {
+            return SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Membership(m.needle(), m.collection(),
+                    new SqlExpr.ScalarSubquery(rows)), guard.args().get(1));
+        }
+        return lowered;
+    }
+
     private static boolean typedAtRunTime(TypedSpec side) {
         Type t = side.info().type();
         return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE || PlatformTypes.isAny(t);

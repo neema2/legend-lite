@@ -151,7 +151,8 @@ public sealed interface SqlExpr
             case Column ignored -> List.of();
             case StoredRead r -> List.of(r.column());
             case RowOrder ignored -> List.of();
-            case Membership m -> List.of(m.needle(), m.collection());
+            case Membership m -> m.rows() == null ? List.of(m.needle(), m.collection())
+                    : List.of(m.needle(), m.collection(), m.rows());
             case ReduceCollection rc -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
                 out.add(rc.collection());
@@ -279,7 +280,7 @@ public sealed interface SqlExpr
             case RowOrder ignored -> this;
             case ReduceCollection rc -> new ReduceCollection(rc.reducer(),
                     cs.get(0), cs.subList(1, cs.size()));
-            case Membership m -> new Membership(cs.get(0), cs.get(1));
+            case Membership m -> new Membership(cs.get(0), cs.get(1), cs.size() > 2 ? cs.get(2) : null);
             case Star ignored -> this;
             case StarExcept ignored -> this;
             case StringLit ignored -> this;
@@ -494,14 +495,22 @@ public sealed interface SqlExpr
      * (NULL, not FALSE) — indistinguishable in filter position; the
      * portable rule CASE-wraps in the NULL-element-literal case. The
      * collection may be a PlanParam at bind time (§2). */
-    record Membership(SqlExpr needle, SqlExpr collection,
+    record Membership(SqlExpr needle, SqlExpr collection, @com.legend.base.Nullable SqlExpr rows,
             TypeFact type) implements SqlExpr {
         public Membership {
             type = SqlTyping.membershipType(needle, collection);
         }
 
         public Membership(SqlExpr needle, SqlExpr collection) {
-            this(needle, collection, SqlTyping.UNKNOWN);
+            this(needle, collection, null, SqlTyping.UNKNOWN);
+        }
+
+        /** The membership with the collection's ROWS riding beside its value ({@code rows}, a
+         *  {@link ScalarSubquery} of them: its first column the values, no empty slot among them), as the "same
+         *  values" instruction's third and fourth arguments ride (step 6B, slice 6): a database with no list
+         *  membership reads the rows; one that has writes the list and never the rows. */
+        public Membership(SqlExpr needle, SqlExpr collection, @com.legend.base.Nullable SqlExpr rows) {
+            this(needle, collection, rows, SqlTyping.UNKNOWN);
         }
     }
 

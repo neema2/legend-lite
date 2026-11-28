@@ -1486,6 +1486,38 @@ final class Substitution {
      * reads on the SAME exploded row). Property-path bodies are the
      * auto-map spelling of the same rule. Reducer-wrapped maps never reach
      * this arm (guarded at the reducer call above — audit 12 F4). */
+    /**
+     * A FUNCTION IS NOT APPLIED TO NO VALUE (the user's ruling of 2026-11-28, "Yes fix all map family"):
+     * {@code applied} is {@code m}'s function with its parameter read as {@code m}'s source, the auto-map
+     * spelling. Where the source is ONE VALUE that may hold nothing (a primitive property declared {@code [0..1]}),
+     * that answers a value for an object whose property is empty wherever the function does not hang on its
+     * parameter alone: {@code $r.i->map(x | 7)} answered 7, {@code $r.s->map(x | $x + $r.s2->toOne())} answered
+     * {@code s2}'s text (measured 2026-11-28 on DuckDB, H2 and SQLite; Pure's map over no element is no element).
+     * So the application answers only where the source holds a value. A class's navigation is the property path it
+     * always was (empty where the object is absent), and a value that always holds one is applied as before: no
+     * statement of theirs grows.
+     */
+    private TypedSpec appliedWhereItHoldsAValue(TypedMap m, TypedSpec applied) {
+        TypedFunction holdsAValue = target.regs().isNotEmptyCallee();
+        if (Type.asClassType(m.source().info().type()) instanceof Type.ClassType
+                || !(m.source().info().multiplicity()
+                        instanceof com.legend.compiler.element.type.Multiplicity.Bounded held)
+                || held.lower() != 0 || held.upper() == null || held.upper() != 1) {
+            return applied;
+        }
+        if (holdsAValue == null) {
+            throw new IllegalStateException("resolver bug: a map over a value that may hold nothing needs isNotEmpty,"
+                    + " which this substitution was given no callee for");
+        }
+        com.legend.compiler.element.type.Multiplicity answered = applied.info().multiplicity()
+                instanceof com.legend.compiler.element.type.Multiplicity.Bounded b && b.upper() != null && b.upper() == 1
+                ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE : applied.info().multiplicity();
+        return new com.legend.compiler.spec.typed.TypedIf(new TypedNativeCall(holdsAValue, List.of(m.source()),
+                com.legend.compiler.element.type.ExprType.one(Type.Primitive.BOOLEAN)), applied,
+                java.util.Optional.empty(), new com.legend.compiler.element.type.ExprType(applied.info().type(),
+                        answered));
+    }
+
     private static boolean objectSpaceFanOut(TypedMap m) {
         return m.mapper().parameters().size() == 1
                 && m.mapper().body().size() == 1
@@ -2059,8 +2091,8 @@ final class Substitution {
             case com.legend.compiler.spec.typed.TypedSlice d when listValue(d.source()) ->
                     d.mapChildren(this::rewrite);
             case TypedMap m when objectSpaceFanOut(m) ->
-                    rewrite(inlineParam(withAggReads(m.mapper().body().get(0)),
-                            m.mapper().parameters().get(0), m.source()));
+                    rewrite(appliedWhereItHoldsAValue(m, inlineParam(withAggReads(m.mapper().body().get(0)),
+                            m.mapper().parameters().get(0), m.source())));
             // Literals: nothing to substitute.
             case TypedCString ignored -> n;
             case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;

@@ -303,6 +303,9 @@ public final class MirJson {
                 tag(o, ExprTag.membership, m.type());
                 o.put("needle", expr(m.needle()));
                 o.put("collection", expr(m.collection()));
+                if (m.rows() != null) {
+                    o.put("rows", expr(m.rows()));
+                }
             }
             case SqlExpr.Column c -> {
                 tag(o, ExprTag.column, c.type());
@@ -941,7 +944,7 @@ public final class MirJson {
                     named(SqlAgg.Fn.class, o.getString("reducer"), "aggregate"), readExpr(o.getObj("collection")),
                     readExprs(o.getArr("extras")), type);
             case membership -> new SqlExpr.Membership(readExpr(o.getObj("needle")), readExpr(o.getObj("collection")),
-                    type);
+                    o.has("rows") ? readExpr(o.getObj("rows")) : null, type);
             case column -> {
                 String origin = o.getStringOr("origin", null);
                 yield new SqlExpr.Column(o.getStringOr("table", null), o.getString("name"), type,

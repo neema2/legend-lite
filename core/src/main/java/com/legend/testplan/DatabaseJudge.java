@@ -255,6 +255,13 @@ public final class DatabaseJudge {
 
     /** Whether {@code type} is a plain value's: a whole number, a Decimal, a Float, a String, a Boolean, a day or a
      *  date-time -- the kinds whose asserts are the product's own comparison since step 6B's slice 6. */
+    /** Whether {@code type} is a plain value's that is no day and no date-time: a whole number, a Decimal, a Float,
+     *  a String or a Boolean. */
+    private static boolean countedValues(com.legend.compiler.element.type.Type type) {
+        return plainValues(type) && type != com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
+                && type != com.legend.compiler.element.type.Type.Primitive.DATE_TIME;
+    }
+
     /** Whether {@code type} is Nil's (a side the types say holds nothing) or a plain value's ({@link #plainValues}). */
     private static boolean nilOrPlain(com.legend.compiler.element.type.Type type) {
         return com.legend.compiler.element.type.PlatformTypes.isNil(type) || plainValues(type);
@@ -601,6 +608,36 @@ public final class DatabaseJudge {
         boolean literal = cr.literalOnly() || vr.literalOnly();
         if (literal && (cr.literalIndex() < 0 || vr.literalIndex() < 0)) {
             return unjudged(name, "no literal channel");
+        }
+        // THE MEMBERSHIP THE ASSERT MEANS (step 6B, slice 6): a collection and a value of one plain type are the
+        // product's own contains of the two, lowered as one written in a query is, each side BOUND ONCE -- so the
+        // verdict is no reading of the judge's own, and the lists the failure records are the values compared. A
+        // database with no list membership reads the needle among the collection's bound rows. Days and date-times
+        // stay with the member below until the rows' reading of an instant rides too; any other pair as before
+        com.legend.compiler.element.type.Type cKind = oneKind(cr);
+        com.legend.compiler.element.type.Type vKind = oneKind(vr);
+        if (!cr.tdsWrapped() && cKind != null && vKind != null && countedValues(coll.info().type())
+                && coll.info().type().equals(val.info().type()) && c.side() != null && v.side() != null) {
+            TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(coll, val, specs);
+            com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
+                    c.side().plan(), cKind, atMostOne(coll), v.side().plan(), vKind, atMostOne(val), (list, one) -> {
+                        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =
+                                new java.util.IdentityHashMap<>();
+                        values.put(coll, list.value());
+                        values.put(val, one.value());
+                        java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows =
+                                new java.util.IdentityHashMap<>();
+                        rows.put(coll, list.rows());
+                        rows.put(val, one.rows());
+                        return com.legend.planner.SidePlanner.overSides(among, values, rows, env.plan());
+                    });
+            com.legend.lowering.VerdictSql.TypedRow bound = com.legend.lowering.VerdictSql.typed(compared, !negated,
+                    true);
+            if (bound != null) {
+                return runTyped(name, bound, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.CONTAINS, !negated, JudgmentFacts.sideFacts(coll),
+                        JudgmentFacts.sideFacts(val), null, -1), c.on(env));
+            }
         }
         // TYPED (item 3's S4): some element of the collection IS NOT DISTINCT FROM the value, both of one kind, or
         // instances of one class each read as its typed leaves (as equality reads them)
