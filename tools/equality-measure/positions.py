@@ -85,6 +85,11 @@ def is_answer(v, store):
 
 def judge(v, expected, place, store):
     """What one place's outcome is against the expected answer: 'right', 'wrong', 'refused' (by name) or 'failed'."""
+    if ';generic=R' in expected:
+        # a compile error inside a function over one type variable whose call gives it two types
+        expected = expected.replace(';generic=R', '')
+        if place.split(' ')[0] == 'function-generic':
+            return 'right' if v == 'refused ModelException' else 'wrong' if is_answer(v, store) else 'failed'
     if '@' in expected:
         # a@b: a where the comparison is written, b inside a function whose parameters are Any
         written, at_run = expected.split('@', 1)

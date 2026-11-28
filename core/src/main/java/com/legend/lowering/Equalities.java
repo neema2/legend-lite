@@ -247,9 +247,100 @@ final class Equalities {
             // multiplicity: a to-many navigation's column is one value a row
             cargs = List.of(PureSql.asList(cargs.get(0), list0), PureSql.asList(cargs.get(1), list1));
         }
+        // two values typed only when the query runs, which the SQL holds in two types that are never equal
+        SqlExpr apart = numbers == NumberFamilies.TWO_FAMILIES ? heldApart(n, cargs) : null;
+        if (apart != null) {
+            return apart;
+        }
         // nullable col-vs-col equality is NULL-SAFE (engine
         // isEqualsFromFilter; task #62's equal-side arm)
         return nullArms(n, cargs);
+    }
+
+    /**
+     * TWO VALUES TYPED ONLY WHEN THE QUERY RUNS, HELD IN TWO TYPES THAT ARE NEVER EQUAL (step 6B, ahead of slice 3,
+     * 2026-11-28): a side declared {@code Number}, {@code Any} or the abstract {@code Date} is compared by the type
+     * it holds (AGENTS.md, "Types known only at run time"), and the SQL type each side is carried in says which that
+     * is. An exact number against a Float, a number against a text, a day against a date-time: false, both sides
+     * still evaluated ({@link #neverEqualButEvaluated}); two that may both hold no value, or two lists: the same only
+     * where both are empty ({@link #sameOnlyWhereBothEmpty}). Until then the database's own {@code =} compared them
+     * (measured: {@code let a = 1->cast(@Any); let b = '1'->cast(@Any); $a == $b} answered true on DuckDB and H2,
+     * where the same comparison written without the lets answers false).
+     *
+     * <p>Null, the comparison as it was, where ONE side is a written literal (a number literal reads as the type of
+     * the value it is written against: {@code compiler.spec.NumberLiterals}), where neither side is typed at run
+     * time (the type-checker and {@link HeldKinds} have ruled the pair), or where a side's carrier names no one
+     * type (JSON, a date as its text, a tagged value: their own comparisons).
+     */
+    private static @com.legend.base.Nullable SqlExpr heldApart(TypedNativeCall n, List<SqlExpr> sides) {
+        TypedSpec l = n.args().get(0);
+        TypedSpec r = n.args().get(1);
+        // two WRITTEN values that reach here in two types are two the type-checker met as values typed at run time:
+        // a let's cast is gone once the let is read where it is used (probed 2026-11-28: `let a = 1->cast(@Number);
+        // let b = 1.0->cast(@Number); $a == $b` arrives as the literals 1 and 1.0)
+        boolean bothWritten = literal(l) && literal(r);
+        if (!bothWritten && !(typedAtRunTime(l) || typedAtRunTime(r))) {
+            return null;
+        }
+        // a literal against a COLUMN whose type only the column gives still reads as the column's type (AGENTS.md,
+        // "A type only a column gives"): the database's comparison of the two, as it was. Against any other value
+        // typed at run time a literal is a value of its own type
+        if (!bothWritten && (literal(l) && sides.get(1) instanceof SqlExpr.Column
+                || literal(r) && sides.get(0) instanceof SqlExpr.Column)) {
+            return null;
+        }
+        String left = heldFamily(l, sides.get(0));
+        String right = heldFamily(r, sides.get(1));
+        if (left == null || right == null || left.equals(right)) {
+            return null;
+        }
+        if (aList(sides.get(0)) || aList(sides.get(1))) {
+            return sameOnlyWhereBothEmpty(Scalars.emptiness(l, sides.get(0)), Scalars.emptiness(r, sides.get(1)));
+        }
+        return mayHoldNoValue(l, sides.get(0)) && mayHoldNoValue(r, sides.get(1))
+                ? sameOnlyWhereBothEmpty(isNone(sides.get(0)), isNone(sides.get(1)))
+                : neverEqualButEvaluated(sides.get(0), sides.get(1));
+    }
+
+    private static boolean typedAtRunTime(TypedSpec side) {
+        Type t = side.info().type();
+        return t == Type.Primitive.NUMBER || t == Type.Primitive.DATE || PlatformTypes.isAny(t);
+    }
+
+    private static boolean literal(TypedSpec side) {
+        return side instanceof com.legend.compiler.spec.typed.TypedCInteger
+                || side instanceof com.legend.compiler.spec.typed.TypedCFloat
+                || side instanceof com.legend.compiler.spec.typed.TypedCDecimal
+                || side instanceof com.legend.compiler.spec.typed.TypedCString
+                || side instanceof com.legend.compiler.spec.typed.TypedCBoolean
+                || side instanceof com.legend.compiler.spec.typed.TypedCDate
+                || side instanceof TypedCollection;
+    }
+
+    /** The family of the type the SQL holds {@code lowered} in (a list's: its elements'), two of which are never
+     *  equal: an exact number, a Float, a text, a Boolean, a day, a date-time; null where the carrier names no one
+     *  type (JSON, a date as its text, a Decimal as its text against which only its own reading compares, anything
+     *  untyped), or is a text under a side declared {@code Date} (a date written as its text). */
+    private static @com.legend.base.Nullable String heldFamily(TypedSpec side, SqlExpr lowered) {
+        if (!(lowered.type() instanceof com.legend.sql.TypeFact.Typed typed)) {
+            return null;
+        }
+        SqlType t = typed.type() instanceof SqlType.Array a ? a.element() : typed.type();
+        if (t instanceof SqlType.Decimal) {
+            return "exact";
+        }
+        if (!(t instanceof SqlType.Scalar s)) {
+            return null;
+        }
+        return switch (s) {
+            case INTEGER, BIGINT, HUGEINT -> "exact";
+            case DOUBLE -> "float";
+            case BOOLEAN -> "boolean";
+            case DATE -> "day";
+            case TIMESTAMP, TIMESTAMPTZ -> "date-time";
+            case VARCHAR -> side.info().type() == Type.Primitive.DATE ? null : "text";
+            default -> null;
+        };
     }
 
     /**
