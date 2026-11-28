@@ -255,6 +255,14 @@ public final class DatabaseJudge {
 
     /** Whether {@code type} is a plain value's: a whole number, a Decimal, a Float, a String, a Boolean, a day or a
      *  date-time -- the kinds whose asserts are the product's own comparison since step 6B's slice 6. */
+    /** Whether {@code type} is a number's: {@code Number} itself, or one of its three kinds. */
+    private static boolean numberOrNumberKind(com.legend.compiler.element.type.Type type) {
+        return type == com.legend.compiler.element.type.Type.Primitive.NUMBER
+                || type == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || type == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || type == com.legend.compiler.element.type.Type.Primitive.FLOAT;
+    }
+
     /** Whether {@code type} is a plain value's that is no day and no date-time: a whole number, a Decimal, a Float,
      *  a String or a Boolean. */
     private static boolean countedValues(com.legend.compiler.element.type.Type type) {
@@ -611,11 +619,20 @@ public final class DatabaseJudge {
         // stay with the member below until the rows' reading of an instant rides too; any other pair as before
         com.legend.compiler.element.type.Type cKind = oneKind(cr);
         com.legend.compiler.element.type.Type vKind = oneKind(vr);
-        if (!cr.tdsWrapped() && cKind != null && vKind != null && countedValues(coll.info().type())
-                && coll.info().type().equals(val.info().type()) && c.side() != null && v.side() != null) {
+        // (a side declared Number holds the kind its value has: the product reads it off the query's text and answers
+        // for two families -- step 6B part 2; until then such a membership was "unjudged")
+        boolean numbersAtRunTime = numberOrNumberKind(coll.info().type()) && numberOrNumberKind(val.info().type())
+                && (coll.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER
+                        || val.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER);
+        if (!cr.tdsWrapped() && cKind != null && vKind != null && c.side() != null && v.side() != null
+                && (countedValues(coll.info().type()) && coll.info().type().equals(val.info().type())
+                        || numbersAtRunTime && numberOrNumberKind(cKind) && numberOrNumberKind(vKind)
+                        && cKind != com.legend.compiler.element.type.Type.Primitive.NUMBER
+                        && vKind != com.legend.compiler.element.type.Type.Primitive.NUMBER)) {
             TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(coll, val, specs, env.assertAt());
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
-                    c.side().plan(), cKind, atMostOne(coll), v.side().plan(), vKind, atMostOne(val), (list, one) -> {
+                    c.side().plan(), cKind, atMostOne(coll), v.side().plan(), vKind, atMostOne(val), numbersAtRunTime,
+                    (list, one) -> {
                         java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =
                                 new java.util.IdentityHashMap<>();
                         values.put(coll, list.value());

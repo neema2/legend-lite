@@ -49,3 +49,23 @@ A: `AssertBarTest#instancesAreComparedByTheirKeysOrTheirIdentity`, `#aMetamodelP
 `exec/StructValueTest`, `RootComparisonTest#anObjectWithNoKeyIsEqualToItselfAndToNoOther`.
 C: `exec/TaggedListTest`, `TaggedListEdgeTest`, `TaggedSelectionTest`.
 After every change that could move them: `//core:guardrails`, `//core:guardrails_edge`, `//core:census`.
+
+## D, as built so far (the no-Bazel loop, 2026-11-28, about 09:20 UTC; not reviewed, guards not run yet)
+
+- **Step 1, done:** the assert's source position rides to the comparison the database judge builds
+  (`BodyDriver.ExecEnv.assertAt`, set in `AssertVerdicts.planDatabase`; `VerdictQueries.sameSides`, `sameElements`,
+  `containsOf` stamp the built call).
+- **Step 2, started:** `assertContains` over sides declared `Number` (each held in one number kind) takes the
+  product's `contains` (`DatabaseJudge.databaseContains`'s gate; `SideEqualities.boundOnce(..., typedAtRunTime, ...)`).
+  Probed on DuckDB and H2 under both judges: an Integer among Floats fails with the host's record, the same kind
+  passes.
+- **Found, to fix before D lands: the two judges disagree on a written number literal against a value typed at
+  run time.** `assertContains([[2, 1]->cast(@Number)->sort()->at(0), 5], 1.0)`: the product, and so the database
+  judge now, read the literal `1.0` as the Integer it is compared with (the literal rule; the user's ruling of
+  2026-11-28 keeps that) and pass; the host judge compares a Float with an Integer and fails. Until D the database
+  judge said "unjudged" there, so nothing showed it. The host judge has to read a written literal the same way
+  (the judgment's facts say which side is a written literal), or a both-judges run of such an assert reports a
+  disagreement.
+- **Still to do in D:** the same for `assertEquals` / `assertNotEquals` / `assertSameElements` (the gate in
+  `databaseVerdict`); the abstract `Date` and days and date-times under `assertContains` (the membership's rows read
+  by their instants, the needle the same way); `Any`; then the measure, the judging tests named above, the guards.

@@ -222,6 +222,16 @@ public final class SideEqualities {
      */
     public static @com.legend.base.Nullable Compared boundOnce(SqlQuery eWrapped, Type eKind, boolean eOne,
             SqlQuery aWrapped, Type aKind, boolean aOne, java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
+        return boundOnce(eWrapped, eKind, eOne, aWrapped, aKind, aOne, false, same);
+    }
+
+    /** {@link #boundOnce(SqlQuery, Type, boolean, SqlQuery, Type, boolean, java.util.function.BiFunction)};
+     *  {@code typedAtRunTime}: a side is declared {@code Number} (a type its value fills in when the query runs), so
+     *  the two may be held in two kinds -- the product's comparison reads the kind each holds off the query's text
+     *  and answers "never the same, both evaluated" for two families (step 6B part 2). */
+    public static @com.legend.base.Nullable Compared boundOnce(SqlQuery eWrapped, Type eKind, boolean eOne,
+            SqlQuery aWrapped, Type aKind, boolean aOne, boolean typedAtRunTime,
+            java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
         SqlQuery eRows = valueRows(eWrapped);
         SqlQuery aRows = valueRows(aWrapped);
         // (each side held as its own kind's SQL type, the two of ONE kind: a Decimal a store read carries as its
@@ -231,7 +241,7 @@ public final class SideEqualities {
         // (a side of kind Nil holds no value whatever it is carried as: the product reads only whether the OTHER
         // side holds anything, so the two kinds need not be one and the Nil side's carrier is not read)
         boolean nil = PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind);
-        if (eRows == null || aRows == null || !nil && !eKind.equals(aKind)
+        if (eRows == null || aRows == null || !nil && !typedAtRunTime && !eKind.equals(aKind)
                 || !PlatformTypes.isNil(eKind) && !heldAsItsKind(eKind, eRows.outputs().get(0).type())
                 || !PlatformTypes.isNil(aKind) && !heldAsItsKind(aKind, aRows.outputs().get(0).type())) {
             return null;
