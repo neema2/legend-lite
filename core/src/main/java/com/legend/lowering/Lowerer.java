@@ -491,8 +491,12 @@ public final class Lowerer {
         }
         TypedSpec left = n.args().get(0);
         TypedSpec right = n.args().get(1);
+        // (a side the types say holds nothing, the written empty list: the two hold the same elements only where
+        // the other is empty too -- Equalities.asSameElements answers it over the two values, with no statement of
+        // its own)
+        boolean nil = PlatformTypes.isNil(left.info().type()) || PlatformTypes.isNil(right.info().type());
         if (Type.isRelation(left.info().type()) || Type.isRelation(right.info().type())
-                || !(SideEqualities.comparedAsValues(left.info().type(), right.info().type())
+                || !(nil || SideEqualities.comparedAsValues(left.info().type(), right.info().type())
                         || SideEqualities.heldInOneKind(left, right))) {
             return null;
         }

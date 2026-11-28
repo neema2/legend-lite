@@ -235,12 +235,8 @@ final class Equalities {
         // subtype navigations [0..0] that still read real
         // columns (the gate-4 mapping-family regression
         // pinned that narrowing at burn slice 4).
-        boolean le = n.args().get(0) instanceof
-                com.legend.compiler.spec.typed.TypedCollection lc
-                && lc.elements().isEmpty();
-        boolean re = n.args().get(1) instanceof
-                com.legend.compiler.spec.typed.TypedCollection rc
-                && rc.elements().isEmpty();
+        boolean le = writtenEmpty(n.args().get(0), numbers);
+        boolean re = writtenEmpty(n.args().get(1), numbers);
         // A side whose TYPE is Nil and that is no written [] (the empty list through a filter or a map; step 6B,
         // slice 3, 2026-11-28: two such sides compared inside a list's function answered no value, their SQL a NULL
         // list no `=` answers for). Nil says the side holds no value IF it answers -- []->toOne() is Nil too, and
@@ -419,6 +415,19 @@ final class Equalities {
         return mayHoldNoValue(l, sides.get(0)) && mayHoldNoValue(r, sides.get(1))
                 ? sameOnlyWhereBothEmpty(isNone(sides.get(0)), isNone(sides.get(1)))
                 : neverEqualButEvaluated(sides.get(0), sides.get(1));
+    }
+
+    /** Whether {@code side} is the WRITTEN empty list: {@code []}; and, under the product's rule, {@code []} read
+     *  as a type ({@code []->cast(@Integer)}), which is the written empty list still -- its SQL is no list at all,
+     *  and compared as a value with a computed list that holds nothing it answered false (measured 2026-11-28:
+     *  {@code []->cast(@Integer) == [1, 2]->filter(x | $x > 5)} false on DuckDB and SQLite; found where an assert of
+     *  the two became the product's comparison, step 6B's slice 6). A door's line is as it was. */
+    private static boolean writtenEmpty(TypedSpec side, NumberFamilies numbers) {
+        if (side instanceof TypedCollection c) {
+            return c.elements().isEmpty();
+        }
+        return numbers == NumberFamilies.TWO_FAMILIES && side instanceof com.legend.compiler.spec.typed.TypedCast cast
+                && writtenEmpty(cast.source(), numbers);
     }
 
     private static boolean nilList(TypedSpec side) {

@@ -198,11 +198,15 @@ public final class DatabaseJudge {
         // LISTS: one value against a list stays with the judge's member.
         // (the pairs the typed member below took, no other: a pair that rides the literal channel only where its two
         // plans hold one typed scalar each)
-        if (tp != null && !anyNil && !anyAny && (tp.plainValues() || tp.dates())
+        // (a side the types say holds nothing -- the written empty list, a list typed Nil -- against plain values or
+        // another such side: the product answers that pair by whether the other side holds anything, each side still
+        // evaluated (Equalities.equal, asSameElements), so it is the product's comparison too)
+        boolean nilPair = anyNil && nilOrPlain(eSpec.info().type()) && nilOrPlain(aSpec.info().type());
+        if (tp != null && !anyAny && (nilPair || !anyNil && (tp.plainValues() || tp.dates())
                 && (tp.dates() || !literal(re, ra, anyNil, anyAny) || tp.kindsDiffer()
                         || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))
-                && plainValues(eSpec.info().type()) && eSpec.info().type().equals(aSpec.info().type())
-                && (!canonicalOrder || !atMostOne(eSpec) && !atMostOne(aSpec))) {
+                && plainValues(eSpec.info().type()) && eSpec.info().type().equals(aSpec.info().type()))
+                && (!canonicalOrder || nilPair || !atMostOne(eSpec) && !atMostOne(aSpec))) {
             // (a side declared to hold ONE value is bound to a column that holds no value where the side yields none
             // -- a NULL under a [1] property, a function declared [1] the database answers no value for: the product
             // is shown each such side as holding AT MOST one, so its own rule for an empty side answers, two-valued,
@@ -251,6 +255,11 @@ public final class DatabaseJudge {
 
     /** Whether {@code type} is a plain value's: a whole number, a Decimal, a Float, a String, a Boolean, a day or a
      *  date-time -- the kinds whose asserts are the product's own comparison since step 6B's slice 6. */
+    /** Whether {@code type} is Nil's (a side the types say holds nothing) or a plain value's ({@link #plainValues}). */
+    private static boolean nilOrPlain(com.legend.compiler.element.type.Type type) {
+        return com.legend.compiler.element.type.PlatformTypes.isNil(type) || plainValues(type);
+    }
+
     private static boolean plainValues(com.legend.compiler.element.type.Type type) {
         return type == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 || type == com.legend.compiler.element.type.Type.Primitive.DECIMAL

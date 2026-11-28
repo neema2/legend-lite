@@ -228,9 +228,12 @@ public final class SideEqualities {
         // text, a JSON-carried value, a day carried as a text, an Integer beside a Decimal are read by the member
         // that reads them, values -- the product's comparison of two expressions reads their Pure types, and a
         // carrier that is another type would meet it as that type; the review of slice 6, findings 1, 3, 5 and 7)
-        if (eRows == null || aRows == null || !eKind.equals(aKind)
-                || !heldAsItsKind(eKind, eRows.outputs().get(0).type())
-                || !heldAsItsKind(aKind, aRows.outputs().get(0).type())) {
+        // (a side of kind Nil holds no value whatever it is carried as: the product reads only whether the OTHER
+        // side holds anything, so the two kinds need not be one and the Nil side's carrier is not read)
+        boolean nil = PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind);
+        if (eRows == null || aRows == null || !nil && !eKind.equals(aKind)
+                || !PlatformTypes.isNil(eKind) && !heldAsItsKind(eKind, eRows.outputs().get(0).type())
+                || !PlatformTypes.isNil(aKind) && !heldAsItsKind(aKind, aRows.outputs().get(0).type())) {
             return null;
         }
         // (a side of at most one value: its one value read beside its list, by the one read of its rows)
@@ -244,7 +247,10 @@ public final class SideEqualities {
         // holds none -- and a side's list folded from no rows is no list at all, which is the empty list here: the
         // two must be one thing. Two folded lists need nothing: both none is both the same. Measured, the no-Bazel
         // loop: an empty optional value against an empty computed list failed its assert)
-        if (eOne != aOne) {
+        // (never beside a Nil side: the product reads the other side's emptiness by its length, for which no list
+        // is no element already; and the empty list of a type is no SQL H2 has -- measured 2026-11-28, a syntax
+        // error there)
+        if (eOne != aOne && !nil) {
             if (aOne) {
                 eValue = orTheEmptyList(eValue, eList);
             } else {
