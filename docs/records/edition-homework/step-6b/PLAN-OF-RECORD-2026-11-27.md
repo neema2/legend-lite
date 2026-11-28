@@ -613,3 +613,24 @@ too (it is as old as the date-time text carrier); the measure asked only written
   answered by narrowing the path to two sides of one plain type each held as that type; to re-measure on slice
   5's jars once the round's build step is done.
 - **Passing to refusing, counted for the user** (their question, 04:57): `for-the-user-2026-11-28.md`, section E.
+
+### 2026-11-28, 05:30 UTC
+
+- **Slice 3** (`c7babd506` on the pull request since 05:04): CI running, nothing red at 05:21 (`linux / checks`,
+  which failed on the download outage for slice 2, passed). Lanes: six of seven report no outcome that differs
+  (Postgres+Trino in at 05:08); Snowflake to report. The Postgres lane also ran the measure on Postgres for the
+  first time: `postgres-measure-2026-11-28.md` (two wrong answers and several failures there, none from slice 3:
+  Postgres has no writing of its own for the instruction over two list values -- task 32 -- and an older lowering
+  compares two tables where they stand by sorted rows).
+- **Slice 5** (`claude/step-6b-slice-5`, `568c12139`). Its first Bazel round failed two size pins; two more short
+  rounds (`scratchpad/pins.sh <branch>`: the six pin and guard tests alone, about three minutes) narrowed it to one
+  thing: the fix for a `map` over a list built with empty slots adds a list filter to one of core's pinned
+  statements. Taken out (the user's word is needed for a size pin: task 33, `for-the-user-2026-11-28.md` C2); the
+  measure keeps the row as a known wrong answer. On `568c12139` all six pass with no pin moved: the SQL size pin,
+  the query capture, the cast/case census, the census, the guardrails (two lookup sets made ordered), the measure
+  pin. **Its full round started 05:26** (`scratchpad/b118.out`). After it: the lanes (the Postgres lane is already
+  running the measure alone on this commit, with each failing place's error text), then one push.
+- **Slice 6** (`claude/step-6b-slice-6`, `2d741b207` with slice 5's latest merged): reviewed and audited
+  (`review-10-of-slice-6.md`); the path takes two sides of one plain type each held as that type, a single side
+  shown to the product as "at most one value". To re-measure on slice 5's final jars (queued behind the round's
+  build step), then its Bazel round after slice 5's.
