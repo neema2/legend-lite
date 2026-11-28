@@ -554,13 +554,16 @@ public final class EqualityMeasure {
                 new StoreSides("integer column and literal", "1,2,4", "$r.i", "1"),
                 new StoreSides("integer and decimal columns", "1,5", "$r.i", "$r.d"),
                 new StoreSides("decimal column and literal at another scale", "1,3", "$r.d", "1D"),
-                new StoreSides("integer and float columns", "N", "$r.i", "$r.f"),
+                // (N@3,5: a compile error where the two columns are written against one another; inside a function whose
+                // parameters are Any, compared when the query runs, never equal -- but two EMPTY sides are equal, as
+                // Pure says, so the rows where both hold nothing, 3 and 5)
+                new StoreSides("integer and float columns", "N@3,5", "$r.i", "$r.f"),
                 new StoreSides("float column and literal", "1,4", "$r.f", "1.0"),
                 new StoreSides("two string columns", "1,5", "$r.s", "$r.s2"),
                 new StoreSides("string column and literal", "1,2,4", "$r.s", "'a'"),
                 new StoreSides("day column and literal", "1,2", "$r.day", "%2020-01-01"),
                 new StoreSides("date-time column and literal", "2", "$r.at", "%2020-01-01T10:00:00"),
-                new StoreSides("day and date-time columns", "N", "$r.day", "$r.at"),
+                new StoreSides("day and date-time columns", "N@3,5", "$r.day", "$r.at"),
                 new StoreSides("float column and whole-number literal", "1,4@", "$r.f", "1"),
                 new StoreSides("decimal column and whole-number literal", "1,3", "$r.d", "1"),
                 new StoreSides("integer column and literal with a fraction", "N", "$r.i", "1.5"),
