@@ -196,7 +196,7 @@ public final class DatabaseJudge {
         // pair, and the lists the failure records are the lists compared. Any other pair as before.
         // In any order (assertSameElements) it is the product's hasSameElements of the two, which compares two
         // LISTS: one value against a list stays with the judge's member.
-        if (tp != null && !anyNil && !anyAny && tp.plainValues()
+        if (tp != null && !anyNil && !anyAny && (tp.plainValues() || tp.dates())
                 && plainValues(eSpec.info().type()) && plainValues(aSpec.info().type())
                 && (!canonicalOrder || !atMostOne(eSpec) && !atMostOne(aSpec))) {
             TypedSpec expected = eSpec;
@@ -238,14 +238,16 @@ public final class DatabaseJudge {
                 + ra.kinds().get(ia).typeName() + ")");
     }
 
-    /** Whether {@code type} is a plain value's: a whole number, a Decimal, a Float, a String or a Boolean -- the
-     *  kinds whose asserts are the product's own comparison since step 6B's slice 6 (days and date-times next). */
+    /** Whether {@code type} is a plain value's: a whole number, a Decimal, a Float, a String, a Boolean, a day or a
+     *  date-time -- the kinds whose asserts are the product's own comparison since step 6B's slice 6. */
     private static boolean plainValues(com.legend.compiler.element.type.Type type) {
         return type == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 || type == com.legend.compiler.element.type.Type.Primitive.DECIMAL
                 || type == com.legend.compiler.element.type.Type.Primitive.FLOAT
                 || type == com.legend.compiler.element.type.Type.Primitive.STRING
-                || type == com.legend.compiler.element.type.Type.Primitive.BOOLEAN;
+                || type == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
+                || type == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
+                || type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME;
     }
 
     /** Whether {@code side} is declared to hold at most one value. */
