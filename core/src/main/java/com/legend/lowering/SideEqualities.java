@@ -295,11 +295,12 @@ public final class SideEqualities {
                 || !oneClass && !oneReadingOfTwoClasses(es, keys, as, aKeys)) {
             return null;
         }
-        boolean asHeld = whole || keys == null;
-        return bound(asHeld ? eRaw : restrictedRows(new SqlSource.Subselect(eRaw, "i", null), eRaw, es, keys),
+        com.legend.compiler.element.EqualityKeys otherKeys = oneClass ? keys : aKeys;
+        return bound(whole || keys == null || otherKeys == null ? eRaw
+                        : restrictedRows(new SqlSource.Subselect(eRaw, "i", null), eRaw, es, keys),
                 eKind, eOne, tracked(eWrapped),
-                asHeld ? aRaw : restrictedRows(new SqlSource.Subselect(aRaw, "i", null), aRaw, as,
-                        java.util.Objects.requireNonNull(oneClass ? keys : aKeys)),
+                whole || keys == null || otherKeys == null ? aRaw
+                        : restrictedRows(new SqlSource.Subselect(aRaw, "i", null), aRaw, as, otherKeys),
                 aKind, aOne, tracked(aWrapped), false, same);
     }
 

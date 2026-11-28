@@ -546,7 +546,7 @@ public final class Lowerer {
             return null;
         }
         WholeComparisons planner = wholeComparisons;
-        List<com.legend.sql.SqlType> held = new ArrayList<>();
+        List<com.legend.sql.@com.legend.base.Nullable SqlType> held = new ArrayList<>();
         for (TypedSpec side : n.args()) {
             SqlQuery rows = planner == null ? null : planner.sideRows(side);
             held.add(rows == null ? null : rows.outputs().get(0).type());

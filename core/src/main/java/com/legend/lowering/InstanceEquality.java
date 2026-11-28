@@ -447,8 +447,8 @@ final class InstanceEquality {
         SqlExpr lOne = scalar.apply(l);
         SqlExpr rOne = scalar.apply(r);
         boolean rows = lRows != null && rRows != null;
-        SqlType lt = rows ? lRows.outputs().get(0).type() : layoutOf(l, lOne, sqlTypeOf);
-        SqlType rt = rows ? rRows.outputs().get(0).type() : layoutOf(r, rOne, sqlTypeOf);
+        SqlType lt = lRows != null && rRows != null ? lRows.outputs().get(0).type() : layoutOf(l, lOne, sqlTypeOf);
+        SqlType rt = lRows != null && rRows != null ? rRows.outputs().get(0).type() : layoutOf(r, rOne, sqlTypeOf);
         if (lt instanceof SqlType.Array la) {
             lt = la.element();
         }
@@ -477,7 +477,8 @@ final class InstanceEquality {
         }
         SqlExpr lv = comparedBy(l, lOne, ls, both.get(0), lTracked, freshVar);
         SqlExpr rv = comparedBy(r, rOne, rs, both.get(1), rTracked, freshVar);
-        return new SqlExpr.Call(anyOrder ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER, !rows ? List.of(lv, rv)
+        return new SqlExpr.Call(anyOrder ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
+                lRows == null || rRows == null ? List.of(lv, rv)
                 : List.of(lv, rv,
                         new SqlExpr.ScalarSubquery(SideEqualities.leafRowsOf(lRows, both.get(0), lTracked)),
                         new SqlExpr.ScalarSubquery(SideEqualities.leafRowsOf(rRows, both.get(1), rTracked))));
@@ -580,8 +581,8 @@ final class InstanceEquality {
                 || !userClass(lg.arguments().get(1)) || !userClass(rg.arguments().get(1))) {
             return null;
         }
-        SqlType lt = held.get(0) != null ? held.get(0) : layoutOf(n.args().get(0), sides.get(0), t -> null);
-        SqlType rt = held.get(1) != null ? held.get(1) : layoutOf(n.args().get(1), sides.get(1), t -> null);
+        SqlType lt = held.get(0) != null ? held.get(0) : statedType(sides.get(0));
+        SqlType rt = held.get(1) != null ? held.get(1) : statedType(sides.get(1));
         if (!(lt instanceof SqlType.Map lm) || !(rt instanceof SqlType.Map rm) || !lm.key().equals(rm.key())
                 || !SideEqualities.scalar(lm.key()) || !(lm.value() instanceof SqlType.Struct ls)
                 || !(rm.value() instanceof SqlType.Struct rs)) {
@@ -600,6 +601,11 @@ final class InstanceEquality {
         return SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
                 SideEqualities.entriesOf(sides.get(0), lm, v -> reduced(v, both.get(0), false)),
                 SideEqualities.entriesOf(sides.get(1), rm, v -> reduced(v, both.get(1), false)));
+    }
+
+    /** The type the SQL states for {@code value}, or null where it states none. */
+    private static @com.legend.base.Nullable SqlType statedType(SqlExpr value) {
+        return value.type() instanceof com.legend.sql.TypeFact.Typed stated ? stated.type() : null;
     }
 
     /** The layout {@code value}, what {@code side} lowers to, is held in: the type the SQL states for it; where it
