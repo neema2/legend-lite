@@ -318,7 +318,13 @@ final class LiteralUnroll {
                             && accepts(ctx, lit.cls(), target.fqn())
                             // a spelled SCALAR cast to its own primitive (or a
                             // supertype of it): `$lit.value->cast(@String)`
+                            // (never a cast to a type the VALUE fills in when the query runs -- Number, the abstract
+                            // Date: the cast says the value is compared by the type it holds, and with it folded
+                            // away a literal the query upcast was read again as a bare literal, which adapts to the
+                            // other side. The user's ruling of 2026-11-28: `1.0->cast(@Number)` against an Integer is
+                            // false wherever it is written; through a let it answered true, in place false)
                             || lit instanceof Scalar && tc.target() instanceof Type.Primitive prim
+                            && prim != Type.Primitive.NUMBER && prim != Type.Primitive.DATE
                             && ctx.isSubtype(lit.cls(), prim.qualifiedName()))
                     .<TypedSpec>map(lit -> tc.source())
                     // a cast over a SPELLED collection is element-wise: the
