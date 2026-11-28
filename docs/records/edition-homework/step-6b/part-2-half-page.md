@@ -215,3 +215,48 @@ pin 6 to 3).
 - Reading a list of a child and a parent as a RESULT fails in exec ("a struct cell of 7 attributes under a slot of 6
   fields": the plan types the list by its declared class).
 - On SQLite, `indexOf` over Pairs of plain values still compares texts.
+
+## One reduction for containers; the grid's second and third runs (2026-11-28, about 12:00 to 13:30 UTC by the machine's clock)
+
+*(The earlier sections' clock times were written from memory of the day and run ahead of the machine's clock; the
+order of the sections is the order of the work.)*
+
+**A mistake, recorded:** a full Bazel round (guards, core's tests, PCT, both corpora) was started in the middle of the
+work, on code the null checker had never seen (the no-Bazel loop compiles with plain javac). It failed at the build
+on seven lines, ran no test, and removed a jar the no-Bazel loop compiles against. The user: "Why did you kick off
+bazel". The rule kept since: the fast loop until the code is finished; then ONE full round, with the audit, CI and
+the lanes beside it. A build with no tests (`bazel build //core:equality_measure`, one minute) restores the loop.
+
+**The grid's second run** (after the layout fix): `==` right in queries for objects inside Pairs, map values and
+`list(...)`; what stayed wrong was one cause in the product and three in the checkers.
+
+**The product's cause, fixed: `lowering/ComparedBy`.** One recursion over a value's Pure type and the SQL type that
+holds it: a plain value is itself; an object or a Pair is its leaves (`InstanceEquality.reduced`); a List is its
+elements, each reduced; a map is its entries sorted by key, each value reduced (`SideEqualities.entriesOf`).
+`==` of two single containers (`sameOnes`), of two lists of containers (`sameMany`), and `contains`, `in`,
+`indexOf` over containers (`among`) read it. Before: a membership over maps compared them in the order their
+entries were written (`[m1, m2]->contains(m)` with `m` written in another order: false), and one over maps or Lists
+that hold objects compared every field of each object. The planner stands aside for any two single maps
+(`SideEqualities.singleMaps`); what has no typed comparison (a map in a map, an object as a map's key, a date held
+as its text, two shapes) is refused by name where it is lowered, never left to the database's own comparison. Two
+maps whose Decimal values or keys are written at two scales, refused by name until now, are compared by value on
+DuckDB; a database that carries composites as JSON text refuses them by name (`SameValuesForm
+.refuseExactNumbersOfTwoScales`, now read for "not distinct" too and off how a value is built).
+
+**The checkers:**
+- The database checker judges an assert over maps and Lists by the product's comparison, sides bound once
+  (`SideEqualities.boundContainers`); a pair the product refuses is "unjudged" with the product's reason.
+- The host checker restricts each keyed object it meets inside a map or a List to its class's keys
+  (`JudgmentFacts.classesHeld` lists the classes at planning; `HostJudgments.insideRestricted`).
+- A side's one struct, list or map is picked by a sub-query with `LIMIT 1` (`SideEqualities.single`).
+
+**Open, found by the grid and left:**
+- the host checker: an assert of maps whose keys are Decimals at two scales (it compares the keys' texts); a
+  membership over lists of `list(...)` of objects (the objects carry no class on its wire there); `assertContains`
+  over a Pair holding an object with no key, or a child, where the answer is "not contained" (its wire carries no
+  identity inside a Pair);
+- the two checkers' failure RECORDS differ in text for a failing assert of two `list(...)` of objects (the verdicts
+  agree);
+- `in` over a written list holding ONE `list(...)` (a written list of one value is that value);
+- a year inside a Pair or a map under the database checker (dates of several precisions: with the mixed lists);
+- H2 holds no list: a `list(...)` or a map there is refused by name.
