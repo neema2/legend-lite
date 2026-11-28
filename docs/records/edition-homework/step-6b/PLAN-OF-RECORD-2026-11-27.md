@@ -634,3 +634,34 @@ too (it is as old as the date-time text carrier); the measure asked only written
   (`review-10-of-slice-6.md`); the path takes two sides of one plain type each held as that type, a single side
   shown to the product as "at most one value". To re-measure on slice 5's final jars (queued behind the round's
   build step), then its Bazel round after slice 5's.
+
+### 2026-11-28, about 07:30 UTC: the user's rulings of the morning, and the plan to close 6B today
+
+**Rulings (the user, 2026-11-28, about 05:55 and 06:40 UTC), verbatim:**
+- "I will say it's okay to bump small char SQL pins to fix bugs like map()"; then "Small can be even up to 1000 chars
+  if it's the right fix". Each rise is named in its commit and listed to the user.
+- "Yes fix all map family": the map over a list built with gaps (task 33), the map over one value that holds nothing
+  (task 26), the type-checker's count for a map whose function may answer nothing (task 29).
+- "Okay to literal recommend": a whole-number literal against a value typed at run time keeps adapting; a literal
+  read through a `let` stays the compile error; a literal the query itself upcasts (`1.0->cast(@Number)`) is false
+  against an Integer wherever it is written (it was true through a `let`).
+- "Yes to legend pure fixes": the two door movements of slice 5 (`for-the-user-2026-11-28.md`, A1 and A2).
+- Slice 7 stays in 6B: "I thought part of this was fixing the doors to be passed in and nothing knowing or guessing
+  about which mode/door was?" The author's suggestion to move it to the edition step is withdrawn.
+- "Let's try to close out 6b today for sure".
+
+**The order worked to:** (1) slices 5 and 6 as ONE landing (one local round, one CI run, one round on the database
+sessions), with the three map fixes, `assertContains` and the empty-list asserts; (2) slice 7, the doors; (3) the
+guards. Not expected today: the test checker's comparison code for class instances, tables and mixed lists (part 2),
+Postgres beyond its list writing, the low-priority databases.
+
+**Slice 5's first full local round** (on `568c12139`, stopped at 290 of 354 once every failure was read): one defect
+(a membership written in a function's body, called with a literal of the other family: fixed, `05052caf8`); two
+expectations the slice moves on purpose (`RootComparisonTest`: refused to answered; `AssertBarTest`: on H2 only,
+passing to refused by name, on the user's page with the choice); the generated list of natives' readers
+(`native-claims.tsv`, re-recorded); the known root-container failures. Nothing else.
+
+**Built since, on `claude/step-6b-slice-6` (the no-Bazel loop):** an assert against a side that holds nothing, and
+`assertContains` of one plain type, are the product's own comparison over sides bound once (a membership carries its
+list side's rows for a database with no list membership); found and fixed in the product,
+`[]->cast(@Integer) == [1, 2]->filter(x | $x > 5)` answered false; the three map fixes.
