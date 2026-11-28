@@ -72,13 +72,20 @@ public final class Comparisons {
         for (int f = 0; f < own.size(); f++) {
             List<FunctionId> o = own.get(f);
             List<FunctionId> d = doors.get(f);
-            if (o.size() != d.size()) {
+            if (d.size() == 1) {
+                // one door's function for the whole family (an ordering: typed Any, whatever lite's overload)
+                lites.put(d.get(0), o.get(0));
+                for (FunctionId own1 : o) {
+                    written.put(own1, d.get(0));
+                }
+            } else if (o.size() != d.size()) {
                 throw new IllegalStateException("a comparison family and its doors' functions differ in size: "
                         + ownNames.get(f));
-            }
-            for (int i = 0; i < o.size(); i++) {
-                lites.put(d.get(i), o.get(i));
-                written.put(o.get(i), d.get(i));
+            } else {
+                for (int i = 0; i < o.size(); i++) {
+                    lites.put(d.get(i), o.get(i));
+                    written.put(o.get(i), d.get(i));
+                }
             }
             String name = ownNames.get(f);
             names.put(Pure.Lite.PKG + name.substring(name.lastIndexOf(':') + 1) + "AsWritten", name);
