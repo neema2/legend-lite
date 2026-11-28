@@ -371,8 +371,9 @@ class CodeShapeGuardrailTest {
             "Lowerer.styled",
             // the planner's answer for a comparison of two whole sides met inside an expression (2026-11-27, the
             // edition program's step 6; the user: "why cant we do the work we promised to get to one equality?"):
-            // builder-style, set once by the planner's lowerer factories (withWholeComparisons) before lower(), the
-            // same lifecycle as the fields above
+            // builder-style, set by the planner's lowerer factories (withWholeComparisons) before lower(); and, since
+            // 2026-11-28 (step 6B's slice 6), swapped for the one call that lowers an assert's comparison over its
+            // bound sides and put back in its finally (Lowerer.overSides)
             "Lowerer.wholeComparisons",
             // the sides an assert has bound once to a statement's columns (2026-11-28, step 6B's slice 6: an assert is
             // the product's own comparison over them). Set for the one call that lowers that comparison

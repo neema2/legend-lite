@@ -635,7 +635,7 @@ too (it is as old as the date-time text carrier); the measure asked only written
   shown to the product as "at most one value". To re-measure on slice 5's final jars (queued behind the round's
   build step), then its Bazel round after slice 5's.
 
-### 2026-11-28, about 07:30 UTC: the user's rulings of the morning, and the plan to close 6B today
+### 2026-11-28, about 06:25 UTC: the user's rulings of the morning, and the plan to close 6B today
 
 **Rulings (the user, 2026-11-28, about 05:55 and 06:40 UTC), verbatim:**
 - "I will say it's okay to bump small char SQL pins to fix bugs like map()"; then "Small can be even up to 1000 chars

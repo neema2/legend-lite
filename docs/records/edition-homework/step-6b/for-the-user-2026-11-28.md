@@ -17,9 +17,9 @@ PCT runs at legend-pure's door: if a PCT test's answer moves for A1 or A2, it is
    not say whether the literal adapts; the code adapts a whole number.
 2. **A literal read through a `let`**: it is a variable there, which the literal rule does not adapt (a compile
    error where the same written in place is accepted).
-3. **A literal the query itself upcast** (`1.0->cast(@Number)`): the upcast of a literal is the literal again
-   before the lowering. Written in place it is now answered by the type it holds (false against an Integer);
-   through a `let` it is still read by the literal rule (true).
+3. **A literal the query itself upcast** (`1.0->cast(@Number)`): RULED 2026-11-28 ("Okay to literal recommend")
+   and built: false against an Integer wherever it is written, through a `let` too (the upcast is no longer folded
+   off the literal).
 4. **Inside a function over one type variable**, two literals under an upcast to `Any` are refused at the call
    (an Integer and a String), two computed values under the same upcast are compared when the query runs.
 
@@ -73,7 +73,7 @@ characters in a statement, for a fix of a wrong answer, each rise listed to the 
   function's body with a whole-number list, called with a Float literal (`f(1.0)`, body `$v->in([0, 1])`),
   answered false (three tests: `LiteralRuleAnswersTest`, `RunTimeComparisonTest`, `UpstreamTiesTest`).
 
-## F. After the morning's rulings (2026-11-28, about 08:15 UTC)
+## F. After the morning's rulings (2026-11-28, about 06:45 UTC)
 
 - **A known gap left by the `map` fix:** a `map` over ONE optional value is guarded wherever the query's own rows
   are read, but not inside a nested filter's own scope or an association's join condition (those scopes carry no
@@ -86,3 +86,11 @@ characters in a statement, for a fix of a wrong answer, each rise listed to the 
 - **Slice 7 (the doors)**: its half page is `slice-7-half-page.md`; a guard pins the lowering's three kinds of
   door reads for a comparison (6, 1, 22) so they can only shrink. The choice put to the user: close 6B today
   without it and build it next, or build it now and close a day later.
+- **The "test checker only shrinks" ledger went up** (`JavaEvalLedgerTest`, pins moved with the reason):
+  `DatabaseJudge` 827 to 912 stripped lines, `SidePlanner` 102 to 108, `JudgmentFacts` 237 to 240, `VerdictSql` 1,119
+  to 1,120. The new path (an assert as the product's own comparison over sides bound once) stands BESIDE the judge's
+  old member until the kinds it does not take yet move too (class instances, tables, mixed lists, values typed at run
+  time: part 2); the old member is deleted then and the pins come down. Told to the user in the session the same
+  morning ("the checker file is 85 lines longer").
+- **Point B4 is now half-moved:** a literal upcast to `Number` or `Date` is compared when the query runs inside a
+  function over one type variable; the same under `Any` is still refused at the call. One rule for both is owed.

@@ -74,10 +74,9 @@ class ComparisonDoorReadsRatchetTest {
                     + " (ceiling " + pin.getValue() + "): the lowering may not learn a new way to ask the door about a"
                     + " comparison -- step 6B's slice 7 removes these reads; give the door's meaning its own function"
                     + " instead");
-            if (n < pin.getValue()) {
-                System.out.println("[comparison-door-reads] '" + pin.getKey() + "' shrank to " + n + " (pin "
-                        + pin.getValue() + ") -- tighten the pin");
-            }
+            // (headroom is not a pin: a read removed moves the pin down in the same change, as the ledger asks)
+            assertTrue(n == pin.getValue(), "'" + pin.getKey() + "' shrank to " + n + " (pin " + pin.getValue()
+                    + "): tighten the pin to " + n);
         }
     }
 }

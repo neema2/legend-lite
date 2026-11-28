@@ -437,6 +437,7 @@ public final class EqualityMeasure {
         out.add(new Sides("Any same", "T", "1->cast(@Any)", "1->cast(@Any)"));
         out.add(new Sides("Any int and string", "F;generic=R", "1->cast(@Any)", "'1'->cast(@Any)"));
         out.add(new Sides("Any day and date-time", "F;generic=R", "%2020-01-01->cast(@Any)", "%2020-01-01T00:00:00->cast(@Any)"));
+        // (as "Number int and float" above: the query's own upcast, compared when the query runs)
         out.add(new Sides("Date day and date-time", "F", "%2020-01-01->cast(@Date)", "%2020-01-01T00:00:00->cast(@Date)"));
         out.add(new Sides("max of a mixed list", "T", "[1, 2.0]->max()", "2.0"));
         // (every comparison above is of two SINGLE values: the ones the other comparing functions are asked,
