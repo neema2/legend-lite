@@ -578,3 +578,20 @@ works well we can revisit"; the orchestrator agreed).
     by the measure's two assert places and core's tests under both checkers.
   - Not moved by this: grids (their own family), instances, mixed lists (part 2), tolerance and JSON asserts
     (meanings of their own, the plan's 2.4).
+
+### 2026-11-28, about 04:55 UTC: where each slice stands, for a session that resumes here
+
+| Slice | Branch and commit | State |
+|---|---|---|
+| 1 | `claude/compat-b3-nufdlk` (the program branch) `c77deac20` | landed |
+| 2 | the pull request's branch `claude/modest-galileo-h6swr4` `c529b4599` | pushed; CI 52 of 55, the three red are the two `checks` jobs at analysis on the MariaDB mirror and the roll-up; slice 3's push runs them again |
+| 3 | `claude/step-6-numbers` `c7babd506` (code `4b77dadaf`), worktree `/home/user/ll-num` | five independent reviews; the round on `4b77dadaf` (build tree, `scratchpad/batch114.sh`) passed every guard and pin (`guardrails`, `census`, `lean_sql_baseline_test`, `query_capture_test`, `cast_case_census_test`, `equality_positions_pin_test`), its only failures the known root-container ones; lanes sent to all seven sessions at 04:45 (the Postgres lane also runs the measure on Postgres). **Next: one push of `c7babd506` to the pull request's branch when the round ends, then the lanes' reports.** |
+| 5 | `claude/step-6b-slice-5` `6f33e9206`, worktree `/home/user/ll-s5`, stacked on 3 | two independent reviews and an audit of the last arms running; measured by the no-Bazel loop (DuckDB 187 right of 229, none wrong; H2 162, none wrong; SQLite 169); baseline committed. **Next: its Bazel round (`batch114.sh claude/step-6b-slice-5`, after slice 3's ends; the SQL size pins must not rise: the mapped list's compaction, the door row for `indexOf` and the null-safe enumeration pair are the changes that could move one), lanes, push.** |
+| 6 | `claude/step-6b-slice-6`, worktree `/home/user/ll-s6`, stacked on 5 | step A built and measured (`slice-6-half-page.md`): `assertEquals`, `assertNotEquals` and `assertSameElements` (two lists) of plain values are the product's own comparison over sides bound once. In the tree, not committed: days and date-times through the same path (to be measured after slice 5's date-time arm). Not reviewed, not Bazel-built. |
+| 4, 7, 8, part 2 | not started | 4: tables already ride the one instruction (`SideEqualities.grids`); what is left is structural (the planner standing aside wherever the value form answers, then `SideEqualities.values` deleted with slice 6). 7 needs the edition package. |
+
+What waits for the user's word is one page: `for-the-user-2026-11-28.md`.
+
+Found building slice 6 and fixed in slice 5: two single date-times each BUILT to another precision
+(`date(2020, 1, 1, 10) == date(2020, 1, 1, 10, 0)`) compared their texts and answered false. In the landed code
+too (it is as old as the date-time text carrier); the measure asked only written ones.
