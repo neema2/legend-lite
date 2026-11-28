@@ -504,6 +504,10 @@ public final class EqualityMeasure {
                 "hasSameElements([1]->filter(e | $e > 5), [])", "true"));
         out.add(new Sides("hasSameElements: a list with an empty slot", "T",
                 "hasSameElements([1, 2]->map(y | if($y == 1, |1, |[])), [1]->filter(e | true))", "true"));
+        out.add(new Sides("hasSameElements: written Strings in an if", "T",
+                "if(['a', 'b']->hasSameElements(['b', 'a']), |1, |0)", "1"));
+        out.add(new Sides("membership past a take", "T",
+                "[1, 2]->cast(@Number)->take(1)->contains([1.0, 2.0]->cast(@Number)->at(0))", "false"));
         out.add(new Sides("hasSameElements: Booleans", "T",
                 "hasSameElements([true, false]->filter(e | true), [false, true]->filter(e | true))", "true"));
         // empty sides

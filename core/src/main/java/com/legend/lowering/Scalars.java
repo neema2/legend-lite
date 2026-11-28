@@ -1321,76 +1321,7 @@ final class Scalars {
             RULES.put(f, FeatureRules.PURE_SUBSTRING);
         }
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_STRING_INDEX_OF, Pure.AT_COLLECTION_INDEX_OF)) {
-            RULES.put(f, (n, args) -> {
-                // Dispatch on the RESOLVED CALLEE's declared param: a [*]
-                // set is the LIST search (collection::indexOf), a [1]
-                // string the SUBSTRING search — never the operand's SQL
-                // shape (C1: scalar-stamped singletons lower scalar; the
-                // old type+ArrayLit sniff sent ['a']->indexOf to strpos).
-                boolean listCallee = !(n.callee().parameters().get(0)
-                        .multiplicity() instanceof Multiplicity.Bounded pb
-                        && pb.upper() != null && pb.upper() <= 1);
-                if (listCallee || n.args().get(0).info().type() != Type.Primitive.STRING) {
-                    // a Variant's position: among Variants only identity decides (register S401), refused by name;
-                    // among values of other types alone it is never found
-                    if (com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1))
-                            == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
-                        return new SqlExpr.IntLit(-1);
-                    }
-                    // LIST indexOf: 0-based, -1 on a miss; the operand
-                    // conforms to the list contract by stamp (asList)
-                    // and COMPACTS on the value lane (§5 positional
-                    // consumer — R1 instrument).
-                    SqlExpr list = CollectionLanes.compactIfValueLane(n.args().get(0),
-                            PureSql.asList(args.get(0), !isToOne(n.args().get(0))));
-                    // the one equality's reading of the list and the needle, as contains' (step 6B, slice 5): two
-                    // kinds that can never be equal are found nowhere, both sides still evaluated
-                    Equalities.Member member = Equalities.member(n.args().get(0), list, n.args().get(1), args.get(1));
-                    if (member.never() != null) {
-                        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(member.never(), new SqlExpr.IntLit(0))),
-                                new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
-                    }
-                    return new SqlExpr.Call(SqlFn.MINUS, List.of(
-                            new SqlExpr.Call(SqlFn.COALESCE, List.of(
-                                    new SqlExpr.Call(SqlFn.LIST_POSITION, List.of(member.list(), member.needle())),
-                                    new SqlExpr.IntLit(0))),
-                            new SqlExpr.IntLit(1)));
-                }
-                if (args.size() == 3) {
-                    // PURE's indexOf(s, sub, from) (A3, piece 2; register S134): Java's String.indexOf(sub, from) --
-                    // a 0-based from clamped to [0, the length] (a from past the end finds the empty text at the
-                    // length, and nothing else), a 0-based hit, -1 on a miss. Search the suffix that starts at from,
-                    // re-base a hit. The upper clamp is the database's (the text's length) and only an empty search
-                    // can tell it: it is folded away for a from no literal above 0 and for a non-empty literal search
-                    // (facts of the program's constants; the A3 review's P2-S2, 2026-11-20)
-                    SqlExpr from = args.get(2);
-                    Long f0 = from instanceof SqlExpr.IntLit il ? il.value() : null;
-                    boolean clampAtLength = (f0 == null || f0 > 0)
-                            && !(args.get(1) instanceof SqlExpr.StringLit sl && !sl.value().isEmpty());
-                    SqlExpr from0 = f0 != null
-                            ? new SqlExpr.IntLit(Math.max(f0, 0))
-                            : SqlExpr.Call.of(SqlFn.GREATEST, from, new SqlExpr.IntLit(0));
-                    if (clampAtLength) {
-                        from0 = SqlExpr.Call.of(SqlFn.LEAST, from0, SqlExpr.Call.of(SqlFn.LENGTH, args.get(0)));
-                    }
-                    SqlExpr from1 = from0 instanceof SqlExpr.IntLit il0
-                            ? new SqlExpr.IntLit(il0.value() + 1)
-                            : SqlExpr.Call.of(SqlFn.PLUS, from0, new SqlExpr.IntLit(1));
-                    SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(args.get(0), from1));
-                    SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS, List.of(suffix, args.get(1)));
-                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.GREATER, k, new SqlExpr.IntLit(0)),
-                            SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.PLUS, k, from0),
-                                    new SqlExpr.IntLit(1)))),
-                            new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
-                }
-                // PURE's indexOf(s, sub) (A3 of the compatibility program, piece 2, 2026-11-19; the user's D1; register
-                // S134): Java's String.indexOf -- 0-based, -1 on a miss. STRPOS is 1-based with 0 on a miss, so minus
-                // one is exact for both. legend-engine's 1-based locate is what the islands and the ###Relational
-                // dynaFunctions say by name (sqlPosition, above); the legend-engine door marks or refuses a store-routed
-                // call
-                return SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1));
-            });
+            RULES.put(f, indexOfRule(NumberFamilies.TWO_FAMILIES));
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_AT) {
             // at(x, 0) over a TO-ONE value is the IDENTITY — the list encoding
@@ -3876,6 +3807,87 @@ final class Scalars {
         };
     }
 
+    /** {@code indexOf}: a list's (0-based, -1 on a miss) or a String's, by the resolved callee. Under the product's
+     *  own rule ({@link NumberFamilies#TWO_FAMILIES}) the list and the value are read by the one equality
+     *  ({@link Equalities#member}); a door's row keeps the database's own position
+     *  ({@link #threeNumberTypesAndWrittenDatePrecision}). */
+    static Rule indexOfRule(NumberFamilies numbers) {
+        return (n, args) -> {
+            // Dispatch on the RESOLVED CALLEE's declared param: a [*]
+            // set is the LIST search (collection::indexOf), a [1]
+            // string the SUBSTRING search — never the operand's SQL
+            // shape (C1: scalar-stamped singletons lower scalar; the
+            // old type+ArrayLit sniff sent ['a']->indexOf to strpos).
+            boolean listCallee = !(n.callee().parameters().get(0)
+                    .multiplicity() instanceof Multiplicity.Bounded pb
+                    && pb.upper() != null && pb.upper() <= 1);
+            if (listCallee || n.args().get(0).info().type() != Type.Primitive.STRING) {
+                // a Variant's position: among Variants only identity decides (register S401), refused by name;
+                // among values of other types alone it is never found
+                if (com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1))
+                        == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT) {
+                    return new SqlExpr.IntLit(-1);
+                }
+                // LIST indexOf: 0-based, -1 on a miss; the operand
+                // conforms to the list contract by stamp (asList)
+                // and COMPACTS on the value lane (§5 positional
+                // consumer — R1 instrument).
+                SqlExpr list = CollectionLanes.compactIfValueLane(n.args().get(0),
+                        PureSql.asList(args.get(0), !isToOne(n.args().get(0))));
+                // the one equality's reading of the list and the needle, as contains' (step 6B, slice 5): two
+                // kinds that can never be equal are found nowhere, both sides still evaluated
+                // (the product's rule alone: a door keeps the database's own position, as its contains keeps its own
+            // membership -- the review of slice 5, finding 3)
+            Equalities.Member member = numbers == NumberFamilies.TWO_FAMILIES
+                    ? Equalities.member(n.args().get(0), list, n.args().get(1), args.get(1))
+                    : new Equalities.Member(null, list, args.get(1));
+                if (member.never() != null) {
+                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(member.never(), new SqlExpr.IntLit(0))),
+                            new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
+                }
+                return new SqlExpr.Call(SqlFn.MINUS, List.of(
+                        new SqlExpr.Call(SqlFn.COALESCE, List.of(
+                                new SqlExpr.Call(SqlFn.LIST_POSITION, List.of(member.list(), member.needle())),
+                                new SqlExpr.IntLit(0))),
+                        new SqlExpr.IntLit(1)));
+            }
+            if (args.size() == 3) {
+                // PURE's indexOf(s, sub, from) (A3, piece 2; register S134): Java's String.indexOf(sub, from) --
+                // a 0-based from clamped to [0, the length] (a from past the end finds the empty text at the
+                // length, and nothing else), a 0-based hit, -1 on a miss. Search the suffix that starts at from,
+                // re-base a hit. The upper clamp is the database's (the text's length) and only an empty search
+                // can tell it: it is folded away for a from no literal above 0 and for a non-empty literal search
+                // (facts of the program's constants; the A3 review's P2-S2, 2026-11-20)
+                SqlExpr from = args.get(2);
+                Long f0 = from instanceof SqlExpr.IntLit il ? il.value() : null;
+                boolean clampAtLength = (f0 == null || f0 > 0)
+                        && !(args.get(1) instanceof SqlExpr.StringLit sl && !sl.value().isEmpty());
+                SqlExpr from0 = f0 != null
+                        ? new SqlExpr.IntLit(Math.max(f0, 0))
+                        : SqlExpr.Call.of(SqlFn.GREATEST, from, new SqlExpr.IntLit(0));
+                if (clampAtLength) {
+                    from0 = SqlExpr.Call.of(SqlFn.LEAST, from0, SqlExpr.Call.of(SqlFn.LENGTH, args.get(0)));
+                }
+                SqlExpr from1 = from0 instanceof SqlExpr.IntLit il0
+                        ? new SqlExpr.IntLit(il0.value() + 1)
+                        : SqlExpr.Call.of(SqlFn.PLUS, from0, new SqlExpr.IntLit(1));
+                SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(args.get(0), from1));
+                SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS, List.of(suffix, args.get(1)));
+                return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER, k, new SqlExpr.IntLit(0)),
+                        SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.PLUS, k, from0),
+                                new SqlExpr.IntLit(1)))),
+                        new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
+            }
+            // PURE's indexOf(s, sub) (A3 of the compatibility program, piece 2, 2026-11-19; the user's D1; register
+            // S134): Java's String.indexOf -- 0-based, -1 on a miss. STRPOS is 1-based with 0 on a miss, so minus
+            // one is exact for both. legend-engine's 1-based locate is what the islands and the ###Relational
+            // dynaFunctions say by name (sqlPosition, above); the legend-engine door marks or refuses a store-routed
+            // call
+            return SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1));
+        };
+    }
+
     /** The optional-needle {@code in}: false for the empty needle, else {@link #inRule}'s answer, never NULL. */
     static Rule inOfOptionalRule(NumberFamilies numbers) {
         return (n, args) -> args.get(0) instanceof SqlExpr.NullLit ? new SqlExpr.BoolLit(false)
@@ -3915,6 +3927,9 @@ final class Scalars {
         }
         if (Pure.AT_COLLECTION_REMOVE_DUPLICATES.contains(id)) {
             return removeDuplicatesRule(three).apply(n, args);
+        }
+        if (Pure.AT_COLLECTION_INDEX_OF.contains(id)) {
+            return indexOfRule(three).apply(n, args);
         }
         throw new IllegalStateException("no rule of three number types for " + id + ": an edition's row named one");
     }

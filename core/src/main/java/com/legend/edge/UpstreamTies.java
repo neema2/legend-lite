@@ -65,8 +65,12 @@ final class UpstreamTies {
         // (answers.md, group A); compiled legend-pure and legend-engine differ from it on some, as recorded (S127).
         // The orderings carry the row too: a value typed only when the query runs is the database's comparison at a
         // door, where the product refuses an exact number's column against a Float's (lowering.HeldKinds)
+        // (a list's indexOf too, since step 6B's slice 5: the product's reads its list and its value by the one
+        // equality -- kinds the text names, date-times by their instants -- and a door keeps the database's own
+        // position, as it keeps the database's own membership for contains)
         for (FunctionId compared : FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ,
                 Pure.AT_COLLECTION_CONTAINS, Pure.AT_COLLECTION_REMOVE_DUPLICATES, Pure.AT_COLLECTION_IN,
+                Pure.AT_COLLECTION_INDEX_OF,
                 Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,
                 Pure.AT_BOOLEAN_GREATER_THAN_EQUAL)) {
             rules.put(compared, NamedRule.THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION);

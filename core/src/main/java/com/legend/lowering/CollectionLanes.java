@@ -297,7 +297,8 @@ final class CollectionLanes {
      * their carriers compact at the collect (Blocker 1). */
     static com.legend.sql.SqlExpr compactIfValueLane(TypedSpec typedOp,
             com.legend.sql.SqlExpr arg) {
-        return valueLane(typedOp) && !scalarCarriedIf(typedOp)
+        // (a list compacted where it was built is compacted: a second filter over it is SQL for nothing)
+        return valueLane(typedOp) && !scalarCarriedIf(typedOp) && !(arg instanceof com.legend.sql.SqlExpr.CompactList)
                 ? new com.legend.sql.SqlExpr.CompactList(arg)
                 : arg;
     }

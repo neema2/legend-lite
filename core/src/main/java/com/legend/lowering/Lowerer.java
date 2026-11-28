@@ -1170,7 +1170,7 @@ public final class Lowerer {
                     && bt.type() != SqlType.Scalar.JSON) {
                 e = PureSql.asList(e, false);
             }
-            e = SqlExpr.Call.of(SqlFn.UNNEST, new SqlExpr.CompactList(e));
+            e = SqlExpr.Call.of(SqlFn.UNNEST, e instanceof SqlExpr.CompactList ? e : new SqlExpr.CompactList(e));
         }
         return new SqlSelect(
                 List.of(new SqlSelect.Projection(e, "value",

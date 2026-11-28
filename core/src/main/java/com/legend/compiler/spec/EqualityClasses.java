@@ -163,10 +163,8 @@ public final class EqualityClasses {
     /** The natives that answer values of the list they are given and no other: a part of it, or all of it in
      *  another order. */
     private static final java.util.Set<FunctionId> KEEPS_ITS_VALUES = java.util.Set.copyOf(FunctionId.all(
-            Pure.AT_COLLECTION_SORT, Pure.AT_COLLECTION_SORT_BY, Pure.AT_COLLECTION_SORT_BY_REVERSED,
-            Pure.AT_COLLECTION_REVERSE, Pure.AT_COLLECTION_TAKE, Pure.AT_COLLECTION_DROP, Pure.AT_COLLECTION_SLICE,
-            Pure.AT_COLLECTION_TAIL, Pure.AT_COLLECTION_INIT, Pure.AT_COLLECTION_DISTINCT,
-            Pure.AT_COLLECTION_REMOVE_DUPLICATES));
+            Pure.AT_COLLECTION_SORT, Pure.AT_COLLECTION_REVERSE, Pure.AT_COLLECTION_TAIL, Pure.AT_COLLECTION_INIT,
+            Pure.AT_COLLECTION_DISTINCT, Pure.AT_COLLECTION_REMOVE_DUPLICATES));
 
     /** The natives that answer one value of the list they are given, as it is. */
     private static final java.util.Set<FunctionId> ONE_OF_A_LIST = java.util.Set.copyOf(FunctionId.all(
@@ -183,12 +181,22 @@ public final class EqualityClasses {
      * ({@code lowering.MixedEncoding.kindThroughUpcasts}).
      */
     public static @com.legend.base.Nullable TypedSpec valuesOf(TypedSpec side) {
-        if (side instanceof com.legend.compiler.spec.typed.TypedFilter filtered) {
-            return filtered.source();
-        }
-        return side instanceof com.legend.compiler.spec.typed.TypedNativeCall read && !read.args().isEmpty()
-                && (KEEPS_ITS_VALUES.contains(read.callee().id()) || ONE_OF_A_LIST.contains(read.callee().id()))
-                ? read.args().get(0) : null;
+        // (the type-checker gives most of these their own node, a list's as a table's: take and limit, drop, slice,
+        // sortBy and a deduplication never reach here as a call -- the review of slice 5, finding 2: read by their
+        // function ids alone, [1, 2]->cast(@Number)->take(1)->contains(1.0) was still the database's membership)
+        return switch (side) {
+            case com.legend.compiler.spec.typed.TypedFilter o -> o.source();
+            case com.legend.compiler.spec.typed.TypedSort o -> o.source();
+            case com.legend.compiler.spec.typed.TypedSortBy o -> o.source();
+            case com.legend.compiler.spec.typed.TypedDistinct o -> o.source();
+            case com.legend.compiler.spec.typed.TypedLimit o -> o.source();
+            case com.legend.compiler.spec.typed.TypedDrop o -> o.source();
+            case com.legend.compiler.spec.typed.TypedSlice o -> o.source();
+            case com.legend.compiler.spec.typed.TypedNativeCall read when !read.args().isEmpty()
+                    && (KEEPS_ITS_VALUES.contains(read.callee().id()) || ONE_OF_A_LIST.contains(read.callee().id()))
+                    -> read.args().get(0);
+            default -> null;
+        };
     }
 
     private static Optional<Crossing> crossing(TypedFunction chosen, Type l, Type r, ModelContext ctx) {

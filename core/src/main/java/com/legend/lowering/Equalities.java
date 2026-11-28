@@ -144,7 +144,22 @@ final class Equalities {
                     holdsNothing(n.args().get(1), sides.get(1)));
         }
         List<SqlExpr> instants = asInstants(n, sides, true);
-        return sameValues(n, instants == null ? sides : instants, sideRows, SqlFn.SAME_IN_ANY_ORDER);
+        List<SqlExpr> values = instants == null ? sides : instants;
+        // (a list of days or of date-times held any other way than the value form reads it -- a text column, a day
+        // column under a property declared DateTime: the planner's statement reads each row as its instant, which
+        // this form does not; RootComparison.heldAsTheValueFormReads asks the same of ==)
+        if (!heldAsItsDateKind(n.args().get(0).info().type(), values.get(0))
+                || !heldAsItsDateKind(n.args().get(1).info().type(), values.get(1))) {
+            return null;
+        }
+        return sameValues(n, values, sideRows, SqlFn.SAME_IN_ANY_ORDER);
+    }
+
+    /** Whether the list {@code value} of {@code type} is held as the value form compares that type: days as the
+     *  database's DATE, date-times as its TIMESTAMP; any type that is no day and no date-time, as it is. */
+    private static boolean heldAsItsDateKind(Type type, SqlExpr value) {
+        return type == Type.Primitive.STRICT_DATE ? listOf(value, SqlType.Scalar.DATE)
+                : type != Type.Primitive.DATE_TIME || listOf(value, SqlType.Scalar.TIMESTAMP);
     }
 
     /** The instruction {@code same} over {@code n}'s two side values {@code values}, or null where they are not two
@@ -163,7 +178,11 @@ final class Equalities {
         // written lists of Strings are compared as they were: a database's comparison of two String COLUMNS follows
         // its collation, its comparison of two lists does not
         boolean written = n.args().get(0) instanceof TypedCollection && n.args().get(1) instanceof TypedCollection;
-        boolean rows = !written || SideEqualities.exactNumber(n.args().get(0).info().type());
+        // (in ANY order the rows always ride: a database that compares rows has no other writing of it -- the review
+        // of slice 5, finding 1: without them two written lists of Strings under hasSameElements, which the
+        // planner's statement answered until then, were refused on every such database)
+        boolean rows = same == SqlFn.SAME_IN_ANY_ORDER || !written
+                || SideEqualities.exactNumber(n.args().get(0).info().type());
         // (each side's rows read as its VALUE is compared: a day or a date-time by its instant, a text carried as
         // written parsed, a held one in the database's one form -- SideEqualities.instants, the reading the planner's
         // own statement gave these sides; review 4 of slice 3a, blocker 1: the raw rows met a text against a
@@ -420,7 +439,7 @@ final class Equalities {
      * date built to the hour met a held date-time as a text and failed when the query ran.
      *
      * @param never  where the rule answers "no element is the needle" by the two sides' kinds: a Boolean that is
-     *               false and still evaluates both sides ({@link #neverEqualButEvaluated}); else null
+     *               false and still evaluates both sides ({@link #neverAmongButEvaluated}); else null
      * @param list   the list as the membership reads it (date-times by their instants where the needle is one)
      * @param needle the needle as the membership reads it
      */
@@ -442,7 +461,10 @@ final class Equalities {
             if (elements != null && sought != null && !NumberFamilies.TWO_FAMILIES.canEqual(elements, sought)
                     && (bothWritten || !(numbers && (HeldKinds.readsAs(needleSpec, elements)
                             || HeldKinds.readsAs(listSpec, sought))))) {
-                return new Member(neverEqualButEvaluated(list, needle), list, needle);
+                // (false, the list and the needle still evaluated: the list by its emptiness, never as a text --
+                // not every database casts a list to one; the review of slice 5, finding 4)
+                return new Member(neverAmongButEvaluated(List.of(aList(list) ? Scalars.noElements(list) : list,
+                        needle), false), list, needle);
             }
         }
         // a date-time carried as its written text against ones the database holds: by their instants, as == reads
@@ -654,8 +676,8 @@ final class Equalities {
         }
         if (lists && lTexts != rTexts) {
             boolean dateTimes = n.args().get(lTexts ? 0 : 1).info().type() == Type.Primitive.DATE_TIME;
-            SqlExpr a = lTexts ? (dateTimes ? instantsOfTexts(l) : instantsWhereWritten(l)) : instantListOf(l);
-            SqlExpr b = rTexts ? (dateTimes ? instantsOfTexts(r) : instantsWhereWritten(r)) : instantListOf(r);
+            SqlExpr a = lTexts ? (dateTimes ? instantsOfTexts(l) : instantsWhereWritten(l)) : heldInstants(l, dateTimes);
+            SqlExpr b = rTexts ? (dateTimes ? instantsOfTexts(r) : instantsWhereWritten(r)) : heldInstants(r, dateTimes);
             return a == null || b == null ? null : List.of(a, b);
         }
         for (int t = 0; t < 2; t++) {
@@ -678,6 +700,16 @@ final class Equalities {
             return t == 0 ? List.of(a, b) : List.of(b, a);
         }
         return null;
+    }
+
+    /** {@link #instantListOf} of the held {@code side}; where the texts beside it are read as "no instant" for a
+     *  year or a day ({@code !dateTimes}: {@link #instantsWhereWritten} leaves a NULL for one), with its own empty
+     *  slots dropped -- a held side's NULL is an element that is not there, the texts' NULL an element that is no
+     *  instant, and a database that compares two lists calls two NULLs in one place the same (the review of slice
+     *  5, finding 5: a year against an optional date-time that held nothing answered true). */
+    private static @com.legend.base.Nullable SqlExpr heldInstants(SqlExpr side, boolean dateTimes) {
+        SqlExpr held = instantListOf(side);
+        return held == null || dateTimes ? held : new SqlExpr.CompactList(held);
     }
 
     /** {@code side}, met beside a list of date-times carried as their written texts, as the list of instants it is:
