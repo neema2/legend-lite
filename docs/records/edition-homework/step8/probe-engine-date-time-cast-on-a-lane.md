@@ -15,9 +15,62 @@ itself fails, as step 3 says it will. What it answered:
 | H2 | `SELECT CAST(TIMESTAMP '2014-01-01T00:00:00.000' AS VARCHAR) AS "value"`; `CAST(dateadd(HOUR, 1, TIMESTAMP '2014-01-01T10:20:30.250') AS VARCHAR)`; `CAST("_tds0"."at" AS VARCHAR)` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 11:20:30.25` | the same three as DuckDB |
 | SQLite (legend-engine has no SQLite: no row, the call's own rule) | a literal is the constant `'2014-01-01T00:00:00+0000'`; a computed value and a column are lite's own `strftime` text | `2014-01-01T00:00:00.000+0000` | `2014-01-01T00:00:00+0000` | `2014-01-01T11:20:30.250000000Z` | `2014-01-01T10:20:30.250000000Z`, `2014-01-01T10:20:30.123456000Z`, `2014-01-02T00:00:00.000000000Z` |
 
-DuckDB's and H2's answers are the ones "What to read in the answer" below expects. The six databases it was never
-run on (Postgres, Trino, Snowflake, ClickHouse, Databricks, BigQuery) are measured by the database lanes; their
-answers are added below when they report.
+DuckDB's and H2's answers are the ones "What to read in the answer" below expects.
+
+## The six databases, run by the lanes on 2026-11-28 (at `7831492c`, each by the steps below; measure only)
+
+Every lane selected the probe class (four `PROBE CASE` lines), nothing raised, and each tree was restored. The SQL
+and the answers are each lane's report, verbatim in substance (the full statements are in the lanes' logs).
+
+| Database | What lite sent for `toString` | literal, a fraction | literal, no fraction | computed | the column's three rows |
+|---|---|---|---|---|---|
+| Postgres 16.15 | `CAST(TIMESTAMP '2014-01-01T00:00:00.000' AS VARCHAR)`; the column `CAST("_tds0"."at" AS VARCHAR)` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 11:20:30.25` | `2014-01-01 10:20:30.25`, `2014-01-01 10:20:30.123456`, `2014-01-02 00:00:00` |
+| Databricks | `CAST(TIMESTAMP '2014-01-01T00:00:00.000' AS STRING)` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 11:20:30.25` | the same three as Postgres |
+| Trino 483 | `CAST(TIMESTAMP '2014-01-01 00:00:00.000' AS VARCHAR)` | `2014-01-01 00:00:00.000` | `2014-01-01 00:00:00` | `2014-01-01 11:20:30.250` | `2014-01-01 10:20:30.250000`, `2014-01-01 10:20:30.123456`, `2014-01-02 00:00:00.000000` |
+| ClickHouse 26.3 | `CAST(toDateTime64('2014-01-01 00:00:00.000', 6, 'UTC') AS Nullable(String))` | `2014-01-01 00:00:00.000000` | `2014-01-01 00:00:00.000000` | `2014-01-01 11:20:30.250000` | `2014-01-01 10:20:30.250000`, `2014-01-01 10:20:30.123456`, `2014-01-02 00:00:00.000000` |
+| Snowflake | **not a cast:** `REGEXP_REPLACE(TO_CHAR(TIMESTAMP '...', 'YYYY-MM-DD HH24:MI:SS.FF6'), '\\.?0+$', '')` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 11:20:30.25` | the same three as Postgres |
+| BigQuery | **not a cast:** `FORMAT_DATETIME('%Y-%m-%d %H:%M:%E*S', DATETIME '...')` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 11:20:30.25` | the same three as Postgres |
+
+Snowflake's session (read by its lane over a plain session, no `ALTER SESSION`): `TIMESTAMP_NTZ_OUTPUT_FORMAT` is
+`YYYY-MM-DD HH24:MI:SS.FF3`, `TIMESTAMP_OUTPUT_FORMAT` `YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM`, `TIMESTAMP_TYPE_MAPPING`
+`TIMESTAMP_NTZ`, all at their defaults.
+
+**What legend-engine itself writes for the operand (READ 2026-11-28 in the pinned 4.145.0 sources; the text of a
+literal is `convertDateToSqlString`, `yyyy-MM-dd HH:mm:ss` and the literal's own sub-second digits, `[.S*]`:
+`extensionDefaults.pure`:144-154):**
+
+| Database | legend-engine's DateTime literal | Where |
+|---|---|---|
+| Postgres | `Timestamp'<text>'` | `postgresExtension.pure`:176 |
+| Trino | `Timestamp'<text>'` | `trinoExtension.pure`:49 |
+| Databricks | `to_timestamp('<text>')` | `databricksExtension.pure`:87 |
+| ClickHouse | `'<text>'::DateTime64` | `clickHouseExtension.pure`:68 |
+| Snowflake | `'<text>'::timestamp` | `snowflakeExtension.pure`:165 |
+| BigQuery | `PARSE_DATETIME('%Y-%m-%d %H:%M:%E6S', '<text>')` | `bigQueryExtension.pure`:46 |
+
+**The reading, database by database:**
+
+- **Postgres, Databricks: as ruled.** Lite sends the database's cast of a timestamp, legend-engine's template with
+  an operand of the same type, and the texts are DuckDB's and H2's.
+- **Trino: the database's cast, and its text follows the timestamp's own precision.** A literal written with three
+  fraction digits prints three (`.000`), one with none prints none, and a column of mixed rows prints six for every
+  row. Lite's literal is spelled as legend-engine's is (`TIMESTAMP '<text with the literal's digits>'`), so a
+  literal's text should be legend-engine's; a computed value's and a column's follow lite's type for them, which was
+  not compared with legend-engine's.
+- **ClickHouse: the database's cast, of another operand type.** Lite's timestamp is `DateTime64(6, 'UTC')`, so every
+  text has six fraction digits. legend-engine's literal is `'<text>'::DateTime64` with no precision written. What
+  that casts to is being run on the lane's ClickHouse (below).
+- **Snowflake, BigQuery: lite does not send the cast.** Their dialects write a cast of a timestamp to text as a
+  format call with lite's own fixed layout (the fraction trimmed), so the text does not follow the database's own
+  cast. On Snowflake legend-engine's `cast(... as varchar)` would follow the session's format, three fraction digits
+  (`2014-01-01 00:00:00.000`), by reading; on BigQuery its cast of a `DATETIME` is being run (below).
+
+So of the six, two are as the row says, one is the database's cast with a precision question, and three do not give
+legend-engine's text or are not yet known to. This goes to the user as a question (narrow the row to the databases
+measured equal, or change what those dialects write for this rule); nothing is changed here.
+
+**legend-engine's own SQL run on the three databases** (the lanes' follow-up, plain statements): *to be added when
+they report.*
 
 ## The question
 
