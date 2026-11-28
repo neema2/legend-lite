@@ -316,3 +316,25 @@ So a slice that passes every lane can still be wrong in a place no suite asks: t
   list lambdas (H2) only the planner's rows do, and the instruction as it is carries two plain values, not a mixed
   list's comparison. The half page has to say what the instruction carries for a mixed list (its tag and slots) so
   that each dialect can write it from values or from rows.
+
+**2026-11-28, 00:45 UTC. Mixed lists move to a part 2 of B** (the user: "Why don't we move mixed list to the end of
+the whole program or even a part 2 of B so we can fix everything else without blocking on that? Once everything else
+works well we can revisit"; the orchestrator agreed).
+
+- **What moves:** every value the SQL carries as a tag and one slot per kind: a list whose elements are of several
+  types (`[1, 'a']`), and a single value picked among several types (`[1, 2.0]->max()`). What the "same values"
+  instruction carries for them, and how each dialect writes it from values or from rows, is part 2's design.
+- **What does not move:** everything else in sections 2 to 4, in the same order: lists typed `Number` or `Any` whose
+  values the SQL holds in one plain type, pairs, maps, tables, binding once, the other comparing functions, the
+  asserts, the doors, the guards.
+- **Three conditions, so that part 2 is not forgotten and part 1 is not hollow:**
+  1. The mixed rows of the measure are named (`mixed list ...`, `max of a mixed list`) and counted apart. Part 1 is
+     done when every OTHER row is right everywhere on DuckDB and H2; the mixed rows are pinned and may not get worse.
+  2. The code that compares mixed values today (the planner's statement for a tagged side, `SideEqualities.tagged`,
+     and `lowering/TaggedLists`' equality) stays, but only they may reach it: a guard holds that nothing else does,
+     so part 1 still deletes the second code for every other kind.
+  3. Whether `main` waits for part 2 is the user's call at step 11. The orchestrator's recommendation: it need not,
+     provided the measure shows mixed values give the right answer or a refusal by name in every place, never a
+     wrong answer.
+- At this date the mixed rows on DuckDB: four right everywhere, `mixed list computed` failing inside a list lambda
+  (a database error, not a wrong answer), `max of a mixed list` refused where a side reads the lambda's element.
