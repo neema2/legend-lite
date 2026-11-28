@@ -81,3 +81,25 @@ After every change that could move them: `//core:guardrails`, `//core:guardrails
 - **Still to do in D:** the same for `assertEquals` / `assertNotEquals` / `assertSameElements` (the gate in
   `databaseVerdict`); the abstract `Date` and days and date-times under `assertContains` (the membership's rows read
   by their instants, the needle the same way); `Any`; then the measure, the judging tests named above, the guards.
+
+## D, later the same day (about 10:00 UTC)
+
+- **Sides declared `Number` are done for all four asserts** (`assertEquals`, `assertNotEquals`,
+  `assertSameElements`, `assertContains`): each bound side is shown to the product as the kind its column holds,
+  under the type it is declared (`VerdictQueries.heldAs`: a typed value of that kind beneath an upcast), so the
+  product reads the kinds exactly as it reads an upcast the query writes -- through `let`s too, where the query's
+  text names no kind. Both judges agree in every probe on DuckDB and H2 (two families fail with the host's record;
+  an Integer beside a Decimal passes).
+- **The measure** (the no-Bazel loop): DuckDB 198 of 229 right everywhere (194 at the landing), none failing, none
+  wrong, none contradicting; H2 165. The four rows that moved are the `Number` rows of `assertContains`; the
+  baseline file is this run's.
+- **Guards and tests on the first cut** (Bazel, `//core:guardrails`, `guardrails_edge`, `core_tests_testplan`,
+  `_exec`, `_compiler`, `_lowering`): pass. The judge ledger is UP (`DatabaseJudge` 907 to 929, `BodyDriver` +5,
+  `AssertVerdicts` +1): it must be back under its pins when D lands, by deleting the old member's branches this
+  path replaces.
+- **Tried and taken back: the abstract `Date`.** A side declared `Date` is planned with two candidate kinds (the
+  judge's rider lists a day and a date-time), so there is no ONE held kind to show the product. It needs the
+  side's plan to say which kind each value holds, as a mixed list's does: with piece C, or by refining the rider
+  where the query's text names the kind.
+- **Left on the old path on purpose:** a side written as number literals against a value typed at run time (the
+  host judge does not read a written literal as the product does: owed).

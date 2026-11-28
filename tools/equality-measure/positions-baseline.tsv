@@ -489,9 +489,6 @@ SQLite	values	tables a column's name differs	  refused TypeInferenceException [r
 DuckDB	functions	day computed	ANSWERED ONLY IN SOME PLACES
 DuckDB	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 DuckDB	functions	day computed	  unjudged [refused]: assertContains (database)
-DuckDB	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
-DuckDB	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
-DuckDB	functions	Number int and float	  unjudged [refused]: assertContains (database)
 DuckDB	functions	Any same	ANSWERED ONLY IN SOME PLACES
 DuckDB	functions	Any same	  T [right]: in, in-of-two, contains, not-contains, in-inside-a-list-function
 DuckDB	functions	Any same	  refused DialectCapability [refused]: contains-computed, indexOf
@@ -512,15 +509,6 @@ DuckDB	functions	Date day and date-time	  unjudged [refused]: assertContains (da
 DuckDB	functions	max of a mixed list	ANSWERED ONLY IN SOME PLACES
 DuckDB	functions	max of a mixed list	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
 DuckDB	functions	max of a mixed list	  T [right]: assertContains (host), assertContains (database)
-DuckDB	functions	Number value from a sorted list, and a Float	ANSWERED ONLY IN SOME PLACES
-DuckDB	functions	Number value from a sorted list, and a Float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
-DuckDB	functions	Number value from a sorted list, and a Float	  unjudged [refused]: assertContains (database)
-DuckDB	functions	Number value from a sorted list, and an upcast Float literal	ANSWERED ONLY IN SOME PLACES
-DuckDB	functions	Number value from a sorted list, and an upcast Float literal	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
-DuckDB	functions	Number value from a sorted list, and an upcast Float literal	  unjudged [refused]: assertContains (database)
-DuckDB	functions	raising single value, two families	FAILS SOMEWHERE
-DuckDB	functions	raising single value, two families	  error DataError [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
-DuckDB	functions	raising single value, two families	  unjudged [failed]: assertContains (database)
 DuckDB	functions	year and string through Any	ANSWERED ONLY IN SOME PLACES
 DuckDB	functions	year and string through Any	  refused DialectCapability [refused]: in, contains-computed, indexOf, in-inside-a-list-function
 DuckDB	functions	year and string through Any	  F [right]: in-of-two, contains, not-contains
@@ -559,9 +547,6 @@ H2	functions	built to the hour and literal	  refused DialectCapability [refused]
 H2	functions	day computed	ANSWERED ONLY IN SOME PLACES
 H2	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, assertContains (host)
 H2	functions	day computed	  unjudged [refused]: assertContains (database)
-H2	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
-H2	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, assertContains (host)
-H2	functions	Number int and float	  unjudged [refused]: assertContains (database)
 H2	functions	Any same	ANSWERED ONLY IN SOME PLACES
 H2	functions	Any same	  T [right]: in, in-of-two, contains, not-contains
 H2	functions	Any same	  refused NotImplementedException [refused]: assertContains (host)
@@ -581,14 +566,11 @@ H2	functions	Date day and date-time	  unjudged [refused]: assertContains (databa
 H2	functions	max of a mixed list	refused by name everywhere
 H2	functions	max of a mixed list	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host), assertContains (database)
 H2	functions	Number value from a sorted list, and a Float	refused by name everywhere
-H2	functions	Number value from a sorted list, and a Float	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host)
-H2	functions	Number value from a sorted list, and a Float	  unjudged [refused]: assertContains (database)
+H2	functions	Number value from a sorted list, and a Float	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host), assertContains (database)
 H2	functions	Number value from a sorted list, and an upcast Float literal	refused by name everywhere
-H2	functions	Number value from a sorted list, and an upcast Float literal	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host)
-H2	functions	Number value from a sorted list, and an upcast Float literal	  unjudged [refused]: assertContains (database)
+H2	functions	Number value from a sorted list, and an upcast Float literal	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host), assertContains (database)
 H2	functions	raising single value, two families	FAILS SOMEWHERE
-H2	functions	raising single value, two families	  refused DialectCapability [failed]: in, in-of-two, contains, not-contains, assertContains (host)
-H2	functions	raising single value, two families	  unjudged [failed]: assertContains (database)
+H2	functions	raising single value, two families	  refused DialectCapability [failed]: in, in-of-two, contains, not-contains, assertContains (host), assertContains (database)
 H2	functions	year and string through Any	ANSWERED ONLY IN SOME PLACES
 H2	functions	year and string through Any	  refused DialectCapability [refused]: in
 H2	functions	year and string through Any	  F [right]: in-of-two, contains, not-contains
@@ -626,9 +608,6 @@ SQLite	functions	built to the hour and literal	  refused DialectCapability [refu
 SQLite	functions	day computed	ANSWERED ONLY IN SOME PLACES
 SQLite	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
 SQLite	functions	day computed	  unjudged [refused]: assertContains (database)
-SQLite	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
-SQLite	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
-SQLite	functions	Number int and float	  unjudged [refused]: assertContains (database)
 SQLite	functions	Any same	ANSWERED ONLY IN SOME PLACES
 SQLite	functions	Any same	  T [right]: in, in-of-two, contains, not-contains, in-inside-a-list-function
 SQLite	functions	Any same	  refused DialectCapability [refused]: contains-computed, indexOf
@@ -650,15 +629,6 @@ SQLite	functions	Date day and date-time	  unjudged [refused]: assertContains (da
 SQLite	functions	max of a mixed list	ANSWERED ONLY IN SOME PLACES
 SQLite	functions	max of a mixed list	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
 SQLite	functions	max of a mixed list	  T [right]: assertContains (host), assertContains (database)
-SQLite	functions	Number value from a sorted list, and a Float	ANSWERED ONLY IN SOME PLACES
-SQLite	functions	Number value from a sorted list, and a Float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
-SQLite	functions	Number value from a sorted list, and a Float	  unjudged [refused]: assertContains (database)
-SQLite	functions	Number value from a sorted list, and an upcast Float literal	ANSWERED ONLY IN SOME PLACES
-SQLite	functions	Number value from a sorted list, and an upcast Float literal	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
-SQLite	functions	Number value from a sorted list, and an upcast Float literal	  unjudged [refused]: assertContains (database)
-SQLite	functions	raising single value, two families	FAILS SOMEWHERE
-SQLite	functions	raising single value, two families	  error DataError [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
-SQLite	functions	raising single value, two families	  unjudged [failed]: assertContains (database)
 SQLite	functions	year and string through Any	ANSWERED ONLY IN SOME PLACES
 SQLite	functions	year and string through Any	  refused DialectCapability [refused]: in, contains-computed, indexOf, in-inside-a-list-function
 SQLite	functions	year and string through Any	  F [right]: in-of-two, contains, not-contains
