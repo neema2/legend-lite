@@ -69,7 +69,7 @@ final class Equalities {
         if (first && second) {
             // (an enumeration's too: until step 6B's slice 5 it was left the plain =, as legend-engine's SQL writes
             // an enumeration's comparison, and two empty optional enumerations answered no value where Pure says
-            // true; legend-engine's door inside a store query never reaches here, EditionTable.emptySideIsFalse)
+            // true; legend-engine's door inside a store query never reaches here, its reading)
             return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, c.args());
         }
         if (first == second || positiveCondition) {

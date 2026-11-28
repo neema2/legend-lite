@@ -800,7 +800,7 @@ final class Substitution {
         TypedNativeCall present = new TypedNativeCall(
                 target.regs().isNotEmptyCallee(), List.of(headRead), boolOne);
         TypedNativeCall leafEmpty = new TypedNativeCall(
-                call.callee(), List.of(stripped), call.info(), null, call.outsideStore());
+                call.callee(), List.of(stripped), call.info(), null, call.outsideStore(), call.reading());
         return new TypedNativeCall(target.regs().andCallee(),
                 List.of(present, leafEmpty), boolOne);
     }

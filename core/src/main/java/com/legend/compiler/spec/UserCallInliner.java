@@ -1061,7 +1061,7 @@ public final class UserCallInliner {
         }
         ExprType ni = new ExprType(callInfo.type(), reduced.info().multiplicity());
         return switch (reduced) {
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos(), c.outsideStore());
+            case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos(), c.outsideStore(), c.reading());
             case com.legend.compiler.spec.typed.TypedCollection tc -> tc.withInfo(ni);
             case TypedUserCall uc -> uc.withInfo(ni);
             default -> reduced;
@@ -1985,7 +1985,7 @@ public final class UserCallInliner {
                 args.add(a instanceof TypedVariable v2
                         && v2.name().equals(param) ? lit : a);
             }
-            return new TypedNativeCall(nc.callee(), args, nc.info(), nc.pos(), nc.outsideStore());
+            return new TypedNativeCall(nc.callee(), args, nc.info(), nc.pos(), nc.outsideStore(), nc.reading());
         }
         if (referencesVar(node, param)) {
             throw new IllegalStateException("effectful map body reads the"

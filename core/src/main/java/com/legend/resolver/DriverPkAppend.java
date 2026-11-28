@@ -77,7 +77,7 @@ public final class DriverPkAppend {
             List<TypedSpec> args = new ArrayList<>(tc.args());
             args.set(0, src);
             return new com.legend.compiler.spec.typed.TypedNativeCall(
-                    tc.callee(), args, tc.info(), null, tc.outsideStore());
+                    tc.callee(), args, tc.info(), null, tc.outsideStore(), tc.reading());
         }
         // the option only affects PROJECTIONS (engine: addDriverTablePk
         // ForProject) — any other statement passes through unchanged

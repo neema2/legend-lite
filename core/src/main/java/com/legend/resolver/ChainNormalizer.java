@@ -142,7 +142,7 @@ public final class ChainNormalizer {
         TypedSpec keyRead = new TypedPropertyAccess(pa.source(),
                 com.legend.model.ClassMapping.foreignKeyBinding(pa.property()), str);
         return new TypedNativeCall(eq.callee(),
-                List.of(keyRead, new TypedCString(pr.fullPath(), str)), eq.info(), null, eq.outsideStore());
+                List.of(keyRead, new TypedCString(pr.fullPath(), str)), eq.info(), null, eq.outsideStore(), eq.reading());
     }
 
     /** {@code equal(<element-typed class query>, <tracked element reference>)}
@@ -184,7 +184,7 @@ public final class ChainNormalizer {
         TypedSpec key = new TypedNativeCall(oneArgCallee(ctx,
                 "meta::pure::functions::multiplicity::toOne"), List.of(keys), str);
         return new TypedNativeCall(eq.callee(),
-                List.of(key, new TypedCString(pr.fullPath(), str)), eq.info(), null, eq.outsideStore());
+                List.of(key, new TypedCString(pr.fullPath(), str)), eq.info(), null, eq.outsideStore(), eq.reading());
     }
 
     /** {@code equal(a, b)} as the identity condition of two element-typed

@@ -165,6 +165,6 @@ final class IfChecker {
                 java.util.Objects.requireNonNull(first, "first");
         // the fail's own place kept (the audit of e13a9c6d: an assertError over the body reads it)
         return new com.legend.compiler.spec.typed.TypedNativeCall(
-                fail.callee(), fail.args(), last.info(), fail.pos(), fail.outsideStore());
+                fail.callee(), fail.args(), last.info(), fail.pos(), fail.outsideStore(), fail.reading());
     }
 }

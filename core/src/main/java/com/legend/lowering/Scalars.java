@@ -2327,13 +2327,20 @@ final class Scalars {
      * statement ({@link WholeComparisons}).
      *
      * <p>A ROW REPLACES THE CALL'S OWN RULE. (Beside it the lowering asks the door one more thing where an equality
-     * is written: how its audience answers an empty side, {@link EditionTable#emptySideIsFalse}.) For {@code ==} the
+     * is written: how its audience answers an empty side, the call's reading.) For {@code ==} the
      * product's own rule is more than its SQL
      * operator: the whole-side statement for two computed lists, maps or tables ({@link WholeComparisons}), and the
      * refusal of two column types that can never be equal ({@link HeldKinds}). A door that names a rule for
      * {@code ==} ({@link NamedRule#THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION}) gets neither; nothing else decides that.
      */
     static @com.legend.base.Nullable NamedRule doorsRule(TypedNativeCall call, Set<Feature> features, Styled styled) {
+        // SPIKE (slice 7): a comparison's rule is read off the call, where the type-checker wrote which comparison it
+        // is; the door's table is not asked about one, and names none
+        if (call.callee().definition() != null
+                && com.legend.compiler.spec.EqualityClasses.readByADoor(call.callee().id())) {
+            return call.reading() == com.legend.compiler.spec.typed.ComparisonReading.PRODUCT ? null
+                    : NamedRule.THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION;
+        }
         return styled.edition().lowersAs(call, features);
     }
 

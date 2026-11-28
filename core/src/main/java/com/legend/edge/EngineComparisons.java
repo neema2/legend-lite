@@ -59,6 +59,13 @@ public final class EngineComparisons implements CrossTypeRule {
         return false;
     }
 
+    /** SPIKE (slice 7): legend-engine's comparisons -- three number types, and an equality's empty side by where it
+     *  runs. */
+    @Override
+    public com.legend.compiler.spec.typed.ComparisonReading reading() {
+        return com.legend.compiler.spec.typed.ComparisonReading.THREE_NUMBER_TYPES_EMPTY_SIDE_BY_PLACE;
+    }
+
     @Override
     public TypedSpec inBody(TypedCrossTypeComparison crossing) {
         return crossing.comparison();

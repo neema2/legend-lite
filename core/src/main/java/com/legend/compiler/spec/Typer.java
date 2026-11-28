@@ -292,6 +292,12 @@ final class Typer {
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         // lite's own comparison (hasSameElements) means what lite's setting says, whichever door admitted the code
         CrossTypeRule rule = ruleFor(chosen);
+        // SPIKE (slice 7): the door's reading of a comparison, written on the call where it is typed -- in the query,
+        // a body, a mapping's code and a planner's own call alike -- before anything wraps or keeps the call
+        if (call instanceof com.legend.compiler.spec.typed.TypedNativeCall c0 && c0.callee().definition() != null
+                && EqualityClasses.readByADoor(c0.callee().id())) {
+            call = c0.read(rule.reading());
+        }
         if (compared == Compared.UNREAD && rule.readsBodies()) {
             // code the setting is never asked about (an island's translation, a planner's own frame) is not the
             // query's own either: its comparison without the position the planning-time refusal reads
@@ -1320,6 +1326,12 @@ final class Typer {
             }
             ExprType out = new ExprType(fn.returnType(), fn.returnMultiplicity());
             TypedSpec body = CallNodes.mint(ctx.implementations(), fn, argRefs, out);
+            // SPIKE (slice 7): a comparison named as a value (eq_Any_1__Any_1_) is read as its door reads it too --
+            // the type-checker's second mint of a comparison, which never passed the hook
+            if (body instanceof com.legend.compiler.spec.typed.TypedNativeCall rc && rc.callee().definition() != null
+                    && EqualityClasses.readByADoor(rc.callee().id())) {
+                body = rc.read(crossTypes.reading());
+            }
             var ft = new Type.FunctionType(ftParams,
                     new Type.FunctionType.Param(fn.returnType(), fn.returnMultiplicity()));
             // The eta-expanded VALUE is a lambda, but the reference's m3

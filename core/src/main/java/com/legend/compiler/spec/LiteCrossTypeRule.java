@@ -261,7 +261,7 @@ public final class LiteCrossTypeRule implements CrossTypeRule {
         for (com.legend.compiler.element.TypedFunction f : ctx.findFunction(wanted)) {
             if (sameParameters(f, call.callee())) {
                 return new com.legend.compiler.spec.typed.TypedNativeCall(f, call.args(), call.info(), call.pos(),
-                        call.outsideStore());
+                        call.outsideStore(), call.reading());
             }
         }
         throw new IllegalStateException("the platform declares no " + wanted + " over " + call.callee().id()

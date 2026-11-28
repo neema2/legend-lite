@@ -736,7 +736,7 @@ final class TdsDesugars {
                 throw new IllegalStateException("collection sort resolved to " + sorted.getClass().getSimpleName());
             }
             return new com.legend.compiler.spec.typed.TypedNativeCall(sc.callee(), sc.args(),
-                    new ExprType(lub, Multiplicity.Bounded.ZERO_MANY), sc.pos(), sc.outsideStore());
+                    new ExprType(lub, Multiplicity.Bounded.ZERO_MANY), sc.pos(), sc.outsideStore(), sc.reading());
         }
         if (!isAt && !isSort && pick instanceof com.legend.compiler.spec.typed.TypedPropertyAccess whole
                 && whole.property().equals(com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER)

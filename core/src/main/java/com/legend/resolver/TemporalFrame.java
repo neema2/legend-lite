@@ -2687,7 +2687,7 @@ final class TemporalFrame {
             }
             if (changed) {
                 return new com.legend.compiler.spec.typed.TypedNativeCall(
-                        call.callee(), na, call.info(), null, call.outsideStore());
+                        call.callee(), na, call.info(), null, call.outsideStore(), call.reading());
             }
         }
         return d;

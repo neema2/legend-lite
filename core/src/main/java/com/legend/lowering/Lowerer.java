@@ -431,7 +431,7 @@ public final class Lowerer {
      * {@code call} WRITTEN by its rule over its lowered arguments: the one place the lowering picks a scalar native's
      * rule ({@link Scalars#lower}). Then, for an equality: the mapping's own definition and legend-engine's
      * null-unsafe mode keep the plain {@code =} ({@link NullSemantics#verbatim}); any other is answered for its empty
-     * sides as its audience answers ({@link EditionTable#emptySideIsFalse}, {@link Equalities#emptySidesAsPure}).
+     * sides as its audience answers (the call's reading, {@link Equalities#emptySidesAsPure}).
      * Here, because every position passes here: a window's column and a reducer's input never pass {@link #scalar}.
      */
     private SqlExpr written(TypedNativeCall call, List<SqlExpr> args) {
@@ -454,8 +454,11 @@ public final class Lowerer {
             // the bound rows ride the membership, for a database that has no list membership to read
             e = Equalities.amongRows(e, rows);
         }
+        // SPIKE (slice 7): an equality's empty side is read off the call (its reading and its stamp), not asked of the
+        // door's table
         return isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
-                && styled().edition().emptySideIsFalse(call)
+                && (call.reading() != com.legend.compiler.spec.typed.ComparisonReading.THREE_NUMBER_TYPES_EMPTY_SIDE_BY_PLACE
+                        || call.outsideStore())
                 ? Equalities.emptySidesAsPure(call, e, positiveConditions.contains(call)) : e;
     }
 

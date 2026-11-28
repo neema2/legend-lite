@@ -36,26 +36,38 @@ import java.util.List;
  *               Part of equality: two calls that differ in it lower differently.
  */
 public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info,
-        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos, boolean outsideStore)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos, boolean outsideStore, ComparisonReading reading)
         implements TypedSpec {
     public TypedNativeCall {
         args = List.copyOf(args);
     }
 
+    /** SPIKE (slice 7): a call the product reads (no door's reading). The plan's slice 7.1 deletes this form, so that
+     *  a pass that rebuilds a call it was given must pass its reading; the spike keeps it for the tests' sources. */
+    public TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo pos, boolean outsideStore) {
+        this(callee, args, info, pos, outsideStore, ComparisonReading.PRODUCT);
+    }
+
+    /** SPIKE (slice 7): this call read as {@code as}; the type-checker's alone to call. */
+    public TypedNativeCall read(ComparisonReading as) {
+        return as == reading ? this : new TypedNativeCall(callee, args, info, pos, outsideStore, as);
+    }
+
     /** A call inside a store query, or one no door asked to stamp: every call the typer and the passes make. */
     public TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info,
             @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
-        this(callee, args, info, pos, false);
+        this(callee, args, info, pos, false, ComparisonReading.PRODUCT);
     }
 
     /** Position-free form — synthesis, rewrites, tests. */
     public TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info) {
-        this(callee, args, info, null, false);
+        this(callee, args, info, null, false, ComparisonReading.PRODUCT);
     }
 
     /** This call stamped as outside any store query, or not. */
     public TypedNativeCall stampedOutsideStore(boolean outside) {
-        return outside == outsideStore ? this : new TypedNativeCall(callee, args, info, pos, outside);
+        return outside == outsideStore ? this : new TypedNativeCall(callee, args, info, pos, outside, reading);
     }
 
     /** {@code n} with every native call in it stamped as outside any store query: code the planner knows whole to be
@@ -71,7 +83,10 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
                 && callee.equals(other.callee())
                 && args.equals(other.args())
                 && info.equals(other.info())
-                && outsideStore == other.outsideStore();
+                && outsideStore == other.outsideStore()
+                // (the reading is part of equality, and left out of the hash and the printed form: a plan handle's
+                // id is made from a typed tree's text, plan.PlanRows.scopeId)
+                && reading == other.reading();
     }
 
     /** An unstamped call hashes as it did before the stamp existed, so nothing keyed on a call moves for the
@@ -103,10 +118,10 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
 
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
-        return new TypedNativeCall(callee, kids, info, pos, outsideStore);
+        return new TypedNativeCall(callee, kids, info, pos, outsideStore, reading);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedNativeCall(callee, args, info, pos, outsideStore);
+        return new TypedNativeCall(callee, args, info, pos, outsideStore, reading);
     }
 }

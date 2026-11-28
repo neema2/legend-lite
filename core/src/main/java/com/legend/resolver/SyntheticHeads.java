@@ -1648,7 +1648,7 @@ final class SyntheticHeads {
                         : new TypedNativeCall(
                                 ((TypedNativeCall) paw.source()).callee(),
                                 List.of(canon), paw.source().info(), null,
-                                ((TypedNativeCall) paw.source()).outsideStore());
+                                ((TypedNativeCall) paw.source()).outsideStore(), ((TypedNativeCall) paw.source()).reading());
                 return new TypedPropertyAccess(rewrapped,
                         paw.property(), paw.info());
             }

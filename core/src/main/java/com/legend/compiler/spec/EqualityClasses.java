@@ -49,6 +49,18 @@ public final class EqualityClasses {
      * mapping's translation, a milestoning filter). An assert keeps its position (its failure's record names it), as
      * does anything that is no plain comparison (a refusal's record, a comparison kept for its call).
      */
+    /** SPIKE (slice 7): the comparisons a door reads its own way -- the ten families both doors' tables named a rule
+     *  for until this spike ({@code edge.UpstreamTies}). */
+    private static final java.util.Set<FunctionId> READ_BY_A_DOOR = java.util.Collections.unmodifiableSet(
+            new java.util.LinkedHashSet<>(FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ,
+                    Pure.AT_COLLECTION_CONTAINS, Pure.AT_COLLECTION_REMOVE_DUPLICATES, Pure.AT_COLLECTION_IN,
+                    Pure.AT_COLLECTION_INDEX_OF, Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL,
+                    Pure.AT_BOOLEAN_GREATER_THAN, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL)));
+
+    public static boolean readByADoor(FunctionId id) {
+        return READ_BY_A_DOOR.contains(id);
+    }
+
     static TypedSpec notTheQuerys(TypedSpec answer) {
         if (!(answer instanceof com.legend.compiler.spec.typed.TypedNativeCall c) || c.pos() == null
                 || c.callee().definition() == null) {
@@ -57,7 +69,7 @@ public final class EqualityClasses {
         Comparison comparison = COMPARISONS.get(c.callee().id());
         return comparison == null || comparison.kind() == TypedCrossTypeComparison.Kind.ASSERT ? answer
                 : new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(), c.args(), c.info(), null,
-                        c.outsideStore());
+                        c.outsideStore(), c.reading());
     }
 
     /** A comparison the rule reads: its kind and its operator as a message writes it. */

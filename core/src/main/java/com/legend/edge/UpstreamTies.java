@@ -68,13 +68,8 @@ final class UpstreamTies {
         // (a list's indexOf too, since step 6B's slice 5: the product's reads its list and its value by the one
         // equality -- kinds the text names, date-times by their instants -- and a door keeps the database's own
         // position, as it keeps the database's own membership for contains)
-        for (FunctionId compared : FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ,
-                Pure.AT_COLLECTION_CONTAINS, Pure.AT_COLLECTION_REMOVE_DUPLICATES, Pure.AT_COLLECTION_IN,
-                Pure.AT_COLLECTION_INDEX_OF,
-                Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,
-                Pure.AT_BOOLEAN_GREATER_THAN_EQUAL)) {
-            rules.put(compared, NamedRule.THREE_NUMBER_TYPES_AND_WRITTEN_DATE_PRECISION);
-        }
+        // SPIKE (slice 7): the comparisons' row is gone -- the type-checker writes the door's reading on each
+        // comparison it types (CrossTypeRule.reading), and the lowering reads the call
         RULES = java.util.Collections.unmodifiableMap(rules);
     }
 

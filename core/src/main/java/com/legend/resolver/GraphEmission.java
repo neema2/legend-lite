@@ -2780,7 +2780,7 @@ final class GraphEmission {
             HeadRel hr = navHeadRelation(env, ec.args().get(0), thisVar);
             if (hr != null) {
                 return new TypedNativeCall(ec.callee(),
-                        List.of(hr.rel()), n.info(), null, ec.outsideStore());
+                        List.of(hr.rel()), n.info(), null, ec.outsideStore(), ec.reading());
             }
         }
         // a REDUCER over a to-many navigation ($this.employees.name

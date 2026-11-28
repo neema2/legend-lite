@@ -66,6 +66,12 @@ public final class PureComparisons implements CrossTypeRule {
         return true;
     }
 
+    /** SPIKE (slice 7): legend-pure's comparisons -- three number types, an empty side as Pure answers it. */
+    @Override
+    public com.legend.compiler.spec.typed.ComparisonReading reading() {
+        return com.legend.compiler.spec.typed.ComparisonReading.THREE_NUMBER_TYPES;
+    }
+
     @Override
     public TypedSpec inBody(TypedCrossTypeComparison crossing) {
         return inABody(crossing);

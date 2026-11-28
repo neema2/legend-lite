@@ -52,6 +52,14 @@ public interface CrossTypeRule {
     };
 
 
+    /** SPIKE (slice 7): how every comparison of this door's code is read -- of one type or across types, in the query,
+     *  in a body and in a mapping's code alike. The type-checker writes it on the call where it types it
+     *  ({@code Typer.compared}); nothing after the type-checker asks a door. The product's, unless a door says
+     *  otherwise. */
+    default com.legend.compiler.spec.typed.ComparisonReading reading() {
+        return com.legend.compiler.spec.typed.ComparisonReading.PRODUCT;
+    }
+
     /** A comparison across types written in the query or test body the door receives. */
     TypedSpec inQuery(TypedCrossTypeComparison crossing);
 
