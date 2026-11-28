@@ -504,3 +504,23 @@ works well we can revisit"; the orchestrator agreed).
   One thing that looked wrong and is not: `['a ']->contains('a')` is true -- a written list of one text IS that
   text, and `contains` of a text and a text is the STRING function (a substring's test), by the functions'
   signatures on legend-pure too. The matrix asks lists of two.
+
+**2026-11-28, 03:25 UTC.**
+
+- **A wrong answer in LANDED slice 1, found by slice 3's third review and run:** `[1, 2]->map(x | if($x == 1, |1,
+  |[])) == [1]` is false on DuckDB (the value form compares the raw SQL list, whose empty slot is a NULL; the
+  statement it replaced compared rows with those dropped). Told to the user. Fixed on the slice 3 branch
+  (`CollectionLanes.compacted`, `holdsNoEmptySlot`): it lands with slice 3; three rows of the measure hold it.
+- **Slice 2's CI** (`c529b4599`): `linux / checks` red on a download outage (`archive.mariadb.org` 503 for the
+  embedded MariaDB; the 23 tests it reached passed). One comment on the pull request says so; the user is asked to
+  re-run that job. No push to clear it.
+- **Slice 3** (`675d1b8dc`): three independent reviews, records `review-4`, `review-5`, `review-6`; every blocker
+  fixed, each with a row of the measure. The first Bazel round (on an earlier commit) caught the product's SQL size
+  pin growing for `[]->forAll(e | $e == 0)` and the cast-and-case census growing by two: the new rule for a side
+  typed Nil had fired for ONE value typed Nil (an empty list's element); it now reads a list typed Nil alone and
+  the query is as it was. The round restarted on `675d1b8dc` (`scratchpad/b114.out`); a fourth, narrow review of
+  the last fix pass is running. Measure (113 comparisons of the first two matrices): DuckDB 100 right everywhere,
+  none wrong; with the third matrix (the other comparing functions, slice 5's baseline) DuckDB 132 of 157.
+  Open and recorded in `review-6`: the planner's reading of a `Number` side's carrier on three cloud databases; a
+  NULL list against `[]` on DuckDB; and, seen in the measure, the Java checker erroring on `assertEquals` of a list
+  with an empty slot (not checked whether as on the landed code).
