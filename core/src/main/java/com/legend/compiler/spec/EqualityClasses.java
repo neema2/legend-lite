@@ -162,14 +162,16 @@ public final class EqualityClasses {
 
     /** The natives that answer values of the list they are given and no other: a part of it, or all of it in
      *  another order. */
-    private static final java.util.Set<FunctionId> KEEPS_ITS_VALUES = java.util.Set.copyOf(FunctionId.all(
-            Pure.AT_COLLECTION_SORT, Pure.AT_COLLECTION_REVERSE, Pure.AT_COLLECTION_TAIL, Pure.AT_COLLECTION_INIT,
-            Pure.AT_COLLECTION_DISTINCT, Pure.AT_COLLECTION_REMOVE_DUPLICATES));
+    private static final java.util.Set<FunctionId> KEEPS_ITS_VALUES = java.util.Collections.unmodifiableSet(
+            new java.util.LinkedHashSet<>(FunctionId.all(
+                    Pure.AT_COLLECTION_SORT, Pure.AT_COLLECTION_REVERSE, Pure.AT_COLLECTION_TAIL,
+                    Pure.AT_COLLECTION_INIT, Pure.AT_COLLECTION_DISTINCT, Pure.AT_COLLECTION_REMOVE_DUPLICATES)));
 
     /** The natives that answer one value of the list they are given, as it is. */
-    private static final java.util.Set<FunctionId> ONE_OF_A_LIST = java.util.Set.copyOf(FunctionId.all(
-            Pure.AT_MULTIPLICITY_TO_ONE, Pure.AT_COLLECTION_FIRST, Pure.AT_COLLECTION_LAST, Pure.AT_COLLECTION_AT,
-            Pure.AT_COLLECTION_HEAD));
+    private static final java.util.Set<FunctionId> ONE_OF_A_LIST = java.util.Collections.unmodifiableSet(
+            new java.util.LinkedHashSet<>(FunctionId.all(
+                    Pure.AT_MULTIPLICITY_TO_ONE, Pure.AT_COLLECTION_FIRST, Pure.AT_COLLECTION_LAST,
+                    Pure.AT_COLLECTION_AT, Pure.AT_COLLECTION_HEAD)));
 
     /**
      * WHAT {@code side}'S VALUES ARE VALUES OF, where it only keeps, reorders or picks among the values it is given:

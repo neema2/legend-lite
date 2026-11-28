@@ -118,7 +118,7 @@ final class ListEncodings {
         // source builds such slots: any other list is read as it is, and no statement that has no such source
         // grows (compacting every mapped list where it is built added a filter to statements that never read the
         // slots: the SQL size pins, the slice's first round).
-        if (buildsEmptySlots(m.source()) && !(mSrc instanceof SqlExpr.CompactList)
+        if (CollectionLanes.buildsEmptySlots(m.source()) && !(mSrc instanceof SqlExpr.CompactList)
                 && !(mSrc instanceof SqlExpr.TaggedList)) {
             mSrc = new SqlExpr.CompactList(mSrc);
         }
@@ -139,25 +139,6 @@ final class ListEncodings {
                         .element.type.Multiplicity.Bounded rb
                         && rb.upper() != null && rb.upper() == 1,
                 ValueCollections.isCollectionMapper(m.mapper()) || manyValued);
-    }
-
-    /** Whether {@code source}, a list a map reads, is built by a map whose function may answer nothing for an
-     *  element (its result declared at most one, possibly none) over a list written in the query's value lane --
-     *  read through a filter and a cast, which keep the slots they are given. */
-    private static boolean buildsEmptySlots(com.legend.compiler.spec.typed.TypedSpec source) {
-        return switch (source) {
-            case com.legend.compiler.spec.typed.TypedFilter f -> buildsEmptySlots(f.source());
-            case com.legend.compiler.spec.typed.TypedCast c -> buildsEmptySlots(c.source());
-            case com.legend.compiler.spec.typed.TypedMap inner -> {
-                List<com.legend.compiler.spec.typed.TypedSpec> body = inner.mapper().body();
-                var answered = body.get(body.size() - 1).info().multiplicity();
-                yield inner.source().info().multiplicity().requireBounded("lowering").isMany()
-                        && answered instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                        && b.lower() == 0 && b.upper() != null && b.upper() <= 1
-                        && CollectionLanes.valueLane(inner);
-            }
-            default -> false;
-        };
     }
 
     static SqlExpr map(SqlExpr src, SqlExpr lam, boolean srcOne,

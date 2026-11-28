@@ -279,6 +279,38 @@ final class CollectionLanes {
                 && Integer.valueOf(1).equals(b.upper());
     }
 
+    /**
+     * Whether the query's TEXT shows that {@code list} is built with empty slots (step 6B, slice 5): a map whose
+     * function may answer nothing for an element (its result declared at most one, possibly none) over a list in
+     * the value lane; a filter over ONE optional value, which is read as the list of it and keeps the slot where the
+     * value is none -- each read through a filter and a cast, which keep the slots they are given. The POSITIVE
+     * test, for a reader that must not write a filter over a list it only suspects ({@link #holdsNoEmptySlot} is
+     * the cautious one, for a comparison of two list values): what applies a function to each element
+     * ({@code ListEncodings.lowerMap}) and what counts a list that is no comparison's side
+     * ({@code Lowerer.withoutEmptySlots}); compacting on suspicion there added a filter to statements that never
+     * held a slot (the slice's two rounds on the SQL size pin).
+     */
+    static boolean buildsEmptySlots(TypedSpec list) {
+        return switch (list) {
+            case com.legend.compiler.spec.typed.TypedFilter f -> optionalOne(f.source()) || buildsEmptySlots(f.source());
+            case com.legend.compiler.spec.typed.TypedCast c -> buildsEmptySlots(c.source());
+            case com.legend.compiler.spec.typed.TypedMap inner -> {
+                java.util.List<TypedSpec> body = inner.mapper().body();
+                yield inner.source().info().multiplicity().requireBounded("lowering").isMany()
+                        && body.get(body.size() - 1).info().multiplicity()
+                                instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                        && b.lower() == 0 && b.upper() != null && b.upper() <= 1 && valueLane(inner);
+            }
+            default -> false;
+        };
+    }
+
+    /** Whether {@code spec} is declared to hold at most one value and possibly none (through an upcast). */
+    private static boolean optionalOne(TypedSpec spec) {
+        return spec.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() == 0 && b.upper() != null && b.upper() <= 1;
+    }
+
     /** {@code lowered}, the list value {@code spec} lowers to, with its empty slots dropped unless it can hold none
      *  ({@link #holdsNoEmptySlot}): what a comparison of two list VALUES, and a test of a list's emptiness, read
      *  (review 6 of step 6B's slice 3: read raw, {@code [1, 2]->map(x | if($x == 1, |1, |[])) == [1]} was false on a
