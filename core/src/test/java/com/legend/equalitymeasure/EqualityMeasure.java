@@ -388,7 +388,6 @@ public final class EqualityMeasure {
         out.add(new Sides("day differ", "F", "%2020-01-01", "%2020-01-02"));
         out.add(new Sides("date-time a millisecond apart", "F", "%2020-01-01T10:00:00.001", "%2020-01-01T10:00:00.002"));
         out.add(new Sides("pairs differ", "F", "pair(1, 'a')", "pair(1, 'b')"));
-        out.add(new Sides("list decimal differs", "F", "[1.0D, 10.125D]->filter(x | $x > 0D)", "[1.0D, 10.5D]"));
         // exact numbers of two types and two scales
         out.add(new Sides("int and decimal", "T", "1", "1D"));
         out.add(new Sides("decimal two scales", "T", "1.0D", "1.00D"));
@@ -414,6 +413,10 @@ public final class EqualityMeasure {
         out.add(new Sides("Any day and date-time", "F;generic=R", "%2020-01-01->cast(@Any)", "%2020-01-01T00:00:00->cast(@Any)"));
         out.add(new Sides("Date day and date-time", "F;generic=R", "%2020-01-01->cast(@Date)", "%2020-01-01T00:00:00->cast(@Date)"));
         out.add(new Sides("max of a mixed list", "T", "[1, 2.0]->max()", "2.0"));
+        // (every comparison above is of two SINGLE values: the ones the other comparing functions are asked,
+        // functionPositions)
+        singleValued = out.size();
+        out.add(new Sides("list decimal differs", "F", "[1.0D, 10.125D]->filter(x | $x > 0D)", "[1.0D, 10.5D]"));
         // empty sides
         out.add(new Sides("empty and empty", "T", "[]", "[]"));
         out.add(new Sides("empty and value", "F", "[]", "1"));
@@ -499,11 +502,81 @@ public final class EqualityMeasure {
         ExecutorService[] pool = {Executors.newSingleThreadExecutor(daemon())};
         try {
             valuePositions(out, pool, Files.readString(model, StandardCharsets.UTF_8), only);
+            functionPositions(out, pool, Files.readString(model, StandardCharsets.UTF_8), only);
             storePositions(out, pool, Files.readString(storeModel, StandardCharsets.UTF_8), only);
         } finally {
             pool[0].shutdownNow();
         }
         return PositionReport.write(out);
+    }
+
+    /** How many of {@link #sidesList}'s comparisons, from its first, are of two single values. */
+    private static int singleValued;
+
+    /** The places ANOTHER comparing function asks the comparison of two single values {@code L} and {@code R}: each
+     *  holds to the one equality rule (AGENTS.md: "{@code ==}, {@code !=}, {@code in}, {@code contains},
+     *  {@code indexOf} ... all hold to it"), so each must answer as {@code L == R} does. */
+    private static List<Position> functionPositionList() {
+        return List.of(
+                new Position("in", false, false, (l, r) -> "{|(" + l + ")->in([" + r + "])}"),
+                new Position("in-of-two", false, false, (l, r) -> "{|(" + l + ")->in([" + r + ", " + r + "])}"),
+                // (a list of TWO: a written list of one text is that text, and `contains` and `indexOf` over a text
+                // and a text are the STRING functions -- a substring's test, another question; probed 2026-11-28,
+                // ['a ']->contains('a') is true by that function, on legend-pure too by its signatures)
+                new Position("contains", false, false, (l, r) -> "{|[" + r + ", " + r + "]->contains(" + l + ")}"),
+                new Position("not-contains", true, false,
+                        (l, r) -> "{|!([" + r + ", " + r + "]->contains(" + l + "))}"),
+                // (both sides computed: against a computed list a written number reads as the list's type, the
+                // literal rule, which is another comparison than the one the row names)
+                new Position("contains-computed", false, false, (l, r) -> "{|[(" + r + ")]->filter(e | true)->contains([("
+                        + l + ")]->filter(e | true)->toOne())}"),
+                new Position("indexOf", false, false,
+                        (l, r) -> "{|[" + r + ", " + r + "]->indexOf(" + l + ") >= 0}"),
+                new Position("in-inside-a-list-function", false, false,
+                        (l, r) -> "{|[0]->map(x | (" + l + ")->in([" + r + "]))->at(0)}"),
+                new Position("assertContains", false, true,
+                        (l, r) -> "{|assertContains([" + r + ", " + r + "], " + l + ")}"));
+    }
+
+    /** THE POSITION MATRIX OVER THE OTHER COMPARING FUNCTIONS (step 6B's slice 5, its measure): each comparison of
+     *  two single values asked through {@code in}, {@code contains}, {@code indexOf} and {@code assertContains}.
+     *  {@code positions-functions.tsv} holds each outcome; the report judges it against the same expected answer as
+     *  the comparison's own. */
+    private static void functionPositions(Path out, ExecutorService[] pool, String model,
+            @com.legend.base.Nullable Pattern only) throws IOException {
+        Map<DatabaseType, ModelContext> contexts = new HashMap<>();
+        for (DatabaseType db : DATABASES) {
+            contexts.put(db, Compiler.compileModel(TestBackends.of(db).withStorelessRuntime(model)));
+        }
+        long t0 = System.nanoTime();
+        int runs = 0;
+        List<Sides> all = sidesList();
+        try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(out.resolve("positions-functions.tsv"),
+                StandardCharsets.UTF_8))) {
+            w.println("comparison\texpected\tleft\tright\tposition\tnegated\tdatabase\tjudge\toutcome\tanswer");
+            for (Sides s : all.subList(0, singleValued)) {
+                if (only != null && !only.matcher(s.id()).find()) {
+                    continue;
+                }
+                for (Position p : functionPositionList()) {
+                    String body = p.body().apply(s.left(), s.right());
+                    for (DatabaseType db : DATABASES) {
+                        ModelContext ctx = java.util.Objects.requireNonNull(contexts.get(db));
+                        for (JudgeMode judge : p.asserted() ? JUDGES : List.of(JudgeMode.HOST)) {
+                            Outcome o = timed(pool, () -> p.asserted()
+                                    ? run(ctx, body, List.of(), StorelessRuntime.RUNTIME, db, judge)
+                                    : answer(ctx, body, db));
+                            w.println(String.join("\t", s.id(), s.expected(), clean(s.left()), clean(s.right()), p.id(),
+                                    String.valueOf(p.negated()), db.name(), p.asserted() ? judge.name() : "-",
+                                    o.kind(), clean(o.detail())));
+                            runs++;
+                        }
+                    }
+                }
+                w.flush();
+            }
+        }
+        System.err.printf("function positions: %d runs in %.0f s%n", runs, (System.nanoTime() - t0) / 1e9);
     }
 
     private static void valuePositions(Path out, ExecutorService[] pool, String model,

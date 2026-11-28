@@ -91,6 +91,10 @@ final class PositionReport {
         kinds.add("database\tmatrix\tcomparison\twhat");
         section(md, totals, kinds, "values", "Values: literals and computed values", read(out.resolve("positions.tsv")),
                 false);
+        if (Files.exists(out.resolve("positions-functions.tsv"))) {
+            section(md, totals, kinds, "functions", "The other comparing functions: in, contains, indexOf over two"
+                    + " single values", read(out.resolve("positions-functions.tsv")), false);
+        }
         if (Files.exists(out.resolve("positions-store.tsv"))) {
             section(md, totals, kinds, "store", "A store's rows: a comparison that reads the row it stands in",
                     read(out.resolve("positions-store.tsv")), true);
