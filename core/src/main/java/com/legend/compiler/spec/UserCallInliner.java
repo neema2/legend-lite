@@ -446,8 +446,11 @@ public final class UserCallInliner {
     private TypedSpec atTheCall(TypedSpec n) {
         TypedSpec kids = n.mapChildren(this::atTheCall);
         // (answered as a plain comparison, it is still the function's own, not the query's)
+        // (a comparison the call's rule leaves as it is folds now, as it would have where it was rewritten: a door
+        // whose rule is the plain comparison still answers two written values of two kinds, one an enumeration's,
+        // false)
         return kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c
-                ? EqualityClasses.notTheQuerys(specs.atTheCall(c)) : kids;
+                ? EqualityClasses.notTheQuerys(LiteralUnroll.fold(specs.atTheCall(c), specs.ctx())) : kids;
     }
 
     /**
@@ -1629,19 +1632,35 @@ public final class UserCallInliner {
     }
 
     private TypedSpec rewrite(TypedSpec n) {
+        return rewrite(n, false);
+    }
+
+    /** {@link #rewrite(TypedSpec)}; {@code keptForItsCall} says {@code n} is the comparison a function's body kept
+     *  for its call ({@code TypedRunTimeComparison}): its sides are rewritten and it is folded as any call is,
+     *  EXCEPT by the rule for two written values of two kinds, one an enumeration's ({@code LiteralUnroll.neverEqual},
+     *  register S169: false, legend-pure's answer). That rule answers a comparison the QUERY writes; one kept for its
+     *  call is answered by the call's rule from the types its sides have there ({@link #atTheCall}), which folds it
+     *  after -- on lite's own door a type variable given an enumeration and a String is that call's compile error
+     *  (the equality measure, 2026-11-28: {@code t::sameT(t::E.A, 'A')} answered false, the fold having answered
+     *  before the call's rule saw two types). */
+    private TypedSpec rewrite(TypedSpec n, boolean keptForItsCall) {
         if (reducedTerms.containsKey(n)) {
             return n;
         }
         if (hook != null) {
             TypedSpec h = hook.apply(n, bound.keySet());
             if (h != n) {
-                return rewrite(h);
+                return rewrite(h, keptForItsCall);
             }
         }
         // literal-structure folds (tier 1): exact, or the node itself —
         // never inside quoted code
         TypedSpec r = reached(rewriteSwitch(n));
-        return quotedFrames.isEmpty() ? LiteralUnroll.fold(r, specs.ctx()) : r;
+        if (!quotedFrames.isEmpty() || keptForItsCall && r instanceof TypedNativeCall c && c.args().size() == 2
+                && LiteralUnroll.neverEqual(c.args().get(0), c.args().get(1))) {
+            return r;
+        }
+        return LiteralUnroll.fold(r, specs.ctx());
     }
 
     private TypedSpec rewriteSwitch(TypedSpec n) {
@@ -1856,6 +1875,9 @@ public final class UserCallInliner {
             // this replaces dropped TypedAggCol.orderKey and skipped MapReduce
             // strategy lambdas (remediation T2.1). Untouched subtrees keep
             // identity.
+            // (a comparison kept for its call, not yet answered: rewritten as such, above)
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison kept when !kept.neverEqual() ->
+                    kept.mapChildren(k -> rewrite(k, true));
             default -> n.mapChildren(this::rewrite);
         };
     }

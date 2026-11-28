@@ -503,7 +503,7 @@ final class LiteralUnroll {
      *  the value's name (S6), had answered true. Spelled operands only: a column or parameter of an enumeration's type
      *  against a string stays the database's, which compares its stored value with the string, as legend-engine's SQL
      *  does (pureToSQLQuery's processEquals; EnumSourceValues' raw compare). */
-    private static boolean neverEqual(TypedSpec l, TypedSpec r) {
+    static boolean neverEqual(TypedSpec l, TypedSpec r) {
         return (l instanceof TypedEnumValue || r instanceof TypedEnumValue)
                 && literal(l).filter(x -> x instanceof Scalar).flatMap(x -> literal(r)
                         .filter(y -> y instanceof Scalar && !x.cls().equals(y.cls()))).isPresent();
