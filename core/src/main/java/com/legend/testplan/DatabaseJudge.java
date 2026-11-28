@@ -80,7 +80,10 @@ public final class DatabaseJudge {
         // is the typed pair's (the same only where both are empty, JudgmentFacts.typedPair), never the kind gate's
         // two primitives of different kinds (X4: never equal, S127) are the typed pair's too, its record the host's (the
         // final audit of c758fe95: a sentence planned here had been the one failure no record carried)
-        if (ke != null && ka != null && !anyNil && !anyAny && !bothGrids && !ke.equals(ka)
+        // (two sides of model classes declared of two classes, a class and one of its own: the product compares
+        // them by the class each actually is, below -- step 6B part 2)
+        boolean twoClasses = com.legend.lowering.SideEqualities.instancesOfTwoClasses(eSpec, aSpec);
+        if (ke != null && ka != null && !anyNil && !anyAny && !bothGrids && !ke.equals(ka) && !twoClasses
                 && !JudgmentFacts.variantDisjoint(eSpec, aSpec) && !(ke.primitive() && ka.primitive())) {
             // a class / generic side's static class is a declaration, not
             // the value's kind (a supertype stamp over equal instances):
@@ -188,6 +191,29 @@ public final class DatabaseJudge {
         // host reads it are compared as typed values, their failure recorded by the host's builders from the values
         // the pair's typed kinds (JudgmentFacts.typedPair: two number kinds unequal unless empty, S127; a date by its
         // kind and its instant, S399)
+        if (twoClasses) {
+            TypedSpec expected = eSpec;
+            TypedSpec actual = aSpec;
+            TypedSpec same = canonicalOrder
+                    ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, actual, specs, env.assertAt())
+                    : com.legend.compiler.spec.VerdictQueries.sameSides(expected, actual, specs, env.assertAt());
+            com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundInstances(
+                    java.util.Objects.requireNonNull(we).plan(), re.kinds().get(ie), atMostOne(expected),
+                    java.util.Objects.requireNonNull(wa).plan(), ra.kinds().get(ia), atMostOne(actual),
+                    com.legend.compiler.element.EqualityKeys.resolve(env.ctx(), eSpec.info().type()),
+                    com.legend.compiler.element.EqualityKeys.resolve(env.ctx(), aSpec.info().type()), false, false,
+                    (e, a) -> overBound(same, expected, expected, e, actual, actual, a, env));
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typed(compared, wantEqual,
+                    true);
+            return typed == null ? unjudged(name, "kind-gate: non-primitive", " (" + AssertVerdicts.typeName(eSpec)
+                    + " vs " + AssertVerdicts.typeName(aSpec) + ")")
+                    : runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                            name.equals("assertEq") || name.equals("assertIs")
+                                    ? com.legend.testexecutionplan.RootLoop.Family.EQ
+                                    : com.legend.testexecutionplan.RootLoop.Family.equality(canonicalOrder, false),
+                            wantEqual, JudgmentFacts.sideFacts(eSpec), JudgmentFacts.sideFacts(aSpec), null, -1),
+                            runOn);
+        }
         JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, re.kinds().get(ie), java.util.Objects.requireNonNull(we)
                 .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan(), env.ctx());
         // THE COMPARISON THE ASSERT MEANS (step 6B, slice 6): two sides of plain values compared in order are the
@@ -719,8 +745,9 @@ public final class DatabaseJudge {
                         JudgmentFacts.sideFacts(val), null, -1), c.on(env));
             }
         }
+        boolean twoClasses = com.legend.lowering.SideEqualities.instancesOfTwoClasses(coll, val);
         if (!literal && !cr.tdsWrapped() && c.side() != null && v.side() != null
-                && com.legend.lowering.SideEqualities.instancesOfOneClass(coll, val)) {
+                && (com.legend.lowering.SideEqualities.instancesOfOneClass(coll, val) || twoClasses)) {
             // an instance among instances of its class (step 6B part 2, objects): the product's own contains of the
             // two, each side bound once -- InstanceEquality.memberInstances reduces the value and each instance to
             // what an instance is compared by, in a query and here; both sides ride the failure whole
@@ -728,6 +755,7 @@ public final class DatabaseJudge {
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundInstances(
                     c.side().plan(), coll.info().type(), atMostOne(coll), v.side().plan(), val.info().type(),
                     atMostOne(val), com.legend.compiler.element.EqualityKeys.resolve(env.ctx(), coll.info().type()),
+                    com.legend.compiler.element.EqualityKeys.resolve(env.ctx(), val.info().type()), !twoClasses,
                     true, (list, one) -> overBound(among, coll, coll, list, val, val, one, env));
             com.legend.lowering.VerdictSql.TypedRow bound = com.legend.lowering.VerdictSql.typed(compared, !negated,
                     true);

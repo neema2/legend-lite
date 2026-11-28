@@ -337,7 +337,18 @@ final class HostJudgments {
         List<Object> a = LiteWords.enumNames(af, ef, structuredSide(af, aRaw));
         var ik = restrictKeys(keys, ef, af, e, a);
         if (ik == null) {
-            return List.of(e, a);
+            // two sides declared of TWO classes, a class and one of its own (step 6B part 2, 2026-11-28): each
+            // instance by the class it actually is -- the one its wire carries, else the class its side is declared
+            // -- and then the keys, the more specific class's (planning resolved that tree alone). Until this the
+            // two were compared whole unless every value of the parent's side was of the child's class, so a
+            // child among a list of a child and a parent was "not contained" (measured on SQLite, where the
+            // database checker and the product answer that it is)
+            var related = keys.eSubA() || keys.aSubE() ? keys.e() != null ? keys.e() : keys.a() : null;
+            if (related == null || ef.classFqn() == null || af.classFqn() == null) {
+                return List.of(e, a);
+            }
+            return List.of(restrictToKeys(ofTheirClass(e, ef.classFqn()), related, keys),
+                    restrictToKeys(ofTheirClass(a, af.classFqn()), related, keys));
         }
         // (the classifier is compared where BOTH sides' instances carry theirs: a list of built instances carries
         // each one's, one built instance read as a value carries none, and the two are of the one declared class
@@ -346,6 +357,22 @@ final class HostJudgments {
         boolean classified = carryTheirClass(e) && carryTheirClass(a);
         return List.of(restrictToKeys(classified ? e : withoutTheirClass(e), ik, keys),
                 restrictToKeys(classified ? a : withoutTheirClass(a), ik, keys));
+    }
+
+    /** {@code values}, each instance that carries no classifier given the class its side is declared. */
+    private static List<Object> ofTheirClass(List<Object> values, String declared) {
+        List<Object> out = new ArrayList<>(values.size());
+        for (Object v : values) {
+            if (v instanceof java.util.Map<?, ?> m && !m.containsKey(com.legend.sql.SqlExpr.SYNTHETIC_TYPE)) {
+                java.util.Map<Object, Object> classed = new java.util.LinkedHashMap<>();
+                classed.put(com.legend.sql.SqlExpr.SYNTHETIC_TYPE, declared);
+                classed.putAll(m);
+                out.add(classed);
+            } else {
+                out.add(v);
+            }
+        }
+        return out;
     }
 
     private static boolean carryTheirClass(List<Object> values) {

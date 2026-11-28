@@ -327,6 +327,70 @@ public final class EqualityMeasure {
     private record Sides(String id, String expected, String left, String right) {
     }
 
+    /** One KIND of value the grid asks ({@link #grid}): two writings of one value ({@code a}, {@code same}: equal,
+     *  though written apart where the kind allows), and another value ({@code other}); {@code same} null where the
+     *  kind has no second writing of one value (an object with no key is itself alone). */
+    private record Kind(String name, String a, @com.legend.base.Nullable String same, String other) {
+    }
+
+    /** One CONTAINER the grid holds a value in: its name, whether what it builds is one value (so the other
+     *  comparing functions are asked too), and the expression over a value's text. */
+    private record Holder(String name, boolean single, java.util.function.UnaryOperator<String> of) {
+    }
+
+    private static final List<Kind> KINDS = List.of(
+            new Kind("Integer", "1", "1", "2"),
+            new Kind("Decimal", "1.0D", "1.00D", "1.5D"),
+            new Kind("Float", "1.5", "1.5", "2.5"),
+            new Kind("String", "'a'", "'a'", "'b'"),
+            new Kind("Boolean", "true", "true", "false"),
+            new Kind("enum", "t::E.A", "t::E.A", "t::E.B"),
+            new Kind("day", "%2020-01-01", "%2020-01-01", "%2020-01-02"),
+            new Kind("date-time", "%2020-01-01T10:00:00.000", "%2020-01-01T10:00:00", "%2020-01-01T10:00:01"),
+            new Kind("year", "%2020", "%2020", "%2021"),
+            new Kind("keyed object", "^t::Q(id=1, amt=1.0D, note='x')", "^t::Q(id=1, amt=1.00D, note='y')",
+                    "^t::Q(id=2, amt=1.0D)"),
+            new Kind("object with no key", "^t::K(id=1)", null, "^t::K(id=1)"),
+            new Kind("child under its parent's type", "^t::Q2(id=1, extra='x')->cast(@t::Q)",
+                    "^t::Q2(id=1, extra='y')->cast(@t::Q)", "^t::Q(id=1)"),
+            new Kind("Pair", "pair(1, 1.0D)", "pair(1, 1.00D)", "pair(1, 1.5D)"));
+
+    private static final List<Holder> HOLDERS = List.of(
+            new Holder("a Pair's first", true, v -> "pair(" + v + ", 'k')"),
+            new Holder("a Pair's second", true, v -> "pair('k', " + v + ")"),
+            new Holder("a Pair in a Pair", true, v -> "pair(pair('j', " + v + "), 'k')"),
+            new Holder("a map's value", true, v -> "newMap([pair('k', " + v + ")])"),
+            new Holder("a map's key", true, v -> "newMap([pair(" + v + ", 'k')])"),
+            new Holder("a list in a list", true, v -> "list([" + v + ", " + v + "])"),
+            new Holder("a computed list", false, v -> "[" + v + ", " + v + "]->filter(e | true)"),
+            new Holder("a computed list of Pairs", false, v -> "[pair(" + v + ", 'k'), pair(" + v
+                    + ", 'j')]->filter(e | true)"));
+
+    /**
+     * THE GRID (step 6B part 2; the user, 2026-11-28: "Do we have a full matrix of types and container types that we
+     * should check each combination?"): every {@link #KINDS kind} of value in every {@link #HOLDERS container}, as
+     * two comparisons -- two writings of one value, which are equal, and two values, which are not. Until it the
+     * measure's rows were added as problems were found, and each bug of that day (a Pair holding an object, a child
+     * among a list typed its parent's, {@code indexOf} at two scales) was a row nobody had written. A combination
+     * the language does not type is refused where it is compiled, in every place: listed, and no failure.
+     *
+     * @param single the containers that build ONE value (asked of the other comparing functions too), or the lists
+     */
+    private static void grid(List<Sides> out, boolean single) {
+        for (Holder h : HOLDERS) {
+            if (h.single() != single) {
+                continue;
+            }
+            for (Kind k : KINDS) {
+                String name = "grid: " + k.name() + " in " + h.name();
+                if (k.same() != null) {
+                    out.add(new Sides(name + ", the same", "T", h.of().apply(k.a()), h.of().apply(k.same())));
+                }
+                out.add(new Sides(name + ", another", "F", h.of().apply(k.a()), h.of().apply(k.other())));
+            }
+        }
+    }
+
     /** A file of {@code tools/equality-measure} in the workspace ({@code bazel run} names it:
      *  BUILD_WORKSPACE_DIRECTORY). The position matrix's two models are files there and no string literals of this
      *  class on purpose: the parser-equivalence corpus reads every Pure model written as a Java string in core's
@@ -494,6 +558,7 @@ public final class EqualityMeasure {
         out.add(new Sides("38-digit Decimals differ", "F", "99999999999999999999999999999999999999D",
                 "99999999999999999999999999999999999998D"));
         out.add(new Sides("a toOne over many", "E", "[1, 2]->toOne()", "1"));
+        grid(out, true);
         singleValued = out.size();
         // -- the same record's rows of lists and whole sides --
         // (a side that may hold NO value: not asked of in and contains, whose answer for an empty needle is their
@@ -639,6 +704,7 @@ public final class EqualityMeasure {
         out.add(new Sides("tables same", "T", ab, ab));
         out.add(new Sides("tables rows other order", "F", ab, "#TDS\n id, s\n 2, y\n 1, x\n#"));
         out.add(new Sides("tables a cell differs", "F", ab, "#TDS\n id, s\n 1, x\n 2, z\n#"));
+        grid(out, false);
         out.add(new Sides("tables a column's name differs", "F;generic=R", "#TDS\n id\n 1\n#", "#TDS\n ix\n 1\n#"));
         return out;
     }

@@ -276,16 +276,30 @@ public final class SideEqualities {
             SqlQuery aWrapped, Type aKind, boolean aOne,
             com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys, boolean whole,
             java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
+        return boundInstances(eWrapped, eKind, eOne, aWrapped, aKind, aOne, keys, keys, true, whole, same);
+    }
+
+    /** {@link #boundInstances(SqlQuery, Type, boolean, SqlQuery, Type, boolean, com.legend.compiler.element.EqualityKeys,
+     *  boolean, java.util.function.BiFunction)} for two sides that may be declared of TWO classes ({@code oneClass}
+     *  false: a class and one of its own): bound where the two have one reading
+     *  ({@link #oneReadingOfTwoClasses}), each side's instances by its own class's keys. */
+    public static @com.legend.base.Nullable Compared boundInstances(SqlQuery eWrapped, Type eKind, boolean eOne,
+            SqlQuery aWrapped, Type aKind, boolean aOne,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys aKeys, boolean oneClass, boolean whole,
+            java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
         SqlQuery eRaw = valueRows(eWrapped);
         SqlQuery aRaw = valueRows(aWrapped);
         if (eRaw == null || aRaw == null || !(eRaw.outputs().get(0).type() instanceof SqlType.Struct es)
-                || !(aRaw.outputs().get(0).type() instanceof SqlType.Struct as) || pairedLeaves(es, as, keys) == null) {
+                || !(aRaw.outputs().get(0).type() instanceof SqlType.Struct as) || pairedLeaves(es, as, keys) == null
+                || !oneClass && !oneReadingOfTwoClasses(es, keys, as, aKeys)) {
             return null;
         }
         boolean asHeld = whole || keys == null;
         return bound(asHeld ? eRaw : restrictedRows(new SqlSource.Subselect(eRaw, "i", null), eRaw, es, keys),
                 eKind, eOne, tracked(eWrapped),
-                asHeld ? aRaw : restrictedRows(new SqlSource.Subselect(aRaw, "i", null), aRaw, as, keys),
+                asHeld ? aRaw : restrictedRows(new SqlSource.Subselect(aRaw, "i", null), aRaw, as,
+                        java.util.Objects.requireNonNull(oneClass ? keys : aKeys)),
                 aKind, aOne, tracked(aWrapped), false, same);
     }
 
@@ -637,6 +651,14 @@ public final class SideEqualities {
         }
         return lKeys.keys().stream().map(EqualityKeys.Key::name).toList()
                 .equals(rKeys.keys().stream().map(EqualityKeys.Key::name).toList());
+    }
+
+    /** Whether two sides are instances of model classes declared of TWO classes, which an equality compares by the
+     *  class each actually is ({@link #comparableInstances}, {@link #oneReadingOfTwoClasses}): what the test
+     *  checker asks before it leaves such a pair unjudged. */
+    public static boolean instancesOfTwoClasses(TypedSpec left, TypedSpec right) {
+        return InstanceEquality.userClass(left.info().type()) && InstanceEquality.userClass(right.info().type())
+                && comparableInstances(left, right) && !instancesOfOneClass(left, right);
     }
 
     /** Whether a value of type {@code t} holds a model class's instance in a SLOT of a Pair, a list or a map
