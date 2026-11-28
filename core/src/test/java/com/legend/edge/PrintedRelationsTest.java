@@ -191,6 +191,23 @@ class PrintedRelationsTest {
                 "|[" + literal + ", " + computed + "]->at(0)->toString()")) {
             assertNull(PrintedRelations.lift(typed(handedOn), true), handedOn);
         }
+        // a user function's call and a class's property declared Any hand on whatever their body holds, under a cast
+        // too: the planner inlines the body and the lowering may read the spelled date (the second independent review
+        // of slices 3 and 4, its finding 2: such a node only had its children walked, and the print was lifted)
+        com.legend.compiler.element.ModelContext any = com.legend.Compiler.compileModel(
+                "function f::a(): Any[1] { " + literal + " }\n"
+                        + "function f::n(): Integer[1] { 1 }\n"
+                        + "Class f::Box { d() { " + literal + " }: Any[1]; }");
+        for (String handedOn : List.of("|f::a()->cast(@DateTime)->toString()",
+                "{|let d = f::a()->cast(@DateTime); $d->toString();}",
+                "{|let a = f::a(); $a->cast(@DateTime)->toString();}",
+                "|^f::Box().d->cast(@DateTime)->toString()")) {
+            assertNull(PrintedRelations.lift(com.legend.Compiler.query(any, handedOn), true), handedOn);
+        }
+        // ...and a function of a primitive type that is no date hands no date on: a computation over it is lifted
+        assertNotNull(PrintedRelations.lift(com.legend.Compiler.query(any, "|[" + literal + "->adjust(f::n(),"
+                + " meta::pure::functions::date::DurationUnit.HOURS)->cast(@DateTime)]->at(f::n() - 1)->toString()"),
+                true));
         // legend-engine's door's rule lifts no value; the abstract Date and a StrictDate are not lifted
         assertNull(PrintedRelations.lift(typed("|" + computed + "->toString()")));
         assertNull(PrintedRelations.lift(typed("|%2014-01-01T10:20:30+0000->adjust(1,"

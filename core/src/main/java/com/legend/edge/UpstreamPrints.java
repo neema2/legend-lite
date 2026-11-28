@@ -405,15 +405,28 @@ public final class UpstreamPrints {
             com.legend.builtin.Pure.SLICE__T_MANY__INTEGER_1__INTEGER_1,
             com.legend.builtin.Pure.SLICE__RELATION_1__INTEGER_1__INTEGER_1);
 
+    /** The natives that write a TEXT OF THEIR ROWS IN THE ORDER THEY ARRIVE, among those the order view reads through
+     *  ({@code makeString}, a relation's {@code toString}, legend-engine's {@code toCSV}; {@code toString} of one
+     *  value shares the relation's name): the text of unordered rows is the arrival order's, so a value computed from
+     *  one ({@code ...->makeString()->parseFloat()}) is not repeatable (the second independent review of step 8's
+     *  slices 3 and 4, 2026-11-26, its finding 3; applied 2026-11-28). By qualified name, as the order view's own
+     *  lists are. */
+    private static final Set<String> IN_ROW_ORDER = Set.of(
+            com.legend.builtin.Pure.MAKE_STRING__ANY_MANY.qualifiedName(),
+            com.legend.builtin.Pure.TO_CSV__TDS.qualifiedName(),
+            com.legend.builtin.Pure.TO_STRING__RELATION.qualifiedName(),
+            com.legend.builtin.Pure.TO_STRING__ANY_1.qualifiedName());
+
     /** Whether the native {@code c} answers the same whatever order its rows arrive in: the natives the order view
      *  reads through (a map, a filter, a projection, a distinct, {@code toOne}), a sort, the natives that leave no
      *  order (a grouping, a join, a union), and a count or an emptiness test -- but never a native that takes its
      *  answer by position ({@code at}, {@code take}, {@code drop}, {@code slice}, {@code limit}), which the order
-     *  view reads through because it keeps the order it is given. */
+     *  view reads through because it keeps the order it is given, nor one that writes its rows' text in the order
+     *  they arrive ({@link #IN_ROW_ORDER}). */
     private static boolean orderFree(TypedNativeCall c) {
         com.legend.model.FunctionId id = c.callee().id();
         String fqn = c.callee().qualifiedName();
-        if (BY_POSITION.contains(id)) {
+        if (BY_POSITION.contains(id) || IN_ROW_ORDER.contains(fqn)) {
             return false;
         }
         return com.legend.compiler.spec.OrderView.ORDER_PRESERVING.contains(fqn)
@@ -430,10 +443,13 @@ public final class UpstreamPrints {
     /** Whether {@code rows} is many values, or a relation, in an order the program does not define
      *  ({@link com.legend.compiler.spec.OrderView}'s INCIDENTAL: a store's or a frame's rows with no sort, rows past
      *  a grouping, a join, a union or a pivot, and a name {@code lets} does not bind -- a lambda's or a function's
-     *  parameter, whose rows are not in sight). */
+     *  parameter, whose rows are not in sight). A relation is any TDS-shaped value: legend-engine's legacy
+     *  {@code TabularDataSet[1]} is ONE value of a class type, and holds rows all the same (the second independent
+     *  review of step 8's slices 3 and 4, 2026-11-26, its finding 1; applied 2026-11-28: a {@code limit(1)} over an
+     *  unsorted projection was not seen). */
     private static boolean inNoDefinedOrder(TypedSpec rows, List<TypedSpec> lets) {
         return (rows.info().multiplicity().isMany()
-                || com.legend.compiler.element.type.Type.isRelation(rows.info().type()))
+                || com.legend.compiler.element.type.PlatformTypes.isTdsShaped(rows.info().type()))
                 && com.legend.compiler.spec.OrderView.of(rows, lets) == com.legend.compiler.spec.OrderView.INCIDENTAL;
     }
 

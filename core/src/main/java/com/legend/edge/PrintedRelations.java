@@ -172,7 +172,8 @@ public final class PrintedRelations {
      *  unless it cannot -- its own value is of a type that is no date; it is {@code adjust}, which computes a new
      *  instant; it is a relation's column or a lambda's own parameter, whose values are data or are read at their
      *  source. A date-typed node this door does not know (a user function's call, a class's property, an
-     *  {@code if}) is taken to be one: the print is then the run's. */
+     *  {@code if}) is taken to be one, and so is a user function's call or a class's property of any type that is no
+     *  primitive ({@code Any}, a class): the print is then the run's. */
     private static boolean mayBeASpelledDate(TypedSpec e, List<TypedSpec> lets, java.util.Set<TypedSpec> seen) {
         TypedSpec n = com.legend.compiler.spec.typed.Lets.bound(e, lets);
         if (!seen.add(n)) {
@@ -195,6 +196,15 @@ public final class PrintedRelations {
                 && (column.source().info().type() instanceof com.legend.compiler.element.type.Type.RelationType
                         || com.legend.compiler.element.type.Type.isRelation(column.source().info().type()))) {
             return false;
+        }
+        // a user function's call (a derived property's read is one) and a class's property hand on whatever their
+        // body or their mapping holds, which is not in sight here, whatever type they declare: an Any-typed function
+        // that returns a spelled date, under a cast, is that date when the lowering reads it (the second independent
+        // review of step 8's slices 3 and 4, 2026-11-26, its finding 2; applied 2026-11-28: a node that was no date
+        // and no primitive only had its children walked)
+        if (!(type instanceof com.legend.compiler.element.type.Type.Primitive)
+                && (n instanceof com.legend.compiler.spec.typed.TypedUserCall || n instanceof TypedPropertyAccess)) {
+            return true;
         }
         boolean handsOn = !date || n instanceof TypedNativeCall || n instanceof com.legend.compiler.spec.typed.TypedCast
                 || n instanceof com.legend.compiler.spec.typed.TypedCollection;

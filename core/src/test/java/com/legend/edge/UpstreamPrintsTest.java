@@ -231,7 +231,13 @@ class UpstreamPrintsTest {
                 "|" + grouped + " assertEquals('1.5', [1]->map(i|$g->map(r|$r.n->toOne() * 1.5)->at(0))->toOne()"
                         + "->toString());",
                 // a Float's sum is its rows' order's
-                "|" + grouped + " assertEquals('4.5', $g->map(r|$r.n->toOne() * 1.5)->sum()->toString());")) {
+                "|" + grouped + " assertEquals('4.5', $g->map(r|$r.n->toOne() * 1.5)->sum()->toString());",
+                // a text of unordered rows is written in the order they arrive: a value parsed from one is that
+                // order's (the second independent review of slices 3 and 4, its finding 3: makeString, a relation's
+                // toString and toCSV were taken for order-free, being natives the order view reads through)
+                "|" + grouped + " assertEquals('12.0', $g->map(r|$r.n->toOne())->makeString()->parseFloat()"
+                        + "->toString());",
+                "|" + grouped + " assertEquals('1.0', $g->toString()->length()->toFloat()->toString());")) {
             com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
             org.junit.jupiter.api.Assertions.assertSame(typed, UpstreamPrints.read(typed, false, never), body);
         }
@@ -262,6 +268,44 @@ class UpstreamPrintsTest {
             com.legend.TypedQuery typed = com.legend.Compiler.query(behind, body);
             org.junit.jupiter.api.Assertions.assertSame(typed, UpstreamPrints.read(typed, false, never), body);
         }
+    }
+
+    /** A LEGACY TABLE'S ROWS ARE ROWS (the second independent review of slices 3 and 4, 2026-11-26, its finding 1):
+     *  legend-engine's {@code TabularDataSet[1]} is one value of a class type, so a {@code limit} over an unsorted
+     *  projection was not seen as a pick from unordered rows, and the Float's print behind it was read twice, the
+     *  print's reading and the body's. It is left as written; the same pick from a SORTED projection is repeatable
+     *  and is lifted. */
+    @Test
+    void aPickFromALegacyTablesUnorderedRowsIsLeftToTheDatabase() {
+        com.legend.compiler.element.ModelContext stored = com.legend.Compiler.compileModel(String.join("\n",
+                "###Relational\nDatabase t::DB ( Table T ( ID INTEGER PRIMARY KEY, PAY DOUBLE ) )",
+                "###Pure\nClass t::P { id: Integer[1]; salary: Float[1]; }",
+                "###Mapping\nMapping t::M ( t::P: Relational { ~mainTable [t::DB]T id: [t::DB]T.ID,"
+                        + " salary: [t::DB]T.PAY } )",
+                "###Connection\nRelationalDatabaseConnection t::Conn { store: t::DB; type: H2;"
+                        + " specification: LocalH2 { }; auth: DefaultH2; }",
+                "###Runtime\nRuntime t::RT { mappings: [t::M]; connections: [ t::DB: [ c: t::Conn ] ]; }"));
+        UpstreamPrints.Reads never = (query, answer) -> {
+            throw new AssertionError("nothing is read: " + query.body());
+        };
+        String read = " assertEquals('1.5', $r.values->toOne().rows->toOne().getFloat('s')->toString());";
+        for (String picked : List.of("->limit(1)", "->take(1)", "->slice(0, 1)", "->drop(1)")) {
+            String body = "|let r = execute(|t::P.all()->project([p|$p.salary], ['s'])" + picked
+                    + ", t::M, t::RT.runtimeValue, []);" + read;
+            com.legend.TypedQuery typed = com.legend.Compiler.query(stored, body);
+            assertSame(typed, UpstreamPrints.read(typed, false, never), body);
+        }
+        // sorted first, the pick is the sort's: read, and printed (a stand-in printer: no database is run here)
+        List<String> printed = new ArrayList<>();
+        UpstreamPrints.Printer printer = (side, query, reads) -> {
+            printed.add(side.form().name());
+            return "1.5";
+        };
+        String sorted = "|let r = execute(|t::P.all()->project([p|$p.salary], ['s'])->sort('s')->limit(1)"
+                + ", t::M, t::RT.runtimeValue, []);" + read;
+        com.legend.TypedQuery typed = com.legend.Compiler.query(stored, sorted);
+        assertTrue(UpstreamPrints.read(typed, false, never, printer) != typed, sorted);
+        assertEquals(List.of("VALUE"), printed);
     }
 
     /** ...AND A VALUE WHOSE SOURCE IS REPEATABLE IS LIFTED (the review of the repair, 2026-11-26: the rule must not
@@ -306,6 +350,8 @@ class UpstreamPrintsTest {
                     // a limit and a sum of values in the language's own order, and of sorted rows
                     "|assertEquals('0.0000001', [1.0E-7, 2.0]->map(x|$x * 1.0)->limit(1)->toOne()->toString());",
                     "|assertEquals('0.75', [0.5, 0.25]->sum()->toString());",
+                    // a text of values in the language's own order is that order's (finding 3's other way)
+                    "|assertEquals('21.0', [2, 1]->makeString()->parseFloat()->toString());",
                     "|" + sorted + " assertEquals('0.0000002', $s->map(r|$r.id->toOne() * 1.0E-7)->take(1)->toOne()"
                             + "->toString());",
                     "|" + sorted + " assertEquals('0.0000002', ($s->map(r|$r.id->toOne() * 1.0E-7)->at(0))->toString());")) {
