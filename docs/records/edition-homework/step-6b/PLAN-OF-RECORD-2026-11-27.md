@@ -338,3 +338,26 @@ works well we can revisit"; the orchestrator agreed).
      wrong answer.
 - At this date the mixed rows on DuckDB: four right everywhere, `mixed list computed` failing inside a list lambda
   (a database error, not a wrong answer), `max of a mixed list` refused where a side reads the lambda's element.
+
+**2026-11-28, 01:15 UTC.**
+
+- **Slice 1 is pushed to the pull request** (`c77deac20`, 01:06 UTC; the user: "We're really running out of time",
+  "Did we do all the stuff in parallel"): CI is running on it. Before the push, run here on that commit: CI's core and
+  checks lanes (green but for the 13 Postgres-backed tests a root container cannot start, re-running unprivileged in
+  `scratchpad/b108.out`), and both corpora, PCT on DuckDB and H2, channel B, parser equivalence and stress (58 of
+  58). The heavy session (`session_0195rQEn4deZCv8NwxsaY3Me`) was asked for lite's own PCT lane
+  (`//pct:pct_duckdb_lite`) and channel B on H2, the commit against `c81297490`. When CI is green the program branch
+  moves to `c77deac20`.
+- **The time-series refusal** (A's summary, item 5; the user asked "What's the right semantics for that query"): the
+  right answer is the refusal -- D8 is the user's ruling, and the last date's figure is built from returns that read
+  the unordered rows. Fix on the branch `claude/ts-refusal-fix` (`048a29f7a`, stacked on slice 1, not built when
+  this was written): the one-point form of `vol_swap_volatility` checks D8 on the row it keeps. Its build, the
+  regenerated library text and parity ledger (back to REFUSED for `vol_swap_volatility default @BTCUSD`) and tests
+  are queued (`scratchpad/batch109.sh`, output `b109.out`, the regenerated files as `b109-all.patch`). If the
+  DataCube bundle budget (148,500) is passed by the added text, that is the user's word or a trim in the same
+  commit. Other words with a one-point default form: check each for the same exposure.
+- **Slice 2, first task, designed and not written:** the pin test. Port `positions.py`'s classification to Java
+  inside the measure (it writes `positions.md` and `positions-counts.tsv` itself; `positions.py` goes), add
+  `tools/equality-measure/BUILD.bazel` exporting the two model files and the baseline, and a JUnit test in core's
+  lane that runs the matrix in-process and requires the counts to EQUAL the baseline (worse fails; better fails
+  too, asking for the pin to be lowered in the same commit). Then bind once (section 2.3).
