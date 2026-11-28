@@ -175,9 +175,10 @@ final class Equalities {
         // raises -- so nothing is dropped: the comparison is "both sides hold nothing", each side written and
         // evaluated (review 4 of slice 3a, blocker 2: a first cut took the type for the written [] and dropped the
         // side). The product's rule alone; a door's comparison is as it was
-        if (numbers == NumberFamilies.TWO_FAMILIES && !(le || re)
-                && (PlatformTypes.isNil(n.args().get(0).info().type())
-                        || PlatformTypes.isNil(n.args().get(1).info().type()))) {
+        // (a LIST typed Nil alone: one value typed Nil -- the element of an empty list, `[]->forAll(e | $e == 0)` -- is
+        // never there to compare, and its comparison stays as it was written; the product's SQL size pin, 2026-11-28)
+        if (numbers == NumberFamilies.TWO_FAMILIES && !(le || re) && (nilList(n.args().get(0))
+                || nilList(n.args().get(1)))) {
             // (never an AND of the two: a database answers false from one operand and leaves the other, and the
             // error it would raise, unread -- probed 2026-11-28, []->toOne() == 1 answered false so)
             return sameOnlyWhereBothEmpty(holdsNothing(n.args().get(0), args.get(0)),
@@ -339,6 +340,10 @@ final class Equalities {
         return mayHoldNoValue(l, sides.get(0)) && mayHoldNoValue(r, sides.get(1))
                 ? sameOnlyWhereBothEmpty(isNone(sides.get(0)), isNone(sides.get(1)))
                 : neverEqualButEvaluated(sides.get(0), sides.get(1));
+    }
+
+    private static boolean nilList(TypedSpec side) {
+        return PlatformTypes.isNil(side.info().type()) && side.info().multiplicity().isMany();
     }
 
     /** Whether {@code side}, lowered as {@code lowered}, holds nothing: a list the SQL holds as a list by its length
