@@ -527,3 +527,25 @@ works well we can revisit"; the orchestrator agreed).
   Open and recorded in `review-6`: the planner's reading of a `Number` side's carrier on three cloud databases; a
   NULL list against `[]` on DuckDB; and, seen in the measure, the Java checker erroring on `assertEquals` of a list
   with an empty slot (not checked whether as on the landed code).
+
+**2026-11-28, 03:40 UTC.**
+
+- **Slice 2's CI** (`c529b4599`, run 46100396174): `linux / checks` and `windows / checks` both red at ANALYSIS on
+  the embedded MariaDB's download (`archive.mariadb.org`: 503, then a read time-out); the tests each reached
+  passed. One comment on the pull request; the user is asked to re-run those jobs. This session cannot re-run a job
+  (GitHub refuses) and pushes nothing to clear it.
+- **Slice 3** (`675d1b8dc`): the Bazel-built measure equals the no-Bazel loop's again (132 / 123 / 121 of 157 with
+  the third matrix). Its round restarted at 03:23 on that commit; at 03:34, 119 of 354 with no failure beyond the
+  root-container ones. A fourth, narrow review of the last fix pass is running.
+- **The no-Bazel loop had a fault, found and fixed** (`scratchpad/fast2.sh`): it put every jar of `bazel-bin/core`
+  on the compile path in name order, and two older aggregate jars (`libcore_next`, `server_deploy`) hold stale copies
+  of the lowering's classes, which won over the fresh ones whenever a changed class was not itself recompiled. It
+  showed as "cannot find symbol" for a method that exists. Now newest first, aggregates left out. Earlier loops
+  were not affected in their answers: every class they changed was compiled from source in front.
+- **Slice 5, first cut** (`claude/step-6b-slice-5`, `41c0dd6a4`, worktree `/home/user/ll-s5`; stacked on slice 3;
+  measured by the no-Bazel loop, not reviewed, not Bazel-built): `contains`, `in` and `indexOf` read their list and
+  needle through `Equalities.member` -- the kinds the query's text names (never equal: no member, both sides
+  evaluated), date-times written as texts by their instants. On DuckDB the third matrix has no wrong answer and no
+  contradiction (two before), and a date built to the hour is found among held date-times (a run error before);
+  the first two matrices do not move. Left in it: values declared `Any` under `contains` over a computed list and
+  `indexOf` (refused by name), the asserts (slice 6), the mixed-list row (part 2).

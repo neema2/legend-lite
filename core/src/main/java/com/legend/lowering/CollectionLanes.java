@@ -242,7 +242,8 @@ final class CollectionLanes {
     /**
      * Whether the list {@code spec} can hold NO empty slot, by how it is written: a written list each of whose
      * elements is exactly one value; a {@code map} over such a list whose function answers exactly one value; a
-     * {@code filter}, or an upcast, of such a list; one value that is always there. A list's SQL value holds a NULL slot where an element was empty
+     * {@code filter}, an upcast, a sort, a deduplication, a take, a drop or a slice of such a list; two such lists
+     * joined; one value that is always there. A list's SQL value holds a NULL slot where an element was empty
      * (a written {@code [0..1]} read, a {@code map} whose function may answer nothing), which a Pure collection does
      * not hold ({@link #compactIfValueLane}); a list that can hold none is compared, and counted, as it is. False
      * for anything else: its slots are dropped before it is compared.
@@ -255,6 +256,15 @@ final class CollectionLanes {
                     .multiplicity()) && holdsNoEmptySlot(m.source());
             case com.legend.compiler.spec.typed.TypedFilter f -> holdsNoEmptySlot(f.source());
             case com.legend.compiler.spec.typed.TypedCast c -> holdsNoEmptySlot(c.source());
+            // (what keeps, reorders or joins the elements it is given adds no empty slot: left to the default they
+            // were compacted over clean sources, a list filter each -- review 7 of step 6B's slice 3, on SQL size)
+            case com.legend.compiler.spec.typed.TypedSort o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedDistinct o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedLimit o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedDrop o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedSlice o -> holdsNoEmptySlot(o.source());
+            case com.legend.compiler.spec.typed.TypedConcatenate o -> holdsNoEmptySlot(o.left())
+                    && holdsNoEmptySlot(o.right());
             // (one value that is always there, compared as the list of it, holds no empty slot either)
             default -> exactlyOne(spec);
         };
