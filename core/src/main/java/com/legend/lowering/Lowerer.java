@@ -403,7 +403,7 @@ public final class Lowerer {
      *  times it is so reached. */
     private void countPositive(TypedSpec condition, java.util.IdentityHashMap<TypedSpec, int[]> out) {
         if (condition instanceof TypedNativeCall n) {
-            if (isFamily(n, Pure.AT_BOOLEAN_EQUAL) && n.args().size() == 2) {
+            if (isFamily(n, com.legend.builtin.Comparisons.EQUAL) && n.args().size() == 2) {
                 out.computeIfAbsent(n, k -> new int[1])[0]++;
             } else if (isFamily(n, Pure.AT_BOOLEAN_AND) || isFamily(n, Pure.AT_BOOLEAN_OR)) {
                 n.args().forEach(a -> countPositive(a, out));
@@ -454,8 +454,11 @@ public final class Lowerer {
             // the bound rows ride the membership, for a database that has no list membership to read
             e = Equalities.amongRows(e, rows);
         }
-        return isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
-                && styled().edition().emptySideIsFalse(call)
+        // SPIKE (slice 7, twins): every equality answers for its empty sides as Pure does, but legend-engine's own
+        // inside a store query, where its statement leaves the database's answer (the function says so; the stamp
+        // says where the call runs)
+        return isFamily(call, com.legend.builtin.Comparisons.EQUAL) && call.args().size() == 2
+                && (!com.legend.builtin.Comparisons.emptySideByPlace(call.callee().id()) || call.outsideStore())
                 ? Equalities.emptySidesAsPure(call, e, positiveConditions.contains(call)) : e;
     }
 
@@ -516,7 +519,8 @@ public final class Lowerer {
      *  for it ({@link Scalars#doorsRule}). The ONE place the lowering's comparison arms ask the door's table
      *  (step 6B part 2: seven arms each asked it themselves). */
     private boolean productsOwn(TypedNativeCall call) {
-        return Scalars.doorsRule(call, features, styled()) == null;
+        // SPIKE (slice 7, twins): read off the call -- a door's comparison is a function of its own
+        return !com.legend.builtin.Comparisons.aDoors(call.callee().id());
     }
 
     /** {@code n}'s two sides of instances of one class as the one "same values" instruction over the two lists
@@ -4630,7 +4634,8 @@ public final class Lowerer {
             // pure — unrecoverable here (serialization erases identity;
             // PCT inlines captured instances by value): instances keep
             // struct comparison, identity tests ledgered.
-            case TypedNativeCall n when (isFamily(n, Pure.AT_BOOLEAN_EQUAL) || isFamily(n, Pure.AT_BOOLEAN_EQ))
+            case TypedNativeCall n when (isFamily(n, com.legend.builtin.Comparisons.EQUAL)
+                    || isFamily(n, com.legend.builtin.Comparisons.EQ))
                     && InstanceEquality.staticallyDisjoint(n.args()) -> InstanceEquality.disjointAnswer(n.args(),
                             a -> scalar(a, columns));
 

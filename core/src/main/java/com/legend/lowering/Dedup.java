@@ -26,7 +26,7 @@ final class Dedup {
     /** Dedup-call count inside a typed subtree — the capture-free name suffix. */
     static int countDedups(TypedSpec spec) {
         int n = spec instanceof TypedNativeCall c
-                && c.callee().qualifiedName()
+                && com.legend.builtin.Comparisons.name(c.callee().qualifiedName())
                         .equals("meta::pure::functions::collection::removeDuplicates") ? 1 : 0;
         for (var child : spec.children()) {
             n += countDedups(child);

@@ -1272,7 +1272,7 @@ final class SqlTextVerdicts {
         while (!work.isEmpty()) {
             TypedSpec cur = work.poll();
             if (cur instanceof TypedNativeCall nc
-                    && nc.callee().qualifiedName().equals(
+                    && com.legend.builtin.Comparisons.name(nc.callee().qualifiedName()).equals(
                             com.legend.builtin.Pure.IN__ANY_1__ANY_MANY
                                     .qualifiedName())
                     && nc.args().size() == 2

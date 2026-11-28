@@ -940,7 +940,7 @@ private static @com.legend.base.Nullable List<String> targetEquiKeysOrNull(Typed
         if (!(n instanceof TypedNativeCall c)) {
             return null;
         }
-        String q = c.callee().qualifiedName();
+        String q = com.legend.builtin.Comparisons.name(c.callee().qualifiedName());
         if (q.equals("meta::pure::functions::boolean::and")
                 || q.equals("meta::pure::functions::boolean::or")) {
             List<String> out = new ArrayList<>();
@@ -977,7 +977,7 @@ private static boolean collectEquiKeys(TypedSpec n, String srcVar,
         if (!(n instanceof TypedNativeCall c)) {
             return false;
         }
-        String q = c.callee().qualifiedName();
+        String q = com.legend.builtin.Comparisons.name(c.callee().qualifiedName());
         if (q.equals("meta::pure::functions::boolean::and")) {
             return c.args().stream()
                     .allMatch(a -> collectEquiKeys(a, srcVar, tgtVar, out));
@@ -1871,7 +1871,7 @@ private static boolean readsVarOutsideSlot(TypedSpec n, String var,
 
 
 static boolean isCountFamily(TypedNativeCall nc) {
-        String q = nc.callee().qualifiedName();
+        String q = com.legend.builtin.Comparisons.name(nc.callee().qualifiedName());
         return q.equals("meta::pure::functions::collection::count")
                 || q.equals("meta::pure::functions::collection::size");
     }

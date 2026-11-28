@@ -55,7 +55,4 @@ public interface EditionTable {
      *  door's table, of the kind {@link #checks} is; asked where an equality is written ({@code Lowerer.written}).
      *
      *  @param comparison the equality, typed: its stamp may decide */
-    default boolean emptySideIsFalse(TypedNativeCall comparison) {
-        return true;
-    }
 }

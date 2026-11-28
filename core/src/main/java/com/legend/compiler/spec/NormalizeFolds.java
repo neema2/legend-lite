@@ -78,7 +78,7 @@ public final class NormalizeFolds {
         if (!(call instanceof TypedNativeCall nc)) {
             return call;
         }
-        String fqn = nc.callee().qualifiedName();
+        String fqn = com.legend.builtin.Comparisons.name(nc.callee().qualifiedName());
         if (("meta::pure::functions::collection::size".equals(fqn)
                     || "meta::pure::functions::relation::size".equals(fqn))
                 && nc.args().size() == 1) {

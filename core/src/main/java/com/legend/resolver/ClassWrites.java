@@ -126,7 +126,7 @@ final class ClassWrites {
         TypedLambda cond = side.cond();
         if (cond.parameters().size() != 2 || cond.body().size() != 1
                 || !(cond.body().get(0) instanceof TypedNativeCall eq) || eq.args().size() != 2
-                || !com.legend.builtin.Pure.AT_BOOLEAN_EQUAL.contains(eq.callee().id())) {
+                || !com.legend.builtin.Comparisons.EQUAL.contains(eq.callee().id())) {
             return null;
         }
         String parent = cond.parameters().get(side.parentParam());

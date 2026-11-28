@@ -1086,8 +1086,8 @@ final class Substitution {
         if (n instanceof TypedNativeCall mc && mc.args().size() == 2
                 && target.equalCallee() != null) {
             com.legend.model.FunctionId mkey = mc.callee().id();
-            boolean isContains = (Pure.AT_COLLECTION_CONTAINS.contains(mkey) || Pure.AT_STRING_CONTAINS.contains(mkey));
-            boolean isIn = (Pure.AT_COLLECTION_IN.contains(mkey) || Pure.AT_RELATION_IN.contains(mkey));
+            boolean isContains = (com.legend.builtin.Comparisons.CONTAINS.contains(mkey) || Pure.AT_STRING_CONTAINS.contains(mkey));
+            boolean isIn = (com.legend.builtin.Comparisons.IN.contains(mkey) || Pure.AT_RELATION_IN.contains(mkey));
             if (isContains || isIn) {
                 TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
                 TypedSpec needle = isContains ? mc.args().get(1) : mc.args().get(0);
@@ -1181,18 +1181,18 @@ final class Substitution {
                 // compensated family; other operators are loud until
                 // their engine emission is transcribed.
                 if (!(lc.args().get(0) instanceof TypedNativeCall innerCmp
-                        && (Pure.AT_BOOLEAN_EQUAL.contains(innerCmp.callee().id())
-                                || (Pure.AT_COLLECTION_IN.contains(innerCmp.callee().id()) || Pure.AT_RELATION_IN.contains(innerCmp.callee().id()))
-                                || (Pure.AT_COLLECTION_CONTAINS.contains(innerCmp.callee().id()) || Pure.AT_STRING_CONTAINS.contains(innerCmp.callee().id()))))) {
+                        && (com.legend.builtin.Comparisons.EQUAL.contains(innerCmp.callee().id())
+                                || (com.legend.builtin.Comparisons.IN.contains(innerCmp.callee().id()) || Pure.AT_RELATION_IN.contains(innerCmp.callee().id()))
+                                || (com.legend.builtin.Comparisons.CONTAINS.contains(innerCmp.callee().id()) || Pure.AT_STRING_CONTAINS.contains(innerCmp.callee().id()))))) {
                     // ORDERING comparisons keep the engine's THREE-VALUED
                     // semantics: no processNotLessThan exists — the
                     // emission is a plain not() over the joined read and
                     // NULL rows DROP (no pass-constant compensation)
                     if (lc.args().get(0) instanceof TypedNativeCall oc2
-                            && (Pure.AT_BOOLEAN_LESS_THAN.contains(oc2.callee().id())
-                                    || Pure.AT_BOOLEAN_LESS_THAN_EQUAL.contains(oc2.callee().id())
-                                    || Pure.AT_BOOLEAN_GREATER_THAN.contains(oc2.callee().id())
-                                    || Pure.AT_BOOLEAN_GREATER_THAN_EQUAL.contains(oc2.callee().id()))) {
+                            && (com.legend.builtin.Comparisons.LESS_THAN.contains(oc2.callee().id())
+                                    || com.legend.builtin.Comparisons.LESS_THAN_EQUAL.contains(oc2.callee().id())
+                                    || com.legend.builtin.Comparisons.GREATER_THAN.contains(oc2.callee().id())
+                                    || com.legend.builtin.Comparisons.GREATER_THAN_EQUAL.contains(oc2.callee().id()))) {
                         return lc.withChildren(rewriteAll(lc.args()));
                     }
                     throw new NotImplementedException("negated '"

@@ -20,7 +20,7 @@ public final class HeldValues {
     private static final java.util.Set<FunctionId> KEEPS_ITS_VALUES = java.util.Collections.unmodifiableSet(
             new java.util.LinkedHashSet<>(FunctionId.all(
                     Pure.AT_COLLECTION_SORT, Pure.AT_COLLECTION_REVERSE, Pure.AT_COLLECTION_TAIL,
-                    Pure.AT_COLLECTION_INIT, Pure.AT_COLLECTION_DISTINCT, Pure.AT_COLLECTION_REMOVE_DUPLICATES)));
+                    Pure.AT_COLLECTION_INIT, Pure.AT_COLLECTION_DISTINCT, com.legend.builtin.Comparisons.REMOVE_DUPLICATES)));
 
     /** The natives that answer one value of the list they are given, as it is. */
     private static final java.util.Set<FunctionId> ONE_OF_A_LIST = java.util.Collections.unmodifiableSet(
