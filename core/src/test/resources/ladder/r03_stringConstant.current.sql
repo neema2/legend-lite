@@ -5,13 +5,13 @@ WITH __e_0 AS (SELECT value AS __o, ROW_NUMBER() OVER () AS __rn
   WHERE value IS NOT NULL)
 SELECT 0 AS __m, w.__h AS __s0, CASE WHEN w.__h THEN NULL ELSE w.__x0 END AS __s1, CASE WHEN w.__h THEN NULL ELSE w.__x1 END AS __s2
 FROM (
-  SELECT (e.__l IS NOT DISTINCT FROM a.__l) AS __h, e.__l AS __x0, a.__l AS __x1
+  SELECT (a.__v IS NOT DISTINCT FROM e.__v) AS __h, e.__v AS __x0, a.__v AS __x1
   FROM (
-    SELECT LIST(__a.__o ORDER BY __a.__rn ASC) AS __l
+    SELECT MIN(__a.__o) AS __v
     FROM __e_0 AS __a
   ) AS a
   CROSS JOIN (
-    SELECT LIST(__e.__o ORDER BY __e.__rn ASC) AS __l
+    SELECT MIN(__e.__o) AS __v
     FROM __e_0 AS __e
   ) AS e
 ) AS w
