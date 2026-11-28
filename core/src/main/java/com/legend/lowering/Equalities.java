@@ -178,7 +178,9 @@ final class Equalities {
         if (numbers == NumberFamilies.TWO_FAMILIES && !(le || re)
                 && (PlatformTypes.isNil(n.args().get(0).info().type())
                         || PlatformTypes.isNil(n.args().get(1).info().type()))) {
-            return SqlExpr.Call.of(SqlFn.AND, holdsNothing(n.args().get(0), args.get(0)),
+            // (never an AND of the two: a database answers false from one operand and leaves the other, and the
+            // error it would raise, unread -- probed 2026-11-28, []->toOne() == 1 answered false so)
+            return sameOnlyWhereBothEmpty(holdsNothing(n.args().get(0), args.get(0)),
                     holdsNothing(n.args().get(1), args.get(1)));
         }
         if (le || re) {

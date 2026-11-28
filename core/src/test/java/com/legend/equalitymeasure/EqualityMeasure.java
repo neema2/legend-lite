@@ -415,6 +415,9 @@ public final class EqualityMeasure {
         // empty sides
         out.add(new Sides("empty and empty", "T", "[]", "[]"));
         out.add(new Sides("empty and value", "F", "[]", "1"));
+        // (E: the first side raises, as Pure does, wherever the comparison stands -- a first cut of slice 3's rule
+        // for a side typed Nil took the type for "holds nothing" and answered false; review 4, blocker 2)
+        out.add(new Sides("empty forced to one value, and a value", "E", "[]->toOne()", "1"));
         out.add(new Sides("computed empty and written empty", "T", "[1, 2]->filter(x | $x > 5)", "[]"));
         out.add(new Sides("two computed empties", "T", "[1, 2]->filter(x | $x > 5)", "[3]->filter(x | $x > 5)"));
         out.add(new Sides("computed empty and value", "F", "[1, 2]->filter(x | $x > 5)", "1"));

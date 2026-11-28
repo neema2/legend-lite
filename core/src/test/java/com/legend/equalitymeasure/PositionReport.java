@@ -36,7 +36,8 @@ import java.util.regex.Pattern;
  * where they are known only when the query runs (a function whose parameters are {@code Any}); {@code a@b}: {@code
  * a} where the comparison is written, {@code b} inside such a function; {@code x;generic=R}: {@code x}, but a
  * compile error inside a function over one type variable whose call gives it two types; {@code ?}, not plain from
- * the rule: any one answer, for the user to rule.
+ * the rule: any one answer, for the user to rule; {@code E}: a side raises when the query runs, and so must the
+ * comparison in every place.
  */
 final class PositionReport {
     static final List<String> KINDS = List.of("right everywhere", "refused by name everywhere",
@@ -268,6 +269,11 @@ final class PositionReport {
         if (expected.equals("R")) {
             // a compile error inside a function over one type variable whose call gives it two types
             return v.equals("refused ModelException") ? "right" : isAnswer(v, store) ? "wrong" : "failed";
+        }
+        if (expected.equals("E")) {
+            // a side raises when the query runs, and so must the comparison, wherever it stands: an answer, or a
+            // refusal when the query is planned, hides the error
+            return v.equals("error DataError") ? "right" : isAnswer(v, store) ? "wrong" : "failed";
         }
         if (expected.equals("N")) {
             if (atRunTime) {
