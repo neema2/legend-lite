@@ -345,7 +345,11 @@ public final class EqualityMeasure {
                 new Position("list-exists", false, false, (l, r) -> "{|[1]->exists(x | " + eq.apply(l, r) + ")}"),
                 new Position("list-forAll", false, false, (l, r) -> "{|[1]->forAll(x | " + eq.apply(l, r) + ")}"),
                 new Position("reads-element", false, false,
-                        (l, r) -> "{|[0]->map(x | (" + l + ")->filter(e | $x > -1) == (" + r + "))->at(0)}"),
+                        // (BOTH sides read the element: with one side left as written, a number literal there read
+                        // as the other side's type -- the literal rule -- and `1 == 1.0`, a compile error wherever
+                        // two literals stand, answered true by rule in this place alone; 2026-11-28)
+                        (l, r) -> "{|[0]->map(x | (" + l + ")->filter(e | $x > -1) == (" + r
+                                + ")->filter(e | $x > -1))->at(0)}"),
                 new Position("function-any", false, false, (l, r) -> "{|t::sameAny(" + l + ", " + r + ")}"),
                 new Position("function-generic", false, false, (l, r) -> "{|t::sameT(" + l + ", " + r + ")}"),
                 new Position("table-filter", false, false,
