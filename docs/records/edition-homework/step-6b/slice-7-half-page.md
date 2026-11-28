@@ -89,3 +89,18 @@ equality, whole sides); `Scalars`' registrations for `==`/`eq`, the orderings, `
 **Not verified yet, to read before building:** the position (positive, join, or neither) of every comparison the
 resolver writes; exactly where the resolver's phase ends in each planning entry (`ProductStatements`, `BodyPlanner`,
 the edge's plans); whether the door's feature rules name `equal`.
+
+## One choice left before building: how the call says which comparison it is (for the user)
+
+The pass is settled (after the store resolver, keyed on the family). What it WRITES on each comparison is a choice:
+
+| | What the pass does | What the lowering reads | Cost | Weakness |
+|---|---|---|---|---|
+| **T, twin functions** | swaps the call's function for the door's own (`upstream equal`, `upstream in`, ... and legend-engine's in-store `equal`) | the function, like any other: one rule per function | about 30 declarations beside lite's own functions, two catalog pins moved, and about 25 places in the lowering and the planner that recognise a comparison by its family taught the twins. 1.5 to 2 days | the most code |
+| **S, a mark on the call** | sets a "which comparison" mark on the call (as the "runs outside the store" mark is set today) | the mark | one new component on the call node (every place that builds a call passes it on: about 20), no new declarations, the family checks unchanged. About 1 day | the call is not "an ordinary call that means the same everywhere": the meaning rides beside the function |
+
+In both, `Scalars.doorsRule` for comparisons, `EditionTable.emptySideIsFalse` and the "two families or three types"
+argument leave the lowering, the guard's three pins go to zero, and nothing after the pass can see a door.
+**Recommendation: T**, because it is what the edition design asks for ("ordinary typed calls that mean the same in
+every edition") and S would have to be redone as T when the rest of the door's table moves. S only if a day matters
+more than doing it once.
