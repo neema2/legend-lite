@@ -165,6 +165,20 @@ final class SameValuesForm {
         }
     }
 
+    /** {@link #refuseExactNumbersOfTwoScales} for a COMPOSITE value sought among a list of them (a membership, a
+     *  position): the value's places against each element's. A plain value among plain values is compared as the
+     *  numbers they are, and is no part of this. */
+    static void refuseMemberAtTwoScales(SqlExpr needle, SqlExpr collection) {
+        String one = textScale(needle);
+        String each = textScale(collection);
+        if (one != null && each != null && !one.equals(each)) {
+            throw new com.legend.sql.DialectCapability("a list, a struct or a map sought among others whose exact"
+                    + " numbers are written at another scale (" + one + " against " + each + " decimal places) has"
+                    + " no typed form on a database that carries them as JSON text, where it would compare the"
+                    + " texts: refused -- convert both sides' values to one type");
+        }
+    }
+
     /** The decimal places a composite value's exact numbers are written with in its JSON text, place by place: a
      *  Decimal's scale, none for a whole number -- read off the type the value states, or, where it states none,
      *  off how it is built (a list of structs built by a transform states its fields where it builds them; step
@@ -182,6 +196,11 @@ final class SameValuesForm {
         }
         if (values instanceof SqlExpr.StructLit) {
             return built(values);
+        }
+        if (values instanceof SqlExpr.ArrayLit written && !written.elements().isEmpty()
+                && !(operand.type() instanceof com.legend.sql.TypeFact.Typed)) {
+            // (a written list that states no type: as its first element is built)
+            return built(written.elements().get(0));
         }
         return operand.type() instanceof com.legend.sql.TypeFact.Typed held && !(held.type() instanceof SqlType.Scalar)
                 && !(held.type() instanceof SqlType.Decimal) ? scaleOf(held.type()) : null;

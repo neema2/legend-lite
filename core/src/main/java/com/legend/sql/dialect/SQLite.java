@@ -264,7 +264,7 @@ public class SQLite extends AnsiSqlRenderer {
 
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
+        return List.of(new JsonTextComparisons(), new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new WholePartitionOrderedSets(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a

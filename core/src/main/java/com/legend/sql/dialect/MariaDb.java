@@ -303,7 +303,7 @@ public class MariaDb extends AnsiSqlRenderer {
      *  11 GB on ten of them (measured, the server killed). */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
+        return List.of(new JsonTextComparisons(), new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new QualifyToSubselect(true), new WindowAggregatesAsCorrelated(Set.of(SqlAgg.Fn.STRING_AGG)),

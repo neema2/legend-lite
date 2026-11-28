@@ -142,6 +142,7 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
+        ps.add(new JsonTextComparisons());
         ps.add(new CarrierStrategies(CAPS));
         if (!supportsQualify()) {
             ps.add(new QualifyToSubselect());
