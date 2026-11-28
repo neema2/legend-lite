@@ -58,3 +58,34 @@ That is the second code the plan of record names (section 2.2: "the membership l
 `['a ']->contains('a')` is true: a written list of one text IS that text (a one-element collection is its
 element), and `contains` of a text and a text is the STRING function, by the functions' signatures (legend-pure's
 own resolution too). The matrix asks lists of two.
+
+## Built (2026-11-28, the scratch branch `claude/step-6b-slice-5`, stacked on slice 3; the no-Bazel loop)
+
+Read before building, as this page asked: the `in` and `indexOf` rules of `Scalars`, the folds in the type-checker,
+`TaggedLists.contains*`, and upstream's `in` in the pinned sources
+(`legend-engine/.../core_functions_standard/collection/in.pure`: `in(value: Any[0..1], collection)` is
+`$value->isNotEmpty() && $collection->exists(x | $value == $x)`, so nothing is in any list; a side that may hold no
+value is therefore not asked of the functions matrix, whose answers for an empty needle are their own).
+
+| What | Where | The measured case it fixes |
+|---|---|---|
+| Membership asks `Equalities` for the element's side and the needle's side, as `==` asks for its two: the kinds the text names, the instants of dates, "never equal, both evaluated". `in(v, list)` is `contains(list, v)`; `indexOf` answers the place | `Equalities.member`, `Scalars.containsRule`, `inRule`, the list `indexOf` rule | two `Number` values of two families answered TRUE through `contains` and `indexOf`; a day and a date-time under `Date` TRUE through every function; a date built to the hour against a written date-time failed |
+| A list's kind is named through what keeps or reorders its values (`sort`, `sortBy`, `reverse`, `take`, `drop`, `slice`, `tail`, `init`, the deduplications) | `MixedEncoding.kindThroughUpcasts`, `KEEPS_ITS_VALUES` | `[2, 1]->cast(@Number)->sort()` against Floats: the database's own `=`, TRUE inside a list's function |
+| Two optional enumerations that both hold nothing are equal, as any two empty sides are | `Equalities.emptySidesAsPure` (the enumeration exception removed; it copied legend-engine's SQL, whose door never reaches this rule inside a store query) | no value in a kept value, false in an `if` |
+| A list built by a function that may answer nothing is compacted ONCE where it is built, as a written list with an element that can be empty already is (`MixedEncoding.compacts`) | `ListEncodings.lowerMap` | `[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7)` answered `[7, 7]`; a comparison after a second `map` was false on every database |
+| A year or a day in a list declared the abstract `Date`, beside held date-times, reads as no instant (it equals none) | `SideEqualities.instantOfTextOrNone`, `Equalities.asInstants` | the query failed ("invalid timestamp field format: 2020") where the answer is false |
+| `hasSameElements` of two list values of one compared kind is the "same values" instruction in ANY order over the two values, by the same decisions `==` reads; a database that compares rows refuses by name the case where a side reads the row or element | `Equalities.asSameElements`, `Lowerer.sameElementsOfTwoValues`, `AnsiSqlRenderer.sameValues` | every `hasSameElements` inside an expression was a statement of its own, which a list's function cannot read on DuckDB |
+
+## Not in this slice, and why
+
+- `assertContains`, `assertSameElements` under each checker (unjudged or refused for some rows): the asserts' own
+  code, slice 6.
+- Values declared `Any` in a computed list (`contains` over a computed list, `indexOf`): a list of `Any` is a mixed
+  list, part 2.
+- Found, the type-checker's, outside equality (task 29): a `map` whose function may answer nothing keeps its
+  source's count (`[1, 2]->map(x | if($x == 1, |1, |[]))` is typed `[2]`), so the Java checker fails an
+  `assertEquals` over such a list. Four rows fail only there.
+- To rule (added to `measure-gaps-2026-11-28.md`): a literal under an upcast (`1.0->cast(@Number)`) arrives as the
+  literal, so against a computed value it is read by the literal rule; a literal under an upcast to `Any` is
+  refused at the call of a function over one type variable where a computed value under the same upcast is
+  compared when the query runs.

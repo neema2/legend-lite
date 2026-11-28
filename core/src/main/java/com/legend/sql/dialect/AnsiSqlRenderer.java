@@ -1400,6 +1400,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // ride with it): this database's own comparison of the two values, as it was written before the slice
             return writer.append("(").expr(new SqlExpr.Call(SqlFn.EQUAL, c.args()), 0).append(")");
         }
+        if (c.args().size() == 2) {
+            // in ANY order, the two values alone (a side reads the row or the element it stands in): this database
+            // compares rows, and such a side has none of its own
+            throw new DialectCapability("hasSameElements over values of the row or element it stands in reached a"
+                    + " dialect that compares two lists by their rows: compute the two sides with let, outside the"
+                    + " lambda, then compare them");
+        }
         if (c.args().size() != 4) {
             throw new IllegalStateException(c.fn() + ": two side values, or two side values and the two sides' rows");
         }

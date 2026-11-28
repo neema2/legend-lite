@@ -1129,6 +1129,17 @@ public final class SideEqualities {
         return new SqlExpr.Cast(written, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE);
     }
 
+    /** {@code v}, a date carried as its written text, as the instant it writes where it is written with a time
+     *  ({@link #instantOfText}); no value for a year, a year-month or a day: none is an instant, so none equals a
+     *  date-time. What a list declared the abstract {@code Date} is read by beside held date-times (step 6B, slice 5:
+     *  read as an instant whatever it was, a year in such a list failed the query where the answer is false). */
+    static SqlExpr instantOfTextOrNone(SqlExpr v) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.STRPOS, v, new SqlExpr.StringLit("T")),
+                        new SqlExpr.IntLit(0)),
+                instantOfText(v))), new SqlExpr.NullLit(), SqlExpr.Reason.JUDGE);
+    }
+
     /** Whether a side's typed rows CTE ({@code cte}) holds no row: emptiness by the rows, never by the list (a database's
      *  list of no rows is NULL on one and {@code []} on another: SQLite's json_group_array; batch 2's audit, HIGH 1). */
     static SqlExpr noRows(String cte, SqlQuery rows) {

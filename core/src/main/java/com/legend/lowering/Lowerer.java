@@ -481,6 +481,25 @@ public final class Lowerer {
         return this;
     }
 
+    /** {@code hasSameElements} of two sides that are list VALUES of one compared kind, as the instruction over the
+     *  two values ({@link Equalities#asSameElements}); null for any other pair (a table has no value, and is never
+     *  lowered as one here: the types say first). */
+    private @com.legend.base.Nullable SqlExpr sameElementsOfTwoValues(TypedNativeCall n, ColumnResolver columns) {
+        if (n.args().size() != 2) {
+            return null;
+        }
+        TypedSpec left = n.args().get(0);
+        TypedSpec right = n.args().get(1);
+        if (Type.isRelation(left.info().type()) || Type.isRelation(right.info().type())
+                || !(SideEqualities.comparedAsValues(left.info().type(), right.info().type())
+                        || SideEqualities.heldInOneKind(left, right))) {
+            return null;
+        }
+        WholeComparisons planner = wholeComparisons;
+        return Equalities.asSameElements(n, List.of(scalar(left, columns), scalar(right, columns)),
+                side -> planner == null ? null : planner.sideRows(side));
+    }
+
     /** {@code n}, met inside an expression, as the planner's statement for a comparison of two whole sides, one
      *  value; null where the door named a rule for the call (it is lowered by that rule), or the planner has no
      *  statement for it. */
@@ -4584,6 +4603,13 @@ public final class Lowerer {
             // planner's statement for them read as one value (planner.RootComparison.inside); over sides that read
             // the row it stands in it is refused by name, before a side is lowered as a value (a table has none)
             case TypedNativeCall n when Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(n.callee().id()) -> {
+                // two list values of one compared kind: the "same values" instruction in any order over the two
+                // values, as == of two such lists is the instruction in order (step 6B, slice 5) -- wherever it
+                // stands, a list's function too, where no statement of its own can be read
+                SqlExpr values = sameElementsOfTwoValues(n, columns);
+                if (values != null) {
+                    yield values;
+                }
                 SqlExpr planned = wholeSides(n);
                 if (planned == null) {
                     throw Scalars.hasSameElementsInsideAnExpression();

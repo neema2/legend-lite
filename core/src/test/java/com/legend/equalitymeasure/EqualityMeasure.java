@@ -417,11 +417,18 @@ public final class EqualityMeasure {
         // functionPositions)
         // -- rows no comparison above reaches (docs/records/edition-homework/step-6b/measure-gaps-2026-11-28.md) --
         // a value typed at run time whose kind the query's text does not name
+        // (both sides computed: a literal under an upcast arrives as the literal, which the literal rule reads as
+        // the other side's family -- `... == 1.0->cast(@Number)` answers true, one of the cases to rule,
+        // measure-gaps-2026-11-28.md, "To rule, not to guess")
         out.add(new Sides("Number value from a sorted list, and a Float", "F",
+                "[2, 1]->cast(@Number)->sort()->at(0)", "[1.0, 2.0]->cast(@Number)->sort()->at(0)"));
+        out.add(new Sides("Number value from a sorted list, and an upcast Float literal", "?",
                 "[2, 1]->cast(@Number)->sort()->at(0)", "1.0->cast(@Number)"));
         out.add(new Sides("raising single value, two families", "E", "[1, 2]->at(5)->cast(@Number)",
                 "1.0->cast(@Number)"));
-        out.add(new Sides("year and string through Any", "F;generic=R", "%2020->cast(@Any)", "'2020'->cast(@Any)"));
+        // (inside a function over one type variable: false too, when the query runs -- a year's own type is the
+        // abstract Date, which the rule lists among the types known only then)
+        out.add(new Sides("year and string through Any", "F", "%2020->cast(@Any)", "'2020'->cast(@Any)"));
         // the literal rule against a computed value
         out.add(new Sides("computed Float and whole literal", "T@F;generic=R", "1.5 + 0.5", "2"));
         out.add(new Sides("computed Decimal and Float literal", "T@F;generic=R", "0.1D + 0.2D", "0.3"));
@@ -449,7 +456,11 @@ public final class EqualityMeasure {
         // own -- nothing is in a list -- and not =='s)
         out.add(new Sides("two optional enums both empty", "T", "[t::E.A]->filter(e | $e == t::E.B)->first()",
                 "[t::E.B]->filter(e | $e == t::E.A)->first()"));
-        out.add(new Sides("two optionals of two kinds via Any, both empty", "T;generic=R",
+        // (inside a function over one type variable: true too -- the caller upcast both to Any, so the call gives
+        // the function one type, and the comparison is the run-time one, where two empty sides are equal. A LITERAL
+        // under such an upcast is refused at the call ("Any int and string"): the upcast of a literal is the
+        // literal again by then. Recorded for the user, measure-gaps-2026-11-28.md)
+        out.add(new Sides("two optionals of two kinds via Any, both empty", "T",
                 "[1]->filter(x | $x > 5)->first()->cast(@Any)", "['a']->filter(s | $s == 'b')->first()->cast(@Any)"));
         out.add(new Sides("two optionals of two families, both empty", "N@T", "[1]->filter(x | $x > 5)->first()",
                 "[1.5]->filter(x | $x > 5.0)->first()"));
@@ -476,6 +487,25 @@ public final class EqualityMeasure {
         out.add(new Sides("an empty slot through a second map", "T",
                 "[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | if($y > 0, |'a', |'b'))", "['a']"));
         out.add(new Sides("list decimal differs", "F", "[1.0D, 10.125D]->filter(x | $x > 0D)", "[1.0D, 10.5D]"));
+        // hasSameElements, asked wherever a value stands: its answer against the Boolean the rule gives (slice 5: of
+        // two list values it is the "same values" instruction in any order, as == is the instruction in order)
+        out.add(new Sides("hasSameElements: another order", "T",
+                "hasSameElements([1, 2]->filter(e | true), [2, 1]->filter(e | true))", "true"));
+        out.add(new Sides("hasSameElements: duplicates counted", "T",
+                "hasSameElements([1, 2, 2]->filter(e | true), [2, 1, 1]->filter(e | true))", "false"));
+        out.add(new Sides("hasSameElements: Integers and Decimals", "T",
+                "hasSameElements([1, 2]->filter(e | true), [2D, 1.0D]->filter(e | true))", "true"));
+        out.add(new Sides("hasSameElements: Strings, a trailing space", "T",
+                "hasSameElements(['a ', 'b']->filter(e | true), ['b', 'a']->filter(e | true))", "false"));
+        out.add(new Sides("hasSameElements: date-times to the hour and to the minute", "T",
+                "hasSameElements([date(2015, 4, 16, 14), date(2015, 4, 16, 15)]->filter(e | true),"
+                        + " [date(2015, 4, 16, 15, 0), date(2015, 4, 16, 14, 0)]->filter(e | true))", "true"));
+        out.add(new Sides("hasSameElements: an empty computed list and the written empty list", "T",
+                "hasSameElements([1]->filter(e | $e > 5), [])", "true"));
+        out.add(new Sides("hasSameElements: a list with an empty slot", "T",
+                "hasSameElements([1, 2]->map(y | if($y == 1, |1, |[])), [1]->filter(e | true))", "true"));
+        out.add(new Sides("hasSameElements: Booleans", "T",
+                "hasSameElements([true, false]->filter(e | true), [false, true]->filter(e | true))", "true"));
         // empty sides
         out.add(new Sides("empty and empty", "T", "[]", "[]"));
         out.add(new Sides("empty and value", "F", "[]", "1"));

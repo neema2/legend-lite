@@ -50,8 +50,8 @@ final class Equalities {
      * condition ({@code Lowerer.asCondition}). So {@code compared}, the plain {@code =} of {@code n}'s two sides:
      * <ul>
      *   <li>BOTH sides may be empty: the null-safe equality, in every position -- two empties are equal, in a
-     *       filter too (two plain optional columns were written so already, {@link #nullArms}). An enumeration's
-     *       comparison is left to its own machinery (recorded);</li>
+     *       filter too (two plain optional columns were written so already, {@link #nullArms}), an enumeration's
+     *       like any other;</li>
      *   <li>exactly ONE side may be empty, and the comparison is no positive condition: false where that side is
      *       empty, the comparison written once ({@code COALESCE(l = r, FALSE)});</li>
      *   <li>otherwise as it is.</li>
@@ -67,7 +67,10 @@ final class Equalities {
         boolean first = mayHoldNoValue(n.args().get(0), c.args().get(0));
         boolean second = mayHoldNoValue(n.args().get(1), c.args().get(1));
         if (first && second) {
-            return NullSemantics.enumInvolved(n) ? compared : new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, c.args());
+            // (an enumeration's too: until step 6B's slice 5 it was left the plain =, as legend-engine's SQL writes
+            // an enumeration's comparison, and two empty optional enumerations answered no value where Pure says
+            // true; legend-engine's door inside a store query never reaches here, EditionTable.emptySideIsFalse)
+            return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, c.args());
         }
         if (first == second || positiveCondition) {
             return compared;
@@ -113,10 +116,46 @@ final class Equalities {
     static SqlExpr asSameValues(TypedNativeCall n, SqlExpr compared,
             java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows) {
         if (!(compared instanceof SqlExpr.Call c) || c.fn() != SqlFn.EQUAL || c.args().size() != 2
-                || n.args().size() != 2 || !plainList(c.args().get(0)) || !plainList(c.args().get(1))
-                || !(SideEqualities.comparedAsValues(n.args().get(0).info().type(), n.args().get(1).info().type())
-                        || heldAsOneKind(n, c.args()))) {
+                || n.args().size() != 2) {
             return compared;
+        }
+        SqlExpr same = sameValues(n, c.args(), sideRows, SqlFn.SAME_IN_ORDER);
+        return same == null ? compared : same;
+    }
+
+    /**
+     * {@code hasSameElements(a, b)} OVER TWO LIST VALUES (step 6B, slice 5): the same instruction in ANY order
+     * ({@code SAME_IN_ANY_ORDER}), over the same two values and by the same decisions {@code ==} reads -- the kinds
+     * that are compared as values, date-times by their instants, empty slots dropped, the rows riding where the
+     * lowering has them. Null where the two sides are no such pair (a table, a mixed list, two kinds): the planner's
+     * statement answers those, or the refusal by name. Until this slice every {@code hasSameElements} inside an
+     * expression was the planner's statement, read as a sub-query, which a list's function cannot hold on a
+     * database that runs none there.
+     */
+    static @com.legend.base.Nullable SqlExpr asSameElements(TypedNativeCall n, List<SqlExpr> sides,
+            java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows) {
+        if (n.args().size() != 2 || sides.size() != 2) {
+            return null;
+        }
+        // a side whose type says it holds nothing (the written empty list, a list typed Nil): the two hold the same
+        // elements only where the other is empty too, each side still evaluated -- as == answers such a pair
+        if (PlatformTypes.isNil(n.args().get(0).info().type()) || PlatformTypes.isNil(n.args().get(1).info().type())) {
+            return sameOnlyWhereBothEmpty(holdsNothing(n.args().get(0), sides.get(0)),
+                    holdsNothing(n.args().get(1), sides.get(1)));
+        }
+        List<SqlExpr> instants = asInstants(n, sides, true);
+        return sameValues(n, instants == null ? sides : instants, sideRows, SqlFn.SAME_IN_ANY_ORDER);
+    }
+
+    /** The instruction {@code same} over {@code n}'s two side values {@code values}, or null where they are not two
+     *  lists of one compared kind ({@link #asSameValues}, {@link #asSameElements}). */
+    private static @com.legend.base.Nullable SqlExpr sameValues(TypedNativeCall n, List<SqlExpr> values,
+            java.util.function.Function<TypedSpec, com.legend.sql.@com.legend.base.Nullable SqlQuery> sideRows,
+            SqlFn same) {
+        if (!plainList(values.get(0)) || !plainList(values.get(1))
+                || !(SideEqualities.comparedAsValues(n.args().get(0).info().type(), n.args().get(1).info().type())
+                        || heldAsOneKind(n, values))) {
+            return null;
         }
         // the rows ride where a database that compares rows needs them: a computed side; or two written lists of
         // exact numbers, whose JSON texts are not their values (1.0 and 1.000 are one number; measured 2026-11-27 on
@@ -136,9 +175,9 @@ final class Equalities {
         // (the two VALUES with their empty slots dropped: a list's SQL value holds a NULL where an element was empty,
         // which is no element of the Pure list -- the rows that ride have dropped them already, SideEqualities
         // .valueRows; review 6 of slice 3, and slice 1's own miss)
-        SqlExpr l = CollectionLanes.compacted(n.args().get(0), c.args().get(0));
-        SqlExpr r = CollectionLanes.compacted(n.args().get(1), c.args().get(1));
-        return new SqlExpr.Call(SqlFn.SAME_IN_ORDER, left == null || right == null ? List.of(l, r)
+        SqlExpr l = CollectionLanes.compacted(n.args().get(0), values.get(0));
+        SqlExpr r = CollectionLanes.compacted(n.args().get(1), values.get(1));
+        return new SqlExpr.Call(same, left == null || right == null ? List.of(l, r)
                 : List.of(l, r, new SqlExpr.ScalarSubquery(left), new SqlExpr.ScalarSubquery(right)));
     }
 
@@ -563,6 +602,13 @@ final class Equalities {
         return InstanceEquality.equalValues(texts, SqlType.Scalar.VARCHAR, SideEqualities::instantOfText, () -> "_dtx");
     }
 
+    /** A list of dates carried as their written texts, each read as the instant it writes where it is written with
+     *  a time and as no value otherwise ({@link SideEqualities#instantOfTextOrNone}). */
+    private static SqlExpr instantsWhereWritten(SqlExpr texts) {
+        return InstanceEquality.equalValues(texts, SqlType.Scalar.VARCHAR, SideEqualities::instantOfTextOrNone,
+                () -> "_dtx");
+    }
+
     /** A list of date-times the database holds, each as the instant compared with one read from its text
      *  ({@link SideEqualities#instantOfHeld}). */
     private static SqlExpr instantsOfHeld(SqlExpr held) {
@@ -592,10 +638,11 @@ final class Equalities {
                     && n.args().get(1).info().type() == Type.Primitive.DATE_TIME
                     ? List.of(instantsOfTexts(l), instantsOfTexts(r)) : null;
         }
-        // (one list of texts against held date-times: read as instants whatever the side is declared. Under the
-        // abstract Date a text may be a year, which no instant reads: that raises when the query runs, as it did
-        // before this arm -- restricting the arm to sides declared DateTime, review 6's note 1, was tried and
-        // withdrawn: it left a Date-declared list of date-time texts to the database's `=`, which answered false)
+        // (one list of texts against held date-times: read as instants whatever the side is declared -- restricting
+        // the arm to sides declared DateTime, review 6's note 1, was tried and withdrawn: it left a Date-declared
+        // list of date-time texts to the database's `=`, which answered false. Under the abstract Date a text may be
+        // a year or a day, which is no instant and equals none: it reads as no value there, instantOfTextOrNone --
+        // until slice 5 it was read as an instant too, and the query failed)
         // (ONE date-time written as its text beside a list of such texts, both sides declared DateTime: the list of
         // its instant against the list's -- review 7 of slice 3: the planner stands aside for the pair, and compared
         // as texts '...T14' never equalled '...T14:00')
@@ -606,8 +653,9 @@ final class Equalities {
             return lTexts ? List.of(instantsOfTexts(l), one) : List.of(one, instantsOfTexts(r));
         }
         if (lists && lTexts != rTexts) {
-            SqlExpr a = lTexts ? instantsOfTexts(l) : instantListOf(l);
-            SqlExpr b = rTexts ? instantsOfTexts(r) : instantListOf(r);
+            boolean dateTimes = n.args().get(lTexts ? 0 : 1).info().type() == Type.Primitive.DATE_TIME;
+            SqlExpr a = lTexts ? (dateTimes ? instantsOfTexts(l) : instantsWhereWritten(l)) : instantListOf(l);
+            SqlExpr b = rTexts ? (dateTimes ? instantsOfTexts(r) : instantsWhereWritten(r)) : instantListOf(r);
             return a == null || b == null ? null : List.of(a, b);
         }
         for (int t = 0; t < 2; t++) {

@@ -119,15 +119,26 @@ final class ListEncodings {
         // value (one object, an array in SQL) does not have
         List<com.legend.compiler.spec.typed.TypedSpec> body = m.mapper().body();
         boolean manyValued = body.get(body.size() - 1).info().multiplicity().requireBounded("lowering").isMany();
-        return map(mSrc,
+        boolean resultOne = m.info().multiplicity() instanceof com.legend.compiler
+                .element.type.Multiplicity.Bounded rb
+                && rb.upper() != null && rb.upper() == 1;
+        SqlExpr mapped = map(mSrc,
                 LambdaBinding.mapMapper(lw, m, mSrc, mToOne, columns),
                 mToOne,
                 mult instanceof com.legend.compiler.element.type
                         .Multiplicity.Bounded sb && sb.lower() == 0,
-                m.info().multiplicity() instanceof com.legend.compiler
-                        .element.type.Multiplicity.Bounded rb
-                        && rb.upper() != null && rb.upper() == 1,
+                resultOne,
                 ValueCollections.isCollectionMapper(m.mapper()) || manyValued);
+        // A LIST BUILT BY A FUNCTION THAT MAY ANSWER NOTHING holds a NULL slot for each element it answered nothing
+        // for; a Pure collection holds no empties, so the list is compacted ONCE where it is built, as a written list
+        // with an element that can be empty is (MixedEncoding.compacts: "consumer-site compaction was
+        // whack-a-mole"). Until step 6B's slice 5 the slots stayed, and a second map applied its function to them:
+        // [1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7) answered [7, 7]. The value lane alone, as the written
+        // list's rule: a row-lane carrier compacts at its collect.
+        boolean mayAnswerNothing = !manyValued && body.get(body.size() - 1).info().multiplicity()
+                instanceof com.legend.compiler.element.type.Multiplicity.Bounded mb && mb.lower() == 0;
+        return mayAnswerNothing && !resultOne && !(mapped instanceof SqlExpr.TaggedList)
+                && CollectionLanes.valueLane(m) ? new SqlExpr.CompactList(mapped) : mapped;
     }
 
     static SqlExpr map(SqlExpr src, SqlExpr lam, boolean srcOne,

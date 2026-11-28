@@ -139,3 +139,16 @@ A literal against a value typed only at run time (`1->cast(@Number) == 1.0`, `1.
 rule does not say whether the literal adapts; the code adapts a whole number and answers false for 1.5 against a
 held Decimal, while the column case (row 3) refuses. And a literal read through a `let` (rows 21 to 26 in the
 "lets" place): the literal is a variable there, which the literal rule does not adapt.
+
+## Added while building slice 5 (2026-11-28)
+
+- **A literal the query itself upcast** (`1.0->cast(@Number)`, `1->cast(@Any)`): the upcast of a literal is the
+  literal again before the lowering sees it. So `[2, 1]->cast(@Number)->sort()->at(0) == 1.0->cast(@Number)` is read
+  by the literal rule (the whole Float literal reads as the exact family) and answers TRUE, where the same against a
+  computed Float (`[1.0, 2.0]->cast(@Number)->sort()->at(0)`) answers false. The measure asks both; the first is
+  marked `?`.
+- **Under a function over one type variable**, `t::sameT(1->cast(@Any), '1'->cast(@Any))` is refused at the call (the
+  literals are met as an Integer and a String), while two COMPUTED values under the same upcasts are one type to the
+  call (`Any`) and are compared when the query runs. Both readings follow the rule's text ("a parameter declared
+  Any ... is compared when the query runs"; "a type variable's values ... where the two types differ"); which one a
+  literal under an explicit upcast should take is the user's.
