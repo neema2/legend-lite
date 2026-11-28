@@ -38,7 +38,10 @@ final class PureTable implements EditionTable, Edition {
 
     @Override
     public @Nullable NamedRule lowersAs(TypedNativeCall call, Set<Feature> features) {
-        return UpstreamTies.rule(call);
+        NamedRule tie = UpstreamTies.rule(call);
+        // ...and an empty TDS cell's text, legend-engine's TDS's own Pure, which legend-pure runs in a relational
+        // test's own code (EmptyCellTexts; the edition program's step 8, 2026-11-28)
+        return tie != null ? tie : EmptyCellTexts.rule(call);
     }
 
     /** legend-pure checks as the product does: every check is written. */

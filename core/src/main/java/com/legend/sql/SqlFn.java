@@ -223,8 +223,9 @@ public enum SqlFn {
     /** An element's text in a {@code makeString} ({@code x}, one operand, {@code NULL} where the element is empty): the
      *  product's join skips an empty element (the user's ruling of 2026-11-10, D_BRIEF §1: "makeString skips empty
      *  elements"; phase D's D1.3, 2026-11-15) -- the base renderer writes the text alone ({@code dialect.CellTexts}),
-     *  the join's {@code STRING_AGG} drops a {@code NULL}. legend-engine prints an empty TDS cell as {@code TDSNull}: the
-     *  compatibility edge writes that (edge/PurePrintForms). */
+     *  the join's {@code STRING_AGG} drops a {@code NULL}. legend-engine prints an empty TDS cell as {@code TDSNull}: a
+     *  compatibility door's row names the rule that writes that in this node's place, at lowering
+     *  ({@code lowering.NamedRule.EMPTY_CELL_TEXT_AS_TDS_NULL}; until 2026-11-28 a pass of the edge's dialects). */
     CELL_TEXT,
     // (FORMAT_PADDED, format's %0<w>d: gone 2026-11-17, the separation census's B8 (i) -- the edge composes it at
     // lowering through the plan style's PureOnlyTexts facet, edge.EdgePureOnlyTexts; the product refuses at lowering)

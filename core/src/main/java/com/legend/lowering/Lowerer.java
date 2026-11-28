@@ -4534,16 +4534,21 @@ public final class Lowerer {
                 // (ValueCollections.rowCellsJoin) — no list machinery
                 // (burn-to-zero: the old ArrayLit-and-delegate form had
                 // TWO owners for one encoding).
-                List<SqlExpr> cells = new ArrayList<>(tc.elements().size());
+                List<SqlExpr> texts = new ArrayList<>(tc.elements().size());
                 for (TypedSpec e : tc.elements()) {
-                    cells.add(SqlExpr.Call.of(SqlFn.CELL_TEXT,
-                            Fold.cellText(e.info().type(), scalar(e, columns))));
+                    texts.add(Fold.cellText(e.info().type(), scalar(e, columns)));
                 }
                 List<SqlExpr> rest = new ArrayList<>();
                 for (int i = 1; i < n.args().size(); i++) {
                     rest.add(scalar(n.args().get(i), columns));
                 }
-                yield ValueCollections.rowCellsJoin(cells, rest);
+                // the door's rule for the call, as for any call (Scalars.doorsRule): the product's own join skips an
+                // empty cell (CELL_TEXT); a door's row names the rule that writes every cell (the edition program's
+                // step 8, 2026-11-28: until then the compatibility edge's SQL pass rewrote this join after it)
+                NamedRule doors = Scalars.doorsRule(n, features, styled());
+                yield doors != null ? NamedRules.rowCells(doors, texts, rest)
+                        : ValueCollections.rowCellsJoin(texts.stream()
+                                .map(text -> (SqlExpr) SqlExpr.Call.of(SqlFn.CELL_TEXT, text)).toList(), rest);
             }
             // statically-decided instanceOf folds (Scalars owns the rule)
             case TypedNativeCall n

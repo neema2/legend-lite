@@ -21,8 +21,30 @@ final class NamedRules {
     /** A plain decimal number's text, the pattern {@link NamedRule#TEXT_IS_PLAIN_DECIMAL} matches in full. */
     private static final String PLAIN_DECIMAL = "[-]?[0-9]+([.][0-9]+)?";
 
-    /** {@code call} written by {@code rule} over its lowered arguments. */
-    static SqlExpr lower(NamedRule rule, TypedNativeCall call, List<SqlExpr> args) {
+    /** The word legend-engine's TDS answers for an empty cell's text ({@link NamedRule#EMPTY_CELL_TEXT_AS_TDS_NULL}):
+     *  the {@code toString()} of its class {@code TDSNull} (tds.pure:127-133). */
+    private static final String EMPTY_CELL_WORD = "TDSNull";
+
+    /** A cell's text, {@link #EMPTY_CELL_WORD} where the cell is empty. */
+    private static SqlExpr emptyAsWord(SqlExpr text) {
+        return SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit(EMPTY_CELL_WORD));
+    }
+
+    /** A ROW'S CELLS JOINED, written by {@code rule}: the one call the lowering writes outside {@link #lower}, since
+     *  its cells are lowered each by its own type and never as one list ({@code Lowerer.scalarValueTailArms}).
+     *  {@code texts} are the cells' texts, {@code rest} the call's other arguments, lowered. Only the rule that reads
+     *  a cell's text writes it; any other is a table's mistake. */
+    static SqlExpr rowCells(NamedRule rule, List<SqlExpr> texts, List<SqlExpr> rest) {
+        if (rule != NamedRule.EMPTY_CELL_TEXT_AS_TDS_NULL) {
+            throw new IllegalStateException("a row's cells joined are written by the product's rule or by "
+                    + NamedRule.EMPTY_CELL_TEXT_AS_TDS_NULL + ", not by " + rule + ": an edition's row named it");
+        }
+        return ValueCollections.rowCellsInterleaved(texts.stream().map(NamedRules::emptyAsWord).toList(), rest);
+    }
+
+    /** {@code call} written by {@code rule} over its lowered arguments, {@code styled} the plan style's text facets
+     *  for a rule that hands the call to its own ({@link Scalars.StyledRule}). */
+    static SqlExpr lower(NamedRule rule, TypedNativeCall call, List<SqlExpr> args, Styled styled) {
         return switch (rule) {
             case SUBSTRING_AS_GIVEN -> new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, args);
             case SUBSTR_AS_GIVEN -> substrAsGiven(args);
@@ -43,6 +65,7 @@ final class NamedRules {
             case FLOAT_TEXT_BY_CAST_OF_A_DOUBLE -> floatTextByCast(args.get(0), true);
             case DATE_TIME_TEXT_BY_CAST -> new SqlExpr.Cast(args.get(0), com.legend.sql.SqlType.Scalar.VARCHAR,
                     SqlExpr.Reason.USER);
+            case EMPTY_CELL_TEXT_AS_TDS_NULL -> Scalars.cellTextsWith(call, args, styled, NamedRules::emptyAsWord);
             case SORT_TIES_AS_WRITTEN -> Scalars.sortTiesAsWritten(call, args);
             case EXTREME_KEEPS_THE_FOLDS_TIE -> Scalars.extremeKeepingTheFoldsTie(call, args);
             case EXTREME_OF_TWO_IN_THE_DATABASES_TYPE -> Scalars.extremeOfTwoInTheDatabasesType(call, args);

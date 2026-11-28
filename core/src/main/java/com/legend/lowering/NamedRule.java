@@ -100,6 +100,18 @@ public enum NamedRule {
      *  digits and {@code Z} (MongoDB's six: {@code SqlFn.DATETIME_TO_TEXT}). */
     DATE_TIME_TEXT_BY_CAST,
 
+    /** A TDS cell's text with an EMPTY cell written as the word {@code TDSNull}, so that a join of cells' texts
+     *  skips none: a cell's own text is {@code COALESCE(text, 'TDSNull')}; the elements of a list joined by
+     *  {@code makeString} are each written so inside the join; a row's cells joined ({@code $row.values} under
+     *  {@code makeString} or {@code joinStrings}) are the cells' texts and the separator one after another.
+     *  legend-engine's TDS holds an empty cell as an instance of its class {@code TDSNull}, whose {@code toString()}
+     *  answers that word (legend-engine 4.145.0, {@code core/pure/tds/tds.pure}:127-133). Not the product's text of
+     *  a cell, which is empty where the cell is, so that the product's join skips it. A join that reads no cell's
+     *  text is written by its own rule. (Until 2026-11-28 a pass of the compatibility edge's dialects rewrote the
+     *  product's SQL to these forms, {@code edge.PurePrintForms}; the user's ruling of 2026-11-26, "tdsnull what are
+     *  downsides if treat as table row? Seems like no brainer ?".) */
+    EMPTY_CELL_TEXT_AS_TDS_NULL,
+
     /** A sort with no key and no comparator whose EQUAL NUMBERS OF DIFFERENT TYPES keep the order they were written
      *  in (a stable sort that compares {@code 3} and {@code 3.0} as equal): {@code [3.0, 3, 1]->sort()} is
      *  {@code [1, 3.0, 3]}. Not the product's {@code sort}, which orders equal numbers by their type (Integer, Float,

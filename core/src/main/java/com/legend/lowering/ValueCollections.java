@@ -411,6 +411,37 @@ final class ValueCollections {
         return joined;
     }
 
+    /** A row's cells joined where NO cell is skipped (a door's rule, {@link NamedRule#EMPTY_CELL_TEXT_AS_TDS_NULL},
+     *  whose every cell has a text): the cells' {@code texts} and the separator one after another, a static
+     *  concatenation -- an empty separator, the one-argument {@code makeString}'s, is no part, and one cell alone is
+     *  itself -- then (start?) and (end?) as {@link #rowCellsJoin} writes them. No cell at all is that join's own
+     *  empty text. (The form the compatibility edge's pass rewrote {@link #rowCellsJoin}'s to until 2026-11-28,
+     *  {@code edge.PurePrintForms}, moved here unchanged.) */
+    static com.legend.sql.SqlExpr rowCellsInterleaved(
+            java.util.List<com.legend.sql.SqlExpr> texts,
+            java.util.List<com.legend.sql.SqlExpr> rest) {
+        if (texts.isEmpty()) {
+            return rowCellsJoin(texts, rest);
+        }
+        com.legend.sql.SqlExpr given = rest.size() == 1 ? rest.get(0) : rest.size() == 3 ? rest.get(1) : null;
+        com.legend.sql.SqlExpr sep = given instanceof com.legend.sql.SqlExpr.StringLit s && s.value().isEmpty()
+                ? null : given;
+        java.util.List<com.legend.sql.SqlExpr> parts = new java.util.ArrayList<>();
+        for (com.legend.sql.SqlExpr text : texts) {
+            if (!parts.isEmpty() && sep != null) {
+                parts.add(sep);
+            }
+            parts.add(text);
+        }
+        com.legend.sql.SqlExpr joined = parts.size() == 1 ? parts.get(0)
+                : new com.legend.sql.SqlExpr.Call(com.legend.sql.SqlFn.CONCAT, parts);
+        if (rest.size() == 3) {
+            return com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, rest.get(0),
+                    com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, joined, rest.get(2)));
+        }
+        return joined;
+    }
+
     static boolean isCollectionMapper(TypedLambda ml) {
         // Collection mapper iff the lowered value is a SQL LIST, which is
         // exactly a TypedCollection body (list_value carrier). A loose

@@ -574,7 +574,10 @@ class HookRulingTest {
      *  ({@code com.legend.sql.dialect}) with lite's own default. A spelling hook is terminal when its product default is
      *  pinned ({@link #eachSpellingHooksProductDefault}) and every override outside its declaring class is an edge
      *  class ({@link #onlyTheEdgeOverridesASpellingHook}). Named by method; each one's product declarer is found. */
-    static final List<String> SPELLING_HOOKS = List.of("raw", "spellingPasses", "raiseMessage", "scanOrderPasses");
+    // (spellingPasses: gone 2026-11-28, a shrink -- the edition program's step 8: its last overriders, the edge's
+    // twelve dialects running legend-engine's TDSNull pass, are deleted with the pass, edge.PurePrintForms; the word
+    // is a row of the doors' tables, written at lowering)
+    static final List<String> SPELLING_HOOKS = List.of("raw", "raiseMessage", "scanOrderPasses");
     // ("dateTimeFormat", MongoDB's $dateToString format of a date-time: a spelling hook no more, 2026-11-26, a shrink
     // -- the edge's MongoDB, its one overrider (legend-pure's +0000 text), no longer overrides it: the edition
     // program's step 8, the user's ruling of that day, "go with lite in the middle"; the product's format is a private
@@ -714,7 +717,7 @@ class HookRulingTest {
             assertEquals(java.util.Set.of(), refused, t + ": a product dialect refuses a raise");
             assertEquals("Create Table f(x FLOAT)", d.raw("Create Table f(x FLOAT)", "ENGINE_TEXT"),
                     t + ": the product runs a raw statement as written");
-            for (String name : List.of("spellingPasses", "scanOrderPasses")) {
+            for (String name : List.of("scanOrderPasses")) {
                 Object passes = invoke(d, name);
                 if (passes != NONE) {
                     assertEquals(List.of(), passes, t + ": the product's " + name + " adds none");

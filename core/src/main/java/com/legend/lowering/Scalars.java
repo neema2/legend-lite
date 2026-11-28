@@ -917,50 +917,8 @@ final class Scalars {
         // 2026-11-15: CELL_TEXT), legend-engine's 'TDSNull' cell the
         // compatibility edge's.
         for (com.legend.model.FunctionId f : Pure.AT_STRING_MAKE_STRING) {
-            RULES.put(f, (StyledRule) (n, args, styled) -> {
-                SqlExpr sep = args.size() == 2 ? args.get(1)
-                        : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
-                // LIST position, WRAP-BY-STAMP (burn-to-zero): stamps
-                // are enforced-true; the h2 side is carried by the
-                // CarrierStrategies list encodings (the 320 floor is
-                // the referee).
-                // audit §4: an HONEST [0..1] source that is empty at
-                // runtime makeStrings to '' — pure's identity; the
-                // 'TDSNull' spelling is the TDS CELL convention and
-                // belongs to [1..1]-stamped (trust-wrapped) cell reads
-                // and the many-element arm ONLY. The leak of the
-                // sentinel as user data dies here.
-                boolean optionalScalar = !Stamps.exactlyOne(n.args().get(0))
-                        && isToOne(n.args().get(0));
-                SqlExpr strs;
-                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
-                if (mixed != null) {
-                    // a mixed list (track L): each element printed as its kind
-                    strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, mixed.positions(),
-                            new SqlExpr.Lambda(List.of("_tlp"), pureToString(styled, Type.Primitive.STRING,
-                                    mixed.element(SqlExpr.Column.derived(null, "_tlp")))));
-                } else {
-                    SqlExpr coll = PureSql.asList(args.get(0),
-                            !isToOne(n.args().get(0)));
-                    SqlExpr text = PureSql.elementText(n.args().get(0), coll,
-                            SqlExpr.Column.param("x", coll));
-                    // an empty element: skipped by the product's join (CELL_TEXT, D1.3 2026-11-15; legend-engine's
-                    // TDSNull is the edge's), '' from an honest [0..1] source
-                    strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
-                            new SqlExpr.Lambda(List.of("x"), optionalScalar
-                                    ? SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit(""))
-                                    : SqlExpr.Call.of(SqlFn.CELL_TEXT, text)));
-                }
-                SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,
-                                List.of(sep)),
-                        new SqlExpr.StringLit(""));
-                if (args.size() == 4) {
-                    return SqlExpr.Call.of(SqlFn.CONCAT, args.get(1),
-                            SqlExpr.Call.of(SqlFn.CONCAT, joined, args.get(3)));
-                }
-                return joined;
-            });
+            RULES.put(f, (StyledRule) (n, args, styled) -> makeString(n, args, styled,
+                    text -> SqlExpr.Call.of(SqlFn.CELL_TEXT, text)));
         }
         // joinStrings over a LIST value: (list), (list, sep), or
         // (list, prefix, sep, suffix).
@@ -2404,6 +2362,73 @@ final class Scalars {
         return new SqlExpr.BoolLit(true);
     }
 
+    /** {@code makeString}'s join, {@code cell} writing the text of an element that may be an empty CELL: the
+     *  product's {@link SqlFn#CELL_TEXT}, which its join skips, or a door's rule's
+     *  ({@link NamedRule#EMPTY_CELL_TEXT_AS_TDS_NULL}). The honest {@code [0..1]} source and a mixed list's elements
+     *  are written the same under either. */
+    private static SqlExpr makeString(TypedNativeCall n, List<SqlExpr> args, Styled styled,
+            java.util.function.UnaryOperator<SqlExpr> cell) {
+        SqlExpr sep = args.size() == 2 ? args.get(1)
+                : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
+        // LIST position, WRAP-BY-STAMP (burn-to-zero): stamps
+        // are enforced-true; the h2 side is carried by the
+        // CarrierStrategies list encodings (the 320 floor is
+        // the referee).
+        // audit §4: an HONEST [0..1] source that is empty at
+        // runtime makeStrings to '' — pure's identity; the
+        // 'TDSNull' spelling is the TDS CELL convention and
+        // belongs to [1..1]-stamped (trust-wrapped) cell reads
+        // and the many-element arm ONLY. The leak of the
+        // sentinel as user data dies here.
+        boolean optionalScalar = !Stamps.exactlyOne(n.args().get(0))
+                && isToOne(n.args().get(0));
+        SqlExpr strs;
+        SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
+        if (mixed != null) {
+            // a mixed list (track L): each element printed as its kind
+            strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, mixed.positions(),
+                    new SqlExpr.Lambda(List.of("_tlp"), pureToString(styled, Type.Primitive.STRING,
+                            mixed.element(SqlExpr.Column.derived(null, "_tlp")))));
+        } else {
+            SqlExpr coll = PureSql.asList(args.get(0),
+                    !isToOne(n.args().get(0)));
+            SqlExpr text = PureSql.elementText(n.args().get(0), coll,
+                    SqlExpr.Column.param("x", coll));
+            // an empty element: skipped by the product's join (CELL_TEXT, D1.3 2026-11-15; legend-engine's
+            // TDSNull is the edge's), '' from an honest [0..1] source
+            strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
+                    new SqlExpr.Lambda(List.of("x"), optionalScalar
+                            ? SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit(""))
+                            : cell.apply(text)));
+        }
+        SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
+                new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,
+                        List.of(sep)),
+                new SqlExpr.StringLit(""));
+        if (args.size() == 4) {
+            return SqlExpr.Call.of(SqlFn.CONCAT, args.get(1),
+                    SqlExpr.Call.of(SqlFn.CONCAT, joined, args.get(3)));
+        }
+        return joined;
+    }
+
+    /** {@link NamedRule#EMPTY_CELL_TEXT_AS_TDS_NULL} and any rule like it: the call written with each cell's text
+     *  through {@code cell}. A cell's own text ({@code cellText}) is {@code cell} of it; {@code makeString}'s join
+     *  writes each element's so ({@link #makeString}); a join that reads no cell's text (a {@code joinStrings} that
+     *  did not meet the row-cells form, whose cells the Lowerer writes: {@code NamedRules.rowCells}) is its own
+     *  rule's. */
+    static SqlExpr cellTextsWith(TypedNativeCall n, List<SqlExpr> args, Styled styled,
+            java.util.function.UnaryOperator<SqlExpr> cell) {
+        com.legend.model.FunctionId id = n.callee().id();
+        if (Pure.AT_LEGEND_LITE_CELL_TEXT.contains(id)) {
+            return cell.apply(args.get(0));
+        }
+        if (Pure.AT_STRING_MAKE_STRING.contains(id)) {
+            return makeString(n, args, styled, cell);
+        }
+        return ownRule(n).apply(n, args, styled);
+    }
+
     /**
      * THE LOWERING'S ONE QUESTION TO THE DOOR ABOUT A CALL (the edition program's step 5: "the lowering's side is one
      * lookup"): the rule the door's table names for {@code call}, or null where it names none and the call is lowered
@@ -2433,7 +2458,7 @@ final class Scalars {
         NamedRule named = doorsRule(call, features, styled);
         if (named != null) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR");
-            return NamedRules.lower(named, call, loweredArgs);
+            return NamedRules.lower(named, call, loweredArgs, styled);
         }
         // the product's own comparison of numbers whose types only their columns give: two families are refused
         // here, where the columns are known (a door's row names its own rule for these calls, above)

@@ -1951,10 +1951,14 @@ class JavaEvalLedgerTest {
                             // a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards
                             // down"))
                             "PureText.java",
-                            // legend-engine's TDSNull written for the product's text of a joined cell, one rewrite
-                            // (D1.3, 2026-11-15; legend-pure's print forms of a Float and a DateTime, D1.2, went
-                            // 2026-11-26 with the edition program's step 8): a node for a node, no value met
-                            "PurePrintForms.java",
+                            // (PurePrintForms.java, legend-engine's TDSNull written for the product's text of a
+                            // joined cell by a pass over the SQL tree: deleted 2026-11-28, the edition program's step
+                            // 8 -- the word is a row of the doors' tables; a register moving down)
+                            // 2026-11-28, the edition program's step 8: EmptyCellTexts, the calls that read a TDS
+                            // cell's text mapped to the name of the rule the lowering holds for them (the user's
+                            // ruling of 2026-11-26, "tdsnull ... treat as table row"), read by both doors' tables as
+                            // UpstreamTies is -- data, no SQL, no value
+                            "EmptyCellTexts.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
                             // (PureMeaningCheck.java and PureMeaningRewrite.java, A3's detector and its rewrite of the

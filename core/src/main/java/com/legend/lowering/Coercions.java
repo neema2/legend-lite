@@ -123,8 +123,9 @@ final class Coercions {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TRUST_ONE) {
             rules.put(f, (n, args) -> args.get(0));
         }
-        // cellText -- a TDS cell's text (Lite.CELL_TEXT): the product's empty where the cell is, the edge's TDSNull
-        // (phase D's D1.3, 2026-11-15)
+        // cellText -- a TDS cell's text (Lite.CELL_TEXT): the product's empty where the cell is; a compatibility
+        // door's row names the rule that writes legend-engine's word there (NamedRule.EMPTY_CELL_TEXT_AS_TDS_NULL;
+        // phase D's D1.3, 2026-11-15, and the edition program's step 8, 2026-11-28)
         // typeRaise -- a run-time type check's failure (Lite.TYPE_RAISE, W5 of docs/records/d-plan-2026-11-16.md): the
         // product's raise of the kind its first argument names, the two types its operands; typed as the position it
         // stands in, as fail's is

@@ -258,9 +258,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  dialect's pass list can leave the reads out. */
     protected final java.util.List<com.legend.sql.SqlRewriter> renderPasses() {
         java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
-        // the compatibility edge's spellings, expanded before every other pass (legend-pure's print form of a Float:
-        // phase D's D1.2, 2026-11-15); the product's dialects add none
-        ps.addAll(spellingPasses());
+        // (the compatibility edge's spelling passes, a hook run before every other pass: gone 2026-11-28, the edition
+        // program's step 8 -- its last pass, legend-engine's TDSNull, is a row of the doors' tables written at
+        // lowering, lowering.NamedRule.EMPTY_CELL_TEXT_AS_TDS_NULL; no dialect rewrites the tree for an audience)
         // a DateTime's text (phase D's D1.2, 2026-11-15): the product's, a STRFTIME, at the compatibility edge too
         // (until 2026-11-26 the edge's spelling passes rewrote the node to legend-pure's print form first)
         ps.add(new DateTimeText.Expansion());
@@ -284,20 +284,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return v.toPlainString();
     }
 
-    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-engine's
-     *  {@code TDSNull}, phase D's D1.3, 2026-11-15; a Float's in-query cast and legend-pure's print form of a DateTime
-     *  were passes until 2026-11-26). The product's dialects run none: they write each node lite's own way. */
     /** {@inheritDoc} A raw statement AS WRITTEN (Phase 6's B4 (ii), 2026-11-17): a SPELLING arm -- the statement's
      *  text, no decision -- so the compatibility edge's DuckDB and Postgres translate legend-engine's H2 text here. */
     @SpellingArm
     @Override
     public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
         return statement;
-    }
-
-    @SpellingArm
-    protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-        return java.util.List.of();
     }
 
     /** Whether this dialect reads a column STORED as {@code t} other than as the database holds

@@ -1423,6 +1423,11 @@ final class ArchitectureTest {
             // that day, "match engine for engine"), inside a store query at legend-engine's door, the database's own
             // cast (the user's ruling of that day, "agreed on float/date text for engine")
             "lowering.NamedRule#DATE_TIME_TEXT_BY_CAST", "com.legend.edge.EngineTable",
+            // 2026-11-28, the edition program's step 8 (the user's ruling of 2026-11-26, "tdsnull what are downsides if
+            // treat as table row? Seems like no brainer ?"): an empty TDS cell's text, legend-engine's word for it,
+            // named in ONE class of the edge that both doors' tables read (edge.EmptyCellTexts, as UpstreamTies is
+            // read); the edge's SQL pass that wrote it after the lowering is deleted
+            "lowering.NamedRule#EMPTY_CELL_TEXT_AS_TDS_NULL", "com.legend.edge.EmptyCellTexts",
             "lowering.NamedRule#FLOAT_TEXT_BY_CAST", "com.legend.edge.EngineTable",
             "lowering.NamedRule#FLOAT_TEXT_BY_CAST_OF_A_DOUBLE", "com.legend.edge.EngineTable",
             "lowering.NamedRule#ROUND_AS_GIVEN", "com.legend.edge.EngineTable",

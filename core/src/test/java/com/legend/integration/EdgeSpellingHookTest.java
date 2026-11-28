@@ -162,17 +162,20 @@ class EdgeSpellingHookTest {
      *  product writes its six decimals, went from all twelve dialects on 2026-11-26, the edition program's step 8: that
      *  cast is a row of legend-engine's table inside a store query, edge.EngineTable, and lite's own text everywhere
      *  else. A shrink of this pin.) */
-    private static final Set<String> D1_2 = Set.of("spellingPasses");
+    // (spellingPasses left every set below 2026-11-28, a shrink -- the edition program's step 8: legend-engine's
+    // TDSNull is a row of the doors' tables, written at lowering (lowering.NamedRule.EMPTY_CELL_TEXT_AS_TDS_NULL,
+    // edge.EmptyCellTexts); the pass, edge.PurePrintForms, and the hook it hung on are deleted)
+    private static final Set<String> D1_2 = Set.of();
 
     /** D1.2's arms on MongoDB. (Its {@code dateTimeFormat}, legend-pure's {@code +0000} text of a date-time in its
      *  {@code $dateToString}s where the product writes ISO with {@code Z}, 2026-11-15: gone 2026-11-26, the edition
      *  program's step 8 -- a date-time's text used further is lite's own on every database, the user's ruling of that
      *  day, "go with lite in the middle"; a shrink.) */
-    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses");
+    private static final Set<String> D1_2_MONGO = Set.of();
 
     /** D1.2's arms and DuckDB's {@code scanOrderPasses} (W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
      *  legend-engine's scan order ({@code edge.StableScanOrder}) for the corpus replay, where the product adds none. */
-    private static final Set<String> D1_2_SCAN_ORDER = Set.of("spellingPasses", "scanOrderPasses");
+    private static final Set<String> D1_2_SCAN_ORDER = Set.of("scanOrderPasses");
 
     // THE EDGE'S IN-QUERY VARIANTS: the decisions an edge dialect takes because legend-engine computes inside the query
     // differently (the edge program's §2.3, kind B), each a listed row of its §6.
@@ -197,8 +200,8 @@ class EdgeSpellingHookTest {
 
     /** DuckDB's and Postgres's raw arm too (Phase 6's B4 (ii), 2026-11-17): legend-engine's H2 text translated, where the
      *  product runs a raw statement as written. */
-    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("spellingPasses", "scanOrderPasses", "raw");
-    private static final Set<String> D1_2_RAW = Set.of("spellingPasses", "raw");
+    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("scanOrderPasses", "raw");
+    private static final Set<String> D1_2_RAW = Set.of("raw");
 
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
             Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", D1_2),

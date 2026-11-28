@@ -258,6 +258,12 @@ final class EngineTable implements EditionTable, Edition {
         if (tie != null) {
             return tie;
         }
+        // an empty TDS cell's text: upstream's own Pure, the same inside a store query and outside one and on every
+        // database, so asked before the stamp too and never a per-database row (EmptyCellTexts; step 8, 2026-11-28)
+        NamedRule cell = EmptyCellTexts.rule(call);
+        if (cell != null) {
+            return cell;
+        }
         if (call.outsideStore()) {
             return null;
         }
