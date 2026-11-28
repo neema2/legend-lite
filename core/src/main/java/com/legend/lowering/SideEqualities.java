@@ -170,9 +170,9 @@ public final class SideEqualities {
      *  value; NULL where it has none). */
     static SqlQuery single(String cte, SqlQuery rows) {
         OutputCol o = new OutputCol(SINGLE, rows.outputs().get(0).type(), true);
-        if (o.type() instanceof SqlType.Struct) {
-            // an instance has no least, and not every database folds structs: the side's one row, read by a
-            // sub-query (step 6B part 2, objects; H2 2.5 has no ANY_VALUE and its MIN wants a scalar)
+        if (!(o.type() instanceof SqlType.Scalar) && !(o.type() instanceof SqlType.Decimal)) {
+            // an instance, a list or a map has no least, and not every database folds them: the side's one row,
+            // read by a sub-query (step 6B part 2; H2 2.5 has no ANY_VALUE and its MIN wants a scalar)
             OutputCol held = new OutputCol(O, o.type(), true);
             SqlSelect one = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of(cte, rows.outputs(), O),
                     O, held)), false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
@@ -302,6 +302,32 @@ public final class SideEqualities {
                 whole || keys == null || otherKeys == null ? aRaw
                         : restrictedRows(new SqlSource.Subselect(aRaw, "i", null), aRaw, as, otherKeys),
                 aKind, aOne, tracked(aWrapped), false, same);
+    }
+
+    /**
+     * {@link #boundOnce} FOR TWO SIDES OF CONTAINERS (maps, Lists that hold maps or objects; step 6B part 2): each
+     * side's values bound once as its plan holds them, and {@code same}, the product's own comparison of the two
+     * bound sides ({@code ComparedBy}), the verdict; the values ride the failure as carried. Null where a side's
+     * values have no typed column.
+     */
+    public static @com.legend.base.Nullable Compared boundContainers(SqlQuery eWrapped, Type eKind, boolean eOne,
+            SqlQuery aWrapped, Type aKind, boolean aOne, java.util.function.BiFunction<Bound, Bound, SqlExpr> same) {
+        SqlQuery eRows = valueRows(eWrapped);
+        SqlQuery aRows = valueRows(aWrapped);
+        return eRows == null || aRows == null ? null
+                : bound(eRows, eKind, eOne, false, aRows, aKind, aOne, false, false, same);
+    }
+
+    /** Whether a value of type {@code t} is a container whose comparison the product makes by a reduction
+     *  ({@code ComparedBy.container}): a map, or a List that holds maps, Pairs or objects. */
+    public static boolean container(Type t) {
+        return ComparedBy.container(t);
+    }
+
+    /** {@link #container}, or any List: what the test checker hands the product's comparison whole (a List of plain
+     *  values is compared as the database holds it, an Integer against a Decimal by value). */
+    public static boolean containerOrList(Type t) {
+        return ComparedBy.container(t) || PlatformTypes.isListCarrier(t);
     }
 
     /** {@link #boundOnce}'s statement over two sides' typed rows. */

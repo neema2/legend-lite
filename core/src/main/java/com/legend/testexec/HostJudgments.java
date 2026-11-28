@@ -335,6 +335,11 @@ final class HostJudgments {
         // (a Variant cast to Any is a Variant in its facts, read at planning: JudgmentFacts.sideType)
         List<Object> e = LiteWords.enumNames(ef, af, structuredSide(ef, eRaw));
         List<Object> a = LiteWords.enumNames(af, ef, structuredSide(af, aRaw));
+        if (LIST.equals(ef.classFqn()) && LIST.equals(af.classFqn()) && !keys.byClass().isEmpty()) {
+            // (two Lists that hold keyed objects: a List's values on the wire are its elements, each restricted to
+            // its own class's keys -- never to the List's own "keys", its values)
+            return List.of(insideRestricted(e, keys), insideRestricted(a, keys));
+        }
         var ik = restrictKeys(keys, ef, af, e, a);
         if (ik == null) {
             // two sides declared of TWO classes, a class and one of its own (step 6B part 2, 2026-11-28): each
@@ -345,7 +350,10 @@ final class HostJudgments {
             // database checker and the product answer that it is)
             var related = keys.eSubA() || keys.aSubE() ? keys.e() != null ? keys.e() : keys.a() : null;
             if (related == null || ef.classFqn() == null || af.classFqn() == null) {
-                return List.of(e, a);
+                // (containers that hold keyed objects: each object met inside restricted to its class's keys --
+                // planning listed the classes, JudgmentFacts.classesHeld; empty for any other pair)
+                return keys.e() == null && keys.a() == null && !keys.byClass().isEmpty()
+                        ? List.of(insideRestricted(e, keys), insideRestricted(a, keys)) : List.of(e, a);
             }
             return List.of(restrictToKeys(ofTheirClass(e, ef.classFqn()), related, keys),
                     restrictToKeys(ofTheirClass(a, af.classFqn()), related, keys));
@@ -357,6 +365,39 @@ final class HostJudgments {
         boolean classified = carryTheirClass(e) && carryTheirClass(a);
         return List.of(restrictToKeys(classified ? e : withoutTheirClass(e), ik, keys),
                 restrictToKeys(classified ? a : withoutTheirClass(a), ik, keys));
+    }
+
+    private static final String LIST = "meta::pure::functions::collection::List";
+
+    private static List<Object> insideRestricted(List<Object> values, HostJudgment.Keys keys) {
+        List<Object> out = new ArrayList<>(values.size());
+        for (Object v : values) {
+            out.add(insideRestricted(v, keys));
+        }
+        return out;
+    }
+
+    /** {@code v} with every keyed object inside it -- a map carrying its class, one of those planning listed --
+     *  restricted to its classifier and its keys ({@link #restrictOne}); a map or a list on the way is walked. */
+    private static Object insideRestricted(Object v, HostJudgment.Keys keys) {
+        if (v instanceof java.util.Map<?, ?> m) {
+            if (m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE) instanceof String own && keys.byClass().get(own) != null) {
+                return restrictOne(m, keys.byClass().get(own), keys);
+            }
+            java.util.Map<Object, Object> walked = new java.util.LinkedHashMap<>();
+            for (java.util.Map.Entry<?, ?> entry : m.entrySet()) {
+                walked.put(entry.getKey(), insideRestricted(entry.getValue(), keys));
+            }
+            return walked;
+        }
+        if (v instanceof List<?> list) {
+            List<Object> walked = new ArrayList<>(list.size());
+            for (Object x : list) {
+                walked.add(insideRestricted(x, keys));
+            }
+            return walked;
+        }
+        return v;
     }
 
     /** {@code values}, each instance that carries no classifier given the class its side is declared. */

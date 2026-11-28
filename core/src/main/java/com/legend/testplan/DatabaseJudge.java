@@ -191,6 +191,29 @@ public final class DatabaseJudge {
         // host reads it are compared as typed values, their failure recorded by the host's builders from the values
         // the pair's typed kinds (JudgmentFacts.typedPair: two number kinds unequal unless empty, S127; a date by its
         // kind and its instant, S399)
+        if (!anyAny && !canonicalOrder && com.legend.lowering.SideEqualities.containerOrList(eSpec.info().type())
+                && com.legend.lowering.SideEqualities.containerOrList(aSpec.info().type())) {
+            // two sides of containers (maps, Lists that hold maps or objects; step 6B part 2): the product's own
+            // comparison of the two, each side bound once -- lowering.ComparedBy reduces each to what it is compared
+            // by, in a query and here. Where the product has no typed comparison it refuses by name: unjudged
+            TypedSpec same = com.legend.compiler.spec.VerdictQueries.sameSides(eSpec, aSpec, specs, env.assertAt());
+            TypedSpec eSide = eSpec;
+            TypedSpec aSide = aSpec;
+            com.legend.lowering.VerdictSql.TypedRow typed;
+            try {
+                typed = com.legend.lowering.VerdictSql.typed(com.legend.lowering.SideEqualities.boundContainers(
+                        java.util.Objects.requireNonNull(we).plan(), re.kinds().get(ie), atMostOne(eSpec),
+                        java.util.Objects.requireNonNull(wa).plan(), ra.kinds().get(ia), atMostOne(aSpec),
+                        (e, a) -> overBound(same, eSide, eSide, e, aSide, aSide, a, env)), wantEqual, true);
+            } catch (com.legend.error.NotImplementedException refused) {
+                return unjudged(name, "containers with no typed comparison: " + refused.getMessage());
+            }
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.equality(false, false), wantEqual,
+                        JudgmentFacts.sideFacts(eSpec), JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
+            }
+        }
         if (twoClasses) {
             TypedSpec expected = eSpec;
             TypedSpec actual = aSpec;
@@ -765,6 +788,26 @@ public final class DatabaseJudge {
                             env));
             com.legend.lowering.VerdictSql.TypedRow bound = com.legend.lowering.VerdictSql.typed(compared, !negated,
                     true);
+            if (bound != null) {
+                return runTyped(name, bound, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.CONTAINS, !negated, JudgmentFacts.sideFacts(coll),
+                        JudgmentFacts.sideFacts(val), null, -1), c.on(env));
+            }
+        }
+        if (!literal && !cr.tdsWrapped() && c.side() != null && v.side() != null
+                && com.legend.lowering.SideEqualities.containerOrList(coll.info().type())
+                && com.legend.lowering.SideEqualities.containerOrList(val.info().type())) {
+            // a container among containers (step 6B part 2): the product's own contains of the two, bound once
+            TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(coll, val, specs, env.assertAt());
+            com.legend.lowering.VerdictSql.TypedRow bound;
+            try {
+                bound = com.legend.lowering.VerdictSql.typed(com.legend.lowering.SideEqualities.boundContainers(
+                        c.side().plan(), coll.info().type(), atMostOne(coll), v.side().plan(), val.info().type(),
+                        atMostOne(val), (list, one) -> overBound(among, coll, coll, list, val, val, one, env)),
+                        !negated, true);
+            } catch (com.legend.error.NotImplementedException refused) {
+                return unjudged(name, "containers with no typed comparison: " + refused.getMessage());
+            }
             if (bound != null) {
                 return runTyped(name, bound, new com.legend.testexecutionplan.RootLoop.Report(
                         com.legend.testexecutionplan.RootLoop.Family.CONTAINS, !negated, JudgmentFacts.sideFacts(coll),

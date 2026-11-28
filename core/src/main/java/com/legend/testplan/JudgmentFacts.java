@@ -163,6 +163,23 @@ final class JudgmentFacts {
     }
 
     /** The compiler's key tree in the plan's vocabulary. */
+    private static void classesHeld(Type t, ModelContext ctx, Map<String, KeyTree> byClass) {
+        if (!(t instanceof Type.GenericType g) || !(PlatformTypes.isMapCarrier(t) || PlatformTypes.isListCarrier(t))) {
+            return;
+        }
+        for (Type held : g.arguments()) {
+            String fqn = EqualityKeys.fqnOf(held);
+            if (held instanceof Type.ClassType && fqn != null && !PlatformTypes.isAny(held)
+                    && !PlatformTypes.isVariant(held) && !PlatformTypes.isNil(held)) {
+                KeyTree keys = keyTree(EqualityKeys.resolve(ctx, held));
+                if (keys != null) {
+                    byClass.putIfAbsent(fqn, keys);
+                }
+            }
+            classesHeld(held, ctx, byClass);
+        }
+    }
+
     static @Nullable KeyTree keyTree(@Nullable EqualityKeys k) {
         if (k == null) {
             return null;
@@ -202,6 +219,11 @@ final class JudgmentFacts {
         Set<String> seen = new java.util.HashSet<>();
         ownClassesOfTheSlots(e, ctx, byClass, seen);
         ownClassesOfTheSlots(a, ctx, byClass, seen);
+        // (a map or a List that holds objects: the keyed classes it is declared to hold, each instance of which the
+        // host restricts to its keys where it meets it inside the container -- step 6B part 2: compared whole, a
+        // map to keyed objects was "not equal" to one whose objects differ in a field that is no key)
+        classesHeld(eSpec.info().type(), ctx, byClass);
+        classesHeld(aSpec.info().type(), ctx, byClass);
         return new HostJudgment.Keys(keyTree(e), keyTree(a), eSubA, aSubE, byClass);
     }
 
