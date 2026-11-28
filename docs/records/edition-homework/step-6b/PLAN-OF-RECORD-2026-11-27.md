@@ -595,3 +595,21 @@ What waits for the user's word is one page: `for-the-user-2026-11-28.md`.
 Found building slice 6 and fixed in slice 5: two single date-times each BUILT to another precision
 (`date(2020, 1, 1, 10) == date(2020, 1, 1, 10, 0)`) compared their texts and answered false. In the landed code
 too (it is as old as the date-time text carrier); the measure asked only written ones.
+
+### 2026-11-28, 05:05 UTC
+
+- **Slice 3 is pushed to the pull request** (`c7babd506`, 05:04 UTC; code `4b77dadaf`). Its local round ended 340
+  pass, 1 skipped, 13 failed, the 13 being the known root-container tests (twelve Postgres-backed tests and
+  `//core:is_numeric_probe_test`). The Bazel-built measure equals the committed baseline (the build tree stayed
+  clean). Lanes on `4b77dadaf`: SQLite+MongoDB, BigQuery, Databricks, the heavy lane (lite's own PCT, channel B on
+  H2, channel B twice) and MariaDB+MySQL+ClickHouse report no outcome that differs (MariaDB channel B's list-order
+  flake as always, re-run by the lane); Postgres+Trino (with the measure on Postgres) and Snowflake still to
+  report. CI on the push covers slice 2's two `checks` jobs too. **When CI is green and the two lanes are in: move
+  the program branch `claude/compat-b3-nufdlk` to `c7babd506`.**
+- **Slice 5's round** started 05:04 on `76f80f4fc` (`scratchpad/batch114.sh claude/step-6b-slice-5`, output
+  `scratchpad/b117.out`). After it: check `b114-baseline.tsv` against the committed baseline, the SQL size pins,
+  then lanes, then one push.
+- **Slice 6** (`claude/step-6b-slice-6`, `d6c3db450`): reviewed (`review-10-of-slice-6.md`), its seven findings
+  answered by narrowing the path to two sides of one plain type each held as that type; to re-measure on slice
+  5's jars once the round's build step is done.
+- **Passing to refusing, counted for the user** (their question, 04:57): `for-the-user-2026-11-28.md`, section E.
