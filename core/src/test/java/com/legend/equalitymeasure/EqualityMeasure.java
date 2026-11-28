@@ -488,10 +488,6 @@ public final class EqualityMeasure {
         out.add(new Sides("empty string and the empty list", "F", "''", "[]"));
         out.add(new Sides("an empty list forced to one, and the empty list", "E", "[]->toOne()", "[]"));
         out.add(new Sides("lists inside lists, Integer and Decimal", "T", "list([1, 2])", "list([1D, 2D])"));
-        // (WRONG today, on every database, and older than step 6B: the second map applies its function to the slot
-        // the first left for the element it answered nothing for. The fix -- a map over a list that visibly builds
-        // such slots reads it without them -- adds a list filter to one of core's pinned statements, and a size
-        // pin rises only with the user's word: for-the-user-2026-11-28.md, section C)
         out.add(new Sides("an empty slot through a second map", "T",
                 "[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | if($y > 0, |'a', |'b'))", "['a']"));
         out.add(new Sides("list decimal differs", "F", "[1.0D, 10.125D]->filter(x | $x > 0D)", "[1.0D, 10.5D]"));

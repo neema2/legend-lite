@@ -32,18 +32,16 @@ PCT runs at legend-pure's door: if a PCT test's answer moves for A1 or A2, it is
 | 29 | A `map` whose function may answer nothing is typed with its source's count (`[2]`), so the Java checker fails an `assertEquals` over such a list | new compile errors possible |
 | - | ONE year written under the abstract `Date` against ONE held date-time fails when the query runs (the answer is false) | none |
 
-## C2. One fix that needs your word, because a SQL size pin would rise
+## C2. RULED: the `map` fix goes in, its SQL size pin moved
 
-**A `map` over a list that another `map` built with gaps.** `[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7)`
-answers `[7, 7]`; Pure answers `[7]` (the first `map` answers nothing for 2, so there is no second element). It is
-wrong on every database and at every door, and older than step 6B. The fix is small and was built and measured in
-slice 5: where the query's text shows a list is built with such gaps, the next `map` reads it without them. It was
-taken out again because it adds a list filter, twice, to ONE of core's pinned statements (+66 characters on
-DuckDB): the statement that reads `...->map(i | $i->get('sku'))->map(s | $s->to(@String)->toOne())` over a JSON
-payload -- where an item with no `sku` is today a gap the second `map` is applied to. That is the fix doing its
-job, but "SQL size pins go up only with the user's word". **Say yes and it goes back in with the pin moved by that
-amount and a dated note; say no and the measure keeps the row as a known wrong answer.** (Compacting every mapped
-list where it is built, the first thing tried, cost more: one filter in each of several PCT and core statements.)
+The user, 2026-11-28 about 05:55 UTC: "I will say it's okay to bump small char SQL pins to fix bugs like map()".
+**A `map` over a list that another `map` built with gaps** (`[1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7)`
+answered `[7, 7]`; Pure answers `[7]`) is fixed in slice 5 again: where the query's text shows a list is built with
+such gaps, the next `map` reads it without them. It adds a list filter, twice, to ONE of core's pinned statements
+(+66 characters on DuckDB: `...->map(i | $i->get('sku'))->map(s | $s->to(@String)->toOne())` over a JSON payload,
+where an item with no `sku` was a gap the second `map` was applied to). The pin is regenerated with the fix and
+the rise is named in that commit. How the ruling is read until the user says otherwise: a rise of under about 100
+characters in a statement, for a fix of a wrong answer, each rise listed to the user; anything larger is asked first.
 
 ## D. Standing
 
@@ -62,3 +60,15 @@ list where it is built, the first thing tried, cost more: one filter in each of 
   from refused to answered. Slice 6's measure is slice 5's.
 - Known, slice 5, by reading and with no test on it: two date-times with digits past the microsecond, the same to
   the letter, compared equal as texts and now raise the named refusal that reading them as instants raises.
+- **Slice 5's first full local round (2026-11-28, about 06:00 UTC), one passing to refusing, on H2 only:**
+  `assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))` passed everywhere and is refused
+  by name on H2 now (`AssertBarTest`, its expectation moved with a dated note). The type a list holds is now read
+  through `take`, so this is the plain `...->cast(@Any)->contains('a')`: never a member, the list still evaluated
+  (the ruling "Build 3") -- which H2 has no SQL for, and has always refused for the plain form. Until slice 5 the
+  `take` hid the list from that reading and a constant false answered with the list unread. DuckDB and SQLite
+  answer as before. **The user may rule it the other way** (keep the constant where H2 cannot evaluate the list).
+- The same round, refused to answered: `[1, 2]->map(x | hasSameElements([$x, 2], [2, 1]))` answers on a database
+  that compares lists (`RootComparisonTest`'s expectation moved; a Pair there is still refused by name).
+- The same round, a slice 5 defect found and fixed before anything was pushed: a membership written in a
+  function's body with a whole-number list, called with a Float literal (`f(1.0)`, body `$v->in([0, 1])`),
+  answered false (three tests: `LiteralRuleAnswersTest`, `RunTimeComparisonTest`, `UpstreamTiesTest`).
