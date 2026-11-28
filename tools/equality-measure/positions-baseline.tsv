@@ -1,4 +1,97 @@
-database	right everywhere	refused by name everywhere	ANSWERED ONLY IN SOME PLACES	FAILS SOMEWHERE	A WRONG ANSWER SOMEWHERE	CONTRADICTS	places left out
-DuckDB	75	0	2	18	2	9	0
-H2	80	10	3	7	1	5	4
-SQLite	73	2	12	4	3	12	0
+database	matrix	comparison	kind
+*	values	(asked)	88 comparisons in 20 places
+DuckDB	values	enum and string	A WRONG ANSWER SOMEWHERE
+DuckDB	values	int and float	A WRONG ANSWER SOMEWHERE
+DuckDB	values	year same	CONTRADICTS
+DuckDB	values	year-month same	CONTRADICTS
+DuckDB	values	built to the hour and literal	CONTRADICTS
+DuckDB	values	Number int and float	CONTRADICTS
+DuckDB	values	Any int and string	CONTRADICTS
+DuckDB	values	Any day and date-time	CONTRADICTS
+DuckDB	values	Date day and date-time	CONTRADICTS
+DuckDB	values	max of a mixed list	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	empty and value	FAILS SOMEWHERE
+DuckDB	values	computed empty and written empty	FAILS SOMEWHERE
+DuckDB	values	list date-times two precisions	FAILS SOMEWHERE
+DuckDB	values	list days computed	FAILS SOMEWHERE
+DuckDB	values	mixed list computed	FAILS SOMEWHERE
+DuckDB	values	Number lists int and float	CONTRADICTS
+DuckDB	values	Number lists int and decimal	FAILS SOMEWHERE
+DuckDB	values	nested lists	FAILS SOMEWHERE
+DuckDB	values	maps same order	FAILS SOMEWHERE
+DuckDB	values	maps other order	FAILS SOMEWHERE
+DuckDB	values	maps a value differs	FAILS SOMEWHERE
+DuckDB	values	pairs int and decimal	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	list of pairs computed	FAILS SOMEWHERE
+DuckDB	values	tables same	FAILS SOMEWHERE
+DuckDB	values	tables rows other order	FAILS SOMEWHERE
+DuckDB	values	tables a cell differs	FAILS SOMEWHERE
+DuckDB	values	tables a column's name differs	FAILS SOMEWHERE
+H2	values	(a place left out)	kept-in-map: refused DialectCapability
+H2	values	(a place left out)	list-exists: refused DialectCapability
+H2	values	(a place left out)	list-forAll: refused DialectCapability
+H2	values	(a place left out)	reads-element: refused DialectCapability
+H2	values	enum and string	A WRONG ANSWER SOMEWHERE
+H2	values	Number int and float	CONTRADICTS
+H2	values	Any int and string	CONTRADICTS
+H2	values	Any day and date-time	CONTRADICTS
+H2	values	Date day and date-time	CONTRADICTS
+H2	values	max of a mixed list	refused by name everywhere
+H2	values	optional none and value	refused by name everywhere
+H2	values	two optionals none	refused by name everywhere
+H2	values	optional one and value	refused by name everywhere
+H2	values	computed list same	refused by name everywhere
+H2	values	computed list other order	refused by name everywhere
+H2	values	two computed lists	refused by name everywhere
+H2	values	list strings computed	refused by name everywhere
+H2	values	list date-times two precisions	refused by name everywhere
+H2	values	list joined from an empty value	refused by name everywhere
+H2	values	nested lists	FAILS SOMEWHERE
+H2	values	maps same order	FAILS SOMEWHERE
+H2	values	maps other order	FAILS SOMEWHERE
+H2	values	maps a value differs	FAILS SOMEWHERE
+H2	values	pairs int and decimal	ANSWERED ONLY IN SOME PLACES
+H2	values	instances written alike	ANSWERED ONLY IN SOME PLACES
+H2	values	tables a column's name differs	ANSWERED ONLY IN SOME PLACES
+SQLite	values	enum and string	A WRONG ANSWER SOMEWHERE
+SQLite	values	int and decimal differ	ANSWERED ONLY IN SOME PLACES
+SQLite	values	decimal sum exact	refused by name everywhere
+SQLite	values	list decimal differs	ANSWERED ONLY IN SOME PLACES
+SQLite	values	decimal two scales	ANSWERED ONLY IN SOME PLACES
+SQLite	values	decimal computed two scales	refused by name everywhere
+SQLite	values	int and float	A WRONG ANSWER SOMEWHERE
+SQLite	values	date-time two written precisions	CONTRADICTS
+SQLite	values	year same	CONTRADICTS
+SQLite	values	year-month same	CONTRADICTS
+SQLite	values	built to the hour and literal	CONTRADICTS
+SQLite	values	Number int and float	CONTRADICTS
+SQLite	values	Any int and string	ANSWERED ONLY IN SOME PLACES
+SQLite	values	Any day and date-time	ANSWERED ONLY IN SOME PLACES
+SQLite	values	Date day and date-time	ANSWERED ONLY IN SOME PLACES
+SQLite	values	max of a mixed list	ANSWERED ONLY IN SOME PLACES
+SQLite	values	empty and value	FAILS SOMEWHERE
+SQLite	values	optional one and value	CONTRADICTS
+SQLite	values	list int and decimal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	list decimal two scales	CONTRADICTS
+SQLite	values	written list decimal two scales	CONTRADICTS
+SQLite	values	list date-times two precisions	A WRONG ANSWER SOMEWHERE
+SQLite	values	nested lists	CONTRADICTS
+SQLite	values	maps same order	ANSWERED ONLY IN SOME PLACES
+SQLite	values	maps other order	ANSWERED ONLY IN SOME PLACES
+SQLite	values	maps a value differs	ANSWERED ONLY IN SOME PLACES
+SQLite	values	pairs int and decimal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	tables rows other order	CONTRADICTS
+SQLite	values	tables a column's name differs	CONTRADICTS
+*	store	(asked)	18 comparisons in 9 places
+DuckDB	store	integer and float columns	FAILS SOMEWHERE
+DuckDB	store	day and date-time columns	FAILS SOMEWHERE
+DuckDB	store	float column and whole-number literal	CONTRADICTS
+DuckDB	store	computed column value and literal	FAILS SOMEWHERE
+H2	store	integer and float columns	FAILS SOMEWHERE
+H2	store	day and date-time columns	FAILS SOMEWHERE
+H2	store	float column and whole-number literal	CONTRADICTS
+H2	store	computed column value and literal	FAILS SOMEWHERE
+SQLite	store	integer and float columns	FAILS SOMEWHERE
+SQLite	store	day and date-time columns	FAILS SOMEWHERE
+SQLite	store	float column and whole-number literal	CONTRADICTS
+SQLite	store	computed column value and literal	FAILS SOMEWHERE
