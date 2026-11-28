@@ -402,8 +402,26 @@ final class Equalities {
      * type (JSON, a date as its text, a tagged value: their own comparisons).
      */
     private static @com.legend.base.Nullable SqlExpr heldApart(TypedNativeCall n, List<SqlExpr> sides) {
-        if (n.pos() == null) {
-            return null;   // a comparison lite writes itself (a mapping's translation, a milestoning filter): as HeldKinds
+        if (!apartByTheText(n)) {
+            return null;
+        }
+        TypedSpec l = n.args().get(0);
+        TypedSpec r = n.args().get(1);
+        if (aList(sides.get(0)) || aList(sides.get(1))) {
+            return sameOnlyWhereBothEmpty(holdsNothing(l, sides.get(0)), holdsNothing(r, sides.get(1)));
+        }
+        return mayHoldNoValue(l, sides.get(0)) && mayHoldNoValue(r, sides.get(1))
+                ? sameOnlyWhereBothEmpty(isNone(sides.get(0)), isNone(sides.get(1)))
+                : neverEqualButEvaluated(sides.get(0), sides.get(1));
+    }
+
+    /** Whether the query's own TEXT says {@code n}'s two sides hold two types that are never equal
+     *  ({@link #heldApart}'s reading, with nothing lowered): what the planner asks before it plans the pair a
+     *  statement of its own -- it stands aside for the pairs this rule answers where the comparison stands
+     *  ({@code SideEqualities.apartByTheText}; step 6B part 2). */
+    static boolean apartByTheText(TypedNativeCall n) {
+        if (n.pos() == null || n.args().size() != 2) {
+            return false;   // a comparison lite writes itself (a mapping's translation, a milestoning filter): as HeldKinds
         }
         TypedSpec l = n.args().get(0);
         TypedSpec r = n.args().get(1);
@@ -414,7 +432,7 @@ final class Equalities {
         // literal rule below reads it as the column's type (review 4 of slice 3a, note 9: open)
         boolean bothWritten = literal(l) && literal(r);
         if (!bothWritten && !(typedAtRunTime(l) || typedAtRunTime(r))) {
-            return null;
+            return false;
         }
         // each side's kind where the query's own TEXT names it (MixedEncoding.kindThroughUpcasts: its Pure type, the
         // value under an upcast, through a filter), and whether two kinds can be equal by the product's number rule.
@@ -424,20 +442,12 @@ final class Equalities {
         String left = MixedEncoding.kindThroughUpcasts(l);
         String right = MixedEncoding.kindThroughUpcasts(r);
         if (left == null || right == null || NumberFamilies.TWO_FAMILIES.canEqual(left, right)) {
-            return null;
+            return false;
         }
         // a NUMBER literal the query writes against a value of the other number family reads as that family where
         // it is exact there (the literal rule, HeldKinds.readsAs); two literals never do
-        if (!bothWritten && MixedEncoding.numberTypePlace(left) >= 0 && MixedEncoding.numberTypePlace(right) >= 0
-                && (HeldKinds.readsAs(l, right) || HeldKinds.readsAs(r, left))) {
-            return null;
-        }
-        if (aList(sides.get(0)) || aList(sides.get(1))) {
-            return sameOnlyWhereBothEmpty(holdsNothing(l, sides.get(0)), holdsNothing(r, sides.get(1)));
-        }
-        return mayHoldNoValue(l, sides.get(0)) && mayHoldNoValue(r, sides.get(1))
-                ? sameOnlyWhereBothEmpty(isNone(sides.get(0)), isNone(sides.get(1)))
-                : neverEqualButEvaluated(sides.get(0), sides.get(1));
+        return bothWritten || MixedEncoding.numberTypePlace(left) < 0 || MixedEncoding.numberTypePlace(right) < 0
+                || !(HeldKinds.readsAs(l, right) || HeldKinds.readsAs(r, left));
     }
 
     /** Whether {@code side} is the WRITTEN empty list: {@code []}; and, under the product's rule, {@code []} read

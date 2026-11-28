@@ -888,7 +888,7 @@ public class DuckDb extends AnsiSqlRenderer {
      *  ran). What needs a statement of its own -- two tables compared, two maps -- cannot stand inside one. */
     @Override
     protected SqlWriter lambda(SqlWriter writer, SqlExpr.Lambda l) {
-        if (holdsASubquery(l.body())) {
+        if (SubqueriesOutOfLambdas.holdsASubquery(SubqueriesOutOfLambdas.written(l.body()))) {
             throw new DialectCapability("a value that needs a statement of its own (a comparison of two tables or of"
                     + " two maps, a read of another query) stands inside a list's function, where DuckDB runs no"
                     + " sub-query: write it outside the function");
@@ -897,42 +897,13 @@ public class DuckDb extends AnsiSqlRenderer {
                 .append(" -> ").expr(l.body(), 0);
     }
 
-    private static boolean holdsASubquery(SqlExpr body) {
-        // what DuckDB WRITES of the body: of the "same values" instruction its two list values alone (sameLists);
-        // the two sides' rows that ride with it, for the dialects that compare rows, are never written here
-        SqlExpr written = new com.legend.sql.SqlRewriter() {
-            @Override
-            protected SqlExpr expr(SqlExpr x) {
-                // (a membership's riding rows likewise: DuckDB writes the needle and the list value)
-                return x instanceof SqlExpr.Call c && c.args().size() == 4
-                        && (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER)
-                        ? new SqlExpr.Call(c.fn(), c.args().subList(0, 2))
-                        : x instanceof SqlExpr.Membership m && m.rows() != null
-                        ? new SqlExpr.Membership(m.needle(), m.collection()) : x;
-            }
-
-            SqlExpr of(SqlExpr x) {
-                return rewriteExpr(x);
-            }
-        }.of(body);
-        boolean[] hit = {false};
-        new com.legend.sql.SqlRewriter() {
-            @Override
-            protected SqlExpr expr(SqlExpr x) {
-                if (x instanceof SqlExpr.ScalarSubquery || x instanceof SqlExpr.Exists
-                        || x instanceof SqlExpr.InSubquery || x instanceof SqlExpr.Quantified) {
-                    hit[0] = true;
-                }
-                return x;
-            }
-
-            void scan(SqlExpr x) {
-                rewriteExpr(x);
-            }
-        }.scan(written);
-        return hit[0];
+    /** {@inheritDoc} A call whose lambda holds a sub-query is written with the sub-query read once outside the
+     *  lambda ({@link SubqueriesOutOfLambdas}); one with no such form is refused where its lambda is written. */
+    @Override
+    protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
+        SqlExpr outside = e instanceof SqlExpr.Call call ? SubqueriesOutOfLambdas.of(call) : null;
+        return super.expr(writer, outside == null ? e : outside, parentPrec);
     }
-
 
     /** {@inheritDoc} DuckDB keeps the SQL standard's {@code information_schema} (and a {@code pg_catalog}, which no
      *  grid lists): the corpus's catalog-grid tests prove it, the primary keys' {@code key_column_usage} and

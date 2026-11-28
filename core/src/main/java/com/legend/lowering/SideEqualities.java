@@ -1391,9 +1391,18 @@ public final class SideEqualities {
 
     /** A kind whose values a database's typed list holds as the values themselves. */
     private static boolean plainKind(Type kind) {
+        // (an enumeration's values, held as their names: two lists of ONE enumeration -- comparedAsValues asks the
+        // two kinds be the same -- are compared as two lists of Strings are; step 6B part 2)
         return exactNumber(kind) || kind == Type.Primitive.STRING || kind == Type.Primitive.BOOLEAN
                 || kind == Type.Primitive.FLOAT || kind == Type.Primitive.STRICT_DATE
-                || kind == Type.Primitive.DATE_TIME;
+                || kind == Type.Primitive.DATE_TIME || kind instanceof Type.EnumType;
+    }
+
+    /** Whether the query's own text says {@code equal}'s two sides hold two types that are never equal, which the
+     *  lowering answers where the comparison stands ({@code Equalities.heldApart}: false, or the same only where
+     *  both hold nothing, each side still evaluated): the planner plans such a pair no statement of its own. */
+    public static boolean apartByTheText(com.legend.compiler.spec.typed.TypedNativeCall equal) {
+        return Equalities.apartByTheText(equal);
     }
 
     /** Whether {@code kind} is an exact number's: an Integer's or a Decimal's (the two are equal by their value). */

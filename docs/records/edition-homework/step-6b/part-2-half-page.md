@@ -103,3 +103,62 @@ After every change that could move them: `//core:guardrails`, `//core:guardrails
   where the query's text names the kind.
 - **Left on the old path on purpose:** a side written as number literals against a value typed at run time (the
   host judge does not read a written literal as the product does: owed).
+
+## Objects, maps, enumerations and the DuckDB fix (2026-11-28, about 13:00 to 15:30 UTC; the no-Bazel loop only)
+
+*Not reviewed (the audit started on the first cut was stopped by the user's interrupt and not restarted), guards and
+Bazel tests not run yet. The user, the same afternoon: mixed lists LAST, after the step 7 research is read.*
+
+**One reduction for what an object is compared by** (`InstanceEquality.reduced`, over the leaves
+`SideEqualities.pairedLeaves` names): the class it actually is, then its keys by value, or its identity where its
+class declares no key. Every operation built on `equal` over objects reads it:
+
+| Operation | Before | Now |
+|---|---|---|
+| `==`, `hasSameElements` of two lists of objects | a statement of its own (`SideEqualities.instances`); inside a row, the TEXT of the keys | the one "same values" instruction over the two lists, each object reduced, the sides' rows riding (`InstanceEquality.sameInstances`); the planner stands aside (`SideEqualities.instancesAsValues`) |
+| `contains`, `in` | the text of the keys | the reduced value among the reduced list, the list's rows riding (`memberInstances`; `CarrierStrategies.membershipRule` reads a struct needle leaf by leaf) |
+| `indexOf`, `removeDuplicates`, `isDistinct` | the text of the keys | the same reduction (`reducedBy`); the text only where a leaf has no typed reading |
+| an assert of two sides of objects, `assertContains` of objects | the checker's own statements (`instances`, `containsInstances`) | the product's comparison over sides bound once (`SideEqualities.boundInstances`) |
+
+Deleted: `SideEqualities.instances`, `containsInstances`, `VerdictSql.typedContainsInstances`.
+
+**What it fixed, each measured before and after:**
+
+- A Decimal key written at two scales (`1.0D`, `1.00D`): `indexOf` answered -1 (wrong) on DuckDB; right now.
+- Two Pairs, an Integer against a Decimal: false on SQLite, refused on H2, "unjudged" by the database checker; right on
+  all three, judged.
+- A list of Pairs compared inside a list's function on DuckDB: refused; right now.
+- `contains` of an object on H2: refused; right now (the rows ride). On SQLite an Integer against a Decimal inside
+  Pairs: false; right now.
+- **The class an object actually is** (the user: "Does it work for polymorphic at runtime too?"): a child under its
+  parent's type was already compared rightly by `==`; `contains` of a child among a list typed its parent's answered
+  FALSE (a fold on the two DECLARED classes, `InstanceEquality.equality`, there before this work). Two declared
+  classes are now compared by the class each actually is, then keys or identity, where both layouts carry the class
+  and the two declare the same keys (`SideEqualities.oneReadingOfTwoClasses`); the fold stays for two objects built
+  where they stand.
+- The host checker compared a classifier present on ONE side only (a list of built objects carries each one's, one
+  built object read as a value carries none): `assertContains([^Q(id=2, ...)], ^Q(id=2, ...))` failed under the host
+  checker alone. It compares the classifier where both sides carry one (`HostJudgments.asEqualSees`).
+
+**Maps:** two single maps are compared as values, each as its entries sorted by key (`Equalities.sameMaps`,
+`SideEqualities.entriesOf`, the reduction the statement form used); the planner stands aside
+(`SideEqualities.mapsAsValues`). So a map read from the row, refused by name until now, is answered. SQLite, which
+refused every comparison of two maps, answers the ones held as one map type.
+
+**Enumerations:** two lists of one enumeration join the kinds compared as values (`SideEqualities.plainKind`).
+
+**Two types the query's text names** (a list of whole numbers under `Number` against Floats under `Number`): the
+planner stands aside for what `Equalities.heldApart` answers (`Equalities.apartByTheText`).
+
+**DuckDB runs no sub-query inside a list's function**, which refused every comparison that is a statement of its own
+there (two tables, date lists held two ways, a side read whole). One fix in the dialect, for every kind
+(`sql/dialect/SubqueriesOutOfLambdas`): a sub-query that reads nothing of the lambda's element is read once outside
+it -- `list_transform([{s0: (sub-query)}], __held -> list_filter(xs, x -> ... __held.s0 ...))[1]`. The one
+difference: it is evaluated once even over an empty list, so a comparison whose side raises is raised there too
+(to record for the user).
+
+**Known and left:** on a database that carries a list as JSON text, two lists of objects holding exact numbers at
+two scales, compared where the sides read the row, are refused by name (they answered false); `indexOf` over Pairs
+there still compares texts (the database follow-up's row D8). `removeDuplicates` and `isDistinct` over a keyed class
+no longer ask the layout for an identity (they are by the keys). A single-object pick for a side bound once is a
+sub-query with `LIMIT 1` (H2 2.5 has no `ANY_VALUE`).

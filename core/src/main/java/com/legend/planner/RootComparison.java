@@ -113,6 +113,13 @@ final class RootComparison {
             // (Equalities.asSameValues), so a query's answer, an if, a lambda and a filter get the same comparison
             return null;
         }
+        if (!anyOrder && SideEqualities.apartByTheText(equal)) {
+            // two sides the query's own text says hold two types that are never equal (a list of whole numbers under
+            // Number against a list of Floats under Number; step 6B part 2): no statement of their own -- the
+            // lowering answers "the same only where both hold nothing", each side evaluated, where the comparison
+            // stands (Equalities.heldApart)
+            return null;
+        }
         SqlQuery leftPlan = lowered.apply(with(lets, left));
         SqlQuery rightPlan = lowered.apply(with(lets, right));
         if (asValues && heldAsTheValueFormReads(left, leftPlan) && heldAsTheValueFormReads(right, rightPlan)) {
