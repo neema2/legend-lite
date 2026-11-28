@@ -116,6 +116,13 @@ class EdgeCasesGoldenTest {
         CASES.put("float.format.s.1e-5", "|format('%s', [(1.0e-5 * 1.0)])");
         CASES.put("float.format.f", "|format('%f', [(1.0 / 3.0)])");
         CASES.put("float.toRepresentation", "|toRepresentation(0.1 + 0.2)");
+        // a last step's format beside other arguments and directives, and the shapes the door leaves to the run
+        // (step 8, 2026-11-28, D7: %s and %r of a computed Float are Java's; %f, a precision and a format used
+        // further are lite's own)
+        CASES.put("float.format.mixed", "|format('%s is %r of %d (%s)', [(1.0 / 3.0), (1.5e-8 * 1.0), 3, 'x'])");
+        CASES.put("float.format.precision", "|format('%.2f', [(1.0 / 3.0)])");
+        CASES.put("float.format.usedFurther", "|format('%s', [(1.0 / 3.0)])->length()");
+        CASES.put("float.format.throughALet", "{|let x = 1.0 / 3.0; format('%r;', [$x]);}");
         CASES.put("float.inATableTextUsedFurther", "|#TDS\n  x:Float\n  0.00001\n#->toString() + ';'");
         CASES.put("float.format.r.heldWhole",
                 "|#TDS\n  x:Float\n  1000000\n#->extend(~t: r|format('%r', [$r.x->toOne()]))->select(~t)");
@@ -147,7 +154,21 @@ class EdgeCasesGoldenTest {
             // a last step that prints a relation answers as legend-pure's and legend-engine's doors answer it (stage B's
             // B2b S5a, 2026-11-24): lifted (edge.PrintedRelations, the one rule B3's lift reads too), the relation run and
             // printed in Java from its rows -- until then the edge composed the text in SQL, which S5a deleted
-            com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query);
+            com.legend.TypedQuery asked = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query);
+            // legend-pure's door reads a last step's format first (step 8, the user's ruling of 2026-11-28, D7): each
+            // computed Float under %s or %r run as a query of its own and printed in Java (edge.PrintedFormats)
+            com.legend.TypedQuery typed = style != com.legend.edge.PureText.UPSTREAM ? asked
+                    : com.legend.edge.UpstreamPrints.readLastFormat(asked, (read, answer) -> {
+                        try (java.sql.Connection c = backend.open(style)) {
+                            com.legend.Execution.run(read, StorelessRuntime.RUNTIME,
+                                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                                    com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(), style,
+                                    answer, com.legend.result.Batcher.DEFAULT_CAPACITY);
+                        } catch (java.sql.SQLException | IOException e) {
+                            throw new IllegalStateException(e);
+                        }
+                    });
             // each style's own door: legend-pure's (UPSTREAM) lifts a value's print and the whole tail, legend-engine's
             // a relation's print with its replaces
             com.legend.edge.PrintedRelations.Lifted lifted = com.legend.edge.PrintedRelations.lift(typed,

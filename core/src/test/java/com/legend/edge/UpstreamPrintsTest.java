@@ -182,6 +182,62 @@ class UpstreamPrintsTest {
         }
     }
 
+    /** A LAST STEP'S FORMAT HAS ITS COMPUTED FLOATS UNDER %s AND %r PRINTED IN JAVA (the user's ruling of 2026-11-28
+     *  on decision D7): each is read as a value's print and put back as its text, so the template is filled with
+     *  legend-pure's digits -- {@code 0.3333333333333333} and {@code 0.000000015}, where lite's own texts of the two
+     *  values are {@code 0.333333} and {@code 0.0}. A Float under {@code %f}, a Float literal, a format the program
+     *  goes on computing with, and an argument from an unrepeatable source are left as written, nothing read. */
+    @Test
+    void aLastStepsFormatHasItsComputedFloatsPrintedInJava() throws Exception {
+        com.legend.compiler.element.ModelContext ctx = ctx();
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.platform().open()) {
+            UpstreamPrints.Reads reads = (query, answer) -> com.legend.TestExecution.runProgram(query,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                    com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE, answer);
+            for (String body : List.of(
+                    "|assertEquals('0.3333333333333333', format('%r', [(1.0 / 3.0)]));",
+                    "|assertEquals('0.000000015', format('%s', [(1.5e-8 * 1.0)]));",
+                    "|assertEquals('0.3333333333333333 is 0.000000015 of 3 (x)',"
+                            + " format('%s is %r of %d (%s)', [(1.0 / 3.0), (1.5e-8 * 1.0), 3, 'x']));",
+                    "|let x = 1.0 / 3.0; assertEquals('0.3333333333333333;', format('%r;', [$x]));")) {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, body);
+                com.legend.TypedQuery read = UpstreamPrints.read(typed, false, reads);
+                assertTrue(read != typed, body);
+                com.legend.TestExecution.runProgram(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), null,
+                        com.legend.testexec.NoEdgeRun.NONE, com.legend.ExecuteOptions.NONE);
+            }
+            // a query's last statement, as a query door reads it: the same texts
+            com.legend.TypedQuery query = com.legend.Compiler.query(ctx, "|format('%r', [(1.0 / 3.0)])");
+            com.legend.TypedQuery read = UpstreamPrints.readLastFormat(query, reads);
+            assertTrue(read != query);
+            PrintedFormats.Read filled = PrintedFormats.of(read.body().get(0));
+            assertEquals("%s", filled.template().value());
+            assertEquals("0.3333333333333333", ((TypedCString) filled.args().get(0)).value());
+        }
+        UpstreamPrints.Reads never = (query, answer) -> {
+            throw new AssertionError("nothing is read: " + query.body());
+        };
+        for (String left : List.of(
+                "|assertEquals('0.333333', format('%f', [(1.0 / 3.0)]));",
+                "|assertEquals('0.33', format('%.2f', [(1.0 / 3.0)]));",
+                "|assertEquals('1.5', format('%s', [1.5]));",
+                "|assertEquals(8, format('%s', [(1.0 / 3.0)])->length());",
+                "|assertEquals('0.333333;', format('%s', [(1.0 / 3.0)]) + ';');",
+                "|assertEquals('0.5', format('%s', [(random() * 1.0)]));")) {
+            com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, left);
+            assertSame(typed, UpstreamPrints.read(typed, false, never), left);
+            com.legend.TypedQuery last = com.legend.Compiler.query(ctx,
+                    "|" + left.substring(left.indexOf("format("), left.lastIndexOf(");")));
+            assertSame(last, UpstreamPrints.readLastFormat(last, never), left);
+        }
+        // a template that is no literal is not read
+        com.legend.TypedQuery computedTemplate = com.legend.Compiler.query(ctx,
+                "|let t = '%s'; assertEquals('0.333333', format($t, [(1.0 / 3.0)]));");
+        assertSame(computedTemplate, UpstreamPrints.read(computedTemplate, false, never));
+    }
+
     /** A Float's print the program goes on computing with is left to the database (tenet 1 as the user amended it on
      *  2026-11-25; the independent review of step 8's slice 2, 2026-11-26): joined to a text, bound by a let, in a list,
      *  or under a call outside the tail's set, it is no last step, and the body is the door's as it was. */

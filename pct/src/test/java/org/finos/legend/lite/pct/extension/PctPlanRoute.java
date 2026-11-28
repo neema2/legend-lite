@@ -143,11 +143,25 @@ final class PctPlanRoute {
         Audience audience = Audience.current();
         // each comparison across types as the audience's door answers it (B3 step 5, the one equality; the user's ruling
         // of 2026-11-24): legend-pure's Pure's answer, legend-engine's the database's comparison, lite's own refused
-        TypedQuery query = switch (audience) {
+        TypedQuery asked = switch (audience) {
             case LEGEND_PURE -> com.legend.edge.PureComparisons.asPures(typed);
             case LEGEND_ENGINE -> com.legend.edge.EngineComparisons.asTheDatabases(typed);
             case LITE -> typed;
         };
+        // a last step's format at legend-pure's audience (the edition program's step 8; the user's ruling of
+        // 2026-11-28, D7): each computed Float under %s or %r is read as a value's print, run as a query of its own
+        // and printed in Java (edge.PrintedFormats), and the call then runs with that text in the argument's place
+        TypedQuery query = audience != Audience.LEGEND_PURE ? asked
+                : com.legend.edge.UpstreamPrints.readLastFormat(asked, (read, answer) -> {
+                    try {
+                        com.legend.Execution.run(read, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                                PctBackend.executionSource(), PctBackend.planSessions(),
+                                com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(),
+                                audience.style(), answer, com.legend.result.Batcher.DEFAULT_CAPACITY);
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                });
         // no feature flag for any audience (A3 of the compatibility program, piece 2, 2026-11-19: substring is Pure's by
         // default; S130), as upstream's own PCT adapters set none. Until then legend-pure's audience set
         // CORRECT_SQL_SUBSTRING_INDEXING; piece 2's change applied to #124's audience at the stage-A batch's merge,

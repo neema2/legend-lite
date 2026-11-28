@@ -144,6 +144,10 @@ public final class UpstreamPrints {
             if (side(n, true, lets) != null) {
                 return true;
             }
+            PrintedFormats.Read format = PrintedFormats.of(n);
+            if (format != null && !format.floats(lets).isEmpty()) {
+                return true;
+            }
             work.addAll(n.children());
         }
         return false;
@@ -163,6 +167,12 @@ public final class UpstreamPrints {
         TypedSpec u = unordered(n, typed, lets, reads, printer);
         if (u != null) {
             return u;
+        }
+        if (assertArgument) {
+            TypedSpec formatted = formatted(n, typed, lets, reads, printer);
+            if (formatted != null) {
+                return formatted;
+            }
         }
         PrintedRelations.Side p = side(n, assertArgument, lets);
         if (p != null) {
@@ -189,6 +199,54 @@ public final class UpstreamPrints {
             rebuilt.add(r);
         }
         return changed ? n.withChildren(rebuilt) : n;
+    }
+
+    /** {@code n}, a {@code format} that is a last step, with each computed Float under {@code %s} or {@code %r} read
+     *  as a value's print and put back as its text ({@link PrintedFormats}; the user's ruling of 2026-11-28, D7); null
+     *  where {@code n} is no such call or nothing in it is read. An argument is held to a value's print's own guards:
+     *  one that reads a name no let binds, or whose second reading may answer another value ({@link #unrepeatable}),
+     *  stays as written, lite's own text. */
+    private static @com.legend.base.Nullable TypedSpec formatted(TypedSpec n, com.legend.TypedQuery typed,
+            List<TypedSpec> lets, Reads reads, Printer printer) {
+        PrintedFormats.Read format = PrintedFormats.of(n);
+        if (format == null) {
+            return null;
+        }
+        java.util.Map<Integer, String> texts = new java.util.TreeMap<>();
+        for (int at : format.floats(lets)) {
+            TypedSpec argument = format.args().get(at);
+            if (!readable(argument, lets) || unrepeatable(argument, lets, typed)) {
+                continue;
+            }
+            Object text = print(new PrintedRelations.Side(argument, PureRelationTextWriter.Form.VALUE, List.of()),
+                    typed, lets, reads, printer);
+            if (text instanceof String s) {
+                texts.put(at, s);
+            }
+        }
+        return texts.isEmpty() ? null : format.with(texts);
+    }
+
+    /** A QUERY whose last statement is a {@code format}: that call's computed Floats under {@code %s} and
+     *  {@code %r} read and printed as a body's are ({@link #formatted}), the query otherwise as it was -- what a
+     *  query door at legend-pure's audience runs in the query's place. The query itself where its last statement
+     *  is no such call. */
+    public static com.legend.TypedQuery readLastFormat(com.legend.TypedQuery typed, Reads reads) {
+        List<TypedSpec> body = typed.body();
+        if (body.isEmpty()) {
+            return typed;
+        }
+        List<TypedSpec> lets = body.subList(0, body.size() - 1);
+        if (!lets.stream().allMatch(TypedLet.class::isInstance)) {
+            return typed;
+        }
+        TypedSpec formatted = formatted(body.get(body.size() - 1), typed, lets, reads, PRINTER);
+        if (formatted == null) {
+            return typed;
+        }
+        List<TypedSpec> out = new ArrayList<>(lets);
+        out.add(formatted);
+        return typed.withBody(out);
     }
 
     /** {@code side}'s text: its relation read (the lets and the relation) and printed; null where the printer prints

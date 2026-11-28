@@ -165,6 +165,11 @@ public final class PrintedRelations {
         return null;
     }
 
+    /** Whether {@code e} is a Float literal where it stands or through the let it is bound to. */
+    static boolean isAFloatLiteral(TypedSpec e, List<TypedSpec> lets) {
+        return floatLiteral(com.legend.compiler.spec.typed.Lets.bound(e, lets)) != null;
+    }
+
     /** Whether a date the program SPELLED may be {@code e}'s value when the lowering reads it. The compiler folds
      *  literal structure and nothing else (a pick from a spelled list, a cast of a literal, a spelled instance's
      *  field: {@code compiler.spec.LiteralUnroll}, "no fold produces a new value"), so a spelled date reaches
