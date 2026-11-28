@@ -196,7 +196,11 @@ public final class DatabaseJudge {
         // pair, and the lists the failure records are the lists compared. Any other pair as before.
         // In any order (assertSameElements) it is the product's hasSameElements of the two, which compares two
         // LISTS: one value against a list stays with the judge's member.
+        // (the pairs the typed member below took, no other: a pair that rides the literal channel only where its two
+        // plans hold one typed scalar each)
         if (tp != null && !anyNil && !anyAny && (tp.plainValues() || tp.dates())
+                && (tp.dates() || !literal(re, ra, anyNil, anyAny) || tp.kindsDiffer()
+                        || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))
                 && plainValues(eSpec.info().type()) && plainValues(aSpec.info().type())
                 && (!canonicalOrder || !atMostOne(eSpec) && !atMostOne(aSpec))) {
             TypedSpec expected = eSpec;
