@@ -69,8 +69,34 @@ So of the six, two are as the row says, one is the database's cast with a precis
 legend-engine's text or are not yet known to. This goes to the user as a question (narrow the row to the databases
 measured equal, or change what those dialects write for this rule); nothing is changed here.
 
-**legend-engine's own SQL run on the three databases** (the lanes' follow-up, plain statements): *to be added when
-they report.*
+**legend-engine's own SQL RUN on the three databases** (the lanes' follow-up the same day: legend-engine's literal
+and its `cast(... as <text type>)`, written by hand from the templates above and sent as plain statements; nothing
+raised):
+
+| The value | ClickHouse 26.3: `cast('<text>'::DateTime64 as String)` | lite there | Snowflake: `cast('<text>'::timestamp as varchar)` | lite there | BigQuery: `cast(PARSE_DATETIME('%Y-%m-%d %H:%M:%E6S', '<text>') as string)` | lite there |
+|---|---|---|---|---|---|---|
+| `2014-01-01 00:00:00.000` | `2014-01-01 00:00:00.000` | `2014-01-01 00:00:00.000000` | `2014-01-01 00:00:00.000` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` |
+| `2014-01-01 00:00:00` | `2014-01-01 00:00:00.000` | `2014-01-01 00:00:00.000000` | `2014-01-01 00:00:00.000` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` |
+| `2014-01-01 10:20:30.25` | `2014-01-01 10:20:30.250` | `2014-01-01 10:20:30.250000` | `2014-01-01 10:20:30.250` | `2014-01-01 10:20:30.25` | `2014-01-01 10:20:30.250` | `2014-01-01 10:20:30.25` |
+| `2014-01-01 10:20:30.123456` | `2014-01-01 10:20:30.123` | `2014-01-01 10:20:30.123456` | `2014-01-01 10:20:30.123` | `2014-01-01 10:20:30.123456` | `2014-01-01 10:20:30.123456` | `2014-01-01 10:20:30.123456` |
+
+- **ClickHouse:** legend-engine's `'<text>'::DateTime64` is `DateTime64(3)` (`toTypeName`, run), so its text has
+  exactly three fraction digits and the VALUE is cut at the millisecond (`.1239` answers `.123`, run: cut, not
+  rounded); the session's time zone does not change the text. Lite's timestamp there has six digits. The two differ
+  on every case, and legend-engine's loses the digits past the millisecond.
+- **Snowflake:** legend-engine's cast follows the session's `TIMESTAMP_NTZ_OUTPUT_FORMAT` (`...FF3` at its
+  default): exactly three fraction digits, the finer ones dropped from the text (whether cut or rounded was not
+  run). Lite writes the fraction trimmed and whole. The two differ on every case, and legend-engine's text depends
+  on a session setting lite does not set.
+- **BigQuery:** its own `cast(DATETIME as string)` writes no fraction for a whole second, else three or six digits
+  padded with zeros. Lite's format call trims instead, so the two differ only where the fraction is not exactly
+  three or six digits long (`.25` against `.250`). The plain cast over the same `DATETIME` would be legend-engine's
+  text exactly, with no digit lost.
+
+**Summary of D10 for the user.** As ruled on Postgres and Databricks; Trino's literal as legend-engine's by
+reading; BigQuery differs in padding and could be made exact by sending the plain cast; Snowflake and ClickHouse
+differ on every case, and there matching legend-engine would mean a text that drops digits past the millisecond
+(and on Snowflake follows a session setting). Nothing is changed; the choice is the user's.
 
 ## The question
 
