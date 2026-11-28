@@ -1959,6 +1959,11 @@ class JavaEvalLedgerTest {
                             // ruling of 2026-11-26, "tdsnull ... treat as table row"), read by both doors' tables as
                             // UpstreamTies is -- data, no SQL, no value
                             "EmptyCellTexts.java",
+                            // 2026-11-28, the edition program's step 8 (the user's ruling of that day on decision D7):
+                            // PrintedFormats, the reader of a last step's format template -- which argument stands
+                            // under which directive, and the call rewritten with a printed text in an argument's
+                            // place. It reads the program's own template, prints nothing and meets no value
+                            "PrintedFormats.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
                             // (PureMeaningCheck.java and PureMeaningRewrite.java, A3's detector and its rewrite of the
