@@ -449,11 +449,16 @@ final class Equalities {
     /** {@link Member} of {@code list} and {@code needle} under the product's own rule. The kinds are read as
      *  {@link #heldApart} reads them: where a side is typed only when the query runs and the query's text names
      *  both kinds; a number literal the query writes still reads as the other family where it is exact there. */
-    static Member member(TypedSpec listSpec, SqlExpr list, TypedSpec needleSpec, SqlExpr needle) {
+    static Member member(TypedNativeCall n, TypedSpec listSpec, SqlExpr list, TypedSpec needleSpec, SqlExpr needle) {
         // (two WRITTEN sides that reach here in two kinds are two the type-checker met as values typed at run time,
         // their upcasts gone: heldApart's own reading)
         boolean bothWritten = literal(listSpec) && literal(needleSpec);
-        if (bothWritten || typedAtRunTime(listSpec) || typedAtRunTime(needleSpec)) {
+        // (only a membership the QUERY's author wrote, as heldApart reads == : one in a function's body is the
+        // function's, its literals read against the caller's value by the literal rule where the call is typed --
+        // `f(v: Float[1]) { $v->in([0, 1]) }` called as f(1.0) arrives here as two literals of two families, the
+        // whole numbers left as written because every database reads them as the Float exactly. Read as "two kinds
+        // named by the text" it answered false; LiteralRuleAnswersTest, the first full round of slice 5)
+        if (n.pos() != null && (bothWritten || typedAtRunTime(listSpec) || typedAtRunTime(needleSpec))) {
             String elements = MixedEncoding.kindOfElements(listSpec);
             String sought = MixedEncoding.kindThroughUpcasts(needleSpec);
             boolean numbers = elements != null && sought != null && MixedEncoding.numberTypePlace(elements) >= 0
