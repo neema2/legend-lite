@@ -3,6 +3,18 @@
 *The half page the plan of record asks for. Read by a read-only research pass over `claude/step-6b-next`
 (2026-11-28; nothing built or run) and by the author. Stacked on the landing of slices 5 and 6 (`bc114f81e`).*
 
+## The design, in one line (the user, 2026-11-28: "Yes that's right ... now extend to everything")
+
+**Reduce each side to what it is compared by, then ONE instruction.** A plain value is compared by itself; a
+date-time by its instant (done, slices 3 and 5); an object by its keys, or its identity where it has none; an
+element of a mixed list by its type family and its value; a table is a list of rows, a row compared by its columns
+matched by name. The lowering makes the reduction in one place per kind and emits the one "same values"
+instruction (in order, in any order, or membership) over the two reduced sides, with their rows riding; each
+dialect writes it over two values where its database holds lists, over the rows where it does not. It is what
+slices 1 to 6 built for lists of one plain type, extended to every kind. What goes: the second implementation of
+each kind's rule in `SideEqualities` (`instances`, `tagged`, `collections`, `values`, and `grids` as a comparison of
+its own -- its two compile-time checks, column names and a defined row order, stay as checks).
+
 ## What is really there today (one correction to how part 2 was described)
 
 For WHOLE sides of class instances, tables and mixed lists the test checker and the product already run ONE code:
