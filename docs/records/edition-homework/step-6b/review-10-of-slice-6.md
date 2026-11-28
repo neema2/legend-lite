@@ -56,3 +56,24 @@ the plan).
 The path is right for what it takes, and takes less than it was built for: two sides of one plain type, each held
 as that type, no store value declared exactly one. The member it replaces (`SideEqualities.values`) keeps every
 other pair, so it is not deleted by this step. What would let it go is in `slice-6-half-page.md` ("Next").
+
+## The audit of these fixes (a second Opus reviewer, read-only, `385f8c5b3..d6c3db450`; about 05:10 UTC)
+
+Found nothing new in: the carrier gate (a Decimal carried as text, a JSON value, a day carried as text and a zoned
+date-time are all kept out; a date-time held as TIMESTAMP on one side and as its text on the other is read by its
+instant in every pairing); the fall-through to the member where the path declines; the verdict computed once; the
+rows always riding (the member's own behaviour before).
+
+1. **A verdict could still have no value for two sides declared exactly one that read no store**, where the
+   product answers no value for a function declared `[1]` (`average` and `median` of an empty list):
+   `assertNotEquals(1.5, [1, 2]->filter(x | $x > 5)->average())` failed where the Java checker passes. Root cause,
+   as it named it: a bound single value is a column that may hold nothing, whatever its side declares.
+   - *Fixed at that cause:* the product is shown each side declared exactly one as holding AT MOST one (a view of
+     the side's own type over it, never lowered: `DatabaseJudge.atMostOneView`), so its own rule for an empty side
+     answers, two-valued. The exclusion of a store value declared exactly one is gone with it: the same view covers
+     it. Run: both of the audit's bodies pass under both checkers on DuckDB and SQLite.
+2. (a suspicion, not reachable today) The comparison is built with no "outside any store query" stamp, so at
+   legend-engine's door it would take that door's in-store meaning. The database checker is refused at the
+   compatibility doors (`TestPlanner.refuseTheDatabaseJudgeInCompatibility`). *Recorded.*
+3. (low) A side is found by identity; a side the type-checker rewrites would be lowered where it stands. The one
+   rewrite that did so (a number literal read as the other side's type) cannot happen for two sides of one type.

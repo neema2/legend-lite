@@ -202,33 +202,35 @@ public final class DatabaseJudge {
                 && (tp.dates() || !literal(re, ra, anyNil, anyAny) || tp.kindsDiffer()
                         || tp.oneScalar(eSpec, we.plan(), aSpec, wa.plan(), env.ctx()))
                 && plainValues(eSpec.info().type()) && eSpec.info().type().equals(aSpec.info().type())
-                && (!canonicalOrder || !atMostOne(eSpec) && !atMostOne(aSpec))
-                // (a side declared to hold EXACTLY one value that reads a store may hold none -- a NULL under a [1]
-                // property: the product's == of two such values has no answer there, where the member that compares
-                // the two as lists answers "empty"; the review of slice 6, finding 2)
-                && !exactlyOneFromAStore(eSpec, we) && !exactlyOneFromAStore(aSpec, wa)) {
-            TypedSpec expected = eSpec;
+                && (!canonicalOrder || !atMostOne(eSpec) && !atMostOne(aSpec))) {
+            // (a side declared to hold ONE value is bound to a column that holds no value where the side yields none
+            // -- a NULL under a [1] property, a function declared [1] the database answers no value for: the product
+            // is shown each such side as holding AT MOST one, so its own rule for an empty side answers, two-valued,
+            // as the member that compared the two as lists did. The view is the side itself, the same type: every
+            // reading off the query's text passes through it. The audit of slice 6's fixes, finding 1)
+            TypedSpec expected = atMostOneView(eSpec);
+            TypedSpec actual = atMostOneView(aSpec);
             TypedSpec same = canonicalOrder
-                    ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, aSpec, specs)
-                    : com.legend.compiler.spec.VerdictQueries.sameSides(expected, aSpec, specs);
+                    ? com.legend.compiler.spec.VerdictQueries.sameElements(expected, actual, specs)
+                    : com.legend.compiler.spec.VerdictQueries.sameSides(expected, actual, specs);
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
                     we.plan(), re.kinds().get(ie), atMostOne(expected), wa.plan(), ra.kinds().get(ia),
-                    atMostOne(aSpec), (e, a) -> {
+                    atMostOne(actual), (e, a) -> {
                         java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlExpr> values =
                                 new java.util.IdentityHashMap<>();
                         values.put(expected, e.value());
-                        values.put(aSpec, a.value());
+                        values.put(actual, a.value());
                         java.util.IdentityHashMap<TypedSpec, com.legend.sql.SqlQuery> rows =
                                 new java.util.IdentityHashMap<>();
                         rows.put(expected, e.rows());
-                        rows.put(aSpec, a.rows());
+                        rows.put(actual, a.rows());
                         return com.legend.planner.SidePlanner.overSides(same, values, rows, env.plan());
                     });
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typed(compared, wantEqual,
                     true);
             if (typed != null) {
                 return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
-                        tp.family(canonicalOrder, name), wantEqual, JudgmentFacts.sideFacts(expected),
+                        tp.family(canonicalOrder, name), wantEqual, JudgmentFacts.sideFacts(eSpec),
                         JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
             }
         }
@@ -259,10 +261,16 @@ public final class DatabaseJudge {
                 || type == com.legend.compiler.element.type.Type.Primitive.DATE_TIME;
     }
 
-    /** Whether {@code side} is declared to hold exactly one value and its plan reads a store. */
-    private static boolean exactlyOneFromAStore(TypedSpec side, BodyDriver.WrappedSide planned) {
+    /** {@code side}, where it is declared to hold exactly one value, as the same value declared to hold at most
+     *  one: a view of its own type over it (never lowered: the side is bound, {@code Lowerer.overSides}); any other
+     *  side as it is. */
+    private static TypedSpec atMostOneView(TypedSpec side) {
         return side.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                && b.lower() >= 1 && b.upper() != null && b.upper() <= 1 && !planned.storeFree();
+                && b.lower() >= 1 && b.upper() != null && b.upper() <= 1
+                ? new com.legend.compiler.spec.typed.TypedCast(side, side.info().type(),
+                        new com.legend.compiler.element.type.ExprType(side.info().type(),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE), false)
+                : side;
     }
 
     /** Whether {@code side} is declared to hold at most one value. */
