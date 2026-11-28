@@ -181,9 +181,10 @@ public final class EqualityClasses {
      * ({@code lowering.MixedEncoding.kindThroughUpcasts}).
      */
     public static @com.legend.base.Nullable TypedSpec valuesOf(TypedSpec side) {
-        // (the type-checker gives most of these their own node, a list's as a table's: take and limit, drop, slice,
-        // sortBy and a deduplication never reach here as a call -- the review of slice 5, finding 2: read by their
-        // function ids alone, [1, 2]->cast(@Number)->take(1)->contains(1.0) was still the database's membership)
+        // (the type-checker gives some of these their own node, a list's as a table's: take and limit, drop, slice
+        // and sortBy never reach here as a call -- the review of slice 5, finding 2: read by their function ids
+        // alone, [1, 2]->cast(@Number)->take(1)->contains(1.0) was still the database's membership. A list's sort
+        // and its deduplications are calls; a table's are the nodes, which no side of these types is)
         return switch (side) {
             case com.legend.compiler.spec.typed.TypedFilter o -> o.source();
             case com.legend.compiler.spec.typed.TypedSort o -> o.source();

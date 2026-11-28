@@ -3837,10 +3837,10 @@ final class Scalars {
                 // the one equality's reading of the list and the needle, as contains' (step 6B, slice 5): two
                 // kinds that can never be equal are found nowhere, both sides still evaluated
                 // (the product's rule alone: a door keeps the database's own position, as its contains keeps its own
-            // membership -- the review of slice 5, finding 3)
-            Equalities.Member member = numbers == NumberFamilies.TWO_FAMILIES
-                    ? Equalities.member(n.args().get(0), list, n.args().get(1), args.get(1))
-                    : new Equalities.Member(null, list, args.get(1));
+                // membership -- the review of slice 5, finding 3)
+                Equalities.Member member = numbers == NumberFamilies.TWO_FAMILIES
+                        ? Equalities.member(n.args().get(0), list, n.args().get(1), args.get(1))
+                        : new Equalities.Member(null, list, args.get(1));
                 if (member.never() != null) {
                     return new SqlExpr.Case(List.of(new SqlExpr.Case.When(member.never(), new SqlExpr.IntLit(0))),
                             new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
