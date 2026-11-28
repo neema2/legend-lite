@@ -544,7 +544,21 @@ public final class Lowerer {
             SqlQuery rows = planner == null ? null : planner.sideRows(side);
             held.add(rows == null ? null : rows.outputs().get(0).type());
         }
-        return Equalities.sameMaps(List.of(scalar(n.args().get(0), columns), scalar(n.args().get(1), columns)), held);
+        List<SqlExpr> sides = List.of(scalar(n.args().get(0), columns), scalar(n.args().get(1), columns));
+        SqlExpr same = Equalities.sameMaps(sides, held);
+        if (same != null || instanceKeysOf == null) {
+            return same;
+        }
+        same = InstanceEquality.sameMapsOfInstances(n, sides, held, instanceKeysOf);
+        if (same == null && SideEqualities.holdsAnObjectInASlot(n.args().get(0).info().type())
+                && SideEqualities.holdsAnObjectInASlot(n.args().get(1).info().type())) {
+            // (never the database's own comparison of two maps of objects: by every field, and by the order the
+            // entries were written in)
+            throw new NotImplementedException("== of two maps that hold objects with no typed comparison here ("
+                    + n.args().get(0).info().type().typeName() + " and " + n.args().get(1).info().type().typeName()
+                    + "): an object as a map's key, or objects with no key and no identity here; not supported yet");
+        }
+        return same;
     }
 
     /** {@code n}, a {@code contains} or an {@code in} of an instance among instances of its class, by what an

@@ -438,9 +438,18 @@ public final class SideEqualities {
      *  entries were written in is no part of it. One reduction, for a side's rows ({@link #entryRows}) and for a map
      *  compared where it stands ({@code Equalities.sameMaps}). */
     static SqlExpr entriesOf(SqlExpr m, SqlType.Map t) {
+        return entriesOf(m, t, null);
+    }
+
+    /** {@link #entriesOf(SqlExpr, SqlType.Map)}; each value as {@code valueBy} reduces it where given (a map to
+     *  objects: each object as what it is compared by). */
+    static SqlExpr entriesOf(SqlExpr m, SqlType.Map t,
+            java.util.function.@com.legend.base.Nullable UnaryOperator<SqlExpr> valueBy) {
         SqlExpr k = SqlExpr.Column.derived(null, "__k");
+        SqlExpr value = CanonicalRenderSql.valueAtKey(m);
         SqlExpr entry = new SqlExpr.StructLit(List.of(new SqlExpr.StructLit.Field("k", k, t.key()),
-                new SqlExpr.StructLit.Field("v", CanonicalRenderSql.valueAtKey(m), t.value())));
+                valueBy == null ? new SqlExpr.StructLit.Field("v", value, t.value())
+                        : new SqlExpr.StructLit.Field("v", valueBy.apply(value))));
         return CanonicalRenderSql.sortedEntries(m, entry);
     }
 
@@ -459,6 +468,21 @@ public final class SideEqualities {
         return PlatformTypes.isMapCarrier(left.info().type()) && PlatformTypes.isMapCarrier(right.info().type())
                 && !left.info().multiplicity().isMany() && !right.info().multiplicity().isMany()
                 && l != null && r != null && oneMapType(l.outputs().get(0).type(), r.outputs().get(0).type()) != null;
+    }
+
+    /** Whether the planner stands aside, for two sides each ONE map to OBJECTS, for the comparison of the two as
+     *  values ({@code InstanceEquality.sameMapsOfInstances}): each side's rows hold a map of one scalar key type to
+     *  a struct. Where the lowering then finds no typed reading of the objects it refuses the pair by name. */
+    public static boolean mapsOfInstancesAsValues(TypedSpec left, SqlQuery leftPlan, TypedSpec right,
+            SqlQuery rightPlan) {
+        SqlQuery l = valueRows(leftPlan);
+        SqlQuery r = valueRows(rightPlan);
+        return PlatformTypes.isMapCarrier(left.info().type()) && PlatformTypes.isMapCarrier(right.info().type())
+                && !left.info().multiplicity().isMany() && !right.info().multiplicity().isMany()
+                && l != null && r != null && l.outputs().get(0).type() instanceof SqlType.Map lm
+                && r.outputs().get(0).type() instanceof SqlType.Map rm && scalar(lm.key())
+                && lm.key().equals(rm.key()) && lm.value() instanceof SqlType.Struct
+                && rm.value() instanceof SqlType.Struct;
     }
 
     /** A side's maps ({@code rows}, read as {@code cte}) as their entries sorted by key, each a {@code {k, v}} struct:
@@ -653,6 +677,26 @@ public final class SideEqualities {
                 .equals(rKeys.keys().stream().map(EqualityKeys.Key::name).toList());
     }
 
+    /** The kind a side declared the abstract {@code Date} holds, where something says: the query's own text, as
+     *  the product's comparison reads it ({@code MixedEncoding.kindThroughUpcasts}: a day or a date-time under the
+     *  upcast), or the column its plan holds it in (the database's DATE holds days, its TIMESTAMP date-times). Null
+     *  where neither says -- a date carried as its written text may be a year -- and for a side of any other type.
+     *  What the test checker shows the product for such a side (step 6B part 2). */
+    public static @com.legend.base.Nullable Type heldDateKind(TypedSpec side, SqlQuery plan) {
+        if (side.info().type() != Type.Primitive.DATE) {
+            return null;
+        }
+        String named = MixedEncoding.kindThroughUpcasts(side);
+        if (named != null) {
+            return named.equals("StrictDate") ? Type.Primitive.STRICT_DATE
+                    : named.equals("DateTime") ? Type.Primitive.DATE_TIME : null;
+        }
+        SqlQuery rows = valueRows(plan);
+        SqlType held = rows == null ? null : rows.outputs().get(0).type();
+        return held == SqlType.Scalar.DATE ? Type.Primitive.STRICT_DATE
+                : held == SqlType.Scalar.TIMESTAMP ? Type.Primitive.DATE_TIME : null;
+    }
+
     /** Whether two sides are instances of model classes declared of TWO classes, which an equality compares by the
      *  class each actually is ({@link #comparableInstances}, {@link #oneReadingOfTwoClasses}): what the test
      *  checker asks before it leaves such a pair unjudged. */
@@ -662,8 +706,8 @@ public final class SideEqualities {
     }
 
     /** Whether a value of type {@code t} holds a model class's instance in a SLOT of a Pair, a list or a map
-     *  (a Pair of an object and a number, however deep): such a side has no rows of its own -- a statement's answer
-     *  has no column type for an object inside a container -- and is compared as the value it is. */
+     *  (a Pair of an object and a number, however deep): its layout is the carrier's over the class's own
+     *  ({@code LayoutTypes.sqlTypeOf}). */
     public static boolean holdsAnObjectInASlot(Type t) {
         return t instanceof Type.GenericType g && (PlatformTypes.isPairCarrier(t) || PlatformTypes.isListCarrier(t)
                 || PlatformTypes.isMapCarrier(t)) && g.arguments().stream().anyMatch(a -> InstanceEquality.userClass(a)
@@ -751,6 +795,8 @@ public final class SideEqualities {
         return new SqlExpr.StructLit(fields);
     }
 
+    private static final String ANY = "meta::pure::metamodel::type::Any";
+
     /** One typed leaf of an instance: the field path from the instance down to it, and its layout's SQL type. */
     record Leaf(List<String> path, SqlType type) {
     }
@@ -778,8 +824,11 @@ public final class SideEqualities {
                 return false;
             }
             if (ft instanceof SqlType.Struct nested) {
-                // a nested keyed instance's own leaves; a slot whose class is keyless, polymorphic or Any has none here
-                if (k.nested() == null || !leaves(nested, k.nested(), append(at, k.name()), out)) {
+                // a nested keyed instance's own leaves; an instance of a class declared with no key by its class and
+                // its identity, as one compared where it stands is (step 6B part 2: a Pair that holds such an
+                // object); a slot declared Any, or one whose layout carries no identity, has no reading here
+                if (k.nested() == null && (k.declaredClass() == null || ANY.equals(k.declaredClass()))
+                        || !leaves(nested, k.nested(), append(at, k.name()), out)) {
                     return false;
                 }
             } else if (leafClass(ft) == null) {

@@ -50,6 +50,22 @@ final class LayoutTypes {
         if (PlatformTypes.isListCarrier(t)
                 || PlatformTypes.isPairCarrier(t)
                 || PlatformTypes.isMapCarrier(t)) {
+            if (t instanceof Type.GenericType g && SideEqualities.holdsAnObjectInASlot(t)) {
+                // a carrier that holds an OBJECT in a slot (a Pair of an object and a number, a list of objects, a
+                // map to objects; step 6B part 2, 2026-11-28): the carrier's own shape over each slot's type as
+                // THIS resolver gives it, a class by its layout -- asked of the layoutless mapping below, the slot
+                // raised "no SQL type for Pure class", so such a value could be no statement's answer, no assert's
+                // side, and its comparison read no layout
+                if (PlatformTypes.isListCarrier(t)) {
+                    return new SqlType.Array(sqlTypeOf(g.arguments().get(0)));
+                }
+                if (PlatformTypes.isPairCarrier(t)) {
+                    return new SqlType.Struct(List.of(
+                            new SqlType.Struct.Field("first", sqlTypeOf(g.arguments().get(0))),
+                            new SqlType.Struct.Field("second", sqlTypeOf(g.arguments().get(1)))));
+                }
+                return new SqlType.Map(sqlTypeOf(g.arguments().get(0)), sqlTypeOf(g.arguments().get(1)));
+            }
             return PureSql.type(t);
         }
         String walkKey = t instanceof Type.ClassType ct9 ? ct9.fqn()

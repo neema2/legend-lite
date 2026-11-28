@@ -562,7 +562,10 @@ public final class VerdictQueries {
      *  reads the kind it holds as it reads any upcast the query writes (step 6B part 2). The column is bound to the
      *  inner value. A side declared the kind it holds is itself. */
     public static HeldSide heldAs(TypedSpec side, Type kind) {
-        if (side.info().type() != Type.Primitive.NUMBER || kind == Type.Primitive.NUMBER) {
+        // (a side declared Number, or the abstract Date, whose column holds one kind of it)
+        if (!(side.info().type() == Type.Primitive.NUMBER && kind != Type.Primitive.NUMBER
+                || side.info().type() == Type.Primitive.DATE && (kind == Type.Primitive.STRICT_DATE
+                        || kind == Type.Primitive.DATE_TIME))) {
             return new HeldSide(side, side);
         }
         TypedSpec held = new com.legend.compiler.spec.typed.TypedVariable("__held",

@@ -78,8 +78,11 @@ final class InstanceEquality {
             case "meta::pure::functions::boolean::eq" ->
                     instanceFqn(n.args().get(0)) != null
                             && instanceFqn(n.args().get(1)) != null;
-            case INDEX_OF -> isMany(n.args().get(0)) && instanceFqn(n.args().get(1)) != null
-                    && classInstanceFqn(n.args().get(0).info().type()) != null;
+            // (a Pair that holds an object too: the object by its keys or its identity, never by every field)
+            case INDEX_OF -> isMany(n.args().get(0)) && (instanceFqn(n.args().get(1)) != null
+                    && classInstanceFqn(n.args().get(0).info().type()) != null
+                    || SideEqualities.holdsAnObjectInASlot(n.args().get(0).info().type())
+                    && SideEqualities.holdsAnObjectInASlot(n.args().get(1).info().type()));
             case "meta::pure::functions::collection::contains" ->
                     instanceFqn(n.args().get(1)) != null
                             && classInstanceFqn(
@@ -336,8 +339,8 @@ final class InstanceEquality {
             Supplier<String> freshVar) {
         TypedSpec coll = n.args().get(0);
         TypedSpec value = n.args().get(1);
-        String cf = Objects.requireNonNull(classInstanceFqn(coll.info().type()));
-        String vf = Objects.requireNonNull(instanceFqn(value));
+        String cf = Objects.requireNonNull(EqualityKeys.fqnOf(coll.info().type()));
+        String vf = Objects.requireNonNull(EqualityKeys.fqnOf(value.info().type()));
         SqlType et = sqlTypeOf.apply(coll.info().type());
         SqlType vt = sqlTypeOf.apply(value.info().type());
         Function<SqlExpr, SqlExpr> valueOf = equalValue(cf, coll.info().type(), et, keysOf, "indexOf");
@@ -423,7 +426,10 @@ final class InstanceEquality {
         if (!SideEqualities.comparableInstances(l, r)) {
             return null;
         }
-        boolean oneEach = !isMany(l) && !isMany(r);
+        // (a List of instances is its instances: list([a, b]) == list([c, d]) compares the two lists)
+        Type lOf = instancesOf(l.info().type());
+        Type rOf = instancesOf(r.info().type());
+        boolean oneEach = !isMany(l) && !isMany(r) && lOf == l.info().type() && rOf == r.info().type();
         if (oneEach && (anyOrder || instanceFqn(l) != null && instanceFqn(r) != null)) {
             // (two single instances of a model class are equality()'s, which folds two declared classes and reads
             // an identity; hasSameElements compares lists)
@@ -431,7 +437,11 @@ final class InstanceEquality {
         }
         // (two single values in a query need no rows: none ride their comparison; bound once, their rows say how
         // each is held)
-        com.legend.sql.SqlQuery lRows = oneEach && !bound ? null : sideRows.apply(l);
+        // (a List of instances is ONE value: its rows are the row that holds the list, never its instances' --
+        // read as theirs, every leaf was no value and two lists of other instances were "the same" on a database
+        // that compares rows; measured 2026-11-28)
+        boolean aList = lOf != l.info().type() || rOf != r.info().type();
+        com.legend.sql.SqlQuery lRows = aList || oneEach && !bound ? null : sideRows.apply(l);
         com.legend.sql.SqlQuery rRows = lRows == null ? null : sideRows.apply(r);
         // (each side's layout as its own rows hold it, where it has rows: what the planner read to stand aside)
         SqlExpr lOne = scalar.apply(l);
@@ -448,10 +458,10 @@ final class InstanceEquality {
         if (!(lt instanceof SqlType.Struct ls) || !(rt instanceof SqlType.Struct rs)) {
             return null;
         }
-        EqualityKeys keys = keysOfModel.apply(l.info().type());
+        EqualityKeys keys = keysOfModel.apply(lOf);
         com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(keys);
-        if (!SideEqualities.instancesOfOneClass(l, r)
-                && !SideEqualities.oneReadingOfTwoClasses(ls, keys, rs, keysOfModel.apply(r.info().type()))) {
+        if (!Objects.equals(EqualityKeys.fqnOf(lOf), EqualityKeys.fqnOf(rOf))
+                && !SideEqualities.oneReadingOfTwoClasses(ls, keys, rs, keysOfModel.apply(rOf))) {
             return null;
         }
         List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(ls, rs, keys);
@@ -550,6 +560,48 @@ final class InstanceEquality {
         return both == null ? null : ref -> reduced(ref, both.get(0), false);
     }
 
+    /** The type of the instances a side of type {@code t} holds: a List's are its elements', any other type's its
+     *  own. */
+    private static Type instancesOf(Type t) {
+        return t instanceof Type.GenericType g && PlatformTypes.isListCarrier(t) && g.arguments().size() == 1
+                ? g.arguments().get(0) : t;
+    }
+
+    /**
+     * TWO MAPS TO OBJECTS THE SAME (step 6B part 2): each map as its entries sorted by key
+     * ({@link SideEqualities#entriesOf}), each value an object reduced to what it is compared by ({@link #reduced}).
+     * Null where the two are not held as maps of one scalar key type to structs whose leaves pair.
+     */
+    static @com.legend.base.Nullable SqlExpr sameMapsOfInstances(TypedNativeCall n, List<SqlExpr> sides,
+            List<com.legend.sql.@com.legend.base.Nullable SqlType> held,
+            Function<Type, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys> keysOfModel) {
+        if (!(n.args().get(0).info().type() instanceof Type.GenericType lg) || lg.arguments().size() != 2
+                || !(n.args().get(1).info().type() instanceof Type.GenericType rg) || rg.arguments().size() != 2
+                || !userClass(lg.arguments().get(1)) || !userClass(rg.arguments().get(1))) {
+            return null;
+        }
+        SqlType lt = held.get(0) != null ? held.get(0) : layoutOf(n.args().get(0), sides.get(0), t -> null);
+        SqlType rt = held.get(1) != null ? held.get(1) : layoutOf(n.args().get(1), sides.get(1), t -> null);
+        if (!(lt instanceof SqlType.Map lm) || !(rt instanceof SqlType.Map rm) || !lm.key().equals(rm.key())
+                || !SideEqualities.scalar(lm.key()) || !(lm.value() instanceof SqlType.Struct ls)
+                || !(rm.value() instanceof SqlType.Struct rs)) {
+            return null;
+        }
+        EqualityKeys keys = keysOfModel.apply(lg.arguments().get(1));
+        com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(keys);
+        if (!Objects.equals(EqualityKeys.fqnOf(lg.arguments().get(1)), EqualityKeys.fqnOf(rg.arguments().get(1)))
+                && !SideEqualities.oneReadingOfTwoClasses(ls, keys, rs, keysOfModel.apply(rg.arguments().get(1)))) {
+            return null;
+        }
+        List<List<SideEqualities.Leaf>> both = SideEqualities.pairedLeaves(ls, rs, keys);
+        if (both == null) {
+            return null;
+        }
+        return SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
+                SideEqualities.entriesOf(sides.get(0), lm, v -> reduced(v, both.get(0), false)),
+                SideEqualities.entriesOf(sides.get(1), rm, v -> reduced(v, both.get(1), false)));
+    }
+
     /** The layout {@code value}, what {@code side} lowers to, is held in: the type the SQL states for it; where it
      *  states none, a model class's own layout. A Pair's layout is its slots' -- an object in a slot has no layout
      *  of its own outside the Pair that holds it -- so it is read off the value alone (measured 2026-11-28: asked
@@ -559,7 +611,8 @@ final class InstanceEquality {
         if (value.type() instanceof com.legend.sql.TypeFact.Typed stated) {
             return stated.type();
         }
-        return classInstanceFqn(side.info().type()) == null ? null : sqlTypeOf.apply(side.info().type());
+        return classInstanceFqn(side.info().type()) == null && !SideEqualities.holdsAnObjectInASlot(
+                side.info().type()) ? null : sqlTypeOf.apply(side.info().type());
     }
 
     /** Whether the SQL types {@code value} as a list. */
@@ -572,7 +625,8 @@ final class InstanceEquality {
     private static SqlExpr comparedBy(TypedSpec side, SqlExpr value, SqlType.Struct layout,
             List<SideEqualities.Leaf> leaves, boolean tracked, Supplier<String> freshVar) {
         // (a side bound once to its one list is a list whatever its type says of how many it holds)
-        SqlExpr list = CollectionLanes.compacted(side, PureSql.asList(value, isMany(side) || listValue(value)));
+        SqlExpr list = CollectionLanes.compacted(side, PureSql.asList(value, isMany(side) || listValue(value)
+                || PlatformTypes.isListCarrier(side.info().type())));
         String y = freshVar.get();
         SqlExpr element = SqlExpr.Column.of(null, y, layout, true, com.legend.sql.OutputCol.Origin.DERIVED);
         return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, list, new SqlExpr.Lambda(List.of(y),

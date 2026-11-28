@@ -336,6 +336,16 @@ public final class DatabaseJudge {
         return com.legend.planner.SidePlanner.overSides(comparison, values, rows, tracked, env.plan());
     }
 
+    /** The date kind {@code side} holds: its own type where that is a day's or a date-time's; where it is the
+     *  abstract Date, the kind its text or its column says ({@code SideEqualities.heldDateKind}); else null. */
+    private static com.legend.compiler.element.type.@com.legend.base.Nullable Type dateKindOf(TypedSpec side,
+            com.legend.sql.SqlQuery plan) {
+        com.legend.compiler.element.type.Type t = side.info().type();
+        return t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
+                || t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME ? t
+                : com.legend.lowering.SideEqualities.heldDateKind(side, plan);
+    }
+
     /** Whether {@code side} is written as number literals alone: one, or a list that holds one. */
     private static boolean writtenNumbers(TypedSpec side) {
         if (side instanceof com.legend.compiler.spec.typed.TypedCollection list) {
@@ -721,8 +731,23 @@ public final class DatabaseJudge {
                 && (coll.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER
                         || val.info().type() == com.legend.compiler.element.type.Type.Primitive.NUMBER)
                 && !writtenNumbers(coll) && !writtenNumbers(val);
+        // (a side declared the abstract Date holds a day or a date-time, which the query's text or its column says:
+        // shown to the product as that kind under its declared type, as a Number's side is. Two days, or a day and
+        // a date-time; two date-times stay with the member below until their rows ride read as instants)
+        com.legend.compiler.element.type.Type cDate = c.side() == null ? null : dateKindOf(coll, c.side().plan());
+        com.legend.compiler.element.type.Type vDate = v.side() == null ? null : dateKindOf(val, v.side().plan());
+        boolean datesAtRunTime = cDate != null && vDate != null
+                && (coll.info().type() == com.legend.compiler.element.type.Type.Primitive.DATE
+                        || val.info().type() == com.legend.compiler.element.type.Type.Primitive.DATE)
+                && !(cDate == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
+                        && vDate == com.legend.compiler.element.type.Type.Primitive.DATE_TIME);
+        if (datesAtRunTime) {
+            cKind = cDate;
+            vKind = vDate;
+        }
         if (!cr.tdsWrapped() && cKind != null && vKind != null && c.side() != null && v.side() != null
                 && (countedValues(coll.info().type()) && coll.info().type().equals(val.info().type())
+                        || datesAtRunTime
                         || numbersAtRunTime && numberOrNumberKind(cKind) && numberOrNumberKind(vKind)
                         && cKind != com.legend.compiler.element.type.Type.Primitive.NUMBER
                         && vKind != com.legend.compiler.element.type.Type.Primitive.NUMBER)) {
@@ -734,7 +759,8 @@ public final class DatabaseJudge {
             TypedSpec among = com.legend.compiler.spec.VerdictQueries.containsOf(list0.view(), one0.view(), specs,
                     env.assertAt());
             com.legend.lowering.SideEqualities.Compared compared = com.legend.lowering.SideEqualities.boundOnce(
-                    c.side().plan(), cKind, atMostOne(coll), v.side().plan(), vKind, atMostOne(val), numbersAtRunTime,
+                    c.side().plan(), cKind, atMostOne(coll), v.side().plan(), vKind, atMostOne(val),
+                    numbersAtRunTime || datesAtRunTime,
                     (list, one) -> overBound(among, list0.bound(), list0.view(), list, one0.bound(), one0.view(), one,
                             env));
             com.legend.lowering.VerdictSql.TypedRow bound = com.legend.lowering.VerdictSql.typed(compared, !negated,

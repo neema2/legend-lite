@@ -85,13 +85,6 @@ final class RootComparison {
         if (table(left) || table(right)) {
             return tables(left, right, lets, named, negated, lowered, anyOrder);
         }
-        if (SideEqualities.holdsAnObjectInASlot(left.info().type())
-                || SideEqualities.holdsAnObjectInASlot(right.info().type())) {
-            // a Pair that holds an object in a slot (step 6B part 2): no statement of its own -- a statement's
-            // answer has no column for an object inside a container -- so the lowering compares the two as the
-            // values they are, each object by its keys or its identity (InstanceEquality.sameInstances)
-            return null;
-        }
         if (known(valueType(left)) && known(valueType(right))
                 && !java.util.Objects.equals(SideEqualities.typedClass(valueType(left)),
                         SideEqualities.typedClass(valueType(right)))
@@ -153,7 +146,8 @@ final class RootComparison {
             // each reduced to what it is compared by, its rows riding (InstanceEquality.sameInstances)
             return null;
         }
-        if (!anyOrder && SideEqualities.mapsAsValues(left, leftPlan, right, rightPlan)) {
+        if (!anyOrder && (SideEqualities.mapsAsValues(left, leftPlan, right, rightPlan)
+                || SideEqualities.mapsOfInstancesAsValues(left, leftPlan, right, rightPlan))) {
             // two maps held as one map type (step 6B part 2): no statement of their own -- the lowering compares
             // the two as values, each as its entries sorted by key (Equalities.sameMaps)
             return null;
@@ -249,10 +243,8 @@ final class RootComparison {
             public @Nullable SqlQuery sideRows(TypedSpec side) {
                 // (a value drawn afresh, in the side or in a let it reads, would be drawn again for its rows: the
                 // review of step 6B's slice 1, B2)
-                // (a Pair that holds an object in a slot has no rows of its own: SideEqualities.holdsAnObjectInASlot)
                 return readable.containsAll(com.legend.compiler.spec.typed.FreeVars.of(side))
                         && !drawsAfresh(side, lets, seededLets)
-                        && !SideEqualities.holdsAnObjectInASlot(side.info().type())
                         ? SideEqualities.typedRows(lowered.apply(with(lets, side))) : null;
             }
 
